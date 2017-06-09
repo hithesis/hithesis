@@ -87,7 +87,7 @@
 \RequirePackage{amsmath}        % AMSLaTeX宏包 用来排出更加漂亮的公式
 
 \RequirePackage[defaultsups]{newtxtext}
-\RequirePackage{newtxmath}
+%\RequirePackage{newtxmath}
 \RequirePackage{courier}
 
 \RequirePackage{graphicx}
