@@ -835,10 +835,11 @@ breaklines=true
 }
 \newcommand{\hit@first@titlepage@other}{
   % 封面一
-  \vspace*{0.8cm}
+\centering\xiaosi[0]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}
+ \vspace*{1cm}
   \begin{center}
   \begin{center}\xiaoyi[1]\songti\textbf{\hit@cxuewei\hit@cthesisname}\end{center}
-    \vspace{1cm}
+    \vspace{1.6cm}
     \parbox[t][2.8cm][t]{\textwidth}{
   \begin{center}\erhao\heiti\hit@ctitle\end{center} }
     \parbox[t][5.1cm][t]{\textwidth}{ %英文标题太长时可以采用\xiaoer
