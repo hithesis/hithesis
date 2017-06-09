@@ -365,7 +365,7 @@ breaklines=true
 \let\hit@oldfigure\figure
 \let\hit@oldendfigure\endfigure
 \def\figure{\begingroup \hit@oldfigure}
-\def\endfigure{\hit@oldendfigure \endgroup\vskip-1em}
+\def\endfigure{\vskip-1em\hit@oldendfigure \endgroup}
 
 
 %\long\def\@caption#1[#2]#3{%
