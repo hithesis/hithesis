@@ -835,7 +835,7 @@ breaklines=true
 }
 \newcommand{\hit@first@titlepage@other}{
   % 封面一
-\centering\xiaosi[0]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}
+\xiaosi[0]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}
  \vspace*{1cm}
   \begin{center}
   \begin{center}\xiaoyi[1]\songti\textbf{\hit@cxuewei\hit@cthesisname}\end{center}
@@ -897,8 +897,9 @@ breaklines=true
 
 \newcommand{\hit@engcover}{
   {
-    \xiaosi\noindent Classified Index: \hit@natclassifiedindex \\[8pt]
+    \xiaosi[1.667]\noindent Classified Index: \hit@natclassifiedindex \\[8pt]
   U.D.C:  \hit@internatclassifiedindex }
+  \vspace*{1em}
   \begin{center}
   \parbox[t][1.6cm][t]{\textwidth}{\begin{center} \end{center} }
     \parbox[t][3.5cm][t]{\textwidth}{\xiaoer
