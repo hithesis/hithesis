@@ -184,7 +184,7 @@
 \RequirePackage[hang]{subfigure}%支持子图 %centerlast 设置最后一行是否居中
 \RequirePackage[subfigure]{ccaption} %支持双语标题
 
-%\RequirePackage{varwidth}
+\RequirePackage{varwidth}
 \RequirePackage{multicol}
 \RequirePackage[makeindex]{splitidx}
 \newindex[]{china}
@@ -784,7 +784,8 @@ breaklines=true
   \ifhit@bachelor\hit@second@titlepage@bachelor\else\hit@second@titlepage@other\fi}
 
 \newcommand{\hit@first@titlepage@bachelor}{
-  \vspace*{0.8cm}
+\xiaosi[0]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}
+  \vspace*{1.2cm}
   \begin{center}
     \parbox[t][3.4cm][t]{\textwidth}{
   \begin{center}\erhao[0]\heiti\hit@ctitle\end{center} }
@@ -895,6 +896,7 @@ breaklines=true
 
 % 英文封面
 
+\newcommand{\emultiline}[2][c]{\renewcommand{\arraystretch}{1}\begin{tabular}[#1]{@{}l@{}}#2\end{tabular} \renewcommand{\arraystretch}{1.3}}
 \newcommand{\hit@engcover}{
   {
     \xiaosi[1.667]\noindent Classified Index: \hit@natclassifiedindex \\[8pt]
@@ -918,8 +920,8 @@ breaklines=true
 	\textbf{\hit@ecosupervisortitle\hit@title@esep}	&	\hit@ecosupervisor\\
       \fi
 	\textbf{\hit@edegreetitle\hit@title@esep}		&	\hit@edegree\\
-	\textbf{\hit@esubjecttitle\hit@title@esep}		&	\hit@esubject\\
-	\textbf{\hit@eaffiltitle\hit@title@esep}		&	\hit@eaffil\\
+      \textbf{\hit@esubjecttitle\hit@title@esep}		&\hit@esubject\\
+	\textbf{\hit@eaffiltitle\hit@title@esep}		&\hit@eaffil\\
 	\textbf{\hit@edatetitle\hit@title@esep}		&	\hit@edate\\
 	\textbf{\hit@eschoolnametitle\hit@title@esep}	&	\hit@eschoolname
     \end{tabular}\renewcommand{\arraystretch}{1}}
@@ -1010,8 +1012,8 @@ breaklines=true
 %中文目录格式
 
 \setcounter{secnumdepth}{3}
-\ifhit@bachelor\ifhit@tocfour\setcounter{tocdepth}{4}\fi\fi
-\setcounter{tocdepth}{3}
+\ifhit@bachelor\ifhit@tocfour\setcounter{tocdepth}{3}\fi\fi
+\setcounter{tocdepth}{2}
 \renewcommand\tableofcontents{%
 \hit@chapter*{\contentsname}
 \pdfbookmark[0]{\contentsname}{ccontent}
@@ -1130,7 +1132,7 @@ breaklines=true
 \begin{center}\xiaosan\heiti\hit@declarename\end{center}
 \par\hit@declaretext
 \vspace{\baselineskip}
-\par\hspace{6em}\hit@authorsig：\hfill \hit@frontdate\hit@datefill
+\par\hspace{6em}\hit@authorsig\hfill\hit@frontdate\hit@datefill
 \vspace{2\baselineskip}
 \begin{center}\xiaosan\heiti\hit@authorizationtitle\end{center}
 \par\hit@authorizationtext
