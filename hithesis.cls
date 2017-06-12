@@ -163,12 +163,12 @@
 }
 
 \renewcommand\mainmatter{%
+  \addtocontents{toc}{\vspace{\baselineskip}} %规范中并没有这一要求，此处不应该加
+  \addtocontents{toe}{\vspace{\baselineskip}}
   \if@openright\cleardoublepage\else\clearpage\fi
   \@mainmattertrue
   \pagenumbering{arabic}
   \ifhit@bachelor\pagestyle{hit@plain}\else\pagestyle{hit@headings}\fi
-  %\addtocontents{toc}{\vspace{\baselineskip}} %规范中并没有这一要求，此处不应该加
-  %\addtocontents{toe}{\vspace{\baselineskip}}
 }
 
 \renewcommand\backmatter{%
