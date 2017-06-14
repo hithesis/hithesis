@@ -364,8 +364,12 @@ breaklines=true
 %这里减少一个字符高度
 \let\hit@oldfigure\figure
 \let\hit@oldendfigure\endfigure
-\def\figure{\begingroup \hit@oldfigure}
-\def\endfigure{\vskip-1em\hit@oldendfigure \endgroup}
+\def\figure{\begingroup\hit@oldfigure}
+\def\endfigure{\vskip-1em\hit@oldendfigure\endgroup}
+\let\hit@oldtable\table
+\let\hit@oldendtable\endtable
+\def\table{\begingroup\hit@oldtable}
+\def\endtable{\vskip-1em\hit@oldendtable\endgroup}
 
 
 %\long\def\@caption#1[#2]#3{%
@@ -388,7 +392,7 @@ breaklines=true
 \newlength{\hit@captionlength}
 \long\def\@makecaption#1#2{%
   \settowidth{\hit@captionlength}{#2}
-  \ifhit@bachelor\wuhao[1.667]\else\ifdim\hit@captionlength>300mm\xiaowu\else\wuhao[1.667]\fi\fi
+  \ifhit@bachelor\wuhao[1.667]\else\ifdim\hit@captionlength>300mm\xiaowu[1.667]\else\wuhao[1.667]\fi\fi
   \vskip\abovecaptionskip
   \sbox\@tempboxa{#1\ifhit@bachelor\hskip\ccwd\else\enskip\fi#2}%
   \ifdim \wd\@tempboxa >\hsize
@@ -400,7 +404,26 @@ breaklines=true
 \vskip\belowcaptionskip}
 
 
+%\ifhit@bachelor
+%\g@addto@macro\appendix{\renewcommand*{\thefigure}{\thechapter-\arabic{figure}}}
+%\g@addto@macro\appendix{\renewcommand*{\thetable}{\thechapter-\arabic{table}}}
+%\fi
+%\let\old@tabular\@tabular
+%\def\hit@tabular{\dawu[1.5]\old@tabular}
+%\DeclareCaptionLabelFormat{hit}{{\dawu[1.5]\normalfont
+% #1~#2}}
+%\DeclareCaptionLabelSeparator{hit}{\hspace{1em}}
+%\DeclareCaptionFont{hit}{\dawu[1.5]}
+%\captionsetup{labelformat=hit,labelsep=hit,font=hit}
+%\captionsetup[table]{position=top,belowskip={12bp-\intextsep},aboveskip=6bp}
+%\captionsetup[figure]{position=bottom,belowskip={12bp-\intextsep},aboveskip=6bp}
+%\captionsetup[sub]{font=hit,skip=6bp}
 
+\let\hit@LT@array\LT@array
+\def\LT@array{\dawu[1.5]\hit@LT@array}
+% set default font size
+
+\renewcommand{\thesubtable}{(\alph{subtable})}
 \renewcommand{\thefigure}{\arabic{chapter}-\arabic{figure}}%使图编号为 7-1 的格式 %\protect{~}
 \renewcommand{\thesubfigure}{\alph{subfigure})}%使子图编号为 a)的格式
 \renewcommand{\p@subfigure}{\thefigure~} %使子图引用为 7-1 a) 的格式，母图编号和子图编号之间用~加一个空格
@@ -747,12 +770,12 @@ breaklines=true
 \newcommand{\citeup}[1]{\textsuperscript{\cite{#1}}}
 % 定制浮动图形和表格标题样式
 
-\captionnamefont{\wuhao}
-\captiontitlefont{\wuhao}
+\captionnamefont{\wuhao[1.667]}
+\captiontitlefont{\wuhao[1.667]}
 \captiondelim{~~}
 \hangcaption
-\renewcommand{\subcapsize}{\wuhao}
-\setlength{\abovecaptionskip}{0pt}
+\renewcommand{\subcapsize}{\wuhao[1.667]}
+\setlength{\abovecaptionskip}{0pt}%为了双标题之间的间距，不能设置
 \setlength{\belowcaptionskip}{0pt}
 
 % 自定义项目列表标签及格式 \begin{publist} 列表项 \end{publist}
