@@ -2,6 +2,7 @@
 \ProvidesClass{hithesis}[2017/05/23 0.0.0 Harbin Institute of Technology Thesis Template]
 
 %%%{{{ Package
+\RequirePackage{ifthen}
 \RequirePackage{kvoptions}
 \SetupKeyvalOptions{
   family=hit,
@@ -28,10 +29,10 @@
   \kvsetkeys{hit}{type=\CurrentOption} % for compatability.
   \ClassError{hithesis}{Option '\CurrentOption' is deprecated, \MessageBreak
                          please use 'type=\CurrentOption' instead}{}}
-\DeclareVoidOption{bachelor}{\hit@deprecated@type@option}
-\DeclareVoidOption{master}{\hit@deprecated@type@option}
-\DeclareVoidOption{doctor}{\hit@deprecated@type@option}
-\DeclareVoidOption{postdoctor}{\hit@deprecated@type@option}
+%\DeclareVoidOption{bachelor}{\hit@deprecated@type@option}
+%\DeclareVoidOption{master}{\hit@deprecated@type@option}
+%\DeclareVoidOption{doctor}{\hit@deprecated@type@option}
+%\DeclareVoidOption{postdoctor}{\hit@deprecated@type@option}
 \DeclareBoolOption{secret}
 \DeclareBoolOption{arialtoc}
 \DeclareBoolOption{arialtitle}
@@ -39,6 +40,7 @@
 \DeclareBoolOption{pifootnote}
 \DeclareBoolOption{glue}
 \DeclareBoolOption{tocfour}
+\DeclareStringOption{fontset}
 
 \DeclareDefaultOption{\PassOptionsToClass{\CurrentOption}{ctexbook}}
 \kvsetkeys{hit}{raggedbottom}
@@ -55,7 +57,20 @@
 \PassOptionsToClass{twoside}{book}
 \fi
 
-\PassOptionsToPackage{AutoFakeBold=2}{xeCJK}
+\ifthenelse%
+{\equal{\hit@fontset}{}}%
+{%
+  \PassOptionsToPackage{AutoFakeBold=2}{xeCJK}
+}%
+{%
+  \ifthenelse%
+  {\equal{\hit@fontset}{siyuan}}%
+  {\relax}%
+  {%
+    \PassOptionsToPackage{AutoFakeBold=2}{xeCJK}
+  }%
+  \PassOptionsToClass{fontset=\hit@fontset}{ctexbook}
+}%
 
 \LoadClass[zihao=-4,openany,UTF8,scheme=plain]{ctexbook}
 
@@ -80,6 +95,7 @@
                    {Please use: \MessageBreak
                     xelatex}{}
 \fi
+
 
 \RequirePackage{xparse}
 
@@ -807,13 +823,16 @@ breaklines=true
   \ifhit@bachelor\hit@second@titlepage@bachelor\else\hit@second@titlepage@other\fi}
 
 \newcommand{\hit@first@titlepage@bachelor}{
-\xiaosi[0]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}
+\ifthenelse%
+{\equal{\hit@fontset}{siyuan}}%
+{\xiaosi[1]\vspace*{0.65em}}%
+{\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
   \vspace*{1.2cm}
   \begin{center}
     \parbox[t][3.4cm][t]{\textwidth}{
   \begin{center}\erhao[0]\heiti\hit@ctitle\end{center} }
-    \parbox[t][9.4cm][t]{\textwidth}{
-    \begin{center}\xiaoer[0]\songti{\bfseries \hit@cauthor}\end{center}
+    \parbox[t][9cm][t]{\textwidth}{
+    \begin{center}\xiaoer[0]\songti\textbf{\hit@cauthor}\end{center}
   }
   \begin{center}
     \setlength{\hit@title@width}{4em}
@@ -827,7 +846,7 @@ breaklines=true
 	{\hit@put@title{\hit@bachelor@csupervisortitle}\hit@title@csep} &  \hit@csupervisor
       \end{tabular}
     \end{center}
-    \vspace{3.0cm}
+    \vspace{2.6cm}
     {\xiaosi[0]\songti\textbf{\hit@cdate}}
   \end{center}
 }
@@ -859,11 +878,14 @@ breaklines=true
 }
 \newcommand{\hit@first@titlepage@other}{
   % 封面一
-\xiaosi[0]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}
- \vspace*{1cm}
+\ifthenelse%
+{\equal{\hit@fontset}{siyuan}}%
+{\xiaosi[1]\vspace*{0.65em}}%
+{\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
+ \vspace*{1.2cm}
   \begin{center}
   \begin{center}\xiaoyi[1]\songti\textbf{\hit@cxuewei\hit@cthesisname}\end{center}
-    \vspace{1.6cm}
+    \vspace{1.4cm}
     \parbox[t][2.8cm][t]{\textwidth}{
   \begin{center}\erhao\heiti\hit@ctitle\end{center} }
     \parbox[t][5.1cm][t]{\textwidth}{ %英文标题太长时可以采用\xiaoer
