@@ -184,7 +184,7 @@
   \if@openright\cleardoublepage\else\clearpage\fi
   \@mainmattertrue
   \pagenumbering{arabic}
-  \ifhit@bachelor\pagestyle{hit@plain}\else\pagestyle{hit@headings}\fi
+  \pagestyle{hit@headings}
 }
 
 \renewcommand\backmatter{%
