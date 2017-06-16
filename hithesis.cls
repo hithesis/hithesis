@@ -40,6 +40,7 @@
 \DeclareBoolOption{pifootnote}
 \DeclareBoolOption{glue}
 \DeclareBoolOption{tocfour}
+\DeclareBoolOption[true]{tocblank}
 \DeclareStringOption{fontset}
 
 \DeclareDefaultOption{\PassOptionsToClass{\CurrentOption}{ctexbook}}
@@ -179,8 +180,10 @@
 }
 
 \renewcommand\mainmatter{%
+  \ifhit@tocblank%
   \addtocontents{toc}{\vspace{\baselineskip}} %规范中并没有这一要求，此处不应该加
   \addtocontents{toe}{\vspace{\baselineskip}}
+  \fi%
   \if@openright\cleardoublepage\else\clearpage\fi
   \@mainmattertrue
   \pagenumbering{arabic}
