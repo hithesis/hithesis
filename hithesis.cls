@@ -290,9 +290,11 @@ breaklines=true
   \fi
   \ifhit@bachelor
   \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@bachelor@cxuewei\hit@bachelor@cthesisname}%
+  \fancyfoot[C]{\xiaowu \thepage}
+  \else
+  \fancyfoot[C]{\xiaowu -~\thepage~-}
   \fi
   \fi
-  \fancyfoot[C,C]{\xiaowu -~\thepage~-}
   % 此处可能和word模板不一致
   % 页眉中小五汉字，0行距时，占用9bt，页眉高度为14pt, 所以以下数字之和要保持等于14pt-9bt=4.96634pt
   % 根据PlutoThesis模板中rule宽度定义为2.25， 0.75， 保持粗线和细线之间的间距为细线宽度。
@@ -1170,7 +1172,7 @@ breaklines=true
   font=\wuhao\rm,
 }
 
-\def\authorization{%
+\def\hit@authorization@other{%
   \if@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@authorization@ctitle}[\hit@authorization@etitle]
   \xiaosi[1.6]\vspace{\baselineskip}
@@ -1185,6 +1187,14 @@ breaklines=true
 \par\hspace{6em}\hit@authorsig\hfill\hit@frontdate\hit@datefill
 \vspace{2\baselineskip}
 \par\hspace{6em}\hit@teachersig\hfill\hit@frontdate\hit@datefill}
+\def\hit@authorization@bachelor{%
+  \if@openright\cleardoublepage\else\clearpage\fi
+  \hit@appendix@chapter*{\hit@declarename@bachelor}
+  \hit@authorizationtext@bachelor
+\vspace{2\baselineskip}
+\par\hspace{6em}\hit@authorsig\hfill\hit@frontdate\hit@datefill
+}
+\def\authorization{\ifhit@bachelor\hit@authorization@bachelor\else\hit@authorization@other\fi}
 
 \newcommand\bibstyle@numerical{\bibpunct{[}{]}{,}{s}{,}{\textsuperscript{,}}}
 \newcommand\bibstyle@authoryear{\bibpunct{(}{)}{;}{a}{,}{,}}
