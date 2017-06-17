@@ -41,6 +41,7 @@
 \DeclareBoolOption{glue}
 \DeclareBoolOption{tocfour}
 \DeclareBoolOption[true]{tocblank}
+\DeclareBoolOption[true]{chapterhang}
 \DeclareStringOption{fontset}
 
 \DeclareDefaultOption{\PassOptionsToClass{\CurrentOption}{ctexbook}}
@@ -150,7 +151,7 @@
   plainpages=false,
   pdfborder=0 0 0}
 \urlstyle{same}  %论文中引用的网址的字体默认与正文中字体不一致，这里修正为一致的。
-\RequirePackage{geometry}
+\RequirePackage[showframe]{geometry}
 \geometry{%根据PlutoThesis 原版定义而来
   a4paper, % 210 * 297mm
   hcentering,
@@ -269,8 +270,10 @@ breaklines=true
 %%%}}}
 
 %%{{{ header footer
+\let\hit@headrule\headrule
 \fancypagestyle{hit@empty}{%
   \fancyhf{}
+  \let\headrule\hit@headrule%
   \renewcommand{\headrulewidth}{0pt}
   \renewcommand{\footrulewidth}{0pt}
 }
@@ -571,7 +574,7 @@ breaklines=true
       {\equal{#1}{\eabstractcname}}%
       {\bfseries #1}%
       %实现章标题的居中加悬挂缩进，注意，此处一定是\CTEX@chaptername\CTEX@chapter@aftername, 否则是英文标题长度
-      {\settowidth{\hangindent}{\CTEX@chaptername\CTEX@chapter@aftername}\hangafter=1#1}%
+      {\ifhit@chapterhang\settowidth{\hangindent}{\CTEX@chaptername\CTEX@chapter@aftername}\hangafter=1\fi#1}%
       %{\begin{varwidth}[t]{\hit@chapter@indentboxwidth}#1\end{varwidth}}
 }
 
@@ -1197,7 +1200,20 @@ breaklines=true
 \vspace{2\baselineskip}
 \par\hspace{6em}\hit@authorsig\hfill\hit@frontdate\hit@datefill
 }
-\def\authorization{\ifhit@bachelor\hit@authorization@bachelor\else\hit@authorization@other\fi}
+
+\NewDocumentCommand{\authorization}{o}{%
+  \IfNoValueTF{#1}{%
+    \ifhit@bachelor\hit@authorization@bachelor\else\hit@authorization@other\fi
+    }{%
+    \includepdf[fitpaper=true,pagecommand={%
+	\thispagestyle{hit@empty}%
+	\phantomsection\addcontentsline{toc}{chapter}{\ifhit@bachelor\hit@declarename@bachelor\else\hit@authorization@ctitle\fi}%
+	\ifhit@doctor%
+	\addcontentsline{toe}{chapter}{\bfseries \hit@authorization@etitle}%
+	\fi%
+    }]{#1}%
+  }%
+}
 
 \newcommand\bibstyle@numerical{\bibpunct{[}{]}{,}{s}{,}{\textsuperscript{,}}}
 \newcommand\bibstyle@authoryear{\bibpunct{(}{)}{;}{a}{,}{,}}
