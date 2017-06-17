@@ -42,6 +42,8 @@
 \DeclareBoolOption{tocfour}
 \DeclareBoolOption[true]{tocblank}
 \DeclareBoolOption[true]{chapterhang}
+\DeclareBoolOption[true]{fulltime}
+\DeclareBoolOption[false]{subtitle}
 \DeclareStringOption{fontset}
 
 \DeclareDefaultOption{\PassOptionsToClass{\CurrentOption}{ctexbook}}
@@ -497,6 +499,7 @@ breaklines=true
 \hit@def@term{internatclassifiedindex}  %国际图书分类号
 
 \hit@def@term{ctitle} %中文标题
+\hit@def@term{csubtitle} %中文副标题
 \hit@def@term{cxueke} %中文学科
 \hit@def@term{cauthor} %中文作者
 \hit@def@term{csupervisor} %中文导师
@@ -507,11 +510,13 @@ breaklines=true
 \hit@def@term{cdate}
 
 \hit@def@term{cstudentid}%
+\hit@def@term{cstudenttype}%
 \hit@def@term{ctitleone}%
 \hit@def@term{ctitletwo}%
 
 
 \hit@def@term{etitle} %英文标题
+\hit@def@term{esubtitle} %英文标题
 \hit@def@term{exueke} %英文学科
 \hit@def@term{eauthor} %英文作者
 \hit@def@term{esupervisor} %英文导师
@@ -520,6 +525,7 @@ breaklines=true
 \hit@def@term{eaffil}
 \hit@def@term{esubject}
 \hit@def@term{edate}
+\hit@def@term{estudenttype}
 
 % for the other degree
 %\hit@def@term{id}
@@ -884,6 +890,8 @@ breaklines=true
     }
   \end{center}
 }
+
+\newlength{\hit@etitlelength}%
 \newcommand{\hit@first@titlepage@other}{
   % 封面一
 \ifthenelse%
@@ -891,19 +899,26 @@ breaklines=true
 {\xiaosi[1]\vspace*{0.65em}}%
 {\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
  \vspace*{1.2cm}
-  \begin{center}
+\begin{center}
   \begin{center}\xiaoyi[1]\songti\textbf{\hit@cxuewei\hit@cthesisname}\end{center}
-    \vspace{1.4cm}
-    \parbox[t][2.8cm][t]{\textwidth}{
-  \begin{center}\erhao\heiti\hit@ctitle\end{center} }
-    \parbox[t][5.1cm][t]{\textwidth}{ %英文标题太长时可以采用\xiaoer
-  \begin{center}\erhao\textbf{\MakeUppercase{\hit@etitle}}\end{center} }
+    \ifhit@fulltime\vspace{1.4cm}\else%
+      \begin{center}\xiaoyi[1]\songti\textbf{\hit@cbraceleft\hit@cstudenttype\hit@cbraceright}\end{center}
+    \fi%
+    \parbox[t][2.8cm][t]{\textwidth}{%
+  \begin{center}\erhao\heiti\hit@ctitle\end{center}
+\ifhit@subtitle\begin{center}\hspace{-4em}\xiaoer\heiti\pozhehao\hit@csubtitle\end{center}\fi}
+    \parbox[t][5.1cm][t]{\textwidth}{%英文标题太长时可以采用\xiaoer
+  \begin{center}%
+    \settowidth{\hit@etitlelength}{\erhao\hit@etitle\ifhit@subtitle\hit@title@esep\hit@esubtitle\fi}%
+    \ifdim\hit@etitlelength>450mm\xiaoer\else\erhao\fi%
+    \textbf{\MakeUppercase{\hit@etitle}%
+\ifhit@subtitle\hit@title@esep\MakeUppercase{\hit@esubtitle}\fi}\end{center}}
     \parbox[t][7.4cm][t]{\textwidth}{
   \begin{center}\xiaoer\songti\textbf{\hit@cauthor}\end{center}}
     \parbox[t][1.4cm][t]{\textwidth}{
-  \begin{center}\kaishu\xiaoer\textbf{\hit@cschoolname}\end{center} }
+  \begin{center}\kaishu\xiaoer\textbf{\hit@cschoolname}\end{center}}
     {\songti\xiaoer\textbf{\hit@cdate}}
-  \end{center}
+\end{center}
 }
 
 %内封
@@ -920,10 +935,12 @@ breaklines=true
 	\hit@secretlevel & \hit@statesecrets
     \end{tabular}}
   \parbox[t][3.2cm][t]{\textwidth}{\begin{center} \end{center} }
-    \parbox[t][2.4cm][t]{\textwidth}{\xiaoer
-  \begin{center} {\songti \bfseries \hit@cdegree \hit@cthesisname }\end{center} }
-    \parbox[t][5cm][t]{\textwidth}{\erhao
-  \begin{center} {\heiti  \hit@ctitle}\end{center} }
+    \parbox[t][2.4cm][t]{\textwidth}{\xiaoer[1]
+  \begin{center}\songti\bfseries\hit@cdegree\hit@cthesisname\end{center}
+      \ifhit@fulltime\relax\else\begin{center}\songti\textbf{\hit@cbraceleft\hit@cstudenttype\hit@cbraceright}\end{center}\fi}
+	\parbox[t][5cm][t]{\textwidth}{\erhao[1]
+  \begin{center}\heiti\hit@ctitle\end{center}
+\ifhit@subtitle\begin{center}\hspace{-4em}\xiaoer\heiti\pozhehao\hit@csubtitle\end{center}\fi}
     \parbox[t][9.8cm][b]{\textwidth}
     {\sihao
       \setlength{\hit@title@width}{6em}
@@ -957,10 +974,15 @@ breaklines=true
   \vspace*{1em}
   \begin{center}
   \parbox[t][1.6cm][t]{\textwidth}{\begin{center} \end{center} }
-    \parbox[t][3.5cm][t]{\textwidth}{\xiaoer
-  \begin{center} {  Dissertation for the {\hit@exueweier} Degree in \hit@exueke}\end{center} } %与中文保持一致，删除in {\hit@exueke}
-    \parbox[t][7cm][t]{\textwidth}{\erhao
-  \begin{center}\textbf{\MakeUppercase{\hit@etitle}}\end{center} }
+    \parbox[t][3.5cm][t]{\textwidth}{\xiaoer[1]
+  \begin{center}Dissertation for the {\hit@exueweier} Degree in \hit@exueke\end{center}
+      \ifhit@fulltime\relax\else\begin{center}\hit@ebraceleft\hit@estudenttype\hit@ebraceright\end{center}\fi} %与中文保持一致，删除in {\hit@exueke}
+    \parbox[t][7cm][t]{\textwidth}{%
+   \begin{center}%
+    \settowidth{\hit@etitlelength}{\erhao\hit@etitle\ifhit@subtitle\hit@title@esep\hit@esubtitle\fi}%
+    \ifdim\hit@etitlelength>450mm\xiaoer\else\erhao\fi%
+    \textbf{\MakeUppercase{\hit@etitle}%
+\ifhit@subtitle\hit@title@esep\MakeUppercase{\hit@esubtitle}\fi}\end{center}}
     %★★★★若信息内容不太长，不会引起信息内容分行时，使用tabular环境，否则使用下面的tabularx环境。
     {\sihao\renewcommand{\arraystretch}{1.3}
       \begin{tabular}{@{}l@{~}l@{}}
