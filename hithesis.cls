@@ -153,7 +153,7 @@
   plainpages=false,
   pdfborder=0 0 0}
 \urlstyle{same}  %论文中引用的网址的字体默认与正文中字体不一致，这里修正为一致的。
-\RequirePackage[showframe]{geometry}
+\RequirePackage{geometry}
 \geometry{%根据PlutoThesis 原版定义而来
   a4paper, % 210 * 297mm
   hcentering,
