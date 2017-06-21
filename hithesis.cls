@@ -296,12 +296,12 @@ breaklines=true
   \ifhit@master
   \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@cdegree\hit@cthesisname}
   \fi
+  \fi
   \ifhit@bachelor
   \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@bachelor@cxuewei\hit@bachelor@cthesisname}%
   \fancyfoot[C]{\xiaowu \thepage}
   \else
   \fancyfoot[C]{\xiaowu -~\thepage~-}
-  \fi
   \fi
   % 此处可能和word模板不一致
   % 页眉中小五汉字，0行距时，占用9bt，页眉高度为14pt, 所以以下数字之和要保持等于14pt-9bt=4.96634pt
