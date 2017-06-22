@@ -1,6 +1,6 @@
 \NeedsTeXFormat{LaTeX2e}[1999/12/01]
 \ProvidesClass{hithesis}[2017/05/23 0.0.0 Harbin Institute of Technology Thesis Template]
-
+%
 %%%{{{ Package
 \RequirePackage{ifthen}
 \RequirePackage{kvoptions}
@@ -29,21 +29,21 @@
   \kvsetkeys{hit}{type=\CurrentOption} % for compatability.
   \ClassError{hithesis}{Option '\CurrentOption' is deprecated, \MessageBreak
                          please use 'type=\CurrentOption' instead}{}}
-%\DeclareVoidOption{bachelor}{\hit@deprecated@type@option}
-%\DeclareVoidOption{master}{\hit@deprecated@type@option}
-%\DeclareVoidOption{doctor}{\hit@deprecated@type@option}
-%\DeclareVoidOption{postdoctor}{\hit@deprecated@type@option}
-\DeclareBoolOption{secret}
-\DeclareBoolOption{arialtoc}
-\DeclareBoolOption{arialtitle}
-\DeclareBoolOption{raggedbottom}
-\DeclareBoolOption{pifootnote}
-\DeclareBoolOption{glue}
-\DeclareBoolOption{tocfour}
+
+\DeclareBoolOption[false]{secret}
+\DeclareBoolOption[false]{arialtoc}
+\DeclareBoolOption[false]{arialtitle}
+\DeclareBoolOption[false]{raggedbottom}
+\DeclareBoolOption[false]{pifootnote}
+\DeclareBoolOption[false]{glue}
+\DeclareBoolOption[false]{tocfour}
 \DeclareBoolOption[true]{tocblank}
 \DeclareBoolOption[true]{chapterhang}
 \DeclareBoolOption[true]{fulltime}
 \DeclareBoolOption[false]{subtitle}
+\DeclareBoolOption[false]{debug}
+\DeclareBoolOption[false]{newgeometry}
+
 \DeclareStringOption{fontset}
 
 \DeclareDefaultOption{\PassOptionsToClass{\CurrentOption}{ctexbook}}
@@ -153,12 +153,25 @@
   plainpages=false,
   pdfborder=0 0 0}
 \urlstyle{same}  %论文中引用的网址的字体默认与正文中字体不一致，这里修正为一致的。
-\RequirePackage{geometry}
+\ifhit@debug\RequirePackage[showframe]{geometry}\else\RequirePackage{geometry}\fi
 \geometry{%根据PlutoThesis 原版定义而来
   a4paper, % 210 * 297mm
   hcentering,
   ignoreall,
   nomarginpar,
+}
+\ifhit@newgeometry%
+\geometry{
+  centering,
+  text={150true mm,240true mm},
+  left=30true mm,
+  head=5true mm,
+  headsep=0true mm,
+  footskip=0true mm,
+  foot=0true mm
+}
+\else%
+\geometry{%根据PlutoThesis 原版定义而来
   text={150true mm,224true mm},
   top=35.5true mm,
   left=30true mm,
@@ -166,7 +179,11 @@
   headsep=2.5true mm,
   foot=8.5true mm
 }
+\fi
+\ifhit@debug%
 \RequirePackage{layout}
+\RequirePackage{lineno}
+\fi
 
 \RequirePackage{fancyhdr}                   % fancyhdr宏包 页眉和页脚的相关定义
 \let\hit@cleardoublepage\cleardoublepage
@@ -239,7 +256,7 @@ breaklines=true
 %此处应该给出一个设置选项
 
 \renewcommand\normalsize{%
-  \@setfontsize\normalsize{12bp}{\ifhit@glue 20.50398bp \@plus 2.83465bp \@minus 0bp\else 21bp\fi}%
+  \@setfontsize\normalsize{12bp}{\ifhit@glue 20.50398bp \@plus 2.83465bp \@minus 0bp\else 20.50398bp\fi}%
   \abovedisplayskip=4pt
   \abovedisplayshortskip=4pt
   \belowdisplayskip=\abovedisplayskip
@@ -648,43 +665,41 @@ breaklines=true
       \everypar{}%
     \fi}}
 
-
 \ctexset{%
   chapter={
     afterindent=true,
     pagestyle={hit@headings},
-    beforeskip={28.34658bp},%一个空行 1.57481 × 18
-    afterskip={24.74658bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
+    beforeskip={46.51992pt},
+    afterskip={42.906456pt},
     aftername=\enspace,
-    format={\centering\hit@title@font\xiaoer[1.57481]},%\center 会影响之后全局
+    format={\centering\hit@title@font\xiaoer[2.57481020981529]},%\center 会影响之后全局
     nameformat=\relax,
     numberformat=\relax,
     titleformat=\hit@chapter@titleformat,
     fixskip=true, % 添加这一行去除默认间距
-    %hang=true,
   },
   section={
     afterindent=true,
-    beforeskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp \else 13.5bp \fi},%上下空0.5行
-    afterskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp  \else 13.5bp \fi},
-    format={\hit@title@font\ifhit@glue\fontsize{15bp}{21bp \@plus 1.677267bp \@minus 1.157391bp}\else\fontsize{15bp}{21bp}\fi\selectfont},
+    beforeskip={\ifhit@glue 27.3426086436727bp \@plus 2.83465837766752bp \@minus 0bp \else 27.3426086436727bp \fi},%上下空0.5行
+    afterskip={\ifhit@glue 27.3426086436727bp \@plus 2.83465837766752bp \@minus 0bp \else 27.3426086436727bp \fi},%上下空0.5行
+    format={\hit@title@font\ifhit@glue\fontsize{15bp}{34.8426086436727bp \@plus 2.83465837766752bp \@minus 0bp}\else\fontsize{15bp}{34.8426086436727bp}\fi\selectfont},
     aftername=\enspace,
     fixskip=true,
     break={},
   },
   subsection={
     afterindent=true,
-    beforeskip={\ifhit@glue 11bp \@plus 1.842609bp \@minus 0.9920497bp \else 11bp \fi},
-    afterskip={\ifhit@glue 11bp \@plus 2.33863bp \@minus 0.49602bp \else 11bp \fi},
-    format={\hit@title@font\ifhit@glue\fontsize{14bp}{18bp \@plus 1.842609bp \@minus 0.9920497bp}\else\fontsize{14bp}{18bp}\fi\selectfont},
+    beforeskip={\ifhit@glue 24.0079502660051bp \@plus 2.83465837766752bp \@minus 0bp \else 24.0079502660051bp \fi},
+    afterskip={\ifhit@glue 24.0079502660051bp \@plus 2.83465837766752bp \@minus 0bp \else 24.0079502660051bp \fi},
+    format={\hit@title@font\ifhit@glue\fontsize{14bp}{26.8426086436727bp \@plus 2.83465837766752bp \@minus 0bp}\else\fontsize{14bp}{26.8426086436727bp}\fi\selectfont},
     aftername=\enspace,
     fixskip=true,
     break={},
   },
   subsubsection={
     afterindent=true,
-    beforeskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
-    afterskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
+    beforeskip={\ifhit@glue 8.50397513300257bp \@plus 2.83465837766752bp \@minus 0bp \else 8.50397513300257bp \fi},
+    afterskip={\ifhit@glue 8.50397513300257bp \@plus 2.83465837766752bp \@minus 0bp \else 8.50397513300257bp \fi},
     format={\hit@title@font\normalsize},
     aftername=\enspace,
     fixskip=true,
@@ -692,8 +707,7 @@ breaklines=true
   },
   paragraph/afterindent=true,
   subparagraph/afterindent=true
-}
-
+}%
 
 \NewDocumentCommand{\hit@appendix@chapter}{s m o}{%
   \IfBooleanT{#1}%
