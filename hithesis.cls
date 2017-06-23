@@ -43,6 +43,7 @@
 \DeclareBoolOption[false]{subtitle}
 \DeclareBoolOption[false]{debug}
 \DeclareBoolOption[false]{newgeometry}
+\DeclareBoolOption[true]{skipnormal}
 
 \DeclareStringOption{fontset}
 
@@ -132,7 +133,7 @@
 %\RequirePackage{array}
 \RequirePackage{longtable}      %支持跨页的表格。
 \RequirePackage{booktabs}       % 表格，横的粗线；\specialrule{1pt}{0pt}{0pt}
-\RequirePackage[sort&compress,numbers]{natbib}% 支持引用缩写的宏包
+\RequirePackage[sort&compress]{natbib}% 支持引用缩写的宏包
 
 \RequirePackage{hyperref}
 \ifxetex
@@ -669,37 +670,38 @@ breaklines=true
   chapter={
     afterindent=true,
     pagestyle={hit@headings},
-    beforeskip={46.51992pt},
-    afterskip={42.906456pt},
+    beforeskip={28.34658bp},%一个空行 1.57481 × 18
+    afterskip={24.74658bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
     aftername=\enspace,
-    format={\centering\hit@title@font\xiaoer[2.57481020981529]},%\center 会影响之后全局
+    format={\centering\hit@title@font\xiaoer[1.57481]},%\center 会影响之后全局
     nameformat=\relax,
     numberformat=\relax,
     titleformat=\hit@chapter@titleformat,
     fixskip=true, % 添加这一行去除默认间距
+    %hang=true,
   },
   section={
     afterindent=true,
-    beforeskip={\ifhit@glue 27.3426086436727bp \@plus 2.83465837766752bp \@minus 0bp \else 27.3426086436727bp \fi},%上下空0.5行
-    afterskip={\ifhit@glue 27.3426086436727bp \@plus 2.83465837766752bp \@minus 0bp \else 27.3426086436727bp \fi},%上下空0.5行
-    format={\hit@title@font\ifhit@glue\fontsize{15bp}{34.8426086436727bp \@plus 2.83465837766752bp \@minus 0bp}\else\fontsize{15bp}{34.8426086436727bp}\fi\selectfont},
+    beforeskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp \else 13.5bp \fi},%上下空0.5行
+    afterskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp  \else 13.5bp \fi},
+    format={\hit@title@font\ifhit@glue\fontsize{15bp}{21bp \@plus 1.677267bp \@minus 1.157391bp}\else\fontsize{15bp}{21bp}\fi\selectfont},
     aftername=\enspace,
     fixskip=true,
     break={},
   },
   subsection={
     afterindent=true,
-    beforeskip={\ifhit@glue 24.0079502660051bp \@plus 2.83465837766752bp \@minus 0bp \else 24.0079502660051bp \fi},
-    afterskip={\ifhit@glue 24.0079502660051bp \@plus 2.83465837766752bp \@minus 0bp \else 24.0079502660051bp \fi},
-    format={\hit@title@font\ifhit@glue\fontsize{14bp}{26.8426086436727bp \@plus 2.83465837766752bp \@minus 0bp}\else\fontsize{14bp}{26.8426086436727bp}\fi\selectfont},
+    beforeskip={\ifhit@glue 11bp \@plus 1.842609bp \@minus 0.9920497bp \else 11bp \fi},
+    afterskip={\ifhit@glue 11bp \@plus 2.33863bp \@minus 0.49602bp \else 11bp \fi},
+    format={\hit@title@font\ifhit@glue\fontsize{14bp}{18bp \@plus 1.842609bp \@minus 0.9920497bp}\else\fontsize{14bp}{18bp}\fi\selectfont},
     aftername=\enspace,
     fixskip=true,
     break={},
   },
   subsubsection={
     afterindent=true,
-    beforeskip={\ifhit@glue 8.50397513300257bp \@plus 2.83465837766752bp \@minus 0bp \else 8.50397513300257bp \fi},
-    afterskip={\ifhit@glue 8.50397513300257bp \@plus 2.83465837766752bp \@minus 0bp \else 8.50397513300257bp \fi},
+    beforeskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
+    afterskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
     format={\hit@title@font\normalsize},
     aftername=\enspace,
     fixskip=true,
@@ -707,7 +709,125 @@ breaklines=true
   },
   paragraph/afterindent=true,
   subparagraph/afterindent=true
-}%
+}
+
+% \ctexset{%
+%   chapter={
+%     afterindent=true,
+%     pagestyle={hit@headings},
+%     aftername=\enspace,
+%     beforeskip={40.49748pt},
+%     afterskip={38.088504pt},
+%     format={\centering\hit@title@font\xiaoer[2.57481020981529]},%\center 会影响之后全局
+%     nameformat=\relax,
+%     numberformat=\relax,
+%     titleformat=\hit@chapter@titleformat,
+%     fixskip=true, % 添加这一行去除默认间距
+%   },
+%   section={
+%     afterindent=true,
+%     beforeskip={\ifhit@glue 25.8426086436727bp \@plus 2.83465837766752bp \@minus 0bp \else 25.8426086436727bp \fi},%上下空0.5行
+%     afterskip={\ifhit@glue 25.8426086436727bp \@plus 2.83465837766752bp \@minus 0bp \else 25.8426086436727bp \fi},%上下空0.5行
+%     format={\hit@title@font\ifhit@glue\fontsize{15bp}{34.8426086436727bp \@plus 2.83465837766752bp \@minus 0bp}\else\fontsize{15bp}{34.8426086436727bp}\fi\selectfont},
+%     aftername=\enspace,
+%     fixskip=true,
+%     break={},
+%   },
+%   subsection={
+%     afterindent=true,
+%     beforeskip={\ifhit@glue 23.0079502660051bp \@plus 2.83465837766752bp \@minus 0bp \else 23.0079502660051bp \fi},
+%     afterskip={\ifhit@glue 23.0079502660051bp \@plus 2.83465837766752bp \@minus 0bp \else 23.0079502660051bp \fi},
+%     format={\hit@title@font\ifhit@glue\fontsize{14bp}{26.8426086436727bp \@plus 2.83465837766752bp \@minus 0bp}\else\fontsize{14bp}{26.8426086436727bp}\fi\selectfont},
+%     aftername=\enspace,
+%     fixskip=true,
+%     break={},
+%   },
+%   subsubsection={
+%     afterindent=true,
+%     beforeskip={\ifhit@glue 8.50397513300257bp \@plus 2.83465837766752bp \@minus 0bp \else 8.50397513300257bp \fi},
+%     afterskip={\ifhit@glue 8.50397513300257bp \@plus 2.83465837766752bp \@minus 0bp \else 8.50397513300257bp \fi},
+%     format={\hit@title@font\normalsize},
+%     aftername=\enspace,
+%     fixskip=true,
+%     break={},
+%   },
+%   paragraph/afterindent=true,
+%   subparagraph/afterindent=true
+% }%
+%\ctexset{%
+%  chapter={
+%    afterindent=true,
+%    pagestyle={hit@headings},
+%    aftername=\enspace,
+%    beforeskip={46.51992pt},
+%    afterskip={42.906456pt},
+%    format={\centering\hit@title@font\xiaoer[2.57481020981529]},%\center 会影响之后全局
+%    nameformat=\relax,
+%    numberformat=\relax,
+%    titleformat=\hit@chapter@titleformat,
+%    fixskip=true, % 添加这一行去除默认间距
+%  },
+%  section={
+%    afterindent=true,
+%    beforeskip={\ifhit@glue 27.3426086436727bp \@plus 2.83465837766752bp \@minus 0bp \else 27.3426086436727bp \fi},%上下空0.5行
+%    afterskip={\ifhit@glue 27.3426086436727bp \@plus 2.83465837766752bp \@minus 0bp \else 27.3426086436727bp \fi},%上下空0.5行
+%    format={\hit@title@font\ifhit@glue\fontsize{15bp}{34.8426086436727bp \@plus 2.83465837766752bp \@minus 0bp}\else\fontsize{15bp}{34.8426086436727bp}\fi\selectfont},
+%    aftername=\enspace,
+%    fixskip=true,
+%    break={},
+%  },
+%  subsection={
+%    afterindent=true,
+%    beforeskip={\ifhit@glue 24.0079502660051bp \@plus 2.83465837766752bp \@minus 0bp \else 24.0079502660051bp \fi},
+%    afterskip={\ifhit@glue 24.0079502660051bp \@plus 2.83465837766752bp \@minus 0bp \else 24.0079502660051bp \fi},
+%    format={\hit@title@font\ifhit@glue\fontsize{14bp}{26.8426086436727bp \@plus 2.83465837766752bp \@minus 0bp}\else\fontsize{14bp}{26.8426086436727bp}\fi\selectfont},
+%    aftername=\enspace,
+%    fixskip=true,
+%    break={},
+%  },
+%  subsubsection={
+%    afterindent=true,
+%    beforeskip={\ifhit@glue 8.50397513300257bp \@plus 2.83465837766752bp \@minus 0bp \else 8.50397513300257bp \fi},
+%    afterskip={\ifhit@glue 8.50397513300257bp \@plus 2.83465837766752bp \@minus 0bp \else 8.50397513300257bp \fi},
+%    format={\hit@title@font\normalsize},
+%    aftername=\enspace,
+%    fixskip=true,
+%    break={},
+%  },
+%  paragraph/afterindent=true,
+%  subparagraph/afterindent=true
+%}%
+%\ifhit@skipnormal%
+%\ctexset{%
+%  chapter={
+%    beforeskip={40.49748pt},
+%    afterskip={38.088504pt},
+%  },
+%  section={
+%    beforeskip={\ifhit@glue 25.8426086436727bp \@plus 2.83465837766752bp \@minus 0bp \else 25.8426086436727bp \fi},%上下空0.5行
+%    afterskip={\ifhit@glue 25.8426086436727bp \@plus 2.83465837766752bp \@minus 0bp \else 25.8426086436727bp \fi},%上下空0.5行
+%  },
+%  subsection={
+%    beforeskip={\ifhit@glue 23.0079502660051bp \@plus 2.83465837766752bp \@minus 0bp \else 23.0079502660051bp \fi},
+%    afterskip={\ifhit@glue 23.0079502660051bp \@plus 2.83465837766752bp \@minus 0bp \else 23.0079502660051bp \fi},
+%  },
+%}%
+%\else%
+%\ctexset{%
+%  chapter={
+%    beforeskip={46.51992pt},
+%    afterskip={42.906456pt},
+%  },
+%  section={
+%    beforeskip={\ifhit@glue 27.3426086436727bp \@plus 2.83465837766752bp \@minus 0bp \else 27.3426086436727bp \fi},%上下空0.5行
+%    afterskip={\ifhit@glue 27.3426086436727bp \@plus 2.83465837766752bp \@minus 0bp \else 27.3426086436727bp \fi},%上下空0.5行
+%  },
+%  subsection={
+%    beforeskip={\ifhit@glue 24.0079502660051bp \@plus 2.83465837766752bp \@minus 0bp \else 24.0079502660051bp \fi},
+%    afterskip={\ifhit@glue 24.0079502660051bp \@plus 2.83465837766752bp \@minus 0bp \else 24.0079502660051bp \fi},
+%  },
+%}%
+%\fi%
 
 \NewDocumentCommand{\hit@appendix@chapter}{s m o}{%
   \IfBooleanT{#1}%
