@@ -77,7 +77,7 @@
   \PassOptionsToClass{fontset=\hit@fontset}{ctexbook}
 }%
 
-\LoadClass[zihao=-4,openany,UTF8,scheme=plain]{ctexbook}
+\LoadClass[zihao=-4,UTF8,openany,scheme=plain]{ctexbook}
 
 \ifhit@bachelor\relax\else
   \ifhit@master\relax\else
@@ -1139,7 +1139,7 @@ breaklines=true
 
 \def\makecover{
   \phantomsection
-  \pdfbookmark[-1]{\hit@ctitle}{ctitle}
+  \pdfbookmark[0]{\hit@ctitle}{ctitle}
   \xiaosi[1]%
   \begin{titlepage}
     \hit@first@titlepage
@@ -1149,6 +1149,8 @@ breaklines=true
     \ifhit@bachelor
     \relax
     \else
+    \phantomsection
+    \pdfbookmark[0]{\hit@etitle}{etitle}
     \hit@engcover
     \cleardoublepage
     \fi
