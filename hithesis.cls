@@ -44,6 +44,7 @@
 \DeclareBoolOption[false]{debug}
 \DeclareBoolOption[false]{newgeometry}
 \DeclareBoolOption[true]{skipnormal}
+\DeclareBoolOption[false]{openright}
 
 \DeclareStringOption{fontset}
 
@@ -194,7 +195,7 @@
 \let\cleardoublepage\hit@clearemptydoublepage
 
 \renewcommand\frontmatter{%
-  \if@openright\cleardoublepage\else\clearpage\fi
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \@mainmatterfalse
   \pagenumbering{Roman}
   \pagestyle{hit@empty}
@@ -205,14 +206,14 @@
   \addtocontents{toc}{\vspace{\baselineskip}} %规范中并没有这一要求，此处不应该加
   \addtocontents{toe}{\vspace{\baselineskip}}
   \fi%
-  \if@openright\cleardoublepage\else\clearpage\fi
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \@mainmattertrue
   \pagenumbering{arabic}
   \pagestyle{hit@headings}
 }
 
 \renewcommand\backmatter{%
-  \if@openright\cleardoublepage\else\clearpage\fi
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \@mainmattertrue}
 
 \RequirePackage{tabularx}
@@ -258,8 +259,8 @@ breaklines=true
 
 \renewcommand\normalsize{%
   \@setfontsize\normalsize{12bp}{\ifhit@glue 20.50398bp \@plus 2.83465bp \@minus 0bp\else 20.50398bp\fi}%
-  \abovedisplayskip=4pt
-  \abovedisplayshortskip=4pt
+  \abovedisplayskip=8pt
+  \abovedisplayshortskip=8pt
   \belowdisplayskip=\abovedisplayskip
   \belowdisplayshortskip=\abovedisplayshortskip}
 
@@ -853,7 +854,7 @@ breaklines=true
 % o: 可选内容，没有就默认是正文章节，如果有，则是英文目录中显示的内容。
 \let\hit@chapter\chapter
 \RenewDocumentCommand{\chapter}{s o m o}{%
-  \if@openright\cleardoublepage\else\clearpage\fi\phantomsection%
+  \ifhit@openright\cleardoublepage\else\clearpage\fi\phantomsection%
   \IfBooleanTF{#1}%
   {%	if \chapter*
     \hit@chapter*{#3}%
@@ -1167,7 +1168,7 @@ breaklines=true
   \endgroup}
 
 \newcommand{\hit@makeabstract}{%
-  \if@openright\cleardoublepage\else\clearpage\fi
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\cabstractcname}[\cabstractename]
   \pagestyle{hit@headings}
   \pagenumbering{Roman}
@@ -1303,20 +1304,20 @@ breaklines=true
 
 
 \newenvironment{conclusions}{%
-  \if@openright\cleardoublepage\else\clearpage\fi
+\ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@conclusion@ctitle}[\hit@conclusion@etitle]}{}
 \newenvironment{acknowledgements}{%
-  \if@openright\cleardoublepage\else\clearpage\fi
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@acknowledgement@ctitle}[\hit@acknowledgement@etitle]}{}
 \newenvironment{resume}{%
-  \if@openright\cleardoublepage\else\clearpage\fi
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@resume@ctitle}[\hit@resume@etitle]}{}
 \newenvironment{publication}{%
-  \if@openright\cleardoublepage\else\clearpage\fi
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@publication@ctitle}[\hit@publication@etitle]}{}
 
 \newenvironment{ceindex}{%
-  \if@openright\cleardoublepage\else\clearpage\fi
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\indexname}[\hit@index@etitle]\begin{multicols*}{2}}{\end{multicols*}}
 
 \newlist{idxwordlist}{description}{3}
@@ -1337,7 +1338,7 @@ breaklines=true
 }
 
 \def\hit@authorization@other{%
-  \if@openright\cleardoublepage\else\clearpage\fi
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@authorization@ctitle}[\hit@authorization@etitle]
   \xiaosi[1.6]\vspace{\baselineskip}
 \begin{center}\xiaosan\heiti\hit@declarename\end{center}
@@ -1352,7 +1353,7 @@ breaklines=true
 \vspace{2\baselineskip}
 \par\hspace{6em}\hit@teachersig\hfill\hit@frontdate\hit@datefill}
 \def\hit@authorization@bachelor{%
-  \if@openright\cleardoublepage\else\clearpage\fi
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@declarename@bachelor}
   \hit@authorizationtext@bachelor
 \vspace{2\baselineskip}
@@ -1381,6 +1382,7 @@ breaklines=true
 \def\@inlinecite#1{\begingroup\let\@cite\NAT@citenum\citep{#1}\endgroup}
 \let\onlinecite\inlinecite
 \renewenvironment{thebibliography}[1]{%
+  \ifhit@openright\cleardoublepage\else\clearpage\fi\phantomsection%
   \hit@appendix@chapter*{\bibname}[\hit@bibname@etitle]
   \normalsize
   \list{\@biblabel{\@arabic\c@enumiv}}%
