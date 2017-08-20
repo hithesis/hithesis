@@ -1,4 +1,4 @@
-TARGETS = main
+TARGETS = hithesis.dtx
 LATEXMK = latexmk
 
 all:
