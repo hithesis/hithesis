@@ -11,24 +11,11 @@
 \newif\ifhit@bachelor % 定义一个布尔变量
 \newif\ifhit@master
 \newif\ifhit@doctor
-\newif\ifhit@postdoctor
 \define@key{hit}{type}{%
   \hit@bachelorfalse %默认都是false
   \hit@masterfalse
   \hit@doctorfalse
-  \hit@postdoctorfalse
   \expandafter\csname hit@#1true\endcsname} %含有选项的设为true
-
-%%手动载入字体选项，为了兼容更多的系统
-\newif\ifhit@winxp
-\define@key{hit}{os}{%
-  \hit@winxpfalse
-  \expandafter\csname hit@#1true\endcsname}
-
-\def\hit@deprecated@type@option{%
-  \kvsetkeys{hit}{type=\CurrentOption} % for compatability.
-  \ClassError{hithesis}{Option '\CurrentOption' is deprecated, \MessageBreak
-                         please use 'type=\CurrentOption' instead}{}}
 
 \DeclareBoolOption[false]{secret}
 \DeclareBoolOption[false]{arialtoc}
@@ -43,13 +30,11 @@
 \DeclareBoolOption[false]{subtitle}
 \DeclareBoolOption[false]{debug}
 \DeclareBoolOption[false]{newgeometry}
-\DeclareBoolOption[true]{skipnormal}
 \DeclareBoolOption[false]{openright}
 
 \DeclareStringOption{fontset}
 
 \DeclareDefaultOption{\PassOptionsToClass{\CurrentOption}{ctexbook}}
-\kvsetkeys{hit}{raggedbottom}
 \ProcessKeyvalOptions*
 \PassOptionsToPackage{no-math}{fontspec}
 
@@ -83,11 +68,9 @@
 \ifhit@bachelor\relax\else
   \ifhit@master\relax\else
     \ifhit@doctor\relax\else
-      \ifhit@postdoctor\relax\else
         \ClassError{hithesis}%
                    {Please specify thesis type in option: \MessageBreak
-                    type=[bachelor | master | doctor | postdoctor]}{}
-      \fi
+                    type=[bachelor | master | doctor ]}{}
     \fi
   \fi
 \fi
@@ -131,21 +114,13 @@
 
 \RequirePackage{CJKfntef} % 汉字加点，分散对齐功能
 \RequirePackage[amsmath,thmmarks,hyperref]{ntheorem}% 定理类环境宏包，其中 amsmath 选项用来兼容 AMS LaTeX 的宏包
-%\RequirePackage{array}
 \RequirePackage{longtable}      %支持跨页的表格。
 \RequirePackage{booktabs}       % 表格，横的粗线；\specialrule{1pt}{0pt}{0pt}
 \RequirePackage[sort&compress]{natbib}% 支持引用缩写的宏包
 
 \RequirePackage{hyperref}
-\ifxetex
-  \hypersetup{%
-    CJKbookmarks=true}
-\else
-  \hypersetup{%
-    unicode=true,
-    CJKbookmarks=false}
-\fi
 \hypersetup{%
+  CJKbookmarks=true,
   linktoc=all,
   bookmarksnumbered=true,
   bookmarksopen=true,
