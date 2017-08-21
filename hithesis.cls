@@ -234,6 +234,7 @@
 
 \RequirePackage[boxed,linesnumbered,algochapter]{algorithm2e}  % 算法的宏包，注意宏包兼容性，先后顺序为float、hyperref、algorithm(2e)，否则无法生成算法列表
 \RequirePackage{xltxtra}
+\def\hithesis{\textsc{hi}\-\textsc{Thesis}}
 \RequirePackage{listings}
 \lstset{
 %basicstyle=\small\ttfamily,
