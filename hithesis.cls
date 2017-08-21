@@ -1175,14 +1175,14 @@ breaklines=true
   \hit@cabstract
   \vskip12bp
   \hit@put@keywords{\heiti\hit@ckeywords@title}{\hit@ckeywords}
-  \clearpage
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\eabstractcname}[\eabstractename]
   \hit@eabstract
   \vskip12bp
   \hit@put@keywords{\textbf{Keywords:\enskip}}{\hit@ekeywords}}
 
 \newenvironment{denotation}[1][2.5cm]{%
-  \clearpage
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@denotation@ctitle}[\hit@denotation@etitle]
 \setcounter{table}{0}
 \renewcommand{\thetable}{\arabic{table}}%使表编号为 1 的格式
