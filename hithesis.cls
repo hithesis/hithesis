@@ -1073,7 +1073,7 @@ breaklines=true
     \parbox[t][2.4cm][t]{\textwidth}{\xiaoer[1]
   \begin{center}\songti\bfseries\hit@cdegree\hit@cthesisname\end{center}
       \ifhit@fulltime\relax\else\begin{center}\songti\textbf{\hit@cbraceleft\hit@cstudenttype\hit@cbraceright}\end{center}\fi}
-	\parbox[t][5cm][t]{\textwidth}{\erhao[1]
+	\parbox[t][5cm][t]{\textwidth}{\erhao
   \begin{center}\heiti\hit@ctitle\end{center}
 \ifhit@subtitle\begin{center}\hspace{-4em}\xiaoer\heiti\pozhehao\hit@csubtitle\end{center}\fi}
     \parbox[t][9.8cm][b]{\textwidth}
