@@ -1227,6 +1227,9 @@ breaklines=true
 \ifhit@bachelor\ifhit@tocfour\setcounter{tocdepth}{3}\fi\fi
 \setcounter{tocdepth}{2}
 \renewcommand\tableofcontents{%
+\ifhit@openright\cleardoublepage\else\clearpage\fi
+\phantomsection
+\markboth{\contentsname}{ccontent}
 \hit@chapter*{\contentsname}
 \pdfbookmark[0]{\contentsname}{ccontent}
 \normalsize\@starttoc{toc}}
