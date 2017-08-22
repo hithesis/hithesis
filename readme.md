@@ -62,38 +62,38 @@ hithesis, 既含我工hit，也是说用的“嗨！”，读作“嗨thesis”�
 
 - 生成论文格式文件(第一步要生成 *.cls，*.cfg，*.ist，然后再生成论文)
 
-	latex hithesis.ins
+		latex hithesis.ins
 
 - 生成论文
 
-	xelatex main.tex
-	bibtex main
-	xelatex main.tex
-	xelatex main.tex
-	splitindex main -- -s hithesis.ist  # 自动生成索引
-	xelatex main.tex
+		xelatex main.tex
+		bibtex main
+		xelatex main.tex
+		xelatex main.tex
+		splitindex main -- -s hithesis.ist  # 自动生成索引
+		xelatex main.tex
 
 - 生成文档
 
-	xelatex hithesis.dtx
-	makeindex -s gind.ist -o hithesis.ind hithesis.idx
-	makeindex -s gglo.ist -o hithesis.gls hithesis.glo
-	xelatex hithesis.dtx
-	xelatex hithesis.dtx
+		xelatex hithesis.dtx
+		makeindex -s gind.ist -o hithesis.ind hithesis.idx
+		makeindex -s gglo.ist -o hithesis.gls hithesis.glo
+		xelatex hithesis.dtx
+		xelatex hithesis.dtx
 
 如果喜欢Makefile的是另一画风：
 
 - 生成文档类
 
-	make cls
+		make cls
 
 - 生成论文
 
-	make thesis
+		make thesis
 
 - 生成文档
 
-	make doc
+		make doc
 
 LaTeX 中的ctex package版本要求：
 
