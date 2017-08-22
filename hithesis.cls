@@ -1049,7 +1049,7 @@ breaklines=true
     \parbox[t][2.4cm][t]{\textwidth}{\xiaoer[1]
   \begin{center}\songti\bfseries\hit@cdegree\hit@cthesisname\end{center}
       \ifhit@fulltime\relax\else\begin{center}\songti\textbf{\hit@cbraceleft\hit@cstudenttype\hit@cbraceright}\end{center}\fi}
-	\parbox[t][5cm][t]{\textwidth}{\erhao[1]
+	\parbox[t][5cm][t]{\textwidth}{\erhao
   \begin{center}\heiti\hit@ctitle\end{center}
 \ifhit@subtitle\begin{center}\hspace{-4em}\xiaoer\heiti\pozhehao\hit@csubtitle\end{center}\fi}
     \parbox[t][9.8cm][b]{\textwidth}
@@ -1151,14 +1151,14 @@ breaklines=true
   \hit@cabstract
   \vskip12bp
   \hit@put@keywords{\heiti\hit@ckeywords@title}{\hit@ckeywords}
-  \clearpage
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\eabstractcname}[\eabstractename]
   \hit@eabstract
   \vskip12bp
   \hit@put@keywords{\textbf{Keywords:\enskip}}{\hit@ekeywords}}
 
 \newenvironment{denotation}[1][2.5cm]{%
-  \clearpage
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@denotation@ctitle}[\hit@denotation@etitle]
 \setcounter{table}{0}
 \renewcommand{\thetable}{\arabic{table}}%使表编号为 1 的格式
@@ -1203,6 +1203,9 @@ breaklines=true
 \ifhit@bachelor\ifhit@tocfour\setcounter{tocdepth}{3}\fi\fi
 \setcounter{tocdepth}{2}
 \renewcommand\tableofcontents{%
+\ifhit@openright\cleardoublepage\else\clearpage\fi
+\phantomsection
+\markboth{\contentsname}{ccontent}
 \hit@chapter*{\contentsname}
 \pdfbookmark[0]{\contentsname}{ccontent}
 \normalsize\@starttoc{toc}}
