@@ -9,7 +9,7 @@ THESISMAIN = main
 
 PACKAGE=hithesis
 SOURCES=$(PACKAGE).ins $(PACKAGE).dtx
-THESISCONTENTS=$(THESISMAIN).tex data/*.tex $(FIGURES)
+THESISCONTENTS=$(THESISMAIN).tex front/*.tex body/*.tex back/*.tex $(FIGURES) *.bst
 # NOTE: update this to reflect your local file types.
 FIGURES=$(wildcard figures/*.eps figures/*.pdf)
 BIBFILE=*.bib
@@ -50,6 +50,8 @@ $(PACKAGE).pdf: $(CLSFILES) FORCE_MAKE
 
 $(THESISMAIN).pdf: $(CLSFILES) FORCE_MAKE
 	$(METHOD) $(LATEXMKOPTS) $(THESISMAIN)
+	splitindex $(THESISMAIN) -- -s $(PACKAGE).ist  # 自动生成索引
+	xelatex  $(THESISMAIN)
 
 else ifneq (,$(filter $(METHOD),xelatex pdflatex))
 
@@ -60,8 +62,10 @@ $(PACKAGE).pdf: $(CLSFILES)
 	$(METHOD) $(PACKAGE).dtx
 	$(METHOD) $(PACKAGE).dtx
 
-$(THESISMAIN).pdf: $(CLSFILES) $(THESISCONTENTS) $(THESISMAIN).bbl
+$(THESISMAIN).pdf: $(CLSFILES) $(THESISCONTENTS) $(THESISMAIN)_china.ind $(THESISMAIN)_china.idx $(THESISMAIN)_english.ind $(THESISMAIN)_english.idx $(THESISMAIN).bbl
 	$(METHOD) $(THESISMAIN)
+	$(METHOD) $(THESISMAIN)
+	splitindex $(THESISMAIN) -- -s $(PACKAGE).ist  # 自动生成索引
 	$(METHOD) $(THESISMAIN)
 
 $(THESISMAIN).bbl: $(BIBFILE)
