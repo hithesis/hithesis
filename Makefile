@@ -1,7 +1,7 @@
 # Makefile for ThuThesis
 
 # Compiling method: latexmk/xelatex/pdflatex
-METHOD = latexmk
+METHOD = xelatex
 # Set opts for latexmk if you use it
 LATEXMKOPTS = -xelatex
 # Basename of thesis
@@ -50,8 +50,6 @@ $(PACKAGE).pdf: $(CLSFILES) FORCE_MAKE
 
 $(THESISMAIN).pdf: $(CLSFILES) FORCE_MAKE
 	$(METHOD) $(LATEXMKOPTS) $(THESISMAIN)
-	splitindex $(THESISMAIN) -- -s $(PACKAGE).ist  # 自动生成索引
-	xelatex  $(THESISMAIN)
 
 else ifneq (,$(filter $(METHOD),xelatex pdflatex))
 
@@ -62,10 +60,17 @@ $(PACKAGE).pdf: $(CLSFILES)
 	$(METHOD) $(PACKAGE).dtx
 	$(METHOD) $(PACKAGE).dtx
 
-$(THESISMAIN).pdf: $(CLSFILES) $(THESISCONTENTS) $(THESISMAIN)_china.ind $(THESISMAIN)_china.idx $(THESISMAIN)_english.ind $(THESISMAIN)_english.idx $(THESISMAIN).bbl
+$(THESISMAIN).idx: $(THESISMAIN).bbl
 	$(METHOD) $(THESISMAIN)
 	$(METHOD) $(THESISMAIN)
+
+
+$(THESISMAIN)_china.idx : $(CLSFILES) $(THESISMAIN).bbl $(THESISMAIN).idx
 	splitindex $(THESISMAIN) -- -s $(PACKAGE).ist  # 自动生成索引
+
+$(THESISMAIN)_english.ind $(THESISMAIN)_china.ind $(THESISMAIN)_english.idx : $(THESISMAIN)_china.idx
+
+$(THESISMAIN).pdf: $(CLSFILES) $(THESISCONTENTS) $(THESISMAIN)_china.ind $(THESISMAIN)_china.idx $(THESISMAIN)_english.ind $(THESISMAIN)_english.idx $(THESISMAIN).bbl
 	$(METHOD) $(THESISMAIN)
 
 $(THESISMAIN).bbl: $(BIBFILE)
@@ -80,7 +85,7 @@ endif
 
 clean:
 	latexmk -c $(PACKAGE).dtx $(THESISMAIN)
-	-@$(RM) *~
+	-@$(RM) *~ *.idx *.ind *.ilg *.thm *.toe *.bbl
 
 cleanall: clean
 	-@$(RM) $(PACKAGE).pdf $(THESISMAIN).pdf
