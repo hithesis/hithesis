@@ -1,33 +1,12 @@
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-%  符合 GB/T 7714-2005 规范的 BibTeX 样式文件
-%
-%  作者：    胡海星   南京大学计算机科学与技术系
-%  版本：    v2.1.1  2015年6月15日
-%  项目主页: http://haixing-hu.github.io/nju-thesis/
-%
-%  参考资料:
-%  [1] 中国国家标准化管理委员会. GB/T 7714-2005 文后参考文献着录规则[S]. 2005.
-%  [2] PATASHNIK O. BiBTeXing[R/OL]. 1988[2013-08-27].
-%      ftp://tug.ctan.org/pub/tex-archive/biblio/bibtex/contrib/doc/btxdoc.pdf
-%  [3] PATASHNIK O. Designing BibTeX Styles[R/OL]. 1998[2013-08-27].
-%      ftp://tug.ctan.org/pub/tex-archive/biblio/bibtex/contrib/doc/btxhak.pdf
-%
-%    This program is free software; you can redistribute it and/or modify
-%    it under the terms of the GNU General Public License as published by
-%    the Free Software Foundation; either version 2 of the License, or
-%    (at your option) any later version.
-%
-%    This program is distributed in the hope that it will be useful,
-%    but WITHOUT ANY WARRANTY; without even the implied warranty of
-%    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-%    GNU General Public License for more details.
-%
-%    You should have received a copy of the GNU General Public License along
-%    with this program; if not, write to the Free Software Foundation, Inc.,
-%    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%=============================================================================
+%     FileName: hithesis.bst
+%       Author: Chu Yanshuo
+%        Email: chu@yanshuo.name
+%     HomePage: http://yanshuo.name
+%      Version: 0.0.1
+%   LastChange: 2017-08-27 15:39:30
+%      History: 胡海星
+%=============================================================================
                                                   %
 ENTRY                                             % class Entry {
 {                                                 % public:
