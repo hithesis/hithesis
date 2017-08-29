@@ -10,11 +10,24 @@ supporting bachelor, master, doctor dissertations. Since the users of this
 package are supposed to be Chinese or those understand Chinese, the following of
 this file and all other documents are written in Chinese only.
 
+This file may be distributed and/or modified under the
+conditions of the LaTeX Project Public License, either version 1.3a
+of this license or (at your option) any later version.
+The latest version of this license is in:
+
+http://www.latex-project.org/lppl.txt
+
+and version 1.3a or later is part of all distributions of LaTeX
+version 2004/10/01 or later.
+
+
 ## hithesis是什么？
 
 hithesis
 旨在建立一个简单易用的哈尔滨工业大学学位论文LaTeX模板，包括本科论文、硕士论文、博士论文
 。现 在支持本科、硕士、博士论文，对其它格式的支持会陆续加入。
+hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis
+"CTAN")中，用户安装TeXLive将自带我工模板（版本日期>2017.08.28）。
 
 
 ## 我工规范有歧义之处
