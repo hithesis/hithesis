@@ -85,7 +85,7 @@ endif
 
 clean:
 	latexmk -c $(PACKAGE).dtx $(THESISMAIN)
-	-@$(RM) *~ *.idx *.ind *.ilg *.thm *.toe *.bbl
+	-@$(RM) *~ *.idx *.ind *.ilg *.thm *.toe *.bbl latexmkrc
 
 cleanall: clean
 	-@$(RM) $(PACKAGE).pdf $(THESISMAIN).pdf
