@@ -51,7 +51,7 @@ $(PACKAGE).pdf: $(CLSFILES) FORCE_MAKE
 $(THESISMAIN).pdf: $(CLSFILES) FORCE_MAKE
 	$(METHOD) $(LATEXMKOPTS) $(THESISMAIN)
 
-else ifneq (,$(filter $(METHOD),xelatex pdflatex))
+else ifeq ($(METHOD),xelatex)
 
 $(PACKAGE).pdf: $(CLSFILES)
 	$(METHOD) $(PACKAGE).dtx
@@ -72,6 +72,8 @@ $(THESISMAIN)_english.ind $(THESISMAIN)_china.ind $(THESISMAIN)_english.idx : $(
 
 $(THESISMAIN).pdf: $(CLSFILES) $(THESISCONTENTS) $(THESISMAIN)_china.ind $(THESISMAIN)_china.idx $(THESISMAIN)_english.ind $(THESISMAIN)_english.idx $(THESISMAIN).bbl
 	$(METHOD) $(THESISMAIN)
+	splitindex $(THESISMAIN) -- -s $(PACKAGE).ist  # 自动生成索引
+	$(METHOD) $(THESISMAIN)
 
 $(THESISMAIN).bbl: $(BIBFILE)
 	$(METHOD) $(THESISMAIN)
@@ -84,8 +86,9 @@ $(error Unknown METHOD: $(METHOD))
 endif
 
 clean:
-	latexmk -c $(PACKAGE).dtx $(THESISMAIN)
-	-@$(RM) *~ *.idx *.ind *.ilg *.thm *.toe *.bbl latexmkrc
+	latexmk -c $(PACKAGE).dtx
+	latexmk -c $(THESISMAIN)
+	-@$(RM) *~ *.idx *.ind *.ilg *.thm *.toe *.bbl
 
 cleanall: clean
 	-@$(RM) $(PACKAGE).pdf $(THESISMAIN).pdf
