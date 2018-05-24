@@ -161,6 +161,18 @@ LaTeX 中的ctex package版本要求：
 
 各位刀客和大侠如用的嗨，要解囊相助，请微信扫码～～
 
+![5](http://wx4.sinaimg.cn/large/61dccbaaly1fge32sbb32j20my0uz3zt.jpg "谢谢")
+
+如果用的非常嗨，
+
+![10](http://wx4.sinaimg.cn/large/61dccbaaly1fge32tuvvsj20my0uzabc.jpg "谢谢")
+
+那个，看在苦X高龄不毕业博士，还熬夜写代码的份上…… 唉……
+
+![1](http://wx4.sinaimg.cn/large/61dccbaaly1fge32qrvgij20my0uzjso.jpg "谢谢")
+
+或者随便吧……
+
 ![wechat](http://wx2.sinaimg.cn/large/61dccbaaly1fqwvz6sd4ej20yi1au797.jpg "谢谢")
 
 ![zfb](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg "谢谢")
