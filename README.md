@@ -33,7 +33,9 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis
 
 各位刀客一定要先看清楚我工规范两大歧义之处：[版芯歧义](http://yanshuo.name/cn/2017/06/hithesisregulation/)和[本科生行距歧义](http://yanshuo.name/cn/2017/06/hithesissiyuan/)。
 
-另外注意一处小歧义：在[规范](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm)中规定和[研究生word排版范例](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)的中文目录中出现的“ABSTRACT”和“Abstract”的写法歧义（规格严格功夫大家！！！）。
+另外注意几处小歧义：
+- 在[规范](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm)中规定和[研究生word排版范例](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)的中文目录中出现的“ABSTRACT”和“Abstract”的写法歧义（规格严格功夫大家！！！）。
+- 本科生论文官方模板的页眉页码格式混乱，有的有页码横线有的没有，有的有页眉有的没有。
 
 ## 模板特点
 
