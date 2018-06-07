@@ -112,7 +112,7 @@ FUNCTION {cmd.bibtranslator} 	{ "\providecommand{\bibtranslator}[1]{#1}" }
 FUNCTION {cmd.bibtitle} 		{ "\providecommand{\bibtitle}[1]{#1}" }
 FUNCTION {cmd.bibbooktitle} 	{ "\providecommand{\bibbooktitle}[1]{#1}" }
 FUNCTION {cmd.bibjournal} 		{ "\providecommand{\bibjournal}[1]{#1}" }
-FUNCTION {cmd.bibmark} 			{ "\providecommand{\bibmark}[1]{#1}" }
+FUNCTION {cmd.bibmark} 			{ "\providecommand{\bibmark}[1]{\mbox{#1}}" }
 FUNCTION {cmd.bibcountry} 		{ "\providecommand{\bibcountry}[1]{#1}" }
 FUNCTION {cmd.bibpatentid} 		{ "\providecommand{\bibpatentid}[1]{#1}" }
 FUNCTION {cmd.bibedition} 		{ "\providecommand{\bibedition}[1]{#1}" }
