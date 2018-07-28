@@ -101,7 +101,7 @@ FUNCTION {cap.period} 		{"\@. "}
 FUNCTION {cap.comma} 			{"\@, "}
 FUNCTION {cap.colon} 			{"\thinspace{}\textnormal{: }"}
 FUNCTION {cap.double.slash} 	{" //\thinspace{}"}
-FUNCTION {cap.dash} 			{"\thinspace{}\textnormal{--}\thinspace{}"}
+FUNCTION {cap.dash} 			{"\textnormal{--}"}
 
 % Predefined latex command used to format the style of bibitems
 FUNCTION {env.bibbegin} 		{ "\begin{thebibliography}" }
