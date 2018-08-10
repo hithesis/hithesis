@@ -124,11 +124,11 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 
 		texdoc hithesis
 
-  - 如果是Linux/Mac执行
+   - 如果是Linux/Mac执行
 	
 		latex hithesis.ins
 		
-  - 如果是Windows执行
+   - 如果是Windows执行
 	
 		lualatex hithesis.ins
 
