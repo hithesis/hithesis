@@ -124,13 +124,13 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 
 		texdoc hithesis
 
-   - 如果是Linux/Mac执行
+   - 如果是Linux/Mac执行 （此处作者没测试过Mac，如遇到问题到谈论区可以问一下热心刀客大侠们，比如陈登泰教授、郭大侠等）
 	
-		latex hithesis.ins
+			latex hithesis.ins
 		
-   - 如果是Windows执行
+   - 如果是Windows执行（作者没测试过，如遇问题同上）
 	
-		lualatex hithesis.ins
+			lualatex hithesis.ins
 
 
 - 生成论文
