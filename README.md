@@ -171,7 +171,7 @@ LaTeX 中的ctex package版本要求：
 
 	ctex >= v2.4.3 (2016年9月份发布)
 
-### 打印版、电子版及其他说明
+### 打印版、电子版
 
 注意，一般情况下，博士论文的打印版要求双面打印，本硕单面。
 博士论文在双面打印成册时，规范中没有明确规定是否要右翻页（右翻页是每一章的起始位
@@ -183,6 +183,11 @@ LaTeX 中的ctex package版本要求：
 最后向图书管提交的电子版不是右翻页且要求没有任何空白页，这时只需要设置选项`library=true`
 即可，这时候会强制`openright=false`。然后什么都不用做，就会出现如同`Sirius`同学
 的这种“书签还没整明白，论文居然已经通过了”的情况。
+
+### 幻灯片
+
+有些强迫症刀客喜欢用Beamer，推荐[progressbar主题](https://github.com/dustincys/progressbar)，
+能够使用[pympress](https://github.com/Cimbali/pympress)播放双屏提示。
 
 ### 其他说明
 
