@@ -20,7 +20,6 @@ http://www.latex-project.org/lppl.txt
 and version 1.3a or later is part of all distributions of LaTeX
 version 2004/10/01 or later.
 
-
 ## hithesis是什么？
 
 hithesis
@@ -107,8 +106,8 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 hithesis 高级群：476262502 （高级群为作者散布高级排版、制图、Linux管理、编码等
 知识和技术之所在，其要旨引用自《西游记》第八回，如来自言“叵耐不识我法门之要旨，
 怠慢了瑜伽之正宗”，以及“曹溪路险、鹫岭云深，故人不音杳！”。散布知识之后，作者将
-直播回答高级群中众生问题。）。
-群里有很多热心的LaTeX隐士高人如@poofee等，很乐于解答。
+直播回答高级群中众生问题。（由于工作关系直播暂停，开播时间待定））。
+hithesis群里有很多热心的LaTeX隐士高人如@poofee等，很乐于解答。
 
 ### 关于查重
 
@@ -194,18 +193,6 @@ LaTeX 中的ctex package版本要求：
 由于维护者（就是本书呆）已经是高龄不毕业博士，课题繁忙，实在无空余时间再写详细文档以及 无偿解决一些用户要求（例如前面文档中[已经解决的算法格式各实验室要求不一致](https://github.com/dustincys/PlutoThesis#%E6%B2%A1%E6%9C%89%E6%98%8E%E7%A1%AE%E8%A6%81%E6%B1%82%E7%9A%84%E6%A0%BC%E5%BC%8F)问题）。
 
 各位刀客和大侠如用的嗨，要解囊相助，请微信扫码～～
-
-![5](http://wx4.sinaimg.cn/large/61dccbaaly1fge32sbb32j20my0uz3zt.jpg "谢谢")
-
-如果用的非常嗨，
-
-![10](http://wx4.sinaimg.cn/large/61dccbaaly1fge32tuvvsj20my0uzabc.jpg "谢谢")
-
-那个，看在苦X高龄不毕业博士，还熬夜写代码的份上…… 唉……
-
-![1](http://wx4.sinaimg.cn/large/61dccbaaly1fge32qrvgij20my0uzjso.jpg "谢谢")
-
-或者随便吧……
 
 ![wechat](http://wx2.sinaimg.cn/large/61dccbaaly1fqwvz6sd4ej20yi1au797.jpg "谢谢")
 
