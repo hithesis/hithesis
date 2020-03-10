@@ -156,12 +156,12 @@ LaTeX 中的ctex package版本要求：
 
    - 手动狙击（源文件更改后每次编译逐行命令输入一轮）
 
-            xelatex －shell-escape main.tex
+            xelatex -shell-escape main.tex
             bibtex main
-            xelatex －shell-escape main.tex
-            xelatex －shell-escape main.tex
+            xelatex -shell-escape main.tex
+            xelatex -shell-escape main.tex
             splitindex main -- -s hithesis.ist  # 自动生成索引
-            xelatex －shell-escape main.tex
+            xelatex -shell-escape main.tex
             
    - 半自动精确射击（源文件更改后每次编译敲一次）
 
