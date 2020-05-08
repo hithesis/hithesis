@@ -20,6 +20,6 @@ tlmgr install l3build \
     diagbox float fp metalogo multirow pict2e \
     latexmk ctex ntheorem newtx fontaxes pdfpages enumitem environ trimspaces\
     footmisc varwidth changepage placeins multirow subfigure ccaption splitindex\
-    xltxtra realscripts siunitx jknapltx mathrsfs algorithm2e ifoddpage relsize\
+    xltxtra realscripts siunitx jknapltx algorithm2e ifoddpage relsize\
     listings glossaries mfirstuc textcase xfor datatool tracklang pdflscape rsfs\
     txfonts xecjk tex-gyre
