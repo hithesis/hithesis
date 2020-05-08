@@ -10,16 +10,16 @@ curl -sSL "$REMOTE/install-tl-unx.tar.gz" | tar -xz -C "$INSTALL" \
 export PATH="/tmp/texlive/bin/x86_64-linux:$PATH";
 
 tlmgr install l3build \
-    fontname fontspec l3packages xetex \
+    fontname fontspec xetex \
     cjk environ ms trimspaces ulem zhnumber \
     fandol tex-gyre xits \
     bibunits caption enumitem etoolbox footmisc notoccite pdfpages unicode-math \
     booktabs koma-script nomencl ntheorem siunitx xkeyval \
-    bitset letltxmacro pdfescape pdflscape \
+    pdflscape \
     hologo listings xcolor \
     diagbox float fp metalogo multirow pict2e \
-    latexmk ctex ntheorem newtx fontaxes psnfss pdfpages enumitem environ trimspaces\
-    footmisc fancyhdr varwidth changepage placeins multirow subfigure ccaption splitindex\
-    xltxtra realscripts siunitx mathrsfs jknapltx mathrsfs algorithm2e ifoddpage relsize\
+    latexmk ctex ntheorem newtx fontaxes pdfpages enumitem environ trimspaces\
+    footmisc varwidth changepage placeins multirow subfigure ccaption splitindex\
+    xltxtra realscripts siunitx jknapltx mathrsfs algorithm2e ifoddpage relsize\
     listings glossaries mfirstuc textcase xfor datatool tracklang pdflscape rsfs\
-    t1xtt txfonts xeCJKfntef xecjk tex-gyre
+    txfonts xecjk tex-gyre
