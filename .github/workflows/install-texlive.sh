@@ -23,3 +23,13 @@ tlmgr install l3build \
     xltxtra realscripts siunitx jknapltx algorithm2e ifoddpage relsize\
     listings glossaries mfirstuc textcase xfor datatool tracklang pdflscape rsfs\
     txfonts xecjk tex-gyre
+
+if [ ! -d $HOME/.fonts ]; then
+    mkdir $HOME/.fonts;
+fi
+
+wget https://github.com/StellarCN/scp_zh/raw/master/fonts/SimSun.ttf -O $HOME/.fonts/SimSun.ttf
+wget https://github.com/StellarCN/scp_zh/raw/master/fonts/SimHei.ttf -O $HOME/.fonts/SimHei.ttf
+wget https://github.com/StellarCN/scp_zh/raw/master/fonts/SimKai.ttf -O $HOME/.fonts/SimKai.ttf
+
+fc-cache -f $HOME/.fonts/
