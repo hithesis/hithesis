@@ -1,5 +1,5 @@
 # hithesis
-[![TeXLive](https://github.com/dustincys/hithesis/workflows/TeXLive/badge.svg)](https://github.com/dustincys/hithesis/actions) [![GitHub All Releases](https://img.shields.io/github/downloads/dustincys/hithesis/total)](https://github.com/dustincys/hithesis/releases) [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/dustincys/hithesis)](https://github.com/dustincys/hithesis/releases) [![CTAN](https://img.shields.io/ctan/v/hithesis)](https://ctan.org/pkg/hithesis) [![GitHub repo size](https://img.shields.io/github/repo-size/dustincys/hithesis)](https://yanshuo.name/hithesis) [![GitHub issues](https://img.shields.io/github/issues/dustincys/hithesis)](https://github.com/dustincys/hithesis/issues)
+[![MacTeX](https://github.com/dustincys/hithesis/workflows/MacTeX/badge.svg?branch=mac)](https://github.com/dustincys/hithesis/actions) [![TeXLive](https://github.com/dustincys/hithesis/workflows/TeXLive/badge.svg)](https://github.com/dustincys/hithesis/actions) [![GitHub All Releases](https://img.shields.io/github/downloads/dustincys/hithesis/total)](https://github.com/dustincys/hithesis/releases) [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/dustincys/hithesis)](https://github.com/dustincys/hithesis/releases) [![CTAN](https://img.shields.io/ctan/v/hithesis)](https://ctan.org/pkg/hithesis) [![GitHub repo size](https://img.shields.io/github/repo-size/dustincys/hithesis)](https://yanshuo.name/hithesis) [![GitHub issues](https://img.shields.io/github/issues/dustincys/hithesis)](https://github.com/dustincys/hithesis/issues)
 
 # 哈尔滨工业大学LaTeX论文模板
 
@@ -129,20 +129,13 @@ hithesis群里有很多热心的LaTeX隐士高人如@poofee等，很乐于解答
 
 ### 模板版本要求
 
-LaTeX 中的ctex package版本要求：
-
 	ctex >= v2.4.3 (2016年9月份发布)
-
-注意，如果下载最新版本（>= 2018）的texlive或Miktex或Mactex，如果使用自带的模板，可能会出现一些错误，因为自带的版本老。
-查看自带版本的命令是
-
-	texdoc hithesis
 
 ### 模板的编译方法
 
 1. 生成论文格式文件(第一步要生成 *.cls，*.cfg，*.ist，然后再生成论文)
 
-   - 如果是Linux/Mac执行 （此处作者没测试过Mac，如遇到问题到谈论区可以问一下热心刀客大侠们，比如陈登泰教授、郭大侠等）
+   - 如果是Linux/Mac执行
 	
 			latex hithesis.ins
 		
