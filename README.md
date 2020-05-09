@@ -1,5 +1,5 @@
 # hithesis
-![TeXLive](https://github.com/dustincys/hithesis/workflows/TeXLive/badge.svg) ![GitHub All Releases](https://img.shields.io/github/downloads/dustincys/hithesis/total) ![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/dustincys/hithesis) ![CTAN](https://img.shields.io/ctan/v/hithesis) ![GitHub repo size](https://img.shields.io/github/repo-size/dustincys/hithesis) ![GitHub issues](https://img.shields.io/github/issues/dustincys/hithesis)
+[![TeXLive](https://github.com/dustincys/hithesis/workflows/TeXLive/badge.svg)](https://github.com/dustincys/hithesis/actions) [![GitHub All Releases](https://img.shields.io/github/downloads/dustincys/hithesis/total)](https://github.com/dustincys/hithesis/releases) [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/dustincys/hithesis)](https://github.com/dustincys/hithesis/releases) [![CTAN](https://img.shields.io/ctan/v/hithesis)](https://ctan.org/pkg/hithesis) [![GitHub repo size](https://img.shields.io/github/repo-size/dustincys/hithesis)](https://yanshuo.name/hithesis) [![GitHub issues](https://img.shields.io/github/issues/dustincys/hithesis)](https://github.com/dustincys/hithesis/issues)
 
 # 哈尔滨工业大学LaTeX论文模板
 
