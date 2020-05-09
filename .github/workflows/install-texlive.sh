@@ -32,5 +32,6 @@ wget https://github.com/StellarCN/scp_zh/raw/master/fonts/SimSun.ttf -O $HOME/.f
 wget https://github.com/StellarCN/scp_zh/raw/master/fonts/SimHei.ttf -O $HOME/.fonts/SimHei.ttf
 wget https://github.com/Halfish/lstm-ctc-ocr/raw/master/fonts/simkai.ttf -O $HOME/.fonts/simkai.ttf
 wget https://github.com/Halfish/lstm-ctc-ocr/raw/master/fonts/simfang.ttf -O $HOME/.fonts/simfang.ttf
+wget https://github.com/dangxinchudian/interfacedbcms/raw/master/tcpdf/msyh.ttf -O $HOME/.fonts/msyh.ttf
 
 fc-cache -f $HOME/.fonts/
