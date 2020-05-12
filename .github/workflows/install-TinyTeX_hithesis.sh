@@ -9,29 +9,23 @@ wget -qO- "https://yihui.org/gh/tinytex/tools/install-unx.sh" | sh
 
 echo "Finish install TinyTeX, going to install extra dependencies..."
 
-export PATH="$HOME/bin:$PATH";
+export PATH="$HOME/.TinyTeX/bin/x86_64-linux:$PATH";
 
 tlmgr update --self --all
 tlmgr path add
 fmtutil-sys --all
 
-realpath $HOME/.TinyTeX/bin/x86_64-linux/* | xargs -n 1 ln -s -f
-
 echo "Finish update , install extra packages..."
 
 tlmgr install tex-gyre ctex splitindex ntheorem newtx fontaxes psnfss pdfpages \
     enumitem environ trimspaces footmisc varwidth changepage placeins multirow \
-    subfigure ccaption splitindex xltxtra realscripts siunitx jknapltx algorithm2e \
+    subfigure ccaption xltxtra realscripts siunitx jknapltx algorithm2e \
     ifoddpage relsize listings glossaries mfirstuc textcase xfor datatool tracklang \
     pdflscape rsfs txfonts xecjk newpx fancyhdr hyphen-german
 
-echo "Finish install extra packages..."
+echo "Finish install extra packages."
 
-realpath $HOME/.TinyTeX/bin/x86_64-linux/* | xargs -n 1 ln -s -f
-export PATH="$HOME/bin:$PATH";
-
-echo "Finish update path"
-
+echo "Begin install font..."
 if [ ! -d $HOME/.fonts ]; then
     mkdir $HOME/.fonts;
 fi
@@ -46,3 +40,4 @@ wget https://github.com/owent-utils/font/raw/master/%E5%BE%AE%E8%BD%AF%E9%9B%85%
 wget https://github.com/junmer/source-han-serif-ttf/raw/master/SubsetTTF/CN/SourceHanSerifCN-Regular.ttf -O $HOME/.fonts/SourceHanSerifCN-Regular.ttf
 
 fc-cache -f $HOME/.fonts/
+echo "Finish install font..."
