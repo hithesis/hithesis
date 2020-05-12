@@ -35,21 +35,22 @@ version 2004/10/01 or later.
 
 hithesis
 一个简单易用的哈尔滨工业大学学位论文LaTeX模板，现包括一校三区本科论文、硕士论文、博士论文。对其它格式的支持会陆续加入。
-hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXLive将自带我工模板（版本日期>2017.08.28）。
+hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXLive将自带窝工模板（版本日期>2017.08.28）。
 
-## 我工规范有歧义之处
+## 窝工规范有歧义之处
 
-各位刀客一定要先看清楚我工规范两大歧义之处：[版芯歧义](http://yanshuo.name/cn/2017/06/hithesisregulation/)和[本科生行距歧义](http://yanshuo.name/cn/2017/06/hithesissiyuan/)。
+各位刀客一定要先看清楚窝工规范严重的歧义之处：[版芯歧义](http://yanshuo.name/cn/2017/06/hithesisregulation/)和[本科生行距歧义](http://yanshuo.name/cn/2017/06/hithesissiyuan/)。
 
 另外注意几处小歧义：
 - 在[规范](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm)中规定和[研究生word排版范例](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)的中文目录中出现的“ABSTRACT”和“Abstract”的写法歧义（规格严格功夫大家！！！）。
+- [《哈尔滨工业大学本科生毕业论文撰写规范》](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)与[本科生论文word排版范例](http://jwc.hit.edu.cn/2566/list.htm)中章节标题是否加粗有歧义
 - 本科生论文官方模板的页眉页码格式混乱，有的有页码横线有的没有，有的有页眉有的没有。
 
 ## 模板特点
 
 ### 呆萌的操作，傲娇的效果
 
-- 极限程度实现了[《哈尔滨工业大学研究生学位论文撰写规范》](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm)、[《哈尔滨工业大学本科生毕业论文撰写规范》](http://jwc.hit.edu.cn/2566/list.htm)
+- 极限程度实现了[《哈尔滨工业大学研究生学位论文撰写规范》](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm)、[《哈尔滨工业大学本科生毕业论文撰写规范》](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)
 - 这是[PlutoThesis](https://github.com/dustincys/PlutoThesis)的终极进化，PlutoThesis废弃不再维护。
 - 更傻更简单的选项，例如论文主文件，只需要在文档类的括号中填写本硕博选项，字体选项（设置弹性间距或者刚性间距），文科生选项（目录可以设成四级目录），非全日制类型等，轻松设定目标格式。
 - 自适应格式，例如图题和标题，标题字号在字数超过两行时自动由五号变小五号，实现自适应（硕博规范规定，字数多时用五号）
@@ -78,9 +79,9 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
  - 添加PlutoThesis没有的说明文档
  - ……
 
-### 为了我工的规格严格、功夫到家
+### 为了窝工的规格严格、功夫到家
 
- - 行间距、段前后距离设置精确到小数后四位， 例如 1bp = 1.00374pt，1mm = 2.84526pt， 按照我工之要求, 行距在3mm～4mm之间，换算之后为20.50398～23.33863bp，严格符合规范要求，哪怕是显微镜级别
+ - 行间距、段前后距离设置精确到小数后四位， 例如 1bp = 1.00374pt，1mm = 2.84526pt， 按照窝工之要求, 行距在3mm～4mm之间，换算之后为20.50398～23.33863bp，严格符合规范要求，哪怕是显微镜级别
  - 规范明确规定，数字间空格要求为汉字宽度的四分之一（形式类似与 12 2345 和 0.123 456 这样多于3位以上的整数或小数）。默认情况下在LaTeX中任何人工输入的空格均不正确（“\:”为4/18汉字宽度，“\;”为5/18汉字宽度，所以PlutoThesis中的数字间宽度错误)。hithesis模板中定义了精准的数字间宽度。
  - 重写了一堆重要函数，例如章节标题由原来的`BiChapter{}{}`方式进化为`chapter{}[**`，极大简化，后面方括号中为可选括号，硕本可以不用，用了自动忽略
  - 严格符合（满足）两个规范要求，由于规范中有矛盾之处，例如本科生的标题段前距离有两处不一样的规定，刚性行距尽量满足行数（要求约33行）要求。
@@ -95,7 +96,7 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 PlutoThesis中没有采用cls，这种文档类的模式，代码与正文内容耦合程度大难以维护，本科模板和硕博模板难以融合。
 由于冥王星已经不是太阳系C9之一，所以不继续使用PlutoThesis命名。
 
-hithesis, 既含我工hit，也是说用的“嗨！”，读作“嗨thesis”。
+hithesis, 既含窝工hit，也是说用的“嗨！”，读作“嗨thesis”。
 
 ### 关于模板的下载地址
 
@@ -130,7 +131,7 @@ hithesis群里有很多热心的LaTeX隐士高人如@poofee等，很乐于解答
 
 ### 关于查重
 
-注意：我工的论文查重可以使用pdf查重！！！！！！！
+注意：窝工的论文查重可以使用pdf查重！！！！！！！
 
 另外一点注意：查重的pdf一定要确保能够正常复制汉字。有些系统自动识别的汉字字体，
 会出现无法正常复制的情况（可能是系统的字体映射出现了误差）。一般需要在主文件的
@@ -228,7 +229,7 @@ WeChat | Alipay
 -|-
 ![wechat](http://wx2.sinaimg.cn/large/61dccbaaly1fqwvz6sd4ej20yi1au797.jpg "谢谢")|![zfb](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg "谢谢")
 
-其实没关系，为了我工的“规格严格，功夫到家”！
+其实没关系，为了窝工的“规格严格，功夫到家”！
 
 - 本模板以PlutoThesis为核心基础，参考了CTAN中清华大学薛瑞尼所开发的thuthesis以及其分支重庆大学等毕业论文模板的代码开发而来
 - ~~学校教务处和研究生院只提供了规范，并没有提供官方的任何模板（包括word），所以~~ 学校教务处和研究生院提供了规范和[研究生word模板](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)以及[本科生word模板](http://jwc.hit.edu.cn/2566/list.htm)(厉害了word哥……)，此模板仅为规范的参考实现，不保证格式审查老师不提意见。任何由于使用本模板而引起的论文格式审查问题均与本模板作者无关
