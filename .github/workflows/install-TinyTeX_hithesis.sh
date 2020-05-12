@@ -10,14 +10,13 @@ tlmgr update --self --all
 tlmgr path add
 fmtutil-sys --all
 
-tlmgr update --self
 tlmgr install tex-gyre ctex splitindex ntheorem newtx fontaxes psnfss pdfpages \
     enumitem environ trimspaces footmisc varwidth changepage placeins multirow \
     subfigure ccaption splitindex xltxtra realscripts siunitx jknapltx algorithm2e \
     ifoddpage relsize listings glossaries mfirstuc textcase xfor datatool tracklang \
     pdflscape rsfs txfonts xecjk newpx fancyhdr hyphen-german
 
-ls $HOME/.TinyTeX/bin/x86_64-linux/* | xargs -n 1 ln -s -f
+realpath $HOME/.TinyTeX/bin/x86_64-linux/* | xargs -n 1 ln -s -f
 export PATH="$HOME/bin:$PATH";
 
 
