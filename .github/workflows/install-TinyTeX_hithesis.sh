@@ -6,9 +6,14 @@
 #' function: minimum install of TeX package for hithesis
 
 wget -qO- "https://yihui.org/gh/tinytex/tools/install-unx.sh" | sh
+
+echo "Finish install TinyTeX, going to install extra dependencies..."
+
 tlmgr update --self --all
 tlmgr path add
 fmtutil-sys --all
+
+echo "Finish update , install extra packages..."
 
 tlmgr install tex-gyre ctex splitindex ntheorem newtx fontaxes psnfss pdfpages \
     enumitem environ trimspaces footmisc varwidth changepage placeins multirow \
@@ -16,9 +21,12 @@ tlmgr install tex-gyre ctex splitindex ntheorem newtx fontaxes psnfss pdfpages \
     ifoddpage relsize listings glossaries mfirstuc textcase xfor datatool tracklang \
     pdflscape rsfs txfonts xecjk newpx fancyhdr hyphen-german
 
+echo "Finish install extra packages..."
+
 realpath $HOME/.TinyTeX/bin/x86_64-linux/* | xargs -n 1 ln -s -f
 export PATH="$HOME/bin:$PATH";
 
+echo "Finish update path"
 
 if [ ! -d $HOME/.fonts ]; then
     mkdir $HOME/.fonts;
