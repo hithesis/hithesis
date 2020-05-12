@@ -136,35 +136,21 @@ hithesis群里有很多热心的LaTeX隐士高人如@poofee等，很乐于解答
 会出现无法正常复制的情况（可能是系统的字体映射出现了误差）。一般需要在主文件的
 选项中明确声明使用哪一种fontset。
 
-### LaTeX 软件的安装
+### 关于LaTeX软件的安装
 
-不推荐安装完整版TeXLive/MacTeX，因为太费时间。
-如果不介意在自己房子里放进了一堆小破烂，那么浪费硬盘空间完全不是问题，即使99%的模板八百年都用不到。
+不推荐安装完整版TeXLive/MiKTeX/MacTeX，因为太费时间。
+如果不介意在自己房子里放进一堆小破烂，那么浪费硬盘空间完全不是问题，即使99%的模板八百年都用不到。
 
-所以推荐安装TinyTeX/BasicTeX。
-Linux系统只需要运行以下一条命令即可安装TinyTeX和所有hithesis用到的依赖包：
+所以推荐安装非完整版TeXLive/MiKTeX/MacTex。不完整的安装包有的支持自动安装缺失package，有的不支持，需要手动安装。
 
-	wget -qO- https://raw.githubusercontent.com/dustincys/hithesis/master/.github/workflows/install-TinyTeX_hithesis.sh | bash
+LaTeX安装包|是否支持非完整安装|平台|是否支持自动安装Package|最小满足hithesis安装脚本
+-|-|-|-|-
+TeXLive|是，称为BasicTeX|WIN/Mac/Linux|否|[install-TeXLive_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TeXLive_hithesis.sh)
+MiKTeX|是|WIN/Mac/Linux|是|[install-MiKTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-MiKTeX_hithesis.sh)
+MacTeX|否，MacTeX官方推荐BasicTeX|Mac|否|[install BasicTeX on Mac](https://github.com/dustincys/hithesis/blob/mac/.github/workflows/test2.yml)
+TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install_TinyTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TinyTeX_hithesis.sh)
 
-注意需要设置环境变量
-
-	export PATH="$HOME/.TinyTeX/bin/x86_64-linux:$PATH"
-	
-或者在`$HOME/bin`中建立链接：
-
-	ls $HOME/.TinyTeX/bin/x86_64-linux/* | xargs -n 1 ln -s -f
-
-然后将`$HOME/bin`放入环境变量中：
-
-	export PATH="$HOME/bin:$PATH"
-
-如果在使用模板过程中，需要自行添加其他包：
-
-	tlmgr install PACKAGENAME
-
-如果觉得package需要更新了完全可以“滚动式”更新
-
-	tlmgr update PACKAGENAME (--all)
+强烈推荐安装TinyTeX，只占300M左右，额外需要安装300M左右的字体。
 
 ### 模板的编译方法
 
