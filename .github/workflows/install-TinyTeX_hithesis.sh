@@ -13,6 +13,8 @@ tlmgr update --self --all
 tlmgr path add
 fmtutil-sys --all
 
+realpath $HOME/.TinyTeX/bin/x86_64-linux/* | xargs -n 1 ln -s -f
+export PATH="$HOME/bin:$PATH";
 echo "Finish update , install extra packages..."
 
 tlmgr install tex-gyre ctex splitindex ntheorem newtx fontaxes psnfss pdfpages \
