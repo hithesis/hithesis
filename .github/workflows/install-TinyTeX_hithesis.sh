@@ -21,14 +21,12 @@ echo "Finish update , install extra packages..."
 tlmgr install tex-gyre ctex splitindex ntheorem newtx fontaxes psnfss pdfpages \
     enumitem environ trimspaces footmisc varwidth changepage placeins multirow \
     subfigure ccaption xltxtra realscripts siunitx jknapltx algorithm2e \
-    ifoddpage relsize listings glossaries mfirstuc textcase xfor datatool tracklang \
+    ifoddpage relsize listings glossaries makeindex mfirstuc textcase xfor datatool tracklang \
     pdflscape rsfs txfonts xecjk newpx fancyhdr hyphen-german
 
 echo "Finish install extra packages."
 
 ls ~/.TinyTeX/bin/x86_64-*/* | xargs -n 1 ln -s -f
-
-export PATH="$HOME/.TinyTeX/bin/x86_64-*:$PATH";
 
 echo "Begin install font..."
 if [ ! -d $HOME/.fonts ]; then
