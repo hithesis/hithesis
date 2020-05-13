@@ -1,4 +1,4 @@
-##!/usr/bin/env bash
+##!/usr/bin/env sh
 
 #' filename : install-TinyTeX_hithesis.sh
 #' Date : 2020-05-11
@@ -9,8 +9,9 @@ wget -qO- "https://yihui.org/gh/tinytex/tools/install-unx.sh" | sh
 
 echo "Finish install TinyTeX, going to install extra dependencies..."
 
-export PATH="$HOME/.TinyTeX/bin/x86_64-linux:$PATH";
+export PATH="$HOME/bin:$PATH";
 
+tlmgr option repository http://www.ctan.org/tex-archive/systems/texlive/tlnet
 tlmgr update --self --all
 tlmgr path add
 fmtutil-sys --all
@@ -24,6 +25,8 @@ tlmgr install tex-gyre ctex splitindex ntheorem newtx fontaxes psnfss pdfpages \
     pdflscape rsfs txfonts xecjk newpx fancyhdr hyphen-german
 
 echo "Finish install extra packages."
+
+ls ~/.TinyTeX/bin/x86_64*/* | xargs -n 1 ln -s -f
 
 echo "Begin install font..."
 if [ ! -d $HOME/.fonts ]; then
