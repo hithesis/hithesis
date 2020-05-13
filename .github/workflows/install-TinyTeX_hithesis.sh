@@ -26,7 +26,9 @@ tlmgr install tex-gyre ctex splitindex ntheorem newtx fontaxes psnfss pdfpages \
 
 echo "Finish install extra packages."
 
-ls ~/.TinyTeX/bin/x86_64*/* | xargs -n 1 ln -s -f
+ls ~/.TinyTeX/bin/x86_64-*/* | xargs -n 1 ln -s -f
+
+export PATH="$HOME/.TinyTeX/bin/x86_64-*:$PATH";
 
 echo "Begin install font..."
 if [ ! -d $HOME/.fonts ]; then
