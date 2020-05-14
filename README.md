@@ -186,7 +186,7 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 	alias bibtex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 bibtex'
 	alias latexmk='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 latexmk'
 
-[还有比这**嗨**的么？](https://5b0988e595225.cdn.sohucs.com/images/20171216/1f6862975513431cbb744c3f6e25c971.gif)
+再也不用担心出现各种莫名奇妙的bug，再也不用烦恼出现什么字体问题，再也不用耗神于什么破环境变量，再也不用麻烦IT头领帮忙调试电脑！[还有比这**嗨**的么？](https://5b0988e595225.cdn.sohucs.com/images/20171216/1f6862975513431cbb744c3f6e25c971.gif)
 
 ### 模板的编译方法
 
