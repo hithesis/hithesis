@@ -44,9 +44,24 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 
 ## 窝工规范有歧义之处
 
-各位刀客一定要先看清楚窝工规范严重的歧义之处：[版芯歧义](http://yanshuo.name/cn/2017/06/hithesisregulation/)和[本科生行距歧义](http://yanshuo.name/cn/2017/06/hithesissiyuan/)。
+### 窝工规范
 
-另外注意几处小歧义：
+校区|学位|撰写规范|Word排版范例|更新日期
+-|-|-|-|-
+深圳|硕士/英文版硕士暂行规定|[哈工大（深圳）学术规范及硕士学位论文撰写文件包（2019年版）](http://due.hitsz.edu.cn/info/1211/1859.htm)|同左|2019-04-16
+深圳|博士开题|-|[博士学位开题报告模板](http://due.hitsz.edu.cn/info/1252/1865.htm)|2018-07-31
+深圳|博士中期|-|[博士学位论文中期检查报告](http://due.hitsz.edu.cn/info/1253/1860.htm)|2018-07-31
+深圳|博士毕业|[哈尔滨工业大学研究生学位论文撰写规范（2011版）](http://due.hitsz.edu.cn/info/1243/1776.htm)|[哈尔滨工业大学研究生学位论文书写范例（2011版）](http://due.hitsz.edu.cn/info/1243/1777.htm)|2018-07-31
+深圳|英文版博士毕业|[Thesis-Tmplt(英文论文撰写规范)](http://due.hitsz.edu.cn/info/1243/1775.htm)|同左|2018-07-31
+威海|硕士|[研究生学位论文撰写规范](http://yjsc.hitwh.edu.cn/2012/1217/c981a37691/page.htm)|[研究生学位论文书写范例](http://yjsc.hitwh.edu.cn/2012/1217/c981a37689/page.htm)|2012-12-17
+威海|硕士|[硕士学位论文撰写规范自查表2011版](http://yjsc.hitwh.edu.cn/2015/1230/c981a37718/page.htm)|同左|2015-12-30
+哈尔滨|本科所有|[毕业论文撰写规范](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)|[所有word范例](http://jwc.hit.edu.cn/2566/list.htm)|2014-05-04
+哈尔滨|硕博所有（含有部分英文版说明）|[研究生学位论文书写范例 ](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.psp)|[研究生学位论文撰写规范 ](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.psp)|2012-05-10
+
+### 歧义说明
+规范自身歧义之处：[版芯歧义](http://yanshuo.name/cn/2017/06/hithesisregulation/)和[本科生行距歧义](http://yanshuo.name/cn/2017/06/hithesissiyuan/)。
+
+规范与Word模板的歧义：
 - 在[规范](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm)中规定和[研究生word排版范例](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)的中文目录中出现的“ABSTRACT”和“Abstract”的写法歧义（规格严格功夫大家！！！）。
 - [《哈尔滨工业大学本科生毕业论文撰写规范》](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)与[本科生论文word排版范例](http://jwc.hit.edu.cn/2566/list.htm)中章节标题是否加粗有歧义
 - 本科生论文官方模板的页眉页码格式混乱，有的有页码横线有的没有，有的有页眉有的没有。
