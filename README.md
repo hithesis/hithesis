@@ -156,7 +156,7 @@ LaTeX安装包|是否支持非完整安装|平台|是否支持自动安装Packag
 TeXLive|是，称为BasicTeX|WIN/Mac/Linux|否|[install-TeXLive_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TeXLive_hithesis.sh)
 MiKTeX|是|WIN/Mac/Linux|是|[install-MiKTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-MiKTeX_hithesis.sh)
 MacTeX|否，MacTeX官方推荐BasicTeX|Mac|否|[install BasicTeX on Mac](https://github.com/dustincys/hithesis/blob/mac/.github/workflows/test2.yml)
-TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install_TinyTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TinyTeX_hithesis.sh)
+TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TinyTeX_hithesis.sh)
 
 强烈推荐安装TinyTeX，只占300M左右，额外需要安装300M左右的字体。
 
@@ -165,26 +165,28 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install_TinyTeX_hithesis.
 [![Docker Image Version (latest by date)](https://img.shields.io/docker/v/dustincys/tinytex-hithesis?style=plastic)](https://hub.docker.com/r/dustincys/tinytex-hithesis)
 [![Docker Image Size (latest by date)](https://img.shields.io/docker/image-size/dustincys/tinytex-hithesis?style=plastic)](https://hub.docker.com/r/dustincys/tinytex-hithesis)
 
-[tinytex-hithesis](https://hub.docker.com/r/dustincys/tinytex-hithesis)基于Alpine Linux（5MB）系统安装TinyTeX和最小的hithesis依赖集合。[还能有比这还要**更快更节省空间更方便部署更良心**的安装和使用hithesis的方法么？](https://5b0988e595225.cdn.sohucs.com/images/20171216/1f6862975513431cbb744c3f6e25c971.gif)
+[tinytex-hithesis](https://hub.docker.com/r/dustincys/tinytex-hithesis)构建策略是基于最轻量Alpine Linux（5MB）系统安装最轻量的TinyTeX和最小的hithesis依赖包集合。[还能有比这还要**更快更节省空间更方便部署更良心**的安装和使用hithesis的方法么？](https://5b0988e595225.cdn.sohucs.com/images/20171216/1f6862975513431cbb744c3f6e25c971.gif)
 
 - 第一步，下载[tinytex-hithesis](https://hub.docker.com/r/dustincys/tinytex-hithesis)镜像，
 
-	docker pull dustincys/tinytex-hithesis:v1.0.0
+		docker pull dustincys/tinytex-hithesis:v1.0.0
 
 - 第二步，在hithesis文件夹下执行以下命令进行编译
 
-	docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 make thesis
+		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 make thesis
     
   或者编译文档
 
-	docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 make doc
+		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 make doc
 
-可以任性地设置别名
+诸位上仙、大侠、刀客、头领可以任性地、随意地、抽象地、写实地设置别名，最终完成羽化、飞升
 
 	alias xelatex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 xelatex'
 	alias splitindex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 splitindex'
 	alias bibtex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 bibtex'
 	alias latexmk='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 latexmk'
+
+[还有比这**嗨**的么？](https://5b0988e595225.cdn.sohucs.com/images/20171216/1f6862975513431cbb744c3f6e25c971.gif)
 
 ### 模板的编译方法
 
