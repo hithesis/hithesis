@@ -102,6 +102,18 @@
 \fi
 
 
+\ifhit@doctor
+\ifhit@midterm
+\ifhit@shenzhen
+\ClassError{hithesisart}%
+{
+  \MessageBreak This document class does not support midterm report for doctor
+  in shenzhen campus
+}
+\fi
+\fi
+\fi
+
 \ifthenelse%
 {\equal{\hit@fontset}{}}%
 {%
@@ -204,9 +216,6 @@
 \RequirePackage{multirow}       %使用Multirow宏包，使得表格可以合并多个row格
 \RequirePackage{subfigure}%支持子图 %centerlast 设置最后一行是否居中
 \RequirePackage[subfigure]{ccaption} %支持双语标题
-\RequirePackage[makeindex]{splitidx}
-\newindex[]{china}
-\newindex[]{english}
 \RequirePackage{xltxtra}
 
 
@@ -239,6 +248,9 @@
 \hit@def@fontsize{xiaoliu}{6.5bp}
 \hit@def@fontsize{qihao}{5.5bp}
 \hit@def@fontsize{bahao}{5bp}
+
+
+
 
 %-- 设置字号 --%
 \ctexset{%
@@ -450,6 +462,9 @@
   \widowpenalty0%
   \interlinepenalty-50%
 \sfcode`\.\@m}
+
+
+
 
 
 \AtEndOfClass{\input{hithesisart.cfg}}
