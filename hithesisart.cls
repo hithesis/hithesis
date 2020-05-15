@@ -336,7 +336,13 @@
   \end{center}
   \vspace{5mm}
   \begin{center}
-    \songti\erhao\textbf{\hit@cxuewei\hit@cthesisname\hit@cthesisproposal}
+    \songti\erhao\textbf{\hit@cxuewei\hit@cthesisname
+      \ifhit@opening
+      \hit@cthesisproposal
+      \else
+      \ifhit@midterm\hit@cthesismidterm
+      \fi
+      \fi}
   \end{center}
    \vspace{10mm}
    \parbox[t][3cm][t]{\textwidth}{
@@ -376,7 +382,14 @@
      \includegraphics[width=6.2cm]{hitlogo}
    \end{center}
    \begin{center}
-     \songti\xiaoyi\textbf{\hit@bachelor@cthesisname\ifhit@opening\hit@cthesisproposal\else\hit@cthesismidterm\fi}
+     \songti\xiaoyi\textbf{\hit@bachelor@cthesisname
+       \ifhit@opening
+       \hit@cthesisproposal
+       \else
+       \ifhit@midterm
+       \hit@cthesismidterm
+       \fi
+       \fi}
    \end{center}
    \vspace{15mm}
    \parbox[t][6.5cm][t]{\textwidth}{
