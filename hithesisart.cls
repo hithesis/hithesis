@@ -66,7 +66,6 @@
 
 \DeclareBoolOption[true]{raggedbottom}
 \DeclareBoolOption[false]{pifootnote}
-\DeclareBoolOption[false]{glue}
 \DeclareBoolOption[false]{debug}
 \DeclareBoolOption[true]{toc}
 \DeclareBoolOption[true]{newtxmath}
@@ -256,8 +255,8 @@
 \ctexset{%
   section={
     afterindent=true,
-    beforeskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp \else 13.5bp \fi},%上下空0.5行
-    afterskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp  \else 13.5bp \fi},
+    beforeskip={7.5bp},%上下空0.5行
+    afterskip={7.5bp},
     format={\heiti\ifhit@harbin\sihao[1.25]\else\xiaosan[1.25]\fi},
     aftername=\enspace,
     fixskip=true,
@@ -265,8 +264,8 @@
   },
   subsection={
     afterindent=true,
-    beforeskip={\ifhit@glue 11bp \@plus 1.842609bp \@minus 0.9920497bp \else 11bp \fi},
-    afterskip={\ifhit@glue 11bp \@plus 2.33863bp \@minus 0.49602bp \else 11bp \fi},
+    beforeskip={7bp},
+    afterskip={7bp},
     format={\heiti\sihao[1.25]},
     aftername=\enspace,
     fixskip=true,
@@ -274,8 +273,8 @@
   },
   subsubsection={
     afterindent=true,
-    beforeskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
-    afterskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
+    beforeskip={3bp},
+    afterskip={3bp},
     format={\heiti\normalsize},
     aftername=\enspace,
     fixskip=true,
@@ -305,6 +304,7 @@
 \hit@def@term{cauthor}
 \hit@def@term{cstudentid}
 \hit@def@term{cclassid}
+\hit@def@term{caffil}
 \hit@def@term{csupervisor}
 \hit@def@term{cdate}
 
@@ -323,41 +323,47 @@
 
 \def\hitsetup{\kvsetkeys{hit}}
 
+
+
 \newcommand{\hit@report@titlepage@graduate}{
-   \thispagestyle{empty}
-   \zihao{-2}\vspace*{10mm}
-   \renewcommand{\CJKglue}{\hskip 3pt plus 0.08\baselineskip}
-   \centerline{\kaishu\textbf{\hit@cschoolname}}
-   \vspace*{15mm}
-   \centering{\zihao{2}\songti\textbf{
-    \renewcommand{\CJKglue}{\hskip 3pt plus 0.08\baselineskip}
-    \hit@cdegree 论文题目\hit@stagestatus
-    }}
-   \zihao{-2}\vspace*{11mm}
-   \renewcommand{\CJKglue}{\hskip 2pt plus 0.08\baselineskip}
-   \begin{center}
-   	\renewcommand{\arraystretch}{1.5}
-   	\begin{tabular}{m{54pt}@{\hspace{15pt}}c}
-       {\xiaoer\songti\textbf{题\hfill 目：}} & \songti\xiaoer\textbf{\hit@ctitleone} \\
-                    & {\hspace{-2em} \songti\xiaoer\textbf{\hit@ctitletwo}} \\
-    	\end{tabular}
-   \end{center}
-    \vspace*{-10pt}
-   \zihao{3}\vspace{3\baselineskip}
-   \begin{center}\songti
-      \renewcommand{\arraystretch}{1.9}
-      \begin{tabular}{l@{}l}
-         \textbf{院\hfill （系）}   & \underline{\makebox[7cm]{\textbf\hit@caffil}}\\
-         \textbf{学\hfill 科}     & \underline{\makebox[7cm]{\textbf\hit@csubject}}\\
-         \textbf{导\hfill 师}     & \underline{\makebox[7cm]{\textbf\hit@csupervisor}}\\
-         \textbf{研\hfill 究\hfill 生}      & \underline{\makebox[7cm]{\textbf\hit@cauthor}}\\
-         \textbf{学\hfill 号}  & \underline{\makebox[7cm]{\textbf\hit@cstudentid}}\\
-         \textbf{\hit@stagestatus 日期} & \underline{\makebox[7cm]{\textbf\hit@cdate}}\\
-      \end{tabular}\renewcommand{\arraystretch}{1}
-    \end{center}
+  \ifthenelse%
+  {\equal{\hit@fontset}{siyuan}}%
+  {\xiaosi[1]\vspace*{0.65em}}%
+  {\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
+  \vspace*{10mm}
+  \begin{center}
+    \kaishu\xiaoer\textbf{\hit@cschoolname\hit@shenzhencampus}
+  \end{center}
+  \vspace{5mm}
+  \begin{center}
+    \songti\erhao\textbf{\hit@cxuewei\hit@cthesisname\hit@cthesisproposal}
+  \end{center}
+   \vspace{10mm}
+   \parbox[t][3cm][t]{\textwidth}{
+     \begin{center}
+       \songti\xiaoer\textbf{\hit@cthesistitleprefix\hit@title@csep\hit@ctitlecover}
+     \end{center}
+   }
+     \parbox[b][3cm][t]{\textwidth}{
+       \begin{center}\songti\sanhao
+       \renewcommand{\arraystretch}{2.1}
+       \begin{tabular}{l@{\ \ }c}
+         \textbf{\hit@graduate@caffiltitle} & \underline{\makebox[6.1cm]{\textbf{\hit@caffil}}}\\
+         \textbf{\hit@graduate@cmajortitle} & \underline{\makebox[6.1cm]{\textbf{\hit@csubject}}}\\
+         \textbf{\hit@graduate@supervisor} & \underline{\makebox[6.1cm]{\textbf{\hit@csupervisor}}}\\
+         \textbf{\hit@graduate@studenttitle} & \underline{\makebox[6.1cm]{\textbf{\hit@cstudentid}}}\\
+         \textbf{\hit@graduate@studentid} & \underline{\makebox[6.1cm]{\textbf{\hit@cstudentid}}}\\
+         \textbf{\hit@graduate@datetitle} & \underline{\makebox[6.1cm]{\textbf{\hit@cdate}}}\\
+       \end{tabular}\renewcommand{\arraystretch}{1}
+     \end{center}
+     }
    \vfill
-   \centerline{\songti\textbf{研究生院制}}
-   \vspace{0.9\baselineskip}
+   \ifhit@harbin
+   \hit@harbin@schoolbottommark
+   \else
+   \ifhit@shenzhen
+   \hit@shenzhen@schoolbottommark
+   \fi
 }
 
 \newcommand{\hit@report@titlepage@bachelor}{
@@ -370,12 +376,12 @@
      \includegraphics[width=6.2cm]{hitlogo}
    \end{center}
    \begin{center}
-     \songti\xiaoyi\textbf{\hit@bachelor@cthesisname\ifhit@opening\hit@bachelor@cthesisproposal\else\hit@bachelor@cthesismidterm\fi}
+     \songti\xiaoyi\textbf{\hit@bachelor@cthesisname\ifhit@opening\hit@cthesisproposal\else\hit@cthesismidterm\fi}
    \end{center}
    \vspace{15mm}
    \parbox[t][6.5cm][t]{\textwidth}{
      \begin{center}
-       \songti\xiaoer\textbf{\hit@bachelor@cthesistitleprefix\hit@title@csep\hit@ctitlecover}
+       \songti\xiaoer\textbf{\hit@cthesistitleprefix\hit@title@csep\hit@ctitlecover}
      \end{center}
    }
      \parbox[b][6cm][t]{\textwidth}{
@@ -422,7 +428,11 @@
 
 \def\makecover{
   \begin{titlepage}
+    \ifhit@bachelor
     \hit@report@titlepage@bachelor
+    \else
+    \hit@report@titlepage@graduate
+    \fi
     \clearpage
     \ifhit@toc
     \tableofcontents
