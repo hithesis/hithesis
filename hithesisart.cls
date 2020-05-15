@@ -332,7 +332,7 @@
   {\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
   \vspace*{10mm}
   \begin{center}
-    \kaishu\xiaoer\textbf{\hit@cschoolname\hit@shenzhencampus}
+    \kaishu\xiaoer\textbf{\hit@cschoolname\ifhit@shenzhen\hit@shenzhencampus\fi}
   \end{center}
   \vspace{5mm}
   \begin{center}
