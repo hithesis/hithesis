@@ -31,6 +31,7 @@
   family=hit,
   prefix=hit@,
   setkeys=\kvsetkeys}
+
 \newif\ifhit@bachelor
 \newif\ifhit@master
 \newif\ifhit@doctor
@@ -39,6 +40,8 @@
   \hit@masterfalse
   \hit@doctorfalse
   \expandafter\csname hit@#1true\endcsname}
+
+
 \newif\ifhit@shenzhen
 \newif\ifhit@weihai
 \newif\ifhit@harbin
@@ -54,13 +57,20 @@
 \fi
 
 
-\DeclareBoolOption[false]{arialtoc}
-\DeclareBoolOption[false]{arialtitle}
+\newif\ifhit@opening
+\newif\ifhit@midterm
+\define@key{hit}{stage}{%
+  \hit@openingfalse
+  \hit@midtermfalse
+  \expandafter\csname hit@#1true\endcsname}
+
 \DeclareBoolOption[true]{raggedbottom}
 \DeclareBoolOption[false]{pifootnote}
 \DeclareBoolOption[false]{glue}
 \DeclareBoolOption[false]{debug}
+\DeclareBoolOption[true]{toc}
 \DeclareBoolOption[true]{newtxmath}
+
 \DeclareStringOption{fontset}
 
 
@@ -68,6 +78,29 @@
 
 \ProcessKeyvalOptions*
 \PassOptionsToPackage{no-math}{fontspec}
+
+\ifhit@bachelor\relax\else
+\ifhit@master\relax\else
+\ifhit@doctor\relax\else
+\ClassError{hithesisart}%
+{
+  \MessageBreak Please specify thesis type in option:
+  \MessageBreak type=[bachelor | master | doctor]
+}
+\fi
+\fi
+\fi
+
+\ifhit@opening\relax\else
+\ifhit@midterm\relax\else
+\ClassError{hithesisart}%
+{
+  \MessageBreak Please specify stage in option:
+  \MessageBreak stage=<opening|midterm>
+}
+\fi
+\fi
+
 
 \ifthenelse%
 {\equal{\hit@fontset}{}}%
@@ -85,15 +118,6 @@
 }%
 \LoadClass[a4paper,UTF8,zihao=-4,scheme=plain]{ctexart}
 
-\ifhit@bachelor\relax\else
-  \ifhit@master\relax\else
-    \ifhit@doctor\relax\else
-        \ClassError{hithesis}%
-                   {Please specify thesis type in option: \MessageBreak
-                    type=[bachelor | master | doctor]}{}
-      \fi
-  \fi
-\fi
 
 \RequirePackage{etoolbox}
 \RequirePackage{ifxetex}
@@ -323,13 +347,7 @@
    \centerline{\songti\textbf{研究生院制}}
    \vspace{0.9\baselineskip}
 }
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% 目前和标准模板还有些许区别，“题目”两个字与题目的内容一同居中，而学校模板是题目两个字位置固定，而题目内容单独居中。 
-%% 2.0.11.0a (2020/02/05) 更新研究生封面开题/中期code，使之与研究生院样例更加接近，但具体页面参数数值未精确校准；
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% 开题/中期报告封面—本科生 _modified by hithesis-alpha
-%% 2.0.11.0a (2020/02/05) 更新本科开题/中期封面，代码参fu考zhi自：https://github.com/specialpointcentral/hithesis-beta
-%% 为适应教务处(http://jwc.hit.edu.cn/2566/list.htm)要求，移除班号项，题目第二行改为居中
+
 \newcommand{\hit@report@titlepage@bachelor}{
    \ifthenelse%
    {\equal{\hit@fontset}{siyuan}}%
@@ -340,7 +358,7 @@
      \includegraphics[width=6.2cm]{hitlogo}
    \end{center}
    \begin{center}
-     \songti\xiaoyi\textbf{\hit@bachelor@cthesisname\hit@bachelor@cthesisproposal}
+     \songti\xiaoyi\textbf{\hit@bachelor@cthesisname\ifhit@opening\hit@bachelor@cthesisproposal\else\hit@bachelor@cthesismidterm\fi}
    \end{center}
    \vspace{15mm}
    \parbox[t][6.5cm][t]{\textwidth}{
@@ -394,8 +412,10 @@
   \begin{titlepage}
     \hit@report@titlepage@bachelor
     \clearpage
-    \tableofcontents    % 中文目录
+    \ifhit@toc
+    \tableofcontents
     \clearpage
+    \fi
   \end{titlepage}
 }
 \def\makebackcover{
