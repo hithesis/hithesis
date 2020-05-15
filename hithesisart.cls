@@ -253,6 +253,40 @@
   contentsname={目录}
 }
 
+
+
+
+
+\def\hit@def@term#1{%
+  \define@key{hit}{#1}{\csname #1\endcsname{##1}}
+  \expandafter\gdef\csname #1\endcsname##1{%
+    \expandafter\gdef\csname hit@#1\endcsname{##1}}
+  \csname #1\endcsname{}}
+
+
+\hit@def@term{ctitlecover} %中文标题封面
+\hit@def@term{csubject}
+\hit@def@term{cauthor}
+\hit@def@term{cstudentid}
+\hit@def@term{cclassid}
+\hit@def@term{csupervisor}
+\hit@def@term{cdate}
+
+
+\def\hit@parse@keywords#1{
+  \define@key{hit}{#1}{\csname #1\endcsname{##1}}
+  \expandafter\gdef\csname hit@#1\endcsname{}
+  \expandafter\gdef\csname #1\endcsname##1{
+    \@for\reserved@a:=##1\do{
+      \expandafter\ifx\csname hit@#1\endcsname\@empty\else
+      \expandafter\g@addto@macro\csname hit@#1\endcsname{%
+        \ignorespaces\csname hit@#1@separator\endcsname}
+      \fi
+      \expandafter\expandafter\expandafter\g@addto@macro%
+      \expandafter\csname hit@#1\expandafter\endcsname\expandafter{\reserved@a}}}}
+
+\def\hitsetup{\kvsetkeys{hit}}
+
 \newcommand{\hit@report@titlepage@graduate}{
    \thispagestyle{empty}
    \zihao{-2}\vspace*{10mm}
@@ -297,49 +331,46 @@
 %% 2.0.11.0a (2020/02/05) 更新本科开题/中期封面，代码参fu考zhi自：https://github.com/specialpointcentral/hithesis-beta
 %% 为适应教务处(http://jwc.hit.edu.cn/2566/list.htm)要求，移除班号项，题目第二行改为居中
 \newcommand{\hit@report@titlepage@bachelor}{
-   \thispagestyle{empty}
-   \zihao{-2}\vspace*{10mm}
-   \centering\includegraphics[width=6.2cm]{hitlogo}
-   \vfill
-   \centering{\xiaoyi\songti\textbf{
-    \renewcommand{\CJKglue}{\hskip 3pt plus 0.08\baselineskip}
-    论文题目
-    }}
-   \vfill
-   %\zihao{-2}\vspace*{10mm}
-   \renewcommand{\CJKglue}{\hskip 2pt plus 0.08\baselineskip}
+   \ifthenelse%
+   {\equal{\hit@fontset}{siyuan}}%
+   {\xiaosi[1]\vspace*{0.65em}}%
+   {\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
+   \vspace*{10mm}
    \begin{center}
-    \renewcommand{\arraystretch}{1.5}
-    % 使用空格字符，保证能够空余半个汉字的位置
-    \begin{tabular}{m{54pt}@{\hspace{9pt}}c}
-      {\xiaoer\songti\textbf{题\hfill 目：}} & \songti\xiaoer\textbf{} \\
-                    & {\hspace{-2em} \songti\xiaoer\textbf{}} \\
-    \end{tabular}
-    \renewcommand{\arraystretch}{1}
+     \includegraphics[width=6.2cm]{hitlogo}
    \end{center}
-   \zihao{3}\vspace{4\baselineskip}
-   \hspace*{70pt}{
-    \begin{center}\songti
-      \renewcommand{\arraystretch}{2.1}
-      \begin{tabular}{l@{\ \ }c}
-         \textbf{专\hfill 业}                     & \underline{\makebox[6.1cm]{\textbf{}}}\\
-         \textbf{学\hfill 生}                     & \underline{\makebox[6.1cm]{\textbf{}}}\\
-         \textbf{学\hfill 号}                     & \underline{\makebox[6.1cm]{\textbf{}}}\\
-        \ifhit@weihai % 威海校区特有
-         \textbf{班\hfill 号}                     & \underline{\makebox[6.1cm]{\textbf{}}}\\
-        \fi
-         \textbf{指\hfill 导\hfill 教\hfill 师}   & \underline{\makebox[6.1cm]{\textbf{}}}\\
-         \textbf{日\hfill 期}                     & \underline{\makebox[6.1cm]{\textbf{}}}\\
-      \end{tabular}\renewcommand{\arraystretch}{1}
-    \end{center}
-    }
+   \begin{center}
+     \songti\xiaoyi\textbf{\hit@bachelor@cthesisname\hit@bachelor@cthesisproposal}
+   \end{center}
+   \vspace{15mm}
+   \parbox[t][6.5cm][t]{\textwidth}{
+     \begin{center}
+       \songti\xiaoer\textbf{\hit@bachelor@cthesistitleprefix\hit@title@csep\hit@ctitlecover}
+     \end{center}
+   }
+     \parbox[b][6cm][t]{\textwidth}{
+       \begin{center}\songti\sanhao
+       \renewcommand{\arraystretch}{2.1}
+       \begin{tabular}{l@{\ \ }c}
+         \textbf{\hit@bachelor@cmajortitle} & \underline{\makebox[6.1cm]{\textbf{\hit@csubject}}}\\
+         \textbf{\hit@bachelor@cstudenttitle} & \underline{\makebox[6.1cm]{\textbf{\hit@cauthor}}}\\
+         \textbf{\hit@bachelor@cstudentidtitle} & \underline{\makebox[6.1cm]{\textbf{\hit@cstudentid}}}\\
+         \ifhit@weihai % 威海校区特有
+         \textbf{\hit@bachelor@cclass} & \underline{\makebox[6.1cm]{\textbf{\hit@cclassid}}}\\
+         \fi
+         \textbf{\hit@bachelor@csupervisortitle} & \underline{\makebox[6.1cm]{\textbf{\hit@csupervisor}}}\\
+         \textbf{\hit@bachelor@cdatetitle} & \underline{\makebox[6.1cm]{\textbf{\hit@cdate}}}\\
+       \end{tabular}\renewcommand{\arraystretch}{1}
+     \end{center}
+     }
    \vfill
-   \ifhit@weihai % 威海校区特有
-   % 我也不懂为啥威海校区没有这个东西
+   \ifhit@weihai
+   \relax
    \else
-   \centerline{\lishu\textbf{哈尔滨工业大学教务处制}}
+   \begin{center}
+     \lishu\xiaoer\textbf{哈尔滨工业大学教务处制}
+   \end{center}
    \fi
-   \vspace{0.5\baselineskip}
 }
 
 
@@ -394,6 +425,7 @@
 \sfcode`\.\@m}
 
 
+\AtEndOfClass{\input{hithesisart.cfg}}
 \AtEndOfClass{\sloppy}
 \endinput
 %%
