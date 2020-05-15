@@ -130,7 +130,7 @@
 
 \RequirePackage{longtable}
 \RequirePackage{booktabs}
-\RequirePackage[sort&compress]{natbib}
+\RequirePackage[sort&compress,numbers]{natbib}
 \RequirePackage{hyperref}
 \hypersetup{%
   CJKbookmarks=true,
@@ -366,8 +366,32 @@
 }
 
 
+\newcommand\bibstyle@numerical{\bibpunct{[}{]}{,}{s}{,}{\textsuperscript{,}}}
+\newcommand\bibstyle@inline{\bibpunct{[}{]}{,}{n}{,}{\hit@inline@sep}}
 
+\citestyle{numerical}
+\DeclareRobustCommand\inlinecite{\@inlinecite}
+\def\@inlinecite#1{\begingroup\citestyle{inline}\let\@cite\NAT@citenum\citep{#1}\endgroup}
+\let\onlinecite\inlinecite
 
+\renewenvironment{thebibliography}[1]{%
+  \list{\@biblabel{\@arabic\c@enumiv}}%
+  {\renewcommand{\makelabel}[1]{##1\hfill}
+    \settowidth{\labelwidth}{\@biblabel{#1}}
+    \setlength{\labelsep}{0.5em}
+    \setlength{\itemindent}{0pt}
+    \setlength{\leftmargin}{\labelsep+\labelwidth}
+    \addtolength{\itemsep}{-0.8em}
+    \usecounter{enumiv}%
+    \let\p@enumiv\@empty
+  \renewcommand\theenumiv{\@arabic\c@enumiv}}%
+  \sloppy\frenchspacing
+  \flushbottom
+  \clubpenalty0
+  \@clubpenalty \clubpenalty
+  \widowpenalty0%
+  \interlinepenalty-50%
+\sfcode`\.\@m}
 
 
 \AtEndOfClass{\sloppy}
