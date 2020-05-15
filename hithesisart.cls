@@ -375,25 +375,32 @@
 
 
 
-\renewcommand\tableofcontents{%
-  \clearpage
+
+\newcommand{\hit@report@backpage@bachelor}{
   \thispagestyle{empty}
-  \phantomsection
-  \centerline{\heiti\sanhao[1.25]\contentsname}
+  \noindent\parbox[t][6.5cm][t]{\textwidth}{\hit@bachelor@teachercomment}
+  \noindent\parbox[b][6cm][t]{\textwidth}{\hit@bachelor@teachersign\underline{\makebox[3cm]{}}\hfill\hit@bachelor@checkdate\underline{\makebox[3cm]{}}}
+}
+
+
+
+\renewcommand\tableofcontents{%
+  \thispagestyle{empty}
   \normalsize\@starttoc{toc}
-  \clearpage
 }
 
 
 \def\makecover{
-  \phantomsection
   \begin{titlepage}
-    \clearpage
     \hit@report@titlepage@bachelor
     \clearpage
     \tableofcontents    % 中文目录
     \clearpage
   \end{titlepage}
+}
+\def\makebackcover{
+    \clearpage
+    \hit@report@backpage@bachelor
 }
 
 
