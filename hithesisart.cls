@@ -107,7 +107,8 @@
 \ClassError{hithesisart}%
 {
   \MessageBreak This document class does not support midterm report for doctor
-  in shenzhen campus
+  in shenzhen campus.
+  \MessageBreak please use \string\documentclass{hithesisartplus} 
 }
 \fi
 \fi
