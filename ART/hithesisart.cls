@@ -334,11 +334,14 @@
   \begin{center}
     \songti\erhao\textbf{\hit@cxuewei\hit@cthesisname
       \ifhit@opening
-      \hit@cthesisproposal
+      \hit@stage@opening
       \else
-      \ifhit@midterm\hit@cthesismidterm
+      \ifhit@midterm
+      \hit@stage@midterm
       \fi
-      \fi}
+      \fi
+      \hit@stage@doctype
+    }
   \end{center}
    \vspace{10mm}
    \parbox[t][3cm][t]{\textwidth}{
@@ -380,12 +383,14 @@
    \begin{center}
      \songti\xiaoyi\textbf{\hit@bachelor@cthesisname
        \ifhit@opening
-       \hit@cthesisproposal
+       \hit@stage@opening
        \else
        \ifhit@midterm
-       \hit@cthesismidterm
+       \hit@stage@midterm
        \fi
-       \fi}
+       \fi
+       \hit@stage@doctype
+     }
    \end{center}
    \vspace{15mm}
    \parbox[t][6.5cm][t]{\textwidth}{
