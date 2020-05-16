@@ -189,7 +189,27 @@
   foot=5.2true mm
 }
 
-\RequirePackage{fancyhdr}
+\RequirePackage{background}
+\RequirePackage{tikz}
+\RequirePackage{tikzpagenodes}
+\usetikzlibrary{calc}
+
+\backgroundsetup{
+  placement=center,
+  nodeanchor=current page text area.north west,
+  position=center,
+  scale=1,
+  angle=0,
+  contents={\begin{tikzpicture}[remember picture,overlay]
+      \draw[black] (current page text area.south west) rectangle (current page text area.north east);
+    \end{tikzpicture}}
+}
+
+
+
+
+
+
 \RequirePackage{tabularx}
 \RequirePackage{varwidth}
 \RequirePackage{changepage}
@@ -231,6 +251,8 @@
 \hit@def@fontsize{xiaoliu}{6.5bp}
 \hit@def@fontsize{qihao}{5.5bp}
 \hit@def@fontsize{bahao}{5bp}
+
+
 
 
 
@@ -279,6 +301,8 @@
 
 
 \hit@def@term{ctitlecover} %中文标题封面
+\hit@def@term{ctitleone}
+\hit@def@term{ctitletwo}
 \hit@def@term{csubject}
 \hit@def@term{cauthor}
 \hit@def@term{cstudentid}
@@ -286,6 +310,7 @@
 \hit@def@term{caffil}
 \hit@def@term{csupervisor}
 \hit@def@term{cdate}
+\hit@def@term{cenrolldate}
 
 
 \def\hit@parse@keywords#1{
@@ -323,12 +348,18 @@
        \begin{tabular}{l@{\ \ }c}
          \textbf{\hit@graduate@studenttitle} & \textbf{\hit@cauthor}\\
          \hline
-         \textbf{\hit@graduate@caffiltitle} & \textbf{\hit@caffil}\\
+         \textbf{\hit@graduate@enrolldate} & \textbf{\hit@cenrolldate}\\
          \hline
-         \textbf{\hit@graduate@cmajortitle} & \underline{\makebox[6.1cm]{\textbf{\hit@csubject}}}\\
-         \textbf{\hit@graduate@supervisor} & \underline{\makebox[6.1cm]{\textbf{\hit@csupervisor}}}\\
-         \textbf{\hit@graduate@studentid} & \underline{\makebox[6.1cm]{\textbf{\hit@cstudentid}}}\\
-         \textbf{\hit@graduate@datetitle} & \underline{\makebox[6.1cm]{\textbf{\hit@cdate}}}\\
+         \textbf{\hit@graduate@thesistitle} & \textbf{\hit@ctitleone}\\
+         \hline
+         &\textbf{\hit@ctitletwo}\\
+         \hline
+         \textbf{\hit@graduate@cafflimajor} & \textbf{\hit@csubject}\\
+         \hline
+         \textbf{\hit@graduate@datetitle} & \textbf{\hit@cdate}\\
+         \hline
+         \textbf{\hit@graduate@supervisor} & \textbf{\hit@csupervisor}\\
+         \hline
        \end{tabular}\renewcommand{\arraystretch}{1}
      \end{center}
 }
@@ -341,7 +372,9 @@
 
 \def\makecover{
   \begin{titlepage}
-    \hit@report@titlepage@graduate
+    \NoBgThispage\hit@report@titlepage@graduate
+    \clearpage
+    \NoBgThispage\hit@shenzhen@doctor@midterm@note
   \end{titlepage}
 }
 
@@ -372,6 +405,7 @@
   \widowpenalty0%
   \interlinepenalty-50%
 \sfcode`\.\@m}
+
 
 
 
