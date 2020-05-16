@@ -284,11 +284,6 @@
   subparagraph/afterindent=true
 }
 
-\ctexset{
-  contentsname={目录}
-}
-
-
 
 
 
@@ -416,9 +411,7 @@
    \ifhit@weihai
    \relax
    \else
-   \begin{center}
-     \lishu\xiaoer\textbf{哈尔滨工业大学教务处制}
-   \end{center}
+   \hit@harbin@bachelor@schoolbottommark
    \fi
 }
 
