@@ -279,6 +279,25 @@
 }
 
 
+\let\hit@section\section
+\RenewDocumentCommand\section{s o m}{
+  \ifnum\value{section}>0
+  \noindent\tikz[overlay] \draw (-5mm,0mm) -- (155mm,0mm);
+  \fi
+
+  \IfBooleanTF{#1}%
+  {% if \section*
+    \IfNoValueTF{#2}%
+    {\hit@section*{#3}}%
+    {\hit@section*[#2]{#3}}%
+  }%
+  {% if \section
+    \IfNoValueTF{#2}%
+    {\hit@section{#3}}%
+    {\hit@section[#2]{#3}}%
+  }
+}
+
 
 
 \def\hit@def@term#1{%
@@ -368,7 +387,7 @@
   \end{titlepage}
   \AddToShipoutPicture{%
     \begin{tikzpicture}[remember picture,overlay]
-      \draw ($(current page text area.south west)+(-6bp,0bp)$) rectangle ($(current page text area.north east)+(6bp,6bp)$);
+      \draw ($(current page text area.south west)+(-5mm,0mm)$) rectangle ($(current page text area.north east)+(5mm,5mm)$);
     \end{tikzpicture}
   }
   \pagestyle{fancy}
@@ -377,6 +396,11 @@
   \renewcommand{\footrulewidth}{0pt}
   \fancyfoot[C]{\xiaowu-~\thepage~-}
 }
+
+
+
+
+
 
 
 \newcommand\bibstyle@numerical{\bibpunct{[}{]}{,}{s}{,}{\textsuperscript{,}}}
