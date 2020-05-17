@@ -189,24 +189,12 @@
   foot=5.2true mm
 }
 
-\RequirePackage{background}
-\RequirePackage{tikz}
 \RequirePackage{tikzpagenodes}
+\RequirePackage{eso-pic}
+\RequirePackage{tikz}
 \usetikzlibrary{calc}
 
-\backgroundsetup{
-  placement=center,
-  nodeanchor=current page text area.north west,
-  position=center,
-  scale=1,
-  angle=0,
-  contents={\begin{tikzpicture}[remember picture,overlay]
-      \draw[black] (current page text area.south west) rectangle (current page text area.north east);
-    \end{tikzpicture}}
-}
-
-
-
+\RequirePackage{fancyhdr}
 
 
 
@@ -263,7 +251,7 @@
     afterindent=true,
     beforeskip={7.5bp},%上下空0.5行
     afterskip={7.5bp},
-    format={\heiti\ifhit@harbin\sihao[1.25]\else\xiaosan[1.25]\fi},
+    format={\normalsize},
     aftername=\enspace,
     fixskip=true,
     break={},
@@ -272,7 +260,7 @@
     afterindent=true,
     beforeskip={7bp},
     afterskip={7bp},
-    format={\heiti\sihao[1.25]},
+    format={\normalsize},
     aftername=\enspace,
     fixskip=true,
     break={},
@@ -281,7 +269,7 @@
     afterindent=true,
     beforeskip={3bp},
     afterskip={3bp},
-    format={\heiti\normalsize},
+    format={\normalsize},
     aftername=\enspace,
     fixskip=true,
     break={},
@@ -329,6 +317,8 @@
 
 
 
+
+
 \newcommand{\hit@report@titlepage@graduate}{
   \ifthenelse%
   {\equal{\hit@fontset}{siyuan}}%
@@ -372,10 +362,20 @@
 
 \def\makecover{
   \begin{titlepage}
-    \NoBgThispage\hit@report@titlepage@graduate
+    \hit@report@titlepage@graduate
     \clearpage
-    \NoBgThispage\hit@shenzhen@doctor@midterm@note
+    \hit@shenzhen@doctor@midterm@note
   \end{titlepage}
+  \AddToShipoutPicture{%
+    \begin{tikzpicture}[remember picture,overlay]
+      \draw ($(current page text area.south west)+(-6bp,0bp)$) rectangle ($(current page text area.north east)+(6bp,6bp)$);
+    \end{tikzpicture}
+  }
+  \pagestyle{fancy}
+  \fancyhead{}
+  \renewcommand{\headrulewidth}{0pt}
+  \renewcommand{\footrulewidth}{0pt}
+  \fancyfoot[C]{\xiaowu-~\thepage~-}
 }
 
 
