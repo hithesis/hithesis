@@ -97,7 +97,7 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 - [x] 深圳校区硕士毕业设计开题
 - [x] 深圳校区硕士毕业设计中期
 - [x] 深圳校区博士毕业设计开题
-- [ ] 深圳校区博士毕业设计中期
+- [x] 深圳校区博士毕业设计中期
 - [ ] English version of thesis
 
 ## 模板特点
