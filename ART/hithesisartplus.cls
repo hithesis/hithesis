@@ -197,7 +197,6 @@
 \RequirePackage{fancyhdr}
 
 
-
 \RequirePackage{tabularx}
 \RequirePackage{varwidth}
 \RequirePackage{changepage}
@@ -209,6 +208,7 @@
 \RequirePackage[subfigure]{ccaption} %支持双语标题
 \RequirePackage{xltxtra}
 
+\RequirePackage{lipsum}%random text
 
 %-- 添加字号设置 --%
 \renewcommand\normalsize{%
@@ -280,11 +280,8 @@
 
 
 \let\hit@section\section
-\RenewDocumentCommand\section{s o m}{
-  \ifnum\value{section}>0
-  \noindent\tikz[overlay] \draw (-5mm,0mm) -- (155mm,0mm);
-  \fi
-
+\RenewDocumentCommand\section{s o m s}{%
+  \IfBooleanF{#4}{\noindent\tikz[overlay] \draw (-5mm,0mm) -- (155mm,0mm);}%
   \IfBooleanTF{#1}%
   {% if \section*
     \IfNoValueTF{#2}%
@@ -387,7 +384,7 @@
   \end{titlepage}
   \AddToShipoutPicture{%
     \begin{tikzpicture}[remember picture,overlay]
-      \draw ($(current page text area.south west)+(-5mm,0mm)$) rectangle ($(current page text area.north east)+(5mm,5mm)$);
+      \draw ($(current page text area.south west)+(-5mm,0mm)$) rectangle ($(current page text area.north east)+(5mm,2mm)$);
     \end{tikzpicture}
   }
   \pagestyle{fancy}
