@@ -67,7 +67,6 @@
 \fi
 
 
-
 \newif\ifhit@geometrynewone
 \newif\ifhit@geometrynewtwo
 \define@key{hit}{newgeometry}{%
@@ -307,60 +306,72 @@ foot=8.5true mm
 }
 \fancypagestyle{hit@headings}{%
   \fancyhf{}
-  \ifhit@doctor
-  \fancyhead[CO]{\songti\xiaowu[0]\leftmark}
-  \ifhit@harbin
-  \fancyhead[CE]{\songti\xiaowu[0]\hit@cschoolname\hit@cdegree\hit@cthesisname}
-  \fi
-  \ifhit@shenzhen
-  \fancyhead[CE]{\songti\xiaowu[0]\hit@cschoolname\hit@shenzhencampus\hit@cdegree\hit@cthesisname}
-  \fi
-  \ifhit@weihai
-  \fancyhead[CE]{\songti\xiaowu[0]\hit@cschoolname\hit@weihaicampus\hit@cdegree\hit@cthesisname}
-  \fi
+  \ifhit@english
+    \fancyhead[C]{\xiaowu[0]\leftmark}
+    \fancyfoot[C]{\xiaowu-~\thepage~-}
+    \renewcommand{\headrule}{
+      \vskip 1.190132pt
+      \hrule\@height2.276208pt\@width\headwidth
+      \vskip 0.75pt
+      \hrule\@height.75pt\@width\headwidth
+    }
   \else
-  \ifhit@master
-  \ifhit@harbin
-  \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@cdegree\hit@cthesisname}
-  \fi
-  \ifhit@shenzhen
-  \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@shenzhencampus\hit@cdegree\hit@cthesisname}
-  \fi
-  \ifhit@weihai
-  \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@weihaicampus\hit@cdegree\hit@cthesisname}
-  \fi
-  \fi
-  \fi
-  \ifhit@bachelor
-    \ifhit@harbin
-    \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@bachelor@cxuewei\hit@bachelor@cthesisname}%
+    \ifhit@doctor
+      \fancyhead[CO]{\songti\xiaowu[0]\leftmark}
+      \ifhit@harbin
+        \fancyhead[CE]{\songti\xiaowu[0]\hit@cschoolname\hit@cdegree\hit@cthesisname}
+      \fi
+      \ifhit@shenzhen
+        \fancyhead[CE]{\songti\xiaowu[0]\hit@cschoolname\hit@shenzhencampus\hit@cdegree\hit@cthesisname}
+      \fi
+      \ifhit@weihai
+        \fancyhead[CE]{\songti\xiaowu[0]\hit@cschoolname\hit@weihaicampus\hit@cdegree\hit@cthesisname}
+      \fi
+    \else
+      \ifhit@master
+        \ifhit@harbin
+          \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@cdegree\hit@cthesisname}
+        \fi
+        \ifhit@shenzhen
+          \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@shenzhencampus\hit@cdegree\hit@cthesisname}
+        \fi
+        \ifhit@weihai
+          \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@weihaicampus\hit@cdegree\hit@cthesisname}
+        \fi
+      \fi
     \fi
-    \ifhit@shenzhen
-    \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@shenzhencampus\hit@bachelor@cxuewei\hit@bachelor@cthesisname}%
+    \ifhit@bachelor
+      \ifhit@harbin
+        \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@bachelor@cxuewei\hit@bachelor@cthesisname}%
+      \fi
+      \ifhit@shenzhen
+        \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@shenzhencampus\hit@bachelor@cxuewei\hit@bachelor@cthesisname}%
+      \fi
+      \ifhit@weihai
+        \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@weihaicampus\hit@bachelor@cxuewei\hit@bachelor@cthesisname}%
+      \fi
+      \fancyfoot[C]{\xiaowu\if@mainmatter\ifhit@bsmainpagenumberline-~\thepage~-\else\thepage\fi\else\ifhit@bsfrontpagenumberline-~\thepage~-\else\thepage\fi\fi}
+      \ifhit@bsheadrule
+        \renewcommand{\headrule}{
+        \vskip 1.190132pt
+        \hrule\@height2.276208pt\@width\headwidth
+        \vskip 0.75pt
+        \hrule\@height.75pt\@width\headwidth
+        }
+      \else
+        \renewcommand{\headrulewidth}{0pt}
+      \fi
+    \else
+      \fancyfoot[C]{\xiaowu-~\thepage~-}
+      \renewcommand{\headrule}{
+      \vskip 1.190132pt
+      \hrule\@height2.276208pt\@width\headwidth
+      \vskip 0.75pt
+      \hrule\@height.75pt\@width\headwidth
+      }
     \fi
-    \ifhit@weihai
-    \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@weihaicampus\hit@bachelor@cxuewei\hit@bachelor@cthesisname}%
-    \fi
-  \fancyfoot[C]{\xiaowu\if@mainmatter\ifhit@bsmainpagenumberline-~\thepage~-\else\thepage\fi\else\ifhit@bsfrontpagenumberline-~\thepage~-\else\thepage\fi\fi}
-  \ifhit@bsheadrule
-  \renewcommand{\headrule}{
-  \vskip 1.190132pt
-  \hrule\@height2.276208pt\@width\headwidth
-  \vskip 0.75pt
-  \hrule\@height.75pt\@width\headwidth
-  }
-  \else
-  \renewcommand{\headrulewidth}{0pt}
   \fi
-  \else
-  \fancyfoot[C]{\xiaowu-~\thepage~-}
-  \renewcommand{\headrule}{
-  \vskip 1.190132pt
-  \hrule\@height2.276208pt\@width\headwidth
-  \vskip 0.75pt
-  \hrule\@height.75pt\@width\headwidth
-  }
-  \fi
+
   % 此处可能和word模板不一致
   % 页眉中小五汉字，0行距时，占用9bt，页眉高度为14pt, 所以以下数字之和要保持等于14pt-9bt=4.96634pt
   % 根据PlutoThesis模板中rule宽度定义为2.25， 0.75， 保持粗线和细线之间的间距为细线宽度。
@@ -522,12 +533,15 @@ foot=8.5true mm
   \ifhit@arialtitle\sffamily\else\heiti\fi}
 
 \newcommand\hit@chapter@titleformat[1]{%开启悬挂缩进选项
+  \ifhit@english
+  \textbf{\MakeUppercase{#1}}
+  \else
     \ifthenelse%
-      {\equal{#1}{\eabstractcname}}%
-      {\bfseries #1}%
-      %实现章标题的居中加悬挂缩进，注意，此处一定是\CTEX@chaptername\CTEX@chapter@aftername, 否则是英文标题长度
-      {\ifhit@chapterhang\settowidth{\hangindent}{\CTEX@chaptername\CTEX@chapter@aftername}\hangafter=1\fi#1}%
-      %{\begin{varwidth}[t]{\hit@chapter@indentboxwidth}#1\end{varwidth}}
+    {\equal{#1}{\eabstractcname}}%
+    {\bfseries #1}%
+    % 实现章标题的居中加悬挂缩进，注意，此处一定是\CTEX@chaptername\CTEX@chapter@aftername, 否则是英文标题长度
+    {\ifhit@chapterhang\settowidth{\hangindent}{\CTEX@chaptername\CTEX@chapter@aftername}\hangafter=1\fi#1}%
+  \fi
 }
 
 \renewcommand\@afterheading{%
@@ -543,50 +557,100 @@ foot=8.5true mm
       \clubpenalty 1
       \everypar{}%
     \fi}}
-\ctexset{%
-  chapter={
-    afterindent=true,
-    pagestyle={hit@headings},
-    beforeskip={28.34658bp},%一个空行 1.57481 × 18
-    afterskip={24.74658bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
-    aftername=\enspace,
-    format={\centering\hit@title@font\xiaoer[1.57481]},%\center 会影响之后全局
-    nameformat=\relax,
-    numberformat=\relax,
-    titleformat=\hit@chapter@titleformat,
-    fixskip=true, % 添加这一行去除默认间距
-    %hang=true,
-  },
-  section={
-    afterindent=true,
-    beforeskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp \else 13.5bp \fi},%上下空0.5行
-    afterskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp  \else 13.5bp \fi},
-    format={\hit@title@font\ifhit@glue\fontsize{15bp}{21bp \@plus 1.677267bp \@minus 1.157391bp}\else\fontsize{15bp}{21bp}\fi\selectfont},
-    aftername=\enspace,
-    fixskip=true,
-    break={},
-  },
-  subsection={
-    afterindent=true,
-    beforeskip={\ifhit@glue 11bp \@plus 1.842609bp \@minus 0.9920497bp \else 11bp \fi},
-    afterskip={\ifhit@glue 11bp \@plus 2.33863bp \@minus 0.49602bp \else 11bp \fi},
-    format={\hit@title@font\ifhit@glue\fontsize{14bp}{18bp \@plus 1.842609bp \@minus 0.9920497bp}\else\fontsize{14bp}{18bp}\fi\selectfont},
-    aftername=\enspace,
-    fixskip=true,
-    break={},
-  },
-  subsubsection={
-    afterindent=true,
-    beforeskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
-    afterskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
-    format={\hit@title@font\normalsize},
-    aftername=\enspace,
-    fixskip=true,
-    break={},
-  },
-  paragraph/afterindent=true,
-  subparagraph/afterindent=true
-}
+
+\ifhit@english
+  \ctexset{%
+    chapter={
+      afterindent=true,
+      pagestyle={hit@headings},
+      beforeskip={28.34658bp},%一个空行 1.57481 × 18
+      afterskip={24.74658bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
+      aftername=\relax,
+      format={\centering\hit@title@font\xiaoer[1.57481]},%\center 会影响之后全局
+      nameformat=\relax,
+      numberformat=\relax,
+      titleformat=\hit@chapter@titleformat,
+      fixskip=true, % 添加这一行去除默认间距
+      %hang=true,
+    },
+    section={
+      afterindent=true,
+      beforeskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp \else 13.5bp \fi},%上下空0.5行
+      afterskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp  \else 13.5bp \fi},
+      format={\hit@title@font\ifhit@glue\fontsize{15bp}{21bp \@plus 1.677267bp \@minus 1.157391bp}\else\fontsize{15bp}{21bp}\fi\selectfont},
+      aftername=\enspace,
+      fixskip=true,
+      break={},
+    },
+    subsection={
+      afterindent=true,
+      beforeskip={\ifhit@glue 11bp \@plus 1.842609bp \@minus 0.9920497bp \else 11bp \fi},
+      afterskip={\ifhit@glue 11bp \@plus 2.33863bp \@minus 0.49602bp \else 11bp \fi},
+      format={\hit@title@font\ifhit@glue\fontsize{14bp}{18bp \@plus 1.842609bp \@minus 0.9920497bp}\else\fontsize{14bp}{18bp}\fi\selectfont},
+      aftername=\enspace,
+      fixskip=true,
+      break={},
+    },
+    subsubsection={
+      afterindent=true,
+      beforeskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
+      afterskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
+      format={\hit@title@font\normalsize},
+      aftername=\enspace,
+      fixskip=true,
+      break={},
+    },
+    paragraph/afterindent=true,
+    subparagraph/afterindent=true
+  }
+\else
+  \ctexset{%
+    chapter={
+      afterindent=true,
+      pagestyle={hit@headings},
+      beforeskip={28.34658bp},%一个空行 1.57481 × 18
+      afterskip={24.74658bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
+      aftername=\enspace,
+      format={\centering\hit@title@font\xiaoer[1.57481]},%\center 会影响之后全局
+      nameformat=\relax,
+      numberformat=\relax,
+      titleformat=\hit@chapter@titleformat,
+      fixskip=true, % 添加这一行去除默认间距
+      %hang=true,
+    },
+    section={
+      afterindent=true,
+      beforeskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp \else 13.5bp \fi},%上下空0.5行
+      afterskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp  \else 13.5bp \fi},
+      format={\hit@title@font\ifhit@glue\fontsize{15bp}{21bp \@plus 1.677267bp \@minus 1.157391bp}\else\fontsize{15bp}{21bp}\fi\selectfont},
+      aftername=\enspace,
+      fixskip=true,
+      break={},
+    },
+    subsection={
+      afterindent=true,
+      beforeskip={\ifhit@glue 11bp \@plus 1.842609bp \@minus 0.9920497bp \else 11bp \fi},
+      afterskip={\ifhit@glue 11bp \@plus 2.33863bp \@minus 0.49602bp \else 11bp \fi},
+      format={\hit@title@font\ifhit@glue\fontsize{14bp}{18bp \@plus 1.842609bp \@minus 0.9920497bp}\else\fontsize{14bp}{18bp}\fi\selectfont},
+      aftername=\enspace,
+      fixskip=true,
+      break={},
+    },
+    subsubsection={
+      afterindent=true,
+      beforeskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
+      afterskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
+      format={\hit@title@font\normalsize},
+      aftername=\enspace,
+      fixskip=true,
+      break={},
+    },
+    paragraph/afterindent=true,
+    subparagraph/afterindent=true
+  }
+\fi
+
+
 \NewDocumentCommand{\hit@appendix@chapter}{s o m o}{%
   \IfBooleanT{#1}%
   {
@@ -1099,7 +1163,8 @@ foot=8.5true mm
   \hit@appendix@chapter*{\hit@conclusion@ctitle}[\hit@conclusion@etitle]}{}
 \newenvironment{acknowledgements}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
-  \hit@appendix@chapter*{\hit@acknowledgement@ctitle}[\hit@acknowledgement@etitle]}{}
+  \hit@appendix@chapter*{\hit@acknowledgement@ctitle}[\hit@acknowledgement@etitle]
+}{}
 \newenvironment{resume}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@resume@ctitle}[\hit@resume@etitle]}{}
