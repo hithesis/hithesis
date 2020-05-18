@@ -545,7 +545,7 @@ foot=8.5true mm
 
 \newcommand\hit@chapter@engformat[1]{%开启悬挂缩进选项
   \begin{center}
-    \hit@title@font\xiaoer[1.57481]
+    \hit@title@font\if@mainmatter\xiaoer[1.57481]\else\sanhao[1.57481]\fi
     \bfseries #1
   \end{center}}
 
