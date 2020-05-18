@@ -545,10 +545,19 @@ foot=8.5true mm
 
 \newcommand\hit@chapter@engformat[1]{%开启悬挂缩进选项
   \begin{center}
-    \hit@title@font\if@mainmatter\xiaoer[1.57481]\else\sanhao[1.57481]\fi
-    \bfseries #1
+    \hit@title@font
+    \if@mainmatter
+    \xiaoer[1.57481]
+    \else
+    \sanhao[1.57481]
+    \fi\bfseries
+    #1
   \end{center}}
 
+\newcommand\hit@chapter@engnameformat[1]{%开启悬挂缩进选项
+  \begin{center}
+    \MakeUppercase{#1}
+  \end{center}}
 
 
 \renewcommand\@afterheading{%
@@ -574,7 +583,7 @@ foot=8.5true mm
       afterskip={24.74658bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
       aftername={\par},
       format={\hit@chapter@engformat},
-      nameformat=\relax,%\center 会影响之后全局
+      nameformat={\hit@chapter@engnameformat},%\center 会影响之后全局
       numberformat=\relax,
       titleformat={\hit@chapter@titleformat},
       fixskip=true, % 添加这一行去除默认间距
@@ -584,7 +593,7 @@ foot=8.5true mm
       afterindent=true,
       beforeskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp \else 13.5bp \fi},%上下空0.5行
       afterskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp  \else 13.5bp \fi},
-      format={\hit@title@font\ifhit@glue\fontsize{15bp}{21bp \@plus 1.677267bp \@minus 1.157391bp}\else\fontsize{15bp}{21bp}\fi\selectfont},
+      format={\hit@title@font\ifhit@glue\fontsize{15bp}{21bp \@plus 1.677267bp \@minus 1.157391bp}\else\fontsize{15bp}{21bp}\fi\selectfont\bfseries},
       aftername=\enspace,
       fixskip=true,
       break={},
@@ -593,7 +602,7 @@ foot=8.5true mm
       afterindent=true,
       beforeskip={\ifhit@glue 11bp \@plus 1.842609bp \@minus 0.9920497bp \else 11bp \fi},
       afterskip={\ifhit@glue 11bp \@plus 2.33863bp \@minus 0.49602bp \else 11bp \fi},
-      format={\hit@title@font\ifhit@glue\fontsize{14bp}{18bp \@plus 1.842609bp \@minus 0.9920497bp}\else\fontsize{14bp}{18bp}\fi\selectfont},
+      format={\hit@title@font\ifhit@glue\fontsize{14bp}{18bp \@plus 1.842609bp \@minus 0.9920497bp}\else\fontsize{14bp}{18bp}\fi\selectfont\bfseries},
       aftername=\enspace,
       fixskip=true,
       break={},
@@ -1118,7 +1127,8 @@ foot=8.5true mm
       \advance\leftskip\@tempdima
       \hskip -\leftskip
       % numberline is called here, and it uses \@tempdima
-      {\ifhit@bachelor\rmfamily\else\csname hit@toc@font\endcsname\fi\heiti #1}
+      {\ifhit@bachelor\rmfamily\else\csname
+        hit@toc@font\endcsname\fi\heiti\ifhit@english\bfseries\fi #1}
       \leaders\hbox{$\m@th\mkern \@dotsep mu\hbox{.}\mkern \@dotsep mu$}\hfill
       \nobreak{\normalfont\normalcolor #2}\par
       \penalty\@highpenalty
