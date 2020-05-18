@@ -534,15 +534,22 @@ foot=8.5true mm
 
 \newcommand\hit@chapter@titleformat[1]{%开启悬挂缩进选项
   \ifhit@english
-  \textbf{\MakeUppercase{#1}}
+  \MakeUppercase{#1}
   \else
     \ifthenelse%
     {\equal{#1}{\eabstractcname}}%
     {\bfseries #1}%
     % 实现章标题的居中加悬挂缩进，注意，此处一定是\CTEX@chaptername\CTEX@chapter@aftername, 否则是英文标题长度
-    {\ifhit@chapterhang\settowidth{\hangindent}{\CTEX@chaptername\CTEX@chapter@aftername}\hangafter=1\fi#1}%
-  \fi
-}
+    {\ifhit@chapterhang\settowidth{\hangindent}{\CTEX@chaptername\CTEX@chapter@aftername}\hangafter=1\fi#1}
+    \fi}
+
+\newcommand\hit@chapter@engformat[1]{%开启悬挂缩进选项
+  \begin{center}
+    \hit@title@font\xiaoer[1.57481]
+    \bfseries #1
+  \end{center}}
+
+
 
 \renewcommand\@afterheading{%
   \@nobreaktrue
@@ -565,11 +572,11 @@ foot=8.5true mm
       pagestyle={hit@headings},
       beforeskip={28.34658bp},%一个空行 1.57481 × 18
       afterskip={24.74658bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
-      aftername=\relax,
-      format={\centering\hit@title@font\xiaoer[1.57481]},%\center 会影响之后全局
-      nameformat=\relax,
+      aftername={\par},
+      format={\hit@chapter@engformat},
+      nameformat=\relax,%\center 会影响之后全局
       numberformat=\relax,
-      titleformat=\hit@chapter@titleformat,
+      titleformat={\hit@chapter@titleformat},
       fixskip=true, % 添加这一行去除默认间距
       %hang=true,
     },
