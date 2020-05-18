@@ -667,6 +667,7 @@ foot=8.5true mm
 \fi
 
 
+\ifhit@english
 \NewDocumentCommand{\hit@appendix@chapter}{s o m o}{%
   \IfBooleanT{#1}%
   {
@@ -676,14 +677,39 @@ foot=8.5true mm
     }{
       \markboth{#3}{#3}
     }
+
     \ifthenelse%
-      {\equal{#3}{\eabstractcname}}%
-      {\addcontentsline{toc}{chapter}{\texorpdfstring{\ifhit@arialtitle\sffamily\heiti\else\heiti\fi \ifhit@absupper\MakeUppercase{#3}\else#3\fi}{#3}}}
-      {\addcontentsline{toc}{chapter}{\texorpdfstring{\ifhit@arialtitle\sffamily\heiti\else\heiti\fi #3}{#3}}}
+    {\equal{#3}{\cabstractcname}}%
+    {\relax}
+    {\addcontentsline{toc}{chapter}{\texorpdfstring{\ifhit@arialtitle\sffamily\heiti\else\heiti\fi #3}{#3}}}
+
     \IfValueT{#4}{\addcontentsline{toe}{chapter}{\texorpdfstring{\bfseries #4}{#4}}}
     \hit@chapter*{#3}
   }
 }
+\else
+\NewDocumentCommand{\hit@appendix@chapter}{s o m o}{%
+  \IfBooleanT{#1}%
+  {
+    \phantomsection
+    \IfValueTF{#2}{
+      \markboth{#2}{#2}
+    }{
+      \markboth{#3}{#3}
+    }
+
+    \ifthenelse%
+      {\equal{#3}{\eabstractcname}}%
+      {\addcontentsline{toc}{chapter}{\texorpdfstring{\ifhit@arialtitle\sffamily\heiti\else\heiti\fi \ifhit@absupper\MakeUppercase{#3}\else#3\fi}{#3}}}
+      {\addcontentsline{toc}{chapter}{\texorpdfstring{\ifhit@arialtitle\sffamily\heiti\else\heiti\fi #3}{#3}}}
+
+    \IfValueT{#4}{\addcontentsline{toe}{chapter}{\texorpdfstring{\bfseries #4}{#4}}}
+    \hit@chapter*{#3}
+  }
+}
+\fi
+
+
 \newcommand{\BiAppChapter}[2]    % 该附录命令适用于有章节的完整附录
 {\phantomsection
  \chapter{#1}
@@ -1059,6 +1085,9 @@ foot=8.5true mm
     \box\hit@kw#2\par
   \endgroup}
 
+
+
+
 \newcommand{\hit@makeabstract}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\cabstractcname}[\cabstractename]
@@ -1072,6 +1101,9 @@ foot=8.5true mm
   \hit@eabstract
   \vskip12bp
   \hit@put@keywords{\textbf{Keywords:\enskip}}{\hit@ekeywords}}
+
+
+
 \newenvironment{denotation}[1][2.5cm]{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@denotation@ctitle}[\hit@denotation@etitle]
