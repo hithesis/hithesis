@@ -240,6 +240,32 @@ foot=8.5true mm
 \newindex[]{china}
 \newindex[]{english}
 \RequirePackage{xltxtra}
+
+
+\ifhit@english
+\RequirePackage[xindy,order=letter]{glossaries}
+\newglossarystyle{engstyle}{%
+  \glossarystyle{long}%
+  \renewenvironment{theglossary}%
+  {\begin{longtable}{p{3cm}p{\glsdescwidth}}}%
+     {\end{longtable}}%
+ }
+\else
+\RequirePackage{glossaries}
+\fi
+
+\setacronymstyle{short-long}
+\renewcommand*{\genacrfullformat}[2]{%
+  \glsentrylong{#1}%
+}
+\ifhit@english
+\makenoidxglossaries
+\else
+\makeglossaries
+\fi
+
+
+
 \ifhit@library\hit@openrightfalse\else\relax\fi
 \let\hit@cleardoublepage\cleardoublepage
 \newcommand{\hit@clearemptydoublepage}{%
@@ -1103,6 +1129,11 @@ foot=8.5true mm
   \hit@put@keywords{\textbf{Keywords:\enskip}}{\hit@ekeywords}}
 
 
+\newenvironment{hitnomenclature}[1][2.5cm]{%
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \hit@appendix@chapter*{\hit@nomenclature@etitle}}{}%
+
+
 
 \newenvironment{denotation}[1][2.5cm]{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
@@ -1111,6 +1142,7 @@ foot=8.5true mm
 \renewcommand{\thetable}{\arabic{table}}%使表编号为 1 的格式
   }{\renewcommand{\thetable}{\arabic{chapter}-\arabic{table}}%使表编号为 7-1 的格式
 \setcounter{table}{0}}%
+
 \def\hit@starttoc#1{% #1: float type, prepend type name in \listof*** entry.
   \let\oldnumberline\numberline
   \def\numberline##1{\oldnumberline{\csname #1name\endcsname\hskip.4em ##1}}
