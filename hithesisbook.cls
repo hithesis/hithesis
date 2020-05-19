@@ -243,18 +243,18 @@ foot=8.5true mm
 
 
 \ifhit@english
-\RequirePackage[xindy,order=letter]{glossaries}
+\RequirePackage[xindy,order=letter]{glossaries-extra}
 \newglossarystyle{engstyle}{%
   \glossarystyle{long}%
   \renewenvironment{theglossary}%
-  {\begin{longtable}{p{3cm}p{\glsdescwidth}}}%
-     {\end{longtable}}%
- }
+  {\vspace{-\baselineskip}\centering\begin{longtable}{@{\hskip 1cm}p{3.5cm}p{\glsdescwidth}}}%
+     {\end{longtable}}}
+\setabbreviationstyle[acronym]{long-short}
 \else
 \RequirePackage{glossaries}
+\setacronymstyle{short-long}
 \fi
 
-\setacronymstyle{short-long}
 \renewcommand*{\genacrfullformat}[2]{%
   \glsentrylong{#1}%
 }
