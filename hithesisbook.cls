@@ -247,7 +247,7 @@ foot=8.5true mm
 \newglossarystyle{engstyle}{%
   \glossarystyle{long}%
   \renewenvironment{theglossary}%
-  {\vspace{-\baselineskip}\centering\begin{longtable}{@{\hskip 1cm}p{3.5cm}p{\glsdescwidth}}}%
+  {\vspace{-\intextsep}\centering\begin{longtable}{@{\hskip 1cm}p{3.5cm}p{\glsdescwidth}}}%
      {\end{longtable}}}
 \setabbreviationstyle[acronym]{long-short}
 \else
@@ -279,10 +279,14 @@ foot=8.5true mm
   \pagestyle{hit@empty}
 }
 \renewcommand\mainmatter{%
+  \ifhit@english
+  \relax
+  \else
   \ifhit@tocblank%
   \addtocontents{toc}{\vspace{\baselineskip}} %规范中并没有这一要求，此处不应该加
   \addtocontents{toe}{\vspace{\baselineskip}}
   \fi%
+  \fi
   \ifhit@doctor%
     \ifhit@library\clearpage\else\cleardoublepage\fi
     \else%
@@ -1116,6 +1120,11 @@ foot=8.5true mm
 
 \newcommand{\hit@makeabstract}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \ifhit@english
+  \addtocontents{toc}{~\hfill\textbf{Page}\par}
+  \addtocontents{\ext@table}{{\noindent\sihao\textbf{Table}~\hfill\textbf{Page}}\par}%
+  \addtocontents{\ext@figure}{{\noindent\sihao\textbf{Figure}~\hfill\textbf{Page}}\par}%
+  \fi
   \hit@appendix@chapter*{\cabstractcname}[\cabstractename]
   \pagestyle{hit@headings}
   \pagenumbering{Roman}
@@ -1127,12 +1136,6 @@ foot=8.5true mm
   \hit@eabstract
   \vskip12bp
   \hit@put@keywords{\textbf{Keywords:\enskip}}{\hit@ekeywords}}
-
-
-\newenvironment{hitnomenclature}[1][2.5cm]{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
-  \hit@appendix@chapter*{\hit@nomenclature@etitle}}{}%
-
 
 
 \newenvironment{denotation}[1][2.5cm]{%
@@ -1148,12 +1151,18 @@ foot=8.5true mm
   \def\numberline##1{\oldnumberline{\csname #1name\endcsname\hskip.4em ##1}}
   \@starttoc{\csname ext@#1\endcsname}
   \let\numberline\oldnumberline}
+
+
 \def\hit@listof#1#2{% #1: float type
-\chapter*{\csname list#1name\endcsname}[#2]\hit@starttoc{#1}}
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \hit@appendix@chapter*[\csname list#1name\endcsname]{\csname list#1name\endcsname}[#2]
+  \hit@starttoc{#1}}
 
 \renewcommand\listoffigures{\hit@listof{figure}{\listfigureename}}
 \renewcommand*\l@figure{\addvspace{6bp}\@dottedtocline{1}{0em}{4em}}
-\renewcommand\listoftables{\hit@listof{table}{\listtableename}}
+\renewcommand\listoftables{
+  \hit@listof{table}{\listtableename}
+}
 \let\l@table\l@figure
 \def\ext@equation{loe}
 \def\equcaption#1{%
@@ -1170,7 +1179,13 @@ foot=8.5true mm
 \markboth{\contentsname}{ccontent}
 \hit@chapter*{\contentsname}
 \pdfbookmark[0]{\contentsname}{ccontent}
-\normalsize\@starttoc{toc}}
+\normalsize\@starttoc{toc}
+\ifhit@english
+\printnoidxglossary[sort=word,style=engstyle,title={Nomenclature},nopostdot,nonumberlist]
+\listoftables
+\listoffigures
+\fi
+}
 \ifhit@arialtoc
   \def\hit@toc@font{\sffamily}
 \fi
