@@ -894,28 +894,69 @@ foot=8.5true mm
   \begin{CJKfilltwosides}[b]{#1}#2\end{CJKfilltwosides}}
 
 \def\hit@first@titlepage{%
-  \ifhit@bachelor\hit@first@titlepage@bachelor\else\hit@first@titlepage@other\fi}
+  \ifhit@postdoc\hit@first@titlepage@postdoc\else\ifhit@bachelor\hit@first@titlepage@bachelor\else\hit@first@titlepage@other\fi\fi}
 \def\hit@second@titlepage{%
-  \ifhit@bachelor\hit@second@titlepage@bachelor\else\hit@second@titlepage@other\fi}
-
+  \ifhit@postdoc\hit@second@titlepage@postdoc\else\ifhit@bachelor\hit@second@titlepage@bachelor\else\hit@second@titlepage@other\fi\fi}
 
 
 \newcommand{\hit@first@titlepage@postdoc}{
-
-  {\songti \xiaosi
-    \begin{tabular}{@{}r@{：}l@{}}
-      \hit@natclassifiedindextitle & \hit@natclassifiedindex\\
-      \hit@internatclassifiedindextitle & \hit@intclassifiedindex
+  {\songti\sihao\renewcommand{\arraystretch}{2}
+    \hspace{1cm}\begin{tabular}{@{}r@{}l@{}}
+      \hit@postdoc@classifiedindex&\underline{\makebox[6\ccwd]{\hit@natclassifiedindex}}\\
+      \hit@postdoc@UDC&\underline{\makebox[6\ccwd]{\hit@intclassifiedindex}}\\
     \end{tabular}}\hfill
-  {\songti \xiaosi
-    \begin{tabular}{@{}r@{：}l@{}}
-      \hit@schoolidtitle & \hit@schoolid\\
-      \hit@secretlevel & \hit@statesecrets
-    \end{tabular}}
-  
+  {\songti\sihao\renewcommand{\arraystretch}{2}
+    \begin{tabular}{@{}r@{}l@{}}
+      \hit@postdoc@secretlevel&\underline{\makebox[6\ccwd]{\hit@statesecrets}}\\
+      \hit@postdoc@number&\underline{\makebox[6\ccwd]{\hit@statesecrets}}\\
+    \end{tabular}\hspace{1cm}\renewcommand{\arraystretch}{1}}
+  \parbox[t][5cm][b]{\textwidth}{\begin{center}\heiti\xiaoer[2]\hit@cschoolname\par
+      \hit@postdoc@documenttitle\end{center}}
+  \parbox[b][4cm][b]{\textwidth}{
+    \songti\xiaosan[2]\renewcommand{\arraystretch}{1.5}
+    \begin{center}
+      \begin{tabular}{c}
+        \makebox[9cm]{\hit@ctitleone}\\
+        \hline
+        \makebox[9cm]{\hit@ctitletwo}\\
+        \hline
+      \end{tabular}\renewcommand{\arraystretch}{1}
+    \end{center}}
+    \begin{center}
+      \songti\sihao[2]\centering\hit@cauthor
+    \end{center}
+  \parbox[b][4.5cm][b]{\textwidth}{
+    \songti\sihao[2]\renewcommand{\arraystretch}{1.5}
+    \begin{center}
+      \begin{tabular}{rl}
+        \hit@postdoc@finishdate & \underline{\makebox[6cm]{}}\\
+        \hit@postdoc@submitdate & \underline{\makebox[6cm]{}}\\
+      \end{tabular}\renewcommand{\arraystretch}{1}
+    \end{center}
+    }
+    \vfill
+    {\songti\sihao[2]
+     \begin{center}
+       \hit@cschoolname%
+       \ifhit@harbin
+       \hit@harbincampus
+       \fi
+       \ifhit@weihai
+       \hit@weihaicampus
+       \fi
+       \ifhit@shenzhen
+       \hit@shenzhencampus
+       \fi
+    \end{center}
+    \begin{center}
+      \hit@cdate
+    \end{center}}
 }
 
 
+
+\newcommand{\hit@second@titlepage@postdoc}{
+}
 
 
 \newcommand{\hit@first@titlepage@bachelor}{
@@ -1120,6 +1161,9 @@ foot=8.5true mm
     \ifhit@library\clearpage\else\cleardoublepage\fi
     \hit@second@titlepage
     \ifhit@library\clearpage\else\cleardoublepage\fi
+    \ifhit@postdoc
+    \relax
+    \else
     \ifhit@bachelor
     \relax
     \else
@@ -1127,6 +1171,7 @@ foot=8.5true mm
     \pdfbookmark[0]{\hit@etitle}{etitle}
     \hit@engcover
     \ifhit@library\clearpage\else\cleardoublepage\fi
+    \fi
     \fi
   \end{titlepage}
   \normalsize
