@@ -350,6 +350,10 @@ foot=8.5true mm
       \hrule\@height.75pt\@width\headwidth
     }
   \else
+  \ifhit@postdoc
+  \fancyhead[CO]{\songti\xiaowu[0]\leftmark}
+  \fancyhead[CE]{\songti\xiaowu[0]\hit@cschoolname\hit@postdoc@documenttitlenospace}
+  \fi
     \ifhit@doctor
       \fancyhead[CO]{\songti\xiaowu[0]\leftmark}
       \ifhit@harbin
@@ -457,9 +461,18 @@ foot=8.5true mm
 \def\hit@maketag#1{\maketag@@@{(\ignorespaces #1\unskip\@@italiccorr)}}
 \def\tagform@#1{\maketag@@@{(\ignorespaces #1\unskip\@@italiccorr)\equcaption{#1}}}
 \renewcommand{\eqref}[1]{\textup{(\ref{#1})}}
+
+\ifhit@postdoc
+\setlength{\intextsep}{10.5bp}
+\setlength{\textfloatsep}{10.5bp}
+\setlength{\floatsep}{10.5bp}
+\else
 \setlength{\intextsep}{\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp\else 8.50398bp\fi}
 \setlength{\textfloatsep}{\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp\else 8.50398bp\fi}
 \setlength{\floatsep}{\ifhit@glue 12bp \@plus 2.83465bp \@minus 0bp\else 12bp\fi}
+\fi
+
+
 \g@addto@macro\appendix{\renewcommand*{\thefigure}{\thechapter-\arabic{figure}}}
 \g@addto@macro\appendix{\renewcommand*{\thetable}{\thechapter-\arabic{table}}}
 \g@addto@macro\appendix{\renewcommand*{\theequation}{\thechapter-\arabic{equation}}}
@@ -593,6 +606,15 @@ foot=8.5true mm
     \MakeUppercase{#1}
   \end{center}}
 
+\newcommand\hit@chapter@postdocformat[1]{\centering\hit@title@font\xiaoer[1.57481]\textbf{#1}}
+
+
+
+
+
+
+
+
 
 \renewcommand\@afterheading{%
   \@nobreaktrue
@@ -607,6 +629,16 @@ foot=8.5true mm
       \clubpenalty 1
       \everypar{}%
     \fi}}
+
+
+
+
+
+
+
+
+
+
 
 \ifhit@english
   \ctexset{%
@@ -654,6 +686,53 @@ foot=8.5true mm
     subparagraph/afterindent=true
   }
 \else
+\ifhit@postdoc
+  \ctexset{%
+    chapter={
+      afterindent=true,
+      pagestyle={hit@headings},
+      beforeskip={28.34658bp},%一个空行 1.57481 × 18
+      afterskip={24.74658bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
+      aftername=\enspace,
+      format={\hit@chapter@postdocformat},%\center 会影响之后全局
+      nameformat=\relax,
+      numberformat=\relax,
+      titleformat=\hit@chapter@titleformat,
+      fixskip=true, % 添加这一行去除默认间距
+      %hang=true,
+    },
+    section={
+      afterindent=true,
+      beforeskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp \else 13.5bp \fi},%上下空0.5行
+      afterskip={\ifhit@glue 13.5bp \@plus 1.677267bp \@minus 1.157391bp  \else 13.5bp \fi},
+      format={\hit@title@font\ifhit@glue\fontsize{15bp}{21bp \@plus 1.677267bp \@minus 1.157391bp}\else\fontsize{15bp}{21bp}\fi\selectfont\bfseries},
+      aftername=\enspace,
+      fixskip=true,
+      break={},
+    },
+    subsection={
+      afterindent=true,
+      beforeskip={\ifhit@glue 11bp \@plus 1.842609bp \@minus 0.9920497bp \else 11bp \fi},
+      afterskip={\ifhit@glue 11bp \@plus 2.33863bp \@minus 0.49602bp \else 11bp \fi},
+      format={\hit@title@font\ifhit@glue\fontsize{14bp}{18bp \@plus 1.842609bp \@minus 0.9920497bp}\else\fontsize{14bp}{18bp}\fi\selectfont\bfseries},
+      aftername=\enspace,
+      fixskip=true,
+      break={},
+    },
+    subsubsection={
+      afterindent=true,
+      beforeskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
+      afterskip={\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp \else 9bp \fi},
+      format={\hit@title@font\normalsize},
+      aftername=\enspace,
+      fixskip=true,
+      break={},
+    },
+    paragraph/afterindent=true,
+    subparagraph/afterindent=true
+  }
+
+\else
   \ctexset{%
     chapter={
       afterindent=true,
@@ -699,6 +778,7 @@ foot=8.5true mm
     subparagraph/afterindent=true
   }
 \fi
+\fi
 
 
 \ifhit@english
@@ -731,17 +811,16 @@ foot=8.5true mm
     }{
       \markboth{#3}{#3}
     }
-
     \ifthenelse%
       {\equal{#3}{\eabstractcname}}%
       {\addcontentsline{toc}{chapter}{\texorpdfstring{\ifhit@arialtitle\sffamily\heiti\else\heiti\fi \ifhit@absupper\MakeUppercase{#3}\else#3\fi}{#3}}}
       {\addcontentsline{toc}{chapter}{\texorpdfstring{\ifhit@arialtitle\sffamily\heiti\else\heiti\fi #3}{#3}}}
-
     \IfValueT{#4}{\addcontentsline{toe}{chapter}{\texorpdfstring{\bfseries #4}{#4}}}
     \hit@chapter*{#3}
   }
 }
 \fi
+
 
 
 \newcommand{\BiAppChapter}[2]    % 该附录命令适用于有章节的完整附录
@@ -1245,7 +1324,7 @@ foot=8.5true mm
   \pagenumbering{Roman}
   \hit@cabstract
   \vskip12bp
-  \hit@put@keywords{\heiti\hit@ckeywords@title}{\hit@ckeywords}
+  \hit@put@keywords{\ifhit@postdoc\bfseries\fi\heiti\hit@ckeywords@title}{\hit@ckeywords}
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\eabstractcname}[\eabstractename]
   \hit@eabstract
@@ -1322,7 +1401,7 @@ foot=8.5true mm
       \hskip -\leftskip
       % numberline is called here, and it uses \@tempdima
       {\ifhit@bachelor\rmfamily\else\csname
-        hit@toc@font\endcsname\fi\heiti\ifhit@english\bfseries\fi #1}
+        hit@toc@font\endcsname\fi\heiti\ifhit@postdoc\bfseries\fi\ifhit@english\bfseries\fi #1}
       \leaders\hbox{$\m@th\mkern \@dotsep mu\hbox{.}\mkern \@dotsep mu$}\hfill
       \nobreak{\normalfont\normalcolor #2}\par
       \penalty\@highpenalty
@@ -1376,12 +1455,25 @@ foot=8.5true mm
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@acknowledgement@ctitle}[\hit@acknowledgement@etitle]
 }{}
+
+
+\newenvironment{correspondingaddr}{%
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \hit@appendix@chapter*{\hit@correspondingaddr@ctitle}}{}
+
+
 \newenvironment{resume}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@resume@ctitle}[\hit@resume@etitle]}{}
+
 \newenvironment{publication}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@publication@ctitle}[\hit@publication@etitle]}{}
+
+\newenvironment{doctorpublication}{%
+  \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \hit@appendix@chapter*{\hit@doctorpublication@ctitle}}{}
+
 \newenvironment{ceindex}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\indexname}[\hit@index@etitle]
