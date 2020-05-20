@@ -35,10 +35,12 @@
 \newif\ifhit@bachelor
 \newif\ifhit@master
 \newif\ifhit@doctor
+\newif\ifhit@postdoc
 \define@key{hit}{type}{%
   \hit@bachelorfalse
   \hit@masterfalse
   \hit@doctorfalse
+  \hit@postdocfalse
   \expandafter\csname hit@#1true\endcsname}
 
 \newif\ifhit@shenzhen
@@ -125,10 +127,12 @@
 \ifhit@bachelor\relax\else
   \ifhit@master\relax\else
     \ifhit@doctor\relax\else
-        \ClassError{hithesis}%
-                   {Please specify thesis type in option: \MessageBreak
-                    type=[bachelor | master | doctor]}{}
+      \ifhit@postdoc\relax\else
+          \ClassError{hithesis}%
+                    {Please specify thesis type in option: \MessageBreak
+                      type=[bachelor | master | doctor | postdoc]}{}
       \fi
+    \fi
   \fi
 \fi
 \RequirePackage{etoolbox}
@@ -893,6 +897,26 @@ foot=8.5true mm
   \ifhit@bachelor\hit@first@titlepage@bachelor\else\hit@first@titlepage@other\fi}
 \def\hit@second@titlepage{%
   \ifhit@bachelor\hit@second@titlepage@bachelor\else\hit@second@titlepage@other\fi}
+
+
+
+\newcommand{\hit@first@titlepage@postdoc}{
+
+  {\songti \xiaosi
+    \begin{tabular}{@{}r@{：}l@{}}
+      \hit@natclassifiedindextitle & \hit@natclassifiedindex\\
+      \hit@internatclassifiedindextitle & \hit@intclassifiedindex
+    \end{tabular}}\hfill
+  {\songti \xiaosi
+    \begin{tabular}{@{}r@{：}l@{}}
+      \hit@schoolidtitle & \hit@schoolid\\
+      \hit@secretlevel & \hit@statesecrets
+    \end{tabular}}
+  
+}
+
+
+
 
 \newcommand{\hit@first@titlepage@bachelor}{
 \ifthenelse%
