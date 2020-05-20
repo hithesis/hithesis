@@ -1306,8 +1306,9 @@ foot=8.5true mm
 \par\hit@authorizationtext
 \vspace{2\baselineskip}
 \par\hspace{6em}\hit@authorsig\hfill\hit@frontdate\hit@datefill
-\vspace{2\baselineskip}
+\ifhit@english\vspace{\baselineskip}\else\vspace{2\baselineskip}\fi
 \par\hspace{6em}\hit@teachersig\hfill\hit@frontdate\hit@datefill}
+
 \def\hit@authorization@bachelor{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@declarename@bachelor}

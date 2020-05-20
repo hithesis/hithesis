@@ -66,6 +66,9 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 	- 在[规范](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm)中规定和[研究生word排版范例](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)的中文目录中出现的“ABSTRACT”和“Abstract”的写法歧义（规格严格功夫大家！！！）。
 	- [《哈尔滨工业大学本科生毕业论文撰写规范》](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)与[本科生论文word排版范例](http://jwc.hit.edu.cn/2566/list.htm)中章节标题是否加粗有歧义
 	- 本科生论文官方模板的页眉页码格式混乱，有的有页码横线有的没有，有的有页眉有的没有。
+
+- word模板自身歧义：
+	－Contradictory font size of section title in English version of Word template
     
 ### hithesis支持
 
@@ -98,7 +101,7 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 - [x] 深圳校区硕士毕业设计中期
 - [x] 深圳校区博士毕业设计开题
 - [x] 深圳校区博士毕业设计中期
-- [ ] English version of thesis
+- [x] English version of thesis
 
 ## 模板特点
 
