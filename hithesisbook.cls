@@ -24,7 +24,7 @@
 %% through LaTeX.
 %% 
 \NeedsTeXFormat{LaTeX2e}[1999/12/01]
-\ProvidesClass{hithesis}
+\ProvidesClass{hithesisbook}
 [2020/03/07 2.1.0 Harbin Institute of Technology Thesis Template]
 \RequirePackage{ifthen}
 \RequirePackage{kvoptions}
@@ -854,6 +854,10 @@ foot=8.5true mm
 \hit@def@term{caffil}%中文院系
 \hit@def@term{csubject}%中文专业
 \hit@def@term{cdate}
+\hit@def@term{cnumber}
+\hit@def@term{cpositionname}
+\hit@def@term{cstartdate}
+\hit@def@term{cenddate}
 
 \hit@def@term{cstudentid}%
 \hit@def@term{cstudenttype}%
@@ -908,7 +912,7 @@ foot=8.5true mm
   {\songti\sihao\renewcommand{\arraystretch}{2}
     \begin{tabular}{@{}r@{}l@{}}
       \hit@postdoc@secretlevel&\underline{\makebox[6\ccwd]{\hit@statesecrets}}\\
-      \hit@postdoc@number&\underline{\makebox[6\ccwd]{\hit@statesecrets}}\\
+      \hit@postdoc@number&\underline{\makebox[6\ccwd]{\hit@cnumber}}\\
     \end{tabular}\hspace{1cm}\renewcommand{\arraystretch}{1}}
   \parbox[t][5cm][b]{\textwidth}{\begin{center}\heiti\xiaoer[2]\hit@cschoolname\par
       \hit@postdoc@documenttitle\end{center}}
@@ -956,7 +960,49 @@ foot=8.5true mm
 
 
 \newcommand{\hit@second@titlepage@postdoc}{
-}
+  \ifthenelse%
+  {\equal{\hit@fontset}{siyuan}}%
+  {\xiaosi[1]\vspace*{0.65em}}%
+  {\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
+  \vspace*{1.2cm}
+  \begin{center}
+    \parbox[t][8cm][t]{\textwidth}{
+      \begin{center}\songti\sanhao[2]\hit@ctitlecover\end{center} 
+      \vspace*{16bp}
+      \begin{center}\sihao[2]\MakeUppercase{\hit@etitle}\end{center}
+    }
+    \parbox[t][5cm][t]{\textwidth}{
+      \begin{center}\songti\sihao[2]
+        \begin{tabularx}{0.6\linewidth}{l@{\hit@postdoc@separator}l}
+          \hit@postdoc@authorname & \hit@cauthor \\
+          \hit@postdoc@supervisor & \hit@csupervisor \\
+          \hit@postdoc@positionname & \hit@cpositionname \\
+          \hit@postdoc@major & \hit@csubject \\
+        \end{tabularx}
+        \begin{tabularx}{0.6\linewidth}{l@{\hit@postdoc@separator}l}
+          \hit@postdoc@startdate & \hit@cstartdate \\
+          \hit@postdoc@enddate & \hit@cenddate \\
+        \end{tabularx}
+      \end{center} 
+    }
+  \end{center}
+  \vfill
+  {\songti\sihao[2]
+    \begin{center}
+      \hit@cschoolname%
+      \ifhit@harbin
+      \hit@harbincampus
+      \fi
+      \ifhit@weihai
+      \hit@weihaicampus
+      \fi
+      \ifhit@shenzhen
+      \hit@shenzhencampus
+      \fi
+    \end{center}
+    \begin{center}
+      \hit@cdate
+    \end{center}}}
 
 
 \newcommand{\hit@first@titlepage@bachelor}{
