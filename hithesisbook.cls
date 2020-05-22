@@ -1,10 +1,10 @@
 %%
-%% This is file `hithesis.cls',
+%% This is file `hithesisbook.cls',
 %% generated with the docstrip utility.
 %%
 %% The original source files were:
 %%
-%% hithesis.dtx  (with options: `cls')
+%% hithesis.dtx  (with options: `bookcls')
 %% 
 %% This is a generated file.
 %% 
@@ -25,7 +25,7 @@
 %% 
 \NeedsTeXFormat{LaTeX2e}[1999/12/01]
 \ProvidesClass{hithesisbook}
-[2020/03/07 2.1.0 Harbin Institute of Technology Thesis Template]
+[2020/05/21 3.0.0 Harbin Institute of Technology Thesis Template]
 \RequirePackage{ifthen}
 \RequirePackage{kvoptions}
 \SetupKeyvalOptions{
@@ -42,7 +42,6 @@
   \hit@doctorfalse
   \hit@postdocfalse
   \expandafter\csname hit@#1true\endcsname}
-
 \newif\ifhit@shenzhen
 \newif\ifhit@weihai
 \newif\ifhit@harbin
@@ -56,8 +55,6 @@
 \hit@harbintrue
 \fi
 \fi
-
-
 \newif\ifhit@english
 \newif\ifhit@chinese
 \define@key{hit}{language}{%
@@ -67,8 +64,6 @@
 \ifhit@english\relax\else
 \hit@chinesetrue
 \fi
-
-
 \newif\ifhit@geometrynewone
 \newif\ifhit@geometrynewtwo
 \define@key{hit}{newgeometry}{%
@@ -244,8 +239,6 @@ foot=8.5true mm
 \newindex[]{china}
 \newindex[]{english}
 \RequirePackage{xltxtra}
-
-
 \ifhit@english
 \RequirePackage[xindy,order=letter]{glossaries-extra}
 \newglossarystyle{engstyle}{%
@@ -267,9 +260,6 @@ foot=8.5true mm
 \else
 \makeglossaries
 \fi
-
-
-
 \ifhit@library\hit@openrightfalse\else\relax\fi
 \let\hit@cleardoublepage\cleardoublepage
 \newcommand{\hit@clearemptydoublepage}{%
@@ -354,8 +344,8 @@ foot=8.5true mm
   \fancyhead[CO]{\songti\xiaowu[0]\leftmark}
   \fancyhead[CE]{\songti\xiaowu[0]\hit@cschoolname\hit@postdoc@documenttitlenospace}
   \fi
-    \ifhit@doctor
-      \fancyhead[CO]{\songti\xiaowu[0]\leftmark}
+  \ifhit@doctor
+  \fancyhead[CO]{\songti\xiaowu[0]\leftmark}
       \ifhit@harbin
         \fancyhead[CE]{\songti\xiaowu[0]\hit@cschoolname\hit@cdegree\hit@cthesisname}
       \fi
@@ -409,7 +399,6 @@ foot=8.5true mm
       }
     \fi
   \fi
-
   % 此处可能和word模板不一致
   % 页眉中小五汉字，0行距时，占用9bt，页眉高度为14pt, 所以以下数字之和要保持等于14pt-9bt=4.96634pt
   % 根据PlutoThesis模板中rule宽度定义为2.25， 0.75， 保持粗线和细线之间的间距为细线宽度。
@@ -461,7 +450,6 @@ foot=8.5true mm
 \def\hit@maketag#1{\maketag@@@{(\ignorespaces #1\unskip\@@italiccorr)}}
 \def\tagform@#1{\maketag@@@{(\ignorespaces #1\unskip\@@italiccorr)\equcaption{#1}}}
 \renewcommand{\eqref}[1]{\textup{(\ref{#1})}}
-
 \ifhit@postdoc
 \setlength{\intextsep}{10.5bp}
 \setlength{\textfloatsep}{10.5bp}
@@ -471,8 +459,6 @@ foot=8.5true mm
 \setlength{\textfloatsep}{\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp\else 8.50398bp\fi}
 \setlength{\floatsep}{\ifhit@glue 12bp \@plus 2.83465bp \@minus 0bp\else 12bp\fi}
 \fi
-
-
 \g@addto@macro\appendix{\renewcommand*{\thefigure}{\thechapter-\arabic{figure}}}
 \g@addto@macro\appendix{\renewcommand*{\thetable}{\thechapter-\arabic{table}}}
 \g@addto@macro\appendix{\renewcommand*{\theequation}{\thechapter-\arabic{equation}}}
@@ -578,7 +564,6 @@ foot=8.5true mm
 \arraycolsep=1.6pt
 \def\hit@title@font{%
   \ifhit@arialtitle\sffamily\else\heiti\fi}
-
 \newcommand\hit@chapter@titleformat[1]{%开启悬挂缩进选项
   \ifhit@english
   \MakeUppercase{#1}
@@ -588,8 +573,8 @@ foot=8.5true mm
     {\bfseries #1}%
     % 实现章标题的居中加悬挂缩进，注意，此处一定是\CTEX@chaptername\CTEX@chapter@aftername, 否则是英文标题长度
     {\ifhit@chapterhang\settowidth{\hangindent}{\CTEX@chaptername\CTEX@chapter@aftername}\hangafter=1\fi#1}
-    \fi}
-
+  \fi
+}
 \newcommand\hit@chapter@engformat[1]{%开启悬挂缩进选项
   \begin{center}
     \hit@title@font
@@ -600,22 +585,11 @@ foot=8.5true mm
     \fi\bfseries
     #1
   \end{center}}
-
 \newcommand\hit@chapter@engnameformat[1]{%开启悬挂缩进选项
   \begin{center}
     \MakeUppercase{#1}
   \end{center}}
-
 \newcommand\hit@chapter@postdocformat[1]{\centering\hit@title@font\xiaoer[1.57481]\textbf{#1}}
-
-
-
-
-
-
-
-
-
 \renewcommand\@afterheading{%
   \@nobreaktrue
   \everypar{%
@@ -629,17 +603,6 @@ foot=8.5true mm
       \clubpenalty 1
       \everypar{}%
     \fi}}
-
-
-
-
-
-
-
-
-
-
-
 \ifhit@english
   \ctexset{%
     chapter={
@@ -779,8 +742,6 @@ foot=8.5true mm
   }
 \fi
 \fi
-
-
 \ifhit@english
 \NewDocumentCommand{\hit@appendix@chapter}{s o m o}{%
   \IfBooleanT{#1}%
@@ -820,9 +781,6 @@ foot=8.5true mm
   }
 }
 \fi
-
-
-
 \newcommand{\BiAppChapter}[2]    % 该附录命令适用于有章节的完整附录
 {\phantomsection
  \chapter{#1}
@@ -978,9 +936,9 @@ foot=8.5true mm
 
 \def\hit@first@titlepage{%
   \ifhit@postdoc\hit@first@titlepage@postdoc\else\ifhit@bachelor\hit@first@titlepage@bachelor\else\hit@first@titlepage@other\fi\fi}
+
 \def\hit@second@titlepage{%
   \ifhit@postdoc\hit@second@titlepage@postdoc\else\ifhit@bachelor\hit@second@titlepage@bachelor\else\hit@second@titlepage@other\fi\fi}
-
 
 \newcommand{\hit@first@titlepage@postdoc}{
   {\songti\sihao\renewcommand{\arraystretch}{2}
@@ -1036,8 +994,6 @@ foot=8.5true mm
     \end{center}}
 }
 
-
-
 \newcommand{\hit@second@titlepage@postdoc}{
   \ifthenelse%
   {\equal{\hit@fontset}{siyuan}}%
@@ -1046,7 +1002,7 @@ foot=8.5true mm
   \vspace*{1.2cm}
   \begin{center}
     \parbox[t][8cm][t]{\textwidth}{
-      \begin{center}\songti\sanhao[2]\hit@ctitlecover\end{center} 
+      \begin{center}\songti\sanhao[2]\hit@ctitlecover\end{center}
       \vspace*{16bp}
       \begin{center}\sihao[2]\MakeUppercase{\hit@etitle}\end{center}
     }
@@ -1062,7 +1018,7 @@ foot=8.5true mm
           \hit@postdoc@startdate & \hit@cstartdate \\
           \hit@postdoc@enddate & \hit@cenddate \\
         \end{tabularx}
-      \end{center} 
+      \end{center}
     }
   \end{center}
   \vfill
@@ -1309,9 +1265,6 @@ foot=8.5true mm
     \box\hit@kw#2\par
   \endgroup}
 
-
-
-
 \newcommand{\hit@makeabstract}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \ifhit@english
@@ -1330,8 +1283,6 @@ foot=8.5true mm
   \hit@eabstract
   \vskip12bp
   \hit@put@keywords{\textbf{Keywords:\enskip}}{\hit@ekeywords}}
-
-
 \newenvironment{denotation}[1][2.5cm]{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@denotation@ctitle}[\hit@denotation@etitle]
@@ -1339,14 +1290,11 @@ foot=8.5true mm
 \renewcommand{\thetable}{\arabic{table}}%使表编号为 1 的格式
   }{\renewcommand{\thetable}{\arabic{chapter}-\arabic{table}}%使表编号为 7-1 的格式
 \setcounter{table}{0}}%
-
 \def\hit@starttoc#1{% #1: float type, prepend type name in \listof*** entry.
   \let\oldnumberline\numberline
   \def\numberline##1{\oldnumberline{\csname #1name\endcsname\hskip.4em ##1}}
   \@starttoc{\csname ext@#1\endcsname}
   \let\numberline\oldnumberline}
-
-
 \def\hit@listof#1#2{% #1: float type
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*[\csname list#1name\endcsname]{\csname list#1name\endcsname}[#2]
@@ -1354,9 +1302,7 @@ foot=8.5true mm
 
 \renewcommand\listoffigures{\hit@listof{figure}{\listfigureename}}
 \renewcommand*\l@figure{\addvspace{6bp}\@dottedtocline{1}{0em}{4em}}
-\renewcommand\listoftables{
-  \hit@listof{table}{\listtableename}
-}
+\renewcommand\listoftables{\hit@listof{table}{\listtableename}}
 \let\l@table\l@figure
 \def\ext@equation{loe}
 \def\equcaption#1{%
@@ -1374,6 +1320,9 @@ foot=8.5true mm
 \hit@chapter*{\contentsname}
 \pdfbookmark[0]{\contentsname}{ccontent}
 \normalsize\@starttoc{toc}
+\ifhit@doctor
+\tableofengcontents
+\fi
 \ifhit@english
 \printnoidxglossary[sort=word,style=engstyle,title={Nomenclature},nopostdot,nonumberlist]
 \listoftables
@@ -1450,22 +1399,27 @@ foot=8.5true mm
 
 \newenvironment{conclusions}{%
 \ifhit@openright\cleardoublepage\else\clearpage\fi
-  \hit@appendix@chapter*{\hit@conclusion@ctitle}[\hit@conclusion@etitle]}{}
+\ifhit@english
+\hit@appendix@chapter*{\hit@conclusion@etitle}
+\else
+\hit@appendix@chapter*{\hit@conclusion@ctitle}[\hit@conclusion@etitle]
+\fi
+}{}
 \newenvironment{acknowledgements}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \ifhit@english
+  \hit@appendix@chapter*{\hit@acknowledgement@etitle}
+  \else
   \hit@appendix@chapter*{\hit@acknowledgement@ctitle}[\hit@acknowledgement@etitle]
-}{}
-
+  \fi}{}
 
 \newenvironment{correspondingaddr}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@correspondingaddr@ctitle}}{}
 
-
 \newenvironment{resume}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@resume@ctitle}[\hit@resume@etitle]}{}
-
 \newenvironment{publication}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@publication@ctitle}[\hit@publication@etitle]}{}
@@ -1473,7 +1427,6 @@ foot=8.5true mm
 \newenvironment{doctorpublication}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@doctorpublication@ctitle}}{}
-
 \newenvironment{ceindex}{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\indexname}[\hit@index@etitle]
@@ -1499,7 +1452,6 @@ foot=8.5true mm
   labelindent=4em,
   font=\wuhao\rm,
 }
-
 \def\hit@authorization@other{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@authorization@ctitle}[\hit@authorization@etitle]
@@ -1515,7 +1467,6 @@ foot=8.5true mm
 \par\hspace{6em}\hit@authorsig\hfill\hit@frontdate\hit@datefill
 \ifhit@english\vspace{\baselineskip}\else\vspace{2\baselineskip}\fi
 \par\hspace{6em}\hit@teachersig\hfill\hit@frontdate\hit@datefill}
-
 \def\hit@authorization@bachelor{%
   \ifhit@openright\cleardoublepage\else\clearpage\fi
   \hit@appendix@chapter*{\hit@declarename@bachelor}
@@ -1561,10 +1512,17 @@ foot=8.5true mm
   \renewcommand\theenumiv{\@arabic\c@enumiv}}%
   \sloppy\frenchspacing
   \flushbottom
+  \ifhit@splitbibitem
   \clubpenalty0
   \@clubpenalty \clubpenalty
   \widowpenalty0%
   \interlinepenalty-50%
+  \else
+  \clubpenalty4000
+  \@clubpenalty \clubpenalty
+  \widowpenalty4000%
+  \interlinepenalty4000%
+  \fi
 \sfcode`\.\@m}
 {\def\@noitemerr
   {\@latex@warning{Empty `thebibliography' environment}}%
@@ -1594,8 +1552,8 @@ foot=8.5true mm
 \renewcommand\NAT@cite%
     [3]{\ifNAT@swa\NAT@@open\if*#2*\else#2\NAT@spacechar\fi
         #1\NAT@@close\if*#3*\else\textsuperscript{#3}\fi\else#1\fi\endgroup}
-\AtEndOfClass{\input{hithesis.cfg}}
+\AtEndOfClass{\input{hithesisbook.cfg}}
 \AtEndOfClass{\sloppy}
 \endinput
 %%
-%% End of file `hithesis.cls'.
+%% End of file `hithesisbook.cls'.
