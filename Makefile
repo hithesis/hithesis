@@ -1,23 +1,48 @@
-# Makefile for ThuThesis
-
-# Compiling method: latexmk/xelatex/pdflatex
+# Makefile for hithesis
+# Compiling method: latexmk/xelatex
 METHOD = xelatex
 # Set opts for latexmk if you use it
 LATEXMKOPTS = -xelatex
-# Basename of thesis
-THESISMAIN = main
 
+###############################################################################
+#                                 hithesis doc                                #
+###############################################################################
 PACKAGE=hithesis
 SOURCES=$(PACKAGE).ins $(PACKAGE).dtx
 
+REPORTPLUSDIR=examples/hitart/reportplus
+REPORTSDIR=examples/hitart/reports
+BOOKCHINESEDIR=examples/hitbook/chinese
+BOOKENGLISHDIR=examples/hitbook/english
 
+THESISMAIN = thesis
+REPORTMAIN = report
 
-
-THESISCONTENTS=$(THESISMAIN).tex front/*.tex body/*.tex back/*.tex $(FIGURES) *.bst
+###############################################################################
+#                               set contents                                  #
+###############################################################################
 # NOTE: update this to reflect your local file types.
-FIGURES=$(wildcard figures/*.eps figures/*.pdf)
-BIBFILE=*.bib
-CLSFILES=dtx-style.sty $(PACKAGE).cls $(PACKAGE).ist h$(PACKAGE).cfg
+BCTHESISCONTENTS=$(BOOKCHINESEDIR)/$(THESISMAIN).tex $(BOOKCHINESEDIR)/front/*.tex $(BOOKCHINESEDIR)/body/*.tex $(BOOKCHINESEDIR)/back/*.tex $(BOOKCHINESEDIR)/$(FIGURES) $(BOOKCHINESEDIR)/*.bst
+BCFIGURES=$(wildcard $(BOOKCHINESEDIR)/figures/*.eps $(BOOKCHINESEDIR)/figures/*.jpg $(BOOKCHINESEDIR)/figures/*.png $(BOOKCHINESEDIR)/figures/*.pdf)
+BCBIBFILE=$(BOOKCHINESEDIR)/*.bib
+
+BETHESISCONTENTS=$(BOOKENGLISHDIR)/$(THESISMAIN).tex $(BOOKENGLISHDIR)/front/*.tex $(BOOKENGLISHDIR)/body/*.tex $(BOOKENGLISHDIR)/back/*.tex $(BOOKENGLISHDIR)/$(FIGURES) $(BOOKENGLISHDIR)/*.bst
+BEFIGURES=$(wildcard $(BOOKENGLISHDIR)/figures/*.eps $(BOOKENGLISHDIR)/figures/*.jpg $(BOOKENGLISHDIR)/figures/*.png $(BOOKENGLISHDIR)/figures/*.pdf)
+BEBIBFILE=$(BOOKENGLISHDIR)/*.bib
+
+REPORTSCONTENTS=$(REPORTSDIR)/$(REPORTMAIN).tex $(REPORTSDIR)/front/*.tex $(REPORTSDIR)/body/*.tex $(REPORTSDIR)/$(FIGURES) $(REPORTSDIR)/*.bst
+BEFIGURES=$(wildcard $(REPORTSDIR)/figures/*.eps $(REPORTSDIR)/figures/*.jpg $(REPORTSDIR)/figures/*.png $(REPORTSDIR)/figures/*.pdf)
+BEBIBFILE=$(REPORTSDIR)/*.bib
+
+REPORTPLUSCONTENTS=$(REPORTPLUSDIR)/$(REPORTMAIN).tex $(REPORTPLUSDIR)/front/*.tex $(REPORTPLUSDIR)/body/*.tex $(REPORTPLUSDIR)/$(FIGURES) $(REPORTPLUSDIR)/*.bst
+BEFIGURES=$(wildcard $(REPORTPLUSDIR)/figures/*.eps $(REPORTPLUSDIR)/figures/*.jpg $(REPORTPLUSDIR)/figures/*.png $(REPORTPLUSDIR)/figures/*.pdf)
+BEBIBFILE=$(REPORTPLUSDIR)/*.bib
+
+###############################################################################
+#                                  class file                                 #
+###############################################################################
+
+CLSFILES=dtx-style.sty $(PACKAGE).cls $(PACKAGE).ist $(PACKAGE).cfg
 
 # make deletion work on Windows
 ifdef SystemRoot
@@ -40,12 +65,16 @@ $(CLSFILES): $(SOURCES)
 viewdoc: doc
 	$(OPEN) $(PACKAGE).pdf
 
+
+
+
 doc: $(PACKAGE).pdf
 
 viewthesis: thesis
 	$(OPEN) $(THESISMAIN).pdf
 
 thesis: $(THESISMAIN).pdf
+
 
 ifeq ($(METHOD),latexmk)
 
