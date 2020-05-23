@@ -211,24 +211,25 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 - 第一步，下载[tinytex-hithesis](https://hub.docker.com/r/dustincys/tinytex-hithesis)镜像，
 
-		docker pull dustincys/tinytex-hithesis:v1.0.0
+		docker pull dustincys/tinytex-hithesis:latest
 
-- 第二步，在hithesis文件夹下执行以下命令进行编译
+- 第二步，在hithesis毕业论文文件夹hitbook或报告文件夹report下执行以下命令进行编译
 
-		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 make thesis
+		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest make thesis
+
+		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest make report
     
   或者编译文档
 
-		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 make doc
+		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest make doc
 
-诸位上仙、大侠、刀客、头领可以任性地、随意地、抽象地、写实地设置别名，最终完成羽化、飞升
+使用Docker可以使本地安装不再受平台限制、随时部署，不再受bug、字体、环境变量困扰。诸位上仙、大侠、刀客、头领可以任性地、随意地、抽象地、写实地设置别名，最终完成羽化、飞升
 
-	alias xelatex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 xelatex'
-	alias splitindex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 splitindex'
-	alias bibtex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 bibtex'
-	alias latexmk='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 latexmk'
-
-再也不用担心出现各种莫名奇妙的bug，再也不用烦恼出现什么字体问题，再也不用耗神于什么破环境变量，再也不用麻烦IT头领帮忙调试电脑！
+	alias xelatex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest xelatex'
+	alias splitindex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest splitindex'
+	alias bibtex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest bibtex'
+	alias latexmk='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest latexmk'
+    ...
 
 ### 模板的编译方法
 
@@ -246,34 +247,50 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 			make cls
 
-2. 生成毕业论文、博后出站报告的方式
+2. 生成好格式后，下一步进入到示例文件夹中
+
+		examples
+		├── hitart
+		│   ├── reportplus
+		│   └── reports
+		└── hitbook
+		    ├── chinese
+		    └── english
+
+示例文件夹对应的论文类型：
+
+　　- hitbook/chinese: 一校三区本硕博毕业论文以及博后出站报告
+　　- hitbook/english: 一校三区本硕博英文版毕业论文
+　　- hitart/reportplus: 深圳校区博士中期报告
+　　- hitart/reports: 除去深圳校区博士中期报告的一校三区本硕博开题、中期报告
+
+2. 生成论文方式
 
    - 手动狙击（源文件更改后每次编译逐行命令输入一轮）
+   		
+      - hitbook/chinese 文件夹中
 
-            xelatex -shell-escape thesis.tex
-            bibtex thesis
-            xelatex -shell-escape thesis.tex
-            xelatex -shell-escape thesis.tex
-            splitindex thesis -- -s hithesis.ist  # 自动生成索引
-            xelatex -shell-escape thesis.tex
+              xelatex -shell-escape thesis.tex
+              bibtex thesis
+              xelatex -shell-escape thesis.tex
+              xelatex -shell-escape thesis.tex
+              splitindex thesis -- -s hithesis.ist  # 自动生成索引
+              xelatex -shell-escape thesis.tex
             
-   - 半自动精确射击（源文件更改后每次编译敲一次）
+      - hitbook/english 文件夹中
 
-            make thesis
+              xelatex -shell-escape thesis.tex
+              bibtex thesis
+              xelatex -shell-escape thesis.tex
+              xelatex -shell-escape thesis.tex
+      
+      - hitart/{reports,reportplus}文件夹中
+      
+              xelatex -shell-escape report.tex
+              bibtex report
+              xelatex -shell-escape report.tex
+              xelatex -shell-escape report.tex
 
-   - 全自动火力覆盖（只需要输入一次命令，源文件更改后自动识别更改自动编译）
-
-            latexmk
-
-3. 生成开题、中期报告的方式
-
-   - 手动狙击（源文件更改后每次编译逐行命令输入一轮）
-
-            xelatex -shell-escape thesis.tex
-            bibtex thesis
-            xelatex -shell-escape thesis.tex
-            xelatex -shell-escape thesis.tex
-            
    - 半自动精确射击（源文件更改后每次编译敲一次）
 
             make thesis
@@ -319,15 +336,21 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 - hithesis的维护和创造基于开源式爱心发电精神，所以千万不要向作者提出无礼请求。
 - 作者由于工作繁忙，不再无偿解决一些用户要求（例如前面文档中[已经解决的算法格式各实验室要求不一致](https://github.com/dustincys/PlutoThesis#%E6%B2%A1%E6%9C%89%E6%98%8E%E7%A1%AE%E8%A6%81%E6%B1%82%E7%9A%84%E6%A0%BC%E5%BC%8F)问题）。
 - 本模板以PlutoThesis为核心基础，参考了CTAN中清华大学薛瑞尼所开发的thuthesis以及其分支重庆大学等毕业论文模板的代码开发而来
-- ~~学校教务处和研究生院只提供了规范，并没有提供官方的任何模板（包括word），所以~~ 学校教务处和研究生院提供了规范和[研究生word模板](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)以及[本科生word模板](http://jwc.hit.edu.cn/2566/list.htm)(厉害了word哥……)，此模板仅为规范的参考实现，不保证格式审查老师不提意见。任何由于使用本模板而引起的论文格式审查问题均与本模板作者无关
+- 学校教务处和研究生院提供了规范和[研究生word模板](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)以及[本科生word模板](http://jwc.hit.edu.cn/2566/list.htm)，此模板仅为规范的参考实现，不保证格式审查老师不提意见。任何由于使用本模板而引起的论文格式审查问题均与本模板作者无关
 
-### 各位刀客和大侠如用的嗨，要解囊相助
+### Apply to sponsor
 
-WeChat | Alipay
+I have spent a lot time and long been involved in developing/maintaining
+this open source project.
+I'd be humbled and grateful if you could financially support hithesis.
+
+WeChat (Now I use this account "永恒的信念", much appreciated.) | Alipay
 -|-
-![wechat](http://wx2.sinaimg.cn/large/61dccbaaly1fqwvz6sd4ej20yi1au797.jpg "谢谢")|![zfb](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg "谢谢")
+![wechat](https://raw.githubusercontent.com/dustincys/hifvwm/screenshots/wechat.jpg)|![zfb](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg)
 
 ### Sponsor List
+Please contact me if I missed any sponsor in this list. Thank you so much.
+
 |Time|Name|
 |----|----|
 |2020-05-06| Li Liming|
