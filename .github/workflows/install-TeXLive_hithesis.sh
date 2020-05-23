@@ -9,6 +9,8 @@ curl -sSL "$REMOTE/install-tl-unx.tar.gz" | tar -xz -C "$INSTALL" \
 
 export PATH="/tmp/texlive/bin/x86_64-linux:$PATH";
 
+tlmgr generate updmap
+
 tlmgr install l3build \
     fontname fontspec xetex \
     cjk environ ms trimspaces ulem zhnumber \
