@@ -22,7 +22,9 @@ tlmgr install l3build \
     footmisc varwidth changepage placeins multirow subfigure ccaption splitindex\
     xltxtra realscripts siunitx jknapltx algorithm2e ifoddpage relsize\
     listings glossaries mfirstuc textcase xfor datatool tracklang pdflscape rsfs\
-    txfonts xecjk tex-gyre newpx
+    txfonts xecjk tex-gyre newpx glossari glossaries-extra tikzpagenodes lipsum \
+    hyphen-german
+
 
 if [ ! -d $HOME/.fonts ]; then
     mkdir $HOME/.fonts;
