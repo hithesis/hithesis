@@ -1,19 +1,14 @@
-# Makefile for ThuThesis
+# Makefile for hithesis document
 
-# Compiling method: latexmk/xelatex/pdflatex
 METHOD = xelatex
 # Set opts for latexmk if you use it
 LATEXMKOPTS = -xelatex
 # Basename of thesis
-THESISMAIN = main
 
 PACKAGE=hithesis
 SOURCES=$(PACKAGE).ins $(PACKAGE).dtx
-THESISCONTENTS=$(THESISMAIN).tex front/*.tex body/*.tex back/*.tex $(FIGURES) *.bst
-# NOTE: update this to reflect your local file types.
-FIGURES=$(wildcard figures/*.eps figures/*.pdf)
-BIBFILE=*.bib
-CLSFILES=dtx-style.sty $(PACKAGE).cls $(PACKAGE).ist h$(PACKAGE).cfg
+
+CLSFILES=dtx-style.sty
 
 # make deletion work on Windows
 ifdef SystemRoot
@@ -24,9 +19,9 @@ else
 	OPEN = open
 endif
 
-.PHONY: all clean distclean dist thesis viewthesis doc viewdoc cls check FORCE_MAKE
+.PHONY: all clean distclean dist doc viewdoc cls check
 
-all: doc thesis
+all: doc
 
 cls: $(CLSFILES)
 
@@ -38,18 +33,10 @@ viewdoc: doc
 
 doc: $(PACKAGE).pdf
 
-viewthesis: thesis
-	$(OPEN) $(THESISMAIN).pdf
-
-thesis: $(THESISMAIN).pdf
-
 ifeq ($(METHOD),latexmk)
 
-$(PACKAGE).pdf: $(CLSFILES) FORCE_MAKE
+$(PACKAGE).pdf: $(CLSFILES)
 	$(METHOD) $(LATEXMKOPTS) $(PACKAGE).dtx
-
-$(THESISMAIN).pdf: $(CLSFILES) FORCE_MAKE
-	$(METHOD) $(LATEXMKOPTS) $(THESISMAIN)
 
 else ifeq ($(METHOD),xelatex)
 
@@ -60,26 +47,6 @@ $(PACKAGE).pdf: $(CLSFILES)
 	$(METHOD) $(PACKAGE).dtx
 	$(METHOD) $(PACKAGE).dtx
 
-$(THESISMAIN).idx: $(THESISMAIN).bbl
-	$(METHOD) $(THESISMAIN)
-	$(METHOD) $(THESISMAIN)
-
-
-$(THESISMAIN)_china.idx : $(CLSFILES) $(THESISMAIN).bbl $(THESISMAIN).idx
-	splitindex $(THESISMAIN) -- -s $(PACKAGE).ist  # 自动生成索引
-
-$(THESISMAIN)_english.ind $(THESISMAIN)_china.ind $(THESISMAIN)_english.idx : $(THESISMAIN)_china.idx
-
-$(THESISMAIN).pdf: $(CLSFILES) $(THESISCONTENTS) $(THESISMAIN)_china.ind $(THESISMAIN)_china.idx $(THESISMAIN)_english.ind $(THESISMAIN)_english.idx $(THESISMAIN).bbl
-	$(METHOD) $(THESISMAIN)
-	splitindex $(THESISMAIN) -- -s $(PACKAGE).ist  # 自动生成索引
-	$(METHOD) $(THESISMAIN)
-
-$(THESISMAIN).bbl: $(BIBFILE)
-	$(METHOD) $(THESISMAIN)
-	-bibtex $(THESISMAIN)
-	$(RM) $(THESISMAIN).pdf
-
 else
 $(error Unknown METHOD: $(METHOD))
 
@@ -87,22 +54,11 @@ endif
 
 clean:
 	latexmk -c $(PACKAGE).dtx
-	latexmk -c $(THESISMAIN)
 	-@$(RM) *~ *.idx *.ind *.ilg *.thm *.toe *.bbl
 
 cleanall: clean
-	-@$(RM) $(PACKAGE).pdf $(THESISMAIN).pdf
+	-@$(RM) $(PACKAGE).pdf
 
 distclean: cleanall
 	-@$(RM) $(CLSFILES)
-	-@$(RM) -r dist
-
-check: FORCE_MAKE
-	ag 'Harbin Institute of Technology Template|\\def\\version|"version":' hithesis.dtx package.json
-
-dist: all
-	@if [ -z "$(version)" ]; then \
-		echo "Usage: make dist version=[x.y.z | ctan]"; \
-	else \
-		npm run build -- --version=$(version); \
-	fi
+	-@$(RM) *.cls *.cfg *.ist *.bst *.sty *.eps

@@ -16,31 +16,34 @@
 [![GitHub repo size](https://img.shields.io/github/repo-size/dustincys/hithesis)](https://yanshuo.name/hithesis) 
 
 
-
 <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/"><img alt="知识共享许可协议" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/88x31.png" /></a><br /><span xmlns:dct="http://purl.org/dc/terms/" href="http://purl.org/dc/dcmitype/Text" property="dct:title" rel="dct:type">hithesis</span> 由 <a xmlns:cc="http://creativecommons.org/ns#" href="https://github.com/dustincys/hithesis" property="cc:attributionName" rel="cc:attributionURL">https://github.com/dustincys/hithesis</a> 采用 <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">知识共享 署名-非商业性使用 4.0 国际 许可协议</a>进行许可。<br />基于<a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/dustincys/hithesis" rel="dct:source">https://github.com/dustincys/hithesis</a>上的作品创作。
 
 ## What's hithesis?
 
 hithesis is a LaTeX thesis template package for Harbin Institute of Technolog
-supporting bachelor, master, doctor dissertations. Since the users of this
-package are supposed to be Chinese or those understand Chinese, the following of
-this file and all other documents are written in Chinese only.
+supporting bachelor, master, doctor dissertations, postdoc report, thesis
+proposal and midterm report.
 
-This file may be distributed and/or modified under the
-conditions of the LaTeX Project Public License, either version 1.3a
-of this license or (at your option) any later version.
-The latest version of this license is in:
+Files/Codes in hithesis may be distributed and/or modified under the conditions of the LaTeX
+Project Public License, either version 1.3a of this license or (at your option)
+any later version. The latest version of this license is in:
 
 http://www.latex-project.org/lppl.txt
 
 and version 1.3a or later is part of all distributions of LaTeX
 version 2004/10/01 or later.
 
+Files/Codes in hithesis also under the protection of license of [Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)](http://creativecommons.org/licenses/by-nc/4.0/).
+
 ## hithesis是什么？
 
-hithesis
-一个简单易用的哈尔滨工业大学学位论文LaTeX模板，现包括一校三区本科论文、硕士论文、博士论文。对其它格式的支持会陆续加入。
-hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXLive将自带窝工模板（版本日期>2017.08.28）。
+一个简单易用的哈尔滨工业大学学位论文LaTeX模板，现包括一校三区本科、硕士、博士开
+题、中期和毕业论文，包括博后出站报告和英文毕业论文格式。
+hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXLive将自带窝工模板。
+
+## hithesis版本更新说明
+
+版本号：vX.Y.Z　中，X表示重大不兼容改进，Y表示功能改进，Z表示非功能的bug补丁。
 
 ## 窝工规范以及模板支持
 
@@ -66,41 +69,41 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 	- 在[规范](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm)中规定和[研究生word排版范例](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)的中文目录中出现的“ABSTRACT”和“Abstract”的写法歧义（规格严格功夫大家！！！）。
 	- [《哈尔滨工业大学本科生毕业论文撰写规范》](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)与[本科生论文word排版范例](http://jwc.hit.edu.cn/2566/list.htm)中章节标题是否加粗有歧义
 	- 本科生论文官方模板的页眉页码格式混乱，有的有页码横线有的没有，有的有页眉有的没有。
-    
-### hithesis支持
+
+- word模板自身歧义：
+	- Contradictory font size of section title in English version of Word template
+
+### hithesis 支持
 
 - [x] 哈尔滨校区本科毕业设计
 - [x] 哈尔滨校区硕士毕业论文
 - [x] 哈尔滨校区博士毕业论文
-- [ ] 哈尔滨校区本科毕业设计开题
-- [ ] 哈尔滨校区本科毕业设计中期
-- [ ] 哈尔滨校区本科毕业设计压缩版
-- [ ] 哈尔滨校区硕士毕业设计开题
-- [ ] 哈尔滨校区硕士毕业设计中期
-- [ ] 哈尔滨校区博士毕业设计开题
-- [ ] 哈尔滨校区博士毕业设计中期
-- [ ] 哈尔滨校区博后出站报告
+- [x] 哈尔滨校区本科毕业设计开题
+- [x] 哈尔滨校区本科毕业设计中期
+- [x] 哈尔滨校区硕士毕业设计开题
+- [x] 哈尔滨校区硕士毕业设计中期
+- [x] 哈尔滨校区博士毕业设计开题
+- [x] 哈尔滨校区博士毕业设计中期
+- [x] 哈尔滨校区博后出站报告
 - [x] 威海校区本科毕业设计
 - [x] 威海校区硕士毕业论文
 - [x] 威海校区博士毕业论文
-- [ ] 威海校区本科毕业设计开题
-- [ ] 威海校区本科毕业设计中期
-- [ ] 威海校区硕士毕业设计开题
-- [ ] 威海校区硕士毕业设计中期
-- [ ] 威海校区博士毕业设计开题
-- [ ] 威海校区博士毕业设计中期
+- [x] 威海校区本科毕业设计开题
+- [x] 威海校区本科毕业设计中期
+- [x] 威海校区硕士毕业设计开题
+- [x] 威海校区硕士毕业设计中期
+- [x] 威海校区博士毕业设计开题
+- [x] 威海校区博士毕业设计中期
 - [x] 深圳校区硕士毕业论文
 - [x] 深圳校区本科毕业设计
 - [x] 深圳校区博士毕业论文
-- [ ] 深圳校区本科毕业设计开题
-- [ ] 深圳校区本科毕业设计中期
-- [ ] 深圳校区硕士毕业设计开题
-- [ ] 深圳校区硕士毕业设计中期
-- [ ] 深圳校区博士毕业设计开题
-- [ ] 深圳校区博士毕业设计中期
-- [ ] English version of hithesis
-
-在分支next中将逐步添加以上所有。next分支稳定之后将合并到master，hithesis将进入v3.0.0新纪元!
+- [x] 深圳校区本科毕业设计开题
+- [x] 深圳校区本科毕业设计中期
+- [x] 深圳校区硕士毕业设计开题
+- [x] 深圳校区硕士毕业设计中期
+- [x] 深圳校区博士毕业设计开题
+- [x] 深圳校区博士毕业设计中期
+- [x] English version of thesis
 
 ## 模板特点
 
@@ -109,8 +112,10 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 - 极限程度实现了[《哈尔滨工业大学研究生学位论文撰写规范》](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm)、[《哈尔滨工业大学本科生毕业论文撰写规范》](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)
 - 这是[PlutoThesis](https://github.com/dustincys/PlutoThesis)的终极进化，PlutoThesis废弃不再维护。
 - 更傻更简单的选项，例如论文主文件，只需要在文档类的括号中填写本硕博选项，字体选项（设置弹性间距或者刚性间距），文科生选项（目录可以设成四级目录），非全日制类型等，轻松设定目标格式。
-- 自适应格式，例如图题和标题，标题字号在字数超过两行时自动由五号变小五号，实现自适应（硕博规范规定，字数多时用五号）
+- 更聪明更简单的自适应格式，例如图题和标题，标题字号在字数超过两行时自动由五号变小五号，实现自适应（硕博规范规定，字数多时用五号）
 - 自动化中英文索引（博士规范要求，有需要时候添加）
+- 自动化表格和图片目录（英文版）
+- 自动化生成术语词汇表（英文版）
 - 图书馆提交论文级的电子版
 - ……
 
@@ -171,20 +176,6 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 为了解决使用中遇到的问题，请各位刀客和大侠加入QQ群hithesis讨论区：259959600 （人满）或窝工山hithesis派：851792460。
 如要和作者聊聊，请先看[hithesis的“昨天今天和明天”](https://yanshuo.name/cn/2020/01/hithesis/)。
 
-hithesis 高级群：476262502 （高级群为作者散布高级排版、制图、Linux管理、编码等
-知识和技术之所在，其要旨引用自《西游记》第八回，如来自言“叵耐不识我法门之要旨，
-怠慢了瑜伽之正宗”，以及“曹溪路险、鹫岭云深，故人不音杳！”。散布知识之后，作者将
-直播回答高级群中众生问题。（**由于工作关系直播暂停，开播时间待定**））。
-
-21 Oct 2019　添加：由于工作繁忙，改为西瓜小视频形式传播正能量（**包括Linux实用技术、
-排版、制图等等平时积累的经验和知识**）。
-
-西瓜视频ID：**石见石页**
-
-网址：https://www.ixigua.com/home/105143356290/
-
-hithesis群里有很多热心的LaTeX隐士高人如@poofee等，很乐于解答。
-
 ### 关于查重
 
 注意：窝工的论文查重可以使用pdf查重！！！！！！！
@@ -220,24 +211,25 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 - 第一步，下载[tinytex-hithesis](https://hub.docker.com/r/dustincys/tinytex-hithesis)镜像，
 
-		docker pull dustincys/tinytex-hithesis:v1.0.0
+		docker pull dustincys/tinytex-hithesis:latest
 
-- 第二步，在hithesis文件夹下执行以下命令进行编译
+- 第二步，在hithesis毕业论文文件夹hitbook或报告文件夹report下执行以下命令进行编译
 
-		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 make thesis
+		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest make thesis
+
+		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest make report
     
   或者编译文档
 
-		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 make doc
+		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest make doc
 
-诸位上仙、大侠、刀客、头领可以任性地、随意地、抽象地、写实地设置别名，最终完成羽化、飞升
+使用Docker可以使本地安装不再受平台限制、随时部署，不再受bug、字体、环境变量困扰。诸位上仙、大侠、刀客、头领可以任性地、随意地、抽象地、写实地设置别名，最终完成羽化、飞升
 
-	alias xelatex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 xelatex'
-	alias splitindex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 splitindex'
-	alias bibtex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 bibtex'
-	alias latexmk='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:v1.0.0 latexmk'
-
-再也不用担心出现各种莫名奇妙的bug，再也不用烦恼出现什么字体问题，再也不用耗神于什么破环境变量，再也不用麻烦IT头领帮忙调试电脑！[还有比这**嗨**的么？](https://5b0988e595225.cdn.sohucs.com/images/20171216/1f6862975513431cbb744c3f6e25c971.gif)
+	alias xelatex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest xelatex'
+	alias splitindex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest splitindex'
+	alias bibtex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest bibtex'
+	alias latexmk='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest latexmk'
+    ...
 
 ### 模板的编译方法
 
@@ -255,17 +247,50 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 			make cls
 
-2. 生成论文的方式
+2. 生成好格式后，下一步进入到示例文件夹中
+
+		examples
+		├── hitart
+		│   ├── reportplus
+		│   └── reports
+		└── hitbook
+		    ├── chinese
+		    └── english
+
+示例文件夹对应的论文类型：
+
+　　- hitbook/chinese: 一校三区本硕博毕业论文以及博后出站报告
+　　- hitbook/english: 一校三区本硕博英文版毕业论文
+　　- hitart/reportplus: 深圳校区博士中期报告
+　　- hitart/reports: 除去深圳校区博士中期报告的一校三区本硕博开题、中期报告
+
+2. 生成论文方式
 
    - 手动狙击（源文件更改后每次编译逐行命令输入一轮）
+   		
+      - hitbook/chinese 文件夹中
 
-            xelatex -shell-escape main.tex
-            bibtex main
-            xelatex -shell-escape main.tex
-            xelatex -shell-escape main.tex
-            splitindex main -- -s hithesis.ist  # 自动生成索引
-            xelatex -shell-escape main.tex
+              xelatex -shell-escape thesis.tex
+              bibtex thesis
+              xelatex -shell-escape thesis.tex
+              xelatex -shell-escape thesis.tex
+              splitindex thesis -- -s hithesis.ist  # 自动生成索引
+              xelatex -shell-escape thesis.tex
             
+      - hitbook/english 文件夹中
+
+              xelatex -shell-escape thesis.tex
+              bibtex thesis
+              xelatex -shell-escape thesis.tex
+              xelatex -shell-escape thesis.tex
+      
+      - hitart/{reports,reportplus}文件夹中
+      
+              xelatex -shell-escape report.tex
+              bibtex report
+              xelatex -shell-escape report.tex
+              xelatex -shell-escape report.tex
+
    - 半自动精确射击（源文件更改后每次编译敲一次）
 
             make thesis
@@ -308,22 +333,25 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 ### 其他说明
 
-由于维护者（就是本书呆）已经是高龄不毕业博士，课题繁忙，实在无空余时间再写详细文档以及 无偿解决一些用户要求（例如前面文档中[已经解决的算法格式各实验室要求不一致](https://github.com/dustincys/PlutoThesis#%E6%B2%A1%E6%9C%89%E6%98%8E%E7%A1%AE%E8%A6%81%E6%B1%82%E7%9A%84%E6%A0%BC%E5%BC%8F)问题）。
-
-各位刀客和大侠如用的嗨，要解囊相助，请微信扫码～～
-WeChat | Alipay
--|-
-![wechat](http://wx2.sinaimg.cn/large/61dccbaaly1fqwvz6sd4ej20yi1au797.jpg "谢谢")|![zfb](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg "谢谢")
-
-其实没关系，为了窝工的“规格严格，功夫到家”！
-
+- hithesis的维护和创造基于开源式爱心发电精神，所以千万不要向作者提出无礼请求。
+- 作者由于工作繁忙，不再无偿解决一些用户要求（例如前面文档中[已经解决的算法格式各实验室要求不一致](https://github.com/dustincys/PlutoThesis#%E6%B2%A1%E6%9C%89%E6%98%8E%E7%A1%AE%E8%A6%81%E6%B1%82%E7%9A%84%E6%A0%BC%E5%BC%8F)问题）。
 - 本模板以PlutoThesis为核心基础，参考了CTAN中清华大学薛瑞尼所开发的thuthesis以及其分支重庆大学等毕业论文模板的代码开发而来
-- ~~学校教务处和研究生院只提供了规范，并没有提供官方的任何模板（包括word），所以~~ 学校教务处和研究生院提供了规范和[研究生word模板](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)以及[本科生word模板](http://jwc.hit.edu.cn/2566/list.htm)(厉害了word哥……)，此模板仅为规范的参考实现，不保证格式审查老师不提意见。任何由于使用本模板而引起的论文格式审查问题均与本模板作者无关
+- 学校教务处和研究生院提供了规范和[研究生word模板](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)以及[本科生word模板](http://jwc.hit.edu.cn/2566/list.htm)，此模板仅为规范的参考实现，不保证格式审查老师不提意见。任何由于使用本模板而引起的论文格式审查问题均与本模板作者无关
+
+### Apply to sponsor
+
+I have spent a lot time and long been involved in developing/maintaining
+this open source project.
+I'd be humbled and grateful if you could financially support hithesis.
+
+WeChat (Now I use this account "永恒的信念", much appreciated.) | Alipay
+-|-
+![wechat](https://raw.githubusercontent.com/dustincys/hifvwm/screenshots/wechat.jpg)|![zfb](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg)
 
 ### Sponsor List
+Please contact me if I missed to add any sponsor. Thank you so much.
+
 |Time|Name|
 |----|----|
 |2020-05-06| Li Liming|
 
-
-<a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/"><img alt="知识共享许可协议" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/88x31.png" /></a><br /><span xmlns:dct="http://purl.org/dc/terms/" href="http://purl.org/dc/dcmitype/Text" property="dct:title" rel="dct:type">hithesis</span> 由 <a xmlns:cc="http://creativecommons.org/ns#" href="https://github.com/dustincys/hithesis" property="cc:attributionName" rel="cc:attributionURL">https://github.com/dustincys/hithesis</a> 采用 <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">知识共享 署名-非商业性使用 4.0 国际 许可协议</a>进行许可。<br />基于<a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/dustincys/hithesis" rel="dct:source">https://github.com/dustincys/hithesis</a>上的作品创作。
