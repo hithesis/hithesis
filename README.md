@@ -349,7 +349,7 @@ WeChat (Now I use this account "永恒的信念", much appreciated.) | Alipay
 ![wechat](https://raw.githubusercontent.com/dustincys/hifvwm/screenshots/wechat.jpg)|![zfb](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg)
 
 ### Sponsor List
-Please contact me if I missed any sponsor in this list. Thank you so much.
+Please contact me if I missed to add any sponsor. Thank you so much.
 
 |Time|Name|
 |----|----|
