@@ -22,7 +22,8 @@ tlmgr install tex-gyre ctex splitindex ntheorem newtx fontaxes psnfss pdfpages \
     enumitem environ trimspaces footmisc varwidth changepage placeins multirow \
     subfigure ccaption xltxtra realscripts siunitx jknapltx algorithm2e \
     ifoddpage relsize listings glossaries makeindex mfirstuc textcase xfor datatool tracklang \
-    pdflscape rsfs txfonts xecjk newpx fancyhdr hyphen-german
+    pdflscape rsfs txfonts xecjk newpx fancyhdr hyphen-german glossaries-extra \
+    tikzpagenodes lipsum
 
 echo "Finish install extra packages."
 
