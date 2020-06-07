@@ -251,18 +251,11 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 		examples
 		├── hitart
-		│   ├── reportplus
-		│   └── reports
+		│   ├── reportplus  %深圳校区博士中期报告
+		│   └── reports     %除去深圳校区博士中期报告的一校三区本硕博开题、中期报告
 		└── hitbook
-		    ├── chinese
-		    └── english
-
-示例文件夹对应的论文类型：
-
-　　- hitbook/chinese: 一校三区本硕博毕业论文以及博后出站报告
-　　- hitbook/english: 一校三区本硕博英文版毕业论文
-　　- hitart/reportplus: 深圳校区博士中期报告
-　　- hitart/reports: 除去深圳校区博士中期报告的一校三区本硕博开题、中期报告
+		    ├── chinese     %一校三区本硕博毕业论文以及博后出站报告
+		    └── english     %一校三区本硕博英文版毕业论文
 
 2. 生成论文方式
 
