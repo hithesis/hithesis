@@ -186,6 +186,15 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 
 ### 关于LaTeX软件的安装
 
+#### 平台
+
+- 推荐使用开源系统 Linux
+- 推荐使用开源编辑器 [Spacemacs](https://www.spacemacs.org/)
+
+#### 中文字体
+
+- 推荐使用LaTeX安装包自带的开源中文字体集[fandol](https://www.ctan.org/pkg/fandol)
+
 #### LaTeX安装包介绍
 
 不推荐安装完整版TeXLive/MiKTeX/MacTeX，因为太费时间。
