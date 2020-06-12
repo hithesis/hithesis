@@ -215,20 +215,20 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 - 第二步，在hithesis毕业论文文件夹hitbook或报告文件夹report下执行以下命令进行编译
 
-		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest make thesis
+		docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make thesis
 
-		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest make report
+		docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make report
     
   或者编译文档
 
-		docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest make doc
+		docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make doc
 
 使用Docker可以使本地安装不再受平台限制、随时部署，不再受bug、字体、环境变量困扰。诸位上仙、大侠、刀客、头领可以任性地、随意地、抽象地、写实地设置别名，最终完成羽化、飞升
 
-	alias xelatex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest xelatex'
-	alias splitindex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest splitindex'
-	alias bibtex='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest bibtex'
-	alias latexmk='docker run --rm -i  -v "$PWD":/home/runner dustincys/tinytex-hithesis:latest latexmk'
+	alias xelatex='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest xelatex'
+	alias splitindex='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest splitindex'
+	alias bibtex='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest bibtex'
+	alias latexmk='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest latexmk'
     ...
 
 ### 模板的编译方法
