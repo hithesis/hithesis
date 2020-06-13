@@ -172,9 +172,14 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 
 ### 关于hithesis的线上讨论区
 
-~~由于维护者（就是本书呆）已经是高龄不毕业刀客，课题繁忙，常常无法及时回答疑问。~~
-为了解决使用中遇到的问题，请各位刀客和大侠加入QQ群hithesis讨论区：259959600 （人满）或窝工山hithesis派：851792460。
-如要和作者聊聊，请先看[hithesis的“昨天今天和明天”](https://yanshuo.name/cn/2020/01/hithesis/)。
+- QQ群
+	- hithesis讨论区：259959600 （人满）
+	- 窝工山hithesis派：851792460。
+- 微信公众号
+
+	![石见石页](https://raw.githubusercontent.com/dustincys/cn/assets/qrcode_for_gh_af6e07ba273e_258.jpg)
+
+
 
 ### 关于查重
 
@@ -332,6 +337,14 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 有些强迫症刀客喜欢用Beamer，推荐[progressbar主题](https://github.com/dustincys/progressbar)，
 能够使用[pympress](https://github.com/Cimbali/pympress)播放双屏提示。
+
+### 关于hithesis的博客
+
+- [2020-05-24 hithesis v3 进化](https://yanshuo.name/cn/2020/05/hithesisv3/)
+- [2020-02-09 hithesis的“昨天今天和明天”](https://yanshuo.name/cn/2020/01/hithesis/)
+- [2017-08-29 发布到了CTAN](https://yanshuo.name/cn/2017/08/ctan/)
+- [2017-06-22 规范的正确打开方式](https://yanshuo.name/cn/2017/06/hithesisregulation/)
+- [2017-06-16 了大唐中兴！](https://yanshuo.name/cn/2017/06/hithesissiyuan/)
 
 ### 其他说明
 
