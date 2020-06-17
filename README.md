@@ -214,7 +214,7 @@ MiKTeX|是|WIN/Mac/Linux|是|[install-MiKTeX_hithesis.sh](https://github.com/dus
 MacTeX|否，MacTeX官方推荐BasicTeX|Mac|否|[install BasicTeX on Mac](https://github.com/dustincys/hithesis/blob/mac/.github/workflows/test2.yml)
 TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TinyTeX_hithesis.sh)
 
-强烈推荐安装TinyTeX，只占300M左右，额外需要安装300M左右的字体。
+强烈推荐安装TinyTeX，只占不到300M左右，如果用开源字体集合fandol不用额外安装字体。
 
 #### docker 镜像 [tinytex-hithesis](https://hub.docker.com/r/dustincys/tinytex-hithesis)
 
@@ -344,7 +344,7 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 - [2020-02-09 hithesis的“昨天今天和明天”](https://yanshuo.name/cn/2020/01/hithesis/)
 - [2017-08-29 发布到了CTAN](https://yanshuo.name/cn/2017/08/ctan/)
 - [2017-06-22 规范的正确打开方式](https://yanshuo.name/cn/2017/06/hithesisregulation/)
-- [2017-06-16 了大唐中兴！](https://yanshuo.name/cn/2017/06/hithesissiyuan/)
+- [2017-06-16 为了大唐中兴！](https://yanshuo.name/cn/2017/06/hithesissiyuan/)
 
 ### 其他说明
 
@@ -366,7 +366,8 @@ WeChat (Now I use this account "永恒的信念", much appreciated.) | Alipay
 ### Sponsor List
 Please contact me if I missed to add any sponsor. Thank you so much.
 
-|Time|Name|
-|----|----|
-|2020-05-06| Li Liming|
+|       Time | Name      |
+|------------|-----------|
+| 2020-05-06 | Li Liming |
+| 2020-06-16 | 航明      |
 
