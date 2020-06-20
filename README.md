@@ -337,6 +337,7 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 有些强迫症刀客喜欢用Beamer，推荐[progressbar主题](https://github.com/dustincys/progressbar)，
 能够使用[pympress](https://github.com/Cimbali/pympress)播放双屏提示。
+[progressbar主题](https://github.com/dustincys/progressbar)在幻灯片上边排列毕业论文章节链接，在下边有进度指示条，十分适合展示结构复杂的毕业论文内容。
 
 ### 关于hithesis的博客
 
