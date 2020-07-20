@@ -20,9 +20,9 @@
 
 ## What's hithesis?
 
-hithesis is a LaTeX thesis template package for Harbin Institute of Technolog
+hithesis is a LaTeX thesis template package for Harbin Institute of Technolog (all 3 campuses)
 supporting bachelor, master, doctor dissertations, postdoc report, thesis
-proposal and midterm report.
+proposal and midterm report, *both Chinese and English version*.
 
 Files/Codes in hithesis may be distributed and/or modified under the conditions of the LaTeX
 Project Public License, either version 1.3a of this license or (at your option)
@@ -34,6 +34,7 @@ and version 1.3a or later is part of all distributions of LaTeX
 version 2004/10/01 or later.
 
 Files/Codes in hithesis also under the protection of license of [Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)](http://creativecommons.org/licenses/by-nc/4.0/).
+
 
 ## hithesis是什么？
 
@@ -367,9 +368,10 @@ WeChat (Now I use this account "永恒的信念", much appreciated.) | Alipay
 ### Sponsor List
 Please contact me if I missed to add any sponsor. Thank you so much.
 
-|       Time | Name      |
-|------------|-----------|
-| 2020-05-06 | Li Liming |
-| 2020-06-16 | 航明      |
-| 2020-06-28 | ×鑫       |
+|       Time | Name      | Comments |
+|------------|-----------|----------|
+| 2020-05-06 | Li Liming |          |
+| 2020-06-16 | 航明      |          |
+| 2020-06-28 | ×鑫      |          |
+| 2020-07-20 | CR        | Wechat |
 
