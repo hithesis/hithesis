@@ -61,6 +61,7 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 威海|硕士|[硕士学位论文撰写规范自查表2011版](http://yjsc.hitwh.edu.cn/2015/1230/c981a37718/page.htm)|同左|2015-12-30
 哈尔滨|本科所有|[毕业论文撰写规范](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)|[所有word范例](http://jwc.hit.edu.cn/2566/list.htm)|2014-05-04
 哈尔滨|硕士开题中期|-|[所有word范例](http://hitgs.hit.edu.cn/2015/1210/c3359a123058/page.htm)|2015-12-10
+哈尔滨|博士开题中期|-|[所有word范例](http://hitgs.hit.edu.cn/2015/1210/c3416a123048/page.htm)|2015-12-10
 哈尔滨|硕博毕业论文所有（含有部分英文版说明）|[研究生学位论文书写范例 ](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.psp)|[研究生学位论文撰写规范 ](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.psp)|2012-05-10
 哈尔滨|博后|-|[出站报告以及封皮](http://rsc.hit.edu.cn/2015/1209/c10906a212031/page.htm)|2015-12-09
 
