@@ -1,18 +1,18 @@
 # hithesis
 # 哈尔滨工业大学LaTeX论文模板
 
-[![dockerhub-TinyTeX-hithesis](https://github.com/dustincys/hithesis/workflows/dockerhub-TinyTeX-hithesis/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3Adockerhub-TinyTeX-hithesis)
 <!-- [![docker-build-TinyTeX-hithesis](https://github.com/dustincys/hithesis/workflows/docker-build-TinyTeX-hithesis/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3Adocker-build-TinyTeX-hithesis) -->
 <!-- [![TinyTeX](https://github.com/dustincys/hithesis/workflows/TinyTeX/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3ATinyTeX) -->
 <!-- [![MiKTeX](https://github.com/dustincys/hithesis/workflows/MiKTeX/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3AMiKTeX) -->
 <!-- [![MacTeX](https://github.com/dustincys/hithesis/workflows/MacTeX/badge.svg?branch=mac)](https://github.com/dustincys/hithesis/actions?query=branch%3Amac)  -->
 <!-- [![TeXLive](https://github.com/dustincys/hithesis/workflows/TeXLive/badge.svg)](https://github.com/dustincys/hithesis/actions?query=workflow%3ATeXLive) -->
 
+[![dockerhub-TinyTeX-hithesis](https://github.com/dustincys/hithesis/workflows/dockerhub-TinyTeX-hithesis/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3Adockerhub-TinyTeX-hithesis)
 [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/dustincys/hithesis)](https://github.com/dustincys/hithesis/releases) 
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/dustincys/hithesis)](https://github.com/dustincys/hithesis/releases)
 [![CTAN](https://img.shields.io/ctan/v/hithesis)](https://ctan.org/pkg/hithesis)
-<!-- [![GitHub All Releases](https://img.shields.io/github/downloads/dustincys/hithesis/total)](https://github.com/dustincys/hithesis/tags)  -->
 [![GitHub repo size](https://img.shields.io/github/repo-size/dustincys/hithesis)](https://yanshuo.name/hithesis) 
+<!-- [![GitHub All Releases](https://img.shields.io/github/downloads/dustincys/hithesis/total)](https://github.com/dustincys/hithesis/tags)  -->
 
 
 <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/"><img alt="知识共享许可协议" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/88x31.png" /></a><br /><span xmlns:dct="http://purl.org/dc/terms/" href="http://purl.org/dc/dcmitype/Text" property="dct:title" rel="dct:type">hithesis</span> 由 <a xmlns:cc="http://creativecommons.org/ns#" href="https://github.com/dustincys/hithesis" property="cc:attributionName" rel="cc:attributionURL">https://github.com/dustincys/hithesis</a> 采用 <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">知识共享 署名-非商业性使用 4.0 国际 许可协议</a>进行许可。<br />基于<a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/dustincys/hithesis" rel="dct:source">https://github.com/dustincys/hithesis</a>上的作品创作。
