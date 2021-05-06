@@ -390,4 +390,5 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2020-11-03 | **宝 |  |
 | 2020-11-05 | **庭 |  |
 | 2021-01-04 | **杰    |  |
+| 2021-04-29 | *振兴  |　Alipay |
 | 2021-05-06 | *文陶  |　Zelle quick pay |
