@@ -374,6 +374,8 @@ WeChat (Now I use this account "永恒的信念", much appreciated.) | Alipay
 -|-
 ![wechat](https://raw.githubusercontent.com/dustincys/hifvwm/screenshots/wechat.jpg)|![zfb](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg)
 
+Or Zelle quick pay: yanshuoc@gmail.com
+
 ### Sponsor List
 Please contact me if I missed to add any sponsor. Thank you so much.
 
@@ -388,3 +390,4 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2020-11-03 | **宝 |  |
 | 2020-11-05 | **庭 |  |
 | 2021-01-04 | **杰    |  |
+| 2021-05-06 | *文陶  |　Zelle quick pay |
