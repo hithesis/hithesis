@@ -351,6 +351,11 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 ### 关于hithesis的博客
 
+
+- [2021-11-16 如何维护hithesis（三）](https://yanshuo.name/cn/2021/11/hithesis3/)
+- [2021-11-16 如何维护hithesis（二）](https://yanshuo.name/cn/2021/11/hithesis2/)
+- [2021-11-15 如何维护hithesis（一）](https://yanshuo.name/cn/2021/11/hithesis/)
+
 - [2020-05-24 hithesis v3 进化](https://yanshuo.name/cn/2020/05/hithesisv3/)
 - [2020-02-09 hithesis的“昨天今天和明天”](https://yanshuo.name/cn/2020/01/hithesis/)
 - [2017-08-29 发布到了CTAN](https://yanshuo.name/cn/2017/08/ctan/)
