@@ -233,11 +233,16 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
       docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make report
 
-  或者编译文档
+  或者在根目录编译文档
 
       docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make doc
+  
+  或者直接在hitbook或报告文件夹report下执行
+
+      docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest latexmk
 
 编译过程可以参照下一节模板的编译方法。
+
 使用Docker可以使本地安装不再受平台限制、随时部署，不再受bug、字体、环境变量困扰。诸位上仙、大侠、刀客、头领可以任性地、随意地、抽象地、写实地设置别名，最终完成羽化、飞升。
 
     alias xelatex='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest xelatex'
