@@ -349,10 +349,10 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 ### 关于hithesis的博客
 
+- [2022-03-04 hithesis 如何使用 docker](https://yanshuo.name/cn/2022/03/hithesis/)
 - [2021-11-16 如何维护hithesis（三）](https://yanshuo.name/cn/2021/11/hithesis3/)
 - [2021-11-16 如何维护hithesis（二）](https://yanshuo.name/cn/2021/11/hithesis2/)
 - [2021-11-15 如何维护hithesis（一）](https://yanshuo.name/cn/2021/11/hithesis/)
-
 - [2020-05-24 hithesis v3 进化](https://yanshuo.name/cn/2020/05/hithesisv3/)
 - [2020-02-09 hithesis的“昨天今天和明天”](https://yanshuo.name/cn/2020/01/hithesis/)
 - [2017-08-29 发布到了CTAN](https://yanshuo.name/cn/2017/08/ctan/)
@@ -393,6 +393,13 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2020-11-03 | **宝 |  |
 | 2020-11-05 | **庭 |  |
 | 2021-01-04 | **杰 |  |
+| 2021-02-27 | *晰 |  |
 | 2021-04-29 | *振兴 | Alipay |
+| 2021-04-21 | *作 |  |
 | 2021-05-06 | *文陶 | Zelle quick pay |
+| 2021-05-13 | *涵 |  |
+| 2021-05-13 | 慕* |  |
+| 2021-05-28 | Y*a |  |
+| 2021-06-19 | *淞 |  |
+| 2021-10-18 | q*q |  |
 | 2021-11-21 | **刚 | Alipay |
