@@ -1,14 +1,15 @@
-# Makefile for hithesis document
+# Makefile for hithesis
 
 METHOD = xelatex
 # Set opts for latexmk if you use it
 LATEXMKOPTS = -xelatex
+
 # Basename of thesis
-
 PACKAGE=hithesis
-SOURCES=$(PACKAGE).ins $(PACKAGE).dtx
+VERSION=`grep -m 1 -o "v[0-9]\+\.[0-9]\+\.[0-9]\+" $(PACKAGE).dtx`
 
-CLSFILES=dtx-style.sty
+SOURCES=$(PACKAGE).ins $(PACKAGE).dtx
+TARGETS=dtx-style.sty
 
 # make deletion work on Windows
 ifdef SystemRoot
@@ -19,28 +20,28 @@ else
 	OPEN = open
 endif
 
-.PHONY: all clean distclean dist doc viewdoc cls check
+.PHONY: all cls doc viewdoc dist auxclean clean distclean
 
 all: doc
 
-cls: $(CLSFILES)
+cls: $(TARGETS)
 
-$(CLSFILES): $(SOURCES)
+$(TARGETS): $(SOURCES)
 	latex $(PACKAGE).ins
+
+doc: $(PACKAGE).pdf
 
 viewdoc: doc
 	$(OPEN) $(PACKAGE).pdf
 
-doc: $(PACKAGE).pdf
-
 ifeq ($(METHOD),latexmk)
 
-$(PACKAGE).pdf: $(CLSFILES)
+$(PACKAGE).pdf: $(TARGETS)
 	$(METHOD) $(LATEXMKOPTS) $(PACKAGE).dtx
 
 else ifeq ($(METHOD),xelatex)
 
-$(PACKAGE).pdf: $(CLSFILES)
+$(PACKAGE).pdf: $(TARGETS)
 	$(METHOD) $(PACKAGE).dtx
 	makeindex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
 	makeindex -s gglo.ist -o $(PACKAGE).gls $(PACKAGE).glo
@@ -52,13 +53,17 @@ $(error Unknown METHOD: $(METHOD))
 
 endif
 
-clean:
+dist: all
+	-$(RM) $(PACKAGE)-$(VERSION).zip
+	zip -r $(PACKAGE)-$(VERSION).zip examples/ $(PACKAGE).pdf
+
+auxclean:
 	latexmk -c $(PACKAGE).dtx
-	-@$(RM) *~ *.idx *.ind *.ilg *.thm *.toe *.bbl
+	-$(RM) *.glo *.gls *.hd
 
-cleanall: clean
-	-@$(RM) $(PACKAGE).pdf
+clean: auxclean
+	-$(RM) *.bst *.ist *.cls *.cfg *.sty *.eps
+	-$(RM) $(PACKAGE).pdf
 
-distclean: cleanall
-	-@$(RM) $(CLSFILES)
-	-@$(RM) *.cls *.cfg *.ist *.bst *.sty *.eps
+distclean: clean
+	-$(RM) $(PACKAGE)-$(VERSION).zip
