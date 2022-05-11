@@ -1,5 +1,5 @@
 ---
-name: 'hithesis与Word模板/规范'
+name: 'hithesis与Word模板/规范不符'
 about: hithesis中"哪个校区哪个学位具体哪一个模板"与"Word模板/规范"不符 
 title: ''
 labels: '规范更新'
