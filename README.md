@@ -44,6 +44,7 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 
 校区|学位|撰写规范|Word排版范例|更新日期
 -|-|-|-|-
+深圳|本科毕业|[关于做好2022届本科生毕业设计（论文） 答辩工作的通知](https://www.hitsz.edu.cn/article/view/id-132766.html)
 深圳|硕士/英文版硕士暂行规定|[哈工大（深圳）学术规范及硕士学位论文撰写文件包（2020年版）](http://due.hitsz.edu.cn/info/1211/1859.htm)|同左|2020-10-23
 深圳|博士开题|-|[博士学位开题报告模板](http://due.hitsz.edu.cn/info/1252/1865.htm)|2018-07-31
 深圳|博士中期|-|[博士学位论文中期检查报告](http://due.hitsz.edu.cn/info/1253/1860.htm)|2018-07-31
