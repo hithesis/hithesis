@@ -1,18 +1,18 @@
 # hithesis 哈尔滨工业大学LaTeX论文模板
 
-<!-- [![docker-build-TinyTeX-hithesis](https://github.com/dustincys/hithesis/workflows/docker-build-TinyTeX-hithesis/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3Adocker-build-TinyTeX-hithesis) -->
-<!-- [![TinyTeX](https://github.com/dustincys/hithesis/workflows/TinyTeX/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3ATinyTeX) -->
-<!-- [![MiKTeX](https://github.com/dustincys/hithesis/workflows/MiKTeX/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3AMiKTeX) -->
-<!-- [![MacTeX](https://github.com/dustincys/hithesis/workflows/MacTeX/badge.svg?branch=mac)](https://github.com/dustincys/hithesis/actions?query=branch%3Amac)  -->
-<!-- [![TeXLive](https://github.com/dustincys/hithesis/workflows/TeXLive/badge.svg)](https://github.com/dustincys/hithesis/actions?query=workflow%3ATeXLive) -->
+<!-- [![docker-build-TinyTeX-hithesis](https://github.com/hithesis/hithesis/workflows/docker-build-TinyTeX-hithesis/badge.svg?branch=master)](https://github.com/hithesis/hithesis/actions?query=workflow%3Adocker-build-TinyTeX-hithesis) -->
+<!-- [![TinyTeX](https://github.com/hithesis/hithesis/workflows/TinyTeX/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3ATinyTeX) -->
+<!-- [![MiKTeX](https://github.com/hithesis/hithesis/workflows/MiKTeX/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3AMiKTeX) -->
+<!-- [![MacTeX](https://github.com/hithesis/hithesis/workflows/MacTeX/badge.svg?branch=mac)](https://github.com/dustincys/hithesis/actions?query=branch%3Amac)  -->
+<!-- [![TeXLive](https://github.com/hithesis/hithesis/workflows/TeXLive/badge.svg)](https://github.com/dustincys/hithesis/actions?query=workflow%3ATeXLive) -->
 
-[![ubuntu-dockerhub-TinyTeX-hithesis](https://github.com/dustincys/hithesis/actions/workflows/test_ubuntu_dockerhub_TinyTeX_hithesis.yml/badge.svg)](https://github.com/dustincys/hithesis/actions/workflows/test_ubuntu_dockerhub_TinyTeX_hithesis.yml)
-[![macos-dockerhub-TinyTeX-hithesis](https://github.com/dustincys/hithesis/actions/workflows/test_macos_dockerhub_TinyTeX_hithesis.yml/badge.svg)](https://github.com/dustincys/hithesis/actions/workflows/test_macos_dockerhub_TinyTeX_hithesis.yml)
+[![ubuntu-dockerhub-TinyTeX-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_TinyTeX_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_TinyTeX_hithesis.yml)
+[![macos-dockerhub-TinyTeX-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_TinyTeX_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_TinyTeX_hithesis.yml)
 
 [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/dustincys/hithesis)](https://github.com/dustincys/hithesis/releases)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/dustincys/hithesis)](https://github.com/dustincys/hithesis/releases)
 [![CTAN](https://img.shields.io/ctan/v/hithesis)](https://ctan.org/pkg/hithesis)
-[![GitHub repo size](https://img.shields.io/github/repo-size/dustincys/hithesis)](https://yanshuo.name/hithesis)
+[![GitHub repo size](https://img.shields.io/github/repo-size/hithesis/hithesis)]
 <!-- [![GitHub All Releases](https://img.shields.io/github/downloads/dustincys/hithesis/total)](https://github.com/dustincys/hithesis/tags)  -->
 
 <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/"><img alt="知识共享许可协议" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/88x31.png" /></a><br />本作品采用<a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">知识共享署名-非商业性使用 4.0 国际许可协议</a>进行许可。
@@ -168,8 +168,8 @@ hithesis, 既含窝工hit，也是说用的“嗨！”，读作“嗨thesis”�
 
 模板有三个下载地址：
 
-1. github: [https://github.com/dustincys/hithesis](https://github.com/dustincys/hithesis)
-2. gitee: [https://gitee.com/dustincys/hithesis](https://gitee.com/dustincys/hithesis)
+1. github: [https://github.com/hithesis/hithesis](https://github.com/hithesis/hithesis)
+2. ~~gitee: [https://gitee.com/dustincys/hithesis](https://gitee.com/dustincys/hithesis)~~
 3. CTAN: [https://ctan.org/pkg/hithesis](https://ctan.org/pkg/hithesis)
 
 github和gitee的版本是同步且是最新的模板。
