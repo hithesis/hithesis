@@ -9,8 +9,8 @@
 [![ubuntu-dockerhub-TinyTeX-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_TinyTeX_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_TinyTeX_hithesis.yml)
 [![macos-dockerhub-TinyTeX-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_TinyTeX_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_TinyTeX_hithesis.yml)
 
-[![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/dustincys/hithesis)](https://github.com/dustincys/hithesis/releases)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/dustincys/hithesis)](https://github.com/dustincys/hithesis/releases)
+[![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
+[![GitHub release (latest by date)](https://img.shields.io/github/v/release/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
 [![CTAN](https://img.shields.io/ctan/v/hithesis)](https://ctan.org/pkg/hithesis)
 [![GitHub repo size](https://img.shields.io/github/repo-size/hithesis/hithesis)]
 <!-- [![GitHub All Releases](https://img.shields.io/github/downloads/dustincys/hithesis/total)](https://github.com/dustincys/hithesis/tags)  -->
