@@ -16,7 +16,7 @@ labels: 'help wanted'
 
 - LaTeX 发行版（TeXLive 20xx/MikTeX/**本模板不支持CTeX套装**）：
 
-- 模板版本（在 `hithesis***.cls` 中的 `\ProvidesClass` 命令中的 `3.x.xx` 即为版本号）：
+- 模板版本（在 `hithesis***.cls` 中的 `\ProvidesClass` 命令中的 `3.x.xx` 或 `3.xx` 即为版本号）：
 
 ## 想实现的效果
 
