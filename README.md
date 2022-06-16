@@ -243,7 +243,7 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
   或者在根目录编译文档
 
       docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make doc
-  
+
   或者直接在hitbook或报告文件夹report下执行
 
       docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest latexmk
@@ -373,13 +373,14 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 ### Apply to sponsor
 
-I have spent a lot time and long been involved in developing/maintaining
+We have spent a lot time and long been involved in developing/maintaining
 this open source project.
 I'd be humbled and grateful if you could financially support hithesis.
 
-WeChat (Now I use this account "永恒的信念", much appreciated.) | Alipay
--|-
-![wechat](https://raw.githubusercontent.com/dustincys/hifvwm/screenshots/wechat.jpg)|![zfb](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg)
+Contributer | WeChat | Alipay
+:-:|:-:|:-:
+[@syvshc](https://github.com/syvshc)|![szh_wechat](https://raw.githubusercontent.com/hithesis/hithesis/images/szh_wechat.jpg)|![szh_alipay](https://raw.githubusercontent.com/hithesis/hithesis/images/szh_alipay.jpg)
+[@dustincys](https://github.com/dustincys)|![cys_wechat](https://raw.githubusercontent.com/dustincys/hifvwm/screenshots/wechat.jpg)|![sys_alipay](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg)
 
 Or Zelle quick pay: yanshuoc@gmail.com
 
