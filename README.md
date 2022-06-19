@@ -6,8 +6,9 @@
 <!-- [![MacTeX](https://github.com/hithesis/hithesis/workflows/MacTeX/badge.svg?branch=mac)](https://github.com/dustincys/hithesis/actions?query=branch%3Amac)  -->
 <!-- [![TeXLive](https://github.com/hithesis/hithesis/workflows/TeXLive/badge.svg)](https://github.com/dustincys/hithesis/actions?query=workflow%3ATeXLive) -->
 
-[![ubuntu-dockerhub-TinyTeX-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_TinyTeX_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_TinyTeX_hithesis.yml)
-[![macos-dockerhub-TinyTeX-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_TinyTeX_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_TinyTeX_hithesis.yml)
+[![ubuntu-dockerhub-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_hithesis.yml)
+
+[![macos-dockerhub-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_hithesis.yml)
 
 [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
