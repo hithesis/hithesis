@@ -6,8 +6,9 @@
 <!-- [![MacTeX](https://github.com/hithesis/hithesis/workflows/MacTeX/badge.svg?branch=mac)](https://github.com/dustincys/hithesis/actions?query=branch%3Amac)  -->
 <!-- [![TeXLive](https://github.com/hithesis/hithesis/workflows/TeXLive/badge.svg)](https://github.com/dustincys/hithesis/actions?query=workflow%3ATeXLive) -->
 
-[![ubuntu-dockerhub-TinyTeX-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_TinyTeX_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_TinyTeX_hithesis.yml)
-[![macos-dockerhub-TinyTeX-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_TinyTeX_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_TinyTeX_hithesis.yml)
+[![ubuntu-dockerhub-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_hithesis.yml)
+
+[![macos-dockerhub-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_hithesis.yml)
 
 [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
@@ -243,7 +244,7 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
   或者在根目录编译文档
 
       docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make doc
-  
+
   或者直接在hitbook或报告文件夹report下执行
 
       docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest latexmk
@@ -354,6 +355,7 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 ### 关于hithesis的博客
 
+- [2022-06-19 hithesis的二代目掌门](https://yanshuo.name/cn/2022/06/hithesis/)
 - [2022-03-04 hithesis 如何使用 docker](https://yanshuo.name/cn/2022/03/hithesis/)
 - [2021-11-16 如何维护hithesis（三）](https://yanshuo.name/cn/2021/11/hithesis3/)
 - [2021-11-16 如何维护hithesis（二）](https://yanshuo.name/cn/2021/11/hithesis2/)
@@ -373,13 +375,14 @@ TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.
 
 ### Apply to sponsor
 
-I have spent a lot time and long been involved in developing/maintaining
+We have spent a lot time and long been involved in developing/maintaining
 this open source project.
 I'd be humbled and grateful if you could financially support hithesis.
 
-WeChat (Now I use this account "永恒的信念", much appreciated.) | Alipay
--|-
-![wechat](https://raw.githubusercontent.com/dustincys/hifvwm/screenshots/wechat.jpg)|![zfb](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg)
+Contributer | WeChat | Alipay
+:-:|:-:|:-:
+[@syvshc](https://github.com/syvshc)|![szh_wechat](https://raw.githubusercontent.com/hithesis/hithesis/images/szh_wechat.jpg)|![szh_alipay](https://raw.githubusercontent.com/hithesis/hithesis/images/szh_alipay.jpg)
+[@dustincys](https://github.com/dustincys)|![cys_wechat](https://raw.githubusercontent.com/dustincys/hifvwm/screenshots/wechat.jpg)|![sys_alipay](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg)
 
 Or Zelle quick pay: yanshuoc@gmail.com
 
