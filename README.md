@@ -356,16 +356,16 @@ MacTeX|否，MacTeX官方推荐BasicTeX|Mac|否|[install BasicTeX on Mac](https:
 
 ### 关于hithesis的博客
 
-- [2022-06-19 hithesis的二代目掌门](https://yanshuo.name/cn/2022/06/hithesis/)
-- [2022-03-04 hithesis 如何使用 docker](https://yanshuo.name/cn/2022/03/hithesis/)
-- [2021-11-16 如何维护hithesis（三）](https://yanshuo.name/cn/2021/11/hithesis3/)
-- [2021-11-16 如何维护hithesis（二）](https://yanshuo.name/cn/2021/11/hithesis2/)
-- [2021-11-15 如何维护hithesis（一）](https://yanshuo.name/cn/2021/11/hithesis/)
-- [2020-05-24 hithesis v3 进化](https://yanshuo.name/cn/2020/05/hithesisv3/)
-- [2020-02-09 hithesis的“昨天今天和明天”](https://yanshuo.name/cn/2020/01/hithesis/)
-- [2017-08-29 发布到了CTAN](https://yanshuo.name/cn/2017/08/ctan/)
-- [2017-06-22 规范的正确打开方式](https://yanshuo.name/cn/2017/06/hithesisregulation/)
-- [2017-06-16 为了大唐中兴！](https://yanshuo.name/cn/2017/06/hithesissiyuan/)
+- [2022-06-19 hithesis的二代目掌门](https://yanshuo.site/cn/2022/06/hithesis/)
+- [2022-03-04 hithesis 如何使用 docker](https://yanshuo.site/cn/2022/03/hithesis/)
+- [2021-11-16 如何维护hithesis（三）](https://yanshuo.site/cn/2021/11/hithesis3/)
+- [2021-11-16 如何维护hithesis（二）](https://yanshuo.site/cn/2021/11/hithesis2/)
+- [2021-11-15 如何维护hithesis（一）](https://yanshuo.site/cn/2021/11/hithesis/)
+- [2020-05-24 hithesis v3 进化](https://yanshuo.site/cn/2020/05/hithesisv3/)
+- [2020-02-09 hithesis的“昨天今天和明天”](https://yanshuo.site/cn/2020/01/hithesis/)
+- [2017-08-29 发布到了CTAN](https://yanshuo.site/cn/2017/08/ctan/)
+- [2017-06-22 规范的正确打开方式](https://yanshuo.site/cn/2017/06/hithesisregulation/)
+- [2017-06-16 为了大唐中兴！](https://yanshuo.site/cn/2017/06/hithesissiyuan/)
 
 ### 其他说明
 
