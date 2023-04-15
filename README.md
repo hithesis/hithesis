@@ -66,7 +66,7 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 
 ### 歧义说明
 
-- 规范自身歧义之处：[版芯歧义](http://yanshuo.name/cn/2017/06/hithesisregulation/)和[本科生行距歧义](http://yanshuo.name/cn/2017/06/hithesissiyuan/)。
+- 规范自身歧义之处：[版芯歧义](http://yanshuo.site/cn/2017/06/hithesisregulation/)和[本科生行距歧义](http://yanshuo.site/cn/2017/06/hithesissiyuan/)。
 
 - 规范与Word模板的歧义：
   - 在[规范](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm)中规定和[研究生word排版范例](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)的中文目录中出现的“ABSTRACT”和“Abstract”的写法歧义（规格严格功夫到家！！！）。
