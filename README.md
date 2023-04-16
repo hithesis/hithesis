@@ -181,7 +181,8 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 
 - QQ群
   - hithesis讨论区：259959600 （人满）
-  - 窝工山hithesis派：851792460。
+  - 窝工山hithesis派：851792460 （人满）
+  - HiThesis 分盟：704864357
 - 微信公众号
 
    ![石见石页](https://raw.githubusercontent.com/dustincys/cn/assets/qrcode_for_gh_af6e07ba273e_258.jpg)
@@ -417,3 +418,4 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2022-08-26 | Yang | WeChat |
 | 2022-10-18 | cyf | WeChat |
 | 2023-02-28 | hidadeng | QQ |
+| 2023-04-16 | Yang | Alipay |
