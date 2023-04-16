@@ -415,3 +415,5 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2022-07-06 | 初八 | Wechat |
 | 2022-07-19 | 夏日的风 | WeChat |
 | 2022-08-26 | Yang | WeChat |
+| 2022-10-18 | cyf | WeChat |
+| 2023-02-28 | hidadeng | QQ |
