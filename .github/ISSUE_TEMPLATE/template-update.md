@@ -6,7 +6,7 @@ labels: '规范更新'
 assignees: [syvshc, mzzx]
 
 ---
-
+**请不要主动关闭 issue，如果问题已经解决并推送到 [dev](https://github.com/hithesis/hithesis/tree/dev) 分支，该 issue 会被打上 `fixed in dev` 的标签，并在合并到 [master](https://github.com/hithesis/hithesis/tree/master) 分支后关闭。** 
 ## 基本信息
 
 - 校区（哈尔滨/威海/深圳？）：
@@ -21,7 +21,7 @@ assignees: [syvshc, mzzx]
 
 - LaTeX 发行版（TeXLive 20xx/MikTeX/**本模板不支持CTeX套装**）：
 
-- 模板版本（在 `hithesis***.cls` 中的 `\ProvidesClass` 命令中的 `3.x.xx` 即为版本号）：
+- 模板版本（在 `hithesis***.cls` 中的 `\ProvidesClass` 命令中的 `3.x.xx` 或 `3.xx` 即为版本号）：
 
 ## 描述模板不符合的具体信息
 
