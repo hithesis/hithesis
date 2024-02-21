@@ -58,7 +58,7 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 威海|本科所有|[本科毕业论文撰写规范和相关资料](http://jwc.hitwh.edu.cn/bysj/list.htm)|同左|2021-11-29
 威海|硕士|[研究生学位论文撰写规范](http://yjsc.hitwh.edu.cn/2012/1217/c981a37691/page.htm)|[研究生学位论文书写范例](http://yjsc.hitwh.edu.cn/2012/1217/c981a37689/page.htm)|2012-12-17
 威海|硕士|[硕士学位论文撰写规范自查表2011版](http://yjsc.hitwh.edu.cn/2015/1230/c981a37718/page.htm)|同左|2015-12-30
-哈尔滨|本科所有|[毕业论文撰写规范](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)|[所有word范例](http://jwc.hit.edu.cn/2566/list.htm)|2014-05-04
+哈尔滨|本科所有|[毕业论文撰写规范](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)|[所有word范例](http://jwc.hit.edu.cn/2566/list.htm)|2022-06
 哈尔滨|硕士开题中期|-|[所有word范例](http://hitgs.hit.edu.cn/2015/1210/c3359a123058/page.htm)|2015-12-10
 哈尔滨|博士开题中期|-|[所有word范例](http://hitgs.hit.edu.cn/2015/1210/c3416a123048/page.htm)|2015-12-10
 哈尔滨|硕博毕业论文所有（含有部分英文版说明）|[研究生学位论文书写范例（理工类）](http://hitgs.hit.edu.cn/2021/0429/c3425a253485/page.htm)[研究生学位论文书写范例（人文社科类）](http://hitgs.hit.edu.cn/2021/0429/c3425a253486/page.htm)|[研究生学位论文写作指南（理工类）](http://hitgs.hit.edu.cn/2021/0429/c3425a253487/page.htm)[研究生学位论文写作指南（人文社科类）](http://hitgs.hit.edu.cn/2021/0429/c3425a253488/page.htm)|2021-04-29
@@ -419,3 +419,4 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2023-02-28 | hidadeng | QQ |
 | 2023-04-16 | Yang | Alipay |
 | 2023-09-05 | 曹世达 | Wechat |
+| 2023-05-11 | hzy | WeChat |
