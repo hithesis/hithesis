@@ -3,7 +3,7 @@ name: 'hithesis与Word模板/规范不符'
 about: hithesis中"哪个校区哪个学位具体哪一个模板"与"Word模板/规范"不符 
 title: ''
 labels: '规范更新'
-assignees: [syvshc, mzzx]
+assignees: [syvshc, xiF616]
 
 ---
 **请不要主动关闭 issue，如果问题已经解决并推送到 [dev](https://github.com/hithesis/hithesis/tree/dev) 分支，该 issue 会被打上 `fixed in dev` 的标签，并在合并到 [master](https://github.com/hithesis/hithesis/tree/master) 分支后关闭。** 
