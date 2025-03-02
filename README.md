@@ -46,23 +46,23 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 
 ### 窝工规范
 
-校区|学位|撰写规范|Word排版范例|更新日期
--|-|-|-|-
-深圳|本科毕业|-|[关于做好2022届本科生毕业设计（论文） 答辩工作的通知](https://www.hitsz.edu.cn/article/view/id-132766.html)
-深圳|硕士/英文版硕士暂行规定|[哈工大（深圳）学术规范及硕士学位论文撰写文件包（2020年版）](http://due.hitsz.edu.cn/info/1211/1859.htm)|同左|2020-10-23
-深圳|硕士中期|-|[硕士学位论文中期报告模板](http://due.hitsz.edu.cn/info/1210/4794.htm)<!-- http://due.hitsz.edu.cn/info/1210/1828.htm -->|2023-01-31
-深圳|博士开题|-|[博士学位开题报告模板](http://due.hitsz.edu.cn/info/1252/1865.htm)|2018-07-31
-深圳|博士中期|-|[博士学位论文中期检查报告](http://due.hitsz.edu.cn/info/1253/1860.htm)|2018-07-31
-深圳|博士毕业|[哈尔滨工业大学研究生学位论文撰写规范（2011版）](http://due.hitsz.edu.cn/info/1243/1776.htm)|[哈尔滨工业大学研究生学位论文书写范例（2011版）](http://due.hitsz.edu.cn/info/1243/1777.htm)|2018-07-31
-深圳|英文版博士毕业|[Thesis-Tmplt(英文论文撰写规范)](http://due.hitsz.edu.cn/info/1243/1775.htm)|同左|2018-07-31
-威海|本科所有|[本科毕业论文撰写规范和相关资料](http://jwc.hitwh.edu.cn/bysj/list.htm)|同左|2021-11-29
-威海|硕士|[研究生学位论文撰写规范](http://yjsc.hitwh.edu.cn/2012/1217/c981a37691/page.htm)|[研究生学位论文书写范例](http://yjsc.hitwh.edu.cn/2012/1217/c981a37689/page.htm)|2012-12-17
-威海|硕士|[硕士学位论文撰写规范自查表2011版](http://yjsc.hitwh.edu.cn/2015/1230/c981a37718/page.htm)|同左|2015-12-30
-哈尔滨|本科所有|[毕业论文撰写规范](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)|[所有word范例](http://jwc.hit.edu.cn/2566/list.htm)|2014-05-04
-哈尔滨|硕士开题中期|-|[所有word范例](http://hitgs.hit.edu.cn/2015/1210/c3359a123058/page.htm)|2015-12-10
-哈尔滨|博士开题中期|-|[所有word范例](http://hitgs.hit.edu.cn/2015/1210/c3416a123048/page.htm)|2015-12-10
-哈尔滨|硕博毕业论文所有（含有部分英文版说明）|[研究生学位论文书写范例（理工类）](http://hitgs.hit.edu.cn/2021/0429/c3425a253485/page.htm)[研究生学位论文书写范例（人文社科类）](http://hitgs.hit.edu.cn/2021/0429/c3425a253486/page.htm)|[研究生学位论文写作指南（理工类）](http://hitgs.hit.edu.cn/2021/0429/c3425a253487/page.htm)[研究生学位论文写作指南（人文社科类）](http://hitgs.hit.edu.cn/2021/0429/c3425a253488/page.htm)|2021-04-29
-哈尔滨|博后|-|[出站报告以及封皮](http://rsc.hit.edu.cn/2015/1209/c10906a212031/page.htm)|2015-12-09
+| 校区   | 学位                                   | 撰写规范                                                                                                                                                                                   | Word排版范例                                                                                                                                                                               | 更新日期   |
+| ------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| 深圳   | 本科毕业                               | -                                                                                                                                                                                          | [关于做好2022届本科生毕业设计（论文） 答辩工作的通知](https://www.hitsz.edu.cn/article/view/id-132766.html)                                                                                |
+| 深圳   | 硕士/英文版硕士暂行规定                | [哈工大（深圳）学术规范及硕士学位论文撰写文件包（2020年版）](http://due.hitsz.edu.cn/info/1211/1859.htm)                                                                                   | 同左                                                                                                                                                                                       | 2020-10-23 |
+| 深圳   | 硕士中期                               | -                                                                                                                                                                                          | [硕士学位论文中期报告模板](http://due.hitsz.edu.cn/info/1210/4794.htm)<!-- http://due.hitsz.edu.cn/info/1210/1828.htm -->                                                                  | 2023-01-31 |
+| 深圳   | 博士开题                               | -                                                                                                                                                                                          | [博士学位开题报告模板](http://due.hitsz.edu.cn/info/1252/1865.htm)                                                                                                                         | 2018-07-31 |
+| 深圳   | 博士中期                               | -                                                                                                                                                                                          | [博士学位论文中期检查报告](http://due.hitsz.edu.cn/info/1253/1860.htm)                                                                                                                     | 2018-07-31 |
+| 深圳   | 博士毕业                               | [哈尔滨工业大学研究生学位论文撰写规范（2011版）](http://due.hitsz.edu.cn/info/1243/1776.htm)                                                                                               | [哈尔滨工业大学研究生学位论文书写范例（2011版）](http://due.hitsz.edu.cn/info/1243/1777.htm)                                                                                               | 2018-07-31 |
+| 深圳   | 英文版博士毕业                         | [Thesis-Tmplt(英文论文撰写规范)](http://due.hitsz.edu.cn/info/1243/1775.htm)                                                                                                               | 同左                                                                                                                                                                                       | 2018-07-31 |
+| 威海   | 本科所有                               | [本科毕业论文撰写规范和相关资料](http://jwc.hitwh.edu.cn/bysj/list.htm)                                                                                                                    | 同左                                                                                                                                                                                       | 2021-11-29 |
+| 威海   | 硕士                                   | [研究生学位论文撰写规范](http://yjsc.hitwh.edu.cn/2012/1217/c981a37691/page.htm)                                                                                                           | [研究生学位论文书写范例](http://yjsc.hitwh.edu.cn/2012/1217/c981a37689/page.htm)                                                                                                           | 2012-12-17 |
+| 威海   | 硕士                                   | [硕士学位论文撰写规范自查表2011版](http://yjsc.hitwh.edu.cn/2015/1230/c981a37718/page.htm)                                                                                                 | 同左                                                                                                                                                                                       | 2015-12-30 |
+| 哈尔滨 | 本科所有                               | [毕业论文撰写规范](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)                                                                                                                  | [所有word范例](http://jwc.hit.edu.cn/2566/list.htm)                                                                                                                                        | 2022-06    |
+| 哈尔滨 | 硕士开题中期                           | -                                                                                                                                                                                          | [所有word范例](http://hitgs.hit.edu.cn/2015/1210/c3359a123058/page.htm)                                                                                                                    | 2015-12-10 |
+| 哈尔滨 | 博士开题中期                           | -                                                                                                                                                                                          | [所有word范例](http://hitgs.hit.edu.cn/2015/1210/c3416a123048/page.htm)                                                                                                                    | 2015-12-10 |
+| 哈尔滨 | 硕博毕业论文所有（含有部分英文版说明） | [研究生学位论文书写范例（理工类）](http://hitgs.hit.edu.cn/2021/0429/c3425a253485/page.htm)[研究生学位论文书写范例（人文社科类）](http://hitgs.hit.edu.cn/2021/0429/c3425a253486/page.htm) | [研究生学位论文写作指南（理工类）](http://hitgs.hit.edu.cn/2021/0429/c3425a253487/page.htm)[研究生学位论文写作指南（人文社科类）](http://hitgs.hit.edu.cn/2021/0429/c3425a253488/page.htm) | 2021-04-29 |
+| 哈尔滨 | 博后                                   | -                                                                                                                                                                                          | [出站报告以及封皮](http://rsc.hit.edu.cn/2015/1209/c10906a212031/page.htm)                                                                                                                 | 2015-12-09 |
 
 ### 歧义说明
 
@@ -179,9 +179,10 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 ### 关于hithesis的线上讨论区
 
 - QQ群
-  - hithesis讨论区：259959600 （人满）
-  - 窝工山hithesis派：851792460 （人满）
-  - HiThesis 分盟：704864357
+  - 1群: 259959600
+  - 2群: 851792460
+  - 3群: 704864357
+  - 4群: 855151200
 - 微信公众号
 
    ![石见石页](https://raw.githubusercontent.com/dustincys/cn/assets/qrcode_for_gh_af6e07ba273e_258.jpg)
@@ -212,12 +213,12 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 
 所以推荐安装非完整版TeXLive/MiKTeX/MacTex。不完整的安装包有的支持自动安装缺失package，有的不支持，需要手动安装。
 
-LaTeX安装包|是否支持非完整安装|平台|是否支持自动安装Package|最小满足hithesis安装脚本
--|-|-|-|-
-TeXLive|是，称为BasicTeX|WIN/Mac/Linux|否|[install-TeXLive_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TeXLive_hithesis.sh)
-MiKTeX|是|WIN/Mac/Linux|是|[install-MiKTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-MiKTeX_hithesis.sh)
-MacTeX|否，MacTeX官方推荐BasicTeX|Mac|否|[install BasicTeX on Mac](https://github.com/dustincys/hithesis/blob/mac/.github/workflows/test2.yml)
-<!-- TinyTeX|自身就是最Mini的安装包|Linux/Mac|否|[install-TinyTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TinyTeX_hithesis.sh) -->
+| LaTeX安装包  | 是否支持非完整安装         | 平台          | 是否支持自动安装Package | 最小满足hithesis安装脚本                                                                                                           |
+| ------------ | -------------------------- | ------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| TeXLive      | 是，称为BasicTeX           | WIN/Mac/Linux | 否                      | [install-TeXLive_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TeXLive_hithesis.sh)     |
+| MiKTeX       | 是                         | WIN/Mac/Linux | 是                      | [install-MiKTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-MiKTeX_hithesis.sh)       |
+| MacTeX       | 否，MacTeX官方推荐BasicTeX | Mac           | 否                      | [install BasicTeX on Mac](https://github.com/dustincys/hithesis/blob/mac/.github/workflows/test2.yml)                              |
+| <!-- TinyTeX | 自身就是最Mini的安装包     | Linux/Mac     | 否                      | [install-TinyTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TinyTeX_hithesis.sh) --> |
 
 <!-- 强烈推荐安装TinyTeX，只占不到300M左右，如果用开源字体集合fandol不用额外安装字体。 -->
 
@@ -380,10 +381,10 @@ We have spent a lot time and long been involved in developing/maintaining
 this open source project.
 I'd be humbled and grateful if you could financially support hithesis.
 
-Contributer | WeChat | Alipay
-:-:|:-:|:-:
-[@syvshc](https://github.com/syvshc)|![szh_wechat](https://raw.githubusercontent.com/hithesis/hithesis/images/szh_wechat.jpg)|![szh_alipay](https://raw.githubusercontent.com/hithesis/hithesis/images/szh_alipay.jpg)
-[@dustincys](https://github.com/dustincys)|![cys_wechat](https://raw.githubusercontent.com/dustincys/hifvwm/screenshots/wechat.jpg)|![sys_alipay](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg)
+|                Contributer                 |                                          WeChat                                          |                                          Alipay                                          |
+| :----------------------------------------: | :--------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------: |
+|    [@syvshc](https://github.com/syvshc)    | ![szh_wechat](https://raw.githubusercontent.com/hithesis/hithesis/images/szh_wechat.jpg) | ![szh_alipay](https://raw.githubusercontent.com/hithesis/hithesis/images/szh_alipay.jpg) |
+| [@dustincys](https://github.com/dustincys) | ![cys_wechat](https://raw.githubusercontent.com/dustincys/hifvwm/screenshots/wechat.jpg) |     ![sys_alipay](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg)      |
 
 Or Zelle quick pay: yanshuoc@gmail.com
 
@@ -391,31 +392,38 @@ Or Zelle quick pay: yanshuoc@gmail.com
 
 Please contact me if I missed to add any sponsor. Thank you so much.
 
-|       Time | Name      | Comments |
-|------------|-----------|----------|
-| 2020-05-06 | Li Liming |  |
-| 2020-06-16 | 航明 |  |
-| 2020-06-28 | *鑫 |  |
-| 2020-07-20 | CR | Wechat |
-| 2020-08-13 | d*g |  |
-| 2020-09-11 | **扬 |  |
-| 2020-11-03 | **宝 |  |
-| 2020-11-05 | **庭 |  |
-| 2021-01-04 | **杰 |  |
-| 2021-02-27 | *晰 |  |
-| 2021-04-29 | *振兴 | Alipay |
-| 2021-04-21 | *作 |  |
-| 2021-05-06 | *文陶 | Zelle quick pay |
-| 2021-05-13 | *涵 |  |
-| 2021-05-13 | 慕* |  |
-| 2021-05-28 | Y*a |  |
-| 2021-06-19 | *淞 |  |
-| 2021-10-18 | q*q |  |
-| 2021-11-21 | **刚 | Alipay |
-| 2022-07-06 | 初八 | Wechat |
-| 2022-07-19 | 夏日的风 | WeChat |
-| 2022-08-26 | Yang | WeChat |
-| 2022-10-18 | cyf | WeChat |
-| 2023-02-28 | hidadeng | QQ |
-| 2023-04-16 | Yang | Alipay |
-| 2023-09-05 | 曹世达 | Wechat |
+| Time       | Name      | Comments        |
+| ---------- | --------- | --------------- |
+| 2020-05-06 | Li Liming |                 |
+| 2020-06-16 | 航明      |                 |
+| 2020-06-28 | *鑫       |                 |
+| 2020-07-20 | CR        | Wechat          |
+| 2020-08-13 | d*g       |                 |
+| 2020-09-11 | **扬      |                 |
+| 2020-11-03 | **宝      |                 |
+| 2020-11-05 | **庭      |                 |
+| 2021-01-04 | **杰      |                 |
+| 2021-02-27 | *晰       |                 |
+| 2021-04-29 | *振兴     | Alipay          |
+| 2021-04-21 | *作       |                 |
+| 2021-05-06 | *文陶     | Zelle quick pay |
+| 2021-05-13 | *涵       |                 |
+| 2021-05-13 | 慕*       |                 |
+| 2021-05-28 | Y*a       |                 |
+| 2021-06-19 | *淞       |                 |
+| 2021-10-18 | q*q       |                 |
+| 2021-11-21 | **刚      | Alipay          |
+| 2022-07-06 | 初八      | Wechat          |
+| 2022-07-19 | 夏日的风  | WeChat          |
+| 2022-08-26 | Yang      | WeChat          |
+| 2022-10-18 | cyf       | WeChat          |
+| 2023-02-28 | hidadeng  | QQ              |
+| 2023-04-16 | Yang      | Alipay          |
+| 2023-05-11 | hzy       | WeChat          |
+| 2023-09-05 | 曹世达    | Wechat          |
+| 2023-11-30 | JerryLiu  | WeChat          |
+| 2024-03-12 | Chuck     | Alipay          |
+| 2024-04-09 | 老学水    | Alipay          |
+| 2024-04-10 | csat      | WeChat          |
+| 2024-04-14 | Cen       | WeChat          |
+| 2023-04-28 | Lin | Alipay |

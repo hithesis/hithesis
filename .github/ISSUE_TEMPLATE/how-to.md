@@ -3,6 +3,7 @@ name: '如何实现...?'
 about: 在使用 hithesis 的过程中有不会实现的需求 
 title: ''
 labels: 'help wanted'
+assignees: [syvshc]
 
 ---
 
