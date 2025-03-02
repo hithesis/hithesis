@@ -3,7 +3,7 @@ name: '发现BUG:'
 about: hithesis中哪个校区哪个学位具体哪一个模板
 title: ''
 labels: bug
-assignees: [syvshc, mzzx]
+assignees: [syvshc, xiF616]
 
 ---
 
