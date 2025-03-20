@@ -1,5 +1,7 @@
 # hithesis 哈尔滨工业大学LaTeX论文模板
 
+[![招生](https://img.shields.io/badge/招生-进行中-green.svg)](https://dustincys.github.io/cn/2025/03/jobad/)
+
 <!-- [![docker-build-TinyTeX-hithesis](https://github.com/hithesis/hithesis/workflows/docker-build-TinyTeX-hithesis/badge.svg?branch=master)](https://github.com/hithesis/hithesis/actions?query=workflow%3Adocker-build-TinyTeX-hithesis) -->
 <!-- [![TinyTeX](https://github.com/hithesis/hithesis/workflows/TinyTeX/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3ATinyTeX) -->
 <!-- [![MiKTeX](https://github.com/hithesis/hithesis/workflows/MiKTeX/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3AMiKTeX) -->
@@ -430,7 +432,3 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2024-04-14 | Cen       | WeChat          |
 | 2025-03-10 |  xw       |Alipay           |
 
-
-## 招聘信息
-
-- [掌门的课题组招生招聘硕士、博士、博士后，欢迎来信咨询！](https://dustincys.github.io/cn/2025/03/jobad/)
