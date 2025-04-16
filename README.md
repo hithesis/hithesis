@@ -117,7 +117,7 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 
 ### 呆萌的操作，傲娇的效果
 
-- 极限程度实现了[《哈尔滨工业大学研究生学位论文撰写规范》](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm)、[《哈尔滨工业大学本科生毕业论文撰写规范》](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)
+- 极限程度实现了[《哈尔滨工业大学研究生学位论文撰写规范》](https://hitgs.hit.edu.cn/2025/0331/c17461a365618/page.htm)、[《哈尔滨工业大学本科生毕业论文撰写规范》](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)
 - 这是[PlutoThesis](https://github.com/dustincys/PlutoThesis)的终极进化，PlutoThesis废弃不再维护。
 - 更傻更简单的选项，例如论文主文件，只需要在文档类的括号中填写本硕博选项，字体选项（设置弹性间距或者刚性间距），文科生选项（目录可以设成四级目录），非全日制类型等，轻松设定目标格式。
 - 更聪明更简单的自适应格式，例如图题和标题，标题字号在字数超过两行时自动由五号变小五号，实现自适应（硕博规范规定，字数多时用五号）
