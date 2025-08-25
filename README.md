@@ -212,7 +212,7 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 | TeXLive      | 是，称为BasicTeX           | WIN/Mac/Linux | 否                      | [install-TeXLive_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TeXLive_hithesis.sh)     |
 | MiKTeX       | 是                         | WIN/Mac/Linux | 是                      | [install-MiKTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-MiKTeX_hithesis.sh)       |
 | MacTeX       | 否，MacTeX官方推荐BasicTeX | Mac           | 否                      | [install BasicTeX on Mac](https://github.com/dustincys/hithesis/blob/mac/.github/workflows/test2.yml)                              |
-| <!-- TinyTeX | 自身就是最Mini的安装包     | Linux/Mac     | 否                      | [install-TinyTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TinyTeX_hithesis.sh) --> |
+| TinyTeX      | 自身就是最Mini的安装包     | Linux/Mac     | 否                      | [install-TinyTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TinyTeX_hithesis.sh)      |
 
 <!-- 强烈推荐安装TinyTeX，只占不到300M左右，如果用开源字体集合fandol不用额外安装字体。 -->
 
