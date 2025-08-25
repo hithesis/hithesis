@@ -2,7 +2,7 @@
 
 [![招生](https://img.shields.io/badge/招生-进行中-green.svg)](https://dustincys.github.io/cn/2025/03/jobad/)
 
-[![texlive-latest](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_hithesis.yml)
+[![texlive-latest](https://github.com/hithesis/hithesis/actions/workflows/test_texlive_latest.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_texlive_latest.yml)
 
 [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
