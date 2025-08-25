@@ -2,15 +2,7 @@
 
 [![招生](https://img.shields.io/badge/招生-进行中-green.svg)](https://dustincys.github.io/cn/2025/03/jobad/)
 
-<!-- [![docker-build-TinyTeX-hithesis](https://github.com/hithesis/hithesis/workflows/docker-build-TinyTeX-hithesis/badge.svg?branch=master)](https://github.com/hithesis/hithesis/actions?query=workflow%3Adocker-build-TinyTeX-hithesis) -->
-<!-- [![TinyTeX](https://github.com/hithesis/hithesis/workflows/TinyTeX/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3ATinyTeX) -->
-<!-- [![MiKTeX](https://github.com/hithesis/hithesis/workflows/MiKTeX/badge.svg?branch=master)](https://github.com/dustincys/hithesis/actions?query=workflow%3AMiKTeX) -->
-<!-- [![MacTeX](https://github.com/hithesis/hithesis/workflows/MacTeX/badge.svg?branch=mac)](https://github.com/dustincys/hithesis/actions?query=branch%3Amac)  -->
-<!-- [![TeXLive](https://github.com/hithesis/hithesis/workflows/TeXLive/badge.svg)](https://github.com/dustincys/hithesis/actions?query=workflow%3ATeXLive) -->
-
 [![ubuntu-dockerhub-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_ubuntu_dockerhub_hithesis.yml)
-
-[![macos-dockerhub-hithesis](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_hithesis.yml/badge.svg)](https://github.com/hithesis/hithesis/actions/workflows/test_macos_dockerhub_hithesis.yml)
 
 [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
