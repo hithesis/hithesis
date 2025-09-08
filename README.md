@@ -180,11 +180,9 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 
 ### 关于hithesis的线上讨论区
 
-- QQ群
-  - 1群: 259959600
-  - 2群: 851792460
-  - 3群: 704864357
-  - 4群: 855151200
+- QQ群: 259959600
+   ![hithesis 1群](https://github.com/user-attachments/assets/ec6ffc89-8bda-4742-bf57-b3f1ef81400c)
+
 - 微信公众号
 
    ![石见石页](https://raw.githubusercontent.com/dustincys/cn/assets/qrcode_for_gh_af6e07ba273e_258.jpg)
