@@ -266,14 +266,25 @@ FUNCTION {contains}
   charptr #0 >
 }
 
-STRINGS { s t }
+STRINGS { s t tmp.period }
+
+FUNCTION {period}
+{
+  add.period$
+  'tmp.period :=
+  tmp.period 
+  duplicate$ text.length$ #-1 +
+  text.prefix$
+  "\nolinebreak\@" *
+  tmp.period #-1 #1 substring$ *
+}
 
 FUNCTION {output.nonnull}
 { 's :=
   output.state mid.sentence =
     { "，" * write$ }
     { output.state after.block =
-        { add.period$ write$
+        { period write$
           newline$
           "\newblock " write$
         }
@@ -283,7 +294,7 @@ FUNCTION {output.nonnull}
                 { bbl.slash * write$
                   newline$
                 }
-                { add.period$ " " * write$ }
+                { period " " * write$ }
               if$
             }
           if$
@@ -310,7 +321,7 @@ FUNCTION {output.after}
       output.state mid.sentence =
         { t * write$ }
         { output.state after.block =
-            { add.period$ write$
+            { period write$
               newline$
               "\newblock " write$
             }
@@ -318,7 +329,7 @@ FUNCTION {output.after}
                 'write$
                 { output.state after.slash =
                     { bbl.slash * write$ }
-                    { add.period$ " " * write$ }
+                    { period " " * write$ }
                   if$
                 }
               if$
@@ -342,7 +353,7 @@ FUNCTION {output.check}
 
 FUNCTION {fin.entry}
 { end.with.period
-    'add.period$
+    'period
     'skip$
   if$
   write$
@@ -750,20 +761,7 @@ FUNCTION {make.full.names}
 
 FUNCTION {output.bibitem}
 { newline$
-  "\bibitem[" write$
-  label "）" *
-  make.full.names duplicate$ short.list =
-    { pop$ }
-    { duplicate$ "]" contains
-        { "{" swap$ * "}" * }
-        'skip$
-      if$
-      *
-    }
-  if$
-  "]{" * write$
-  cite$ write$
-  "}" write$
+  "\bibitem{" cite$ * "}" * write$
   newline$
   ""
   before.all 'output.state :=
