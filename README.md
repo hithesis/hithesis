@@ -429,6 +429,7 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2024-04-09 | 老学水    | Alipay          |
 | 2024-04-10 | csat      | WeChat          |
 | 2024-04-14 | Cen       | WeChat          |
+| 2025-01-14 | 沉梦昂志  |  WeChat         |
 | 2025-03-10 |  xw       |Alipay           |
 | 2025-04-09 | Lrz       | WeChat          |
 
