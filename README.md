@@ -1,6 +1,6 @@
 # hithesis 哈尔滨工业大学LaTeX论文模板
 
-[![招生](https://img.shields.io/badge/招生-进行中-green.svg)](https://dustincys.github.io/cn/2025/03/jobad/)
+[![招生](https://img.shields.io/badge/初砚硕课题组招生-进行中-green)](https://dustincys.github.io/cn/2025/03/jobad/)
 
 [![texlive-latest](https://github.com/hithesis/hithesis/actions/workflows/test_texlive_latest.yml/badge.svg?branch=master)](https://github.com/hithesis/hithesis/actions/workflows/test_texlive_latest.yml)
 
