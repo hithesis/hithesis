@@ -62,7 +62,7 @@ auxclean:
 	-$(RM) *.glo *.gls *.hd
 
 clean: auxclean
-	-$(RM) *.bst *.ist *.cls *.cfg *.sty *.eps
+	-$(RM) *.bst *.ist *.cls *.cfg *.sty
 	-$(RM) $(PACKAGE).pdf
 
 distclean: clean

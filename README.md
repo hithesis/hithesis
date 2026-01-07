@@ -173,7 +173,7 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 ### 关于hithesis的线上讨论区
 
 - QQ群: 259959600
-  ![hithesis 1群](https://github.com/user-attachments/assets/cb50f4cf-2aee-469b-97a2-15345b438020)
+   ![hithesis 1群](https://github.com/user-attachments/assets/ec6ffc89-8bda-4742-bf57-b3f1ef81400c)
 
 - 微信公众号
 
@@ -378,6 +378,8 @@ I'd be humbled and grateful if you could financially support hithesis.
 | :----------------------------------------: | :--------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------: |
 |    [@syvshc](https://github.com/syvshc)    | ![szh_wechat](https://raw.githubusercontent.com/hithesis/hithesis/images/szh_wechat.jpg) | ![szh_alipay](https://raw.githubusercontent.com/hithesis/hithesis/images/szh_alipay.jpg) |
 | [@dustincys](https://github.com/dustincys) | ![cys_wechat](https://raw.githubusercontent.com/dustincys/hifvwm/screenshots/wechat.jpg) |     ![sys_alipay](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg)      |
+| [@xiF616](https://github.com/xiF616) | ![616_wechat](https://raw.githubusercontent.com/hithesis/hithesis/images/616_wechat.jpg) | ![616_alipay](https://raw.githubusercontent.com/hithesis/hithesis/images/616_alipay.jpg) |
+| [@SchrodingerBlume](https://github.com/SchrodingerBlume) | ![SchrodingerBlume_wechat](https://raw.githubusercontent.com/SchrodingerBlume/hithesis/images/SchrodingerBlume_wechat.png) | ![SchrodingerBlume_alipay](https://raw.githubusercontent.com/SchrodingerBlume/hithesis/images/SchrodingerBlume_alipay.jpg) |
 
 Or Zelle quick pay: yanshuoc@gmail.com
 
@@ -420,5 +422,8 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2024-04-09 | 老学水    | Alipay          |
 | 2024-04-10 | csat      | WeChat          |
 | 2024-04-14 | Cen       | WeChat          |
+| 2025-01-14 | 沉梦昂志  |  WeChat         |
 | 2025-03-10 |  xw       |Alipay           |
+| 2025-04-09 | Lrz       | WeChat          |
+| 2026-01-03 | 无题      |  Alipay         |
 
