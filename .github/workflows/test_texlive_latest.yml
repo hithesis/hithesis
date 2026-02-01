@@ -6,40 +6,120 @@ on:
   pull_request:
     branches: [ master ]
 
+permissions:
+  contents: write   # required for tag + release
+
 jobs:
-  test:
+  test-and-release:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v1
-    - name: Pull docker image
-      run: |
-        docker pull texlive/texlive:latest
+    # ---------------------------
+    # Checkout
+    # ---------------------------
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0   # REQUIRED for tag detection
 
-    - name: Extract format and make doc
+    # ---------------------------
+    # Pull TeX Live Docker image
+    # ---------------------------
+    - name: Pull TeX Live (latest)
+      run: docker pull texlive/texlive:latest
+
+    # ---------------------------
+    # Build main documentation
+    # ---------------------------
+    - name: Build package documentation
       run: |
-        docker run --rm -i -v $(pwd):/hithesis -w /hithesis texlive/texlive:latest make all
-    - name: Test chinese thesis
+        docker run --rm -i \
+          -v "$(pwd):/hithesis" \
+          -w /hithesis \
+          texlive/texlive:latest \
+          make all
+
+    # ---------------------------
+    # Test Chinese thesis
+    # ---------------------------
+    - name: Test Chinese thesis
       run: |
-        CURRENTDIR=$(pwd)
         cd examples/hitbook/chinese
-        docker run --rm -i -v $(pwd):/hithesis -w /hithesis texlive/texlive:latest make thesis
-        cd $CURRENTDIR
-    - name: Test english thesis
+        docker run --rm -i \
+          -v "$(pwd):/hithesis" \
+          -w /hithesis \
+          texlive/texlive:latest \
+          make thesis
+
+    # ---------------------------
+    # Test English thesis
+    # ---------------------------
+    - name: Test English thesis
       run: |
-        CURRENTDIR=$(pwd)
         cd examples/hitbook/english
-        docker run --rm -i -v $(pwd):/hithesis -w /hithesis texlive/texlive:latest make thesis
-        cd $CURRENTDIR
+        docker run --rm -i \
+          -v "$(pwd):/hithesis" \
+          -w /hithesis \
+          texlive/texlive:latest \
+          make thesis
+
+    # ---------------------------
+    # Test reports
+    # ---------------------------
     - name: Test reports
       run: |
-        CURRENTDIR=$(pwd)
         cd examples/hitart/reports
-        docker run --rm -i -v $(pwd):/hithesis -w /hithesis texlive/texlive:latest  make report
-        cd $CURRENTDIR
+        docker run --rm -i \
+          -v "$(pwd):/hithesis" \
+          -w /hithesis \
+          texlive/texlive:latest \
+          make report
+
+    # ---------------------------
+    # Test reportplus
+    # ---------------------------
     - name: Test reportplus
       run: |
-        CURRENTDIR=$(pwd)
         cd examples/hitart/reportplus
-        docker run --rm -i -v $(pwd):/hithesis -w /hithesis texlive/texlive:latest make report
-        cd $CURRENTDIR
+        docker run --rm -i \
+          -v "$(pwd):/hithesis" \
+          -w /hithesis \
+          texlive/texlive:latest \
+          make report
+
+    # ============================================================
+    # RELEASE LOGIC (only on push to master, not PRs)
+    # ============================================================
+
+    - name: Generate release notes from \\changes
+      if: github.event_name == 'push'
+      run: make changes
+
+    - name: Extract changes version
+      if: github.event_name == 'push'
+      id: changes
+      run: |
+        echo "version=$(make version-changes)" >> $GITHUB_OUTPUT
+
+    - name: Check if git tag already exists
+      if: github.event_name == 'push'
+      id: tagcheck
+      run: |
+        if git rev-parse "${{ steps.changes.outputs.version }}" >/dev/null 2>&1; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create git tag
+      if: github.event_name == 'push' && steps.tagcheck.outputs.exists == 'false'
+      run: |
+        git tag ${{ steps.changes.outputs.version }}
+        git push origin ${{ steps.changes.outputs.version }}
+
+    - name: Create GitHub Release
+      if: github.event_name == 'push' && steps.tagcheck.outputs.exists == 'false'
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.changes.outputs.version }}
+        body_path: RELEASE_NOTES.md
