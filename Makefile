@@ -74,10 +74,22 @@ distclean: clean
 
 $(CHANGE_RAW): $(PACKAGE).dtx
 	@awk '/\\changes\{/ { \
-	  match($$0, /\\changes\{([^}]*)\}\{([^}]*)\}\{([^}]*)\}/, a); \
+	  line = $$0; \
+	  match(line, /\\changes\{([^}]*)\}\{([^}]*)\}\{/, a); \
 	  if (a[1] != "") { \
-	    gsub(/^v/, "", a[1]); \
-	    print a[1] "|" a[2] "|" a[3]; \
+	    ver = a[1]; \
+	    date = a[2]; \
+	    gsub(/^v/, "", ver); \
+	    sub(/.*\\changes\{[^}]*\}\{[^}]*\}\{/, "", line); \
+	    depth = 1; txt = ""; \
+	    for (i = 1; i <= length(line); i++) { \
+	      c = substr(line, i, 1); \
+	      if (c == "{") depth++; \
+	      if (c == "}") depth--; \
+	      if (depth == 0) break; \
+	      txt = txt c; \
+	    } \
+	    print ver "|" date "|" txt; \
 	  } \
 	}' $< > $@
 
@@ -87,7 +99,7 @@ $(RELEASE_NOTES): $(CHANGE_RAW)
 	echo >> $@; \
 	awk -F'|' -v v="$$latest" '$$1 == v { \
 	  printf "- %s (%s)\n", $$3, $$2 \
-	}' $< | sort -k2 >> $@
+	}' $< | sort -k2 | uniq >> $@
 
 changes: $(RELEASE_NOTES)
 	@echo "Release notes generated: $(RELEASE_NOTES)"
