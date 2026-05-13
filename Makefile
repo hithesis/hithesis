@@ -27,6 +27,7 @@ all: doc
 cls: $(TARGETS)
 
 $(TARGETS): $(SOURCES)
+	mkdir -p modules examples/hitbook/chinese/modules examples/hitbook/english/modules examples/hitart/reports/modules examples/hitart/reportplus/modules
 	latex $(PACKAGE).ins
 
 doc: $(PACKAGE).pdf
