@@ -20,9 +20,15 @@ else
 	OPEN = open
 endif
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean changes version-changes
+.PHONY: all cls doc viewdoc dist auxclean clean distclean changes version-changes toc toc-update
 
 all: doc
+
+toc:
+	python3 dtx-toc.py
+
+toc-update:
+	python3 dtx-toc.py write
 
 cls: $(TARGETS)
 
@@ -63,6 +69,7 @@ auxclean:
 
 clean: auxclean
 	-$(RM) *.bst *.ist *.cls *.cfg *.sty
+	-$(RM) *.eps
 	-$(RM) $(PACKAGE).pdf
 	-$(RM) $(CHANGE_RAW) $(RELEASE_NOTES)
 
