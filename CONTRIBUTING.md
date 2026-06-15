@@ -1,6 +1,8 @@
 # 贡献指南
 
-感谢有意参与 HIThesis 的维护与改进。本文记录了贡献者在动手前需要了解的项目结构、开发约定与提交流程。文档面向 **代码贡献者**（修 bug、加功能、改文档结构）。仅作为模板用户提交 issue 或反馈样式问题不需要阅读本文。
+感谢有意参与 HIThesis 的维护与改进。自模块化以后，开发流程得以大幅优化，我们不再需要在一个代码彼此耦合、交错复杂的巨无霸 `.dtx` 里抓耳挠腮，而是可以按模块去定位问题，依靠代码目录去快速跳转。近期窝工掌门群里人手大增，我们也许有足够的人马去解决积压已久的历史包袱了！
+
+本文记录了贡献者在动手前需要了解的项目结构、开发约定与提交流程。文档面向**代码贡献者**（修 bug、加功能、改文档结构）。仅作为模板用户提交 issue 或反馈样式问题不必须阅读本文。
 
 ---
 
@@ -29,7 +31,7 @@ hithesis/
 | 工具 | 用途 | 必需性 |
 |---|---|---|
 | TeX Live ≥ 2024 | 编译模板与示例 | 必需 |
-| Python 3.6+ | 跑 `dtx-toc.py` | 必需 |
+| Python 3.6+ | 跑 `dtx-toc.py`，生成代码目录 | 必需 |
 | Make | 走 Makefile | 推荐 |
 
 ### 常用命令
@@ -73,7 +75,10 @@ $ make toc
   ...
 ```
 
-输出每行的行号可直接跳转：编辑器里 `:数字` 即可。模块守卫块碎片化（如 art-deps 9 块）是模块化时为保持加载顺序的设计。
+两个看 `make toc` 输出时要知道的事：
+
+- **跳转**：行号直接喂给编辑器即可定位（Vim `:N`、Emacs `M-g g`、VS Code `Ctrl+G`）。
+- **守卫块碎片化**：`(N blocks)` 列若 `N > 1`，表示该模块在 dtx 里被切成 N 段、与其他模块代码交替排布。例如 `art-deps (9 blocks)`——这是为了让各模块加载顺序与原始 cls 一致而有意拆开的，并非 bug，不要合并整理。
 
 每个模块在 dtx 内部有 banner 注释：
 
@@ -113,7 +118,7 @@ dtx 顶部还有一段由 `make toc-update` 自动维护的静态 TOC，用 `% ^
 - 已对外暴露的命令名（`\inlinecite`、`\bicaption`、`\rcell` 等）
 - 已对外暴露的环境名（`cabstract`、`publist`、`appendix` 等）
 
-新增是允许的，**重命名/删除/默认值改动是禁止的**，除非走完废弃期（见 §9）。
+新增是允许的，**重命名/删除/默认值改动并非完全禁止**，但必须经过讨论或走完废弃期（如 §9 所述），可以开个 issue，列一下具体计划，深入讨论。
 
 ### 4.2 book / art / artplus 三模板类完全独立
 
@@ -127,9 +132,9 @@ dtx 顶部还有一段由 `make toc-update` 自动维护的静态 TOC，用 `% ^
 
 模块名应反映其唯一职责：
 
-- ✅ `chapter-book` 只管 book 类的章节标题格式
-- ✅ `bib-book` 只管 book 类的参考文献加载与样式
-- ❌ `floats-book` 兼管列表+定理+段落+引用
+- √ `chapter-book` 只管 book 类的章节标题格式
+- √ `bib-book` 只管 book 类的参考文献加载与样式
+- x `floats-book` 兼管列表+定理+段落+引用
 
 新加代码前问：**这段代码语义上属于哪个模块？**找到答案再写。若找不到，先考虑拆出新模块（参考 §5）。
 
@@ -144,7 +149,7 @@ dtx 顶部还有一段由 `make toc-update` 自动维护的静态 TOC，用 `% ^
 %</modname>
 ```
 
-错位会让 `.log` 横幅 "先做事后报名"，且影响错误归属。
+错位会让 `.log` 里 `Package: hithesisX-modname ...` 这条身份声明出现在该模块实际代码之后，错误信息排错时难以归位到正确的模块。
 
 ### 4.5 `\changes` 历史条目
 
@@ -156,7 +161,7 @@ dtx 顶部还有一段由 `make toc-update` 自动维护的静态 TOC，用 `% ^
 
 - 版本号 `v3.2a` 是当前开发版（合入 master 后由维护者改为正式版本）
 - 日期 `0000/00/00` 是占位符，正式发版时统一替换
-- 描述要写**为什么**做这件事，不只是写做了什么
+- 描述尽量要写**为什么**做这件事，不只是写做了什么
 
 ## 5. 新增模块的标准步骤
 
@@ -199,7 +204,7 @@ dtx 顶部还有一段由 `make toc-update` 自动维护的静态 TOC，用 `% ^
 不涉及新模块的改动（修 bug、调样式、迁移代码）：
 
 1. 用 `make toc` 定位目标模块
-2. 改代码，加 `\changes{v3.2a}{0000/00/00}{...}` 条目
+2. 改代码，加 `\changes{下一个版本}{0000/00/00}{...}` 条目
 3. 跑 `make cls` 重新生成
 4. 编译受影响 cls 的示例验证
 5. `make toc-update`（如果改动影响行号，自动刷新静态 TOC）
@@ -213,7 +218,7 @@ dtx 顶部还有一段由 `make toc-update` 自动维护的静态 TOC，用 `% ^
 ```
 <前缀>: <一句话摘要>
 
-详细说明：改了什么、为什么、影响范围、verification 结果。
+详细说明：改了什么、为什么、影响范围、验证结果。
 ```
 
 前缀建议：
@@ -223,13 +228,12 @@ dtx 顶部还有一段由 `make toc-update` 自动维护的静态 TOC，用 `% ^
 
 ### 7.2 严禁出现的内容
 
-- **`Co-Authored-By: Claude ...` 一类 AI 工具署名** —— 项目偏好显式人类作者，AI 辅助不写进 trailer
-- 包含临时调试代码（被注释的 `\typeout{...}` 等）
+- 包含临时调试代码
 - 直接拷贝其他模板代码而未注明出处与许可
 
 ### 7.3 commit 粒度
 
-- 一个 commit 一件事，方便 reviewer 逐 commit 审
+- 一个 commit 尽量一件事，方便 reviewer 逐 commit 审
 - 大重构按阶段分多个 commit
 - 跨模块 / 跨 cls 的批量改动允许放在一个 commit，但要在 commit 消息中明确列出涉及的模块
 
@@ -241,7 +245,7 @@ dtx 顶部还有一段由 `make toc-update` 自动维护的静态 TOC，用 `% ^
 - `dev` 是开发分支，维护者从此处合入新版本
 - 协作者从 `dev` 派生 feature 分支：`feature/<topic>` 或简短描述
 
-### 8.2 PR 流程（fork 工作流）
+### 8.2 PR 流程
 
 ```shell
 # 1. fork 后克隆你的 fork
@@ -253,10 +257,10 @@ git remote add upstream https://github.com/hithesis/hithesis.git
 git fetch upstream
 git checkout -b feature/my-topic upstream/dev
 
-# 3. 改 → commit → push 到自己 fork
+# 3. 改 -> commit -> push 到自己 fork
 git push -u origin feature/my-topic
 
-# 4. 在 GitHub 上开 PR，base=upstream/dev，head=origin/feature/my-topic
+# 4. 开 PR
 ```
 
 **禁止**：
@@ -265,13 +269,13 @@ git push -u origin feature/my-topic
 - `git push --force` 到 `upstream` 任意分支
 - 把 `feature/X` 推成 `master`
 
-如果有 write 权限，也走 PR 流程，不要绕过 review。
+如果有写权限，也走 PR 流程，不要绕过 review。
 
 ### 8.3 PR 需要包含
 
 - 一句话说明：解决了什么问题
 - 关键改动列表（按模块或 commit）
-- 用户接口影响声明：是 zero-impact 还是有 user-visible 变化
+- 用户接口影响声明：是零影响还是有可见变化
 - 本地验证结果：跑过哪些示例、是否 PDF 渲染正常
 - 截图或 PDF 链接（如果改动影响渲染）
 
@@ -289,24 +293,22 @@ git push -u origin feature/my-topic
 
 需要走废弃期：
 
-1. **opt-in 期**（≥ 6 个月）—— 新接口可用，旧接口保留，文档提示推荐新接口
-2. **默认切换**（v4.0 这类大版本）—— 默认改为新接口，旧接口保留为兼容选项
-3. **观察期**（≥ 24 个月）—— 等用户论文完成完整培养周期
-4. **彻底移除**（v5.0 大版本）—— 删旧代码
+1. **可选期**—— 新接口可用，旧接口保留，文档提示推荐新接口
+2. **默认切换**—— 默认改为新接口，旧接口保留为兼容选项
+3. **彻底移除**（breaking change）—— 删旧代码
 
-参考：本仓库 issue 区"subfigure → subcaption 迁移计划"。
+具体计划需要深入讨论，依情况而定。
 
 ### 9.3 跨 cls 改动
 
-如果一个改动对 book/art/artplus 都适用，**必须三处同步**。否则会让模块矩阵不对称。例外：仅一个 cls 适用的规范变化。
+如果一个改动对 book/art/artplus 都适用，**必须三处同步**。
 
-## 10. 常见陷阱
+## 10. 常见问题
 
 | 陷阱 | 现象 | 解决 |
 |---|---|---|
 | hyperref 加载顺序 | 引用/书签锚点错乱 | `hyperref` 已在 `X-deps` 内部精确位置加载，不要在其他模块重新加载 |
-| enumitem 覆盖 cft* 长度 | 目录间距异常 | X-toc 模块必须在 X-deps 之后加载（深圳硕士目录的历史教训） |
-| subfigure 不可改 | 用户论文用 `\subfigure[]{}` 语法 | 不要切换到 subcaption，会破坏所有现存论文 |
+| enumitem 覆盖 cft* 长度 | 目录间距异常 | X-toc 模块必须在 X-deps 之后加载 |
 | `\ProvidesPackage` 错位 | 模块 .log 输出乱 | 必须放在 `%<*modname>` 紧后第一行非注释语句 |
 | docstrip 守卫缺失 | 模块代码漏进其他文件 | 每个 `%<*X>` 必须有匹配的 `%</X>` |
 | `\changes` 漏写 | 看不到历史脉络 | 任何语义变化都加，包括迁移、重命名、删除 |
@@ -315,10 +317,9 @@ git push -u origin feature/my-topic
 
 - **GitHub Issues** —— https://github.com/hithesis/hithesis/issues
 - **QQ 群** —— 见 README.md
-- **维护者邮件** —— 见 dtx 顶部许可声明
 
 提问前请先 `make toc` 看模块结构、`grep` 一下 dtx 看是否已有类似实现。
 
 ---
 
-**最后一句话**：HIThesis 已经被千余学生用着，每一次 PR 都可能影响他们的论文。**保守、可回滚、可验证** 是这个项目的核心原则。
+**HIThesis 已经被千余学生用着，每一次 PR 都可能影响他们的论文。**保守、可回滚、可验证**，是这个项目的核心原则。**
