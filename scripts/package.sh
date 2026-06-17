@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+bump_tag_letter() {
+  local tag=$1
+  local base
+  local suffix
+  local next_ord
+
+  if [[ $tag =~ ^(.+)([a-y])$ ]]; then
+    base=${BASH_REMATCH[1]}
+    suffix=${BASH_REMATCH[2]}
+    next_ord=$(( $(printf '%d' "'$suffix") + 1 ))
+    printf '%s%s\n' "$base" "$(printf "\\$(printf '%03o' "$next_ord")")"
+  elif [[ $tag =~ z$ ]]; then
+    echo "error: cannot bump tag ending in z: $tag" >&2
+    exit 1
+  else
+    printf '%sa\n' "$tag"
+  fi
+}
+
+copy_file() {
+  local src=$1
+  local dest=$2
+
+  mkdir -p "$(dirname "$dest/$src")"
+  cp -p "$src" "$dest/$src"
+}
+
+usage() {
+  echo "usage: scripts/package.sh [-o|--output PATH] [-a|--add-file FILE]..." >&2
+}
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+output=
+add_files=()
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -o|--output)
+      if [[ $# -lt 2 ]]; then
+        usage
+        exit 1
+      fi
+      output=$2
+      shift 2
+      ;;
+    --output=*)
+      output=${1#*=}
+      shift
+      ;;
+    -a|--add-file)
+      if [[ $# -lt 2 ]]; then
+        usage
+        exit 1
+      fi
+      add_files+=("$2")
+      shift 2
+      ;;
+    --add-file=*)
+      add_files+=("${1#*=}")
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+add_names=()
+declare -A seen_add_names=()
+for add_file in "${add_files[@]}"; do
+  if [[ ! -e $add_file ]]; then
+    echo "error: add-file does not exist: $add_file" >&2
+    exit 1
+  fi
+
+  add_name=$(basename "$add_file")
+  if [[ $add_name == README.md || $add_name == examples || $add_name == hithesis.pdf ]]; then
+    echo "error: add-file conflicts with package entry: $add_name" >&2
+    exit 1
+  fi
+  if [[ -n ${seen_add_names[$add_name]+x} ]]; then
+    echo "error: duplicate add-file basename: $add_name" >&2
+    exit 1
+  fi
+
+  seen_add_names[$add_name]=1
+  add_names+=("$add_name")
+done
+
+latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || true)
+if [[ -z $latest_tag ]]; then
+  latest_tag=$(git tag --sort=-v:refname | sed -n '1p')
+fi
+if [[ -z $latest_tag ]]; then
+  echo "error: no git tag found" >&2
+  exit 1
+fi
+
+package_version=$(bump_tag_letter "$latest_tag")
+branch=$(git branch --show-current)
+if [[ -z $branch ]]; then
+  branch=$(git rev-parse --short HEAD)
+fi
+branch_slug=$(printf '%s' "$branch" | sed 's#[^A-Za-z0-9._-]#-#g')
+today=$(date +%Y%m%d)
+
+package_name="hithesis-${package_version}-${branch_slug}.${today}.zip"
+if [[ -z $output ]]; then
+  output="$repo_root/$package_name"
+fi
+
+echo "Generating package files..."
+make cls
+make doc
+
+if [[ ! -f hithesis.pdf ]]; then
+  echo "error: hithesis.pdf was not generated" >&2
+  exit 1
+fi
+
+stage=$(mktemp -d)
+trap 'rm -rf "$stage"' EXIT
+
+copy_file README.md "$stage"
+copy_file hithesis.pdf "$stage"
+cp -a examples "$stage/"
+find "$stage/examples" -type f '(' -name '*.aux' -o -name '*.bbl' -o -name '*.blg' -o -name '*.fdb_latexmk' -o -name '*.fls' -o -name '*.idx' -o -name '*.ilg' -o -name '*.ind' -o -name '*.lof' -o -name '*.log' -o -name '*.lot' -o -name '*.out' -o -name '*.synctex.gz' -o -name '*.thm' -o -name '*.toc' -o -name '*.toe' -o -name '*.xdv' -o -name 'report.pdf' -o -name 'thesis.pdf' ')' -delete
+
+zip_inputs=(README.md examples hithesis.pdf)
+for i in "${!add_files[@]}"; do
+  add_file=${add_files[$i]}
+  add_name=${add_names[$i]}
+  cp -a "$add_file" "$stage/$add_name"
+  zip_inputs+=("$add_name")
+done
+
+mkdir -p "$(dirname "$output")"
+rm -f "$output"
+(
+  cd "$stage"
+  zip -qr "$output" "${zip_inputs[@]}"
+)
+
+echo "$output"
