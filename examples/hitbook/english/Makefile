@@ -12,7 +12,7 @@ THESISCONTENTS=$(THESISMAIN).tex front/*.tex body/*.tex back/*.tex $(FIGURES)
 # NOTE: update this to reflect your local file types.
 FIGURES=$(wildcard figures/*.eps figures/*.pdf)
 BIBFILE=*.bib
-CLSFILES=$(PACKAGE)book.cls $(PACKAGE)book.cfg $(PACKAGE).sty *.bst
+CLSFILES=$(PACKAGE)book.cls $(PACKAGE)book.cfg *.bst
 
 # make deletion work on Windows
 ifdef SystemRoot
