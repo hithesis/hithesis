@@ -10,7 +10,7 @@
     scripts/regression_test.py                  # 本地跑全量，逐个人工确认
     scripts/regression_test.py --quick          # 只跑 tests/quick-set.txt 里的
     scripts/regression_test.py --against v3.1e  # 指定参照版本
-    scripts/regression_test.py --ci             # CI 用，不交互，出报告和差异 PDF
+    scripts/regression_test.py --ci             # CI 用，不交互，出报告和差异图
 
 退出码::
 
@@ -19,8 +19,8 @@
     2   编译失败或者别的错
     3   跳过，没找到能当参照的 release
 
-只用标准库。装了 diff-pdf 会顺带生成叠加式差异 PDF；差在第几页靠 ghostscript 渲染
-PNG 逐页比出来。
+只用标准库。差在第几页靠 ghostscript 渲染 PNG 逐页比出来，装了 ImageMagick 还会
+叠出标红的差异图。diff-pdf 是可选的，本地装了才能逐页叠加着翻。
 """
 
 from __future__ import annotations
@@ -228,7 +228,11 @@ def compare_pages(variant: Variant, ref_png: Path, cur_png: Path) -> dict:
 
 
 def make_diff_pdf(variant: Variant, ref_pdf: Path, cur_pdf: Path) -> Path | None:
-    """用 diff-pdf 生成叠加式差异 PDF，没装就返回 None。"""
+    """用 diff-pdf 生成叠加式差异 PDF，没装就返回 None。
+
+    diff-pdf 不在 Ubuntu 源里，CI 上装不了，只有本地 brew/自行编译才有。
+    CI 那边靠 make_diff_image 出逐页差异图。
+    """
     if shutil.which("diff-pdf") is None:
         return None
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
@@ -240,6 +244,19 @@ def make_diff_pdf(variant: Variant, ref_pdf: Path, cur_pdf: Path) -> Path | None
     return output if output.exists() else None
 
 
+def make_diff_image(ref: Path, cur: Path, out: Path) -> bool:
+    """用 ImageMagick 的 compare 把两页叠出一张标红的差异图。
+
+    compare 在两图不同时返回 1，那是正常结果，所以只看有没有生成文件。
+    """
+    tool = shutil.which("compare") or shutil.which("magick")
+    if tool is None:
+        return False
+    cmd = [tool, "compare"] if tool.endswith("magick") else [tool]
+    subprocess.run([*cmd, str(ref), str(cur), str(out)], capture_output=True)
+    return out.exists()
+
+
 def save_page_images(variant: Variant, result: dict, ref_png: Path, cur_png: Path,
                      limit: int = 5) -> None:
     """把开头几张有差异的页面存进报告目录，省得再去翻 PDF。"""
@@ -249,10 +266,15 @@ def save_page_images(variant: Variant, result: dict, ref_png: Path, cur_png: Pat
     out.mkdir(parents=True, exist_ok=True)
     for page in result["differing"][:limit]:
         name = f"{variant.name}-p{page:03d}.png"
+        saved = {}
         for side, folder in (("ref", ref_png), ("cur", cur_png)):
             source = folder / name
             if source.exists():
-                shutil.copy2(source, out / f"p{page:03d}-{side}.png")
+                target = out / f"p{page:03d}-{side}.png"
+                shutil.copy2(source, target)
+                saved[side] = target
+        if len(saved) == 2:
+            make_diff_image(saved["ref"], saved["cur"], out / f"p{page:03d}-diff.png")
 
 
 # ---------------------------------------------------------------- 报告
@@ -282,7 +304,7 @@ def write_report(tag: str, results: list[dict], failures: list[tuple[str, str]])
             if len(r["differing"]) > 20:
                 pages += f" …（共 {len(r['differing'])} 页）"
             lines.append(f"| {r['variant']} | {r['ref_pages']} | {r['cur_pages']} | {pages} |")
-        lines += ["", "差异 PDF 和逐页截图在本 artifact 的同名目录下。", ""]
+        lines += ["", "逐页截图（ref / cur / diff）在本 artifact 的同名目录下。", ""]
 
     report = "\n".join(lines)
     (REPORT_DIR / "summary.md").write_text(report, encoding="utf-8")
@@ -306,7 +328,7 @@ def review_interactively(tag: str, results: list[dict], pdfs: dict[str, tuple[Pa
     has_diff_pdf = shutil.which("diff-pdf") is not None
     if not has_diff_pdf:
         print("没装 diff-pdf，只能报页码。装上就能逐页叠加着看：")
-        print("    brew install diff-pdf   /   sudo apt install diff-pdf")
+        print("    brew install diff-pdf   （Ubuntu 源里没有，得自己编）")
 
     failed = False
     for r in changed:
