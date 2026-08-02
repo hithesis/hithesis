@@ -20,7 +20,10 @@ else
 	OPEN = open
 endif
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean changes version-changes
+NPROC ?= 8
+
+.PHONY: all cls doc viewdoc dist auxclean clean distclean changes version-changes \
+        baseline smoke regression-test tl-packages testclean
 
 all: doc
 
@@ -55,6 +58,29 @@ endif
 dist: all
 	-$(RM) $(PACKAGE)-$(VERSION).zip
 	zip -r $(PACKAGE)-$(VERSION).zip examples/ $(PACKAGE).pdf
+
+# -------------------------------
+# 排版测试，说明见 tests/README.md
+# -------------------------------
+
+# 全部变体编一遍，渲染结果存成本地 PNG 基线
+baseline:
+	NPROC=$(NPROC) bash tools/make-baseline.sh
+
+# 全部变体重编一遍，跟本地基线逐页比
+smoke:
+	NPROC=$(NPROC) bash tools/smoke.sh
+
+# 跟上一个正式 release 逐页比排版，发版前跑，逐个人工确认
+regression-test:
+	python3 scripts/regression_test.py --jobs $(NPROC)
+
+# 重新生成 TeX Live 依赖清单的候选内容，要 diff 着合并进 .github/tl_packages
+tl-packages:
+	NPROC=$(NPROC) bash scripts/gen-tl-packages.sh
+
+testclean:
+	-rm -rf tests/work tests/current tests/diff
 
 auxclean:
 	latexmk -c $(PACKAGE).dtx
