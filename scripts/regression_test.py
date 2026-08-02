@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """排版回归测试。
 
-下载上一个正式 release 附带的模板 zip，用里面那一版的 .cls 在同一套 TeX Live 环境
-重编一遍，再跟当前工作树编出来的 PDF 逐页比。两侧环境一样，比出来的差异就只可能
-来自模板改动。
+下载上一个正式 release 对应 tag 的源码存档，在里面跑一遍 latex hithesis.ins 生成
+那一版的 .cls，用同一套 TeX Live 环境重编一遍，再跟当前工作树编出来的 PDF 逐页比。
+两侧环境一样，比出来的差异就只可能来自模板改动。
+
+参照物取的是 tag 的源码存档，不是 release 挂的资产。资产是人手动传的，传错了
+（比如拿别的分支打的包）工具照样一片绿，比不检查还危险。
 
 用法::
 
@@ -17,7 +20,7 @@
     0   没差异
     1   有排版差异
     2   编译失败或者别的错
-    3   跳过，没找到能当参照的 release
+    3   跳过，没找到能当参照的 tag
 
 只用标准库。差在第几页靠 ghostscript 渲染 PNG 逐页比出来，装了 ImageMagick 还会
 叠出标红的差异图。diff-pdf 是可选的，本地装了才能逐页叠加着翻。
@@ -124,28 +127,30 @@ def api_get(url: str) -> object:
         return json.load(response)
 
 
-def find_reference_release(repo: str, tag: str | None) -> tuple[str, str] | None:
-    """挑一个能当参照的 release，返回 (tag, zip 下载地址)。
-
-    默认取最近一个既不是预发布也不是草稿、并且带 zip 资产的。
-    """
+def find_reference_tag(repo: str, tag: str | None) -> str | None:
+    """确定拿哪个 tag 当参照，默认最近一个正式 release。"""
+    if tag:
+        return tag
     try:
-        if tag:
-            releases = [api_get(f"https://api.github.com/repos/{repo}/releases/tags/{tag}")]
-        else:
-            releases = api_get(f"https://api.github.com/repos/{repo}/releases?per_page=30")
+        releases = api_get(f"https://api.github.com/repos/{repo}/releases?per_page=30")
     except urllib.error.URLError as exc:
         print(f"访问 GitHub API 失败：{exc}")
         return None
-
     for release in releases:  # type: ignore[union-attr]
-        if not tag and (release.get("prerelease") or release.get("draft")):
+        if release.get("prerelease") or release.get("draft"):
             continue
-        for asset in release.get("assets", []):
-            if asset["name"].endswith(".zip"):
-                return release["tag_name"], asset["browser_download_url"]
-
+        return release["tag_name"]
     return None
+
+
+def source_archive_url(repo: str, tag: str) -> str:
+    """tag 的源码存档地址。
+
+    刻意不用 release 资产：资产是人手动传的，传错了（比如拿别的分支打的包）
+    工具照样一片绿，比不检查还危险。zipball 由 GitHub 按 tag 自动生成，
+    永远等于那个 tag 的真实代码，搞不错。
+    """
+    return f"https://api.github.com/repos/{repo}/zipball/{tag}"
 
 
 def find_template_root(extracted: Path) -> Path | None:
@@ -184,15 +189,9 @@ def prepare_reference(repo: str, tag: str | None) -> tuple[str, Path] | None:
 
     也可以离线用：自己把模板解到 target/regression-cache/<tag>/ 就行。
     """
-    cached = find_template_root(CACHE_DIR / tag) if tag and (CACHE_DIR / tag).is_dir() else None
-    if cached:
-        print(f"用现成的缓存 {cached}")
-        return (tag, cached) if ensure_generated_files(cached) else None
-
-    found = find_reference_release(repo, tag)
-    if found is None:
+    tag = find_reference_tag(repo, tag)
+    if tag is None:
         return None
-    tag, url = found
 
     target = CACHE_DIR / tag
     cached = find_template_root(target) if target.is_dir() else None
@@ -201,8 +200,9 @@ def prepare_reference(repo: str, tag: str | None) -> tuple[str, Path] | None:
         return (tag, cached) if ensure_generated_files(cached) else None
 
     target.mkdir(parents=True, exist_ok=True)
-    archive = target / "template.zip"
-    print(f"下载 {tag} 的模板包……")
+    archive = target / "source.zip"
+    url = source_archive_url(repo, tag)
+    print(f"下载 {tag} 的源码存档……")
     try:
         request = urllib.request.Request(url, headers={"User-Agent": "hithesis-regression-test"})
         with urllib.request.urlopen(request, timeout=300) as response, archive.open("wb") as f:
@@ -217,7 +217,7 @@ def prepare_reference(repo: str, tag: str | None) -> tuple[str, Path] | None:
 
     root = find_template_root(target)
     if root is None:
-        print(f"{tag} 的 zip 里找不到 examples/，当不了参照")
+        print(f"{tag} 的存档里找不到 examples/，当不了参照")
         return None
     if not ensure_generated_files(root):
         return None
@@ -398,7 +398,7 @@ def main() -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument("--against", metavar="TAG", help="参照版本，默认取最近一个带 zip 资产的正式 release")
+    parser.add_argument("--against", metavar="TAG", help="参照的 tag，默认取最近一个正式 release")
     parser.add_argument("--variants", metavar="LIST", help="只跑这几个变体，逗号分隔")
     parser.add_argument("--quick", action="store_true", help="只跑 tests/quick-set.txt 里的那几个")
     parser.add_argument("--jobs", type=int, default=os.cpu_count() or 4, help="并发编译数")
@@ -415,9 +415,8 @@ def main() -> int:
     reference = prepare_reference(repo, args.against)
     if reference is None:
         write_skip_note(
-            "没拿到可用的参照版本。参照物得是带 *.zip 资产的正式 release，"
-            "且 zip 里要有 examples/（scripts/package.sh 打的包就是这个样子）。"
-            "上面的日志里有具体是哪一步没过去。"
+            "没拿到可用的参照版本。默认取最近一个正式 release 对应的 tag，"
+            "下载它的源码存档来当参照。上面的日志里有具体是哪一步没过去。"
         )
         return EXIT_SKIP
     tag, ref_root = reference
