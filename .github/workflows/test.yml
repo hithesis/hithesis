@@ -1,0 +1,244 @@
+name: Test
+
+on:
+  push:
+    branches: [master, dev]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # 每天 02:00（UTC+8）跑全量变体和全量回归
+    - cron: "0 18 * * *"
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 封面日期取 \today，不钉死的话每天编出来的 PDF 都不一样，没法比
+  SOURCE_DATE_EPOCH: "1700000000"
+  FORCE_SOURCE_DATE: "1"
+
+jobs:
+  # ============================================================
+  # L1 编译矩阵，看六个 TeX Live 版本还能不能编出来
+  # ============================================================
+  texlive-matrix:
+    name: TeX Live ${{ matrix.tl-version }}
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        tl-version: [2024, 2025, 2026]
+        experimental: [false]
+        include:
+          # 2021–2023 能不能过还没底，先挂着不阻断。
+          # 跑稳了再把对应条目挪到上面的 tl-version 列表里。
+          - tl-version: 2021
+            experimental: true
+          - tl-version: 2022
+            experimental: true
+          - tl-version: 2023
+            experimental: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: TeX-Live/setup-texlive-action@v4
+        with:
+          version: ${{ matrix.tl-version }}
+          package-file: |
+            .github/tl_packages
+            ${{ matrix.tl-version < 2024 && '.github/tl_packages_compat' || '' }}
+
+      - name: Install ghostscript
+        # examples 里的 .eps 插图要经 epstopdf 转一道，得有 gs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ghostscript
+
+      - name: Generate cls files
+        run: latex hithesis.ins
+
+      - name: Build package documentation
+        run: make doc
+
+      - name: Build Chinese thesis
+        run: make -C examples/hitbook/chinese thesis
+
+      - name: Build English thesis
+        run: make -C examples/hitbook/english thesis
+
+      - name: Build report
+        run: make -C examples/hitart/reports report
+
+      - name: Build reportplus
+        run: make -C examples/hitart/reportplus report
+
+  # ============================================================
+  # L2 变体矩阵，看 42 种 \documentclass 选项组合还能不能编出来。
+  #    PR 上只跑 tests/quick-set.txt 里的子集，nightly 和手动触发才跑全量。
+  # ============================================================
+  variants:
+    name: 变体矩阵
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: TeX-Live/setup-texlive-action@v4
+        with:
+          version: latest
+          package-file: .github/tl_packages
+
+      - name: Install ghostscript
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ghostscript
+
+      - name: Generate cls files
+        run: latex hithesis.ins
+
+      - name: Select variants
+        id: select
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            ls tests/variants/*.conf | xargs -n1 basename | sed 's/\.conf$//' > /tmp/variants.txt
+          else
+            grep -v -e '^#' -e '^[[:space:]]*$' tests/quick-set.txt > /tmp/variants.txt
+          fi
+          echo "共 $(wc -l < /tmp/variants.txt) 个变体：" >> "$GITHUB_STEP_SUMMARY"
+          sed 's/^/- /' /tmp/variants.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compile variants
+        run: |
+          mkdir -p tests/work
+          # 只看能不能编过，不渲染 PNG
+          export RENDER_PNG=0
+          xargs -P "$(nproc)" -I{} bash -c '
+            v="{}"
+            if bash tools/compile-variant.sh "$v" > "tests/work/$v.log" 2>&1; then
+              printf "  %-44s OK\n" "$v"
+            else
+              printf "  %-44s FAIL\n" "$v"
+              echo "$v" >> /tmp/failed.txt
+            fi
+          ' < /tmp/variants.txt
+
+          if [[ -s /tmp/failed.txt ]]; then
+            {
+              echo
+              echo "### 编译失败的变体"
+              sed 's/^/- /' /tmp/failed.txt
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "以下变体编译失败："
+            while read -r v; do
+              echo "::group::$v"
+              tail -60 "tests/work/$v.log"
+              echo "::endgroup::"
+            done < /tmp/failed.txt
+            exit 1
+          fi
+
+      - name: Upload compile logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: variant-logs
+          path: tests/work/*.log
+          retention-days: 7
+
+  # ============================================================
+  # L3 排版回归，跟上一个正式 release 逐页比。
+  #    默认只出报告和差异 artifact，不阻断合并。要卡的话给 PR 打
+  #    regression-must-match 标签。
+  # ============================================================
+  regression:
+    name: 排版回归
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: TeX-Live/setup-texlive-action@v4
+        with:
+          version: latest
+          package-file: .github/tl_packages
+
+      - name: Install ghostscript and diff-pdf
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ghostscript
+          # diff-pdf 只拿来生成叠加式差异 PDF，装不上也照样能定位到页
+          sudo apt-get install -y --no-install-recommends diff-pdf \
+            || echo "::warning::没装上 diff-pdf，这次只给差异页码和逐页截图"
+
+      - name: Generate cls files
+        run: latex hithesis.ins
+
+      - name: Run regression test
+        id: regression
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          args=(--ci)
+          if [[ "${{ github.event_name }}" != "schedule" && "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+            args+=(--quick)
+          fi
+
+          set +e
+          python3 scripts/regression_test.py "${args[@]}"
+          rc=$?
+          set -e
+
+          case "$rc" in
+            0) echo "排版跟参照版本一样。" ;;
+            1) echo "diff=1" >> "$GITHUB_OUTPUT" ;;
+            3) echo "没找到能当参照的 release，跳过。" ;;
+            *) exit "$rc" ;;   # 编译失败之类，照常算失败
+          esac
+
+      - name: Upload diff artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-diff
+          path: target/regression/report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Fail if labelled regression-must-match
+        if: steps.regression.outputs.diff == '1' && contains(github.event.pull_request.labels.*.name, 'regression-must-match')
+        run: |
+          echo "PR 打了 regression-must-match 标签，排版有差异就算失败。"
+          exit 1
+
+  # ============================================================
+  # 兜底跑一遍完整 TeX Live，多数用户装的就是这个。
+  #    只在 push 和 nightly 上跑，PR 上省掉 5 GB 镜像的拉取时间。
+  #    它跟 texlive-matrix 的 latest 条目结果对不上，一般是
+  #    .github/tl_packages 少写了包。
+  # ============================================================
+  docker-full:
+    name: Docker texlive:latest
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull TeX Live (latest)
+        run: docker pull texlive/texlive:latest
+
+      - name: Build documentation and examples
+        run: |
+          docker run --rm -i -v "$(pwd):/hithesis" -w /hithesis \
+            -e SOURCE_DATE_EPOCH -e FORCE_SOURCE_DATE \
+            texlive/texlive:latest bash -c '
+              set -e
+              make all
+              make -C examples/hitbook/chinese thesis
+              make -C examples/hitbook/english thesis
+              make -C examples/hitart/reports report
+              make -C examples/hitart/reportplus report
+            '

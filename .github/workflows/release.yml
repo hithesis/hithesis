@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write # 打 tag、建 release 用
+
+env:
+  SOURCE_DATE_EPOCH: "1700000000"
+  FORCE_SOURCE_DATE: "1"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 查 tag 在不在，得有完整历史
+
+      - uses: TeX-Live/setup-texlive-action@v4
+        with:
+          version: latest
+          package-file: .github/tl_packages
+
+      - name: Install ghostscript and gawk
+        # Makefile 的 changes 目标用了 3 参数的 match()，那是 gawk 扩展，mawk 不认
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ghostscript gawk
+
+      - name: Generate release notes from \changes
+        run: make changes
+
+      - name: Extract changes version
+        id: changes
+        run: echo "version=$(make version-changes)" >> "$GITHUB_OUTPUT"
+
+      - name: Check if git tag already exists
+        id: tagcheck
+        run: |
+          if git rev-parse "${{ steps.changes.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ---- 下面几步只在这个版本号还没发过时才走 ----
+
+      - name: Build template package
+        if: steps.tagcheck.outputs.exists == 'false'
+        # 这个 zip 一是给用户的模板包，二是下一版回归测试要拿它当参照，
+        # scripts/regression_test.py 就靠它，所以必须传成 release 资产。
+        run: |
+          scripts/package.sh \
+            --version "${{ steps.changes.outputs.version }}" \
+            --output "dist/hithesis-${{ steps.changes.outputs.version }}.zip"
+          ls -lh dist/
+
+      - name: Create git tag
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: |
+          git tag "${{ steps.changes.outputs.version }}"
+          git push origin "${{ steps.changes.outputs.version }}"
+
+      - name: Create GitHub Release
+        if: steps.tagcheck.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.changes.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          files: dist/*.zip
