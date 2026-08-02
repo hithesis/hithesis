@@ -148,14 +148,46 @@ def find_reference_release(repo: str, tag: str | None) -> tuple[str, str] | None
     return None
 
 
+def find_template_root(extracted: Path) -> Path | None:
+    """定位解压出来的模板根目录，也就是含 examples/ 的那一层。
+
+    scripts/package.sh 打的包是 examples/ 直接在顶层；GitHub 自动生成的源码存档
+    会多套一层 hithesis-x.y/。两种都认。
+    """
+    if (extracted / "examples").is_dir():
+        return extracted
+    wrapped = [p for p in extracted.iterdir() if p.is_dir() and (p / "examples").is_dir()]
+    return wrapped[0] if len(wrapped) == 1 else None
+
+
+def ensure_generated_files(root: Path) -> bool:
+    """源码存档里没有生成好的 .cls，得先跑一遍 latex hithesis.ins。"""
+    if (root / "examples" / "hitbook" / "chinese" / "hithesisbook.cls").exists():
+        return True
+    if not (root / "hithesis.ins").exists():
+        print(f"{root} 里既没有生成好的 cls，也没有 hithesis.ins，当不了参照")
+        return False
+
+    print("参照版本是源码存档，先跑一遍 latex hithesis.ins 生成 cls……")
+    result = subprocess.run(
+        ["latex", "-interaction=nonstopmode", "hithesis.ins"],
+        cwd=root, capture_output=True, text=True,
+    )
+    if not (root / "examples" / "hitbook" / "chinese" / "hithesisbook.cls").exists():
+        print("生成失败：\n" + "\n".join(result.stdout.strip().splitlines()[-15:]))
+        return False
+    return True
+
+
 def prepare_reference(repo: str, tag: str | None) -> tuple[str, Path] | None:
-    """下载并解压参照版本，返回 (tag, 解压根目录)。
+    """下载并解压参照版本，返回 (tag, 模板根目录)。
 
     也可以离线用：自己把模板解到 target/regression-cache/<tag>/ 就行。
     """
-    if tag and (CACHE_DIR / tag / "examples").is_dir():
-        print(f"用现成的缓存 {CACHE_DIR / tag}")
-        return tag, CACHE_DIR / tag
+    cached = find_template_root(CACHE_DIR / tag) if tag and (CACHE_DIR / tag).is_dir() else None
+    if cached:
+        print(f"用现成的缓存 {cached}")
+        return (tag, cached) if ensure_generated_files(cached) else None
 
     found = find_reference_release(repo, tag)
     if found is None:
@@ -163,9 +195,10 @@ def prepare_reference(repo: str, tag: str | None) -> tuple[str, Path] | None:
     tag, url = found
 
     target = CACHE_DIR / tag
-    if (target / "examples").is_dir():
-        print(f"用现成的缓存 {target}")
-        return tag, target
+    cached = find_template_root(target) if target.is_dir() else None
+    if cached:
+        print(f"用现成的缓存 {cached}")
+        return (tag, cached) if ensure_generated_files(cached) else None
 
     target.mkdir(parents=True, exist_ok=True)
     archive = target / "template.zip"
@@ -182,11 +215,14 @@ def prepare_reference(repo: str, tag: str | None) -> tuple[str, Path] | None:
     with zipfile.ZipFile(archive) as f:
         f.extractall(target)
 
-    if not (target / "examples").is_dir():
-        print(f"{tag} 的 zip 里没有 examples/，当不了参照")
+    root = find_template_root(target)
+    if root is None:
+        print(f"{tag} 的 zip 里找不到 examples/，当不了参照")
+        return None
+    if not ensure_generated_files(root):
         return None
 
-    return tag, target
+    return tag, root
 
 
 # ---------------------------------------------------------------- 编译与比对
@@ -280,8 +316,26 @@ def save_page_images(variant: Variant, result: dict, ref_png: Path, cur_png: Pat
 # ---------------------------------------------------------------- 报告
 
 
-def write_report(tag: str, results: list[dict], failures: list[tuple[str, str]]) -> None:
+def publish(text: str) -> None:
+    """写进报告目录，同时贴到 GitHub 的 Job Summary。"""
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    (REPORT_DIR / "summary.md").write_text(text, encoding="utf-8")
+
+    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary_path:
+        with open(summary_path, "a", encoding="utf-8") as f:
+            f.write(text + "\n")
+
+    print()
+    print(text)
+
+
+def write_skip_note(reason: str) -> None:
+    """跳过时也留一份报告，否则 CI 上是一片静默的绿。"""
+    publish(f"# 排版回归报告\n\n本次跳过：{reason}\n")
+
+
+def write_report(tag: str, results: list[dict], failures: list[tuple[str, str]]) -> None:
     changed = [r for r in results if r["changed"]]
 
     lines = [f"# 排版回归报告（参照 {tag}）", ""]
@@ -306,16 +360,7 @@ def write_report(tag: str, results: list[dict], failures: list[tuple[str, str]])
             lines.append(f"| {r['variant']} | {r['ref_pages']} | {r['cur_pages']} | {pages} |")
         lines += ["", "逐页截图（ref / cur / diff）在本 artifact 的同名目录下。", ""]
 
-    report = "\n".join(lines)
-    (REPORT_DIR / "summary.md").write_text(report, encoding="utf-8")
-
-    summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
-    if summary_path:
-        with open(summary_path, "a", encoding="utf-8") as f:
-            f.write(report + "\n")
-
-    print()
-    print(report)
+    publish("\n".join(lines))
 
 
 def review_interactively(tag: str, results: list[dict], pdfs: dict[str, tuple[Path, Path]]) -> bool:
@@ -369,8 +414,11 @@ def main() -> int:
     print(f"参照仓库 {repo}")
     reference = prepare_reference(repo, args.against)
     if reference is None:
-        print("没找到能当参照的 release，得是带 *.zip 资产的正式发布。跳过。")
-        print("等第一个带 zip 的 release 发出去，这个测试才跑得起来。")
+        write_skip_note(
+            "没拿到可用的参照版本。参照物得是带 *.zip 资产的正式 release，"
+            "且 zip 里要有 examples/（scripts/package.sh 打的包就是这个样子）。"
+            "上面的日志里有具体是哪一步没过去。"
+        )
         return EXIT_SKIP
     tag, ref_root = reference
 
@@ -381,7 +429,7 @@ def main() -> int:
     for variant in skipped:
         print(f"{tag} 里没有 {variant.base}，跳过 {variant.name}")
     if not runnable:
-        print("没有能比的变体。")
+        write_skip_note(f"{tag} 里一个能对上的 example 目录都没有，没得比。")
         return EXIT_SKIP
 
     ref_dir = RUN_DIR / tag
