@@ -32,6 +32,7 @@ usage() {
   echo "usage: scripts/package.sh [-o|--output PATH] [-v|--version VERSION] [-a|--add-file FILE]..." >&2
 }
 
+orig_pwd=$PWD
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
@@ -138,6 +139,9 @@ else
 fi
 if [[ -z $output ]]; then
   output="$repo_root/$package_name"
+elif [[ $output != /* ]]; then
+  # 打包是在临时目录里 cd 过去做的，相对路径会打歪，先按调用者的当前目录展开
+  output="$orig_pwd/$output"
 fi
 
 echo "Generating package files..."
