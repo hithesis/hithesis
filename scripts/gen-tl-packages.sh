@@ -6,6 +6,8 @@
 # TeX Live 的包数据库（texlive.tlpdb）里反查这些文件属于哪个包，再把基础 collection
 # 已经覆盖掉的减去，剩下的就是得单独声明的。
 #
+# fontspec 按字体名加载的 OTF 不进 .fls，所以另外再扫一遍 *.log 里出现的字体文件名。
+#
 # 用法：
 #   scripts/gen-tl-packages.sh                # 编代表性变体，然后生成
 #   scripts/gen-tl-packages.sh --all          # 42 个变体全编，更全，约 15 分钟
@@ -76,20 +78,30 @@ TEXMFROOT=$(kpsewhich -var-value=TEXMFROOT)
 TLPDB="$TEXMFROOT/tlpkg/texlive.tlpdb"
 [[ -f $TLPDB ]] || { echo "error: 找不到 $TLPDB" >&2; exit 1; }
 
-FLS_LIST=$(mktemp)
-trap 'rm -f "$FLS_LIST"' EXIT
-printf '%s\n' "$fls_files" > "$FLS_LIST"
+log_files=$(find tests/work -name '*.log' 2>/dev/null || true)
+[[ -f hithesis.log ]] && log_files=$(printf '%s\nhithesis.log\n' "$log_files")
 
-# python3 的程序体是从 stdin 读的（heredoc 占了），.fls 清单只能走参数
-python3 - "$TLPDB" "$TEXMFROOT" "$FLS_LIST" "${BASE_COLLECTIONS[@]}" <<'PYEOF'
+FLS_LIST=$(mktemp)
+LOG_LIST=$(mktemp)
+trap 'rm -f "$FLS_LIST" "$LOG_LIST"' EXIT
+printf '%s\n' "$fls_files" > "$FLS_LIST"
+printf '%s\n' "$log_files" > "$LOG_LIST"
+
+# python3 的程序体是从 stdin 读的（heredoc 占了），文件清单只能走参数
+python3 - "$TLPDB" "$TEXMFROOT" "$FLS_LIST" "$LOG_LIST" "${BASE_COLLECTIONS[@]}" <<'PYEOF'
 import os
+import re
 import sys
 
-tlpdb_path, texmfroot, fls_list_path = sys.argv[1], sys.argv[2], sys.argv[3]
-base_collections = sys.argv[4:]
+tlpdb_path, texmfroot = sys.argv[1], sys.argv[2]
+fls_list_path, log_list_path = sys.argv[3], sys.argv[4]
+base_collections = sys.argv[5:]
+
+FONT_SUFFIXES = (".otf", ".ttf", ".ttc")
 
 # ---- 1. 解析 texlive.tlpdb，拿到 文件路径 -> 包名，以及各 collection 的依赖 ----
 file2pkg: dict[str, str] = {}
+font2pkg: dict[str, str] = {}   # 字体文件基名（小写）-> 包名，日志里只有基名没有路径
 depends: dict[str, list[str]] = {}
 
 name = None
@@ -105,6 +117,9 @@ with open(tlpdb_path, encoding="utf-8", errors="replace") as f:
                 # 长这样：" texmf-dist/tex/latex/base/article.cls"，也可能带 details= 后缀
                 path = line.strip().split(" ", 1)[0]
                 file2pkg.setdefault(path, name)
+                base = path.rsplit("/", 1)[-1].lower()
+                if base.endswith(FONT_SUFFIXES):
+                    font2pkg.setdefault(base, name)
             continue
         key, _, value = line.partition(" ")
         if key == "name":
@@ -141,7 +156,22 @@ for fls in fls_paths:
             else:
                 unknown.add(rel)
 
-# ---- 3. 把基础 collection 已经覆盖的减掉 ----
+# ---- 3. 扫 *.log，捞 fontspec 按名字加载的字体 ----
+# TeX 的日志按 79 列硬折行，路径会被拦腰截断，先把换行去掉再匹配
+with open(log_list_path, encoding="utf-8") as f:
+    log_paths = f.read().split()
+
+for log in log_paths:
+    if not os.path.exists(log):
+        continue
+    with open(log, encoding="utf-8", errors="replace") as f:
+        text = f.read().replace("\n", "")
+    for match in re.finditer(r"[A-Za-z0-9_-]+\.(?:otf|ttf|ttc)", text):
+        pkg = font2pkg.get(match.group(0).lower())
+        if pkg:
+            detected.add(pkg)
+
+# ---- 4. 把基础 collection 已经覆盖的减掉 ----
 covered: set[str] = set()
 for coll in base_collections:
     covered.add(coll)
@@ -152,7 +182,7 @@ for coll in base_collections:
 
 extra = sorted(p for p in detected - covered if not p.startswith("collection-"))
 
-# ---- 4. 输出 ----
+# ---- 5. 输出 ----
 print("# TeX Live 依赖清单，scripts/gen-tl-packages.sh 生成，再人工整理过。")
 print("#")
 print("# 给 .github/workflows/test.yml 的 setup-texlive-action 用，用户手工补装也照它：")
