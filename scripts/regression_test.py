@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """排版回归测试。
 
-下载上一个正式 release 对应 tag 的源码存档，在里面跑一遍 latex hithesis.ins 生成
-那一版的 .cls，用同一套 TeX Live 环境重编一遍，再跟当前工作树编出来的 PDF 逐页比。
+下载上一个正式 release 对应 tag 的源码存档，在里面跑一遍 make cls 生成那一版的
+.cls，用同一套 TeX Live 环境重编一遍，再跟当前工作树编出来的 PDF 逐页比。
 两侧环境一样，比出来的差异就只可能来自模板改动。
 
 参照物取的是 tag 的源码存档，不是 release 挂的资产。资产是人手动传的，传错了
@@ -166,16 +166,20 @@ def find_template_root(extracted: Path) -> Path | None:
 
 
 def ensure_generated_files(root: Path) -> bool:
-    """源码存档里没有生成好的 .cls，得先跑一遍 latex hithesis.ins。"""
+    """源码存档里没有生成好的 .cls，得先生成一遍。
+
+    走 make cls 而不是直接 latex hithesis.ins：模块化之后 docstrip 要往
+    modules/ 之类的目录里写文件，而它不会自己建目录，建目录那步在 Makefile 里。
+    """
     if (root / "examples" / "hitbook" / "chinese" / "hithesisbook.cls").exists():
         return True
     if not (root / "hithesis.ins").exists():
         print(f"{root} 里既没有生成好的 cls，也没有 hithesis.ins，当不了参照")
         return False
 
-    print("参照版本是源码存档，先跑一遍 latex hithesis.ins 生成 cls……")
+    print("参照版本是源码存档，先跑一遍 make cls 生成 cls……")
     result = subprocess.run(
-        ["latex", "-interaction=nonstopmode", "hithesis.ins"],
+        ["make", "cls"],
         cwd=root, capture_output=True, text=True,
     )
     if not (root / "examples" / "hitbook" / "chinese" / "hithesisbook.cls").exists():
