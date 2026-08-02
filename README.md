@@ -2,7 +2,7 @@
 
 [![招生](https://img.shields.io/badge/初砚硕课题组招生-进行中-green)](https://dustincys.github.io/cn/2025/03/jobad/)
 
-[![texlive-latest](https://github.com/hithesis/hithesis/actions/workflows/test_texlive_latest.yml/badge.svg?branch=master)](https://github.com/hithesis/hithesis/actions/workflows/test_texlive_latest.yml)
+[![Test](https://github.com/hithesis/hithesis/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/hithesis/hithesis/actions/workflows/test.yml)
 
 [![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
@@ -204,6 +204,15 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 如果不介意在自己房子里放进一堆小破烂，那么浪费硬盘空间完全不是问题，即使99%的模板八百年都用不到。
 
 所以推荐安装非完整版TeXLive/MiKTeX/MacTex。不完整的安装包有的支持自动安装缺失package，有的不支持，需要手动安装。
+
+要手动装的话，hithesis 用到的宏包都列在 [`.github/tl_packages`](.github/tl_packages) 里。
+这份清单是拿实际编译过程中的文件记录反查出来的，可以直接喂给 `tlmgr`：
+
+```shell
+tlmgr install $(grep -v '^#' .github/tl_packages)
+```
+
+另外 `examples/` 里的 `.eps` 插图要系统装了 ghostscript 才能转。
 
 | LaTeX安装包  | 是否支持非完整安装         | 平台          | 是否支持自动安装Package | 最小满足hithesis安装脚本                                                                                                           |
 | ------------ | -------------------------- | ------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |

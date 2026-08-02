@@ -29,13 +29,15 @@ copy_file() {
 }
 
 usage() {
-  echo "usage: scripts/package.sh [-o|--output PATH] [-a|--add-file FILE]..." >&2
+  echo "usage: scripts/package.sh [-o|--output PATH] [-v|--version VERSION] [-a|--add-file FILE]..." >&2
 }
 
+orig_pwd=$PWD
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
 output=
+version=
 add_files=()
 
 while [[ $# -gt 0 ]]; do
@@ -50,6 +52,18 @@ while [[ $# -gt 0 ]]; do
       ;;
     --output=*)
       output=${1#*=}
+      shift
+      ;;
+    -v|--version)
+      if [[ $# -lt 2 ]]; then
+        usage
+        exit 1
+      fi
+      version=$2
+      shift 2
+      ;;
+    --version=*)
+      version=${1#*=}
       shift
       ;;
     -a|--add-file)
@@ -76,8 +90,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 add_names=()
-declare -A seen_add_names=()
-for add_file in "${add_files[@]}"; do
+# 这里不能用关联数组，macOS 自带的 bash 还停在 3.2，没有 declare -A
+for add_file in "${add_files[@]:-}"; do
+  [[ -n $add_file ]] || continue
   if [[ ! -e $add_file ]]; then
     echo "error: add-file does not exist: $add_file" >&2
     exit 1
@@ -88,35 +103,45 @@ for add_file in "${add_files[@]}"; do
     echo "error: add-file conflicts with package entry: $add_name" >&2
     exit 1
   fi
-  if [[ -n ${seen_add_names[$add_name]+x} ]]; then
-    echo "error: duplicate add-file basename: $add_name" >&2
-    exit 1
-  fi
+  for seen in "${add_names[@]:-}"; do
+    if [[ $seen == "$add_name" ]]; then
+      echo "error: duplicate add-file basename: $add_name" >&2
+      exit 1
+    fi
+  done
 
-  seen_add_names[$add_name]=1
   add_names+=("$add_name")
 done
 
-latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || true)
-if [[ -z $latest_tag ]]; then
-  latest_tag=$(git tag --sort=-v:refname | sed -n '1p')
-fi
-if [[ -z $latest_tag ]]; then
-  echo "error: no git tag found" >&2
-  exit 1
-fi
+if [[ -n $version ]]; then
+  # 正式发布，版本号由 release workflow 给，包名跟 tag 对齐
+  package_name="hithesis-${version}.zip"
+else
+  # 日常打包，在最近的 tag 上进一个字母，再带上分支和日期好区分
+  latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || true)
+  if [[ -z $latest_tag ]]; then
+    latest_tag=$(git tag --sort=-v:refname | sed -n '1p')
+  fi
+  if [[ -z $latest_tag ]]; then
+    echo "error: no git tag found" >&2
+    exit 1
+  fi
 
-package_version=$(bump_tag_letter "$latest_tag")
-branch=$(git branch --show-current)
-if [[ -z $branch ]]; then
-  branch=$(git rev-parse --short HEAD)
-fi
-branch_slug=$(printf '%s' "$branch" | sed 's#[^A-Za-z0-9._-]#-#g')
-today=$(date +%Y%m%d)
+  package_version=$(bump_tag_letter "$latest_tag")
+  branch=$(git branch --show-current)
+  if [[ -z $branch ]]; then
+    branch=$(git rev-parse --short HEAD)
+  fi
+  branch_slug=$(printf '%s' "$branch" | sed 's#[^A-Za-z0-9._-]#-#g')
+  today=$(date +%Y%m%d)
 
-package_name="hithesis-${package_version}-${branch_slug}.${today}.zip"
+  package_name="hithesis-${package_version}-${branch_slug}.${today}.zip"
+fi
 if [[ -z $output ]]; then
   output="$repo_root/$package_name"
+elif [[ $output != /* ]]; then
+  # 打包是在临时目录里 cd 过去做的，相对路径会打歪，先按调用者的当前目录展开
+  output="$orig_pwd/$output"
 fi
 
 echo "Generating package files..."
@@ -137,7 +162,7 @@ cp -a examples "$stage/"
 find "$stage/examples" -type f '(' -name '*.aux' -o -name '*.bbl' -o -name '*.blg' -o -name '*.fdb_latexmk' -o -name '*.fls' -o -name '*.idx' -o -name '*.ilg' -o -name '*.ind' -o -name '*.lof' -o -name '*.log' -o -name '*.lot' -o -name '*.out' -o -name '*.synctex.gz' -o -name '*.thm' -o -name '*.toc' -o -name '*.toe' -o -name '*.xdv' -o -name 'report.pdf' -o -name 'thesis.pdf' ')' -delete
 
 zip_inputs=(README.md examples hithesis.pdf)
-for i in "${!add_files[@]}"; do
+for ((i = 0; i < ${#add_names[@]}; i++)); do
   add_file=${add_files[$i]}
   add_name=${add_names[$i]}
   cp -a "$add_file" "$stage/$add_name"
