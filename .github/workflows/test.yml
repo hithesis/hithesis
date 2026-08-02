@@ -25,21 +25,10 @@ jobs:
   texlive-matrix:
     name: TeX Live ${{ matrix.tl-version }}
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
-        tl-version: [2024, 2025, 2026]
-        experimental: [false]
-        include:
-          # 2021–2023 能不能过还没底，先挂着不阻断。
-          # 跑稳了再把对应条目挪到上面的 tl-version 列表里。
-          - tl-version: 2021
-            experimental: true
-          - tl-version: 2022
-            experimental: true
-          - tl-version: 2023
-            experimental: true
+        tl-version: [2021, 2022, 2023, 2024, 2025, 2026]
 
     steps:
       - uses: actions/checkout@v4
@@ -77,7 +66,7 @@ jobs:
 
   # ============================================================
   # L2 变体矩阵，看 42 种 \documentclass 选项组合还能不能编出来。
-  #    PR 上只跑 tests/quick-set.txt 里的子集，nightly 和手动触发才跑全量。
+  #    全量跑，实测三分钟左右，没必要再分快慢集。
   # ============================================================
   variants:
     name: 变体矩阵
@@ -99,13 +88,8 @@ jobs:
         run: latex hithesis.ins
 
       - name: Select variants
-        id: select
         run: |
-          if [[ "${{ github.event_name }}" == "schedule" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            ls tests/variants/*.conf | xargs -n1 basename | sed 's/\.conf$//' > /tmp/variants.txt
-          else
-            grep -v -e '^#' -e '^[[:space:]]*$' tests/quick-set.txt > /tmp/variants.txt
-          fi
+          ls tests/variants/*.conf | xargs -n1 basename | sed 's/\.conf$//' > /tmp/variants.txt
           echo "共 $(wc -l < /tmp/variants.txt) 个变体：" >> "$GITHUB_STEP_SUMMARY"
           sed 's/^/- /' /tmp/variants.txt >> "$GITHUB_STEP_SUMMARY"
 
