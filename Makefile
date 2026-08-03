@@ -35,9 +35,9 @@ toc-update:
 
 cls: $(TARGETS)
 
+# nonstopmode：docstrip 出错时直接失败，不要挂在交互提示上等输入
 $(TARGETS): $(SOURCES)
-	mkdir -p modules examples/hitbook/chinese/modules examples/hitbook/english/modules examples/hitart/reports/modules examples/hitart/reportplus/modules
-	latex $(PACKAGE).ins
+	latex -interaction=nonstopmode $(PACKAGE).ins
 
 doc: $(PACKAGE).pdf
 
