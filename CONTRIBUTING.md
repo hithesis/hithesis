@@ -243,7 +243,7 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 就用这个办法把内容与控制流分开，别把内容裹进 `\ExplSyntaxOn`。
 
 已迁移：`book-geometry`、`art-geometry`、`book-mainmatter`、`art-chapter`、
-`art-pagestyle`、`art-toc`、`book-toc`、`book-pagestyle`。
+`art-pagestyle`、`art-toc`、`book-toc`、`book-pagestyle`、`art-floats`、`book-deps-c`。
 
 迁移一个模块的验收：`l3build check` 全过，再挑几个走到该模块各分支的变体，与改动
 前的 PDF 逐字节比对。建参照用 `git worktree add --detach <目录> HEAD`，比在原地
