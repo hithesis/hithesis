@@ -9,7 +9,6 @@ VERSION = `grep -m 1 -o "v[0-9]\+\.[0-9]\+\.[0-9]\+" $(PACKAGE).dtx`
 SOURCES = $(PACKAGE).ins $(PACKAGE).dtx
 TARGETS = dtx-style.sty
 
-CHANGE_RAW = .changes.raw
 RELEASE_NOTES = RELEASE_NOTES.md
 
 ifdef SystemRoot
@@ -104,46 +103,20 @@ clean: auxclean
 	-$(RM) *.bst *.ist *.cls *.cfg *.sty
 	-$(RM) *.eps
 	-$(RM) $(PACKAGE).pdf
-	-$(RM) $(CHANGE_RAW) $(RELEASE_NOTES)
+	-$(RM) $(RELEASE_NOTES)
 
 distclean: clean
 	-$(RM) $(PACKAGE)-$(VERSION).zip
 
 # -------------------------------
-# Extract \changes{} from .dtx
+# 从 .dtx 的 \changes 生成 release notes
+#
+# 以前这里用 awk，但依赖 gawk 的三参数 match()：macOS 自带 awk 不认，会静默产出
+# 空文件；Windows 没有 awk。改用 python3（工具链本来就依赖它）。
 # -------------------------------
 
-$(CHANGE_RAW): $(PACKAGE).dtx
-	@awk '/\\changes\{/ { \
-	  line = $$0; \
-	  match(line, /\\changes\{([^}]*)\}\{([^}]*)\}\{/, a); \
-	  if (a[1] != "") { \
-	    ver = a[1]; \
-	    date = a[2]; \
-	    gsub(/^v/, "", ver); \
-	    sub(/.*\\changes\{[^}]*\}\{[^}]*\}\{/, "", line); \
-	    depth = 1; txt = ""; \
-	    for (i = 1; i <= length(line); i++) { \
-	      c = substr(line, i, 1); \
-	      if (c == "{") depth++; \
-	      if (c == "}") depth--; \
-	      if (depth == 0) break; \
-	      txt = txt c; \
-	    } \
-	    print ver "|" date "|" txt; \
-	  } \
-	}' $< > $@
+changes:
+	@python3 scripts/changes.py
 
-$(RELEASE_NOTES): $(CHANGE_RAW)
-	@latest=$$(cut -d'|' -f1 $< | sort -V | uniq | tail -n1); \
-	echo "## v$$latest" > $@; \
-	echo >> $@; \
-	awk -F'|' -v v="$$latest" '$$1 == v { \
-	  printf "- %s (%s)\n", $$3, $$2 \
-	}' $< | sort -k2 | uniq >> $@
-
-changes: $(RELEASE_NOTES)
-	@echo "Release notes generated: $(RELEASE_NOTES)"
-
-version-changes: $(CHANGE_RAW)
-	@cut -d'|' -f1 $< | sort -V | uniq | tail -n1 | sed 's/^/v/'
+version-changes:
+	@python3 scripts/changes.py --version

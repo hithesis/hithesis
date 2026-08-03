@@ -65,6 +65,57 @@ jobs:
         run: make -C examples/hitart/reportplus report
 
   # ============================================================
+  # 跨平台编译：模板本身在 macOS / Windows 上还编不编得出来。
+  #    只跑 TL latest，不铺六个版本——版本维度由上面的矩阵覆盖，
+  #    这里要覆盖的是平台维度（字体查找、gs 调用、路径处理）。
+  #    用 latexmk 而不是 make：latexmk 随 TeX Live 走，三平台都有。
+  #    刚加上，还没有任何数据，先不阻断；跑稳几轮再收紧。
+  # ============================================================
+  cross-platform:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: TeX-Live/setup-texlive-action@v4
+        with:
+          version: latest
+          package-file: .github/tl_packages
+
+      - name: Install ghostscript (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ghostscript
+
+      - name: Install ghostscript (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ghostscript --no-progress -y
+
+      - name: Generate cls files
+        run: latex -interaction=nonstopmode hithesis.ins
+
+      - name: Build Chinese thesis
+        working-directory: examples/hitbook/chinese
+        run: latexmk -xelatex -interaction=nonstopmode thesis.tex
+
+      - name: Build English thesis
+        working-directory: examples/hitbook/english
+        run: latexmk -xelatex -interaction=nonstopmode thesis.tex
+
+      - name: Build report
+        working-directory: examples/hitart/reports
+        run: latexmk -xelatex -interaction=nonstopmode report.tex
+
+      - name: Build reportplus
+        working-directory: examples/hitart/reportplus
+        run: latexmk -xelatex -interaction=nonstopmode report.tex
+
+  # ============================================================
   # L2 变体矩阵，看 42 种 \documentclass 选项组合还能不能编出来。
   #    全量跑，实测三分钟左右，没必要再分快慢集。
   # ============================================================
