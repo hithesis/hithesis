@@ -15,7 +15,9 @@
 | `tests/current/` | ❌ | 本次编译渲染出的 PNG |
 | `tests/baseline/` | ❌ | 本地 PNG 基线，约 53 MB，太大不入库 |
 | `tests/diff/` | ❌ | ImageMagick 生成的差异图 |
-| `target/regression-cache/` | ❌ | 回归测试下载的历史 release |
+| `tests/doc-baseline/` | ❌ | 手册 PDF 的对照基线 |
+| `tests/doc-current/` | ❌ | 本次编出的手册 PDF |
+| `target/regression-cache/` | ❌ | 回归测试下载的参照版本源码 |
 
 ## 变体定义
 
@@ -48,8 +50,19 @@ bash tools/compile-variant.sh 07-master-harbin
 # 与上一个正式 release 逐页比对，发版前跑，逐个人工确认
 make regression-test
 python3 scripts/regression_test.py --quick          # 只跑 tests/quick-set.txt 里的
-python3 scripts/regression_test.py --against v3.1e  # 指定参照版本
+python3 scripts/regression_test.py --against v3.1e  # 指定 tag
+python3 scripts/regression_test.py --against dev    # 指定分支
 ```
+
+手册（`hithesis.pdf`）不在上面这套里，它有单独一条：
+
+```sh
+make doc-baseline   # 动手改之前存一份
+make doc-check      # 改完重编，与基线逐页比
+```
+
+参照的是改动前的自己，所以只能在本地跑，CI 取不到"改动前"的状态。要注意手册会把源码
+连同行号一起排印，改代码必然让行号位移、索引重排，所以只有纯文档类改动才该期望零差异。
 
 `NPROC` 控制并发，默认 8：
 
@@ -62,10 +75,16 @@ NPROC=4 make smoke
 本地 PNG 基线（`make baseline` + `make smoke`）拿自己改动前的工作树作参照，改 dtx 时
 自检用，跑得快。基线是本地生成的，换台机器得重做，也没法共享。
 
-历史 release（`scripts/regression_test.py`）拿上一个正式发布版作参照。它下载 release
-附带的模板 zip，用里面那一版的 `.cls` 在同一套 TeX Live 环境重编一遍，再和当前工作树的
-输出逐页比。两侧环境相同，比出来的差异就只可能来自模板改动，TeX Live 自身升级造成的
-变化不会掺进来。CI 用的是这一种。
+另一个版本（`scripts/regression_test.py`）拿别的 tag 或分支作参照。它下载那个 ref 的
+源码存档，在里面跑一遍 `make cls` 生成那一版的 `.cls`，用同一套 TeX Live 环境重编，
+再和当前工作树的输出逐页比。两侧环境相同，比出来的差异就只可能来自模板改动，TeX Live
+自身升级造成的变化掺不进来。CI 用的是这一种。
+
+参照物取源码存档而不是 release 挂的 zip 资产：资产是人手动传的，传错了工具照样一片绿。
+zipball 由 GitHub 按 ref 生成，搞不错。
+
+参照哪个 ref 按分支定：`modularity` 是纯重构分支，比 `dev`，正确结果是零差异，CI 上有
+差异直接阻断；其它分支比最近一个正式 release，看的是相对发布版改了什么。
 
 ## 日期得钉死
 

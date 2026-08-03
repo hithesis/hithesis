@@ -1,219 +1,218 @@
 # 贡献指南
 
-感谢有意参与 HIThesis 的维护与改进。自模块化以后，开发流程得以大幅优化，我们不再需要在一个代码彼此耦合、交错复杂的巨无霸 `.dtx` 里抓耳挠腮，而是可以按模块去定位问题，依靠代码目录去快速跳转。近期窝工掌门群里人手大增，我们也许有足够的人马去解决积压已久的历史包袱了！
-
-本文记录了贡献者在动手前需要了解的项目结构、开发约定与提交流程。文档面向**代码贡献者**（修 bug、加功能、改文档结构）。仅作为模板用户提交 issue 或反馈样式问题不必须阅读本文。
+本文写给要改代码的人：修 bug、加功能、调整文档结构。只是提 issue 或反馈样式问题的模板用户不必读。
 
 ---
 
-## 1. 项目结构速览
+## 1. 项目结构
 
 ```
 hithesis/
-├── hithesis.dtx          <- 主源文件（模块化代码、用户手册、bst/ist）
+├── hithesis.dtx          <- 主源文件：类文件实现、bst、ist
+├── hithesis-doc.dtx      <- 用户手册
 ├── hithesis-eps.dtx      <- EPS 图像数据（校徽、封面、示例插图）
 ├── hithesis.ins          <- docstrip 驱动文件
 ├── Makefile              <- 构建入口
 ├── latexmkrc             <- latexmk 配置
 ├── dtx-toc.py            <- dtx 结构扫描工具
-├── README.md
-├── CONTRIBUTING.md       <- 本文
+├── scripts/              <- 打包、依赖清单、回归测试、changes 提取
+├── tools/                <- 排版测试脚本
+├── tests/                <- 变体定义与测试说明
 ├── examples/
 │   ├── hitbook/{chinese,english}/   <- 毕业论文示例
 │   └── hitart/{reports,reportplus}/ <- 开题/中期/博士中期示例
 └── .github/              <- Issue / PR 模板、CI 配置
 ```
 
-构建产物（`*.cls`、`*.cfg`、`*.bst`、`*.ist`、`modules/*.sty`、`*.eps`、`*.pdf`）均由源文件生成，**禁止进版本库**。
+构建产物（`*.cls`、`*.cfg`、`*.bst`、`*.ist`、`*.eps`、`*.pdf`）都由源文件生成，不进版本库。
 
 ## 2. 开发环境
 
 | 工具 | 用途 | 必需性 |
 |---|---|---|
-| TeX Live ≥ 2024 | 编译模板与示例 | 必需 |
-| Python 3.6+ | 跑 `dtx-toc.py`，生成代码目录 | 必需 |
+| TeX Live ≥ 2021 | 编译模板与示例 | 必需 |
+| Python 3.8+ | dtx-toc、changes 提取、回归测试、变体编译 | 必需 |
 | Make | 走 Makefile | 推荐 |
+| Ghostscript | 排版比对时把 PDF 渲染成 PNG | 跑测试才需要 |
+| ImageMagick | 生成逐页差异图 | 可选 |
+
+测试脚本用 bash 写，只保证在 Linux 和 macOS 下可执行。Windows 下走 WSL 或 Git Bash。
 
 ### 常用命令
 
 ```shell
-make cls          # 从 dtx + ins 生成所有 cls/cfg/sty/bst/ist/eps
+make cls          # 从 dtx + ins 生成 cls/cfg/bst/ist/eps
 make doc          # 编译用户手册 hithesis.pdf
-make toc          # 打印 dtx 模块结构到 stdout
-make toc-update   # 把模块结构写回 dtx 顶部的 TOC 块（幂等）
-make clean        # 清理所有生成产物
-make distclean    # clean + 删发行 zip
+make toc          # 打印 dtx 结构到 stdout
+make toc-update   # 把结构写回 dtx 顶部的 TOC 块（幂等）
+make clean        # 清理生成产物
+make changes      # 从 \changes 生成 RELEASE_NOTES.md
+```
+
+测试相关：
+
+```shell
+make baseline        # 42 个变体全编一遍，渲染结果存成本地基线
+make smoke           # 重编并与本地基线逐页比
+make regression-test # 与参照版本逐页比，发版前跑
+make doc-baseline    # 改动前存一份手册 PDF
+make doc-check       # 改完与之比对
 ```
 
 在示例目录里：
 
 ```shell
-cd examples/hitbook/chinese
-make thesis       # 编译示例论文 thesis.pdf
-
-cd examples/hitart/reports
-make report       # 编译示例报告 report.pdf
+cd examples/hitbook/chinese && make thesis
+cd examples/hitart/reports  && make report
 ```
 
-## 3. dtx 与模块导航
+## 3. dtx 导航
 
-主源 `hithesis.dtx` 按 docstrip 守卫块（Guard Block）划分。**先跑 `make toc` 看全貌**：
+`hithesis.dtx` 按 docstrip 守卫块划分。动手前先跑 `make toc` 看全貌：
 
-```shell
-$ make toc
+```
 ==== Major sections ====
-  3196   artpluscls
-  3843   artcls
-  4886   bookcls
-  9472   dtx-style
+  2245  artpluscls
+  2879  artcls
+  3900  bookcls
 
 ==== Modules (first .. last; block count) ====
-   108   driver                   108-120 (1 block)
-  3196   artpluscls               3196-3835 (3 blocks)
-  3220   artplus-options          3220-3363 (1 block)
-  3392   artplus-deps             3392-3767 (7 blocks)
+  2253  artplus-options           2253-2395  (1 block)
+  2396  artpluscls-load           2396-2405  (1 block)
   ...
 ```
 
-两个看 `make toc` 输出时要知道的事：
+行号会随改动漂移，改完记得 `make toc-update` 刷新。
 
-- **跳转**：行号直接喂给编辑器即可定位（Vim `:N`、Emacs `M-g g`、VS Code `Ctrl+G`）。
-- **守卫块碎片化**：`(N blocks)` 列若 `N > 1`，表示该模块在 dtx 里被切成 N 段、与其他模块代码交替排布。例如 `art-deps (9 blocks)`——这是为了让各模块加载顺序与原始 cls 一致而有意拆开的，并非 bug，不要合并整理。
+`(N blocks)` 里 `N > 1` 表示这个区块在 dtx 里被切成 N 段、与别的区块交替排布。例如 `art-deps` 有 9 段，因为 `hyperlink` 和 `geometry` 要插在它中间才能保持原有的加载顺序。这是有意为之，不要合并整理。
 
-每个模块在 dtx 内部有 banner 注释：
+## 4. 硬性约定
 
-```
-% ^^A ======================================================================
-% ^^A Module book-options: 文档类选项的声明与后处理（type/campus/fontset 等）（book）
-% ^^A ======================================================================
-%<*book-options>
-```
+不遵守的 PR 不会被合并。
 
-dtx 顶部还有一段由 `make toc-update` 自动维护的静态 TOC，用 `% ^^A` 包裹，对 LaTeX 与 docstrip 均不可见。
+### 4.1 用户接口不得改变
 
-### 3.1 命名约定
-
-各处统一为 **cls 在前、职责在后**：
-
-| 类型 | 例子 | 模式 |
-|---|---|---|
-| 模块 docstrip 守卫 | `%<*book-options>` | `<cls>-<职责>` |
-| 模块文件名 | `hithesisbook-options.sty` | `hithesis<cls>-<职责>` |
-| `\ProvidesPackage` 标识 | `hithesisbook-options` | 同文件名 |
-| cls 守卫 | `%<*bookcls>` | `<cls>cls` |
-| cfg 守卫 | `%<*bookcfg>` | `<cls>cfg` |
-
-模块文件名前缀 `hithesis` 是 LaTeX 包惯例；其余字段顺序一律 cls 优先。共享资源（bst、ist、dtx-style 等）无 cls 后缀。
-
-## 4. 模块化的硬性约定
-
-下列原则贯穿整个 v3.2Z 架构。**不遵守的 PR 不会被合并。**
-
-### 4.1 用户接口绝对不得改变
-
-模板已有数千篇论文在用，任何 PR 不得改变：
+模板已有数千篇论文在用。任何 PR 不得改动：
 
 - `\documentclass` 接受的选项名与默认值
 - `\hitsetup{}` 接受的 key 名
 - 已对外暴露的命令名（`\inlinecite`、`\bicaption`、`\rcell` 等）
 - 已对外暴露的环境名（`cabstract`、`publist`、`appendix` 等）
 
-新增是允许的，**重命名/删除/默认值改动并非完全禁止**，但必须经过讨论或走完废弃期（如 §9 所述），可以开个 issue，列一下具体计划，深入讨论。
+新增是允许的。重命名、删除、改默认值并非完全禁止，但要先开 issue 讨论，或者走完 §9 的废弃期。
 
-### 4.2 book / art / artplus 三模板类完全独立
+### 4.2 book / art / artplus 三类完全独立
 
-三个 cls（毕业论文 / 开题中期 / 深圳博士中期）的代码物理隔离，由独立的 `*-book` / `*-art` / `*-artplus` 模块承载。即使内容相似也不跨 cls 共享。
+三个 cls（毕业论文 / 开题中期 / 深圳博士中期）的代码物理隔离，由各自的 `book-*` / `art-*` / `artplus-*` 区块承载。内容相似也不跨类共享。
 
-理由：三模板类理应对应三套学校规范，规范常各自演化，强行耦合会让某时期的碰巧相似在规范独立改变时维护难度增大。
+理由是三个类对应三套学校规范，各自演化。当下的碰巧相似会在规范独立变动时变成维护负担。
 
-例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）、`hithesis-eps.dtx` 是跨类共享的。
+例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hithesis-eps.dtx` 跨类共享。
 
-### 4.3 一个模块一个职责
+### 4.3 一个区块一个职责
 
-模块名应反映其唯一职责：
+区块名要能反映它唯一的职责：
 
 - √ `chapter-book` 只管 book 类的章节标题格式
 - √ `bib-book` 只管 book 类的参考文献加载与样式
-- x `floats-book` 兼管列表+定理+段落+引用
+- × `floats-book` 兼管列表、定理、段落、引用
 
-新加代码前问：**这段代码语义上属于哪个模块？**找到答案再写。若找不到，先考虑拆出新模块（参考 §5）。
+加代码前先问这段代码语义上属于哪个区块，找到答案再写。找不到就考虑拆一个新的出来，见 §5。
 
-### 4.4 `\ProvidesPackage` 必须是模块第一条非注释语句
+### 4.4 区块内不写 `\ProvidesPackage`
 
-每个 `%<*modname>` 块开头：
+v3.2a 起区块内容直接拼进 `.cls`，不再生成独立的 `.sty`。在类文件里写 `\ProvidesPackage` 会声明一个并不存在的宏包，日志里出现的身份信息也是假的。
+
+区块开头只写注释标识：
 
 ```
-%<*modname>
-\ProvidesPackage{hithesisX-modname}[0000/00/00 v3.2a hithesis-X modname]
-... 实际代码 ...
-%</modname>
+% ^^A ======================================================================
+% ^^A Module book-footnote: 脚注样式与编号（book）
+% ^^A ======================================================================
+%<*book-footnote>
+...实际代码...
+%</book-footnote>
 ```
-
-错位会让 `.log` 里 `Package: hithesisX-modname ...` 这条身份声明出现在该模块实际代码之后，错误信息排错时难以归位到正确的模块。
 
 ### 4.5 `\changes` 历史条目
 
-新增任何模块、迁移、显著语义变化，都要写 `\changes` 条目：
+新增区块、迁移代码、语义有明显变化，都要写 `\changes`：
 
 ```latex
-% \changes{v3.2a}{0000/00/00}{某模块从某处拆出至某处，理由}
+% \changes{v3.2a}{0000/00/00}{某段代码从某处迁到某处，理由}
 ```
 
-- 版本号 `v3.2a` 是当前开发版（合入 master 后由维护者改为正式版本）
-- 日期 `0000/00/00` 是占位符，正式发版时统一替换
-- 描述尽量要写**为什么**做这件事，不只是写做了什么
+- 版本号 `v3.2a` 是当前开发版，合入 master 后由维护者改成正式版本号
+- 日期填占位符 `0000/00/00`，发版时由 `scripts/changes.py --stamp` 统一替换成发布日期
+- 描述要写为什么这么做，不只写做了什么
 
-## 5. 新增模块的标准步骤
+## 5. 新增区块的步骤
 
-假设要新增 `bookcls` 的 `book-footnote` 模块（已存在，仅作示范）：
+以给 `bookcls` 加 `book-footnote` 为例（这个区块已经存在，仅作示范）：
 
-1. **在 dtx 中加守卫块** —— 选合适位置（按现有 cls 内部顺序），加：
+1. 在 dtx 里加守卫块。位置按现有 cls 的内部顺序选：
 
    ```
    % ^^A ======================================================================
    % ^^A Module book-footnote: 脚注样式与编号（book）
    % ^^A ======================================================================
    %<*book-footnote>
-   \ProvidesPackage{hithesisbook-footnote}[0000/00/00 v3.2a hithesis-book footnote]
    ...实际代码...
    %</book-footnote>
    ```
 
-2. **在 cls 加载点插入 `\RequirePackage{...}`** —— 在 dtx 对应 cls 块里（找到 `%<*bookcls>` 区域）：
-
-   ```latex
-   \RequirePackage{hithesisbook-footnote}
-   ```
-
-   **加载顺序敏感**：如果新模块依赖 enumitem/hyperref 等已在 `X-deps` 加载的包，要放在 X-deps **之后**。
-
-3. **在 `hithesis.ins` 加生成项**：
+2. 在 `hithesis.ins` 的对应 `\file{...book.cls}` 里插一条 `\from`：
 
    ```
-   \hitbookmod{footnote}     % 或 \hitartmod{} / \hitartplusmod{}
+   \from{\jobname.dtx}{book-footnote}
    ```
 
-4. **跑 `make cls` + `make toc-update`** —— 验证生成正常，自动刷新 dtx 顶部 TOC。
+   位置就是它要被执行的位置。docstrip 严格按 `\from` 的书写顺序输出，与守卫块在 dtx 里的位置无关。三处 `\file`（根目录、chinese、english）都要改。
 
-5. **本地编译验证** —— 至少跑过受影响 cls 的示例（`make thesis` / `make report`），确认无 LaTeX 报错、PDF 渲染正常。
+   加载顺序敏感：如果新区块依赖 enumitem、hyperref 这些已在 `X-deps` 里加载的包，`\from` 要排在 `X-deps` 之后。
 
-6. **如果是用户可见的功能改动**，更新手册 `\subsection{模块说明}` 表格（dtx 内）。
+3. `make cls` 生成，`make toc-update` 刷新 TOC。
 
-## 6. 修改现有模块
+4. 编译验证：至少跑一遍受影响 cls 的示例，确认没有 LaTeX 报错、PDF 渲染正常。
 
-不涉及新模块的改动（修 bug、调样式、迁移代码）：
+5. 跑排版比对，见 §6。
 
-1. 用 `make toc` 定位目标模块
-2. 改代码，加 `\changes{下一个版本}{0000/00/00}{...}` 条目
-3. 跑 `make cls` 重新生成
-4. 编译受影响 cls 的示例验证
-5. `make toc-update`（如果改动影响行号，自动刷新静态 TOC）
+## 6. 改动的验证
+
+排版类改动一律要过比对，光"能编译"不算数。
+
+改动前先存基线：
+
+```shell
+make baseline      # 42 个变体
+make doc-baseline  # 手册
+```
+
+改完之后：
+
+```shell
+make smoke      # 42 个变体与基线逐页比
+make doc-check  # 手册与基线逐页比
+```
+
+纯重构（只挪代码、不改行为）的验收标准是零差异。有意的样式调整则要逐页确认差异是否符合预期，`tests/diff/` 下有标红的差异图。
+
+手册有一点要注意：它会把源码连同行号一起排印，所以改代码必然让行号位移、索引重排。只有纯文档类改动才该期望 `make doc-check` 零差异。
+
+CI 会在推送后跑这几项：
+
+| 检查 | 内容 |
+|---|---|
+| TeX Live 矩阵 | 2021–2026 六个版本各编一遍文档与四个示例 |
+| 跨平台 | macOS 与 Windows 上编译示例 |
+| 变体矩阵 | 42 种 `\documentclass` 选项组合 |
+| 排版回归 | 与参照版本逐页比对，差异出报告与截图 |
+
+细节见 [tests/README.md](tests/README.md)。
 
 ## 7. 提交规范
 
 ### 7.1 commit 消息
-
-格式：
 
 ```
 <前缀>: <一句话摘要>
@@ -221,105 +220,88 @@ dtx 顶部还有一段由 `make toc-update` 自动维护的静态 TOC，用 `% ^
 详细说明：改了什么、为什么、影响范围、验证结果。
 ```
 
-前缀建议：
+前缀用区块名（`floats-book:`、`glossary-art:`）或类别（`docs:`、`build:`、`fix:`、`feat:`）。
 
-- 模块名前缀：`floats-book:` / `glossary-art:`
-- 类别前缀：`docs:` / `build:` / `fix:` / `feat:`
+### 7.2 不要提交
 
-### 7.2 严禁出现的内容
-
-- 包含临时调试代码
-- 直接拷贝其他模板代码而未注明出处与许可
+- 临时调试代码
+- 未注明出处与许可的、从别的模板拷来的代码
 
 ### 7.3 commit 粒度
 
-- 一个 commit 尽量一件事，方便 reviewer 逐 commit 审
+- 一个 commit 一件事，方便逐 commit 审
 - 大重构按阶段分多个 commit
-- 跨模块 / 跨 cls 的批量改动允许放在一个 commit，但要在 commit 消息中明确列出涉及的模块
+- 跨区块的批量改动可以放一个 commit，但要在消息里列出涉及范围
 
-## 8. 分支与 PR 流程
+## 8. 分支与 PR
 
 ### 8.1 分支
 
-- 维护者主仓库（upstream/hithesis/hithesis）的 `master` 是稳定分支
-- `dev` 是开发分支，维护者从此处合入新版本
-- 协作者从 `dev` 派生 feature 分支：`feature/<topic>` 或简短描述
+- `master` 是稳定分支
+- `dev` 是开发分支，维护者从这里合入新版本
+- `modularity` 是重构分支，参照物是 `dev`，要求排版零差异
+- 协作者从 `dev` 派生 `feature/<topic>`
 
-### 8.2 PR 流程
+### 8.2 流程
 
 ```shell
-# 1. fork 后克隆你的 fork
+# fork 后克隆自己的 fork
 git clone https://github.com/<you>/hithesis.git
 cd hithesis
 git remote add upstream https://github.com/hithesis/hithesis.git
 
-# 2. 从最新 dev 派生分支
+# 从最新 dev 派生分支
 git fetch upstream
 git checkout -b feature/my-topic upstream/dev
 
-# 3. 改 -> commit -> push 到自己 fork
+# 改完推到自己 fork，再开 PR
 git push -u origin feature/my-topic
-
-# 4. 开 PR
 ```
 
-**禁止**：
+不要直推 `upstream/master`，不要对 `upstream` 任何分支 `git push --force`，不要把 feature 分支推成 master。有写权限也走 PR，不绕过 review。
 
-- 直推 `upstream/master`
-- `git push --force` 到 `upstream` 任意分支
-- 把 `feature/X` 推成 `master`
+### 8.3 PR 里要写
 
-如果有写权限，也走 PR 流程，不要绕过 review。
-
-### 8.3 PR 需要包含
-
-- 一句话说明：解决了什么问题
-- 关键改动列表（按模块或 commit）
-- 用户接口影响声明：是零影响还是有可见变化
-- 本地验证结果：跑过哪些示例、是否 PDF 渲染正常
-- 截图或 PDF 链接（如果改动影响渲染）
+- 一句话说明解决了什么问题
+- 关键改动列表
+- 用户接口影响：零影响还是有可见变化
+- 验证结果：跑过哪些示例、比对结果如何
+- 影响渲染的话附截图或 PDF
 
 ## 9. 演进策略
 
-### 9.1 加新选项 / 命令
+### 9.1 加新选项或命令
 
-允许，但要符合：
-
-- 默认值保持旧行为
-- 文档（手册或 thesis.tex 注释）说明用途
-- 加 `\changes` 条目
+允许，条件是：默认值保持旧行为、文档说明用途、加 `\changes` 条目。
 
 ### 9.2 移除老接口
 
-需要走废弃期：
+走三段废弃期：
 
-1. **可选期**—— 新接口可用，旧接口保留，文档提示推荐新接口
-2. **默认切换**—— 默认改为新接口，旧接口保留为兼容选项
-3. **彻底移除**（breaking change）—— 删旧代码
+1. 可选期：新接口可用，旧接口保留，文档提示推荐新接口
+2. 默认切换：默认改为新接口，旧接口保留为兼容选项
+3. 彻底移除：删旧代码，属于 breaking change
 
-具体计划需要深入讨论，依情况而定。
+具体计划依情况讨论。
 
-### 9.3 跨 cls 改动
+### 9.3 跨类改动
 
-如果一个改动对 book/art/artplus 都适用，**必须三处同步**。
+一个改动对 book/art/artplus 都适用时，三处必须同步。
 
-## 10. 常见问题
+## 10. 常见陷阱
 
-| 陷阱 | 现象 | 解决 |
+| 陷阱 | 现象 | 处理 |
 |---|---|---|
-| hyperref 加载顺序 | 引用/书签锚点错乱 | `hyperref` 已在 `X-deps` 内部精确位置加载，不要在其他模块重新加载 |
-| enumitem 覆盖 cft* 长度 | 目录间距异常 | X-toc 模块必须在 X-deps 之后加载 |
-| `\ProvidesPackage` 错位 | 模块 .log 输出乱 | 必须放在 `%<*modname>` 紧后第一行非注释语句 |
-| docstrip 守卫缺失 | 模块代码漏进其他文件 | 每个 `%<*X>` 必须有匹配的 `%</X>` |
-| `\changes` 漏写 | 看不到历史脉络 | 任何语义变化都加，包括迁移、重命名、删除 |
+| hyperref 加载顺序 | 引用、书签锚点错乱 | hyperref 已在 `X-deps` 内部的精确位置加载，别在其他区块重新加载 |
+| enumitem 覆盖 cft* 长度 | 目录间距异常 | `X-toc` 的 `\from` 要排在 `X-deps` 之后 |
+| `\from` 顺序写错 | 宏未定义、样式失效 | docstrip 按 `\from` 顺序输出，不按守卫块在 dtx 里的位置 |
+| 区块内残留 `\ProvidesPackage` | 日志里出现不存在的宏包 | 区块拼进 cls，不该有包身份声明 |
+| 守卫缺失 | 代码漏进别的文件 | 每个 `%<*X>` 都要有配对的 `%</X>` |
+| `\changes` 漏写 | 看不到历史脉络 | 迁移、重命名、删除都要写 |
 
-## 11. 找谁帮助
+## 11. 求助
 
-- **GitHub Issues** —— https://github.com/hithesis/hithesis/issues
-- **QQ 群** —— 见 README.md
+- GitHub Issues：https://github.com/hithesis/hithesis/issues
+- QQ 群：见 README.md
 
-提问前请先 `make toc` 看模块结构、`grep` 一下 dtx 看是否已有类似实现。
-
----
-
-**HIThesis 已经被千余学生用着，每一次 PR 都可能影响他们的论文。**保守、可回滚、可验证**，是这个项目的核心原则。**
+提问前先 `make toc` 看结构，`grep` 一下 dtx 看有没有类似实现。
