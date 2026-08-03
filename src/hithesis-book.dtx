@@ -1103,6 +1103,9 @@
 %    \begin{macrocode}
 %<*book-pagestyle>
 % \changes{v3.2a}{0000/00/00}{pagestyle 模块抽取后，fancyhdr 需提前加载}
+% \changes{v3.2a}{0000/00/00}{book-pagestyle 的条件树改用 expl3。页眉横线与本科
+%   页脚这两块内容留在 expl3 之外定义成宏：它们的花括号后换行会产生一个空格
+%   记号，\cs{ExplSyntaxOn} 下会消失，见 CONTRIBUTING §4.6。}
 \RequirePackage{fancyhdr}
 \let\hit@headrule\headrule
 \fancypagestyle{hit@empty}{%
@@ -1123,110 +1126,20 @@
   \renewcommand{\footrulewidth}{0pt}
 }
 %    \end{macrocode}
-% 
-% \changes{v3.1d}{2025/03/03}{定义页脚中横线与页码的距离。\issue[172]}
-% 哈尔滨本科页脚的横线与页码的间距比原来的打，用判断来控制。
-%    \begin{macrocode}
-\newlength\hit@pagenumber@sep
-\ifboolexpr{bool {hit@harbin} and bool {hit@bachelor}}
-{\setlength\hit@pagenumber@sep{.3333333em}}
-{\setlength\hit@pagenumber@sep{.1666667em}}
-%    \end{macrocode}
 %
-% 此处根据本科生模板的多种版本，提供选项自定义页码、页眉样式。
-% \changes{v1.0.15}{2018/06/05}{添加控制本科论文的页码横线选项}
-% \changes{v1.0.15}{2018/06/05}{删除冗余的页面格式}
+% 页眉那条粗细双线三处都一样，本科页脚的页码格式只此一处。两块都含花括号后
+% 换行产生的空格记号，所以留在 expl3 之外原样定义。
 %    \begin{macrocode}
-\fancypagestyle{hit@headings}{%
-  \fancyhf{}
-  \ifhit@english
-    \fancyhead[C]{\xiaowu[0]\leftmark}
-    \fancyfoot[C]{\xiaowu-~\thepage~-}
-    \renewcommand{\headrule}{
+\def\hit@book@headrule{%
+  \renewcommand{\headrule}{
       \vskip 1.190132pt
       \hrule\@height2.276208pt\@width\headwidth
       \vskip 0.75pt
       \hrule\@height.75pt\@width\headwidth
-    }
-  \else
-%    \end{macrocode}
-%
-% 添加英文版页眉格式控制
-% \changes{v3.0.0}{2020/05/21}{添加英文版页眉格式控制}
-%    \begin{macrocode}
-  \ifhit@postdoc
-%    \end{macrocode}
-%
-% 添加博后页眉控制
-% \changes{v3.0.0}{2020/05/21}{添加博后页眉控制}
-%    \begin{macrocode}
-  \fancyhead[CO]{\songti\xiaowu[0]\leftmark}
-  \fancyhead[CE]{\songti\xiaowu[0]\hit@cschoolname\hit@postdoc@documenttitlenospace}
-  \fi
-  \ifhit@doctor
-  \fancyhead[CO]{\songti\xiaowu[0]\leftmark}
-%    \end{macrocode}
-%
-% \changes{v3.1b}{2022/06/06}{本部硕博页眉中不再包含学科。}
-% \changes{v3.1d}{2025/03/03}{根据 \issue[222] 修改深圳博士的页眉}
-%    \begin{macrocode}
-      \ifhit@harbin
-        \fancyhead[CE]{\songti\xiaowu[0]\hit@cschoolname\hit@cxuewei\hit@cthesisname}
-      \fi
-      \ifhit@shenzhen
-        \fancyhead[CE]{\songti\xiaowu[0]\hit@cschoolname\ifhit@doctor\else\hit@shenzhencampus\fi\hit@cdegree\hit@cthesisname}
-      \fi
-      \ifhit@weihai
-        \fancyhead[CE]{\songti\xiaowu[0]\hit@cschoolname\hit@weihaicampus\hit@cdegree\hit@cthesisname}
-      \fi
-    \else
-      \ifhit@master
-        \ifhit@harbin
-%    \end{macrocode}
-%
-% \changes{v3.1b}{2022/06/06}{本部硕博页眉中不再包含学科。}
-%    \begin{macrocode}
-          \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@cxuewei\hit@cthesisname}
-        \fi
-        \ifhit@shenzhen
-%    \end{macrocode}
-%
-% 根据窝工2020年深圳校区新规定，mainmatter之前都用正文内容作为页眉，之后都用哈尔
-% 滨工业大学作为页眉
-% \changes{v3.0.10}{2020/10/28}{根据窝工2020年深圳校区新规定，mainmatter之前都用正文内容作为页眉，之后都用哈尔
-% 滨工业大学作为页眉}
-%    \begin{macrocode}
-          \if@mainmatter
-            \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@cdegree\hit@cthesisname}
-          \else
-            \fancyhead[C]{\xiaowu[0]\leftmark}
-          \fi
-        \fi
-        \ifhit@weihai
-          \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@weihaicampus\hit@cdegree\hit@cthesisname}
-        \fi
-      \fi
-    \fi
-    \ifhit@bachelor
-      \ifhit@harbin
-        \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@bachelor@cxuewei\hit@bachelor@cthesisname}%
-      \fi
-      \ifhit@shenzhen
-        \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@shenzhencampus\hit@bachelor@cxuewei\hit@bachelor@cthesisname}%
-      \fi
-      \ifhit@weihai
-        \ifhit@bachelor
-%    \end{macrocode}
-%
-% 此处设置威海本科页眉与本部一样，窝工三个校区规范怎么这么乱？？？
-% \changes{v3.0.01}{2020/06/06}{此处设置威海本科页眉与本部一样，窝工三个校区规范怎么这么乱？？？}
-%    \begin{macrocode}
-          \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@bachelor@cxuewei\hit@bachelor@cthesisname}%
-        \else
-          \fancyhead[C]{\songti\xiaowu[0]\hit@cschoolname\hit@weihaicampus\hit@bachelor@cxuewei\hit@bachelor@cthesisname}%
-        \fi
-      \fi
-      \fancyfoot[C]{
+    }%
+}
+\def\hit@book@bachelorfoot{%
+  \fancyfoot[C]{
         \xiaowu
         \if@mainmatter
           \ifhit@bsmainpagenumberline
@@ -1241,39 +1154,162 @@
             \thepage%
           \fi
         \fi
-        }
-      \ifhit@bsheadrule
-        \renewcommand{\headrule}{
-        \vskip 1.190132pt
-        \hrule\@height2.276208pt\@width\headwidth
-        \vskip 0.75pt
-        \hrule\@height.75pt\@width\headwidth
-        }
-      \else
-        \renewcommand{\headrulewidth}{0pt}
-      \fi
-    \else
-      \fancyfoot[C]{\xiaowu-~\thepage~-}
-      \renewcommand{\headrule}{
-      \vskip 1.190132pt
-      \hrule\@height2.276208pt\@width\headwidth
-      \vskip 0.75pt
-      \hrule\@height.75pt\@width\headwidth
-      }
-    \fi
+        }%
+}
+%    \end{macrocode}
+% 
+% \changes{v3.1d}{2025/03/03}{定义页脚中横线与页码的距离。\issue[172]}
+% 哈尔滨本科页脚的横线与页码的间距比原来的大，用判断来控制。
+%    \begin{macrocode}
+\newlength\hit@pagenumber@sep
+\ExplSyntaxOn
+\bool_lazy_and:nnTF
+  { \legacy_if_p:n { hit@harbin } }
+  { \legacy_if_p:n { hit@bachelor } }
+  { \setlength \hit@pagenumber@sep { .3333333em } }
+  { \setlength \hit@pagenumber@sep { .1666667em } }
 %    \end{macrocode}
 %
-% 添加一校三区的学校名
-% \changes{v2.1.0}{2020/03/07}{此处添加校区选项}
+% 此处根据本科生模板的多种版本，提供选项自定义页码、页眉样式。
+% \changes{v1.0.15}{2018/06/05}{添加控制本科论文的页码横线选项}
+% \changes{v1.0.15}{2018/06/05}{删除冗余的页面格式}
+% \changes{v3.0.0}{2020/05/21}{添加英文版页眉格式控制}
+% \changes{v3.0.0}{2020/05/21}{添加博后页眉控制}
+% \changes{v3.1b}{2022/06/06}{本部硕博页眉中不再包含学科。}
+% \changes{v3.1d}{2025/03/03}{根据 \issue[222] 修改深圳博士的页眉}
+% \changes{v3.0.10}{2020/10/28}{根据窝工2020年深圳校区新规定，mainmatter之前都用正文内容作为页眉，之后都用哈尔滨工业大学作为页眉}
+% \changes{v3.0.01}{2020/06/06}{此处设置威海本科页眉与本部一样}
 %    \begin{macrocode}
-  \fi
-  % 此处可能和word模板不一致
-  % 页眉中小五汉字，0行距时，占用9bt，页眉高度为14pt, 所以以下数字之和要保持等于14pt-9bt=4.96634pt
-  % 根据PlutoThesis模板中rule宽度定义为2.25， 0.75， 保持粗线和细线之间的间距为细线宽度。
-  % 如果页眉是多行的情况，rule向下溢出
-  \renewcommand{\footrulewidth}{0pt}
-}
-\AtBeginDocument{%此处解决页眉经典bug
+\fancypagestyle { hit@headings }
+  {
+    \fancyhf { }
+    \legacy_if:nTF { hit@english }
+      {
+        \fancyhead [ C ] { \xiaowu [ 0 ] \leftmark }
+        \fancyfoot [ C ] { \xiaowu - \nobreakspace \thepage \nobreakspace - }
+        \hit@book@headrule
+      }
+      {
+        \legacy_if:nT { hit@postdoc }
+          {
+            \fancyhead [ CO ] { \songti \xiaowu [ 0 ] \leftmark }
+            \fancyhead [ CE ]
+              { \songti \xiaowu [ 0 ] \hit@cschoolname \hit@postdoc@documenttitlenospace }
+          }
+        \legacy_if:nTF { hit@doctor }
+          {
+            \fancyhead [ CO ] { \songti \xiaowu [ 0 ] \leftmark }
+            \legacy_if:nT { hit@harbin }
+              {
+                \fancyhead [ CE ]
+                  { \songti \xiaowu [ 0 ] \hit@cschoolname \hit@cxuewei \hit@cthesisname }
+              }
+            \legacy_if:nT { hit@shenzhen }
+              {
+                \fancyhead [ CE ]
+                  {
+                    \songti \xiaowu [ 0 ] \hit@cschoolname
+                    \ifhit@doctor \else \hit@shenzhencampus \fi
+                    \hit@cdegree \hit@cthesisname
+                  }
+              }
+            \legacy_if:nT { hit@weihai }
+              {
+                \fancyhead [ CE ]
+                  {
+                    \songti \xiaowu [ 0 ] \hit@cschoolname \hit@weihaicampus
+                    \hit@cdegree \hit@cthesisname
+                  }
+              }
+          }
+          {
+            \legacy_if:nT { hit@master }
+              {
+                \legacy_if:nT { hit@harbin }
+                  {
+                    \fancyhead [ C ]
+                      { \songti \xiaowu [ 0 ] \hit@cschoolname \hit@cxuewei \hit@cthesisname }
+                  }
+                \legacy_if:nT { hit@shenzhen }
+                  {
+                    \legacy_if:nTF { @mainmatter }
+                      {
+                        \fancyhead [ C ]
+                          {
+                            \songti \xiaowu [ 0 ] \hit@cschoolname \hit@cdegree
+                            \hit@cthesisname
+                          }
+                      }
+                      { \fancyhead [ C ] { \xiaowu [ 0 ] \leftmark } }
+                  }
+                \legacy_if:nT { hit@weihai }
+                  {
+                    \fancyhead [ C ]
+                      {
+                        \songti \xiaowu [ 0 ] \hit@cschoolname \hit@weihaicampus
+                        \hit@cdegree \hit@cthesisname
+                      }
+                  }
+              }
+          }
+        \legacy_if:nTF { hit@bachelor }
+          {
+            \legacy_if:nT { hit@harbin }
+              {
+                \fancyhead [ C ]
+                  {
+                    \songti \xiaowu [ 0 ] \hit@cschoolname \hit@bachelor@cxuewei
+                    \hit@bachelor@cthesisname
+                  }
+              }
+            \legacy_if:nT { hit@shenzhen }
+              {
+                \fancyhead [ C ]
+                  {
+                    \songti \xiaowu [ 0 ] \hit@cschoolname \hit@shenzhencampus
+                    \hit@bachelor@cxuewei \hit@bachelor@cthesisname
+                  }
+              }
+%    \end{macrocode}
+% 威海本科页眉与本部一样。里层这个 \opt{bachelor} 判断在外层已经成立，
+% 恒取真支，保留是为了与改动前逐字对应。
+%    \begin{macrocode}
+            \legacy_if:nT { hit@weihai }
+              {
+                \legacy_if:nTF { hit@bachelor }
+                  {
+                    \fancyhead [ C ]
+                      {
+                        \songti \xiaowu [ 0 ] \hit@cschoolname \hit@bachelor@cxuewei
+                        \hit@bachelor@cthesisname
+                      }
+                  }
+                  {
+                    \fancyhead [ C ]
+                      {
+                        \songti \xiaowu [ 0 ] \hit@cschoolname \hit@weihaicampus
+                        \hit@bachelor@cxuewei \hit@bachelor@cthesisname
+                      }
+                  }
+              }
+            \hit@book@bachelorfoot
+            \legacy_if:nTF { hit@bsheadrule }
+              { \hit@book@headrule }
+              { \renewcommand { \headrulewidth } { 0pt } }
+          }
+          {
+            \fancyfoot [ C ] { \xiaowu - \nobreakspace \thepage \nobreakspace - }
+            \hit@book@headrule
+          }
+      }
+    \renewcommand { \footrulewidth } { 0pt }
+  }
+\ExplSyntaxOff
+%    \end{macrocode}
+%
+% 此处解决页眉经典 bug。
+%    \begin{macrocode}
+\AtBeginDocument{%
   \pagestyle{hit@empty}
   \renewcommand{\chaptermark}[1]{\@mkboth{\CTEXthechapter\enspace#1}{}}}
 %</book-pagestyle>
