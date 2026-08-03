@@ -266,17 +266,24 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
 1. 生成论文格式文件(第一步要生成 *.cls，*.cfg，*.ist，然后再生成论文)
 
-   - 如果是Linux/Mac执行
+   - 推荐：一条命令生成并分发到各示例目录
+
+         make cls
+
+   - 没有 make 的话，直接调 TeX
 
          latex hithesis.ins
 
-   - 如果是Windows执行（作者没测试过，如遇问题同上）
+     这条命令只把生成物放在当前目录。示例目录是独立可用的，要把用到的那份类文件、
+     配置文件、`.bst` 与 `.eps` 复制过去，例如：
 
-         lualatex hithesis.ins
+         cp hithesisbook.cls hithesisbook.cfg hithesis.ist hithesis.bst \
+            hitszthesis.bst *.eps examples/hitbook/chinese/
+         cp golfer.eps examples/hitbook/chinese/figures/
 
-   - 如果喜欢玩 make
+   - 装了 TeX Live 的话也可以用 l3build（随 TeX 发行，三平台通用）
 
-         make cls
+         l3build unpack
 
 2. 生成好格式后，下一步进入到示例文件夹中
 
@@ -327,11 +334,11 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
    - 手动狙击（逐行命令输入一轮）
 
-         xelatex hithesis.dtx
+         xelatex src/hithesis.dtx
          makeindex -s gind.ist -o hithesis.ind hithesis.idx
          makeindex -s gglo.ist -o hithesis.gls hithesis.glo
-         xelatex hithesis.dtx
-         xelatex hithesis.dtx
+         xelatex src/hithesis.dtx
+         xelatex src/hithesis.dtx
 
    - 半自动精确射击（编译敲一次）
 

@@ -8,14 +8,18 @@
 
 ```
 hithesis/
-├── hithesis.dtx          <- 主源文件：类文件实现、bst、ist
-├── hithesis-doc.dtx      <- 用户手册
-├── hithesis-eps.dtx      <- EPS 图像数据（校徽、封面、示例插图）
-├── hithesis.ins          <- docstrip 驱动文件
-├── Makefile              <- 构建入口
+├── src/
+│   ├── hithesis.dtx      <- 入口：driver、三类共用的文件头、索引样式、dtx-style
+│   ├── hithesis-book.dtx <- 毕业论文类 hithesisbook 与它的 cfg
+│   ├── hithesis-art.dtx  <- 开题中期类 hithesisart、深圳博士中期类 hithesisartplus 与 cfg
+│   ├── hithesis-bst.dtx  <- 参考文献样式 hithesis.bst / hitszthesis.bst
+│   ├── hithesis-doc.dtx  <- 用户手册
+│   └── hithesis-eps.dtx  <- EPS 图像数据（校徽、封面、示例插图）
+├── hithesis.ins          <- docstrip 驱动文件，留在根目录：它的输出路径都相对于此
+├── build.lua             <- l3build 配置：unpack / doc / ctan
+├── Makefile              <- 构建与测试入口
 ├── latexmkrc             <- latexmk 配置
-├── dtx-toc.py            <- dtx 结构扫描工具
-├── scripts/              <- 打包、依赖清单、回归测试、changes 提取
+├── scripts/              <- 打包、依赖清单、回归测试、changes 提取、标点检查
 ├── tools/                <- 排版测试脚本
 ├── tests/                <- 变体定义与测试说明
 ├── examples/
@@ -31,8 +35,9 @@ hithesis/
 | 工具 | 用途 | 必需性 |
 |---|---|---|
 | TeX Live ≥ 2021 | 编译模板与示例 | 必需 |
-| Python 3.8+ | dtx-toc、changes 提取、回归测试、变体编译 | 必需 |
-| Make | 走 Makefile | 推荐 |
+| Python 3.8+ | changes 提取、标点检查、回归测试、变体编译 | 必需 |
+| Make | 走 Makefile 的测试目标 | 推荐 |
+| l3build | 构建与打包，随 TeX Live 发行 | 可选 |
 | Ghostscript | 排版比对时把 PDF 渲染成 PNG | 跑测试才需要 |
 | ImageMagick | 生成逐页差异图 | 可选 |
 
@@ -40,11 +45,12 @@ hithesis/
 
 ### 常用命令
 
+构建有两条等价路径。`make` 这条还负责把生成物分发到示例目录：
+
 ```shell
-make cls          # 从 dtx + ins 生成 cls/cfg/bst/ist/eps
+make cls          # 生成 cls/cfg/bst/ist/eps，并分发到四个示例目录
 make doc          # 编译用户手册 hithesis.pdf
-make toc          # 打印 dtx 结构到 stdout
-make toc-update   # 把结构写回 dtx 顶部的 TOC 块（幂等）
+make distribute   # 只做分发（cls 已经生成过时用）
 make clean        # 清理生成产物
 make changes       # 从 \changes 生成 RELEASE_NOTES.md
 make changes-check # 校验 \changes 的日期约定
@@ -61,6 +67,17 @@ make doc-baseline    # 改动前存一份手册 PDF
 make doc-check       # 改完与之比对
 ```
 
+l3build 这条随 TeX Live 发行，不依赖 make / bash，三平台原生：
+
+```shell
+l3build unpack    # 等价于 make cls 的生成部分，不含分发
+l3build doc       # 编译手册
+l3build ctan      # 打 CTAN 包（源码 + 手册，不含示例）
+l3build install   # 装进本地 TEXMFHOME
+```
+
+面向用户的完整模板包（含示例）由 `scripts/package.sh` 打，跟 CTAN 包是两个东西。
+
 在示例目录里：
 
 ```shell
@@ -70,23 +87,28 @@ cd examples/hitart/reports  && make report
 
 ## 3. dtx 导航
 
-`hithesis.dtx` 按 docstrip 守卫块划分。动手前先跑 `make toc` 看全貌：
+先按家族找文件，再在文件里按 docstrip 守卫找模块：
+
+| 要改什么 | 打开哪个 |
+|---|---|
+| 毕业论文的任何行为 | `src/hithesis-book.dtx` |
+| 开题、中期、深圳博士中期 | `src/hithesis-art.dtx` |
+| 参考文献样式 | `src/hithesis-bst.dtx` |
+| 用户手册文字 | `src/hithesis-doc.dtx` |
+| 类的公共文件头、索引样式 | `src/hithesis.dtx` |
+
+文件内用 `grep -n '%<\*book-' src/hithesis-book.dtx` 之类列出模块起点。模块用注释标出：
 
 ```
-==== Major sections ====
-  2245  artpluscls
-  2879  artcls
-  3900  bookcls
-
-==== Modules (first .. last; block count) ====
-  2253  artplus-options           2253-2395  (1 block)
-  2396  artpluscls-load           2396-2405  (1 block)
-  ...
+% ^^A ======================================================================
+% ^^A Module book-footnote: 脚注样式与编号（book）
+% ^^A ======================================================================
 ```
 
-行号会随改动漂移，改完记得 `make toc-update` 刷新。
+这些 `^^A` 行必须待在 macrocode 之外，否则会被当成代码原样印进手册。
 
-`(N blocks)` 里 `N > 1` 表示这个模块在 dtx 里被切成 N 段、与别的模块交替排布。例如 `art-deps` 有 9 段，因为 `hyperlink` 和 `geometry` 要插在它中间才能保持原有的加载顺序。这是有意为之，不要合并整理。
+同一个模块在 dtx 里可能被切成多段、与别的模块交替排布。例如 `art-deps` 有 9 段，因为
+`hyperlink` 和 `geometry` 要插在它中间才能保持原有的加载顺序。这是有意为之，不要合并整理。
 
 ## 4. 硬性约定
 
@@ -177,7 +199,7 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 
    加载顺序敏感：如果新模块依赖 enumitem、hyperref 这些已在 `X-deps` 里加载的包，`\from` 要排在 `X-deps` 之后。
 
-3. `make cls` 生成，`make toc-update` 刷新 TOC。
+3. `make cls` 生成。
 
 4. 编译验证：至少跑一遍受影响 cls 的示例，确认没有 LaTeX 报错、PDF 渲染正常。
 
@@ -310,4 +332,4 @@ git push -u origin feature/my-topic
 - GitHub Issues：https://github.com/hithesis/hithesis/issues
 - QQ 群：见 README.md
 
-提问前先 `make toc` 看结构，`grep` 一下 dtx 看有没有类似实现。
+提问前先按上面的表找到对应文件，`grep` 一下看有没有类似实现。
