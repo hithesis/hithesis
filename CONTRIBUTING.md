@@ -200,6 +200,35 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 日期格式必须 `YYYY/MM/DD`。本地跑 `make changes-check` 看结果，`make changes-fix` 自动修
 补零和写错的开发版日期。
 
+### 4.6 expl3 迁移
+
+底层实现正在逐模块迁到 expl3，对外接口不跟着变。
+
+**迁移单位是整个模块，不是单个语句。** expl3 的函数名带 `:` 和 `_`，这两个字符
+只有在 `\ExplSyntaxOn` 下才算字母，所以没法零散替换某一处写法，只能一个模块整体
+切过去，前后用 `\ExplSyntaxOn` / `\ExplSyntaxOff` 圈起来。
+
+**选项与标志位暂时不动。** 它们由 `kvoptions` 声明，属于用户接口，本轮不碰。
+模块内部要读旧标志位，用 expl3 的桥接函数：
+
+```latex
+\legacy_if:nTF { hit@debug } { 真 } { 假 }
+\bool_lazy_and:nnT { \legacy_if_p:n { hit@harbin } } { \legacy_if_p:n { hit@bachelor } } { ... }
+```
+
+**`\ExplSyntaxOn` 会吞掉源码里的空格。** 传给别的宏的字面文本里如果有意义的空格，
+要写成 `~`。已经踩到过：`text={150true mm}` 直接照抄会变成 `150truemm`。
+
+已迁移：`book-geometry`（试点，参见 `src/hithesis-book.dtx`）。
+
+迁移一个模块的验收：`l3build check` 全过，再挑几个走到该模块各分支的变体，与改动
+前的 PDF 逐字节比对。建参照用 `git worktree add --detach <目录> HEAD`，比在原地
+`git stash` 安全。
+
+命名向 fduthesis 与 BIThesis 看齐：内部函数 `\__hit_模块_动作:参数签名`，变量
+`\g__hit_描述_类型` / `\l__hit_描述_类型`。等有成规模的 expl3 代码之后再引入
+`l3docstrip` 的 `%<@@=hit>` 前缀替换，那之前先写全名。
+
 ## 5. 新增模块的步骤
 
 以给 `bookcls` 加 `book-footnote` 为例（这个模块已经存在，仅作示范）：
