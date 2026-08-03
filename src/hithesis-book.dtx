@@ -283,11 +283,21 @@
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{哈尔滨本科要求 \cmd{\frontmatter} 中的页脚也要有横线，希望以后会统一。\issue[172]}
+% \changes{v3.2a}{0000/00/00}{修正 \opt{bsfrontpagenumberline} 的条件默认值。
+%   原来把嵌套条件写在选项声明处，而那里在 \cs{ProcessKeyvalOptions} 之前执行，
+%   此时 campus 与 type 尚未解析、\opt{harbin} 与 \opt{bachelor} 被兜底逻辑置真，
+%   条件恒取第一支，任何组合下默认值都是 true。改为统一声明 false，选项解析完成
+%   后再按校区与学位补默认值，并记录用户是否显式设置过以免覆盖。}
+% 默认值要等 campus 与 type 解析完才能定，所以这里只声明，真正的默认值在
+% \cs{ProcessKeyvalOptions} 之后设置。\cs{hit@bsfront@given} 记录用户有没有
+% 显式写过这个选项，写过就不再套用默认值。
 %    \begin{macrocode}
-\ifhit@harbin\ifhit@bachelor
-  \DeclareBoolOption[true]{bsfrontpagenumberline}
-\else\DeclareBoolOption[false]{bsfrontpagenumberline}\fi
-\else\DeclareBoolOption[false]{bsfrontpagenumberline}\fi
+\DeclareBoolOption[false]{bsfrontpagenumberline}
+\newif\ifhit@bsfront@given
+\expandafter\let\expandafter\hit@bsfront@setkey
+  \csname KV@hit@bsfrontpagenumberline\endcsname
+\expandafter\def\csname KV@hit@bsfrontpagenumberline\endcsname#1{%
+  \hit@bsfront@giventrue\hit@bsfront@setkey{#1}}
 \DeclareBoolOption[true]{bsheadrule}
 %    \end{macrocode}
 %
@@ -333,6 +343,16 @@
     \hit@shenzhenfalse
     \hit@harbintrue
   \fi
+\fi
+%    \end{macrocode}
+%
+% 校区与学位这时才定下来，\opt{bsfrontpagenumberline} 的默认值在此补齐。
+% 用户显式设过就不动。
+%    \begin{macrocode}
+\ifhit@bsfront@given\else
+  \ifhit@harbin\ifhit@bachelor
+    \hit@bsfrontpagenumberlinetrue
+  \fi\fi
 \fi
 %    \end{macrocode}
 %
