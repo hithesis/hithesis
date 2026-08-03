@@ -1,0 +1,1930 @@
+% \iffalse meta-comment
+%
+% Copyright (C) 2017- by Yanshuo Chu <yanshuoc@gmail.com>
+%
+% This file may be distributed and/or modified under the
+% conditions of the LaTeX Project Public License, either version 1.3a
+% of this license or (at your option) any later version.
+% The latest version of this license is in:
+%
+% http://www.latex-project.org/lppl.txt
+%
+% and version 1.3a or later is part of all distributions of LaTeX
+% version 2004/10/01 or later.
+%
+% \fi
+%
+% ^^A ======================================================================
+% ^^A hithesis 的 art / artplus 家族实现
+% ^^A
+% ^^A 开题、中期报告（hithesisart）与深圳博士中期（hithesisartplus）两个类的
+% ^^A 全部代码，以及 art 类的配置文件 hithesisart.cfg。
+% ^^A
+% ^^A 三个类共用的文件头（\NeedsTeXFormat、\ProvidesClass 等）留在 hithesis.dtx，
+% ^^A hithesis.ins 里每个 \file 先从那里取头，再从本文件取实现。
+% ^^A ======================================================================
+%
+% ^^A ======================================================================
+% ^^A Module artpluscls: artplus 类主体（深圳博士中期报告专用）
+% ^^A ======================================================================
+% ^^A ======================================================================
+% ^^A Module artplus-options: 文档类选项的声明与后处理（type/campus/fontset 等）（artplus）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*artplus-options>
+%    \end{macrocode}
+%
+% 处理文档类选项
+%    \begin{macrocode}
+
+%% 处理文档类选项
+\RequirePackage{kvoptions}
+\SetupKeyvalOptions{
+  family=hit,
+  prefix=hit@,
+  setkeys=\kvsetkeys
+}
+
+\newif\ifhit@bachelor
+\newif\ifhit@master
+\newif\ifhit@doctor
+\define@key{hit}{type}{%
+  \hit@bachelorfalse
+  \hit@masterfalse
+  \hit@doctorfalse
+  \expandafter\csname hit@#1true\endcsname
+}
+
+\newif\ifhit@shenzhen
+\newif\ifhit@weihai
+\newif\ifhit@harbin
+\define@key{hit}{campus}{%
+  \hit@shenzhenfalse
+  \hit@weihaifalse
+  \hit@harbinfalse
+  \expandafter\csname hit@#1true\endcsname
+}
+\ifhit@weihai\relax\else
+  \ifhit@shenzhen\relax\else
+    \hit@harbintrue
+  \fi
+\fi
+
+\newif\ifhit@opening
+\newif\ifhit@midterm
+\define@key{hit}{stage}{%
+  \hit@openingfalse
+  \hit@midtermfalse
+  \expandafter\csname hit@#1true\endcsname
+}
+%    \end{macrocode}
+% \changes{v3.2a}{0000/00/00}{设置参考文献列表中的作者是否全大写和最大显示数量}
+% \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
+%    \begin{macrocode}
+
+\ExplSyntaxOn
+\bool_new:N \g_bib_authorupper_bool
+\bool_set_false:N \g_bib_authorupper_bool
+\define@key{hit}{bibauthorupper}{%
+  \str_if_eq:nnT {#1} {full} {
+    \bool_set_true:N \g_bib_authorupper_bool
+  }
+}
+
+\int_new:N \g_bib_maxauthor_int
+\int_set:Nn \g_bib_maxauthor_int {3}
+\define@key{hit}{bibmaxauthor}{%
+  \int_set:Nn \g_bib_maxauthor_int {#1}
+  \int_if_zero:nT {\g_bib_maxauthor_int} {
+    \int_gdecr:N \g_bib_maxauthor_int
+  }
+}
+
+\str_new:N \g_bib_labelalign_str
+\define@key{hit}{biblabelalign}{%
+  \str_set:Nn \g_bib_labelalign_str {#1}
+}
+\ExplSyntaxOff
+
+\DeclareStringOption{fontset}
+\DeclareDefaultOption{\PassOptionsToClass{\CurrentOption}{ctexart}}
+\PassOptionsToPackage{no-math}{fontspec}
+
+\ProcessKeyvalOptions*
+
+\ifhit@bachelor\relax\else
+  \ifhit@master\relax\else
+    \ifhit@doctor\relax\else
+      \ClassError{hithesisartplus}{%
+        \MessageBreak Please specify thesis type in option:
+        \MessageBreak type=[bachelor | master | doctor]
+      }
+    \fi
+  \fi
+\fi
+
+\ifhit@opening\relax\else
+  \ifhit@midterm\relax\else
+    \ClassError{hithesisartplus}{%
+      \MessageBreak Please specify stage in option:
+      \MessageBreak stage=<opening|midterm>
+    }
+    \fi
+\fi
+
+\ifhit@doctor
+  \ifhit@midterm
+    \ifhit@shenzhen
+      \relax
+    \else
+      \ClassError{hithesisartplus}{%
+        \MessageBreak This document class only support midterm report for doctor
+        in shenzhen campus
+      }
+    \fi
+  \else
+    \ClassError{hithesisartplus}{%
+      \MessageBreak This document class only support midterm report for doctor
+      in shenzhen campus
+    }
+  \fi
+\else
+  \ClassError{hithesisartplus}{%
+    \MessageBreak This document class only support midterm report for doctor
+    in shenzhen campus
+  }
+\fi
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{选项后处理（AutoFakeBold 与 fontset 透传）从 artpluscls 移入 artplus-options 模块}
+%    \begin{macrocode}
+\RequirePackage{ifthen}
+\ifthenelse
+{\equal{\hit@fontset}{}}%
+{%
+  \PassOptionsToPackage{AutoFakeBold=2}{xeCJK}
+}%
+{%
+  \ifthenelse
+  {\equal{\hit@fontset}{siyuan}}%
+  {\relax}%
+  {%
+    \PassOptionsToPackage{AutoFakeBold=2}{xeCJK}
+  }%
+  \PassOptionsToClass{fontset=\hit@fontset}{ctexart}
+}%
+%</artplus-options>
+%<*artpluscls-load>
+\LoadClass[a4paper,UTF8,zihao=-4,scheme=plain]{ctexart}
+%    \end{macrocode}
+% \changes{v3.2a}{0000/00/00}{模块内容改由 \file{hithesis.ins} 按运行期顺序直接拼入 cls，不再生成 \file{modules/*.sty}}
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{LoadClass 之后的所有标准包加载、配置整体打包至 artplus-deps 模块；artpluscls 仅保留 LoadClass}
+%    \begin{macrocode}
+%</artpluscls-load>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module artplus-deps: 第三方宏包集中加载与基础配置（含 hyperlink/geometry 内联）（artplus）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*artplus-deps-a>
+%    \end{macrocode}
+%
+% 各种宏包
+%    \begin{macrocode}
+
+%% 各种宏包
+\RequirePackage{etoolbox}
+\RequirePackage{ifxetex}
+\ifxetex
+\else
+  \ClassError{hithesis}{Please use: \MessageBreak xelatex}
+\fi
+\RequirePackage{xparse}
+
+\RequirePackage{amsmath}
+\RequirePackage[amsmath,thmmarks,hyperref]{ntheorem}
+\RequirePackage{amssymb}
+%    \end{macrocode}
+%
+% 删除 \pkg{newtxtext}，由于最新一次更新 (\texttt{revision 62369}) 中与 \pkg{ctex} 宏包冲突，且无法解决，将正文字体替换为 TG TermesX 与 TG Heros.
+% \changes{v3.0.18}{2022/05/02}{删除 \pkg{newtxtext}，由于最新一次更新 (\texttt{revision 62369}) 中与 \pkg{ctex} 宏包冲突，且无法解决，将正文字体替换为 TG Termes 与 TG Heros.}
+% \changes{v3.0.19}{2022/05/05}{将 TG Termes 字体替换为 TG TermesX 字体，与 \pkg{newtxmath} 宏包更适配，删除 \option{Scale} 选项。}
+% \changes{v3.2a}{0000/00/00}{英文字体三件套设置从 artpluscls 拆出至 artplus-fonts 模块}
+%    \begin{macrocode}
+%</artplus-deps-a>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module artplus-fonts: 正文字号、中英文主字体与字号宏命令（\wuhao 等）（artplus）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*artplus-fonts>
+\setmainfont{TeXGyreTermesX}[
+  UprightFont = *-Regular ,
+  BoldFont = *-Bold ,
+  ItalicFont = *-Italic ,
+  BoldItalicFont = *-BoldItalic ,
+  Extension = .otf ,
+  ]
+\setsansfont{texgyreheros}[
+  UprightFont = *-regular ,
+  BoldFont = *-bold ,
+  ItalicFont = *-italic ,
+  BoldItalicFont = *-bolditalic ,
+  Extension = .otf ,
+  ]
+%    \end{macrocode}
+%
+% 删除 \pkg{courier}，将 mono 字体替换为 TG Cursor，至此将正文字体全面替换为 OpenType.
+% \changes{v3.0.19}{2022/05/05}{删除 \pkg{courier}，将 mono 字体替换为 TG Cursor，至此将正文字体全面替换为 OpenType.}
+%    \begin{macrocode}
+\setmonofont{texgyrecursor}[
+  UprightFont = *-regular ,
+  BoldFont = *-bold ,
+  ItalicFont = *-italic ,
+  BoldItalicFont = *-bolditalic ,
+  Extension = .otf ,
+]
+
+%% 添加字号、行距等设置
+\renewcommand\normalsize{%
+  \@setfontsize\normalsize{12bp}{15bp}%
+  \abovedisplayskip=6pt
+  \abovedisplayshortskip=6pt
+  \belowdisplayskip=\abovedisplayskip
+  \belowdisplayshortskip=\abovedisplayshortskip
+}
+\def\hit@def@fontsize#1#2{%
+  \expandafter\newcommand\csname #1\endcsname[1][1.3]{%
+    \fontsize{#2}{##1\dimexpr #2}\selectfont
+  }
+}
+\hit@def@fontsize{dachu}{58bp}
+\hit@def@fontsize{chuhao}{42bp}
+\hit@def@fontsize{xiaochu}{36bp}
+\hit@def@fontsize{yihao}{26bp}
+\hit@def@fontsize{xiaoyi}{24bp}
+\hit@def@fontsize{erhao}{22bp}
+\hit@def@fontsize{xiaoer}{18bp}
+\hit@def@fontsize{sanhao}{16bp}
+\hit@def@fontsize{xiaosan}{15bp}
+\hit@def@fontsize{sihao}{14bp}
+\hit@def@fontsize{banxiaosi}{13bp}
+\hit@def@fontsize{xiaosi}{12bp}
+\hit@def@fontsize{dawu}{11bp}
+\hit@def@fontsize{wuhao}{10.5bp}
+\hit@def@fontsize{xiaowu}{9bp}
+\hit@def@fontsize{liuhao}{7.5bp}
+\hit@def@fontsize{xiaoliu}{6.5bp}
+\hit@def@fontsize{qihao}{5.5bp}
+\hit@def@fontsize{bahao}{5bp}
+%</artplus-fonts>
+%<*artplus-deps-a>
+
+\RequirePackage{graphicx}
+\RequirePackage{pdfpages}
+\includepdfset{fitpaper=true}
+\RequirePackage{enumitem}       %使用enumitem宏包,改变列表项的格式
+\RequirePackage{environ}
+\RequirePackage[perpage,hang]{footmisc}
+%    \end{macrocode}
+%
+% \pkg{xeCJK} 包不再自动加载 \pkg{xeCJKfntef}
+% \changes{v3.0.17}{2022/02/23}{\pkg{xeCJK} 包不再自动加载 \pkg{xeCJKfntef}}
+%    \begin{macrocode}
+\RequirePackage{xeCJKfntef}
+%    \end{macrocode}
+%
+% \pkg{newtx} 更新至 v1.7 版本后与 \pkg{ctex} 宏包冲突, 需要手动引入 \option{nofontspec} 选项. 判断方法为是否存在 v1.7 更新后的新宏包 \pkg{newtx.sty}
+% \changes{v3.0.17}{2022/02/23}{\pkg{newtx} 更新至 v1.7 版本后与 \pkg{ctex} 宏包冲突, 需要手动引入 \option{nofontspec} 选项. 判断方法为是否存在 v1.7 更新后的新宏包 \pkg{newtx.sty}}
+%    \begin{macrocode}
+
+\RequirePackage{longtable}
+\RequirePackage{booktabs}
+%    \end{macrocode}
+%
+% 重定义 \pkg{booktabs} 宏包的默认线宽，绘制三线表时不再需要显式设置，以实现更好的内容与格式分离
+% \changes{v3.0.20}{2022/05/06}{重定义 \pkg{booktabs} 宏包的默认线宽，绘制三线表时不再需要显式设置，以实现更好的内容与格式分离}
+%    \begin{macrocode}
+\heavyrulewidth=1.5pt
+\lightrulewidth=1pt
+\cmidrulewidth=0.5pt
+
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{natbib/hyperref/url 配置从 artplus-deps 拆出至 artplus-hyperlink 模块（对齐 book-hyperlink/-art）}
+%    \begin{macrocode}
+%</artplus-deps-a>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module artplus-hyperlink: hyperref/url 配置（PDF 书签、链接颜色）（artplus）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*artplus-hyperlink>
+\RequirePackage{hyperref}
+\hypersetup{%
+  CJKbookmarks=true,
+  linktoc=all,
+  bookmarksnumbered=true,
+  bookmarksopen=true,
+  bookmarksopenlevel=1,
+  breaklinks=true,
+  colorlinks=false,
+  plainpages=false,
+  pdfborder=0 0 0
+}
+\urlstyle{same}
+%</artplus-hyperlink>
+%<*artplus-deps-b>
+
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{geometry 配置从 artplus-deps 拆出至 artplus-geometry 模块（对齐 book-geometry/-art）}
+%    \begin{macrocode}
+%</artplus-deps-b>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module artplus-geometry: 版芯尺寸与页边距（artplus）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*artplus-geometry>
+\RequirePackage{geometry}
+\geometry{%根据PlutoThesis 原版定义而来
+  a4paper, % 210 * 297mm
+  hcentering,
+  ignoreall,
+  nomarginpar,
+  centering,
+  text={150true mm,236true mm},
+  left=30true mm,
+  head=5true mm,
+  headsep=2true mm,
+  footskip=0true mm,
+  foot=5.2true mm
+}
+%</artplus-geometry>
+%<*artplus-deps-c>
+
+\RequirePackage{tikzpagenodes}
+\RequirePackage{eso-pic}
+\RequirePackage{tikz}
+\usetikzlibrary{calc}
+
+\RequirePackage{fancyhdr}
+\RequirePackage{tabularx}
+\RequirePackage{varwidth}
+\RequirePackage{changepage}
+\RequirePackage{multicol}
+\RequirePackage[below]{placeins}%允许上一个section的浮动图形出现在下一个section的开始部分,还提供\FloatBarrier命令,使所有未处理的浮动图形立即被处理
+\RequirePackage{flafter}       % 使得所有浮动体不能被放置在其浮动环境之前，以免浮动体在引述它的文本之前出现.
+\RequirePackage{multirow}       %使用Multirow宏包，使得表格可以合并多个row格
+\RequirePackage{subfigure}%支持子图 %centerlast 设置最后一行是否居中
+\RequirePackage[subfigure]{ccaption} %支持双语标题
+%    \end{macrocode}
+% % \changes{v3.0.21}{2022/05/11}{删除 \pkg{xltxtra} 宏包, 来实现规范样式的上标。 \issue[125]}
+%    \begin{macrocode}
+
+\RequirePackage{lipsum}%random text
+%    \end{macrocode}
+%
+% 添加字号、行距等设置
+%    \begin{macrocode}
+%</artplus-deps-c>
+%<*artplus-deps-c>
+%    \end{macrocode}
+%
+% 进行字号、行距等设置
+% \changes{v3.2a}{0000/00/00}{章节标题格式从 artpluscls 拆出至 artplus-chapter 模块}
+%    \begin{macrocode}
+%</artplus-deps-c>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module artplus-chapter: 章节标题格式（字号、缩进、间距、编号样式）（artplus）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*artplus-chapter>
+\RequirePackage{xparse}
+\RequirePackage{tikz}
+
+%% 进行字号、行距等设置
+\ctexset{%
+  section={
+    afterindent=true,
+    beforeskip={7.5bp},%上下空0.5行
+    afterskip={7.5bp},
+    format={\normalsize},
+    aftername=\enspace,
+    fixskip=true,
+    break={},
+  },
+  subsection={
+    afterindent=true,
+    beforeskip={7bp},
+    afterskip={7bp},
+    format={\normalsize},
+    aftername=\enspace,
+    fixskip=true,
+    break={},
+  },
+  subsubsection={
+    afterindent=true,
+    beforeskip={3bp},
+    afterskip={3bp},
+    format={\normalsize},
+    aftername=\enspace,
+    fixskip=true,
+    break={},
+  },
+  paragraph/afterindent=true,
+  subparagraph/afterindent=true
+}
+
+\let\hit@section\section
+\RenewDocumentCommand\section{s o m s}{%
+  \IfBooleanF{#4}{\noindent\tikz[overlay] \draw (-5mm,0mm) -- (155mm,0mm);}%
+  \IfBooleanTF{#1}%
+  {% if \section*
+    \IfNoValueTF{#2}%
+    {\hit@section*{#3}}%
+    {\hit@section*[#2]{#3}}%
+  }%
+  {% if \section
+    \IfNoValueTF{#2}%
+    {\hit@section{#3}}%
+    {\hit@section[#2]{#3}}%
+  }
+}
+%</artplus-chapter>
+%<*artplus-deps-c>
+%    \end{macrocode}
+%
+% 中文封面
+%    \begin{macrocode}
+%</artplus-deps-c>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module artplus-meta: 元信息字段（\hitsetup 接受的 key）（artplus）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*artplus-meta>
+
+%% 中文封面
+\def\hit@def@term#1{%
+  \define@key{hit}{#1}{\csname #1\endcsname{##1}}
+  \expandafter\gdef\csname #1\endcsname##1{%
+    \expandafter\gdef\csname hit@#1\endcsname{##1}
+  }
+  \csname #1\endcsname{}
+}
+%    \end{macrocode}
+% \changes{v3.1d}{2025/03/03}{取消了深圳博士中期——即reportplus——中未使用到的参数ctitlecover}
+%    \begin{macrocode}
+\hit@def@term{ctitleone}
+\hit@def@term{ctitletwo}
+\hit@def@term{csubject}
+\hit@def@term{cauthor}
+\hit@def@term{cstudentid}
+\hit@def@term{cclassid}
+\hit@def@term{caffil}
+\hit@def@term{csupervisor}
+\hit@def@term{cdate}
+\hit@def@term{cenrolldate}
+
+\def\hit@parse@keywords#1{
+  \define@key{hit}{#1}{\csname #1\endcsname{##1}}
+  \expandafter\gdef\csname hit@#1\endcsname{}
+  \expandafter\gdef\csname #1\endcsname##1{
+    \@for\reserved@a:=##1\do{
+      \expandafter\ifx\csname hit@#1\endcsname\@empty\else
+      \expandafter\g@addto@macro\csname hit@#1\endcsname{%
+        \ignorespaces\csname hit@#1@separator\endcsname}
+      \fi
+      \expandafter\expandafter\expandafter\g@addto@macro%
+      \expandafter\csname hit@#1\expandafter\endcsname\expandafter{\reserved@a}
+    }
+  }
+}
+
+\def\hitsetup{\kvsetkeys{hit}}
+%</artplus-meta>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module artplus-pagestyle: 页眉页脚样式（artplus）
+% ^^A ======================================================================
+% \changes{v3.2a}{0000/00/00}{页眉页脚样式从 artplus-frontmatter 的 \cs{makecover} 内联提取到独立的 artplus-pagestyle 模块（对齐 book-pagestyle/-art）}
+%    \begin{macrocode}
+%<*artplus-pagestyle>
+\RequirePackage{fancyhdr}
+\fancypagestyle{hit@artplus@main}{%
+  \fancyhf{}%
+  \renewcommand{\headrulewidth}{0pt}%
+  \renewcommand{\footrulewidth}{0pt}%
+  \fancyfoot[C]{\xiaowu-~\thepage~-}%
+}
+%</artplus-pagestyle>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module artplus-frontmatter: 封面与扉页（中英、本科、博士后等多版本）（artplus）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*artplus-frontmatter>
+
+\newcommand{\hit@report@titlepage@graduate}{
+  \ifthenelse
+  {\equal{\hit@fontset}{siyuan}}%
+  {\xiaosi[1]\vspace*{0.65em}}%
+  {\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
+  \vspace*{10mm}
+  \begin{center}
+    \songti\erhao\textbf{\hit@cschoolname\ifhit@shenzhen\hit@shenzhencampus\fi}
+  \end{center}
+  \begin{center}
+    \songti\erhao\textbf{\hit@cthesismidtermcheck}
+  \end{center}
+  \vspace{66bp}
+  \parbox[b][3cm][t]{\textwidth}{
+    \begin{center}\songti\sihao
+      \renewcommand{\arraystretch}{1.67}
+      \begin{tabular}{l@{\ \ }c}
+        \textbf{\hit@graduate@studenttitle} & \textbf{\hit@cauthor}\\
+        \hline
+        \textbf{\hit@graduate@enrolldate} & \textbf{\hit@cenrolldate}\\
+        \hline
+        \textbf{\hit@graduate@thesistitle} & \textbf{\hit@ctitleone}\\
+        \hline
+        &\textbf{\hit@ctitletwo}\\
+        \hline
+        \textbf{\hit@graduate@cafflimajor} & \textbf{\hit@csubject}\\
+        \hline
+        \textbf{\hit@graduate@datetitle} & \textbf{\hit@cdate}\\
+        \hline
+        \textbf{\hit@graduate@supervisor} & \textbf{\hit@csupervisor}\\
+        \hline
+      \end{tabular}\renewcommand{\arraystretch}{1}
+    \end{center}
+  }
+}
+
+\def\makecover{
+  \begin{titlepage}
+    \hit@report@titlepage@graduate
+    \clearpage
+    \hit@shenzhen@doctor@midterm@note
+  \end{titlepage}
+  \AddToShipoutPicture{%
+    \begin{tikzpicture}[remember picture,overlay]
+      \draw ($(current page text area.south west)+(-5mm,0mm)$) rectangle ($(current page text area.north east)+(5mm,2mm)$);
+    \end{tikzpicture}
+  }
+  \pagestyle{hit@artplus@main}
+}
+%</artplus-frontmatter>
+%<*artplus-deps-c>
+%    \end{macrocode}
+%
+% 引用和参考文献格式
+% \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
+% \changes{v3.2a}{0000/00/00}{参考文献格式从 artpluscls 拆出至 artplus-bib 模块}
+%    \begin{macrocode}
+%</artplus-deps-c>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module artplus-bib: 参考文献加载与 natbib/gbt7714 设置（artplus）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*artplus-bib>
+\RequirePackage[sort&compress,numbers]{natbib}
+\RequirePackage{xparse}
+
+%% 引用和参考文献格式
+\newcommand\bibstyle@numerical{\bibpunct{[}{]}{,}{s}{,}{\textsuperscript{,}}}
+\newcommand\bibstyle@inline{\bibpunct{[}{]}{,}{n}{,}{\hit@inline@sep}}
+
+\citestyle{numerical}
+\DeclareRobustCommand\inlinecite{\@inlinecite}
+\def\@inlinecite#1{\begingroup\citestyle{inline}\let\@cite\NAT@citenum\citep{#1}\endgroup}
+\let\onlinecite\inlinecite
+
+\ExplSyntaxOn
+\renewenvironment{thebibliography}[1]{%
+  \list{\@biblabel{\@arabic\c@enumiv}}{%
+    \str_if_eq:VnT \g_bib_labelalign_str {left} {
+      \RenewDocumentCommand\makelabel{m}{##1\hfill}
+    }
+    \settowidth{\labelwidth}{\@biblabel{#1}}
+    \setlength{\labelsep}{0.5em}
+    \setlength{\itemindent}{0pt}
+    \setlength{\leftmargin}{\labelsep+\labelwidth}
+    \addtolength{\itemsep}{-0.8em}
+    \usecounter{enumiv}%
+    \let\p@enumiv\@empty
+  \renewcommand\theenumiv{\@arabic\c@enumiv}}%
+  \sloppy\frenchspacing
+  \flushbottom
+  \clubpenalty0
+  \@clubpenalty \clubpenalty
+  \widowpenalty0%
+  \interlinepenalty-50%
+  \sfcode`\.\@m
+}{}
+%    \end{macrocode}
+% \changes{v3.2a}{0000/00/00}{为上面的环境补充了一对空大括号}
+% \changes{v3.2a}{0000/00/00}{控制参考文献列表中作者是否全大写和最大显示数量}
+%    \begin{macrocode}
+%% 用以控制参考文献列表中单个作者的格式
+\exp_args:NNe \cs_new:Nn \g_bib_author_cs:n {
+    \bool_if:NTF \g_bib_authorupper_bool {
+        \exp_not:N \text_uppercase:n {#1}
+    } {
+        {#1}
+    }
+}
+%% 用以输出参考文献列表中的作者
+\NewDocumentCommand{\bibauthor}{m}{
+  \int_zero:N \l_tmpa_int
+  \exp_args:Ne \tl_map_inline:nn {
+    \exp_args:Ne \tl_tail:n {#1}
+  } {
+    \int_compare:nNnT
+      \l_tmpa_int = \g_bib_maxauthor_int {
+      \prg_break:n {\tl_head:N {#1}}
+    }
+    \int_incr:N \l_tmpa_int
+    \g_bib_author_cs:n {##1}
+  }
+  \prg_break_point:
+}
+\ExplSyntaxOff
+%</artplus-bib>
+%<*artpluscls-tail>
+%    \end{macrocode}
+% 杂项
+% \changes{v3.2a}{0000/00/00}{misc-artplus 模块合并为 artpluscls 内联钩子}
+%    \begin{macrocode}
+\AtEndOfClass{\input{hithesisart.cfg}}
+\AtEndOfClass{\sloppy}
+%</artpluscls-tail>
+%    \end{macrocode}
+%
+% 添加artcls
+% \changes{v3.0.0}{2020/05/21}{添加artcls}
+%    \begin{macrocode}
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% artcls
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module artcls: art 类主体（开题/中期报告）
+% ^^A ======================================================================
+% ^^A ======================================================================
+% ^^A Module art-options: 文档类选项的声明与后处理（type/campus/fontset 等）（art）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*art-options>
+%    \end{macrocode}
+%
+% 处理文档类选项
+%    \begin{macrocode}
+
+%% 处理文档类选项
+\RequirePackage{kvoptions}
+\SetupKeyvalOptions{
+  family=hit,
+  prefix=hit@,
+  setkeys=\kvsetkeys
+}
+
+\newif\ifhit@bachelor
+\newif\ifhit@master
+\newif\ifhit@doctor
+\define@key{hit}{type}{%
+  \hit@bachelorfalse
+  \hit@masterfalse
+  \hit@doctorfalse
+  \expandafter\csname hit@#1true\endcsname
+}
+
+\newif\ifhit@shenzhen
+\newif\ifhit@weihai
+\newif\ifhit@harbin
+\define@key{hit}{campus}{%
+  \hit@shenzhenfalse
+  \hit@weihaifalse
+  \hit@harbinfalse
+  \expandafter\csname hit@#1true\endcsname
+}
+\ifhit@weihai\relax\else
+  \ifhit@shenzhen\relax\else
+    \hit@harbintrue
+  \fi
+\fi
+
+\newif\ifhit@opening
+\newif\ifhit@midterm
+\define@key{hit}{stage}{%
+  \hit@openingfalse
+  \hit@midtermfalse
+  \expandafter\csname hit@#1true\endcsname
+}
+%    \end{macrocode}
+% \changes{v3.2a}{0000/00/00}{设置参考文献列表中的作者是否全大写和最大显示数量}
+% \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
+%    \begin{macrocode}
+
+\ExplSyntaxOn
+\bool_new:N \g_bib_authorupper_bool
+\bool_set_false:N \g_bib_authorupper_bool
+\define@key{hit}{bibauthorupper}{%
+  \str_if_eq:nnT {#1} {full} {
+    \bool_set_true:N \g_bib_authorupper_bool
+  }
+}
+
+\int_new:N \g_bib_maxauthor_int
+\int_set:Nn \g_bib_maxauthor_int {3}
+\define@key{hit}{bibmaxauthor}{%
+  \int_set:Nn \g_bib_maxauthor_int {#1}
+  \int_if_zero:nT {\g_bib_maxauthor_int} {
+    \int_gdecr:N \g_bib_maxauthor_int
+  }
+}
+
+\str_new:N \g_bib_labelalign_str
+\define@key{hit}{biblabelalign}{%
+  \str_set:Nn \g_bib_labelalign_str {#1}
+}
+\ExplSyntaxOff
+
+\DeclareBoolOption[true]{raggedbottom}
+\DeclareBoolOption[false]{pifootnote}
+\DeclareBoolOption[false]{debug}
+\DeclareBoolOption[true]{toc}
+\DeclareBoolOption[true]{newtxmath}
+%    \end{macrocode}
+
+% \changes{v3.1c}{2023/04/16}{增加用于打印的选项 \meta{print}.\issue[138]}
+%    \begin{macrocode}
+\DeclareBoolOption[false]{print}
+
+
+\DeclareStringOption{fontset}
+\DeclareDefaultOption{\PassOptionsToClass{\CurrentOption}{ctexart}}
+\PassOptionsToPackage{no-math}{fontspec}
+
+\ProcessKeyvalOptions*
+
+\ifhit@bachelor\relax\else
+  \ifhit@master\relax\else
+    \ifhit@doctor\relax\else
+    \ClassError{hithesisart}{%
+      \MessageBreak Please specify thesis type in option:
+      \MessageBreak type=[bachelor | master | doctor]
+    }
+    \fi
+  \fi
+\fi
+
+\ifhit@opening\relax\else
+  \ifhit@midterm\relax\else
+    \ClassError{hithesisart}{%
+      \MessageBreak Please specify stage in option:
+      \MessageBreak stage=<opening|midterm>
+    }
+  \fi
+\fi
+
+\ifhit@doctor
+  \ifhit@midterm
+    \ifhit@shenzhen
+      \ClassError{hithesisart}{%
+        \MessageBreak This document class does not support midterm report for doctor
+        in shenzhen campus.
+        \MessageBreak please use \string\documentclass{hithesisartplus}
+      }
+    \fi
+  \fi
+\fi
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{选项后处理（AutoFakeBold 与 fontset 透传）从 artcls 移入 art-options 模块}
+%    \begin{macrocode}
+\RequirePackage{ifthen}
+\ifthenelse
+{\equal{\hit@fontset}{}}%
+{%
+  \PassOptionsToPackage{AutoFakeBold=2}{xeCJK}
+}%
+{%
+  \ifthenelse
+  {\equal{\hit@fontset}{siyuan}}%
+  {\relax}%
+  {%
+    \PassOptionsToPackage{AutoFakeBold=2}{xeCJK}
+  }%
+  \PassOptionsToClass{fontset=\hit@fontset}{ctexart}
+}%
+%</art-options>
+%<*artcls-load>
+\LoadClass[a4paper,UTF8,zihao=-4,scheme=plain]{ctexart}
+%    \end{macrocode}
+% \changes{v3.2a}{0000/00/00}{模块内容改由 \file{hithesis.ins} 按运行期顺序直接拼入 cls，不再生成 \file{modules/*.sty}}
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{LoadClass 之后的所有标准包加载、配置整体打包至 art-deps 模块；artcls 仅保留 LoadClass}
+% \changes{v3.2a}{0000/00/00}{目录排版从 art-frontmatter 拆出至 art-toc 模块（对齐 book 家族的 book-toc）；排在 art-deps 之后以避免 enumitem 覆盖 cft* 类长度}
+%    \begin{macrocode}
+%</artcls-load>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module art-deps: 第三方宏包集中加载与基础配置（含 hyperlink/geometry 内联）（art）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*art-deps-a>
+%    \end{macrocode}
+%
+% 各种宏包
+%    \begin{macrocode}
+
+%% 各种宏包
+\RequirePackage{etoolbox}
+\RequirePackage{ifxetex}
+\ifxetex
+\else
+  \ClassError{hithesis}{Please use: \MessageBreak xelatex}{}
+\fi
+\RequirePackage{xparse}
+
+\RequirePackage{amsmath}
+\RequirePackage[amsmath,thmmarks,hyperref]{ntheorem}
+\RequirePackage{amssymb}
+%    \end{macrocode}
+%
+% 删除 \pkg{newtxtext}，由于最新一次更新 (\texttt{revision 62369}) 中与 \pkg{ctex} 宏包冲突，且无法解决，将正文字体替换为 TG TermesX 与 TG Heros.
+% \changes{v3.0.18}{2022/05/02}{删除 \pkg{newtxtext}，由于最新一次更新 (\texttt{revision 62369}) 中与 \pkg{ctex} 宏包冲突，且无法解决，将正文字体替换为 TG Termes 与 TG Heros.}
+% \changes{v3.0.19}{2022/05/05}{将 TG Termes 字体替换为 TG TermesX 字体，与 \pkg{newtxmath} 宏包更适配，删除 \option{Scale} 选项。}
+% \changes{v3.2a}{0000/00/00}{英文字体三件套设置从 artcls 拆出至 art-fonts 模块}
+%    \begin{macrocode}
+%</art-deps-a>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module art-fonts: 正文字号、中英文主字体与字号宏命令（\wuhao 等）（art）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*art-fonts>
+\setmainfont{TeXGyreTermesX}[
+  UprightFont = *-Regular ,
+  BoldFont = *-Bold ,
+  ItalicFont = *-Italic ,
+  BoldItalicFont = *-BoldItalic ,
+  Extension = .otf ,
+  ]
+\setsansfont{texgyreheros}[
+  UprightFont = *-regular ,
+  BoldFont = *-bold ,
+  ItalicFont = *-italic ,
+  BoldItalicFont = *-bolditalic ,
+  Extension = .otf ,
+  ]
+%    \end{macrocode}
+%
+% 删除 \pkg{courier}，将 mono 字体替换为 TG Cursor，至此将正文字体全面替换为 OpenType.
+% \changes{v3.0.19}{2022/05/05}{删除 \pkg{courier}，将 mono 字体替换为 TG Cursor，至此将正文字体全面替换为 OpenType.}
+%    \begin{macrocode}
+\setmonofont{texgyrecursor}[
+  UprightFont = *-regular ,
+  BoldFont = *-bold ,
+  ItalicFont = *-italic ,
+  BoldItalicFont = *-bolditalic ,
+  Extension = .otf ,
+]
+
+%% 添加字号、行距等设置
+\renewcommand\normalsize{%
+  \@setfontsize\normalsize{12bp}{20.50398bp}%
+  \abovedisplayskip=8pt
+  \abovedisplayshortskip=8pt
+  \belowdisplayskip=\abovedisplayskip
+  \belowdisplayshortskip=\abovedisplayshortskip
+}
+\def\hit@def@fontsize#1#2{%
+  \expandafter\newcommand\csname #1\endcsname[1][1.3]{%
+    \fontsize{#2}{##1\dimexpr #2}\selectfont
+  }
+}
+\hit@def@fontsize{dachu}{58bp}
+\hit@def@fontsize{chuhao}{42bp}
+\hit@def@fontsize{xiaochu}{36bp}
+\hit@def@fontsize{yihao}{26bp}
+\hit@def@fontsize{xiaoyi}{24bp}
+\hit@def@fontsize{erhao}{22bp}
+\hit@def@fontsize{xiaoer}{18bp}
+\hit@def@fontsize{sanhao}{16bp}
+\hit@def@fontsize{xiaosan}{15bp}
+\hit@def@fontsize{sihao}{14bp}
+\hit@def@fontsize{banxiaosi}{13bp}
+\hit@def@fontsize{xiaosi}{12bp}
+\hit@def@fontsize{dawu}{11bp}
+\hit@def@fontsize{wuhao}{10.5bp}
+\hit@def@fontsize{xiaowu}{9bp}
+\hit@def@fontsize{liuhao}{7.5bp}
+\hit@def@fontsize{xiaoliu}{6.5bp}
+\hit@def@fontsize{qihao}{5.5bp}
+\hit@def@fontsize{bahao}{5bp}
+%</art-fonts>
+%<*art-deps-a>
+%    \end{macrocode}
+%
+% 单独使用 \pkg{newtxmath} 宏包改变数学字体时，会使 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令使用 CM 字体，根据 \href{https://github.com/sjtug/SJTUThesis/blob/b164d0f5b3087ed86c1038b5a85014b47a92c6f2/texmf/tex/latex/sjtuthesis/fd/sjtu-math-font-termes.def#L52-L65}{SJTUThesis 的字体设置} 进行调整
+% \changes{v3.0.19}{2022/05/05}{对 \pkg{newtxmath} 宏包打补丁，修复 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令的字体问题。}
+%    \begin{macrocode}
+\ifhit@newtxmath
+  \let\oldencodingdefault\encodingdefault
+  \let\oldrmdefault\rmdefault
+  \let\oldsfdefault\sfdefault
+  \let\oldttdefault\ttdefault
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{直接修改编码，而不引入新的宏包。}
+%    \begin{macrocode}
+  \def\encodingdefault{T1}
+  \renewcommand{\rmdefault}{ntxtlf}
+  \renewcommand{\sfdefault}{qhv}
+  \renewcommand{\ttdefault}{ntxtt}
+  \RequirePackage{newtxmath}
+  \let\encodingdefault\oldencodingdefault
+  \let\rmdefault\oldrmdefault
+  \let\sfdefault\oldsfdefault
+  \let\ttdefault\oldttdefault
+\fi
+
+\RequirePackage{graphicx}
+\RequirePackage{pdfpages}
+\includepdfset{fitpaper=true}
+\RequirePackage{enumitem}       %使用enumitem宏包,改变列表项的格式
+\RequirePackage{environ}
+\ifhit@raggedbottom
+  \RequirePackage[bottom,perpage,hang]{footmisc}
+  \raggedbottom
+\else
+  \RequirePackage[perpage,hang]{footmisc}
+\fi
+\ifhit@pifootnote
+  \RequirePackage{pifont}
+\fi
+%    \end{macrocode}
+%
+% \pkg{xeCJK} 包不再自动加载 \pkg{xeCJKfntef}
+% \changes{v3.0.17}{2022/02/23}{\pkg{xeCJK} 包不再自动加载 \pkg{xeCJKfntef}}
+%    \begin{macrocode}
+\RequirePackage{xeCJKfntef}
+%    \end{macrocode}
+%
+% \pkg{newtx} 更新至 v1.7 版本后与 \pkg{ctex} 宏包冲突, 需要手动引入 \option{nofontspec} 选项. 判断方法为是否存在 v1.7 更新后的新宏包 \pkg{newtx.sty}
+% \changes{v3.0.17}{2022/02/23}{\pkg{newtx} 更新至 v1.7 版本后与 \pkg{ctex} 宏包冲突, 需要手动引入 \option{nofontspec} 选项. 判断方法为是否存在 v1.7 更新后的新宏包 \pkg{newtx.sty}}
+%    \begin{macrocode}
+
+\RequirePackage{longtable}
+\RequirePackage{booktabs}
+%    \end{macrocode}
+%
+% 重定义 \pkg{booktabs} 宏包的默认线宽，绘制三线表时不再需要显式设置，以实现更好的内容与格式分离
+% \changes{v3.0.20}{2022/05/06}{重定义 \pkg{booktabs} 宏包的默认线宽，绘制三线表时不再需要显式设置，以实现更好的内容与格式分离}
+%    \begin{macrocode}
+\heavyrulewidth=1.5pt
+\lightrulewidth=1pt
+\cmidrulewidth=0.5pt
+
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{natbib/hyperref/url 配置从 art-deps 拆出至 art-hyperlink 模块（对齐 book-hyperlink）}
+%    \begin{macrocode}
+%</art-deps-a>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module art-hyperlink: hyperref/url 配置（PDF 书签、链接颜色）（art）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*art-hyperlink>
+\RequirePackage{hyperref}
+\hypersetup{%
+  CJKbookmarks=true,
+  linktoc=all,
+  bookmarksnumbered=true,
+  bookmarksopen=true,
+  bookmarksopenlevel=1,
+  breaklinks=true,
+  colorlinks=false,
+  plainpages=false,
+  pdfborder=0 0 0
+}
+\urlstyle{same}
+%</art-hyperlink>
+%<*art-deps-b>
+
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{geometry 配置从 art-deps 拆出至 art-geometry 模块（对齐 book-geometry）}
+%    \begin{macrocode}
+%</art-deps-b>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module art-geometry: 版芯尺寸与页边距（art）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*art-geometry>
+\ifhit@debug
+  \RequirePackage[showframe]{geometry}
+\else
+  \RequirePackage{geometry}
+\fi
+\geometry{%根据PlutoThesis 原版定义而来
+  a4paper, % 210 * 297mm
+  hcentering,
+  ignoreall,
+  nomarginpar,
+  centering,
+  text={150true mm,236true mm},
+  left=30true mm,
+  head=5true mm,
+  headsep=2true mm,
+  footskip=0true mm,
+  foot=5.2true mm
+}
+\ifboolexpr{ bool {hit@shenzhen} and bool {hit@master} }%
+  {
+    \ifhit@opening \geometry{headsep=25pt}
+    \else \geometry{headsep=17pt}
+    \fi
+  }
+  {}
+%</art-geometry>
+%<*art-deps-c>
+
+\ifhit@debug
+  \RequirePackage{layout}
+  \RequirePackage{layouts}
+  \RequirePackage{lineno}
+\fi
+
+\RequirePackage{fancyhdr}
+\RequirePackage{tabularx}
+\RequirePackage{varwidth}
+\RequirePackage{changepage}
+\RequirePackage{multicol}
+\RequirePackage[below]{placeins}%允许上一个section的浮动图形出现在下一个section的开始部分,还提供\FloatBarrier命令,使所有未处理的浮动图形立即被处理
+\RequirePackage{flafter}       % 使得所有浮动体不能被放置在其浮动环境之前，以免浮动体在引述它的文本之前出现.
+\RequirePackage{multirow}       %使用Multirow宏包，使得表格可以合并多个row格
+\RequirePackage{subfigure}%支持子图 %centerlast 设置最后一行是否居中
+\RequirePackage[subfigure]{ccaption} %支持双语标题
+%    \end{macrocode}
+% \changes{v3.0.21}{2022/05/11}{删除 \pkg{xltxtra} 宏包, 来实现规范样式的上标。\issue[125]}
+% 设置深圳校区开题报告的正文行距与毕业论文模板一致
+% \changes{v3.0.04}{2020/07/29}{设置深圳校区开题报告的正文行距与毕业论文模板一致}
+% 此处修改与正文行距保持一致
+% \changes{v3.0.05}{2020/09/13}{此处修改与正文行距保持一致}
+%    \begin{macrocode}
+%    \end{macrocode}
+% \changes{v3.1d}{2025/03/03}{将深圳校区硕士中期报告图注实现为“图 1-1 标题”的格式}
+% \changes{v3.2a}{0000/00/00}{图注/表注编号条件块从 artcls 拆出至 art-floats 模块}
+%    \begin{macrocode}
+%</art-deps-c>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module art-floats: 浮动体默认行为与双语题注（art）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*art-floats>
+% \changes{v3.2a}{0000/00/00}{art-floats 自包含 etoolbox 依赖以使用 \cs{ifboolexpr}}
+\RequirePackage{etoolbox}
+\ifboolexpr{bool {hit@shenzhen} and bool {hit@master} and bool {hit@midterm}}{%将图注实现为“图 1-1 标题”的格式
+  \RequirePackage{caption}
+  \renewcommand{\thefigure}{\thesection-\arabic{figure}}%修改图标号为x-x格式
+  \captionsetup[figure]{labelsep=space}%取消图标号后面的冒号
+}{}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{schrb: 将哈尔滨校区本科开题报告图表公式编号实现为“图 X-X”、“表 X-X”、“公式 (X-X)”的格式}
+%    \begin{macrocode}
+\ifboolexpr{bool {hit@harbin} and bool {hit@bachelor} and bool {hit@opening}}{
+  \RequirePackage{caption}
+  \renewcommand{\thefigure}{\thesection-\arabic{figure}}
+  \renewcommand{\thetable}{\thesection-\arabic{table}}
+  \renewcommand{\theequation}{\thesection-\arabic{equation}}
+  \captionsetup[figure]{labelsep=space}
+  \captionsetup[table]{labelsep=space}
+  \@addtoreset{figure}{section}
+  \@addtoreset{table}{section}
+  \@addtoreset{equation}{section}
+}{}
+%</art-floats>
+%<*art-deps-c>
+%    \end{macrocode}
+%
+% 添加字号、行距等设置
+%    \begin{macrocode}
+%</art-deps-c>
+%<*art-deps-c>
+%    \end{macrocode}
+%
+% 更改哈尔滨校区博士硕士开题节标题为小三号字体
+% \changes{v3.0.08}{2020/09/28}{更改哈尔滨校区博士硕士开题节标题为小三号字体}
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% 进行字号、行距等设置
+%    \begin{macrocode}
+
+%% 进行字号、行距等设置
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{增加 \cs{parindent} 的值。\issue[201]}
+% \changes{v3.2a}{0000/00/00}{章节标题格式从 artcls 拆出至 art-chapter 模块}
+%    \begin{macrocode}
+%</art-deps-c>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module art-chapter: 章节标题格式（字号、缩进、间距、编号样式）（art）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*art-chapter>
+\RequirePackage{etoolbox}
+\setlength{\parindent}{2\ccwd}
+\ctexset{%
+  section={
+    afterindent=true,
+    beforeskip={7.5bp},%上下空0.5行
+    afterskip={7.5bp},
+    format={\heiti\xiaosan[1.25]},
+    aftername=\enspace,
+    fixskip=true,
+    break={},
+  },
+  subsection={
+    afterindent=true,
+    beforeskip={7bp},
+    afterskip={7bp},
+    format={\heiti\sihao[1.25]},
+    aftername=\enspace,
+    fixskip=true,
+    break={},
+  },
+  subsubsection={
+    afterindent=true,
+    beforeskip={3bp},
+    afterskip={3bp},
+    format={\heiti\normalsize},
+    aftername=\enspace,
+    fixskip=true,
+    break={},
+  },
+  paragraph/afterindent=true,
+  subparagraph/afterindent=true
+}
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{哈尔滨本科中期的一级节标题变成了中文……\issue[213]}
+%    \begin{macrocode}
+\ifboolexpr{bool {hit@harbin} and bool {hit@bachelor} and bool {hit@midterm} }
+  {
+    \ctexset{
+      section={
+        number = \chinese{section},
+        name = {,、},
+        aftername={},
+      }
+    }
+  }{}
+\ifboolexpr{bool {hit@shenzhen} and bool {hit@master} }
+{
+  \ctexset{
+    section={
+      beforeskip=25bp,
+      afterskip=27pt,
+      format=\ifhit@opening\centering\xiaoer\else\xiaosan\fi\heiti,
+      aftername=\ifhit@opening \quad \else \enspace \fi,
+      break=\ifhit@opening \clearpage \else {} \fi
+    },
+    subsection={
+      beforeskip=\ifhit@opening 12pt \else 15pt \fi,
+      afterskip=\ifhit@opening 12pt \else 15pt \fi,
+      format=\heiti\ifhit@opening \xiaosan \else \sihao \fi,
+      fixskip=true,
+      aftername=\ifhit@opening {\ } \else \enspace \fi
+    },
+    subsubsection={
+      beforeskip=\ifhit@opening 12pt \else 15pt \fi,
+      afterskip=\ifhit@opening 12pt \else 15pt \fi,
+      format=\heiti\sihao,
+      fixskip=true,
+      aftername=\ifhit@opening {\ } \else \enspace \fi
+    }
+  }
+}{}
+%</art-chapter>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module art-pagestyle: 页眉页脚样式（fancyhdr 配置）（art）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*art-pagestyle>
+% \changes{v3.2a}{0000/00/00}{art-pagestyle 自包含 etoolbox 与 fancyhdr 依赖}
+\RequirePackage{etoolbox}
+\RequirePackage{fancyhdr}
+%    \end{macrocode}
+% \changes{v3.1d}{2025/03/03}{为威海校区硕士开题设置章节样式与页眉页脚样式。\issue[219]}
+% \changes{v3.2a}{0000/00/00}{威海硕士开题的页眉定义放入 art-pagestyle，激活仍留 artcls 保持时序}
+%    \begin{macrocode}
+\ifboolexpr{bool {hit@weihai} and bool {hit@master} and bool {hit@opening}}
+  {
+    \fancypagestyle{hit@weihai@headings@main}{%
+    \fancyhf{}
+    \fancyfoot[C]{\xiaowu\thepage}
+    \renewcommand{\headrule}{
+        \vskip 1.190132pt
+        \hrule\@height2.276208pt\@width\headwidth
+        \vskip 0.75pt
+        \hrule\@height.75pt\@width\headwidth
+      }
+      \fancyhead[C]{\songti\xiaowu[0]哈尔滨工业大学（威海）硕士学位论文开题报告}
+      \fancyfoot[C]{-\ \thepage\ -}
+    }
+  }{}
+\ifboolexpr{bool {hit@shenzhen} and bool {hit@master} }
+{
+  \fancypagestyle{hit@shenzhen@headings@main}{%
+  \fancyhf{}
+  \fancyfoot[C]{\xiaowu\thepage}
+  \renewcommand{\headrule}{
+      \vskip 1.190132pt
+      \hrule\@height2.276208pt\@width\headwidth
+      \vskip 0.75pt
+      \hrule\@height.75pt\@width\headwidth
+    }
+    \fancyhead[C]{\songti\xiaowu[0]哈尔滨工业大学（深圳）\ifhit@midterm 中期 \else 硕士学位论文开题 \fi 报告}
+    \fancyfoot[C]{-\ \thepage\ -}
+  }
+  \fancypagestyle{hit@shenzhen@headings@front}{%
+    \fancyhf{}
+    \renewcommand{\headrule}{
+      \vskip 1.190132pt
+      \hrule\@height2.276208pt\@width\headwidth
+      \vskip 0.75pt
+      \hrule\@height.75pt\@width\headwidth
+    }
+    \fancyhead[C]{\songti\xiaowu[0]哈尔滨工业大学（深圳）硕士学位论文开题报告}
+  }
+}{}
+%</art-pagestyle>
+%<*art-deps-c>
+\ifboolexpr{bool {hit@weihai} and bool {hit@master} and bool {hit@opening}}
+  {
+    \pagestyle{hit@weihai@headings@main}
+  }{}
+%    \end{macrocode}
+% \changes{v3.1c}{2023/04/16}{为深圳校区硕士开题设置章节样式与页眉页脚样式。}
+% 为深圳校区硕士开题设置章节样式与页眉页脚样式。%
+% \changes{v3.1c}{2023/04/16}{为深圳校区硕士中期设置章节样式与页眉页脚样式。}
+% \changes{v3.1c}{2023/04/16}{深圳校区硕士中期不换页}
+% 为深圳校区硕士中期设置章节样式与页眉页脚样式。%
+% \changes{v3.1d}{2025/03/03}{根据 \issue[228] 更新深圳硕士中期节标题字号和间距}
+% \changes{v3.2a}{0000/00/00}{深圳硕士的 ctexset 与 fancypagestyle 被拆为两个独立条件块，分别放入 art-chapter 与 artcls，保持行为等价}
+%    \begin{macrocode}
+%</art-deps-c>
+%<*art-deps-c>
+%    \end{macrocode}
+
+%  \changes{v3.1d}{2025/03/03}{目录格式将在下文中设置}
+%    \begin{macrocode}
+%     \ifboolexpr{bool {hit@midterm}}{}{\pagestyle{hit@shenzhen@headings@front}}
+%    \end{macrocode}
+%
+% 中文封面
+%    \begin{macrocode}
+%</art-deps-c>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module art-meta: 元信息字段（\hitsetup 接受的 key）（art）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*art-meta>
+%% 中文封面
+\def\hit@def@term#1{%
+  \define@key{hit}{#1}{\csname #1\endcsname{##1}}
+  \expandafter\gdef\csname #1\endcsname##1{%
+    \expandafter\gdef\csname hit@#1\endcsname{##1}
+  }
+  \csname #1\endcsname{}
+}
+
+\hit@def@term{ctitlecover}
+\hit@def@term{ctype}
+\hit@def@term{csubject}
+\hit@def@term{cauthor}
+\hit@def@term{cstudentid}
+\hit@def@term{cclassid}
+\hit@def@term{caffil}
+\hit@def@term{csupervisor}
+\hit@def@term{cdate}
+
+\def\hit@parse@keywords#1{
+  \define@key{hit}{#1}{\csname #1\endcsname{##1}}
+  \expandafter\gdef\csname hit@#1\endcsname{}
+  \expandafter\gdef\csname #1\endcsname##1{
+    \@for\reserved@a:=##1\do{
+      \expandafter\ifx\csname hit@#1\endcsname\@empty\else
+      \expandafter\g@addto@macro\csname hit@#1\endcsname{%
+        \ignorespaces\csname hit@#1@separator\endcsname}
+      \fi
+      \expandafter\expandafter\expandafter\g@addto@macro%
+      \expandafter\csname hit@#1\expandafter\endcsname\expandafter{\reserved@a}
+    }
+  }
+}
+
+\def\hitsetup{\kvsetkeys{hit}}
+%</art-meta>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module art-frontmatter: 封面与扉页（中英、本科、博士后等多版本）（art）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*art-frontmatter>
+
+\newcommand{\hit@report@titlepage@graduate}{
+  \ifthenelse
+  {\equal{\hit@fontset}{siyuan}}%
+  {\xiaosi[1]\vspace*{0.65em}}%
+  {\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
+  \vspace*{10mm}
+%    \end{macrocode}
+%
+% \changes{v3.0.22}{2022/05/16}{深圳校区中期模板封面范例中为“哈尔滨工业大学”。\issue[126]}
+% \changes{v3.1c}{2023/04/16}{修改深圳校区硕士开题封面中的字号与字距。\issue[141]}
+% \changes{v3.1c}{2023/04/16}{修改深圳校区硕士中期封面中的字号与字距。\issue[166]}
+% \changes{v3.1d}{2025/03/03}{修改威海校区硕士开题封面中的字号与字距。\issue[219]}
+%    \begin{macrocode}
+  \begin{center}
+    % \kaishu\xiaoer\textbf{\hit@cschoolname\ifhit@shenzhen\hit@shenzhencampus\fi}
+    \ifboolexpr{ (bool {hit@weihai} or bool {hit@shenzhen}) and bool {hit@master} }%
+    {\ziju{1/6}}{}\kaishu\xiaoer\textbf{\hit@cschoolname\ifhit@weihai （威海）\fi}
+  \end{center}
+  \vspace{5mm}
+  \begin{center}
+    \ifboolexpr{ bool {hit@shenzhen} and bool {hit@master} and bool {hit@opening} }%
+    {\xiaoyi\ziju{1/8}}{\erhao}
+    \songti\textbf{\hit@cxuewei\hit@cthesisname
+      \ifhit@opening
+        \hit@stage@opening
+      \else
+        \ifhit@midterm
+          \hit@stage@midterm
+        \fi
+      \fi
+      \hit@stage@doctype
+    }
+  \end{center}
+  \vspace{10mm}
+  \parbox[t][3cm][t]{\textwidth}{
+    \begin{center}
+      \songti\xiaoer\textbf{\hit@cthesistitleprefix\hit@title@csep\hit@ctitlecover}
+      \\[12bp]
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{本部硕士开题、中期封面添加“学位论文”或“实践成果”。}
+%    \begin{macrocode}
+     
+      \ifboolexpr{ bool {hit@harbin} and bool {hit@master} and ( bool {hit@opening} or bool {hit@midterm} ) }{
+        \songti\sanhao\textbf{（\hit@ctype）}
+      }{}
+    \end{center}
+  }
+  \parbox[b][3cm][t]{\textwidth}{
+    \begin{center}\songti\sanhao
+      \renewcommand{\arraystretch}{2.1}
+      \begin{tabular}{l@{\ \ }c}
+        \textbf{\hit@graduate@caffiltitle} & \underline{\makebox[6.1cm]{\textbf{\hit@caffil}}}\\
+        \textbf{\hit@graduate@cmajortitle} & \underline{\makebox[6.1cm]{\textbf{\hit@csubject}}}\\
+        \textbf{\hit@graduate@supervisor} & \underline{\makebox[6.1cm]{\textbf{\hit@csupervisor}}}\\
+%    \end{macrocode}
+%
+% \changes{v3.0.03}{2020/07/03}{fix author name bug}
+%    \begin{macrocode}
+        \textbf{\hit@graduate@studenttitle} & \underline{\makebox[6.1cm]{\textbf{\hit@cauthor}}}\\
+        \textbf{\hit@graduate@studentid} & \underline{\makebox[6.1cm]{\textbf{\hit@cstudentid}}}\\
+        \textbf{\hit@graduate@datetitle} & \underline{\makebox[6.1cm]{\textbf{\hit@cdate}}}\\
+      \end{tabular}\renewcommand{\arraystretch}{1}
+    \end{center}
+  }
+  \vfill
+  \ifhit@harbin
+    \hit@harbin@schoolbottommark
+  \else
+%    \end{macrocode}
+%
+% \changes{v3.0.22}{2022/05/16}{深圳校区中期模板封面范例中没有“哈工大（深圳）制”字样。\issue[126]}
+% \changes{v3.1c}{2023/04/16}{深圳校区硕士开题封面范例中有“深圳校区教务部~制”。}
+%    \begin{macrocode}
+    \ifhit@shenzhen
+      \ifhit@opening
+        \hit@shenzhen@master@schoolbottommark
+      \fi
+    \fi
+  \fi
+}
+
+\newcommand{\hit@report@titlepage@bachelor}{
+  \ifthenelse%
+  {\equal{\hit@fontset}{siyuan}}%
+  {\xiaosi[1]\vspace*{0.65em}}%
+  {\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
+  \vspace*{10mm}
+  \begin{center}
+    \includegraphics[width=6.2cm]{hitlogo}
+  \end{center}
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{根据 \issue[213] 更改哈尔滨本科开题和中期封面，多了“本科”。}
+%    \begin{macrocode}
+  \begin{center}
+    \songti\xiaoyi\textbf{%
+      \ifhit@harbin%
+        \ziju{1/12}
+        本科%
+      \fi%
+      \hit@bachelor@cthesisname
+      \ifhit@opening
+        \hit@stage@opening
+      \else
+        \ifhit@midterm
+          \hit@stage@midterm
+        \fi
+      \fi
+      \hit@stage@doctype
+    }
+  \end{center}
+  \vspace{15mm}
+  \parbox[t][6.5cm][t]{\textwidth}{
+    \begin{center}
+      \songti\xiaoer\textbf{\hit@cthesistitleprefix\hit@title@csep\hit@ctitlecover}
+    \end{center}
+  }
+  \parbox[b][6cm][t]{\textwidth}{
+    \begin{center}\songti\sanhao
+      \renewcommand{\arraystretch}{2.1}
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{本科专业可能太长，自适应一下。\issue[199]}
+%    \begin{macrocode}
+      \newlength\subject@length
+      \newlength\tmp@length
+      \settowidth{\tmp@length}{\hit@csubject}
+      \setlength{\subject@length}{\ifdim\tmp@length>6.1cm\tmp@length \else 6.1cm \fi}
+    \begin{tabular}{l@{\ \ }c}
+      \textbf{\hit@bachelor@cmajortitle} & \underline{\makebox[\subject@length]{\textbf{\hit@csubject}}}\\
+      \textbf{\hit@bachelor@cstudenttitle} & \underline{\makebox[\subject@length]{\textbf{\hit@cauthor}}}\\
+      \textbf{\hit@bachelor@cstudentidtitle} & \underline{\makebox[\subject@length]{\textbf{\hit@cstudentid}}}\\
+      \ifhit@weihai % 威海校区特有
+        \textbf{\hit@bachelor@cclass} & \underline{\makebox[\subject@length]{\textbf{\hit@cclassid}}}\\
+      \fi
+      \textbf{\hit@bachelor@csupervisortitle} & \underline{\makebox[\subject@length]{\textbf{\hit@csupervisor}}}\\
+      \textbf{\hit@bachelor@cdatetitle} & \underline{\makebox[\subject@length]{\textbf{\hit@cdate}}}\\
+    \end{tabular}\renewcommand{\arraystretch}{1}
+  \end{center}
+  }
+  \vfill
+  \ifhit@weihai
+    \relax
+  \else
+    \hit@harbin@bachelor@schoolbottommark
+  \fi
+}
+
+\newcommand{\hit@report@backpage@bachelor}{
+  \thispagestyle{empty}
+  \noindent\parbox[t][6.5cm][t]{\textwidth}{\hit@bachelor@teachercomment}
+  \noindent\parbox[b][6cm][t]{\textwidth}{\hit@bachelor@teachersign\underline{\makebox[3cm]{}}\hfill\hit@bachelor@checkdate\underline{\makebox[3cm]{}}}
+}
+
+%    \end{macrocode}
+%
+% \changes{v3.0.22}{2022/05/16}{深圳校区中期模板目录中一级标题为黑体 \cs{heiti}，而不是加粗 \cs{bfseries}。\issue[126]}
+% \changes{v3.1c}{2023/04/16}{修改错误的判断语句。\issue[141]}
+% \changes{v3.1c}{2023/04/16}{深圳校区硕士开题目录有标题。\issue[166]}
+% \changes{v3.1c}{2023/04/16}{深圳校区硕士开题目录修改样式。}
+% \changes{v3.1c}{2023/04/16}{深圳校区硕士中期目录修改样式。\issue[166]}
+% \changes{v3.1d}{2025/03/03}{威海校区硕士开题目录修改样式。\issue[219]}
+% \changes{v3.2a}{0000/00/00}{目录排版从 art-frontmatter 拆出至独立模块 art-toc（对齐 book-toc）}
+% 深圳校区中期模板目录中一级标题为黑体 \cs{heiti}。\par
+% 深圳校区硕士开题目录有标题。
+% 深圳校区硕士中期目录也有标题。
+% 用 \pkg{tocloft} 宏包实现深圳校区硕士开题和中期的目录，逐步进行迁移。
+%    \begin{macrocode}
+%</art-frontmatter>
+%<*art-toc>
+\ExplSyntaxOn
+%\ifboolexpr{ {bool {hit@shenzhen} or bool {hit@weihai}} and bool {hit@master} }{
+  % renew \CTEX@toc@width@n,
+  % add width of a space to numwidth (stored in \@tempdima)
+  \cs_set_protected:Npn \CTEX@toc@width@n #1
+  {
+    \hbox_set:Nn \l__ctex_tmp_box {#1\,}
+    \dim_set:Nn \@tempdima
+      {
+        \dim_max:nn { \@tempdima }
+          { \box_wd:N \l__ctex_tmp_box }
+      }
+  }
+\ExplSyntaxOff
+\RequirePackage[subfigure]{tocloft}
+\renewcommand{\cfttoctitlefont}{\hfill\xiaoer\heiti}
+\renewcommand{\cftaftertoctitle}{\hfill\mbox{}}
+\renewcommand{\cftsecfont}{\heiti}
+\renewcommand{\cftsecpagefont}{}
+\renewcommand{\cftsecdotsep}{\cftdotsep}
+\renewcommand{\cftsecleader}{\cftdotfill{\cftsecdotsep}}
+\renewcommand{\cftdotsep}{1}
+\setlength{\cftaftertoctitleskip}{40pt}
+\setlength{\cftbeforesecskip}{1.2ex}
+\setlength{\cftbeforesubsecskip}{1.2ex}
+\setlength{\cftbeforesubsubsecskip}{1.2ex}
+\setlength{\cftsubsecindent}{1em}% 目录中subsection的缩进
+\setlength{\cftsubsubsecindent}{2em}% 目录中subsubsection的缩进
+%  \setlength{\cftsecnumwidth}{1.5em}
+%  \setlength{\cftsubsecnumwidth}{0em}
+%  \setlength{\cftsubsubsecnumwidth}{0em}
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{根据 \issue[228] 更新深圳硕士中期目录样式}
+% \changes{v3.1d}{2025/03/03}{将目录格式统一成深圳样式，除去深圳硕士开题报告的目录页有页眉}
+%    \begin{macrocode}
+%  \ifhit@shenzhen
+%    \ifhit@midterm
+\setlength{\cftsecnumwidth}{1em}% 目录中的section条目序号和标题之间的距离
+\setlength{\cftsubsecnumwidth}{1.7em}% 目录中的subsection条目序号和标题之间的距离
+\setlength{\cftsubsubsecnumwidth}{2.4em}% 目录中的subsubsection条目序号和标题之间的距离
+%    \fi
+%  \fi
+%  \ifboolexpr{ bool {hit@weihai} or bool {hit@midterm}}{\tocloftpagestyle{empty}}{\tocloftpagestyle{hit@shenzhen@headings@front}}
+\ifboolexpr{bool{hit@shenzhen} and bool{hit@master} and bool {hit@opening}}{\tocloftpagestyle{hit@shenzhen@headings@front}}{\tocloftpagestyle{empty}}
+%}{
+  % \renewcommand\tableofcontents{%
+  %     \thispagestyle{empty}
+  %     \ifboolexpr{ bool {hit@shenzhen} and bool {hit@master} and bool {hit@midterm} }%
+  %       {\patchcmd{\l@section}{\bfseries}{\heiti}{}{}}{}
+  %     \normalsize\@starttoc{toc}
+  %   }
+%}
+%</art-toc>
+%<*art-frontmatter>
+%    \end{macrocode}
+% \begin{macro}{\makecover}
+%    \begin{macrocode}
+\def\makecover{
+  \begin{titlepage}
+    \ifhit@bachelor
+      \hit@report@titlepage@bachelor
+    \else
+      \hit@report@titlepage@graduate
+    \fi
+    \clearpage
+%    \end{macrocode}
+%
+% \changes{v3.1c}{2023/04/16}{新增对空白页的控制。\issue[138]}
+% \changes{v3.1c}{2023/04/16}{修改深圳硕士中期的页脚。\issue[166]}
+%    \begin{macrocode}
+    \ifhit@print \thispagestyle{empty}\mbox{} \clearpage \fi
+    \ifhit@toc
+      \tableofcontents
+      \clearpage
+    \fi
+  \end{titlepage}
+  \ifboolexpr{ bool {hit@shenzhen} and bool {hit@master} }{\pagestyle{hit@shenzhen@headings@main}}{}{}
+}
+%    \end{macrocode}
+% \end{macro}
+% \begin{macro}{\makebackcover}
+%    \begin{macrocode}
+\def\makebackcover{
+  \clearpage
+  \hit@report@backpage@bachelor
+}
+%</art-frontmatter>
+%<*art-deps-c>
+%    \end{macrocode}
+% \end{macro}
+% 引用和参考文献格式
+% \changes{v3.2a}{0000/00/00}{参考文献格式从 artcls 拆出至 art-bib 模块}
+%    \begin{macrocode}
+%</art-deps-c>
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module art-bib: 参考文献加载与 natbib/gbt7714 设置（art）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*art-bib>
+\RequirePackage[sort&compress,numbers]{natbib}
+\RequirePackage{etoolbox}
+\RequirePackage{xparse}
+
+%% 引用和参考文献格式
+\newcommand\bibstyle@numerical{\bibpunct{[}{]}{,}{s}{,}{\textsuperscript{,}}}
+\newcommand\bibstyle@inline{\bibpunct{[}{]}{,}{n}{,}{\hit@inline@sep}}
+
+\citestyle{numerical}
+\DeclareRobustCommand\inlinecite{\@inlinecite}
+\def\@inlinecite#1{\begingroup\citestyle{inline}\let\@cite\NAT@citenum\citep{#1}\endgroup}
+\let\onlinecite\inlinecite
+%    \end{macrocode}
+%
+% \changes{v3.1c}{2023/04/16}{深圳校区硕士开题部分参考文献没有序号。\issue[141]}
+% 深圳校区硕士开题部分参考文献没有序号。其他校区的提了问题再改。
+% \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
+%    \begin{macrocode}
+\ExplSyntaxOn
+\renewenvironment{thebibliography}[1]{%
+  \ifboolexpr{ bool {hit@shenzhen} and bool {hit@master} and bool {hit@opening} }%
+  {%
+    \section*{参考文献}
+    \addcontentsline{toc}{section}{参考文献}
+  }{}
+  \list{\@biblabel{\@arabic\c@enumiv}}{%
+    \str_if_eq:VnT \g_bib_labelalign_str {left} {
+      \RenewDocumentCommand\makelabel{m}{##1\hfill}
+    }
+    \settowidth{\labelwidth}{\@biblabel{#1}}
+    \setlength{\labelsep}{0.5em}
+    \setlength{\itemindent}{0pt}
+    \setlength{\leftmargin}{\labelsep+\labelwidth}
+    \addtolength{\itemsep}{-0.8em}
+    \usecounter{enumiv}%
+    \let\p@enumiv\@empty
+  \renewcommand\theenumiv{\@arabic\c@enumiv}}%
+  \sloppy\frenchspacing
+  \flushbottom
+  \clubpenalty0
+  \@clubpenalty \clubpenalty
+  \widowpenalty0%
+  \interlinepenalty-50%
+  \sfcode`\.\@m
+}
+{\def\@noitemerr
+  {\@latex@warning{Empty `thebibliography' environment}}%
+\endlist\frenchspacing}
+%    \end{macrocode}
+% \changes{v3.2a}{0000/00/00}{控制参考文献列表中作者是否全大写和最大显示数量}
+%    \begin{macrocode}
+%% 用以控制参考文献列表中单个作者的格式
+\exp_args:NNe \cs_new:Nn \g_bib_author_cs:n {
+    \bool_if:NTF \g_bib_authorupper_bool {
+        \exp_not:N \text_uppercase:n {#1}
+    } {
+        {#1}
+    }
+}
+%% 用以输出参考文献列表中的作者
+\NewDocumentCommand{\bibauthor}{m}{
+  \int_zero:N \l_tmpa_int
+  \exp_args:Ne \tl_map_inline:nn {
+    \exp_args:Ne \tl_tail:n {#1}
+  } {
+    \int_compare:nNnT
+      \l_tmpa_int = \g_bib_maxauthor_int {
+      \prg_break:n {\tl_head:N {#1}}
+    }
+    \int_incr:N \l_tmpa_int
+    \g_bib_author_cs:n {##1}
+  }
+  \prg_break_point:
+}
+\ExplSyntaxOff
+%</art-bib>
+%<*artcls-tail>
+%    \end{macrocode}
+% 杂项
+% \changes{v3.2a}{0000/00/00}{misc-art 模块合并为 artcls 内联钩子}
+%    \begin{macrocode}
+\AtEndOfClass{\input{hithesisart.cfg}}
+\AtEndOfClass{\sloppy}
+%</artcls-tail>
+%    \end{macrocode}
+%
+% \subsection{定义选项}
+% \label{sec:defoption}
+%    \begin{macrocode}
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% bookcls
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%    \end{macrocode}
+% ^^A ======================================================================
+% ^^A Module artcfg: art 类配置文件
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*artcfg>
+\theorembodyfont{\normalfont}
+\theoremheaderfont{\normalfont\heiti}
+\theoremsymbol{\ensuremath{\square}}
+\newtheorem*{proof}{证明}
+\theoremstyle{plain}
+\theoremsymbol{}
+\theoremseparator{}
+\newtheorem{assumption}{假设}
+\newtheorem{definition}{定义}
+\newtheorem{proposition}{命题}
+\newtheorem{lemma}{引理}
+\newtheorem{theorem}{定理}
+\newtheorem{axiom}{公理}
+\newtheorem{corollary}{推论}
+\newtheorem{exercise}{练习}
+\newtheorem{example}{例}
+\newtheorem{remark}{注释}
+\newtheorem{problem}{问题}
+\newtheorem{conjecture}{猜想}
+\ctexset{%
+  contentsname={目\hspace{\ccwd}录},
+  figurename=图,
+  tablename=表
+}
+\let\CJK@todaysave=\today
+\def\CJK@todaysmall@short{\the\year 年 \the\month 月}
+\def\CJK@todaysmall{\the\year 年 \the\month 月 \the\day 日}
+\def\CJK@todaybig@short{\zhdigits{\the\year}年\zhnumber{\the\month}月}
+\def\CJK@todaybig{\zhdigits{\the\year}年\zhnumber{\the\month}月\zhnumber{\the\day}日}
+\def\CJK@today{\CJK@todaysmall}
+\renewcommand\today{\CJK@today}
+\newcommand\CJKtoday[1][1]{%
+  \ifcase#1\def\CJK@today{\CJK@todaysave}
+    \or\def\CJK@today{\CJK@todaysmall}
+    \or\def\CJK@today{\CJK@todaybig}
+  \fi}
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{根据 \issue[220] 去掉本部答辩日期中的“日”}
+%    \begin{macrocode}
+\cdate{%
+  \ifhit@bachelor
+    \ifhit@harbin
+      \CJK@todaysmall@short
+    \else
+      \CJK@todaysmall
+    \fi
+  \else \CJK@todaysmall@short \fi
+}
+\ifhit@doctor
+\gdef\hit@cxueweishort{博}
+\gdef\hit@cxuewei{\hit@cxueweishort 士}
+\gdef\hit@cdegree{\hit@cxueke\hit@cxuewei}
+\def\hit@cauthortitle{\hit@cxueweishort 士研究生}
+\fi
+\ifhit@master
+\gdef\hit@cxueweishort{硕}
+\gdef\hit@cxuewei{\hit@cxueweishort 士}
+\gdef\hit@cdegree{\hit@cxueke\hit@cxuewei}
+\def\hit@cauthortitle{\hit@cxueweishort 士研究生}
+\fi
+\ifhit@bachelor
+\gdef\hit@cxuewei{学士}
+\fi
+\def\hit@stage@opening{开题}
+\def\hit@stage@midterm{中期}
+\def\hit@stage@doctype{报告}
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{删了一些没用的定义，更改哈尔滨本科的论文名。\issue[172]}
+% 咱也不知道谁想的，其他校区的本科毕设叫“毕业设计（论文）”，哈尔滨的叫“毕业论文（设计）”
+%    \begin{macrocode}
+\def\hit@bachelor@cxuewei{本科}
+\def\hit@bachelor@cthesisname{毕业\ifhit@harbin 论文（设计）\else 设计（论文）\fi}
+\def\hit@bachelor@cclass{班号}
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{之前一口气删多了，恢复一下。}
+%    \begin{macrocode}
+\def\hit@bachelor@cmajortitle{专\hspace{2\ccwd}业}
+\def\hit@bachelor@cstudenttitle{学\hspace{2\ccwd}生}
+\def\hit@bachelor@cstudentidtitle{学\hspace{2\ccwd}号}
+\def\hit@bachelor@caffiltitle{学院}
+\def\hit@bachelor@caffiltitlesz{学院}
+\def\hit@bachelor@caffiltitlewh{学院}
+\def\hit@bachelor@csupervisortitle{指导教师}
+\def\hit@bachelor@cdatetitle{日\hspace{2\ccwd}期}
+\def\hit@bachelor@teachercomment{指导教师评语：}
+\def\hit@bachelor@teachersign{指导教师签字：}
+\def\hit@bachelor@checkdate{检查日期：}
+\def\hit@cthesistitleprefix{题\hspace{\ccwd}目}
+%    \end{macrocode}
+%
+% \changes{v3.1c}{2023/04/16}{修改深圳硕士开题封面“学科”。}
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{修改本部硕士开题、中期封面“学院（部）”和“学科/学位专业类别”。}
+%    \begin{macrocode}
+\def\hit@graduate@caffiltitle{\makebox[6\ccwd][s]{\ifboolexpr{ bool {hit@harbin} and bool {hit@master} and ( bool {hit@opening} or bool {hit@midterm} ) }{学院（部}{院（系}}）}
+\def\hit@graduate@cmajortitle{%
+  \ifboolexpr{ bool {hit@harbin} and bool {hit@master} and ( bool {hit@opening} or bool {hit@midterm} ) }%
+    {\makebox[8\ccwd][s]{学科/专业学位类别}}%
+    {\makebox[6\ccwd][s]{%
+      \ifboolexpr{ bool {hit@shenzhen} and bool {hit@opening} and bool {hit@master} }%
+        {学科\,/\,专业}%
+        {学科}%
+    }}%
+}
+\def\hit@graduate@supervisor{\makebox[6\ccwd][s]{导师}}
+\def\hit@graduate@studenttitle{\makebox[6\ccwd][s]{研究生}}
+\def\hit@graduate@studentid{\makebox[6\ccwd][s]{学号}}
+\def\hit@graduate@datetitle{\ifhit@opening\hit@stage@opening
+\else\ifhit@midterm\hit@stage@midterm\fi\fi\hit@stage@doctype 日期}
+\def\hit@graduate@enrolldate{\makebox[6\ccwd][s]{入学时间}}
+\def\hit@graduate@thesistitle{\makebox[6\ccwd][s]{论文题目}}
+\def\hit@graduate@cafflimajor{\makebox[6\ccwd][s]{学科专业}}
+\def\hit@cschoolname{哈尔滨工业大学}
+\def\hit@shenzhencampus{（深圳）}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{修改本部硕士开题封面“学位”。}
+%    \begin{macrocode}
+\def\hit@cthesisname{\ifboolexpr{ bool {hit@harbin} and bool {hit@opening} and bool {hit@master} }{学位}{学位论文}}
+\def\hit@cthesismidtermcheck{博\hspace{.125\ccwd}士\hspace{.125\ccwd}学\hspace{.125\ccwd}位\hspace{.125\ccwd}论\hspace{.125\ccwd}文\hspace{.125\ccwd}中\hspace{.125\ccwd}期\hspace{.125\ccwd}检\hspace{.125\ccwd}查\hspace{.125\ccwd}报\hspace{.125\ccwd}告}
+\def\hit@weihaicampus{（威海）}
+\def\hit@cschoolnametitle{\ifboolexpr{bool {hit@harbin} and bool {hit@bachelor}}{学校}{授予学位单位}}
+\def\hit@cdatetitle{答辩日期}
+\def\hit@caffiltitle{所在单位}
+\def\hit@csubjecttitle{学科}
+\def\hit@cdegreetitle{申请学位}
+\def\hit@csupervisortitle{导师}
+\def\hit@cassosupervisortitle{副导师}
+\def\hit@ccosupervisortitle{联合导师}
+\def\hit@title@csep{：}
+\def\hit@natclassifiedindextitle{国内图书分类号}
+\def\hit@internatclassifiedindextitle{国际图书分类号}
+\def\hit@secretlevel{密级}
+\def\hit@schoolidtitle{学校代码}
+\def\hit@schoolid{10213}
+\newcommand{\hit@authorsig}{作者签名：}
+\newcommand{\hit@teachersig}{导师签名：}
+\newcommand{\hit@frontdate}{日期：}
+\newcommand{\hit@authorizationtitle}{学位论文使用权限}
+%    \end{macrocode}
+%
+% \changes{v3.0.22}{2022/05/16}{深圳校区中期模板封面范例中没有“哈工大（深圳）制”字样。\issue[126]}
+%    \begin{macrocode}
+% \newcommand{\hit@shenzhen@schoolbottommark}{
+%    \begin{center}
+%      \songti\sanhao\textbf{哈工大（深圳）制}
+%    \end{center}
+%    \begin{center}
+%      \songti\sanhao\textbf{二〇一二年三月}
+%    \end{center}
+% }
+%    \end{macrocode}
+%
+% 此处删除了时间
+% \changes{v3.0.06}{2020/09/13}{此处删除了时间}
+%    \begin{macrocode}
+\newcommand{\hit@harbin@schoolbottommark}{
+   \begin{center}
+     \songti\sanhao\textbf{研究生院制}
+   \end{center}
+}
+%    \end{macrocode}
+%
+% \changes{v3.1c}{2023/04/16}{根据 \issue[151] 将本部本科开题下方的标识更换为 \texttt{.eps} 文件。}
+%    \begin{macrocode}
+\newcommand{\hit@harbin@bachelor@schoolbottommark}{
+   \begin{center}
+     % \lishu\xiaoer\textbf{哈尔滨工业大学教务处制}
+     \includegraphics{hrb-bachelor-bottommark.eps}
+   \end{center}
+}
+%    \end{macrocode}
+%
+% \changes{v3.1c}{2023/04/16}{深圳校区硕士开题模板含有“深圳校区教务处 制”。\issue[141]}
+%    \begin{macrocode}
+\newcommand{\hit@shenzhen@master@schoolbottommark}{
+   \begin{center}
+     \songti\sanhao\textbf{深圳校区教务部~制}
+   \end{center}
+}
+\newcommand{\hit@shenzhen@doctor@midterm@note}{
+\thispagestyle{empty}
+{\begin{center}
+\songti\sanhao\textbf{说\hspace{4\ccwd}明}
+\end{center}
+}
+\vspace{1cm}\songti\sihao[2]
+\begin{enumerate}[itemsep=-4bp]
+\item 博士研究生学位论文中期报告一般在入学后的第五学期末完成。
+\item 此报告由学生本人填写，请导师签字后提交一份给检查小组。答辩结束后由检查组长签署意见。
+\item 报告经中期报告检查组长签字同意后，由学科部保存，以备论文答辩时参考。研究生院学生培养处将对研究生的学位论文中期报告进行抽查。
+\item 报告统一用A4纸打印。
+\end{enumerate}
+}
+\newcommand{\hit@datefill}{\hspace{2.5em}年\hspace{1.5em}月\hspace{1.5em}日}
+\def\hit@hi{嗨！thesis}
+\def\hithesis{\textsc{hi}\-\textsc{Thesis}}
+\def\hit{哈尔滨工业大学}
+%</artcfg>
+%    \end{macrocode}
