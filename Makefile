@@ -6,7 +6,9 @@ LATEXMKOPTS = -xelatex
 PACKAGE = hithesis
 VERSION = `grep -m 1 -o "v[0-9]\+\.[0-9]\+\.[0-9]\+" src/$(PACKAGE).dtx`
 
-SOURCES = $(PACKAGE).ins src/$(PACKAGE).dtx
+# 所有 dtx 都要列进来。只列 src/hithesis.dtx 的话，改 book/art/bst 等文件
+# make 会认为目标是最新的，直接跳过生成，拿旧产物继续跑测试。
+SOURCES = $(PACKAGE).ins $(wildcard src/*.dtx)
 TARGETS = dtx-style.sty
 
 RELEASE_NOTES = RELEASE_NOTES.md
