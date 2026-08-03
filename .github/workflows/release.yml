@@ -48,10 +48,27 @@ jobs:
 
       # ---- 下面几步只在这个版本号还没发过时才走 ----
 
+      # 必须在打 tag 之前：仓库约定是同一版本的所有 \changes 共用该版本的发布日期
+      # （v3.1d 的 59 条全是 2025/03/03），先回写再打 tag，tag 上的源码日期才是准的。
+      - name: Stamp \changes dates
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: |
+          python3 scripts/changes.py --stamp --date "$(date -u +%Y/%m/%d)"
+          if ! git diff --quiet -- '*.dtx'; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "填写 ${{ steps.changes.outputs.version }} 的 changes 日期 [skip ci]" -- '*.dtx'
+            git push origin HEAD:master
+          fi
+
+      - name: Regenerate release notes after stamping
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: make changes
+
       - name: Build template package
         if: steps.tagcheck.outputs.exists == 'false'
-        # 这个 zip 一是给用户的模板包，二是下一版回归测试要拿它当参照，
-        # scripts/regression_test.py 就靠它，所以必须传成 release 资产。
+        # 给用户的模板包。注意必须排在 Stamp 之后：包里的 hithesis.pdf 是手册，
+        # 手册的「修改记录」一节会印出 \changes 的日期，先打包就会印成 0000/00/00。
         run: |
           scripts/package.sh \
             --version "${{ steps.changes.outputs.version }}" \
