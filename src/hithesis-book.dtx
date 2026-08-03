@@ -850,6 +850,7 @@
 % ^^A ======================================================================
 %    \begin{macrocode}
 %<*book-mainmatter>
+\ExplSyntaxOn
 %    \end{macrocode}
 % \begin{macro}{\cleardoublepage}
 % 对于 \textsl{openright} 选项，必须保证章首页右开，且如果前章末页无内容须
@@ -857,24 +858,26 @@
 % 如果\textsl{library}为真，则强制设置\textsl{openright}为真。
 % \changes{v2.0.10}{2019/06/25}{添加\textsl{openright}和\textsl{library}逻辑}
 % \changes{v3.0.0}{2020/05/20}{将glossaries移动到这里}
+% \changes{v3.2a}{0000/00/00}{book-mainmatter 模块改用 expl3 实现。标志位仍由
+%   kvoptions 声明，读用 \cs{legacy_if:nTF}，写用 \cs{legacy_if_set_false:n}。}
 %    \begin{macrocode}
-\ifhit@library\hit@openrightfalse\else\relax\fi
-\let\hit@cleardoublepage\cleardoublepage
-\newcommand{\hit@clearemptydoublepage}{%
-  \clearpage{\pagestyle{hit@empty}\hit@cleardoublepage}
-}
-\let\cleardoublepage\hit@clearemptydoublepage
+\legacy_if:nT { hit@library } { \legacy_if_set_false:n { hit@openright } }
+\cs_set_eq:NN \hit@cleardoublepage \cleardoublepage
+\newcommand { \hit@clearemptydoublepage }
+  { \clearpage { \pagestyle { hit@empty } \hit@cleardoublepage } }
+\cs_set_eq:NN \cleardoublepage \hit@clearemptydoublepage
 %    \end{macrocode}
 %
 % \end{macro}
 % \begin{macro}{\frontmatter}
 % 我们的单面和双面模式与常规的不太一样。
 %    \begin{macrocode}
-\renewcommand\frontmatter{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
-  \@mainmatterfalse
-  \pagenumbering{Roman}
-  \pagestyle{hit@empty}
+\renewcommand \frontmatter
+  {
+    \legacy_if:nTF { hit@openright } { \cleardoublepage } { \clearpage }
+    \@mainmatterfalse
+    \pagenumbering { Roman }
+    \pagestyle { hit@empty }
 %    \end{macrocode}
 %
 % 窝工深圳模板范例，一行34个字
@@ -882,15 +885,11 @@
 % 添加33行字选项
 % \changes{v3.0.13}{2020/11/10}{添加33行字选项}
 %    \begin{macrocode}
-\ifhit@openright\cleardoublepage\else\clearpage\fi
-\ifhit@zijvword
-\ziju{0.05416667}
-\else
-\ifhit@zijvregu
-\ziju{0.05580808}
-\fi
-\fi
-}
+    \legacy_if:nTF { hit@openright } { \cleardoublepage } { \clearpage }
+    \legacy_if:nTF { hit@zijvword }
+      { \ziju { 0.05416667 } }
+      { \legacy_if:nT { hit@zijvregu } { \ziju { 0.05580808 } } }
+  }
 %    \end{macrocode}
 %
 % \end{macro}
@@ -899,37 +898,42 @@
 % （不看文档别怪我）。
 % \changes{v2.0.11}{2018/06/27}{设置第一章必须在奇数页}
 %    \begin{macrocode}
-\renewcommand\mainmatter{%
-  \ifhit@english
-  \relax
-  \else
-  \ifhit@tocblank%
-  \addtocontents{toc}{\vspace{\baselineskip}} %规范中并没有这一要求，此处不应该加
-  \addtocontents{toe}{\vspace{\baselineskip}}
-  \fi%
-  \fi
+\renewcommand \mainmatter
+  {
+%    \end{macrocode}
+% 规范中并没有加空行这一要求，此处不应该加，所以只在 \opt{tocblank} 下才加。
+%    \begin{macrocode}
+    \legacy_if:nF { hit@english }
+      {
+        \legacy_if:nT { hit@tocblank }
+          {
+            \addtocontents { toc } { \vspace { \baselineskip } }
+            \addtocontents { toe } { \vspace { \baselineskip } }
+          }
+      }
 %    \end{macrocode}
 %
 % 添加英文版限制
 % \changes{v3.0.0}{2020/05/21}{添加英文版限制}
 %    \begin{macrocode}
-  \ifhit@doctor%
-    \ifhit@library\clearpage\else\cleardoublepage\fi
-    \else%
-    \clearpage
-  \fi%
-  \@mainmattertrue
-  \pagenumbering{arabic}
-  \pagestyle{hit@headings}
-}
+    \legacy_if:nTF { hit@doctor }
+      { \legacy_if:nTF { hit@library } { \clearpage } { \cleardoublepage } }
+      { \clearpage }
+    \@mainmattertrue
+    \pagenumbering { arabic }
+    \pagestyle { hit@headings }
+  }
 %    \end{macrocode}
 %
 % \end{macro}
 % \begin{macro}{\backmatter}
 %    \begin{macrocode}
-\renewcommand\backmatter{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
-  \@mainmattertrue}
+\renewcommand \backmatter
+  {
+    \legacy_if:nTF { hit@openright } { \cleardoublepage } { \clearpage }
+    \@mainmattertrue
+  }
+\ExplSyntaxOff
 %</book-mainmatter>
 %    \end{macrocode}
 %
