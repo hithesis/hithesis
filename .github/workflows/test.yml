@@ -169,17 +169,23 @@ jobs:
           curl.exe -sSL --retry 3 --retry-delay 5 -o gs-setup.exe $url
           if ($LASTEXITCODE -ne 0) { Write-Error "下载失败"; exit 1 }
           Write-Host "大小 $((Get-Item gs-setup.exe).Length / 1MB -as [int]) MB，开始静默安装"
-          Start-Process -FilePath .\gs-setup.exe -ArgumentList '/S' -Wait -NoNewWindow
+
+          # 装到不含空格的路径。NSIS 要求 /D 放在最后且不加引号。
+          $p = Start-Process -FilePath .\gs-setup.exe -ArgumentList '/S','/D=C:\gs' `
+                             -Wait -PassThru -NoNewWindow
+          Write-Host "安装程序退出码 $($p.ExitCode)"
 
           # 安装程序不改 PATH，自己把 bin 目录加进去
-          $bin = Get-ChildItem 'C:\Program Files\gs' -Directory |
-                 Sort-Object Name -Descending |
-                 ForEach-Object { Join-Path $_.FullName 'bin' } |
-                 Where-Object { Test-Path (Join-Path $_ 'gswin64c.exe') } |
-                 Select-Object -First 1
-          if (-not $bin) { Write-Error "装完仍找不到 gswin64c.exe"; exit 1 }
-          Write-Host "加入 PATH：$bin"
-          $bin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $exe = Get-ChildItem 'C:\gs','C:\Program Files\gs' -Recurse -Filter gswin64c.exe `
+                               -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) {
+            Write-Host "没找到 gswin64c.exe。当前 C:\gs 与 C:\Program Files\gs 的内容："
+            Get-ChildItem 'C:\gs','C:\Program Files\gs' -ErrorAction SilentlyContinue |
+              ForEach-Object { Write-Host "  $($_.FullName)" }
+            exit 1
+          }
+          Write-Host "加入 PATH：$($exe.DirectoryName)"
+          $exe.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       # 这里用 l3build：它随 TeX Live 发行，三个平台都能直接跑，不必处理
       # TEXINPUTS 的分隔符差异，也不要求 runner 上装了 make。
