@@ -9,7 +9,8 @@
 - markdown 的围栏代码块与行内代码
 - HTML 标签内部（``alt="知识共享许可协议"`` 这种属性值）
 - URL
-- dtx 里的非注释行，以及注释里的 verbatim 类命令（``\\file{}``、``\\texttt{}`` 等）
+- LaTeX 源码（.dtx .lvt .ins .cls .sty）里的非注释行，以及注释里的 verbatim
+  类命令（``\\file{}``、``\\texttt{}`` 等）
 - dtx 的 shell/bibtex 示例环境
 
 代码文件（.py .sh .lua .yml .lvt Makefile）里的注释也扫，但只改半角标点和引号
@@ -91,12 +92,32 @@ def convert(text: str, quote_style: str, straight_quotes: bool = True) -> str:
 
 # 这些后缀的文件里，" 是字符串定界符或代码语法，只统一半角标点与引号风格，
 # 不把 "..." 换成中文引号
-CODE_SUFFIXES = {".lua", ".sh", ".py", ".yml", ".yaml", ".lvt", ".mk"}
+CODE_SUFFIXES = {".lua", ".sh", ".py", ".yml", ".yaml", ".mk"}
 CODE_NAMES = {"Makefile"}
+
+# LaTeX 源码：只处理 % 开头的注释行。正文里的逗号常常是语法而非标点，
+# 比如 \hitsetup{ckeywords={甲,乙,丙}} 的逗号是 \@for 的分隔符，换成全角
+# 三个关键词就并成一个了。
+LATEX_SUFFIXES = {".dtx", ".lvt", ".ins", ".cls", ".sty"}
 
 
 def is_code(path: Path) -> bool:
     return path.suffix in CODE_SUFFIXES or path.name in CODE_NAMES
+
+
+def convert_latex_comments(text: str, quote_style: str) -> str:
+    """LaTeX 源码逐行处理，只动注释行。
+
+    遮罩必须先在全文上做：示例环境是跨行的，逐行看根本认不出
+    ``\\begin{bibtex}`` 到 ``\\end{bibtex}`` 是一整块。
+    """
+    masked, saved = mask(text)
+    out = []
+    for line in masked.split("\n"):
+        if line.lstrip().startswith("%"):
+            line = convert(line, quote_style)
+        out.append(line)
+    return unmask("\n".join(out), saved)
 
 
 def default_targets() -> list[Path]:
@@ -140,8 +161,11 @@ def changed_files() -> list[Path]:
 
 def process(path: Path, quote_style: str, apply: bool) -> list[tuple[int, str, str]]:
     original = path.read_text(encoding="utf-8")
-    masked, saved = mask(original)
-    result = unmask(convert(masked, quote_style, straight_quotes=not is_code(path)), saved)
+    if path.suffix in LATEX_SUFFIXES:
+        result = convert_latex_comments(original, quote_style)
+    else:
+        masked, saved = mask(original)
+        result = unmask(convert(masked, quote_style, straight_quotes=not is_code(path)), saved)
     if result == original:
         return []
     diffs = [(i, a, b) for i, (a, b) in
