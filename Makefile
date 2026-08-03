@@ -21,22 +21,40 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean changes changes-check changes-fix punct punct-fix version-changes \
-        toc toc-update baseline smoke regression-test tl-packages testclean
+.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix version-changes \
+        baseline smoke regression-test tl-packages testclean
 
 all: doc
 
-toc:
-	python3 dtx-toc.py
 
-toc-update:
-	python3 dtx-toc.py write
 
 cls: $(TARGETS)
 
 # nonstopmode：docstrip 出错时直接失败，不要挂在交互提示上等输入
+# TEXINPUTS 指到 src/：这样 .ins 与 driver 里写不带目录的文件名即可，
+# make（在根目录跑）和 l3build（把源码拍平到 build/unpacked）都能找到。
 $(TARGETS): $(SOURCES)
-	latex -interaction=nonstopmode $(PACKAGE).ins
+	TEXINPUTS=src: latex -interaction=nonstopmode $(PACKAGE).ins
+	$(MAKE) --no-print-directory distribute
+
+# .ins 只生成到根目录，示例目录里的那份由这里分发。
+# 这样 docstrip 的输出不依赖调用时的当前目录，l3build 的 unpack 才能直接用。
+BOOKFILES = $(PACKAGE)book.cls $(PACKAGE)book.cfg $(PACKAGE).bst hitszthesis.bst \
+            hitlogo.eps bthesistitle.eps shenzhenbthesistitle.eps zfb.eps \
+            hrb-bachelor-bottommark.eps
+ARTFILES  = $(PACKAGE)art.cls $(PACKAGE)art.cfg $(PACKAGE).bst hitszthesis.bst \
+            hitlogo.eps bthesistitle.eps zfb.eps
+
+distribute:
+	@for d in examples/hitbook/chinese examples/hitbook/english; do \
+	  cp $(BOOKFILES) $$d/; mkdir -p $$d/figures; cp golfer.eps $$d/figures/; \
+	done
+	@cp $(PACKAGE).ist examples/hitbook/chinese/
+	@cp $(ARTFILES) hrb-bachelor-bottommark.eps examples/hitart/reports/
+	@mkdir -p examples/hitart/reports/figures && cp golfer.eps examples/hitart/reports/figures/
+	@cp $(PACKAGE)artplus.cls $(PACKAGE)art.cfg $(PACKAGE).bst hitszthesis.bst \
+	    hitlogo.eps bthesistitle.eps zfb.eps examples/hitart/reportplus/
+	@mkdir -p examples/hitart/reportplus/figures && cp golfer.eps examples/hitart/reportplus/figures/
 
 doc: $(PACKAGE).pdf
 
@@ -46,16 +64,16 @@ viewdoc: doc
 ifeq ($(METHOD),latexmk)
 
 $(PACKAGE).pdf: $(TARGETS)
-	$(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
+	TEXINPUTS=src: $(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
 
 else ifeq ($(METHOD),xelatex)
 
 $(PACKAGE).pdf: $(TARGETS)
-	$(METHOD) src/$(PACKAGE).dtx
+	TEXINPUTS=src: $(METHOD) src/$(PACKAGE).dtx
 	makeindex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
 	makeindex -s gglo.ist -o $(PACKAGE).gls $(PACKAGE).glo
-	$(METHOD) src/$(PACKAGE).dtx
-	$(METHOD) src/$(PACKAGE).dtx
+	TEXINPUTS=src: $(METHOD) src/$(PACKAGE).dtx
+	TEXINPUTS=src: $(METHOD) src/$(PACKAGE).dtx
 
 else
 $(error Unknown METHOD: $(METHOD))
