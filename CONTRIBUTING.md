@@ -304,7 +304,7 @@ CI 会在推送后跑这几项：
 | `tests` `scripts` | `tests/`、`testfiles/`、`tools/`、`scripts/` |
 | `deps` | 依赖清单 `.github/tl_packages` |
 
-手册的范围叫 `manual` 不叫 `doc`，是为了跟类型 `docs` 区分开——`docs(doc):`
+手册的范围叫 `manual` 不叫 `doc`，是为了跟类型 `docs` 区分开。`docs(doc):`
 这种写法只会让人猜半天。范围能省则省，但**同一类型能落在多处时就该写**：
 `docs:` 看不出改的是手册还是 README，`docs(manual):` 一眼就知道。
 

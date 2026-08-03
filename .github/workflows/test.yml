@@ -50,6 +50,14 @@ jobs:
       - uses: TeX-Live/setup-texlive-action@v4
         with:
           version: ${{ matrix.tl-version }}
+          # 老版本走 historic 归档，action 默认指到 ftp.math.utah.edu，那台实测
+          # 整段拉不动。连 TeX Live 数据库的校验和都下不来，包下载全失败而 tlmgr
+          # 以 0 退出，于是安装步骤显示成功、其实缺一堆东西，到用的时候才炸。
+          # 换成 tu-chemnitz，2021-2025 逐个验证过可达。
+          # 注意：下面那个 2026 是“当前版本”的意思，发新版时要跟矩阵一起改。
+          repository: ${{ matrix.tl-version == 2026
+            && 'https://mirror.ctan.org/systems/texlive/tlnet'
+            || format('https://ftp.tu-chemnitz.de/pub/tug/historic/systems/texlive/{0}/tlnet-final', matrix.tl-version) }}
           package-file: |
             .github/tl_packages
             ${{ matrix.tl-version < 2024 && '.github/tl_packages_compat' || '' }}
@@ -60,16 +68,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ghostscript
 
-      # setup-texlive-action 装 2021-2025 走的是 historic 归档，实测会漏包却仍以
-      # 0 退出——TL2021-2025 整批漏掉 l3build，到下一步才炸成一句 command not found。
-      # 2026 从当前 CTAN 仓库装，没这个问题。这里补装一次并把缺失变成明确报错。
+      # 换了镜像之后这一步正常情况下什么都不做。留着是因为缓存可能是坏镜像
+      # 时期建的。缓存命中就不会重装，缺的包会一直缺着，补一次即可自愈。
+      #
+      # 补不上就直接失败，不跳过：跳过了外面看还是绿的，真长期失效我们会误以为
+      # 六个版本都在测，而它恰恰是为了抓“只在某个版本现形”的问题才加的。
       - name: Ensure l3build is available
         run: |
           if ! command -v l3build >/dev/null; then
-            echo "setup 没装上 l3build，补装一次"
-            tlmgr install l3build
+            echo "缓存里没有 l3build，补装一次"
+            tlmgr install l3build || true
           fi
-          command -v l3build || { echo "补装后仍然没有 l3build，看上一步的安装日志"; exit 1; }
+          command -v l3build || {
+            echo "装不上 l3build。看上面 tlmgr 的输出确认是不是镜像又不通了。"
+            exit 1
+          }
 
       - name: Generate cls files
         run: make cls
@@ -107,7 +120,7 @@ jobs:
 
   # ============================================================
   # 跨平台编译：模板本身在 macOS / Windows 上还编不编得出来。
-  #    只跑 TL latest，不铺六个版本——版本维度由上面的矩阵覆盖，
+  #    只跑 TL latest，不铺六个版本。版本维度由上面的矩阵覆盖，
   #    这里要覆盖的是平台维度（字体查找、gs 调用、路径处理）。
   #    用 latexmk 而不是 make：latexmk 随 TeX Live 走，三平台都有。
   # ============================================================
@@ -133,7 +146,7 @@ jobs:
 
       # chocolatey 的 ghostscript 包是靠 AutoHotkey 去点图形安装程序的，
       # 正常四十来秒，卡住就是无限期等一个永远不会出现的对话框，实测挂过十五分钟以上。
-      # 所以先探 epstopdf 真正会调用的那两个可执行文件——TeX Live 的 Windows
+      # 所以先探 epstopdf 真正会调用的那两个可执行文件。TeX Live 的 Windows
       # 安装自带一份 Ghostscript，有的话这一步整个可以省掉。
       - name: Install ghostscript (Windows)
         if: runner.os == 'Windows'
@@ -155,7 +168,7 @@ jobs:
       # 是 distribute 而不是 install：装进 TEXMFHOME 只有 .cls 能被找到，
       # .eps 走 kpathsea 的图形检索格式、.bst 走 BSTINPUTS，都不在 tex/latex
       # 那条路径上。示例要的是“文件就在手边”的布局，也就是用户从发布 zip
-      # 解出来的样子——这样跨平台任务和 Linux 矩阵测的才是同一件事。
+      # 解出来的样子。这样跨平台任务和 Linux 矩阵测的才是同一件事。
       - name: Generate and distribute class files
         shell: bash
         run: |

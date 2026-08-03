@@ -41,7 +41,7 @@ unpackopts  = "-interaction=nonstopmode"
 
 
 -- 把生成物拷进四个示例目录。示例期望的是“文件就在手边”那种布局，也就是用户
--- 从发布 zip 解出来的样子——装进 TEXMFHOME 代替不了：.cls 那样能找到，但 .eps
+-- 从发布 zip 解出来的样子。装进 TEXMFHOME 代替不了：.cls 那样能找到，但 .eps
 -- 走 kpathsea 的图形检索格式、.bst 走 BSTINPUTS，都不在 tex/latex 那条路径上。
 --
 -- 用 Lua 而不是 shell，是为了 macOS/Windows 上不装 make 也能跑。Makefile 里的
