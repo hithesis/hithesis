@@ -4,9 +4,9 @@ METHOD = xelatex
 LATEXMKOPTS = -xelatex
 
 PACKAGE = hithesis
-VERSION = `grep -m 1 -o "v[0-9]\+\.[0-9]\+\.[0-9]\+" $(PACKAGE).dtx`
+VERSION = `grep -m 1 -o "v[0-9]\+\.[0-9]\+\.[0-9]\+" src/$(PACKAGE).dtx`
 
-SOURCES = $(PACKAGE).ins $(PACKAGE).dtx
+SOURCES = $(PACKAGE).ins src/$(PACKAGE).dtx
 TARGETS = dtx-style.sty
 
 RELEASE_NOTES = RELEASE_NOTES.md
@@ -46,16 +46,16 @@ viewdoc: doc
 ifeq ($(METHOD),latexmk)
 
 $(PACKAGE).pdf: $(TARGETS)
-	$(METHOD) $(LATEXMKOPTS) $(PACKAGE).dtx
+	$(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
 
 else ifeq ($(METHOD),xelatex)
 
 $(PACKAGE).pdf: $(TARGETS)
-	$(METHOD) $(PACKAGE).dtx
+	$(METHOD) src/$(PACKAGE).dtx
 	makeindex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
 	makeindex -s gglo.ist -o $(PACKAGE).gls $(PACKAGE).glo
-	$(METHOD) $(PACKAGE).dtx
-	$(METHOD) $(PACKAGE).dtx
+	$(METHOD) src/$(PACKAGE).dtx
+	$(METHOD) src/$(PACKAGE).dtx
 
 else
 $(error Unknown METHOD: $(METHOD))
@@ -96,7 +96,7 @@ testclean:
 	-rm -rf tests/work tests/current tests/diff tests/doc-current tests/doc-diff
 
 auxclean:
-	latexmk -c $(PACKAGE).dtx
+	latexmk -c src/$(PACKAGE).dtx
 	-$(RM) *.glo *.gls *.hd
 
 clean: auxclean

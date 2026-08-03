@@ -88,7 +88,7 @@ def convert(text: str, quote_style: str) -> str:
 
 def default_targets() -> list[Path]:
     files = sorted(ROOT.glob("*.md")) + sorted(ROOT.glob("*/*.md"))
-    doc = ROOT / "hithesis-doc.dtx"
+    doc = ROOT / "src" / "hithesis-doc.dtx"
     if doc.exists():
         files.append(doc)
     # RELEASE_NOTES.md 是 make changes 生成的，改了下次就被覆盖

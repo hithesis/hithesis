@@ -45,7 +45,7 @@ if [[ $mode != reuse ]]; then
   latex hithesis.ins > /dev/null
 
   echo "[gen-tl-packages] 编译宏包文档（-recorder）……" >&2
-  xelatex -recorder -interaction=nonstopmode hithesis.dtx > /dev/null 2>&1 || true
+  xelatex -recorder -interaction=nonstopmode src/hithesis.dtx > /dev/null 2>&1 || true
 
   if [[ $mode == all ]]; then
     variants=()

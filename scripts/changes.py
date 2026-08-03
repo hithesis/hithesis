@@ -41,7 +41,7 @@ LEGACY_MAX = "3.1e"
 
 def dtx_files() -> list[Path]:
     r"""\changes 散落在 hithesis.dtx / -doc.dtx / -eps.dtx，全都要扫。"""
-    return sorted(ROOT.glob("*.dtx"))
+    return sorted((ROOT / "src").glob("*.dtx"))
 
 HEAD = re.compile(r"\\changes\{([^}]*)\}\{([^}]*)\}\{")
 

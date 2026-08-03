@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-DTX = ROOT / "hithesis.dtx"
+DTX = ROOT / "src" / "hithesis.dtx"
 
 BEGIN_SENTINEL = "% ^^A <<<BEGIN-DTX-TOC>>>"
 END_SENTINEL = "% ^^A <<<END-DTX-TOC>>>"

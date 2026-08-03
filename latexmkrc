@@ -1,5 +1,5 @@
 # vim: set ft=perl:
-@default_files = ('hithesis.dtx');
+@default_files = ('src/hithesis.dtx');
 
 $pdf_mode = 1;
 $bibtex_use = 2;
