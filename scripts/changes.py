@@ -24,12 +24,19 @@ from __future__ import annotations
 import argparse
 import datetime
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "RELEASE_NOTES.md"
 PLACEHOLDER = "0000/00/00"
+
+# 已发布过的版本是一个封闭集，不再变动，检查一律跳过。
+# 边界取最后一个打过 tag 的版本 v3.1e：更早的那批（v1.x、v2.x、v3.0.x）当年
+# 有的一条一个日期、有的压根没打 tag，拿现在的约定回头查只会误伤。
+# 发布新版本后把这个常量往前推一格。
+LEGACY_MAX = "3.1e"
 
 
 def dtx_files() -> list[Path]:
@@ -100,36 +107,49 @@ def normalize(date: str) -> str:
 
 
 def audit(items: list[tuple[str, str, str]], latest: str) -> list[str]:
-    """返回问题清单。三条规则都不需要 git 历史，是无状态的。
+    """返回问题清单，只查 LEGACY_MAX 之后的版本。
 
-    刻意不查「同一版本共用一个日期」：早期版本本来就是一条一个日期
-    （v3.0.0 有三个，v3.0.15 跨了一年），这个约定是 v3.1b 之后才固化的。
+    对这些版本要求两条：同一版本的日期必须统一，格式必须是 YYYY/MM/DD。
+    「统一」既涵盖开发中（全是占位符），也涵盖已 stamp（全是同一个真实日期），
+    所以发版当天不会误报。混着写就是有人手填了日期，正是要抓的情况。
     """
     problems = []
+    by_version: dict[str, list[tuple[str, str]]] = {}
     for version, date, body in items:
-        where = f"v{version}"
-        if version == latest and date != PLACEHOLDER:
+        if version_key(version) <= version_key(LEGACY_MAX):
+            continue
+        by_version.setdefault(version, []).append((date, body))
+
+    for version, entries in by_version.items():
+        dates = {d for d, _ in entries}
+        if len(dates) > 1:
             problems.append(
-                f"{where} 是开发版，日期该写 {PLACEHOLDER}，实际是 {date}\n"
-                f"    条目：{body[:50]}")
-        elif version != latest and date == PLACEHOLDER:
+                f"v{version} 的 {len(entries)} 条日期不统一：{', '.join(sorted(dates))}\n"
+                f"    同一版本要么全是 {PLACEHOLDER}（开发中），要么全是发布日期")
+
+        if PLACEHOLDER not in dates:
             problems.append(
-                f"{where} 已发布，却留着 {PLACEHOLDER} 没填\n"
-                f"    条目：{body[:50]}")
-        elif date != PLACEHOLDER and normalize(date) != date:
-            problems.append(f"{where} 的日期 {date} 不是 YYYY/MM/DD，应为 {normalize(date)}")
+                f"v{version} 还没发布，却写了实际日期 {', '.join(sorted(dates))}\n"
+                f"    未发布版本的日期该留 {PLACEHOLDER}，发版时由 --stamp 统一填")
+
+        for date, body in entries:
+            if date != PLACEHOLDER and normalize(date) != date:
+                problems.append(f"v{version} 的日期 {date} 不是 YYYY/MM/DD，应为 {normalize(date)}")
+
     return problems
 
 
 def fix(latest: str) -> int:
-    """能自动修的就地修掉：补零，以及把开发版的实际日期打回占位符。"""
+    """能自动修的就地修掉：补零，以及把未发布版本的实际日期打回占位符。"""
+    # 超过 LEGACY_MAX 的版本按定义都还没发布，日期一律打回占位符；
+    # LEGACY_MAX 及更早的是封闭集，不碰。
     changed = 0
     for f in dtx_files():
         text = original = f.read_text(encoding="utf-8")
 
         def repl(m: re.Match) -> str:
             version, date = m.group(1), m.group(2)
-            if version.lstrip("v") == latest:
+            if version_key(version.lstrip("v")) > version_key(LEGACY_MAX):
                 date = PLACEHOLDER
             elif date != PLACEHOLDER:
                 date = normalize(date)
@@ -160,6 +180,8 @@ def main() -> int:
                         help="配合 --stamp，指定版本；默认最新版本")
     parser.add_argument("--check", action="store_true", help="校验日期约定，有问题时退出码 1")
     parser.add_argument("--fix", action="store_true", help="就地修正能自动修的部分")
+    parser.add_argument("--close", metavar="VER",
+                        help="把 LEGACY_MAX 推到 VER，发版后调用")
     args = parser.parse_args()
 
     if not dtx_files():
@@ -175,6 +197,18 @@ def main() -> int:
 
     if args.version:
         print(f"v{latest}")
+        return 0
+
+    if args.close:
+        target = args.close.lstrip("v")
+        me = Path(__file__)
+        src = me.read_text(encoding="utf-8")
+        old = f'LEGACY_MAX = "{LEGACY_MAX}"'
+        if LEGACY_MAX == target:
+            print(f"LEGACY_MAX 已经是 {target}，无需改动")
+            return 0
+        me.write_text(src.replace(old, f'LEGACY_MAX = "{target}"', 1), encoding="utf-8")
+        print(f"LEGACY_MAX: {LEGACY_MAX} → {target}")
         return 0
 
     if args.check:
