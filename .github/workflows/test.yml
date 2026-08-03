@@ -44,20 +44,22 @@ jobs:
       matrix:
         tl-version: [2021, 2022, 2023, 2024, 2025, 2026]
 
+    env:
+      # 2021-2025 从 historic 归档装。action 默认用 ftp.math.utah.edu，该站点
+      # 当前无法访问，包下载全部失败而 tlmgr 仍以 0 退出，安装步骤看不出问题，
+      # 后面用到缺失的包时才报错。tu-chemnitz 的归档五个版本都验证过可访问。
+      # 2026 是当前版本，走常规 CTAN 仓库；发布新版本时这里要跟矩阵一起改。
+      TL_REPO: ${{ matrix.tl-version == 2026
+        && 'https://mirror.ctan.org/systems/texlive/tlnet'
+        || format('https://ftp.tu-chemnitz.de/pub/tug/historic/systems/texlive/{0}/tlnet-final', matrix.tl-version) }}
+
     steps:
       - uses: actions/checkout@v7
 
       - uses: TeX-Live/setup-texlive-action@v4
         with:
           version: ${{ matrix.tl-version }}
-          # 老版本走 historic 归档，action 默认指到 ftp.math.utah.edu，那台实测
-          # 整段拉不动。连 TeX Live 数据库的校验和都下不来，包下载全失败而 tlmgr
-          # 以 0 退出，于是安装步骤显示成功、其实缺一堆东西，到用的时候才炸。
-          # 换成 tu-chemnitz，2021-2025 逐个验证过可达。
-          # 注意：下面那个 2026 是“当前版本”的意思，发新版时要跟矩阵一起改。
-          repository: ${{ matrix.tl-version == 2026
-            && 'https://mirror.ctan.org/systems/texlive/tlnet'
-            || format('https://ftp.tu-chemnitz.de/pub/tug/historic/systems/texlive/{0}/tlnet-final', matrix.tl-version) }}
+          repository: ${{ env.TL_REPO }}
           package-file: |
             .github/tl_packages
             ${{ matrix.tl-version < 2024 && '.github/tl_packages_compat' || '' }}
@@ -68,30 +70,32 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ghostscript
 
-      # 换了镜像之后这一步正常情况下什么都不做。留着是因为缓存可能是坏镜像
-      # 时期建的。缓存命中就不会重装，缺的包会一直缺着，补一次即可自愈。
+      # 缓存可能是换镜像之前建的，里面缺 l3build，而且缓存命中时不会重新安装。
+      # 恢复出来的 TeX Live 里 tlmgr 的仓库配置也还指向旧的站点，所以补装时要
+      # 先把仓库改过来。
       #
-      # 补不上就直接失败，不跳过：跳过了外面看还是绿的，真长期失效我们会误以为
-      # 六个版本都在测，而它恰恰是为了抓“只在某个版本现形”的问题才加的。
+      # 装不上就失败，不跳过。跳过之后 CI 显示为通过，一旦长期装不上，我们会
+      # 以为六个版本都在跑宏级测试，而这个测试正是为了发现只在个别版本上出现
+      # 的问题才加的。
       - name: Ensure l3build is available
         run: |
-          if ! command -v l3build >/dev/null; then
-            echo "缓存里没有 l3build，补装一次"
-            tlmgr install l3build || true
+          if command -v l3build >/dev/null; then
+            echo "l3build 已就位：$(command -v l3build)"
+            exit 0
           fi
-          command -v l3build || {
-            echo "装不上 l3build。看上面 tlmgr 的输出确认是不是镜像又不通了。"
-            exit 1
-          }
+          echo "缓存里没有 l3build，补装"
+          tlmgr option repository "$TL_REPO"
+          tlmgr install l3build
+          command -v l3build
 
       - name: Generate cls files
         run: make cls
 
-      # 宏级回归：比对 .lvt 跑出来的日志与 testfiles/*.tlg 基线。
-      # 六个版本都跑。基线里只有本模板自己的宏定义，不含内核版本横幅或文件日期，
-      # 沾内核的只有 \DeclareRobustCommand 与 \newcommand 可选参数这两套展开式，
-      # 2021 到 2026 都没变过。跨版本跑才有意义：gbt7714 在 TL2026 改用
-      # \ProcessKeyOptions 把模板打挂，就是这一类只在某个版本上现形的宏级漂移。
+      # 宏级回归：比对 .lvt 编出的日志与 testfiles/*.tlg 基线。
+      # 六个版本都跑。基线里只有本模板自己的宏定义，不含内核版本信息或文件日期，
+      # 涉及内核的只有 \DeclareRobustCommand 与 \newcommand 可选参数两处展开结果，
+      # 2021 到 2026 没有变化。跨版本运行是必要的：gbt7714 在 TL2026 改用
+      # \ProcessKeyOptions 后模板无法编译，就属于只在个别版本出现的宏级差异。
       - name: Run macro-level checks
         run: l3build check
 
@@ -144,10 +148,9 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ghostscript
 
-      # chocolatey 的 ghostscript 包是靠 AutoHotkey 去点图形安装程序的，
-      # 正常四十来秒，卡住就是无限期等一个永远不会出现的对话框，实测挂过十五分钟以上。
-      # 所以先探 epstopdf 真正会调用的那两个可执行文件。TeX Live 的 Windows
-      # 安装自带一份 Ghostscript，有的话这一步整个可以省掉。
+      # chocolatey 的 ghostscript 包用 AutoHotkey 驱动图形安装程序，正常四十来秒，
+      # 但实测出现过超过十五分钟不返回的情况。所以先检查 epstopdf 会调用的两个
+      # 可执行文件是否已存在，存在就跳过安装。
       - name: Install ghostscript (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -162,17 +165,17 @@ jobs:
           Write-Host "没找到 gswin64c/gswin32c，走 chocolatey"
           choco install ghostscript --no-progress -y
 
-      # 用 l3build 而不是 make：它随 TeX Live 发行，三平台原生，不用管
+      # 这里用 l3build：它随 TeX Live 发行，三个平台都能直接跑，不必处理
       # TEXINPUTS 的分隔符差异，也不要求 runner 上装了 make。
       #
-      # 是 distribute 而不是 install：装进 TEXMFHOME 只有 .cls 能被找到，
-      # .eps 走 kpathsea 的图形检索格式、.bst 走 BSTINPUTS，都不在 tex/latex
-      # 那条路径上。示例要的是“文件就在手边”的布局，也就是用户从发布 zip
-      # 解出来的样子。这样跨平台任务和 Linux 矩阵测的才是同一件事。
+      # 用 distribute 而不是 install。装进 TEXMFHOME 后只有 .cls 能被找到，
+      # .eps 用 kpathsea 的图形检索格式、.bst 用 BSTINPUTS，都不在 tex/latex
+      # 路径下。示例需要生成物就放在示例目录里，与用户解压发布包后的目录结构
+      # 一致，这样跨平台任务与 Linux 矩阵验证的是同一种用法。
       - name: Generate and distribute class files
         shell: bash
         run: |
-          # 同上：setup 漏装 l3build 时给一句能看懂的话，别只剩 command not found
+          # setup 漏装 l3build 时给一条明确提示，避免只看到 command not found
           command -v l3build || { echo "setup 没装上 l3build"; exit 1; }
           l3build unpack
           l3build distribute
