@@ -243,7 +243,12 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 就用这个办法把内容与控制流分开，别把内容裹进 `\ExplSyntaxOn`。
 
 已迁移：`book-geometry`、`art-geometry`、`book-mainmatter`、`art-chapter`、
-`art-pagestyle`、`art-toc`、`book-toc`、`book-pagestyle`、`art-floats`、`book-deps-c`。
+`art-pagestyle`、`art-toc`、`book-toc`、`book-pagestyle`、`art-floats`、`book-deps-c`、
+`book-glossary`。
+
+评估后跳过：`art-hyperlink`（零条件）、`book-bib`（含 natbib 补丁需逐字保留）、
+`book-appendix`（条件几乎全嵌在含字面空格的排版内容里，按本节规则该留在 expl3 之外，
+而模块本身几乎全是这类内容）。
 
 迁移一个模块的验收：`l3build check` 全过，再挑几个走到该模块各分支的变体，与改动
 前的 PDF 逐字节比对。建参照用 `git worktree add --detach <目录> HEAD`，比在原地
