@@ -148,22 +148,33 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ghostscript
 
-      # chocolatey 的 ghostscript 包用 AutoHotkey 驱动图形安装程序，正常四十来秒，
-      # 但实测出现过超过十五分钟不返回的情况。所以先检查 epstopdf 会调用的两个
-      # 可执行文件是否已存在，存在就跳过安装。
+      # 不用 chocolatey 装。它的 ghostscript 包依赖 AutoHotkey 去操作图形安装
+      # 程序，正常四十来秒，但实测多次出现超过十五分钟不返回、只能等超时的情况。
+      # 官方安装程序自带 /S 静默参数，直接下载运行即可。
       - name: Install ghostscript (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        timeout-minutes: 8
+        timeout-minutes: 10
         run: |
-          $gs = Get-Command gswin64c, gswin32c -ErrorAction SilentlyContinue
-          if ($gs) {
-            Write-Host "TeX Live 已自带 Ghostscript，跳过安装："
-            $gs | ForEach-Object { Write-Host "  $($_.Source)" }
+          if (Get-Command gswin64c -ErrorAction SilentlyContinue) {
+            Write-Host "已有 gswin64c，跳过安装"
             exit 0
           }
-          Write-Host "没找到 gswin64c/gswin32c，走 chocolatey"
-          choco install ghostscript --no-progress -y
+          $rel = Invoke-RestMethod https://api.github.com/repos/ArtifexSoftware/ghostpdl-downloads/releases/latest
+          $url = ($rel.assets | Where-Object { $_.name -like '*w64.exe' }).browser_download_url
+          Write-Host "下载 $url"
+          Invoke-WebRequest -Uri $url -OutFile gs-setup.exe
+          Start-Process -FilePath .\gs-setup.exe -ArgumentList '/S' -Wait -NoNewWindow
+
+          # 安装程序不改 PATH，自己把 bin 目录加进去
+          $bin = Get-ChildItem 'C:\Program Files\gs' -Directory |
+                 Sort-Object Name -Descending |
+                 ForEach-Object { Join-Path $_.FullName 'bin' } |
+                 Where-Object { Test-Path (Join-Path $_ 'gswin64c.exe') } |
+                 Select-Object -First 1
+          if (-not $bin) { Write-Error "装完仍找不到 gswin64c.exe"; exit 1 }
+          Write-Host "加入 PATH：$bin"
+          $bin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       # 这里用 l3build：它随 TeX Live 发行，三个平台都能直接跑，不必处理
       # TEXINPUTS 的分隔符差异，也不要求 runner 上装了 make。
