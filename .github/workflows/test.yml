@@ -120,9 +120,23 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ghostscript
 
+      # chocolatey 的 ghostscript 包是靠 AutoHotkey 去点图形安装程序的，
+      # 正常四十来秒，卡住就是无限期等一个永远不会出现的对话框，实测挂过十五分钟以上。
+      # 所以先探 epstopdf 真正会调用的那两个可执行文件——TeX Live 的 Windows
+      # 安装自带一份 Ghostscript，有的话这一步整个可以省掉。
       - name: Install ghostscript (Windows)
         if: runner.os == 'Windows'
-        run: choco install ghostscript --no-progress -y
+        shell: pwsh
+        timeout-minutes: 8
+        run: |
+          $gs = Get-Command gswin64c, gswin32c -ErrorAction SilentlyContinue
+          if ($gs) {
+            Write-Host "TeX Live 已自带 Ghostscript，跳过安装："
+            $gs | ForEach-Object { Write-Host "  $($_.Source)" }
+            exit 0
+          }
+          Write-Host "没找到 gswin64c/gswin32c，走 chocolatey"
+          choco install ghostscript --no-progress -y
 
       # 用 l3build 而不是直接跑 docstrip：它自带跨平台的路径处理，
       # 装进 TEXMFHOME 之后示例目录按 kpathsea 的常规查找就能拿到类文件，
