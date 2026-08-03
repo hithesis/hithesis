@@ -138,11 +138,17 @@ jobs:
           Write-Host "没找到 gswin64c/gswin32c，走 chocolatey"
           choco install ghostscript --no-progress -y
 
-      # 用 l3build 而不是直接跑 docstrip：它自带跨平台的路径处理，
-      # 装进 TEXMFHOME 之后示例目录按 kpathsea 的常规查找就能拿到类文件，
-      # 不用把生成物拷进每个示例目录，也不用管 TEXINPUTS 在三个平台上的写法差异。
-      - name: Generate and install class files
-        run: l3build install
+      # 用 l3build 而不是 make：它随 TeX Live 发行，三平台原生，不用管
+      # TEXINPUTS 的分隔符差异，也不要求 runner 上装了 make。
+      #
+      # 是 distribute 而不是 install：装进 TEXMFHOME 只有 .cls 能被找到，
+      # .eps 走 kpathsea 的图形检索格式、.bst 走 BSTINPUTS，都不在 tex/latex
+      # 那条路径上。示例要的是“文件就在手边”的布局，也就是用户从发布 zip
+      # 解出来的样子——这样跨平台任务和 Linux 矩阵测的才是同一件事。
+      - name: Generate and distribute class files
+        run: |
+          l3build unpack
+          l3build distribute
 
       - name: Build Chinese thesis
         working-directory: examples/hitbook/chinese

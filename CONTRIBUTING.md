@@ -16,7 +16,7 @@ hithesis/
 │   ├── hithesis-doc.dtx  <- 用户手册
 │   └── hithesis-eps.dtx  <- EPS 图像数据（校徽、封面、示例插图）
 ├── hithesis.ins          <- docstrip 驱动文件，留在根目录：它的输出路径都相对于此
-├── build.lua             <- l3build 配置：unpack / doc / ctan
+├── build.lua             <- l3build 配置：unpack / distribute / doc / check / ctan
 ├── Makefile              <- 构建与测试入口
 ├── latexmkrc             <- latexmk 配置
 ├── scripts/              <- 打包、依赖清单、回归测试、changes 提取、标点检查
@@ -71,11 +71,12 @@ make doc-check       # 改完与之比对
 l3build 这条随 TeX Live 发行，不依赖 make / bash，三平台原生：
 
 ```shell
-l3build unpack    # 等价于 make cls 的生成部分，不含分发
-l3build doc       # 编译手册
-l3build ctan      # 打 CTAN 包（源码 + 手册，不含示例）
-l3build install   # 装进本地 TEXMFHOME
-l3build check     # 跑 testfiles/ 里的宏级测试
+l3build unpack     # 等价于 make cls 的生成部分，不含分发
+l3build distribute # 把生成物拷进四个示例目录，等价于 make distribute
+l3build doc        # 编译手册
+l3build ctan       # 打 CTAN 包（源码 + 手册，不含示例）
+l3build install    # 装进本地 TEXMFHOME
+l3build check      # 跑 testfiles/ 里的宏级测试
 ```
 
 ### 宏级测试
@@ -267,13 +268,57 @@ CI 会在推送后跑这几项：
 
 ### 7.1 commit 消息
 
+用 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/)，描述写中文：
+
 ```
-<前缀>: <一句话摘要>
+<类型>(<范围>): <一句话摘要>
 
 详细说明：改了什么、为什么、影响范围、验证结果。
 ```
 
-前缀用模块名（`floats-book:`、`glossary-art:`）或类别（`docs:`、`build:`、`fix:`、`feat:`）。
+摘要用祈使句，不加句号，控制在 50 字以内。范围可省，也可以像 `fix(book,art):`
+这样并列多个。破坏性变更在类型后加 `!`，并在正文里用 `BREAKING CHANGE:` 起一段
+说明用户要怎么改。
+
+| 类型 | 用在什么上 |
+|---|---|
+| `feat` | 新功能、新选项 |
+| `fix` | 修 bug |
+| `docs` | 用户手册、README、CONTRIBUTING，用范围区分改的是哪一份 |
+| `style` | 只动排版格式与注释，不改行为 |
+| `refactor` | 重构，行为不变 |
+| `test` | 变体定义、`testfiles/`、比对脚本 |
+| `build` | `Makefile`、`build.lua`、`hithesis.ins`、打包脚本 |
+| `ci` | `.github/workflows/` |
+| `chore` | 版本号、依赖清单等杂项 |
+| `revert` | 回滚 |
+
+范围取改动落在哪里：
+
+| 范围 | 对应 |
+|---|---|
+| `book` `art` `artplus` | 三个类家族，即 `src/hithesis-{book,art}.dtx` |
+| `bst` `eps` | 参考文献样式、图像数据 |
+| `manual` | 用户手册 `src/hithesis-doc.dtx` |
+| `readme` `contributing` | 对应的 md 文件 |
+| `tests` `scripts` | `tests/`、`testfiles/`、`tools/`、`scripts/` |
+| `deps` | 依赖清单 `.github/tl_packages` |
+
+手册的范围叫 `manual` 不叫 `doc`，是为了跟类型 `docs` 区分开——`docs(doc):`
+这种写法只会让人猜半天。范围能省则省，但**同一类型能落在多处时就该写**：
+`docs:` 看不出改的是手册还是 README，`docs(manual):` 一眼就知道。
+
+```
+feat(book): 增加深圳校区博士封面的联合导师字段
+fix(art,artplus): 修正中期报告页眉在偶数页丢失
+refactor(book): 把封面绘制从 bookcls 拆到 book-cover 模块
+docs(manual): 补充 newgeometry 三个取值的版心差异
+docs(contributing): 提交消息改用 Conventional Commits
+test: 补充 art 与 artplus 的字段清单交叉验证
+ci: l3build check 铺到六个 TeX Live 版本
+```
+
+`master` 上必须守这套。`dev` 上历史遗留的不规范消息不追溯，但新提交照此写。
 
 ### 7.2 不要提交
 
@@ -293,6 +338,10 @@ CI 会在推送后跑这几项：
 - `master` 是稳定分支
 - `dev` 是开发分支，维护者从这里合入新版本
 - 协作者从 `dev` 派生 `feature/<topic>`
+
+`dev` 合进 `master` 时压成一个 commit。开发期的提交是按调试节奏切的，逐条读
+对使用者没有价值；`master` 的历史应该一个 commit 对应一件对用户有意义的事。
+压出来的消息按 7.1 写，正文列清改了哪些方面、用户接口有没有变。
 
 ### 8.2 流程
 

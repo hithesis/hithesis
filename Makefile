@@ -39,6 +39,9 @@ $(TARGETS): $(SOURCES)
 
 # .ins 只生成到根目录，示例目录里的那份由这里分发。
 # 这样 docstrip 的输出不依赖调用时的当前目录，l3build 的 unpack 才能直接用。
+#
+# build.lua 里的 distribute 目标有一份等价实现，给不装 make 的平台用（CI 的
+# macOS/Windows 任务走那条）。改动下面的清单时两边都要改。
 BOOKFILES = $(PACKAGE)book.cls $(PACKAGE)book.cfg $(PACKAGE).bst hitszthesis.bst \
             hitlogo.eps bthesistitle.eps shenzhenbthesistitle.eps zfb.eps \
             hrb-bachelor-bottommark.eps

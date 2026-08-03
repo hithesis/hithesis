@@ -4,6 +4,7 @@
 -- 三个平台都能原生跑。常用命令：
 --
 --   l3build unpack     跑 docstrip 生成 cls/cfg/bst/ist/eps
+--   l3build distribute 把生成物拷进四个示例目录，等价于 make distribute
 --   l3build doc        编译用户手册 hithesis.pdf
 --   l3build install    装进本地 TEXMFHOME
 --   l3build ctan       打出符合 CTAN 规范的发布包（含 TDS zip）
@@ -18,7 +19,8 @@ module = "hithesis"
 sourcefiles = {"src/*.dtx", "hithesis.ins"}
 unpackfiles = {"hithesis.ins"}
 
--- 装进 TEXMF 的东西。examples 里那几份副本由 make distribute 分发，不属于安装内容。
+-- 装进 TEXMF 的东西。examples 里那几份副本由下面的 distribute 目标分发，
+-- 不属于安装内容。
 installfiles = {"*.cls", "*.cfg", "*.ist", "*.bst", "*.eps", "*.sty"}
 
 typesetfiles = {"hithesis.dtx"}
@@ -37,6 +39,58 @@ textfiles = {"README.md"}
 typesetopts = "-interaction=nonstopmode"
 unpackopts  = "-interaction=nonstopmode"
 
+
+-- 把生成物拷进四个示例目录。示例期望的是“文件就在手边”那种布局，也就是用户
+-- 从发布 zip 解出来的样子——装进 TEXMFHOME 代替不了：.cls 那样能找到，但 .eps
+-- 走 kpathsea 的图形检索格式、.bst 走 BSTINPUTS，都不在 tex/latex 那条路径上。
+--
+-- 用 Lua 而不是 shell，是为了 macOS/Windows 上不装 make 也能跑。Makefile 里的
+-- distribute 目标是等价实现，两边的文件清单要一起改。没让 Makefile 直接转调
+-- 这里，是因为 l3build 不在 scheme-minimal 里，那样会把它变成 make 的硬依赖。
+local BOOKFILES = {
+  "hithesisbook.cls", "hithesisbook.cfg", "hithesis.bst", "hitszthesis.bst",
+  "hitlogo.eps", "bthesistitle.eps", "shenzhenbthesistitle.eps", "zfb.eps",
+  "hrb-bachelor-bottommark.eps",
+}
+local ARTFILES = {
+  "hithesisart.cls", "hithesisart.cfg", "hithesis.bst", "hitszthesis.bst",
+  "hitlogo.eps", "bthesistitle.eps", "zfb.eps",
+}
+
+local function distribute()
+  local function put(files, dest)
+    mkdir(dest)
+    for _, f in ipairs(files) do
+      if not fileexists(maindir .. "/" .. f) then
+        print("distribute: 缺少 " .. f .. "，先跑 l3build unpack")
+        return 1
+      end
+      cp(f, maindir, dest)
+    end
+    -- 示例正文里的插图按 figures/golfer 引用，得放进子目录
+    mkdir(dest .. "/figures")
+    cp("golfer.eps", maindir, dest .. "/figures")
+    return 0
+  end
+
+  for _, d in ipairs({"examples/hitbook/chinese", "examples/hitbook/english"}) do
+    if put(BOOKFILES, d) ~= 0 then return 1 end
+  end
+  -- 只有中文示例用到索引样式
+  cp("hithesis.ist", maindir, "examples/hitbook/chinese")
+  if put(ARTFILES, "examples/hitart/reports") ~= 0 then return 1 end
+  cp("hrb-bachelor-bottommark.eps", maindir, "examples/hitart/reports")
+  if put({"hithesisartplus.cls", "hithesisart.cfg", "hithesis.bst",
+          "hitszthesis.bst", "hitlogo.eps", "bthesistitle.eps", "zfb.eps"},
+         "examples/hitart/reportplus") ~= 0 then return 1 end
+  return 0
+end
+
+target_list = target_list or {}
+target_list.distribute = {
+  func = distribute,
+  desc = "把生成物拷进四个示例目录",
+}
 
 -- 手册的排版必须在主目录里跑，不能用 l3build 默认的 build/doc：
 --   * 手册用 \lstinputlisting 把示例源码贴进正文，路径含目录层级
