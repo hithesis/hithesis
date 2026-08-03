@@ -148,44 +148,47 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ghostscript
 
-      # 不用 chocolatey 装。它的 ghostscript 包依赖 AutoHotkey 去操作图形安装
-      # 程序，正常四十来秒，但实测多次出现超过十五分钟不返回、只能等超时的情况。
-      # 官方安装程序自带 /S 静默参数，直接下载运行即可。
+      # 不运行安装程序，直接解包。
+      #
+      # 这一步换过三种装法都不行：chocolatey 的 ghostscript 包依赖 AutoHotkey
+      # 操作图形安装程序，会卡住十五分钟以上；官方安装程序带 /S 静默参数，但在
+      # runner 上同样不返回，日志停在开始安装那一行。两者卡的是同一个安装程序。
+      #
+      # 它是 NSIS 打的包，7z 可以直接解开，得到的 bin/ 与 lib/、Resource/ 平级，
+      # 正是 gswin64c.exe 运行时期望的布局。7z 是 windows runner 自带的。
       - name: Install ghostscript (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         timeout-minutes: 10
         run: |
           if (Get-Command gswin64c -ErrorAction SilentlyContinue) {
-            Write-Host "已有 gswin64c，跳过安装"
+            Write-Host "已有 gswin64c，跳过"
             exit 0
           }
           # Invoke-WebRequest 默认渲染进度条，在非交互环境下会把下载拖慢几十倍，
-          # 实测 61 MB 十分钟下不完。关掉进度渲染，并用 runner 自带的 curl.exe 下载。
+          # 实测 62 MB 十分钟下不完，所以用 runner 自带的 curl.exe。
           $ProgressPreference = 'SilentlyContinue'
           $rel = Invoke-RestMethod https://api.github.com/repos/ArtifexSoftware/ghostpdl-downloads/releases/latest
           $url = ($rel.assets | Where-Object { $_.name -like '*w64.exe' }).browser_download_url
           Write-Host "下载 $url"
           curl.exe -sSL --retry 3 --retry-delay 5 -o gs-setup.exe $url
           if ($LASTEXITCODE -ne 0) { Write-Error "下载失败"; exit 1 }
-          Write-Host "大小 $((Get-Item gs-setup.exe).Length / 1MB -as [int]) MB，开始静默安装"
 
-          # 装到不含空格的路径。NSIS 要求 /D 放在最后且不加引号。
-          $p = Start-Process -FilePath .\gs-setup.exe -ArgumentList '/S','/D=C:\gs' `
-                             -Wait -PassThru -NoNewWindow
-          Write-Host "安装程序退出码 $($p.ExitCode)"
+          Write-Host "解包 $((Get-Item gs-setup.exe).Length / 1MB -as [int]) MB"
+          7z x gs-setup.exe -oC:\gs -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { Write-Error "解包失败"; exit 1 }
 
-          # 安装程序不改 PATH，自己把 bin 目录加进去
-          $exe = Get-ChildItem 'C:\gs','C:\Program Files\gs' -Recurse -Filter gswin64c.exe `
-                               -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $exe) {
-            Write-Host "没找到 gswin64c.exe。当前 C:\gs 与 C:\Program Files\gs 的内容："
-            Get-ChildItem 'C:\gs','C:\Program Files\gs' -ErrorAction SilentlyContinue |
-              ForEach-Object { Write-Host "  $($_.FullName)" }
+          $bin = 'C:\gs\bin'
+          if (-not (Test-Path "$bin\gswin64c.exe")) {
+            Write-Host "解包后没有 $bin\gswin64c.exe。C:\gs 的内容："
+            Get-ChildItem C:\gs | ForEach-Object { Write-Host "  $($_.Name)" }
             exit 1
           }
-          Write-Host "加入 PATH：$($exe.DirectoryName)"
-          $exe.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # 确认能跑起来：安装程序还会装 VC++ 运行库，解包跳过了那一步，
+          # 缺运行库的话这里会直接报错，而不是等 epstopdf 用到时才失败。
+          & "$bin\gswin64c.exe" -version
+          if ($LASTEXITCODE -ne 0) { Write-Error "gswin64c 无法运行"; exit 1 }
+          $bin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       # 这里用 l3build：它随 TeX Live 发行，三个平台都能直接跑，不必处理
       # TEXINPUTS 的分隔符差异，也不要求 runner 上装了 make。
