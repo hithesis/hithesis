@@ -2,7 +2,7 @@ name: Test
 
 on:
   push:
-    branches: [master, dev, modularity]
+    branches: [master, dev]
   pull_request:
   workflow_dispatch:
   schedule:
@@ -261,17 +261,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          args=(--ci)
-
-          # modularity 是纯重构分支，参照物取 dev：两边功能提交相同，
-          # 唯一差别就是重构本身，所以正确结果是零差异。
-          # 其它分支比的是“相对上一个发布版改了什么”，用默认的 release。
-          if [[ "${{ github.ref_name }}" == "modularity" ]]; then
-            args+=(--against dev)
-          fi
-
+          # 参照上一个发布版，比的是“相对用户手上那一版改了什么”。
+          # 模块化重构期间这里曾特判 modularity 分支去比 dev；重构已并入 dev，
+          # 再留着就是拿 dev 跟自己比，永远零差异，等于没测。
           set +e
-          python3 scripts/regression_test.py "${args[@]}"
+          python3 scripts/regression_test.py --ci
           rc=$?
           set -e
 
@@ -290,12 +284,6 @@ jobs:
           path: target/regression/report/
           if-no-files-found: ignore
           retention-days: 14
-
-      - name: Fail on layout drift in refactor branch
-        if: steps.regression.outputs.diff == '1' && github.ref_name == 'modularity'
-        run: |
-          echo "modularity 是纯重构分支，相对 dev 应当零差异。出现差异说明重构改到了版面。"
-          exit 1
 
       - name: Fail if labelled regression-must-match
         if: steps.regression.outputs.diff == '1' && contains(github.event.pull_request.labels.*.name, 'regression-must-match')

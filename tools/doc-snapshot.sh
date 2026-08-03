@@ -4,9 +4,9 @@
 #   bash tools/doc-snapshot.sh save    改动前跑，把当前手册存成基线
 #   bash tools/doc-snapshot.sh check   改动后跑，重编并与基线逐页比
 #
-# 为什么不并进 scripts/regression_test.py：那套比的是“相对 dev / 相对发布版”，
-# 而手册在 modularity 上本来就跟 dev 不一样（多了模块说明一节）。手册要的是
-# “这次改动前后有没有变”，参照物是自己，不是别的分支。
+# 为什么不并进 scripts/regression_test.py：那套比的是“相对某个已发布的版本”，
+# 而手册的内容本来就会随文档改动而变，拿它跟旧版比只会一直有差异。手册要的是
+# “这次改动前后有没有变”，参照物是自己，不是别的版本。
 set -e
 
 mode=${1:-}
