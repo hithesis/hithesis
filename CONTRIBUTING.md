@@ -22,6 +22,7 @@ hithesis/
 ├── scripts/              <- 打包、依赖清单、回归测试、changes 提取、标点检查
 ├── tools/                <- 排版测试脚本
 ├── tests/                <- 变体定义与测试说明
+├── testfiles/            <- l3build 的宏级测试：*.lvt 用例与 *.tlg 基线
 ├── examples/
 │   ├── hitbook/{chinese,english}/   <- 毕业论文示例
 │   └── hitart/{reports,reportplus}/ <- 开题/中期/博士中期示例
@@ -74,7 +75,31 @@ l3build unpack    # 等价于 make cls 的生成部分，不含分发
 l3build doc       # 编译手册
 l3build ctan      # 打 CTAN 包（源码 + 手册，不含示例）
 l3build install   # 装进本地 TEXMFHOME
+l3build check     # 跑 testfiles/ 里的宏级测试
 ```
+
+### 宏级测试
+
+`testfiles/*.lvt` 是测试用例，`*.tlg` 是它编出来的日志基线，CI 在六个 TeX Live
+版本上都比对。它管的是排版比对看不见的那一层：选项解析出来的标志位、`\hitsetup`
+存进去的字段、对外宏还在不在。加一个用例：
+
+```shell
+# 写好 testfiles/08-xxx.lvt 之后
+l3build save 08-xxx    # 生成 testfiles/08-xxx.tlg
+l3build check          # 确认全绿
+```
+
+`l3build save` 生成的基线**必须逐行读一遍再提交**。它只是把当前行为拍下来，行为
+本来就是错的它照样存；漏写 `\makeatletter` 之类的失误也会被原样固化成基线。
+
+两个写用例时容易踩的坑：
+
+- 测试体里要用 `@` 开头的内部命令，得自己在 `\START` 之后写 `\makeatletter`。
+- **含中文的基线行要明显短于 79 字节。** 超了会被 TeX 折行，而 l3build 靠「行长
+  恰好等于 `maxprintline`」来识别并拼回折断的行，中文一个字三字节、字节数对不上
+  就拼不回来，老版本 TeX Live 上这条会直接失败。纯 ASCII 的行不受影响。
+  想复验就临时在 `build.lua` 末尾加一行 `maxprintline = 79` 再 `l3build check`。
 
 面向用户的完整模板包（含示例）由 `scripts/package.sh` 打，跟 CTAN 包是两个东西。
 
