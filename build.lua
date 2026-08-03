@@ -57,29 +57,42 @@ local ARTFILES = {
   "hitlogo.eps", "bthesistitle.eps", "zfb.eps",
 }
 
+-- 生成物可能在两个地方：make cls（跑 latex hithesis.ins）写在根目录，
+-- l3build unpack 写在 build/unpacked。两种都要能用。
+local function srcdir(f)
+  if fileexists(maindir .. "/" .. f) then return maindir end
+  if fileexists(unpackdir .. "/" .. f) then return unpackdir end
+  return nil
+end
+
 local function distribute()
+  local function one(f, dest)
+    local from = srcdir(f)
+    if not from then
+      print("distribute: 找不到 " .. f .. "，先跑 l3build unpack 或 make cls")
+      return 1
+    end
+    cp(f, from, dest)
+    return 0
+  end
+
   local function put(files, dest)
     mkdir(dest)
     for _, f in ipairs(files) do
-      if not fileexists(maindir .. "/" .. f) then
-        print("distribute: 缺少 " .. f .. "，先跑 l3build unpack")
-        return 1
-      end
-      cp(f, maindir, dest)
+      if one(f, dest) ~= 0 then return 1 end
     end
     -- 示例正文里的插图按 figures/golfer 引用，得放进子目录
     mkdir(dest .. "/figures")
-    cp("golfer.eps", maindir, dest .. "/figures")
-    return 0
+    return one("golfer.eps", dest .. "/figures")
   end
 
   for _, d in ipairs({"examples/hitbook/chinese", "examples/hitbook/english"}) do
     if put(BOOKFILES, d) ~= 0 then return 1 end
   end
   -- 只有中文示例用到索引样式
-  cp("hithesis.ist", maindir, "examples/hitbook/chinese")
+  if one("hithesis.ist", "examples/hitbook/chinese") ~= 0 then return 1 end
   if put(ARTFILES, "examples/hitart/reports") ~= 0 then return 1 end
-  cp("hrb-bachelor-bottommark.eps", maindir, "examples/hitart/reports")
+  if one("hrb-bachelor-bottommark.eps", "examples/hitart/reports") ~= 0 then return 1 end
   if put({"hithesisartplus.cls", "hithesisart.cfg", "hithesis.bst",
           "hitszthesis.bst", "hitlogo.eps", "bthesistitle.eps", "zfb.eps"},
          "examples/hitart/reportplus") ~= 0 then return 1 end
