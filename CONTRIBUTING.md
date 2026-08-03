@@ -46,7 +46,9 @@ make doc          # 编译用户手册 hithesis.pdf
 make toc          # 打印 dtx 结构到 stdout
 make toc-update   # 把结构写回 dtx 顶部的 TOC 块（幂等）
 make clean        # 清理生成产物
-make changes      # 从 \changes 生成 RELEASE_NOTES.md
+make changes       # 从 \changes 生成 RELEASE_NOTES.md
+make changes-check # 校验 \changes 的日期约定
+make changes-fix   # 自动修正能修的部分
 ```
 
 测试相关：
@@ -146,6 +148,10 @@ v3.2a 起区块内容直接拼进 `.cls`，不再生成独立的 `.sty`。在类
 - 日期填占位符 `0000/00/00`，发版时由 `scripts/changes.py --stamp` 统一替换成发布日期
 - 描述要写为什么这么做，不只写做了什么
 
+CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/00/00`，已发布版本不得留占位符，
+日期格式必须 `YYYY/MM/DD`。本地跑 `make changes-check` 看结果，`make changes-fix` 自动修
+补零和写错的开发版日期。
+
 ## 5. 新增区块的步骤
 
 以给 `bookcls` 加 `book-footnote` 为例（这个区块已经存在，仅作示范）：
@@ -179,7 +185,7 @@ v3.2a 起区块内容直接拼进 `.cls`，不再生成独立的 `.sty`。在类
 
 ## 6. 改动的验证
 
-排版类改动一律要过比对，光"能编译"不算数。
+排版类改动一律要过比对，光“能编译”不算数。
 
 改动前先存基线：
 

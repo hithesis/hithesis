@@ -11,6 +11,8 @@ macOS 自带的 awk 不认，会静默产出空文件；Windows 干脆没有 awk
     scripts/changes.py --version       # 只打印最新版本号，如 v3.1e
     scripts/changes.py --stamp         # 把最新版本的 0000/00/00 填成今天
     scripts/changes.py --stamp --date 2026/08/03 --for v3.1e
+    scripts/changes.py --check         # 校验日期约定，CI 用
+    scripts/changes.py --fix           # 就地修正能自动修的部分
 
 发版流程里 --stamp 要在打 tag **之前**执行，否则 tag 指向的源码里仍是占位符。
 仓库既有约定是「同一版本的所有条目共用该版本的发布日期」（v3.1d 的 59 条全是
@@ -88,6 +90,60 @@ def stamp(version: str, date: str) -> int:
     return total
 
 
+DATE_RE = re.compile(r"^(\d{4})/(\d{1,2})/(\d{1,2})$")
+
+
+def normalize(date: str) -> str:
+    """2022/5/6 补成 2022/05/06；认不出来的原样返回。"""
+    m = DATE_RE.match(date)
+    return f"{m.group(1)}/{int(m.group(2)):02d}/{int(m.group(3)):02d}" if m else date
+
+
+def audit(items: list[tuple[str, str, str]], latest: str) -> list[str]:
+    """返回问题清单。三条规则都不需要 git 历史，是无状态的。
+
+    刻意不查「同一版本共用一个日期」：早期版本本来就是一条一个日期
+    （v3.0.0 有三个，v3.0.15 跨了一年），这个约定是 v3.1b 之后才固化的。
+    """
+    problems = []
+    for version, date, body in items:
+        where = f"v{version}"
+        if version == latest and date != PLACEHOLDER:
+            problems.append(
+                f"{where} 是开发版，日期该写 {PLACEHOLDER}，实际是 {date}\n"
+                f"    条目：{body[:50]}")
+        elif version != latest and date == PLACEHOLDER:
+            problems.append(
+                f"{where} 已发布，却留着 {PLACEHOLDER} 没填\n"
+                f"    条目：{body[:50]}")
+        elif date != PLACEHOLDER and normalize(date) != date:
+            problems.append(f"{where} 的日期 {date} 不是 YYYY/MM/DD，应为 {normalize(date)}")
+    return problems
+
+
+def fix(latest: str) -> int:
+    """能自动修的就地修掉：补零，以及把开发版的实际日期打回占位符。"""
+    changed = 0
+    for f in dtx_files():
+        text = original = f.read_text(encoding="utf-8")
+
+        def repl(m: re.Match) -> str:
+            version, date = m.group(1), m.group(2)
+            if version.lstrip("v") == latest:
+                date = PLACEHOLDER
+            elif date != PLACEHOLDER:
+                date = normalize(date)
+            return f"\\changes{{{version}}}{{{date}}}{{"
+
+        text = re.sub(r"\\changes\{(v?[^}]*)\}\{([^}]*)\}\{", repl, text)
+        if text != original:
+            n = sum(1 for a, b in zip(original.splitlines(), text.splitlines()) if a != b)
+            f.write_text(text, encoding="utf-8")
+            print(f"  {f.name}: {n} 行")
+            changed += n
+    return changed
+
+
 def version_key(v: str) -> list:
     """v3.1e / v3.0.20 都要能排：数字段按数字比，字母段按字母比。"""
     return [int(p) if p.isdigit() else p for p in re.findall(r"\d+|[a-z]+", v)]
@@ -102,6 +158,8 @@ def main() -> int:
                         help="配合 --stamp，默认今天")
     parser.add_argument("--for", dest="target", metavar="VER",
                         help="配合 --stamp，指定版本；默认最新版本")
+    parser.add_argument("--check", action="store_true", help="校验日期约定，有问题时退出码 1")
+    parser.add_argument("--fix", action="store_true", help="就地修正能自动修的部分")
     args = parser.parse_args()
 
     if not dtx_files():
@@ -117,6 +175,23 @@ def main() -> int:
 
     if args.version:
         print(f"v{latest}")
+        return 0
+
+    if args.check:
+        problems = audit(items, latest)
+        if not problems:
+            print(f"\\changes 日期约定检查通过（开发版 v{latest}，共 {len(items)} 条）")
+            return 0
+        print(f"发现 {len(problems)} 处问题：")
+        for msg in problems:
+            print(f"  - {msg}")
+        print("\n跑 scripts/changes.py --fix 可自动修正补零与开发版日期。")
+        return 1
+
+    if args.fix:
+        print(f"修正中（开发版 v{latest}）：")
+        n = fix(latest)
+        print(f"共改 {n} 行" if n else "  无需改动")
         return 0
 
     if args.stamp:

@@ -21,7 +21,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean changes version-changes \
+.PHONY: all cls doc viewdoc dist auxclean clean distclean changes changes-check changes-fix punct punct-fix version-changes \
         toc toc-update baseline smoke regression-test tl-packages testclean
 
 all: doc
@@ -117,6 +117,19 @@ distclean: clean
 
 changes:
 	@python3 scripts/changes.py
+
+changes-check:
+	@python3 scripts/changes.py --check
+
+changes-fix:
+	@python3 scripts/changes.py --fix
+
+# 中文标点检查，默认只报告；确认后 make punct-fix 写回
+punct:
+	@python3 scripts/fix-punct.py
+
+punct-fix:
+	@python3 scripts/fix-punct.py --fix
 
 version-changes:
 	@python3 scripts/changes.py --version
