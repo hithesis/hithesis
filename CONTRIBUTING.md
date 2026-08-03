@@ -244,7 +244,7 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 
 已迁移：`book-geometry`、`art-geometry`、`book-mainmatter`、`art-chapter`、
 `art-pagestyle`、`art-toc`、`book-toc`、`book-pagestyle`、`art-floats`、`book-deps-c`、
-`book-glossary`、`art-deps-a`。
+`book-glossary`、`art-deps-a`、`book-deps-a`。
 
 评估后跳过：`art-hyperlink`（零条件）、`book-bib`（含 natbib 补丁需逐字保留）、
 `book-appendix`（条件几乎全嵌在含字面空格的排版内容里，按本节规则该留在 expl3 之外，
