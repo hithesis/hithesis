@@ -86,8 +86,15 @@ regression-test:
 tl-packages:
 	NPROC=$(NPROC) bash scripts/gen-tl-packages.sh
 
+# 改动前存一份手册基线，改完用 doc-check 比
+doc-baseline:
+	bash tools/doc-snapshot.sh save
+
+doc-check:
+	bash tools/doc-snapshot.sh check
+
 testclean:
-	-rm -rf tests/work tests/current tests/diff
+	-rm -rf tests/work tests/current tests/diff tests/doc-current tests/doc-diff
 
 auxclean:
 	latexmk -c $(PACKAGE).dtx
