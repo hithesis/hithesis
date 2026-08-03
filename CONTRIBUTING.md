@@ -35,7 +35,7 @@ hithesis/
 
 | 工具 | 用途 | 必需性 |
 |---|---|---|
-| TeX Live ≥ 2021 | 编译模板与示例 | 必需 |
+| TeX Live ≥ 2022 | 编译模板与示例 | 必需 |
 | Python 3.8+ | changes 提取、标点检查、回归测试、变体编译 | 必需 |
 | Make | 走 Makefile 的测试目标 | 推荐 |
 | l3build | 构建与打包，随 TeX Live 发行 | 可选 |
@@ -81,7 +81,7 @@ l3build check      # 跑 testfiles/ 里的宏级测试
 
 ### 宏级测试
 
-`testfiles/*.lvt` 是测试用例，`*.tlg` 是它编出来的日志基线，CI 在六个 TeX Live
+`testfiles/*.lvt` 是测试用例，`*.tlg` 是它编出来的日志基线，CI 在五个 TeX Live
 版本上都比对。它管的是排版比对看不见的那一层：选项解析出来的标志位、`\hitsetup`
 存进去的字段、对外宏还在不在。加一个用例：
 
@@ -257,7 +257,7 @@ CI 会在推送后跑这几项：
 
 | 检查 | 内容 |
 |---|---|
-| TeX Live 矩阵 | 2021–2026 六个版本各编一遍文档与四个示例 |
+| TeX Live 矩阵 | 2022–2026 五个版本各编一遍文档与四个示例 |
 | 跨平台 | macOS 与 Windows 上编译示例 |
 | 变体矩阵 | 42 种 `\documentclass` 选项组合 |
 | 排版回归 | 与参照版本逐页比对，差异出报告与截图 |
@@ -315,7 +315,7 @@ refactor(book): 把封面绘制从 bookcls 拆到 book-cover 模块
 docs(manual): 补充 newgeometry 三个取值的版心差异
 docs(contributing): 提交消息改用 Conventional Commits
 test: 补充 art 与 artplus 的字段清单交叉验证
-ci: l3build check 铺到六个 TeX Live 版本
+ci: l3build check 铺到所有 TeX Live 版本
 ```
 
 `master` 上必须守这套。`dev` 上历史遗留的不规范消息不追溯，但新提交照此写。
