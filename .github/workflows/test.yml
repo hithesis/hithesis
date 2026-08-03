@@ -166,8 +166,12 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           args=(--ci)
-          if [[ "${{ github.event_name }}" != "schedule" && "${{ github.event_name }}" != "workflow_dispatch" ]]; then
-            args+=(--quick)
+
+          # modularity 是纯重构分支，参照物取 dev：两边功能提交相同，
+          # 唯一差别就是重构本身，所以正确结果是零差异。
+          # 其它分支比的是「相对上一个发布版改了什么」，用默认的 release。
+          if [[ "${{ github.ref_name }}" == "modularity" ]]; then
+            args+=(--against dev)
           fi
 
           set +e
@@ -190,6 +194,12 @@ jobs:
           path: target/regression/report/
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: Fail on layout drift in refactor branch
+        if: steps.regression.outputs.diff == '1' && github.ref_name == 'modularity'
+        run: |
+          echo "modularity 是纯重构分支，相对 dev 应当零差异。出现差异说明重构改到了版面。"
+          exit 1
 
       - name: Fail if labelled regression-must-match
         if: steps.regression.outputs.diff == '1' && contains(github.event.pull_request.labels.*.name, 'regression-must-match')

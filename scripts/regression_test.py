@@ -143,14 +143,27 @@ def find_reference_tag(repo: str, tag: str | None) -> str | None:
     return None
 
 
-def source_archive_url(repo: str, tag: str) -> str:
-    """tag 的源码存档地址。
+def source_archive_url(repo: str, ref: str) -> str:
+    """ref 的源码存档地址，tag 和分支都认。
 
     刻意不用 release 资产：资产是人手动传的，传错了（比如拿别的分支打的包）
-    工具照样一片绿，比不检查还危险。zipball 由 GitHub 按 tag 自动生成，
-    永远等于那个 tag 的真实代码，搞不错。
+    工具照样一片绿，比不检查还危险。zipball 由 GitHub 按 ref 自动生成，
+    永远等于那个 ref 的真实代码，搞不错。
     """
-    return f"https://api.github.com/repos/{repo}/zipball/{tag}"
+    return f"https://api.github.com/repos/{repo}/zipball/{ref}"
+
+
+def resolve_commit(repo: str, ref: str) -> str | None:
+    """把 ref 解析成 commit sha，拿来当缓存键。
+
+    参照物是分支时（比如重构分支拿 dev 作参照），名字不变但内容会往前走。
+    只按名字缓存的话，dev 更新了本地还在比老版本，跟资产传错是同一类坑。
+    """
+    try:
+        data = api_get(f"https://api.github.com/repos/{repo}/commits/{ref}")
+    except urllib.error.URLError:
+        return None
+    return data.get("sha") if isinstance(data, dict) else None
 
 
 def find_template_root(extracted: Path) -> Path | None:
@@ -189,24 +202,30 @@ def ensure_generated_files(root: Path) -> bool:
 
 
 def prepare_reference(repo: str, tag: str | None) -> tuple[str, Path] | None:
-    """下载并解压参照版本，返回 (tag, 模板根目录)。
+    """下载并解压参照版本，返回 (显示名, 模板根目录)。
 
-    也可以离线用：自己把模板解到 target/regression-cache/<tag>/ 就行。
+    缓存目录按 <ref>@<commit 前 7 位> 命名，分支往前走了会自动换一份。
+    也可以离线用：自己把模板解到 target/regression-cache/<ref>/ 就行。
     """
     tag = find_reference_tag(repo, tag)
     if tag is None:
         return None
 
-    target = CACHE_DIR / tag
-    cached = find_template_root(target) if target.is_dir() else None
-    if cached:
-        print(f"用现成的缓存 {cached}")
-        return (tag, cached) if ensure_generated_files(cached) else None
+    sha = resolve_commit(repo, tag)
+    label = f"{tag}@{sha[:7]}" if sha else tag
 
+    # 先找按 commit 定死的那份，没有再退回按名字放的手工缓存
+    for candidate in ([CACHE_DIR / label] if sha else []) + [CACHE_DIR / tag]:
+        cached = find_template_root(candidate) if candidate.is_dir() else None
+        if cached:
+            print(f"用现成的缓存 {cached}")
+            return (label, cached) if ensure_generated_files(cached) else None
+
+    target = CACHE_DIR / label
     target.mkdir(parents=True, exist_ok=True)
     archive = target / "source.zip"
     url = source_archive_url(repo, tag)
-    print(f"下载 {tag} 的源码存档……")
+    print(f"下载 {tag} 的源码存档（{sha[:7] if sha else '未解析到 commit'}）……")
     try:
         request = urllib.request.Request(url, headers={"User-Agent": "hithesis-regression-test"})
         with urllib.request.urlopen(request, timeout=300) as response, archive.open("wb") as f:
@@ -226,7 +245,7 @@ def prepare_reference(repo: str, tag: str | None) -> tuple[str, Path] | None:
     if not ensure_generated_files(root):
         return None
 
-    return tag, root
+    return label, root
 
 
 # ---------------------------------------------------------------- 编译与比对
