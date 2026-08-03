@@ -144,9 +144,17 @@ jobs:
           version: latest
           package-file: .github/tl_packages
 
+      # 先探测再装。runner 镜像里可能已经有 gs，跳过 brew 也就没有它那条
+      # 关于镜像自带的 aws/tap 未受信任的警告，那条警告与本项目无关。
       - name: Install ghostscript (macOS)
         if: runner.os == 'macOS'
-        run: brew install ghostscript
+        run: |
+          if command -v gs >/dev/null; then
+            echo "已有 gs：$(command -v gs)"
+            gs -version | head -1
+          else
+            brew install ghostscript
+          fi
 
       # 不运行安装程序，直接解包。
       #
@@ -165,12 +173,13 @@ jobs:
             Write-Host "已有 gswin64c，跳过"
             exit 0
           }
+          # 版本钉死，不取 latest：资产命名或打包方式一变，这一步就会失败。
+          # 升级时改这一行即可，发行版列表见
+          # https://github.com/ArtifexSoftware/ghostpdl-downloads/releases
+          $url = 'https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10071/gs10071w64.exe'
+          Write-Host "下载 $url"
           # Invoke-WebRequest 默认渲染进度条，在非交互环境下会把下载拖慢几十倍，
           # 实测 62 MB 十分钟下不完，所以用 runner 自带的 curl.exe。
-          $ProgressPreference = 'SilentlyContinue'
-          $rel = Invoke-RestMethod https://api.github.com/repos/ArtifexSoftware/ghostpdl-downloads/releases/latest
-          $url = ($rel.assets | Where-Object { $_.name -like '*w64.exe' }).browser_download_url
-          Write-Host "下载 $url"
           curl.exe -sSL --retry 3 --retry-delay 5 -o gs-setup.exe $url
           if ($LASTEXITCODE -ne 0) { Write-Error "下载失败"; exit 1 }
 
