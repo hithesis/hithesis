@@ -202,7 +202,7 @@ def ensure_generated_files(root: Path) -> bool:
 
 
 def prepare_reference(repo: str, tag: str | None) -> tuple[str, Path] | None:
-    """下载并解压参照版本，返回 (显示名, 模板根目录)。
+    """下载并解压参照版本，返回 (显示名，模板根目录)。
 
     缓存目录按 <ref>@<commit 前 7 位> 命名，分支往前走了会自动换一份。
     也可以离线用：自己把模板解到 target/regression-cache/<ref>/ 就行。

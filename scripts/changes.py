@@ -15,7 +15,7 @@ macOS 自带的 awk 不认，会静默产出空文件；Windows 干脆没有 awk
     scripts/changes.py --fix           # 就地修正能自动修的部分
 
 发版流程里 --stamp 要在打 tag **之前**执行，否则 tag 指向的源码里仍是占位符。
-仓库既有约定是「同一版本的所有条目共用该版本的发布日期」（v3.1d 的 59 条全是
+仓库既有约定是“同一版本的所有条目共用该版本的发布日期”（v3.1d 的 59 条全是
 2025/03/03），--stamp 就是照这个约定来的。
 """
 
@@ -62,7 +62,7 @@ def balanced(text: str, start: int) -> tuple[str, int]:
 
 
 def collect_one(dtx: Path) -> list[tuple[str, str, str]]:
-    """返回 (版本, 日期, 说明) 列表，版本已去掉前导 v。"""
+    """返回 (版本，日期，说明) 列表，版本已去掉前导 v。"""
     text = dtx.read_text(encoding="utf-8")
     items = []
     pos = 0
@@ -110,7 +110,7 @@ def audit(items: list[tuple[str, str, str]], latest: str) -> list[str]:
     """返回问题清单，只查 LEGACY_MAX 之后的版本。
 
     对这些版本要求两条：同一版本的日期必须统一，格式必须是 YYYY/MM/DD。
-    「统一」既涵盖开发中（全是占位符），也涵盖已 stamp（全是同一个真实日期），
+    “统一”既涵盖开发中（全是占位符），也涵盖已 stamp（全是同一个真实日期），
     所以发版当天不会误报。混着写就是有人手填了日期，正是要抓的情况。
     """
     problems = []

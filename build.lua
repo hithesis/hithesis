@@ -9,7 +9,7 @@
 --   l3build ctan       打出符合 CTAN 规范的发布包（含 TDS zip）
 --
 -- Makefile 仍然保留：42 变体排版比对、回归测试、changes 检查这些是本项目特有的，
--- 不在 l3build 的职责范围内。两者分工是「l3build 管构建与打包，Makefile 管测试」。
+-- 不在 l3build 的职责范围内。两者分工是“l3build 管构建与打包，Makefile 管测试”。
 
 module = "hithesis"
 

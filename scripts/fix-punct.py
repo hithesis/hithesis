@@ -12,11 +12,12 @@
 - dtx 里的非注释行，以及注释里的 verbatim 类命令（``\\file{}``、``\\texttt{}`` 等）
 - dtx 的 shell/bibtex 示例环境
 
-Python 和 shell 脚本整个不处理：里面的引号基本都是字符串定界符，换掉就坏。
+代码文件（.py .sh .lua .yml .lvt Makefile）里的注释也扫，但只改半角标点和引号
+风格，不把 "..." 换成中文引号 —— 那里的 " 是字符串定界符，换掉就坏。
 
 用法::
 
-    scripts/fix-punct.py                    # 扫 *.md 与 hithesis-doc.dtx，只报告
+    scripts/fix-punct.py                    # 扫仓库里所有带中文的散文与注释，只报告
     scripts/fix-punct.py --fix              # 确认后实际修改
     scripts/fix-punct.py --quotes corner    # 引号改用「」，默认 curly（“”）
     scripts/fix-punct.py --changed          # 只看相对 HEAD 有改动的文件
@@ -70,7 +71,7 @@ def unmask(text: str, saved: list[str]) -> str:
     return text
 
 
-def convert(text: str, quote_style: str) -> str:
+def convert(text: str, quote_style: str, straight_quotes: bool = True) -> str:
     # 半角标点：前后任意一侧是中日韩字符才算中文语境
     for half, full in HALF_TO_FULL.items():
         h = re.escape(half)
@@ -79,23 +80,56 @@ def convert(text: str, quote_style: str) -> str:
         text = re.sub(rf"(?<=[{CJK}]){h}(?=$)", full, text, flags=re.M)
 
     left, right = ("「", "」") if quote_style == "corner" else ("\u201c", "\u201d")
-    # 成对的直引号，且内容含中日韩字符
-    text = re.sub(rf'"([^"\n]*[{CJK}][^"\n]*)"', rf"{left}\1{right}", text)
-    if quote_style == "corner":
-        text = re.sub(rf"\u201c([^\u201d\n]*[{CJK}][^\u201d\n]*)\u201d", rf"{left}\1{right}", text)
+    # 成对的直引号，且内容含中日韩字符。代码文件里 " 是字符串定界符，不能动
+    if straight_quotes:
+        text = re.sub(rf'"([^"\n]*[{CJK}][^"\n]*)"', rf"{left}\1{right}", text)
+    # \u5df2\u7ecf\u662f\u4e2d\u6587\u5f15\u53f7\u4f46\u98ce\u683c\u4e0d\u662f\u9009\u5b9a\u90a3\u79cd\u7684\uff0c\u4e5f\u4e00\u5e76\u7edf\u4e00\uff0c\u4e24\u79cd\u98ce\u683c\u4e92\u8f6c
+    other_l, other_r = ("\u201c", "\u201d") if quote_style == "corner" else ("\u300c", "\u300d")
+    text = re.sub(rf"{other_l}([^{other_r}\n]*){other_r}", rf"{left}\1{right}", text)
     return text
 
 
+# 这些后缀的文件里，" 是字符串定界符或代码语法，只统一半角标点与引号风格，
+# 不把 "..." 换成中文引号
+CODE_SUFFIXES = {".lua", ".sh", ".py", ".yml", ".yaml", ".lvt", ".mk"}
+CODE_NAMES = {"Makefile"}
+
+
+def is_code(path: Path) -> bool:
+    return path.suffix in CODE_SUFFIXES or path.name in CODE_NAMES
+
+
 def default_targets() -> list[Path]:
-    files = sorted(ROOT.glob("*.md")) + sorted(ROOT.glob("*/*.md"))
-    doc = ROOT / "src" / "hithesis-doc.dtx"
-    if doc.exists():
-        files.append(doc)
-    # RELEASE_NOTES.md 是 make changes 生成的，改了下次就被覆盖
-    generated = {"RELEASE_NOTES.md"}
-    return [f for f in files
-            if "node_modules" not in f.parts and "target" not in f.parts
-            and f.name not in generated]
+    """散文与注释里带中文的文件，全都要过一遍。
+
+    只列具体路径而不是无差别递归：examples/ 下是用户论文正文，
+    标点风格由作者自己定；target/ 是构建产物。
+    """
+    globs = [
+        "*.md", "*/*.md",
+        "src/hithesis-doc.dtx",
+        "build.lua", "Makefile",
+        ".github/workflows/*.yml",
+        "scripts/*.py", "scripts/*.sh",
+        "tools/*.sh",
+        "testfiles/*.lvt",
+    ]
+    files: list[Path] = []
+    for g in globs:
+        files.extend(sorted(ROOT.glob(g)))
+    # RELEASE_NOTES.md 是 make changes 生成的，改了下次就被覆盖；
+    # 本脚本自身要同时保留两种引号的字面量，改了 --quotes corner 就失效
+    generated = {"RELEASE_NOTES.md", "fix-punct.py"}
+    seen: set[Path] = set()
+    out = []
+    for f in files:
+        if f in seen or not f.is_file():
+            continue
+        seen.add(f)
+        if "node_modules" in f.parts or "target" in f.parts or f.name in generated:
+            continue
+        out.append(f)
+    return out
 
 
 def changed_files() -> list[Path]:
@@ -107,7 +141,7 @@ def changed_files() -> list[Path]:
 def process(path: Path, quote_style: str, apply: bool) -> list[tuple[int, str, str]]:
     original = path.read_text(encoding="utf-8")
     masked, saved = mask(original)
-    result = unmask(convert(masked, quote_style), saved)
+    result = unmask(convert(masked, quote_style, straight_quotes=not is_code(path)), saved)
     if result == original:
         return []
     diffs = [(i, a, b) for i, (a, b) in
@@ -119,7 +153,7 @@ def process(path: Path, quote_style: str, apply: bool) -> list[tuple[int, str, s
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="统一中文语境下的标点与引号")
-    parser.add_argument("files", nargs="*", help="指定文件；默认 *.md 与 hithesis-doc.dtx")
+    parser.add_argument("files", nargs="*", help="指定文件；默认扫仓库里带中文的散文与注释")
     parser.add_argument("--fix", action="store_true", help="实际写回，默认只报告")
     parser.add_argument("--quotes", choices=["curly", "corner"], default="curly",
                         help="引号风格：curly 用 “”（默认，大陆通行），corner 用 「」")
