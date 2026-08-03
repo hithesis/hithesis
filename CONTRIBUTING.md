@@ -216,10 +216,26 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 \bool_lazy_and:nnT { \legacy_if_p:n { hit@harbin } } { \legacy_if_p:n { hit@bachelor } } { ... }
 ```
 
-**`\ExplSyntaxOn` 会吞掉源码里的空格。** 传给别的宏的字面文本里如果有意义的空格，
-要写成 `~`。已经踩到过：`text={150true mm}` 直接照抄会变成 `150truemm`。
+**`\ExplSyntaxOn` 会改变空格的读法。** 两种情形都实测踩过：
 
-已迁移：`book-geometry`（试点，参见 `src/hithesis-book.dtx`）。
+- 字面文本里的空格被吞。`text={150true mm}` 直接照抄会变成 `150truemm`，要写 `~`。
+- 控制空格 `\ ` 的记号化与平时不同。`art-chapter` 里 `aftername=\ifhit@opening {\ }`
+  照抄进 expl3 之后，变体 32 的 PDF 就变了。
+
+第二种情形没有简单的等价写法。可靠做法是把这类取值留在 expl3 之外定义成一个宏，
+再由 expl3 的条件调用它，记号与改动前逐个相同：
+
+```latex
+\ExplSyntaxOff
+\def\hit@art@shenzhenmaster@sectionset{\ctexset{ ...原样照抄... }}
+\ExplSyntaxOn
+\bool_lazy_and:nnT { ... } { ... } { \hit@art@shenzhenmaster@sectionset }
+```
+
+判断标准：模块里如果有大段字面排版内容（页眉文字、`\ctexset` 取值、控制空格），
+就用这个办法把内容与控制流分开，别把内容裹进 `\ExplSyntaxOn`。
+
+已迁移：`book-geometry`、`art-geometry`、`book-mainmatter`、`art-chapter`。
 
 迁移一个模块的验收：`l3build check` 全过，再挑几个走到该模块各分支的变体，与改动
 前的 PDF 逐字节比对。建参照用 `git worktree add --detach <目录> HEAD`，比在原地
