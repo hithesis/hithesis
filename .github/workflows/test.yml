@@ -144,17 +144,18 @@ jobs:
           version: latest
           package-file: .github/tl_packages
 
-      # 先探测再装。runner 镜像里可能已经有 gs，跳过 brew 也就没有它那条
-      # 关于镜像自带的 aws/tap 未受信任的警告，那条警告与本项目无关。
       - name: Install ghostscript (macOS)
         if: runner.os == 'macOS'
         run: |
           if command -v gs >/dev/null; then
             echo "已有 gs：$(command -v gs)"
             gs -version | head -1
-          else
-            brew install ghostscript
+            exit 0
           fi
+          # runner 镜像自带 aws/tap，brew 每次都会就它未受信任警告一次。本项目
+          # 不用这个 tap，装之前移掉，免得每轮都挂一条与我们无关的 annotation。
+          brew untap aws/tap 2>/dev/null || true
+          brew install ghostscript
 
       # 不运行安装程序，直接解包。
       #
