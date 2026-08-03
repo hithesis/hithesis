@@ -60,6 +60,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ghostscript
 
+      # setup-texlive-action 装 2021-2025 走的是 historic 归档，实测会漏包却仍以
+      # 0 退出——TL2021-2025 整批漏掉 l3build，到下一步才炸成一句 command not found。
+      # 2026 从当前 CTAN 仓库装，没这个问题。这里补装一次并把缺失变成明确报错。
+      - name: Ensure l3build is available
+        run: |
+          if ! command -v l3build >/dev/null; then
+            echo "setup 没装上 l3build，补装一次"
+            tlmgr install l3build
+          fi
+          command -v l3build || { echo "补装后仍然没有 l3build，看上一步的安装日志"; exit 1; }
+
       - name: Generate cls files
         run: make cls
 
@@ -146,7 +157,10 @@ jobs:
       # 那条路径上。示例要的是“文件就在手边”的布局，也就是用户从发布 zip
       # 解出来的样子——这样跨平台任务和 Linux 矩阵测的才是同一件事。
       - name: Generate and distribute class files
+        shell: bash
         run: |
+          # 同上：setup 漏装 l3build 时给一句能看懂的话，别只剩 command not found
+          command -v l3build || { echo "setup 没装上 l3build"; exit 1; }
           l3build unpack
           l3build distribute
 
