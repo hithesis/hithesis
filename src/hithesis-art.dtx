@@ -64,11 +64,12 @@
   \hit@harbinfalse
   \expandafter\csname hit@#1true\endcsname
 }
-\ifhit@weihai\relax\else
-  \ifhit@shenzhen\relax\else
-    \hit@harbintrue
-  \fi
-\fi
+\ExplSyntaxOn
+\bool_lazy_or:nnF
+  { \legacy_if_p:n { hit@weihai } }
+  { \legacy_if_p:n { hit@shenzhen } }
+  { \legacy_if_set_true:n { hit@harbin } }
+\ExplSyntaxOff
 
 \newif\ifhit@opening
 \newif\ifhit@midterm
@@ -112,48 +113,50 @@
 
 \ProcessKeyvalOptions*
 
-\ifhit@bachelor\relax\else
-  \ifhit@master\relax\else
-    \ifhit@doctor\relax\else
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{artplus-options 的三段选项校验改用
+%   \cs{bool\_lazy\_any:nF}、\cs{bool\_lazy\_or:nnF} 与 \cs{bool\_lazy\_all:nF}。
+%   第三段原来写成三层嵌套、同一段报错文本重复三遍，现在合成一次判断。报错
+%   文本按 CONTRIBUTING §4.6 留在 expl3 之外。}
+% 本类只支持深圳校区博士的中期报告，三个条件缺一不可，原来靠三层嵌套分别报错，
+% 三处文本相同，合成一次判断。
+%    \begin{macrocode}
+\def\hit@artplus@error@type{%
       \ClassError{hithesisartplus}{%
         \MessageBreak Please specify thesis type in option:
         \MessageBreak type=[bachelor | master | doctor]
-      }
-    \fi
-  \fi
-\fi
-
-\ifhit@opening\relax\else
-  \ifhit@midterm\relax\else
+      }}
+\def\hit@artplus@error@stage{%
     \ClassError{hithesisartplus}{%
       \MessageBreak Please specify stage in option:
       \MessageBreak stage=<opening|midterm>
-    }
-    \fi
-\fi
-
-\ifhit@doctor
-  \ifhit@midterm
-    \ifhit@shenzhen
-      \relax
-    \else
+    }}
+\def\hit@artplus@error@combo{%
       \ClassError{hithesisartplus}{%
         \MessageBreak This document class only support midterm report for doctor
         in shenzhen campus
-      }
-    \fi
-  \else
-    \ClassError{hithesisartplus}{%
-      \MessageBreak This document class only support midterm report for doctor
-      in shenzhen campus
-    }
-  \fi
-\else
-  \ClassError{hithesisartplus}{%
-    \MessageBreak This document class only support midterm report for doctor
-    in shenzhen campus
+      }}
+\ExplSyntaxOn
+\bool_lazy_any:nF
+  {
+    { \legacy_if_p:n { hit@bachelor } }
+    { \legacy_if_p:n { hit@master } }
+    { \legacy_if_p:n { hit@doctor } }
   }
-\fi
+  { \hit@artplus@error@type }
+\bool_lazy_or:nnF
+  { \legacy_if_p:n { hit@opening } }
+  { \legacy_if_p:n { hit@midterm } }
+  { \hit@artplus@error@stage }
+\bool_lazy_all:nF
+  {
+    { \legacy_if_p:n { hit@doctor } }
+    { \legacy_if_p:n { hit@midterm } }
+    { \legacy_if_p:n { hit@shenzhen } }
+  }
+  { \hit@artplus@error@combo }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{选项后处理（AutoFakeBold 与 fontset 透传）从 artpluscls 移入 artplus-options 模块}
