@@ -242,10 +242,66 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 判断标准：模块里如果有大段字面排版内容（页眉文字、`\ctexset` 取值、控制空格），
 就用这个办法把内容与控制流分开，别把内容裹进 `\ExplSyntaxOn`。
 
+**大段排版内容里的判断走助手函数。** 上面那条把内容留在 expl3 之外的做法，遇到
+判断散落在内容各处时不好用。这时反过来：判断本身定义成 expl3 函数，放在模块顶层，
+内容里只写函数调用。参数是在 expl3 之外记号化的，里面的空格照原样保留。
+
+现有的一批助手（`book-options` 与两个 `*-options` 模块里各有一份）：
+
+| 函数 | 作用 |
+| --- | --- |
+| `\hit@if{flag}{真}{假}` | 按标志位二选一 |
+| `\hit@ifT{flag}{真}` | 只有真分支 |
+| `\hit@ifand{f1}{f2}{真}{假}` | 两个标志位同时成立 |
+| `\hit@iffontset{名字}{真}{假}` | 比对 `fontset` |
+| `\hit@ifnotempty\宏{真}` | 宏非空时执行 |
+| `\hit@ifwider{长度}{阈值}{真}{假}` | 比长度 |
+| `\hit@ifmore{整数}{阈值}{真}` | 比整数 |
+| `\hit@glueskip{基准}{伸缩}` | `style/glue` 决定要不要给伸缩量 |
+
+另有若干针对具体组合的具名函数（`\hit@ifgrad`、`\hit@ifhrbmastage` 等），
+命名规律是校区加学位加阶段。
+
 已迁移：`book-geometry`、`art-geometry`、`book-mainmatter`、`art-chapter`、
 `art-pagestyle`、`art-toc`、`book-toc`、`book-pagestyle`、`art-floats`、`book-deps-c`、
 `book-glossary`、`art-deps-a`、`book-deps-a`、`art-options` 与
-`artplus-options`、`book-options`（均仅校验与后处理逻辑，选项声明仍归 kvoptions）。
+`artplus-options`、`book-options`（均仅校验与后处理逻辑，选项声明仍归 kvoptions）、
+`book-meta`、`art-meta`、`artplus-meta`、`book-floats`、`book-hyperlink`、
+`book-frontmatter`、`art-frontmatter`、`book-chapter`、`book-appendix`、`book-bib`、
+`art-bib`、`book-footnote`、`art-deps-c`。
+
+生成的三个类文件里，`\ifhit@…` 与 `\ifboolexpr` 只剩三十处，全在 `bookcfg` 与
+`artcfg` 那两段固定词汇的顶层分支里。那些分支的两侧各是几十行 `\gdef` 与
+`\newtheorem`，内容里有大量带空格的英文串；把它们塞进宏参数只会让 dtx 更难读，
+所以留着不动。`\ifthenelse{\equal{#1}{...}}` 比较章标题的两处也留着——`\equal`
+与 `\str_if_eq:nn` 对健壮命令的处理不完全一样，换了不保险。
+
+别在宏体里写 `\ExplSyntaxOn`。定义时catcode 确实会切过去，但那对 `\ExplSyntaxOff`
+两侧的换行与缩进影响很难数清，art 封面上试过一次，六个变体全变了。多条件判断
+在模块顶层定义成具名函数，宏体里只写函数名。
+
+分支里带 `#1` 的，别用 `\newcommand` 把它包成宏——那样 `#` 要加倍，漏了就是
+「Illegal parameter number」。当成 `\hit@if` 的参数传进去就没这个问题，参数里的
+`#` 原样通过。
+
+判断分支末尾的空格按同一条规则数：以控制字结尾的分支，后面的空格被跳过；
+以 `}` 或普通字符结尾的分支，那个空格是真的。`\ifhit@opening {\ } \else \enspace \fi`
+的真分支是 `{\ }` 加一个空格，写成 `\hit@if{opening}{{\ } }{\enspace}` 才对。
+
+把 `\ifhit@X A\else B\fi` 换成 `\hit@if{X}{A}{B}` 时，要看原写法 `\fi` 后面
+有没有空格。`\fi` 是控制字，后面的空格在记号化时就被跳过了；换成以 `}` 结尾之后
+那个空格变成真的空格。图表题注里 `\fi }#3` 就是这样，六处里有三处踩了这个。
+
+行尾没有 `%` 的一行，换行会带出一个空格记号；这个空格在水平模式下是真的
+词间距。`\l@chapter` 里 `{...#1}` 之后那一行就是这样，进 expl3 之后空格被吃掉，
+目录里引导点的起始位置就变了。改写前先按 TeX 的记号化规则数一遍哪些换行会留下
+空格：行尾是控制字的不留，行尾是 `}` 或字符的留。
+
+抽公共函数时先查同名宏。`\hit@toc@font` 在 `book-toc` 里只在 `toc/sans-font`
+打开时才定义，关着的时候故意保持未定义，用处是 `\csname hit@toc@font\endcsname`
+取到 `\relax`。在别处用 `\cs_new:Npn` 定义同名函数不会报错（那边用的是
+`\cs_set:Npn`），但会让目录每一行都多出一个 `\heiti`。四十二变体比对能查出来，
+逐字节差异出现在第一个内容流，`.toc` 与 `.aux` 反而完全一致。
 
 评估后跳过：`art-hyperlink`（零条件）、`book-bib`（含 natbib 补丁需逐字保留）、
 `book-appendix`（条件几乎全嵌在含字面空格的排版内容里，按本节规则该留在 expl3 之外，

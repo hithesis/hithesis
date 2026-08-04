@@ -58,13 +58,15 @@
 %
 % \changes{v3.1d}{2025/03/03}{模板默认是 \option{bachelor}，为页脚做准备。}
 %    \begin{macrocode}
-\ifhit@master\relax\else
-  \ifhit@doctor\relax\else
-    \ifhit@postdoc\relax\else
-      \hit@bachelortrue
-    \fi
-  \fi
-\fi
+\ExplSyntaxOn
+\bool_lazy_any:nF
+  {
+    { \legacy_if_p:n { hit@master } }
+    { \legacy_if_p:n { hit@doctor } }
+    { \legacy_if_p:n { hit@postdoc } }
+  }
+  { \legacy_if_set_true:n { hit@bachelor } }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 此处设置校区，没有明确给出威海或者深圳时候，默认为哈尔滨校区。
@@ -80,11 +82,11 @@
   \hit@harbinfalse
   \expandafter\csname hit@#1true\endcsname
 }
-\ifhit@weihai\relax\else
-  \ifhit@shenzhen\relax\else
-    \hit@harbintrue
-  \fi
-\fi
+\ExplSyntaxOn
+\bool_lazy_or:nnF
+  { \legacy_if_p:n { hit@weihai } } { \legacy_if_p:n { hit@shenzhen } }
+  { \legacy_if_set_true:n { hit@harbin } }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 此处添加语言选项
@@ -97,9 +99,9 @@
   \hit@chinesefalse
   \expandafter\csname hit@#1true\endcsname
 }
-\ifhit@english\relax\else
-  \hit@chinesetrue
-\fi
+\ExplSyntaxOn
+\legacy_if:nF { hit@english } { \legacy_if_set_true:n { hit@chinese } }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 设置版芯，由于窝工版芯歧义。
@@ -470,6 +472,102 @@
   }
   { \legacy_if_set_true:n { hit@geometrynewtwo } }
 \ExplSyntaxOff
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\option{style/glue} 决定的伸缩量抽成
+%   \cs{hit@glueskip} 与 \cs{hit@gluesize}，原地重复了二十多次的
+%   \cs{ifhit@glue} 判断收敛到这两个函数里。}
+% \cs{hit@if} 是按标志位二选一：\cs{hit@if}\marg{flag}\marg{真}\marg{假}；
+% \cs{hit@iffontset}\marg{名字}\marg{真}\marg{假} 比对 \option{fontset}，
+% \cs{hit@ifnotempty}\marg{宏}\marg{真} 在宏非空时执行，
+% \cs{hit@ifwider}\marg{长度}\marg{阈值}\marg{真}\marg{假} 与 \cs{hit@ifwiderdim}
+% 比长度，\cs{hit@ifmore}\marg{整数}\marg{阈值}\marg{真} 比整数。
+% \cs{hit@ifT}\marg{flag}\marg{真} 是只有真分支的那一半。
+% 另有几个组合判断：\cs{hit@ifand} 是两个标志位同时成立；\cs{hit@ifhrbmd} 是
+% 哈尔滨硕博；\cs{hit@ifgrad} 是哈尔滨硕博或深圳硕士；\cs{hit@ifstudenttype}
+% 决定要不要在封面上标出学生类别；\cs{hit@ifszmaorhrbbs} 是深圳硕士或哈尔滨本科。
+% 参数从 expl3 之外传进来，里面的空格照原样保留。注意原写法里 \cs{fi} 之后的
+% 空格会被记号化跳过，换成以 \texttt{\}} 结尾之后那个空格就成了真的空格，
+% 所以替换时要把它一起吃掉。
+%
+% 标题前后的间距与行距。\option{style/glue} 开时给伸缩量，关时是固定值。
+% 两个函数都可展开，所以能直接写在 \cs{ctexset} 的取值里。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\cs_new:Npn \hit@if #1#2#3 { \legacy_if:nTF { hit@#1 } {#2} {#3} }
+\cs_new:Npn \hit@ifT #1#2 { \legacy_if:nT { hit@#1 } {#2} }
+\cs_new:Npn \hit@iffontset #1#2#3
+  { \str_if_eq:eeTF { \hit@fontset } {#1} {#2} {#3} }
+\cs_new_protected:Npn \hit@ifnotempty #1#2 { \tl_if_empty:NF #1 {#2} }
+\cs_new:Npn \hit@ifwider #1#2#3#4 { \dim_compare:nNnTF {#1} > {#2} {#3} {#4} }
+\cs_new:Npn \hit@ifwiderdim #1#2#3#4 { \dim_compare:nNnTF {#1} > {#2} {#3} {#4} }
+\cs_new:Npn \hit@ifmore #1#2#3 { \int_compare:nNnT {#1} > {#2} {#3} }
+\cs_new:Npn \hit@ifand #1#2#3#4
+  {
+    \bool_lazy_and:nnTF
+      { \legacy_if_p:n { hit@#1 } } { \legacy_if_p:n { hit@#2 } } {#3} {#4}
+  }
+\cs_new:Npn \hit@ifhrbmd #1#2
+  {
+    \bool_lazy_and:nnTF
+      { \legacy_if_p:n { hit@harbin } }
+      {
+        \bool_lazy_or_p:nn
+          { \legacy_if_p:n { hit@master } } { \legacy_if_p:n { hit@doctor } }
+      }
+      {#1} {#2}
+  }
+\cs_new:Npn \hit@ifszmaorhrbbs #1#2
+  {
+    \bool_lazy_or:nnTF
+      {
+        \bool_lazy_and_p:nn
+          { \legacy_if_p:n { hit@shenzhen } } { \legacy_if_p:n { hit@master } }
+      }
+      {
+        \bool_lazy_and_p:nn
+          { \legacy_if_p:n { hit@harbin } } { \legacy_if_p:n { hit@bachelor } }
+      }
+      {#1} {#2}
+  }
+\cs_new:Npn \hit@ifgrad #1#2
+  {
+    \bool_lazy_or:nnTF
+      {
+        \bool_lazy_and_p:nn
+          { \legacy_if_p:n { hit@harbin } }
+          {
+            \bool_lazy_or_p:nn
+              { \legacy_if_p:n { hit@master } } { \legacy_if_p:n { hit@doctor } }
+          }
+      }
+      {
+        \bool_lazy_and_p:nn
+          { \legacy_if_p:n { hit@shenzhen } } { \legacy_if_p:n { hit@master } }
+      }
+      {#1} {#2}
+  }
+\cs_new:Npn \hit@ifstudenttype #1
+  {
+    \bool_lazy_all:nF
+      {
+        { ! \legacy_if_p:n { hit@shenzhen } }
+        { ! \legacy_if_p:n { hit@master } }
+        { \legacy_if_p:n { hit@fulltime } }
+      }
+      {#1}
+  }
+\cs_new:Npn \hit@glueskip #1#2
+  { \legacy_if:nTF { hit@glue } { #1~plus~#2~minus~0bp } { #1 } }
+\cs_new:Npn \hit@gluesize #1#2#3
+  {
+    \legacy_if:nTF { hit@glue }
+      { \fontsize {#1} { #2~plus~#3 } } { \fontsize {#1} {#2} }
+  }
+\ExplSyntaxOff
+%    \end{macrocode}
+%
+%    \begin{macrocode}
 %</book-options>
 %<*bookcls-load>
 %    \end{macrocode}
@@ -572,25 +670,29 @@
 % 单独使用 \pkg{newtxmath} 宏包改变数学字体时，会使 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令使用 CM 字体，根据 \href{https://github.com/sjtug/SJTUThesis/blob/b164d0f5b3087ed86c1038b5a85014b47a92c6f2/texmf/tex/latex/sjtuthesis/fd/sjtu-math-font-termes.def#L52-L65}{SJTUThesis 的字体设置} 进行调整
 % \changes{v3.0.19}{2022/05/05}{对 \pkg{newtxmath} 宏包打补丁，修复 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令的字体问题。}
 %    \begin{macrocode}
-\ifhit@newtxmath
-  \let\oldencodingdefault\encodingdefault
-  \let\oldrmdefault\rmdefault
-  \let\oldsfdefault\sfdefault
-  \let\oldttdefault\ttdefault
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{直接修改编码，而不引入新的宏包。}
+% \changes{v3.2a}{0000/00/00}{newtxmath 的加载分支迁到 expl3。}
 %    \begin{macrocode}
-  \def\encodingdefault{T1}
-  \renewcommand{\rmdefault}{ntxtlf}
-  \renewcommand{\sfdefault}{qhv}
-  \renewcommand{\ttdefault}{ntxtt}
-  \RequirePackage{newtxmath}
-  \let\encodingdefault\oldencodingdefault
-  \let\rmdefault\oldrmdefault
-  \let\sfdefault\oldsfdefault
-  \let\ttdefault\oldttdefault
-\fi
+\ExplSyntaxOn
+\legacy_if:nT { hit@newtxmath }
+  {
+    \cs_set_eq:NN \oldencodingdefault \encodingdefault
+    \cs_set_eq:NN \oldrmdefault \rmdefault
+    \cs_set_eq:NN \oldsfdefault \sfdefault
+    \cs_set_eq:NN \oldttdefault \ttdefault
+    \tl_set:Nn \encodingdefault { T1 }
+    \tl_set:Nn \rmdefault { ntxtlf }
+    \tl_set:Nn \sfdefault { qhv }
+    \tl_set:Nn \ttdefault { ntxtt }
+    \RequirePackage { newtxmath }
+    \cs_set_eq:NN \encodingdefault \oldencodingdefault
+    \cs_set_eq:NN \rmdefault \oldrmdefault
+    \cs_set_eq:NN \sfdefault \oldsfdefault
+    \cs_set_eq:NN \ttdefault \oldttdefault
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 图形支持宏包。
@@ -625,19 +727,21 @@
 % 禁止 \LaTeX 自动调整多余的页面底部空白，并保持脚注仍然在底部。
 % 脚注按页编号。
 %    \begin{macrocode}
-\ifhit@raggedbottom
-  \RequirePackage[bottom,perpage,hang]{footmisc}
-  \raggedbottom
-\else
-  \RequirePackage[perpage,hang]{footmisc}
-\fi
+\ExplSyntaxOn
+\legacy_if:nTF { hit@raggedbottom }
+  {
+    \RequirePackage [ bottom , perpage , hang ] { footmisc }
+    \raggedbottom
+  }
+  { \RequirePackage [ perpage , hang ] { footmisc } }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 脚注格式。
 %    \begin{macrocode}
-\ifhit@pifootnote
-  \RequirePackage{pifont}
-\fi
+\ExplSyntaxOn
+\legacy_if:nT { hit@pifootnote } { \RequirePackage { pifont } }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 利用 \pkg{xeCJKfntef} 实现汉字的下划线和盒子内两段对齐，并可以避免
@@ -703,18 +807,21 @@
 % \changes{v3.0.15}{2020/05/21}{添加参考文献GBT2015}
 % \changes{v3.1c}{2023/04/16}{增加相邻两个参考文献连接符为逗号“,”的功能。\issue[137]}
 %    \begin{macrocode}
-\ifhit@citetwocomma
-  \patchcmd{\NAT@citexnum}{\def@NAT@last@yr{-\NAT@penalty}}
-  {%
-    \ifx\NAT@last@yr\relax
-    \def@NAT@last@yr{\@citea}%
-    \else
-    \def@NAT@last@yr{-\NAT@penalty}%
-    \fi
-  }%
-  {\typeout{Use comma between neighboring citations}}%
-  {\ClassError{hithesisbook}{fail to patch \NAT@citexnum}{}}%
-\fi
+\ExplSyntaxOn
+\legacy_if:nT { hit@citetwocomma }
+  {
+    \patchcmd \NAT@citexnum { \def@NAT@last@yr { - \NAT@penalty } }
+      {
+        \ifx \NAT@last@yr \relax
+        \def@NAT@last@yr { \@citea }%
+        \else
+        \def@NAT@last@yr { - \NAT@penalty }%
+        \fi
+      }
+      { \typeout { Use~comma~between~neighboring~citations } }
+      { \ClassError { hithesisbook } { fail~to~patch~\NAT@citexnum } { } }
+  }
+\ExplSyntaxOff
 %</book-hyperlink>
 %<*book-deps-b>
 %    \end{macrocode}
@@ -1014,7 +1121,7 @@
 % \changes{v3.0.10}{2020/10/28}{更改小数点后第五位，1bp = 1/72 inch, 1 inch = 25.4 mm}
 %    \begin{macrocode}
 \renewcommand\normalsize{%
-  \@setfontsize\normalsize{12bp}{\ifhit@glue 20.50394bp \@plus 2.834646bp \@minus 0bp\else 20.50394bp\fi}%
+  \@setfontsize\normalsize{12bp}{\hit@glueskip{20.50394bp}{2.834646bp}}%
   \abovedisplayskip=8pt
   \abovedisplayshortskip=8pt
   \belowdisplayskip=\abovedisplayskip
@@ -1183,11 +1290,9 @@
 }
 \def\hit@pagenum@plain{\thepage}
 \def\hit@pagenum@decorated{%
-  \ifhit@bachelor
-    -\hspace{\hit@pagenumber@sep}\thepage\hspace{\hit@pagenumber@sep}-%
-  \else
-    -~\thepage~-%
-  \fi}
+  \hit@if{bachelor}%
+    {-\hspace{\hit@pagenumber@sep}\thepage\hspace{\hit@pagenumber@sep}-}%
+    {-~\thepage~-}}
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{页码装饰与页眉横线的开关改为三态，本科与非本科
@@ -1283,7 +1388,7 @@
                 \fancyhead [ CE ]
                   {
                     \songti \xiaowu [ 0 ] \hit@cschoolname
-                    \ifhit@doctor \else \hit@shenzhencampus \fi
+                    \hit@if{doctor}{}{\hit@shenzhencampus}
                     \hit@cdegree \hit@cthesisname
                   }
               }
@@ -1439,15 +1544,12 @@
 %    \begin{macrocode}
 %<*book-footnote>
 \def\hit@textcircled#1{%
-  \ifnum\value{#1} >9
-    \ClassError{hithesis}%
-      {Too many footnotes in this page.}{Keep footnote less than 10.}
-  \fi
-  \ifhit@pifootnote%
-    \ding{\the\numexpr\value{#1}+171\relax}%
-  \else%
-    \textcircled{\xiaoliu\arabic{#1}}%
-  \fi}
+  \hit@ifmore{\value{#1}}{9}%
+    {\ClassError{hithesis}%
+      {Too many footnotes in this page.}{Keep footnote less than 10.}}%
+  \hit@if{pifootnote}%
+    {\ding{\the\numexpr\value{#1}+171\relax}}%
+    {\textcircled{\xiaoliu\arabic{#1}}}}
 \renewcommand{\thefootnote}{\hit@textcircled{footnote}}
 \renewcommand{\thempfootnote}{\hit@textcircled{mpfootnote}}
 %    \end{macrocode}
@@ -1511,7 +1613,7 @@
 \allowdisplaybreaks[4]
 \predisplaypenalty=0  %公式之前可以换页，公式出现在页面顶部
 \postdisplaypenalty=0
-\renewcommand\theequation{\ifnum \c@chapter>\z@ \thechapter-\fi\@arabic\c@equation}
+\renewcommand\theequation{\hit@ifmore{\c@chapter}{0}{\thechapter-}\@arabic\c@equation}
 %    \end{macrocode}
 %
 % \changes{v2.0.03}{2018/10/08}{设置公式前后随意断页}
@@ -1623,20 +1725,33 @@
 % ^^A ======================================================================
 %    \begin{macrocode}
 %<*book-floats>
-\ifhit@postdoc
-\setlength{\intextsep}{10.5bp}
-\setlength{\textfloatsep}{10.5bp}
-\setlength{\floatsep}{10.5bp}
 %    \end{macrocode}
 %
-% 添加博后的浮动间距设置
 % \changes{v3.0.0}{2020/05/21}{添加博后的浮动间距设置}
+% \changes{v3.2a}{0000/00/00}{浮动体间距的三个分支迁到 expl3。}
+% 博后单独一套间距；其余按 \option{style/glue} 决定要不要给伸缩量。
 %    \begin{macrocode}
-\else
-\setlength{\intextsep}{\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp\else 8.50398bp\fi}
-\setlength{\textfloatsep}{\ifhit@glue 8.50398bp \@plus 2.83465bp \@minus 0bp\else 8.50398bp\fi}
-\setlength{\floatsep}{\ifhit@glue 12bp \@plus 2.83465bp \@minus 0bp\else 12bp\fi}
-\fi
+\ExplSyntaxOn
+\legacy_if:nTF { hit@postdoc }
+  {
+    \skip_set:Nn \intextsep    { 10.5bp }
+    \skip_set:Nn \textfloatsep { 10.5bp }
+    \skip_set:Nn \floatsep     { 10.5bp }
+  }
+  {
+    \legacy_if:nTF { hit@glue }
+      {
+        \skip_set:Nn \intextsep    { 8.50398bp~plus~2.83465bp~minus~0bp }
+        \skip_set:Nn \textfloatsep { 8.50398bp~plus~2.83465bp~minus~0bp }
+        \skip_set:Nn \floatsep     { 12bp~plus~2.83465bp~minus~0bp }
+      }
+      {
+        \skip_set:Nn \intextsep    { 8.50398bp }
+        \skip_set:Nn \textfloatsep { 8.50398bp }
+        \skip_set:Nn \floatsep     { 12bp }
+      }
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 此处设置float在p选项时间隔，此处不设置\cs{@fptop}和\cs{@fpbot}以确保居中。
@@ -1677,25 +1792,25 @@
 %    \begin{macrocode}
 \long\def\@makecaption#1#2{%
   \vskip\abovecaptionskip
-  \wuhao\sbox\@tempboxa{#1\ifhit@bachelor\hskip\ccwd\else\enskip\fi#2}%
-  \ifdim \wd\@tempboxa >\hsize
-    \ifhit@capcenterlast%
+  \wuhao\sbox\@tempboxa{#1\hit@if{bachelor}{\hskip\ccwd}{\enskip}#2}%
+  \hit@ifwiderdim{\wd\@tempboxa}{\hsize}{%
+    \hit@if{capcenterlast}{%
       \vskip 6.3bp%
-      {\setbox0=\vbox{#1\ifhit@bachelor\hskip\ccwd\else\enskip\fi#2}
+      {\setbox0=\vbox{#1\hit@if{bachelor}{\hskip\ccwd}{\enskip}#2}
         \setbox1=\vbox{%
           \unvbox0
           \setbox2=\lastbox
           \hbox to \textwidth{\hfill\unhcopy2 \unskip\unskip\hfill}
         }
       \unvbox1}
-    \else%
-      #1\ifhit@bachelor\hskip\ccwd\else\enskip\fi#2%
-    \fi%
+    }{%
+      #1\hit@if{bachelor}{\hskip\ccwd}{\enskip}#2%
+    }%
     \par
-  \else
+  }{%
   \global \@minipagefalse
   \hb@xt@\hsize{\hfil\box\@tempboxa\hfil}%
-  \fi
+  }%
 \vskip\belowcaptionskip}
 %    \end{macrocode}
 %
@@ -1705,25 +1820,25 @@
 %    \begin{macrocode}
 \long\def\LT@makecaption#1#2#3{%
   \LT@mcol\LT@cols c{\hbox to\z@{\hss\parbox[t]\LTcapwidth{%
-    \wuhao\sbox\@tempboxa{#1{#2\ifhit@bachelor\hskip\ccwd\else\enskip\fi }#3}%
-    \ifdim\wd\@tempboxa>\hsize
-      \ifhit@capcenterlast%
+    \wuhao\sbox\@tempboxa{#1{#2\hit@if{bachelor}{\hskip\ccwd}{\enskip}}#3}%
+    \hit@ifwiderdim{\wd\@tempboxa}{\hsize}{%
+      \hit@if{capcenterlast}{%
         \vskip 6.3bp%
-        {\setbox0=\vbox{#1{#2\ifhit@bachelor\hskip\ccwd\else\enskip\fi }#3}
+        {\setbox0=\vbox{#1{#2\hit@if{bachelor}{\hskip\ccwd}{\enskip}}#3}
           \setbox1=\vbox{%
              \unvbox0
              \setbox2=\lastbox
              \hbox to \textwidth{\hfill\unhcopy2 \unskip\unskip\hfill}
           }
         \unvbox1}
-      \else%
-        #1{#2\ifhit@bachelor\hskip\ccwd\else\enskip\fi }#3%
-      \fi%
+      }{%
+        #1{#2\hit@if{bachelor}{\hskip\ccwd}{\enskip}}#3%
+      }%
       \par
-    \else
+    }{%
       \global \@minipagefalse
       \hbox to\hsize{\hfil\box\@tempboxa\hfil}
-    \fi
+    }%
     \endgraf\vskip\belowcaptionskip}%
   \hss}}}
 %    \end{macrocode}
@@ -2124,7 +2239,7 @@ breaklines=true
 % 按照word示范要求，此处使用阿拉伯数字
 % \changes{v1.0.14}{2018/05/06}{修正自动生成日期bug}
 %    \begin{macrocode}
-\cdate{\ifhit@bachelor\CJK@todaysmall\else\CJK@todaysmall@short\fi}
+\cdate{\hit@if{bachelor}{\CJK@todaysmall}{\CJK@todaysmall@short}}
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{将 \cs{hit@firstpage} 默认设置为 \cs{hit@cdate}}
@@ -2142,24 +2257,74 @@ breaklines=true
 % ^^A ======================================================================
 %    \begin{macrocode}
 %<*book-chapter>
-\def\hit@title@font{%
-  \ifhit@arialtitle\sffamily\else\heiti\fi}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{标题字体、目录里章标题的字体与节号之后的间隔
+%   迁到 expl3，四个重复的 \cs{ifboolexpr} 收敛成两个函数。}
+% \cs{hit@title@font} 是标题字体，\cs{hit@chaptoc@font} 是目录里章标题的字体
+% （注意别跟 \file{book-toc} 里的 \cs{hit@chaptoc@font} 弄混，那个只在
+% \option{toc/sans-font} 打开时才定义）。\cs{hit@sectionsep} 与
+% \cs{hit@sectionsepsz} 是节号与节名之间的间隔，两者只差哈尔滨本科算不算进
+% \cs{quad}。四个都可展开，能直接写进 \cs{ctexset} 的取值。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\cs_new:Npn \hit@title@font
+  { \legacy_if:nTF { hit@arialtitle } { \sffamily } { \heiti } }
+\cs_new:Npn \hit@chaptoc@font
+  { \legacy_if:nTF { hit@arialtitle } { \sffamily \heiti } { \heiti } }
+\cs_new:Npn \__hit_sectionsep:n #1
+  {
+    \bool_lazy_or:nnTF
+      {
+        \bool_lazy_and_p:nn
+          { \legacy_if_p:n { hit@harbin } } { \legacy_if_p:n { hit@master } }
+      }
+      { \bool_lazy_and_p:nn {#1} { \legacy_if_p:n { hit@bachelor } } }
+      { \quad } { \enspace }
+  }
+\cs_new:Npn \hit@sectionsepsz
+  { \__hit_sectionsep:n { \legacy_if_p:n { hit@shenzhen } } }
+\cs_new:Npn \hit@sectionsep
+  {
+    \__hit_sectionsep:n
+      {
+        \bool_lazy_or_p:nn
+          { \legacy_if_p:n { hit@shenzhen } } { \legacy_if_p:n { hit@harbin } }
+      }
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 % \begin{macro}{\hit@chapter@titleformat}
 % 根据 \issue[220] 为英文摘要标题增加 chapterbold 的判断
 % \changes{v3.1d}{2025/03/03}{根据 \issue[220] 为英文摘要标题增加 chapterbold 的判断}
 %    \begin{macrocode}
-\newcommand\hit@chapter@titleformat[1]{%开启悬挂缩进选项
-  \ifhit@english
-  \MakeUppercase{#1}
-  \else
-    \ifthenelse%
-    {\equal{#1}{\eabstractcname}}%
-    {\ifhit@chapterbold\bfseries\fi #1}%
-    % 实现章标题的居中加悬挂缩进，注意，此处一定是\CTEX@chaptername\CTEX@chapter@aftername, 否则是英文标题长度
-    {\ifhit@chapterhang\settowidth{\hangindent}{\CTEX@chaptername\CTEX@chapter@aftername}\hangafter=1\fi#1}
-  \fi
-}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{章标题格式迁到 expl3。}
+% 英文版全大写；中文版里英文摘要那一章不做悬挂缩进，其余按
+% \option{style/chapter-hang} 决定。悬挂宽度必须用
+% \cs{CTEX@chaptername}\cs{CTEX@chapter@aftername} 量，否则量到的是英文标题长度。
+% 两个分支末尾的 \texttt{\string~} 是原写法里换行带出来的空格，改写时要保留。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\cs_new_protected:Npn \hit@chapter@titleformat #1
+  {
+    \legacy_if:nTF { hit@english }
+      { \MakeUppercase {#1} ~ }
+      {
+        \ifthenelse { \equal {#1} { \eabstractcname } }
+          { \legacy_if:nT { hit@chapterbold } { \bfseries } #1 }
+          {
+            \legacy_if:nT { hit@chapterhang }
+              {
+                \settowidth \hangindent { \CTEX@chaptername \CTEX@chapter@aftername }
+                \int_set:Nn \hangafter { 1 }
+              }
+            #1
+          } ~
+      }
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 % \end{macro}
 % 添加英文版目录chapter title控制
@@ -2211,7 +2376,13 @@ breaklines=true
 % \changes{v3.1d}{2025/03/03}{发现 \issue[135] 中的间距改错位置了……}
 % \changes{v3.1f}{0000/00/00}{威海本科模板章标题的上下间距与其他校区统一。}
 %    \begin{macrocode}
-\ifhit@english
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{三套章节格式各自取名，分派改用 expl3。}
+% 章节格式分英文版、博后、其余三套。每套的 \cs{ctexset} 里有字面空格和控制空格，
+% 按 \ref{sec:expl3-space} 的规矩留在 expl3 之外，只把分派放进去。
+%    \begin{macrocode}
+\newcommand\hit@chapterset@english{%
   \ctexset{%
     chapter={
       afterindent=true,
@@ -2228,26 +2399,26 @@ breaklines=true
     },
     section={
       afterindent=true,
-      beforeskip={\ifhit@glue 19.84252bp \@plus 2.834646bp \@minus 0bp \else 19.84252bp \fi},%上下空0.5行
-      afterskip={\ifhit@glue 19.84252bp \@plus 2.834646bp \@minus 0bp \else 19.84252bp \fi},
-      format={\hit@title@font\ifhit@glue\fontsize{15bp}{21bp \@plus 1.677267bp \@minus 1.157391bp}\else\fontsize{15bp}{21bp}\fi\selectfont\bfseries},
+      beforeskip={\hit@glueskip{19.84252bp}{2.834646bp}},%上下空0.5行
+      afterskip={\hit@glueskip{19.84252bp}{2.834646bp}},
+      format={\hit@title@font\hit@gluesize{15bp}{21bp}{1.677267bp \@minus 1.157391bp}\selectfont\bfseries},
       aftername=\enspace,
       fixskip=true,
       break={},
     },
     subsection={
       afterindent=true,
-      beforeskip={\ifhit@glue 17.00787bp \@plus 2.834646bp \@minus 0bp \else 17.00787bp \fi},
-      afterskip={\ifhit@glue 17.00787bp \@plus 2.834646bp \@minus 0bp \else 17.00787bp \fi},
-      format={\hit@title@font\ifhit@glue\fontsize{14bp}{18bp \@plus 1.842609bp \@minus 0.9920497bp}\else\fontsize{14bp}{18bp}\fi\selectfont\bfseries},
+      beforeskip={\hit@glueskip{17.00787bp}{2.834646bp}},
+      afterskip={\hit@glueskip{17.00787bp}{2.834646bp}},
+      format={\hit@title@font\hit@gluesize{14bp}{18bp}{1.842609bp \@minus 0.9920497bp}\selectfont\bfseries},
       aftername=\enspace,
       fixskip=true,
       break={},
     },
     subsubsection={
       afterindent=true,
-      beforeskip={\ifhit@glue 8.503937bp \@plus 2.834646bp \@minus 0bp \else 8.503937bp \fi},
-      afterskip={\ifhit@glue 8.503937bp \@plus 2.834646bp \@minus 0bp \else 8.503937bp \fi},
+      beforeskip={\hit@glueskip{8.503937bp}{2.834646bp}},
+      afterskip={\hit@glueskip{8.503937bp}{2.834646bp}},
       format={\hit@title@font\normalsize},
       aftername=\enspace,
       fixskip=true,
@@ -2256,8 +2427,8 @@ breaklines=true
     paragraph/afterindent=true,
     subparagraph/afterindent=true
   }
-\else
-\ifhit@postdoc
+}
+\newcommand\hit@chapterset@postdoc{%
   \ctexset{%
     chapter={
       afterindent=true,
@@ -2274,26 +2445,26 @@ breaklines=true
     },
     section={
       afterindent=true,
-      beforeskip={\ifhit@glue 19.84252bp \@plus 2.834646bp \@minus 0bp \else 19.84252bp \fi},%上下空0.5行
-      afterskip={\ifhit@glue 19.84252bp \@plus 2.834646bp \@minus 0bp \else 19.84252bp \fi},
-      format={\hit@title@font\ifhit@glue\fontsize{15bp}{21bp \@plus 1.677267bp \@minus 1.157391bp}\else\fontsize{15bp}{21bp}\fi\selectfont\bfseries},
+      beforeskip={\hit@glueskip{19.84252bp}{2.834646bp}},%上下空0.5行
+      afterskip={\hit@glueskip{19.84252bp}{2.834646bp}},
+      format={\hit@title@font\hit@gluesize{15bp}{21bp}{1.677267bp \@minus 1.157391bp}\selectfont\bfseries},
       aftername=\enspace,
       fixskip=true,
       break={},
     },
     subsection={
       afterindent=true,
-      beforeskip={\ifhit@glue 17.00787bp \@plus 2.834646bp \@minus 0bp \else 17.00787bp \fi},
-      afterskip={\ifhit@glue 17.00787bp \@plus 2.834646bp \@minus 0bp \else 17.00787bp \fi},
-      format={\hit@title@font\ifhit@glue\fontsize{14bp}{18bp \@plus 1.842609bp \@minus 0.9920497bp}\else\fontsize{14bp}{18bp}\fi\selectfont\bfseries},
+      beforeskip={\hit@glueskip{17.00787bp}{2.834646bp}},
+      afterskip={\hit@glueskip{17.00787bp}{2.834646bp}},
+      format={\hit@title@font\hit@gluesize{14bp}{18bp}{1.842609bp \@minus 0.9920497bp}\selectfont\bfseries},
       aftername=\enspace,
       fixskip=true,
       break={},
     },
     subsubsection={
       afterindent=true,
-      beforeskip={\ifhit@glue 8.503937bp \@plus 2.834646bp \@minus 0bp \else 8.503937bp \fi},
-      afterskip={\ifhit@glue 8.503937bp \@plus 2.834646bp \@minus 0bp \else 8.503937bp \fi},
+      beforeskip={\hit@glueskip{8.503937bp}{2.834646bp}},
+      afterskip={\hit@glueskip{8.503937bp}{2.834646bp}},
       format={\hit@title@font\normalsize},
       aftername=\enspace,
       fixskip=true,
@@ -2303,7 +2474,8 @@ breaklines=true
     subparagraph/afterindent=true
   }
 
-\else
+}
+\newcommand\hit@chapterset@other{%
   \ctexset{%
     chapter={
       afterindent=true,
@@ -2315,20 +2487,13 @@ breaklines=true
 % \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
 % 本部硕士，深圳本科的序号与标题间距为两个半角空格，其余设置为一个半角空格，如果其他规范中有两个半角空格，欢迎提 \issue
 %    \begin{macrocode}
-      aftername=%
-        {%
-          \ifboolexpr{(bool {hit@harbin} and 
-                      bool {hit@master}) or 
-                      (bool {hit@shenzhen} and 
-                      bool {hit@bachelor})}%
-            {\quad}{\enspace}%
-        },
+      aftername={\hit@sectionsepsz},
 %    \end{macrocode}
 %
 % 添加本科生章标题加粗选项
 % \changes{v3.0.01}{2020/06/06}{添加本科生章标题加粗选项}
 %    \begin{macrocode}
-      format={\centering\hit@title@font\xiaoer[1.57481]\ifhit@chapterbold\ifhit@bachelor\bfseries\fi\fi},%\center 会影响之后全局
+      format={\centering\hit@title@font\xiaoer[1.57481]\hit@ifT{chapterbold}{\hit@ifT{bachelor}{\bfseries}}},%\center 会影响之后全局
       nameformat=\relax,
       numberformat=\relax,
       titleformat=\hit@chapter@titleformat,
@@ -2337,70 +2502,56 @@ breaklines=true
     },
     section={
       afterindent=true,
-      beforeskip={\ifhit@glue 19.84252bp \@plus 2.834646bp \@minus 0bp \else 19.84252bp \fi},%上下空0.5行
-      afterskip={\ifhit@glue 19.84252bp \@plus 2.834646bp \@minus 0bp \else 19.84252bp \fi},
-      format={\hit@title@font\ifhit@glue\fontsize{15bp}{21bp \@plus 1.677267bp \@minus 1.157391bp}\else\fontsize{15bp}{21bp}\fi\selectfont},
+      beforeskip={\hit@glueskip{19.84252bp}{2.834646bp}},%上下空0.5行
+      afterskip={\hit@glueskip{19.84252bp}{2.834646bp}},
+      format={\hit@title@font\hit@gluesize{15bp}{21bp}{1.677267bp \@minus 1.157391bp}\selectfont},
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
 %    \begin{macrocode}
-      aftername=%
-        {%
-          \ifboolexpr{(bool {hit@harbin} and 
-                      bool {hit@master}) or 
-                      ((bool {hit@shenzhen} or bool {hit@harbin}) and 
-                      bool {hit@bachelor})}%
-            {\quad}{\enspace}%
-        },
+      aftername={\hit@sectionsep},
       fixskip=true,
       break={},
     },
     subsection={
       afterindent=true,
-      beforeskip={\ifhit@glue 17.00787bp \@plus 2.834646bp \@minus 0bp \else 17.00787bp \fi},
-      afterskip={\ifhit@glue 17.00787bp \@plus 2.834646bp \@minus 0bp \else 17.00787bp \fi},
-      format={\hit@title@font\ifhit@glue\fontsize{14bp}{18bp \@plus 1.842609bp \@minus 0.9920497bp}\else\fontsize{14bp}{18bp}\fi\selectfont},
+      beforeskip={\hit@glueskip{17.00787bp}{2.834646bp}},
+      afterskip={\hit@glueskip{17.00787bp}{2.834646bp}},
+      format={\hit@title@font\hit@gluesize{14bp}{18bp}{1.842609bp \@minus 0.9920497bp}\selectfont},
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
 % \changes{v3.1d}{2025/03/03}{\issue[220] 说来就来，本部本科也改成两个空格了。但是章标题的间距没改。}
 %    \begin{macrocode}
-      aftername=%
-        {%
-          \ifboolexpr{(bool {hit@harbin} and 
-                      bool {hit@master}) or 
-                      ((bool {hit@shenzhen} or bool {hit@harbin}) and 
-                      bool {hit@bachelor})}%
-            {\quad}{\enspace}%
-        },
+      aftername={\hit@sectionsep},
       fixskip=true,
       break={},
     },
     subsubsection={
       afterindent=true,
-      beforeskip={\ifhit@glue 8.503937bp \@plus 2.834646bp \@minus 0bp \else 8.503937bp \fi},
-      afterskip={\ifhit@glue 8.503937bp \@plus 2.834646bp \@minus 0bp \else 8.503937bp \fi},
+      beforeskip={\hit@glueskip{8.503937bp}{2.834646bp}},
+      afterskip={\hit@glueskip{8.503937bp}{2.834646bp}},
       format={\hit@title@font\normalsize},
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
 %    \begin{macrocode}
-      aftername=%
-        {%
-          \ifboolexpr{(bool {hit@harbin} and 
-                      bool {hit@master}) or 
-                      ((bool {hit@shenzhen} or bool {hit@harbin}) and 
-                      bool {hit@bachelor})}%
-            {\quad}{\enspace}%
-        },
+      aftername={\hit@sectionsep},
       fixskip=true,
       break={},
     },
     paragraph/afterindent=true,
     subparagraph/afterindent=true
   }
-\fi
-\fi
+}
+\ExplSyntaxOn
+\legacy_if:nTF { hit@english }
+  { \hit@chapterset@english }
+  {
+    \legacy_if:nTF { hit@postdoc }
+      { \hit@chapterset@postdoc } { \hit@chapterset@other }
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 此处添加英文版和博后的title设置
@@ -2409,7 +2560,13 @@ breaklines=true
 % \changes{v1.0.13}{2018/04/05}{此处添加中文目录中Abstract是否均为大写选项}
 % \changes{v2.1.1}{2020/05/04}{添加chapter功能，使页眉、TOC不受protect的命令影响}
 %    \begin{macrocode}
-\ifhit@english
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{附录章标题的两套定义各自取名，分派改用 expl3。}
+% \cs{hit@appendix@chapter} 分英文版与中文版两套，只有一套会真的执行。
+%    \begin{macrocode}
+\hit@if{english}%
+{%
 \NewDocumentCommand{\hit@appendix@chapter}{s o m o}{%
   \IfBooleanT{#1}%
   {
@@ -2423,13 +2580,14 @@ breaklines=true
     \ifthenelse%
     {\equal{#3}{\cabstractcname}}%
     {\relax}
-    {\addcontentsline{toc}{chapter}{\texorpdfstring{\ifhit@arialtitle\sffamily\heiti\else\heiti\fi #3}{#3}}}
+    {\addcontentsline{toc}{chapter}{\texorpdfstring{\hit@chaptoc@font #3}{#3}}}
 
     \IfValueT{#4}{\addcontentsline{toe}{chapter}{\texorpdfstring{\bfseries #4}{#4}}}
     \hit@chapter*{#3}
   }
 }
-\else
+}%
+{%
 %    \end{macrocode}
 %
 % 添加英文版附表格式
@@ -2446,13 +2604,13 @@ breaklines=true
     }
     \ifthenelse%
       {\equal{#3}{\eabstractcname}}%
-      {\addcontentsline{toc}{chapter}{\texorpdfstring{\ifhit@arialtitle\sffamily\heiti\else\heiti\fi \ifhit@absupper\MakeUppercase{#3}\else#3\fi}{#3}}}
-      {\addcontentsline{toc}{chapter}{\texorpdfstring{\ifhit@arialtitle\sffamily\heiti\else\heiti\fi #3}{#3}}}
+      {\addcontentsline{toc}{chapter}{\texorpdfstring{\hit@chaptoc@font \hit@if{absupper}{\MakeUppercase{#3}}{#3}}{#3}}}
+      {\addcontentsline{toc}{chapter}{\texorpdfstring{\hit@chaptoc@font #3}{#3}}}
     \IfValueT{#4}{\addcontentsline{toe}{chapter}{\texorpdfstring{\bfseries #4}{#4}}}
     \hit@chapter*{#3}
   }
 }
-\fi
+}
 \newcommand{\BiAppChapter}[2]    % 该附录命令适用于有章节的完整附录
 {\phantomsection
  \chapter{#1}
@@ -2472,7 +2630,7 @@ breaklines=true
 %    \begin{macrocode}
 \let\hit@chapter\chapter
 \RenewDocumentCommand{\chapter}{s o m o}{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi\phantomsection%
+  \hit@clearpage\phantomsection%
   \IfBooleanTF{#1}%
   {%	if \chapter*
     \IfNoValueTF{#2}%
@@ -3137,10 +3295,10 @@ breaklines=true
 \gdef\hit@exuewei{Master}
 \gdef\hit@exueweier{Master's}
 \fi
-\gdef\hit@cxuewei{\ifhit@bachelor 学士 \else \hit@cxueweishort 士\fi}
+\gdef\hit@cxuewei{\hit@if{bachelor}{学士 }{\hit@cxueweishort 士}}
 \gdef\hit@cdegree{\hit@cxueke\hit@cxuewei}
 \gdef\hit@edegree{\hit@exuewei \ of \hit@exueke}
-\def\hit@cauthortitle{\ifboolexpr{bool {hit@harbin} and bool {hit@bachelor}}{本科生}{\hit@cxueweishort 士研究生}}
+\def\hit@cauthortitle{\hit@ifand{harbin}{bachelor}{本科生}{\hit@cxueweishort 士研究生}}
 
 \def\hit@postdoc@classifiedindex{分类号}
 \def\hit@postdoc@secretlevel{密级}
@@ -3177,7 +3335,7 @@ breaklines=true
 %    \begin{macrocode}
 
 \def\hit@bachelor@cxuewei{本科}
-\def\hit@bachelor@cthesisname{毕业\ifhit@harbin 论文（设计）\else 设计（论文）\fi}
+\def\hit@bachelor@cthesisname{毕业\hit@if{harbin}{论文（设计）}{设计（论文）}}
 %    \end{macrocode}
 %
 % 添加本科开题封皮中title定义
@@ -3186,7 +3344,7 @@ breaklines=true
 %    \begin{macrocode}
 
 
-\def\hit@bachelor@caffiltitle{\ifhit@harbin 学院 \else 院（系）\fi}
+\def\hit@bachelor@caffiltitle{\hit@if{harbin}{学院 }{院（系）}}
 %</bookcfg>
 %    \end{macrocode}
 %
@@ -3205,7 +3363,7 @@ breaklines=true
 % \changes{v3.1b}{2022/06/06}{修改深圳校区本科生第二封面中“学生”为“姓名”。}
 % 深圳校区本科生第二封面中是“姓名”。
 %    \begin{macrocode}
-\ifboolexpr{bool {hit@shenzhen} and bool {hit@bachelor}}
+\hit@ifand{shenzhen}{bachelor}
   {\def\hit@bachelor@cstudenttitle{姓名}}
   {\def\hit@bachelor@cstudenttitle{学生}}
 \def\hit@cthesisname{学位论文}
@@ -3228,8 +3386,8 @@ breaklines=true
 \def\hit@graduate@studentid{学\hspace{4\ccwd}号}
 
 
-\def\hit@graduate@datetitle{\ifhit@opening\hit@stage@opening
-\else\ifhit@midterm\hit@stage@midterm\fi\fi\hit@stage@doctype 日期}
+\def\hit@graduate@datetitle{\hit@if{opening}{\hit@stage@opening}%
+{\hit@ifT{midterm}{\hit@stage@midterm}}\hit@stage@doctype 日期}
 \def\hit@graduate@enrolldate{入\hspace{0.6666666\ccwd}学\hspace{0.6666666\ccwd}时\hspace{0.6666666\ccwd}间}
 \def\hit@graduate@thesistitle{论\hspace{0.6666666\ccwd}文\hspace{0.6666666\ccwd}题\hspace{0.6666666\ccwd}目}
 \def\hit@graduate@cafflimajor{学\hspace{0.6666666\ccwd}科\hspace{0.6666666\ccwd}专\hspace{0.6666666\ccwd}业}
@@ -3257,7 +3415,7 @@ breaklines=true
 % \changes{v3.1d}{2025/03/03}{哈尔滨本科多了一个“学校”。\issue[172]}
 %    \begin{macrocode}
 
-\def\hit@cschoolnametitle{\ifboolexpr{bool {hit@harbin} and bool {hit@bachelor}}{学校}{授予学位单位}}
+\def\hit@cschoolnametitle{\hit@ifand{harbin}{bachelor}{学校}{授予学位单位}}
 \def\hit@cdatetitle{答辩日期}
 \def\hit@caffiltitle{所在单位}
 %    \end{macrocode}
@@ -3265,7 +3423,7 @@ breaklines=true
 % \changes{v3.1b}{2022/06/06}{本部研究生第二封面按照书写指南进行修改。}
 % 本部研究生第二封面按照书写指南进行修改。学科”改为“学科或类别”。
 %    \begin{macrocode}
-\ifboolexpr{bool {hit@harbin} and bool {hit@master}}
+\hit@ifand{harbin}{master}
   {\def\hit@csubjecttitle{学科或类别}}
   {\def\hit@csubjecttitle{学科}}
   % \def\hit@csubjecttitle{学科}
@@ -3294,7 +3452,7 @@ breaklines=true
 % \changes{v3.1b}{2022/06/06}{修改深圳硕士英文封面的 Defence 为 Defense.\issue[97]}
 % 深圳硕士英文封面是 Defense，其他为 Defence.
 %    \begin{macrocode}
-\ifboolexpr{bool {hit@shenzhen} and bool {hit@master}}
+\hit@ifand{shenzhen}{master}
   {\def\hit@edatetitle{Date of Defense}}
   {\def\hit@edatetitle{Date of Defence}}
 \def\hit@eschoolnametitle{Degree-Conferring-Institution}
@@ -3495,7 +3653,7 @@ breaklines=true
 % \changes{v3.1b}{2022/06/06}{修改深圳校区硕士创新性成果的标题。\issue[97]}
 % \changes{v3.1d}{2025/03/03}{修改哈尔滨校区本科创新性成果的标题。\issue[220]}
 %    \begin{macrocode}
-\ifboolexpr{(bool {hit@shenzhen} and bool {hit@master}) or (bool {hit@harbin} and bool {hit@bachelor})}
+\hit@ifszmaorhrbbs
   {
     \newcommand{\hit@publication@ctitle}%
       {攻读\hit@cxuewei 学位期间取得创新性成果}
@@ -3520,14 +3678,14 @@ breaklines=true
 %
 % \changes{v3.1b}{2022/06/06}{修正英文目录中的硕士期间发表文章。\issue[97]}
 %    \begin{macrocode}
-\ifboolexpr{bool {hit@shenzhen} and bool {hit@master}}
+\hit@ifand{shenzhen}{master}
   {
     \newcommand{\hit@publication@etitle}%
       {Innovative achievements for Master}
   }
   {
     \newcommand{\hit@publication@etitle}%
-      {Papers published in the period of \ifhit@master master \else Ph.D. \fi education}
+      {Papers published in the period of \hit@if{master}{master }{Ph.D. }education}
   }
 \def\hit@index@etitle{Index}
 \def\hit@hi{嗨！thesis}
@@ -3553,42 +3711,52 @@ breaklines=true
 % \changes{v3.1d}{2025/03/03}{将哈尔滨本科的第一封面替换为 \cmd{\hit@first@titlepage@other}。\issue[172]}
 % 将哈尔滨本科的第一封面替换为 \cmd{\hit@first@titlepage@other}。之后应该会逐步替换掉, 看学校又会怎么改吧。
 %    \begin{macrocode}
-\def\hit@first@titlepage{%
-  \ifhit@postdoc
-    \hit@first@titlepage@postdoc
-  \else 
-    \ifhit@bachelor
-      \ifhit@harbin
-        \hit@first@titlepage@other
-      \else
-        \hit@first@titlepage@bachelor
-      \fi
-    \else
-      \hit@first@titlepage@other
-    \fi
-  \fi
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{两张封面的分派与「哈尔滨本科」这个反复出现的判断
+%   迁到 expl3。}
+% 第一张封面有三套版式：博后一套；本科里非哈尔滨一套；其余（含哈尔滨本科）
+% 走 \cs{hit@first@titlepage@other}。「哈尔滨本科取前者，其余取后者」写成 \cs{hit@ifand}\marg{harbin}\marg{bachelor}。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\cs_new_protected:Npn \hit@first@titlepage
+  {
+    \legacy_if:nTF { hit@postdoc }
+      { \hit@first@titlepage@postdoc }
+      {
+        \bool_lazy_and:nnTF
+          { \legacy_if_p:n { hit@bachelor } } { ! \legacy_if_p:n { hit@harbin } }
+          { \hit@first@titlepage@bachelor }
+          { \hit@first@titlepage@other }
+      }
   }
+\ExplSyntaxOff
 
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{增加哈尔滨本科的第二封面。\issue[172]}
 % 继深圳之后，本部的本科模板又开始整新活了，大改一通，醉好的结局就是都统一吧。
 %    \begin{macrocode}
-\def\hit@second@titlepage{%
-  \ifhit@postdoc
-    \hit@second@titlepage@postdoc
-  \else
-    \ifhit@bachelor
-      \ifhit@harbin
-        \hit@second@titlepage@harbinbachelor
-      \else
-        \hit@second@titlepage@bachelor
-      \fi
-    \else
-      \hit@second@titlepage@other
-    \fi
-  \fi
+%    \end{macrocode}
+%
+% 第二张封面有四套版式，哈尔滨本科单独一套。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\cs_new_protected:Npn \hit@second@titlepage
+  {
+    \legacy_if:nTF { hit@postdoc }
+      { \hit@second@titlepage@postdoc }
+      {
+        \legacy_if:nTF { hit@bachelor }
+          {
+            \legacy_if:nTF { hit@harbin }
+              { \hit@second@titlepage@harbinbachelor }
+              { \hit@second@titlepage@bachelor }
+          }
+          { \hit@second@titlepage@other }
+      }
   }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 添加博后封皮选项
@@ -3628,15 +3796,9 @@ breaklines=true
     {\songti\sihao[2]
      \begin{center}
        \hit@cschoolname%
-       \ifhit@harbin
-       \hit@harbincampus
-       \fi
-       \ifhit@weihai
-       \hit@weihaicampus
-       \fi
-       \ifhit@shenzhen
-       \hit@shenzhencampus@postdoc
-       \fi
+       \hit@ifT{harbin}{\hit@harbincampus}%
+       \hit@ifT{weihai}{\hit@weihaicampus}%
+       \hit@ifT{shenzhen}{\hit@shenzhencampus@postdoc}%
     \end{center}
     \begin{center}
       \hit@cdate
@@ -3646,8 +3808,7 @@ breaklines=true
 
 
 \newcommand{\hit@second@titlepage@postdoc}{
-  \ifthenelse%
-  {\equal{\hit@fontset}{siyuan}}%
+  \hit@iffontset{siyuan}%
   {\xiaosi[1]\vspace*{0.65em}}%
   {\xiaosi[1]\songti\textcolor[rgb]{1,1,1}{{\hit@hi}}}%
   \vspace*{1.2cm}
@@ -3676,15 +3837,9 @@ breaklines=true
   {\songti\sihao[2]
     \begin{center}
       \hit@cschoolname%
-      \ifhit@harbin
-      \hit@harbincampus
-      \fi
-      \ifhit@weihai
-      \hit@weihaicampus
-      \fi
-      \ifhit@shenzhen
-      \hit@shenzhencampus@postdoc
-      \fi
+      \hit@ifT{harbin}{\hit@harbincampus}%
+      \hit@ifT{weihai}{\hit@weihaicampus}%
+      \hit@ifT{shenzhen}{\hit@shenzhencampus@postdoc}%
     \end{center}
     \begin{center}
       \hit@cdate
@@ -3699,8 +3854,7 @@ breaklines=true
 
 
 \newcommand{\hit@first@titlepage@bachelor}{
-\ifthenelse%
-{\equal{\hit@fontset}{siyuan}}%
+\hit@iffontset{siyuan}%
 {\xiaosi[1]\vspace*{0.65em}}%
 {\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
   \vspace*{1.2cm}
@@ -3718,17 +3872,12 @@ breaklines=true
 % 此处深圳校区竟然是左对齐。另外，院系名称也有点不一样。
 % \changes{v2.1.0}{2020/03/07}{此处添加校区选项}
 %    \begin{macrocode}
-    \ifhit@shenzhen%
-    \begin{tabular}{r@{}>{\normalfont\songti\bfseries}lr@{}>{\normalfont\songti\bfseries}l}%
-    \else%
-    \begin{tabular}{rcrc}%
-    \fi%
+    \hit@if{shenzhen}%
+      {\begin{tabular}{r@{}>{\normalfont\songti\bfseries}lr@{}>{\normalfont\songti\bfseries}l}}%
+      {\begin{tabular}{rcrc}}%
       {\hit@put@title{%
-        \ifhit@harbin%
-          \hit@bachelor@caffiltitle%
-        \else%
-          \ifhit@shenzhen%
-            \hit@bachelor@caffiltitlesz%
+        \hit@if{harbin}{\hit@bachelor@caffiltitle}%
+          {\hit@ifT{shenzhen}{\hit@bachelor@caffiltitlesz}%
 %    \end{macrocode}
 %
 % 此处删除威海本科封皮中威海校区字样
@@ -3738,8 +3887,7 @@ breaklines=true
             %   \ifhit@weihai%
             %     \hit@bachelor@caffiltitlewh%
             %   \fi%
-            \fi%
-          \fi%
+          }%
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{根据 \issue[129] 提供的规范修改深圳校区本科生的封面格式。}
@@ -3779,7 +3927,7 @@ breaklines=true
 \newlength{\hit@ctitletwolength}%
 \newcommand{\hit@second@titlepage@bachelor}{
   \vspace*{0.8cm}
-  \ifhit@shenzhen%
+  \hit@if{shenzhen}{%
 %    \end{macrocode}
 %
 % 修改“（深圳）”为“深圳校区”。
@@ -3788,14 +3936,14 @@ breaklines=true
   % \centering{\includegraphics[width=6.2cm]{shenzhenbthesistitle}~~\raisebox{0.2em}{\kaishu\yihao\hit@shenzhencampus}}
   \centering{\includegraphics[width=15cm]{shenzhenbthesistitle}}
   \vspace{-.5cm}
-  \else%
+  }{%
 %    \end{macrocode}
 %
 % 删除威海字样
 % \changes{v3.0.01}{2020/06/06}{删除威海字样}
 %    \begin{macrocode}
   \centering{\includegraphics[width=6.2cm]{hitlogo}}
-  \fi%
+  }%
   \vspace{1.3cm}
   \begin{center}
     \centering\includegraphics[width=10.5cm]{bthesistitle}
@@ -3810,7 +3958,7 @@ breaklines=true
 % 根据 \issue[129] 提供的规范修改深圳校区本科生的封面格式。要求左侧黑体，右侧宋体或Times New Roman.
 %    \begin{macrocode}
   \begin{tabular}%
-    {l@{\ \  }>{\ifhit@shenzhen \normalfont\songti \else \fi}c}
+    {l@{\ \  }>{\hit@if{shenzhen}{\normalfont\songti}{}}c}
 %    \end{macrocode}
 %
 % \changes{v3.0.01}{2020/06/06}{此处添加自动设置字号}
@@ -3818,15 +3966,15 @@ breaklines=true
 % 深圳校区本科生封面与本部不同。
 % \changes{v3.1c}{2023/04/16}{深圳本科内封第二列要求左对齐。\issue[136]}
 %    \begin{macrocode}
-    \ifboolexpr{bool {hit@shenzhen} and bool {hit@bachelor}}
+    \hit@ifand{shenzhen}{bachelor}
       {%
         {\xiaoer  \hit@put@title{\hit@bachelor@cthesistitle}} 
           & \underline{\makebox[6.1cm][l]{%
             \settowidth{\hit@ctitleonelength}{\xiaoer \hit@ctitleone}%
-            \ifdim\hit@ctitleonelength>6.1cm\sanhao\else\xiaoer\fi\hit@ctitleone}}\\
+            \hit@ifwider{\hit@ctitleonelength}{6.1cm}{\sanhao}{\xiaoer}\hit@ctitleone}}\\
           & \underline{\makebox[6.1cm][l]{%
             \settowidth{\hit@ctitletwolength}{\xiaoer \hit@ctitletwo}%
-            \ifdim\hit@ctitletwolength>6.1cm\sanhao\else\xiaoer\fi\hit@ctitletwo}}\\
+            \hit@ifwider{\hit@ctitletwolength}{6.1cm}{\sanhao}{\xiaoer}\hit@ctitletwo}}\\
           & \\
         {\hit@put@title{\hit@bachelor@cstudenttitle}}
           & \underline{\makebox[6.1cm][l]{\hit@cauthor}}\\
@@ -3845,10 +3993,10 @@ breaklines=true
         {\xiaoer  \hit@put@title{\hit@bachelor@cthesistitle}} 
           & \underline{\makebox[6.1cm]{%
             \settowidth{\hit@ctitleonelength}{\xiaoer \hit@ctitleone}%
-            \ifdim\hit@ctitleonelength>6.1cm\sanhao\else\xiaoer\fi\hit@ctitleone}}\\
+            \hit@ifwider{\hit@ctitleonelength}{6.1cm}{\sanhao}{\xiaoer}\hit@ctitleone}}\\
           & \underline{\makebox[6.1cm]{%
             \settowidth{\hit@ctitletwolength}{\xiaoer \hit@ctitletwo}%
-            \ifdim\hit@ctitletwolength>6.1cm\sanhao\else\xiaoer\fi\hit@ctitletwo}}\\
+            \hit@ifwider{\hit@ctitletwolength}{6.1cm}{\sanhao}{\xiaoer}\hit@ctitletwo}}\\
           & \\
         {\hit@put@title{\hit@bachelor@cmajortitle}}
           & \underline{\makebox[6.1cm]{\hit@csubject}}\\
@@ -3873,9 +4021,7 @@ breaklines=true
 %    \begin{macrocode}
 
 \newlength{\hit@schoolname@nddate}
-\ifboolexpr{bool {hit@harbin} and bool {hit@bachelor}}
-{\setlength{\hit@schoolname@nddate}{10.8mm}}
-{\setlength{\hit@schoolname@nddate}{1.4cm}}
+\hit@ifand{harbin}{bachelor}{\setlength{\hit@schoolname@nddate}{10.8mm}}{\setlength{\hit@schoolname@nddate}{1.4cm}}
 
 \newlength{\hit@etitlelength}%
 %    \end{macrocode}
@@ -3883,12 +4029,10 @@ breaklines=true
 %    \begin{macrocode}
 \newcommand{\hit@first@titlepage@other}{
   % 封面一
-\ifthenelse%
-{\equal{\hit@fontset}{siyuan}}%
+\hit@iffontset{siyuan}%
 {\xiaosi[1]\vspace*{0.65em}}%
 {\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
-\ifboolexpr{bool {hit@harbin} and bool {hit@bachelor}}
-{\vspace*{8.5mm}}{\vspace*{1.2cm}}
+\hit@ifand{harbin}{bachelor}{\vspace*{8.5mm}}{\vspace*{1.2cm}}
 \begin{center}
   \begin{center}\xiaoyi[1]\songti\textbf{%
 %    \end{macrocode}
@@ -3896,9 +4040,7 @@ breaklines=true
 % \changes{v3.1d}{2025/03/03}{修改哈尔滨本科的第一封面，看起来和研究生的要统一起来了。\issue[172]}
 % 修改哈尔滨本科的第一封面，看起来和研究生的要统一起来了。
 %    \begin{macrocode}
-  \ifboolexpr{bool {hit@harbin} and bool {hit@bachelor}}
-  {\hit@bachelor@cxuewei\hit@bachelor@cthesisname}
-  {\hit@cxuewei\hit@cthesisname}
+  \hit@ifand{harbin}{bachelor}{\hit@bachelor@cxuewei\hit@bachelor@cthesisname}{\hit@cxuewei\hit@cthesisname}
   }\end{center}
 %    \end{macrocode}
 %
@@ -3909,39 +4051,29 @@ breaklines=true
 % 根据 \issue[97] 看来，\issue[149] 的情报并不完全准确，深圳硕士还要加上这个 \cs{cstudenttype}
 %    \begin{macrocode}
       \begin{center}\xiaoer[1]\songti\bfseries
-        \ifboolexpr
-        {
-          (not bool {hit@shenzhen}) and 
-          (not bool {hit@master}) and 
-          bool {hit@fulltime}
-        }{}
+        \hit@ifstudenttype
         {
           \hit@cbraceleft\hit@cstudenttype\hit@cbraceright
         }
       \end{center}
-      \ifboolexpr{bool {hit@harbin} and bool {hit@bachelor}}
-      {\vspace{-3.5mm}}{}
+      \hit@ifand{harbin}{bachelor}{\vspace{-3.5mm}}{}
     \parbox[t][7.8cm][t]{\textwidth}{%
   \begin{center}\erhao\heiti\hit@ctitlecover\end{center}
-\ifhit@subtitle\begin{center}\hspace{-4em}\xiaoer\heiti\pozhehao\hit@csubtitle\end{center}\fi
+\hit@ifT{subtitle}{\begin{center}\hspace{-4em}\xiaoer\heiti\pozhehao\hit@csubtitle\end{center}}
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{根据 \issue[227] 修改英文标题不能换行的问题}
 %    \begin{macrocode}
-  \settowidth{\hit@etitlelength}{\erhao\hit@etitle\ifhit@subtitle\hit@title@esep\hit@esubtitle\fi}%
+  \settowidth{\hit@etitlelength}{\erhao\hit@etitle\hit@ifT{subtitle}{\hit@title@esep\hit@esubtitle}}%
   \begin{center}%
-    \ifdim\hit@etitlelength>250mm\xiaoer\else\erhao\fi%
-    \ifhit@harbin\ifhit@bachelor
-    \vspace{1.27cm}
-    \fi\fi
+    \hit@ifwider{\hit@etitlelength}{250mm}{\xiaoer}{\erhao}%
+    \hit@ifand{harbin}{bachelor}{\vspace{1.27cm}}{}
     \textbf{\MakeUppercase{\hit@etitle}%
-    \ifhit@subtitle\hit@title@esep\MakeUppercase{\hit@esubtitle}\fi}\end{center}}
+    \hit@ifT{subtitle}{\hit@title@esep\MakeUppercase{\hit@esubtitle}}}\end{center}}
 
     \parbox[t][7.4cm][t]{\textwidth}{
     \begin{center}\xiaoer\songti\textbf{\hit@cauthor}\end{center}}\\
-    \ifhit@harbin\ifhit@bachelor
-    \vspace{-12.5mm}
-    \fi\fi
+    \hit@ifand{harbin}{bachelor}{\vspace{-12.5mm}}{}
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{修改首页日期的实现方式，\issue[226]}
@@ -3977,7 +4109,7 @@ breaklines=true
   \begin{center}
     \vspace*{-3mm}
     \begin{flushleft}
-      \makebox[\textwidth]{\xiaosi\ifhit@design\hit@emptybox\else\hit@checkedbox\fi~毕业论文\quad\ifhit@design\hit@checkedbox\else\hit@emptybox\fi~毕业设计\hfill\hit@secretlevel：公开\hspace{0mm}}
+      \makebox[\textwidth]{\xiaosi\hit@if{design}{\hit@emptybox}{\hit@checkedbox}~毕业论文\quad\hit@if{design}{\hit@checkedbox}{\hit@emptybox}~毕业设计\hfill\hit@secretlevel：公开\hspace{0mm}}
     \end{flushleft}
     % \begin{flushleft}
     %   \makebox[\textwidth]{\xiaosi$\square$~毕业论文\quad$\square$~毕业设计\hfill\hit@secretlevel：公开\hspace{0mm}}
@@ -3990,8 +4122,8 @@ breaklines=true
         \heiti
         \hit@ctitlecover%
       \end{center}
-      \ifhit@subtitle
-        \begin{center}\hspace{-4em}\xiaoer\heiti\pozhehao\hit@csubtitle\end{center}\fi
+      \hit@ifT{subtitle}%
+        {\begin{center}\hspace{-4em}\xiaoer\heiti\pozhehao\hit@csubtitle\end{center}}%
       }
       \vspace{16mm}
       {\sihao
@@ -4025,7 +4157,7 @@ breaklines=true
 %    \begin{macrocode}
     {
       \songti \xiaosi
-      \ifboolexpr{bool {hit@harbin} and bool {hit@master}}
+      \hit@ifand{harbin}{master}
         {
           \begin{tabular}{l}
             \hit@natclassifiedindextitle： \hit@natclassifiedindex\\
@@ -4061,12 +4193,11 @@ breaklines=true
       \xiaoer[1]
   \begin{center}
     \songti\bfseries
-    \ifboolexpr{(bool {hit@harbin} and ( bool {hit@master} or bool {hit@doctor} )) or (bool {hit@shenzhen} and bool {hit@master})}
-      {\hit@cxuewei}{\hit@cdegree}\hit@cthesisname
+    \hit@ifgrad{\hit@cxuewei}{\hit@cdegree}\hit@cthesisname
   \end{center}}
   \parbox[t][5cm][t]{\textwidth}{\erhao
   \begin{center}\heiti\hit@ctitlecover\end{center}
-\ifhit@subtitle\begin{center}\hspace{-4em}\xiaoer\heiti\pozhehao\hit@csubtitle\end{center}\fi}
+\hit@ifT{subtitle}{\begin{center}\hspace{-4em}\xiaoer\heiti\pozhehao\hit@csubtitle\end{center}}}
     \parbox[t][9.8cm][b]{\textwidth}
     {\sihao
       \setlength{\hit@title@width}{6em}
@@ -4074,12 +4205,12 @@ breaklines=true
   \begin{tabular}{l@{\hit@title@csep}l}
     {\heiti \hit@put@title{\hit@cauthortitle}}	&	\hit@cauthor\\
     {\heiti \hit@put@title{\hit@csupervisortitle}}	&	\hit@csupervisor\\
-        \ifx\hit@cassosupervisor\@empty\else%
+        \hit@ifnotempty\hit@cassosupervisor{%
     {\heiti \hit@put@title{\hit@cassosupervisortitle}}&	\hit@cassosupervisor\\
-        \fi
-        \ifx\hit@ccosupervisor\@empty\else%
+        }%
+        \hit@ifnotempty\hit@ccosupervisor{%
     {\heiti \hit@put@title{\hit@ccosupervisortitle}}	&	\hit@ccosupervisor\\
-        \fi
+        }%
     {\heiti \hit@put@title{\hit@cdegreetitle}}	&	\hit@cdegree\\
     {\heiti \hit@put@title{\hit@csubjecttitle}}	&	\hit@csubject\\
     {\heiti \hit@put@title{\hit@caffiltitle}}		&	\hit@caffil\\
@@ -4121,46 +4252,43 @@ breaklines=true
   \parbox[t][1.6cm][t]{\textwidth}{\begin{center} \end{center} }
     \parbox[t][3.5cm][t]{\textwidth}{\xiaoer[1]
       \begin{center}
-        \ifboolexpr{bool {hit@shenzhen} and bool {hit@master}}
+        \hit@ifand{shenzhen}{master}
           {%
             Dissertation for the Master Degree
           }
           {%
-            \ifboolexpr{bool {hit@harbin} and (bool {hit@master} or bool {hit@doctor})}
+            \hit@ifhrbmd
               {Dissertation for the {\hit@exueweier} Degree}
               {Dissertation for the {\hit@exueweier} Degree in \hit@exueke}            
           }
       \end{center}
-      \ifhit@fulltime\relax%
-      \else%
-        \begin{center}\hit@ebraceleft\hit@estudenttype\hit@ebraceright\end{center}%
-      \fi} %与中文保持一致，删除in {\hit@exueke}
+      \hit@if{fulltime}{}%
+        {\begin{center}\hit@ebraceleft\hit@estudenttype\hit@ebraceright\end{center}}%
+      } %与中文保持一致，删除in {\hit@exueke}
     \parbox[t][7cm][t]{\textwidth}{%
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{根据 \issue[227] 修改英文标题不能换行的问题}
 %    \begin{macrocode}
-  \settowidth{\hit@etitlelength}{\erhao\hit@etitle\ifhit@subtitle\hit@title@esep\hit@esubtitle\fi}%
+  \settowidth{\hit@etitlelength}{\erhao\hit@etitle\hit@ifT{subtitle}{\hit@title@esep\hit@esubtitle}}%
    \begin{center}%
 % \changes{v3.2a}{0000/00/00}{英文内封标题默认二号字，可通过etitleauto选项启用自动调整}
-    \ifhit@etitleauto
-      \ifdim\hit@etitlelength>450mm\xiaoer\else\erhao\fi%
-    \else
-      \erhao%
-    \fi%
+    \hit@if{etitleauto}%
+      {\hit@ifwider{\hit@etitlelength}{450mm}{\xiaoer}{\erhao}}%
+      {\erhao}%
     \textbf{\MakeUppercase{\hit@etitle}%
-\ifhit@subtitle\hit@title@esep\MakeUppercase{\hit@esubtitle}\fi}\end{center}}
+\hit@ifT{subtitle}{\hit@title@esep\MakeUppercase{\hit@esubtitle}}}\end{center}}
     %★★★★若信息内容不太长，不会引起信息内容分行时，使用tabular环境，否则使用下面的tabularx环境。
     {\sihao\renewcommand{\arraystretch}{1.3}
       \begin{tabular}{@{}l@{~}l@{}}
   \textbf{\hit@eauthortitle\hit@title@esep}		&	\hit@eauthor\\
   \textbf{\hit@esupervisortitle\hit@title@esep}	&	\hit@esupervisor\\
-      \ifx\hit@eassosupervisor\@empty\else%
+      \hit@ifnotempty\hit@eassosupervisor{%
   \textbf{\hit@eassosupervisortitle\hit@title@esep}	&	\hit@eassosupervisor\\
-      \fi
-      \ifx\hit@ecosupervisor\@empty\else%
+      }%
+      \hit@ifnotempty\hit@ecosupervisor{%
   \textbf{\hit@ecosupervisortitle\hit@title@esep}	&	\hit@ecosupervisor\\
-      \fi
+      }%
   \textbf{\hit@edegreetitle\hit@title@esep}		&	\hit@edegree\\
       \textbf{\hit@esubjecttitle\hit@title@esep}		&\hit@esubject\\
   \textbf{\hit@eaffiltitle\hit@title@esep}		&\hit@eaffil\\
@@ -4175,48 +4303,47 @@ breaklines=true
 %    \begin{macro}{\makecover}
 %    \begin{macrocode}
 
-\def\makecover{
-  \phantomsection
-  \pdfbookmark[0]{\hit@ctitle}{ctitle}
-  \xiaosi[1]%
 %    \end{macrocode}
 %
 % \changes{v2.0.10}{2019/06/25}{此处添加提交图书馆电子版的逻辑}
-%    \begin{macrocode}
-  \begin{titlepage}
-    \ifhit@weihai
-      \ifhit@bachelor
-        \relax
-      \else
-        \hit@first@titlepage
-        \ifhit@library\clearpage\else\cleardoublepage\fi
-      \fi
-    \else
-      \hit@first@titlepage
-      \ifhit@library\clearpage\else\cleardoublepage\fi
-    \fi
-    \hit@second@titlepage
-    \ifhit@library\clearpage\else\cleardoublepage\fi
-    \ifhit@postdoc
-    \relax
-    \else
-%    \end{macrocode}
-%
-% 博后没有英文封皮
 % \changes{v3.0.0}{2020/05/21}{博后没有英文封皮}
+% \changes{v3.2a}{0000/00/00}{\cs{makecover} 的分派逻辑迁到 expl3；换页动作
+%   抽成 \cs{\_\_hit\_cover\_break:}。}
+% 封面分派。三段判断：威海本科不排第一封面；第二封面人人都排；
+% 博后与本科没有英文封皮。翻页动作取决于 \option{style/library}，
+% 交图书馆电子版时用 \cs{clearpage}，否则 \cs{cleardoublepage}。
 %    \begin{macrocode}
-    \ifhit@bachelor
-    \relax
-    \else
+\ExplSyntaxOn
+\cs_new_protected:Npn \hit@clearpage
+  { \legacy_if:nTF { hit@openright } { \cleardoublepage } { \clearpage } }
+\cs_new_protected:Npn \__hit_cover_break:
+  { \legacy_if:nTF { hit@library } { \clearpage } { \cleardoublepage } }
+\cs_set_protected:Npn \makecover
+  {
     \phantomsection
-    \pdfbookmark[0]{\hit@etitle}{etitle}
-    \hit@engcover
-    \ifhit@library\clearpage\else\cleardoublepage\fi
-    \fi
-    \fi
-  \end{titlepage}
-  \normalsize
-  \hit@makeabstract}
+    \pdfbookmark [0] { \hit@ctitle } { ctitle }
+    \xiaosi [1]
+    \begin { titlepage }
+      \bool_lazy_and:nnF
+        { \legacy_if_p:n { hit@weihai } }
+        { \legacy_if_p:n { hit@bachelor } }
+        { \hit@first@titlepage \__hit_cover_break: }
+      \hit@second@titlepage
+      \__hit_cover_break:
+      \bool_lazy_or:nnF
+        { \legacy_if_p:n { hit@postdoc } }
+        { \legacy_if_p:n { hit@bachelor } }
+        {
+          \phantomsection
+          \pdfbookmark [0] { \hit@etitle } { etitle }
+          \hit@engcover
+          \__hit_cover_break:
+        }
+    \end { titlepage }
+    \normalsize
+    \hit@makeabstract
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %    \end{macro}
 % 生成参考文献和关键字。
@@ -4229,40 +4356,47 @@ breaklines=true
     \box\hit@kw#2\par
   \endgroup}
 
-\newcommand{\hit@makeabstract}{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
-  \ifhit@english
-  \addtocontents{toc}{~\hfill\textbf{Page}\par}
-  \addtocontents{\ext@table}{{\noindent\sihao\textbf{Table}~\hfill\textbf{Page}}\par}%
-  \addtocontents{\ext@figure}{{\noindent\sihao\textbf{Figure}~\hfill\textbf{Page}}\par}%
-  \fi
 %    \end{macrocode}
 %
-% 英文版目录之前有page行
 % \changes{v3.0.0}{2020/05/21}{英文版目录之前有page行}
-%    \begin{macrocode}
-  \hit@appendix@chapter*{\cabstractcname}[\cabstractename]
-  \pagestyle{hit@headings}
-  \pagenumbering{Roman}
-  \hit@cabstract
-  \vskip12bp
-  \hit@put@keywords{\ifhit@postdoc\bfseries\fi\heiti\hit@ckeywords@title}{\hit@ckeywords}
-%    \end{macrocode}
-%
-% 博后关键字加粗
 % \changes{v3.0.0}{2020/05/21}{博后关键字加粗}
+% \changes{v3.2a}{0000/00/00}{\cs{hit@makeabstract} 迁到 expl3。写进目录的
+%   \texttt{\string~} 换成 \cs{nobreakspace}\{\}，因为 expl3 里 \texttt{\string~}
+%   是普通空格。}
 %    \begin{macrocode}
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
-  \hit@appendix@chapter*{\eabstractcname}[\eabstractename]
-  \hit@eabstract
-  \vskip12bp
-  \hit@put@keywords{\textbf{Keywords:\enskip}}{\hit@ekeywords}}
+\ExplSyntaxOn
+\cs_new_protected:Npn \hit@makeabstract
+  {
+    \hit@clearpage
+    \legacy_if:nT { hit@english }
+      {
+        \addtocontents { toc } { \nobreakspace { } \hfill \textbf { Page } \par }
+        \addtocontents { \ext@table }
+          { { \noindent \sihao \textbf { Table } \nobreakspace { } \hfill \textbf { Page } } \par }
+        \addtocontents { \ext@figure }
+          { { \noindent \sihao \textbf { Figure } \nobreakspace { } \hfill \textbf { Page } } \par }
+      }
+    \hit@appendix@chapter * { \cabstractcname } [ \cabstractename ]
+    \pagestyle { hit@headings }
+    \pagenumbering { Roman }
+    \hit@cabstract
+    \vskip 12bp
+    \hit@put@keywords
+      { \legacy_if:nT { hit@postdoc } { \bfseries } \heiti \hit@ckeywords@title }
+      { \hit@ckeywords }
+    \hit@clearpage
+    \hit@appendix@chapter * { \eabstractcname } [ \eabstractename ]
+    \hit@eabstract
+    \vskip 12bp
+    \hit@put@keywords { \textbf { Keywords: \enskip } } { \hit@ekeywords }
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 定义符号表。
 %    \begin{macrocode}
 \newenvironment{denotation}[1][2.5cm]{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \hit@clearpage
   \hit@appendix@chapter*{\hit@denotation@ctitle}[\hit@denotation@etitle]
 \setcounter{table}{0}
 \renewcommand{\thetable}{\arabic{table}}%使表编号为 1 的格式
@@ -4272,15 +4406,29 @@ breaklines=true
 %
 % 定义索引、目录格式
 %    \begin{macrocode}
-\def\hit@starttoc#1{% #1: float type, prepend type name in \listof*** entry.
-  \let\oldnumberline\numberline
-  \def\numberline##1{\oldnumberline{\csname #1name\endcsname\hskip.4em ##1}}
-  \@starttoc{\csname ext@#1\endcsname}
-  \let\numberline\oldnumberline}
-\def\hit@listof#1#2{% #1: float type
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
-  \hit@appendix@chapter*[\csname list#1name\endcsname]{\csname list#1name\endcsname}[#2]
-  \hit@starttoc{#1}}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\cs{hit@starttoc} 与 \cs{hit@listof} 迁到 expl3。}
+% \texttt{\#1} 是浮动体类型（\texttt{figure}、\texttt{table}、\texttt{equation}），
+% 用来拼出 \cs{listfigurename}、\cs{ext@figure} 这些名字。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\cs_new_protected:Npn \hit@starttoc #1
+  {
+    \cs_set_eq:NN \oldnumberline \numberline
+    \cs_set:Npn \numberline ##1
+      { \oldnumberline { \csname #1 name \endcsname \skip_horizontal:n { .4em } ##1 } }
+    \@starttoc { \csname ext@ #1 \endcsname }
+    \cs_set_eq:NN \numberline \oldnumberline
+  }
+\cs_new_protected:Npn \hit@listof #1#2
+  {
+    \hit@clearpage
+    \hit@appendix@chapter * [ \csname list #1 name \endcsname ]
+      { \csname list #1 name \endcsname } [ #2 ]
+    \hit@starttoc {#1}
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 只有英文版用到，且需要clearpage
@@ -4386,36 +4534,53 @@ breaklines=true
 \setlength\@tempdima{4em}%
 \patchcmd{\@dottedtocline}{#4}{\csname hit@toc@font\endcsname #4}{}{}
 \patchcmd{\@dottedtocline}{\hb@xt@\@pnumwidth}{\hbox}{}{}
-\renewcommand*\l@chapter[2]{%
-  \ifnum \c@tocdepth >\m@ne
-    \addpenalty{-\@highpenalty}%
-    %\vskip 4bp \@plus\p@
-    \begingroup
-      \parindent \z@ \rightskip \@pnumwidth
-      \parfillskip -\@pnumwidth
-      \leavevmode
-      \advance\leftskip\@tempdima
-      \hskip -\leftskip
-      % numberline is called here, and it uses \@tempdima
 %    \end{macrocode}
 %
-% 修改本科生论文目录格式
 % \changes{v2.0.08}{2017/06/15}{修改本科生论文目录格式（感谢QQ:嬴政　同学）}
-% 本科目录添加加粗
 % \changes{v3.0.01}{2020/06/06}{本科目录添加加粗}
+% \changes{v3.0.0}{2020/05/21}{博后和英文版需要加粗}
+% \changes{v3.2a}{0000/00/00}{目录里章条目的排版迁到 expl3，字体那串判断抽成
+%   \cs{hit@tocchap@font}。}
+% 目录里章条目的字体。本科用 \cs{rmfamily}，其余取 \cs{hit@toc@font}（只有
+% \option{toc/sans-font} 打开时才有定义，否则取到 \cs{relax}）。之后按博后、
+% 本科加粗、英文版依次叠加粗体。
 %    \begin{macrocode}
-      {\ifhit@bachelor\rmfamily\else\csname
-        hit@toc@font\endcsname\fi\heiti\ifhit@postdoc\bfseries\fi\ifhit@chapterbold\ifhit@bachelor\bfseries\fi\fi\ifhit@english\bfseries\fi #1}
+\ExplSyntaxOn
+\cs_new_protected:Npn \hit@tocchap@font
+  {
+    \legacy_if:nTF { hit@bachelor }
+      { \rmfamily } { \csname hit@toc@font \endcsname }
+    \heiti
+    \legacy_if:nT { hit@postdoc } { \bfseries }
+    \bool_lazy_and:nnT
+      { \legacy_if_p:n { hit@chapterbold } } { \legacy_if_p:n { hit@bachelor } }
+      { \bfseries }
+    \legacy_if:nT { hit@english } { \bfseries }
+  }
 %    \end{macrocode}
 %
-% 博后和英文版需要加粗
-% \changes{v3.0.0}{2020/05/21}{博后和英文版需要加粗}
+% 章条目本身。\cs{numberline} 在这里被调用，它要用到 \cs{@tempdima}。
+% 标题与引导点之间那个 \texttt{\string~} 是原写法里换行带出来的空格，不能省。
 %    \begin{macrocode}
-      \leaders\hbox{$\m@th\mkern \@dotsep mu\hbox{.}\mkern \@dotsep mu$}\hfill
-      \nobreak{\normalfont\normalcolor #2}\par
-      \penalty\@highpenalty
-    \endgroup
-  \fi}
+\RenewDocumentCommand \l@chapter { m m }
+  {
+    \int_compare:nNnT { \c@tocdepth } > { -1 }
+      {
+        \addpenalty { - \@highpenalty }
+        \group_begin:
+          \parindent \z@ \rightskip \@pnumwidth
+          \parfillskip -\@pnumwidth
+          \leavevmode
+          \advance \leftskip \@tempdima
+          \hskip -\leftskip
+          { \hit@tocchap@font #1 } ~
+          \leaders \hbox { $ \m@th \mkern \@dotsep mu \hbox { . } \mkern \@dotsep mu $ } \hfill
+          \nobreak { \normalfont \normalcolor #2 } \par
+          \penalty \@highpenalty
+        \group_end:
+      }
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 按工大标准, 缩小目录中各级标题之间的缩进，使它们相隔一个字符距离，也就是12pt。
@@ -4464,7 +4629,7 @@ breaklines=true
 % 目录中附录的章号格式。
 %    \begin{macrocode}
 \ctexset{%
-  appendix/number=\ifhit@bachelor\arabic{chapter}\else\Alph{chapter}\fi,
+  appendix/number=\hit@if{bachelor}{\arabic{chapter}}{\Alph{chapter}},
 }
 %    \end{macrocode}
 %
@@ -4486,7 +4651,7 @@ breaklines=true
 \let\hit@appendix\appendix
 \newif\ifhit@inappendix
 \def\hit@engtoc@chapapp{
-  \ifhit@inappendix Appendix \else Chapter \fi
+  \hit@if{inappendix}{Appendix }{Chapter }
 }
 %    \end{macrocode}
 %    \end{macro}
@@ -4494,7 +4659,7 @@ breaklines=true
 \renewenvironment{appendix}{%
   \let\title\hit@appendix@title
   \hit@appendix
-  \ifhit@bachelor\renewcommand{\thechapter}{\arabic{chapter}}\fi
+  \hit@ifT{bachelor}{\renewcommand{\thechapter}{\arabic{chapter}}}
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{在附录环境中增加判断。}
@@ -4516,12 +4681,10 @@ breaklines=true
 % \changes{v3.1d}{2025/03/03}{\cs{hit@appendix@chapter*}如果不给第四个参数就不写英文目录。}
 %    \begin{macrocode}
 \newenvironment{conclusions}{%
-\ifhit@openright\cleardoublepage\else\clearpage\fi
-\ifhit@english
-\hit@appendix@chapter*{\hit@conclusion@etitle}[\hit@conclusion@etitle]
-\else
-\hit@appendix@chapter*{\hit@conclusion@ctitle}[\hit@conclusion@etitle]
-\fi
+\hit@clearpage
+\hit@if{english}%
+{\hit@appendix@chapter*{\hit@conclusion@etitle}[\hit@conclusion@etitle]}%
+{\hit@appendix@chapter*{\hit@conclusion@ctitle}[\hit@conclusion@etitle]}%
 }{}
 %    \end{macrocode}
 % \end{environment}
@@ -4529,19 +4692,18 @@ breaklines=true
 % \changes{v3.1d}{2025/03/03}{\cs{hit@appendix@chapter*}如果不给第四个参数就不写英文目录。}
 %    \begin{macrocode}
 \newenvironment{acknowledgements}{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
-  \ifhit@english
-  \hit@appendix@chapter*{\hit@acknowledgement@etitle}[\hit@acknowledgement@etitle]
-  \else
-  \hit@appendix@chapter*{\hit@acknowledgement@ctitle}[\hit@acknowledgement@etitle]
-  \fi}{}
+  \hit@clearpage
+  \hit@if{english}%
+  {\hit@appendix@chapter*{\hit@acknowledgement@etitle}[\hit@acknowledgement@etitle]}%
+  {\hit@appendix@chapter*{\hit@acknowledgement@ctitle}[\hit@acknowledgement@etitle]}%
+  }{}
 %    \end{macrocode}
 % \end{environment}
 % \begin{environment}{correspondingaddr}
 %    \begin{macrocode}
 
 \newenvironment{correspondingaddr}{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \hit@clearpage
   \hit@appendix@chapter*{\hit@correspondingaddr@ctitle}}{}
 %    \end{macrocode}
 %
@@ -4552,15 +4714,15 @@ breaklines=true
 
 
 \newenvironment{resume}{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \hit@clearpage
   \hit@appendix@chapter*{\hit@resume@ctitle}[\hit@resume@etitle]}{}
 \newenvironment{publication}{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \hit@clearpage
   \hit@appendix@chapter*{\hit@publication@ctitle}[\hit@publication@etitle]}{}
 
 
 \newenvironment{doctorpublication}{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \hit@clearpage
   \hit@appendix@chapter*{\hit@doctorpublication@ctitle}}{}
 %    \end{macrocode}
 %
@@ -4570,7 +4732,7 @@ breaklines=true
 % \changes{v1.0.10}{2018/02/19}{修改了索引的间距，使其更符合规范中的示例}
 %    \begin{macrocode}
 \newenvironment{ceindex}{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \hit@clearpage
   \hit@appendix@chapter*{\indexname}[\hit@index@etitle]
   \setlength{\columnsep}{4em}
   \begin{adjustwidth}{2em}{2em}
@@ -4598,7 +4760,7 @@ breaklines=true
 %    \begin{macro}{\hit@authorization@other}
 %    \begin{macrocode}
 \def\hit@authorization@other{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \hit@clearpage
   \hit@appendix@chapter*{\hit@authorization@ctitle}[\hit@authorization@etitle]
   \xiaosi[1.6]\vspace{\baselineskip}
 \begin{center}\xiaosan\heiti\hit@declarename\end{center}
@@ -4610,7 +4772,7 @@ breaklines=true
 \par\hit@authorizationtext
 \vspace{2\baselineskip}
 \par\hspace{6em}\hit@authorsig\hfill\hit@frontdate\hit@datefill
-\ifhit@english\vspace{\baselineskip}\else\vspace{2\baselineskip}\fi
+\hit@if{english}{\vspace{\baselineskip}}{\vspace{2\baselineskip}}
 %    \end{macrocode}
 %
 % 英文版和中文版这里的间距不一样
@@ -4623,14 +4785,15 @@ breaklines=true
 %    \begin{macro}{\hit@authorization@bachelor}
 %    \begin{macrocode}
 \def\hit@authorization@bachelor{%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi
+  \hit@clearpage
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{修改深圳校区原创性声明标题为黑体三号。}
 % \changes{v3.1d}{2025/03/03}{修改哈尔滨本科模板中没注意到的 \meta{chapterbold} 的问题。\issue[185]}
 % 深圳校区原创性声明标题为黑体三号。但是三号放不下，我们定义一个 15.9bp 的字号，再将字距恢复默认设置来让它放得下。
 %    \begin{macrocode}
-  \ifhit@shenzhen 
+  \hit@if{shenzhen}%
+  {%
   \ctexset{
     chapter/format = {\centering\hit@title@font\xsanhao\ziju{0}}
   }
@@ -4638,46 +4801,51 @@ breaklines=true
   \markboth{原创性声明}{原创性声明}
   \addcontentsline{toc}{chapter}{原创性声明}
   \hit@chapter*{\hit@declarename@bachelor}
-  \else
-    \ifhit@harbin
+  }%
+  {%
+    \hit@if{harbin}%
+    {%
         \ctexset{chapter/beforeskip=4mm}
         \hit@chapter*{哈尔滨工业大学本科毕业论文（设计）\\ 原创性声明和使用权限}
-        \addcontentsline{toc}{chapter}{\texorpdfstring{\ifhit@chapterbold \bfseries \fi 哈尔滨工业大学本科毕业论文（设计）原创性声明和使用权限}{哈尔滨工业大学本科毕业论文（设计）原创性声明和使用权限}}
-    \else
+        \addcontentsline{toc}{chapter}{\texorpdfstring{\hit@ifT{chapterbold}{\bfseries }哈尔滨工业大学本科毕业论文（设计）原创性声明和使用权限}{哈尔滨工业大学本科毕业论文（设计）原创性声明和使用权限}}
+    }%
+    {%
       \hit@appendix@chapter*{\hit@declarename@bachelor}
-    \fi
-  \fi
+    }%
+  }%
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{修改哈尔滨本科原创性声明的内容。\issue[172]}
 %    \begin{macrocode}
-  \ifhit@harbin
-    {\centering\xiaosan\heiti 本科毕业论文（设计）原创性声明\par}\vspace{3mm}
-  \fi
+  \hit@ifT{harbin}%
+    {{\centering\xiaosan\heiti 本科毕业论文（设计）原创性声明\par}\vspace{3mm}}%
   \hit@authorizationtext@bachelor
-  \vspace{\ifhit@harbin 4mm \else 2\baselineskip \fi}
-  \ifhit@weihai
+  \vspace{\hit@if{harbin}{4mm }{2\baselineskip}}
+  \hit@if{weihai}%
+  {%
     \par\hfill\hit@authorsig\hspace{6em}
     \vspace{1\baselineskip}
     \par\hfill\hit@teachersig\hspace{6em}
     \vspace{2\baselineskip}
     \par\hfill\hit@datefill
     \songti
-  \else
+  }%
+  {%
     \par\hspace{6em} \hit@authorsig\hfill\hit@frontdate\hit@datefill
-  \fi
+  }%
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{修改哈尔滨本科原创性声明的内容。\issue[172]}
 %    \begin{macrocode}
-  \ifhit@harbin
+  \hit@ifT{harbin}%
+  {%
     \par\vspace{19mm}{\centering\xiaosan\heiti 本科毕业论文（设计）使用权限\par}\vspace{4mm}
     \hit@second@authorizationtext@bachelor
     \vspace{1\baselineskip}
     \par\hspace{6em}\hit@authorsig\hfill\hit@frontdate\hit@datefill
     \vspace{0.7\baselineskip}
     \par\hspace{6em}\hit@teachersig\hfill\hit@frontdate\hit@datefill
-  \fi
+  }%
 }
 %    \end{macrocode}
 %    \end{macro}
@@ -4686,25 +4854,25 @@ breaklines=true
 %    \begin{macrocode}
 \NewDocumentCommand{\authorization}{s o}{%
   \IfNoValueTF{#2}{%
-    \ifhit@bachelor\hit@authorization@bachelor\else\hit@authorization@other\fi
+    \hit@if{bachelor}{\hit@authorization@bachelor}{\hit@authorization@other}
   }{%
-    \ifhit@openright\cleardoublepage\else\clearpage\fi%
-    \phantomsection\addcontentsline{toc}{chapter}{\ifhit@bachelor
+    \hit@clearpage%
+    \phantomsection\addcontentsline{toc}{chapter}{\hit@if{bachelor}{\hit@if{shenzhen}
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{修改深圳校区原创性声明的目录标题。}
 % \changes{v3.1d}{2025/03/03}{调整 \cmd{\fi} 的位置。}
 % 深圳校区本科生目录中的原创性声明的部分为“原创性声明”，而不是 \cs{hit@declarename@bachelor}。
 %    \begin{macrocode}
-      \ifhit@shenzhen 原创性声明 \else  
-      \hit@declarename@bachelor\fi\else\hit@authorization@ctitle\fi}%
-    \ifhit@doctor%
+      {原创性声明 }%
+      {\hit@declarename@bachelor}}{\hit@authorization@ctitle}}%
+    \hit@ifT{doctor}{%
 %    \end{macrocode}
 %
 % \changes{v1.0.13}{2018/04/05}{添加\cs{texorpdfstring}命令去除书签中带有格式时的警告}
 %    \begin{macrocode}
       \addcontentsline{toe}{chapter}{\texorpdfstring{\bfseries \hit@authorization@etitle}{\hit@authorization@etitle}}%
-    \fi%
+    }%
     \IfBooleanTF{#1}{%有星号，显示页码
       \includepdf[fitpaper=true,pagecommand={\thispagestyle{hit@scanpage}}]{#2}%
     }{%无星号，不显示页码
@@ -4721,16 +4889,16 @@ breaklines=true
 % \changes{v3.2a}{0000/00/00}{schrb: 添加星号版本，控制PDF扫描件是否显示页码}
 %    \begin{macrocode}
 \NewDocumentCommand{\resolution}{s o}{%
-\ifboolexpr{bool {hit@doctor}}
+\hit@if{doctor}
 {
   \IfNoValueTF{#2}{
-    \ifhit@openright\cleardoublepage\else\clearpage\fi
+    \hit@clearpage
     \hit@appendix@chapter*{\hit@resolution@ctitle}[\hit@resolution@etitle]
     \begin{center}
       \includegraphics[width=\textwidth]{figures/empty-resolution.pdf}
     \end{center}
   }{%有文件，读入PDF
-    \ifhit@openright\cleardoublepage\else\clearpage\fi%
+    \hit@clearpage%
     \phantomsection\addcontentsline{toc}{chapter}{\hit@resolution@ctitle}%
     \addcontentsline{toe}{chapter}{\texorpdfstring{\bfseries \hit@resolution@etitle}{\hit@resolution@etitle}}%
     \IfBooleanTF{#1}{%有星号，显示页码
@@ -4779,8 +4947,19 @@ breaklines=true
 % \changes{v3.1d}{2025/03/03}{按着 \issue[211] 来修改，将 \cs{mbox\{\}} 包住整个 label。}
 % \changes{v3.1d}{2025/03/03}{按照 \issue[215] 将哈尔滨硕博毕业论文的参考文献序号也改为全角。}
 %    \begin{macrocode}
-\ifboolexpr{ bool {hit@shenzhen} or (bool {hit@harbin} and (bool {hit@master} or bool {hit@doctor}))}
-  {\def\@biblabel#1{\mbox{［#1］}}}{}
+\ExplSyntaxOn
+\bool_lazy_or:nnT
+  { \legacy_if_p:n { hit@shenzhen } }
+  {
+    \bool_lazy_and_p:nn
+      { \legacy_if_p:n { hit@harbin } }
+      {
+        \bool_lazy_or_p:nn
+          { \legacy_if_p:n { hit@master } } { \legacy_if_p:n { hit@doctor } }
+      }
+  }
+  { \cs_set:Npn \@biblabel #1 { \mbox { ［#1］ } } }
+\ExplSyntaxOff
 %    \end{macrocode}
 % \end{macro}
 % 
@@ -4797,7 +4976,7 @@ breaklines=true
 % \changes{v3.2a}{0000/00/00}{FullRight引入了太多bug, 取消之 (bst文件中加入了nolinebreak)}
 %    \begin{macrocode}
   % \xeCJKDeclareCharClass{FullRight}{"002E}%
-  \ifhit@openright\cleardoublepage\else\clearpage\fi\phantomsection%
+  \hit@clearpage\phantomsection%
   \hit@appendix@chapter*{\bibname}[\hit@bibname@etitle]
   \normalsize
   \list{\@biblabel{\@arabic\c@enumiv}}{%
@@ -4808,11 +4987,7 @@ breaklines=true
 %    \end{macrocode}
 % \changes{v3.1b}{2022/06/06}{修改深圳校区的 \cs{labelsep} 为 0pt。}
 %    \begin{macrocode}
-    \ifhit@shenzhen
-      \setlength{\labelsep}{0pt}
-    \else
-      \setlength{\labelsep}{0.5em}
-    \fi
+    \hit@if{shenzhen}{\setlength{\labelsep}{0pt}}{\setlength{\labelsep}{0.5em}}
     \setlength{\itemindent}{0pt}
     \setlength{\leftmargin}{\labelsep+\labelwidth}
     \addtolength{\itemsep}{-0.8em}
@@ -4827,17 +5002,19 @@ breaklines=true
 %    \end{macrocode}
 % \changes{v2.0.03}{2018/10/08}{添加参考文献分割开关}
 %    \begin{macrocode}
-  \ifhit@splitbibitem
+  \hit@if{splitbibitem}%
+  {%
   \clubpenalty0
   \@clubpenalty \clubpenalty
   \widowpenalty0%
   \interlinepenalty-50%
-  \else
+  }%
+  {%
   \clubpenalty4000
   \@clubpenalty \clubpenalty
   \widowpenalty4000%
   \interlinepenalty4000%
-  \fi
+  }%
 \sfcode`\.\@m}
 {\def\@noitemerr
   {\@latex@warning{Empty `thebibliography' environment}}%

@@ -32,6 +32,102 @@
 % ^^A ======================================================================
 %    \begin{macrocode}
 %<*artplus-options>
+% \changes{v3.2a}{0000/00/00}{加通用选择器 \cs{hit@if}，与 \file{hithesisbook.cls}
+%   一致。}
+% \cs{hit@if}\marg{flag}\marg{真}\marg{假} 按标志位二选一，
+% \cs{hit@iffontset}\marg{名字}\marg{真}\marg{假} 比对 \option{fontset}，
+% \cs{hit@ifnotempty}\marg{宏}\marg{真} 在宏非空时执行，
+% \cs{hit@ifwider}\marg{长度}\marg{阈值}\marg{真}\marg{假} 比长度。
+% \cs{hit@ifT}\marg{flag}\marg{真} 是只有真分支的那一半。封面里几个多条件判断
+% 也各自取了名：\cs{hit@ifand} 两个标志位同时成立，\cs{hit@ifstage} 取「开题」
+% 或「中期」，\cs{hit@ifwidema} 是威海或深圳的硕士，\cs{hit@ifszmaop} 是深圳硕士
+% 开题，\cs{hit@ifhrbmastage} 是哈尔滨硕士的开题或中期。参数从 expl3 之外传
+% 进来，里面的空格照原样保留；替换旧写法时注意 \cs{fi} 后面被跳过的那个空格。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\cs_new:Npn \hit@if #1#2#3 { \legacy_if:nTF { hit@#1 } {#2} {#3} }
+\cs_new:Npn \hit@ifT #1#2 { \legacy_if:nT { hit@#1 } {#2} }
+\cs_new:Npn \hit@iffontset #1#2#3
+  { \str_if_eq:eeTF { \hit@fontset } {#1} {#2} {#3} }
+\cs_new_protected:Npn \hit@ifnotempty #1#2 { \tl_if_empty:NF #1 {#2} }
+\cs_new:Npn \hit@ifwider #1#2#3#4 { \dim_compare:nNnTF {#1} > {#2} {#3} {#4} }
+\cs_new:Npn \hit@ifand #1#2#3#4
+  {
+    \bool_lazy_and:nnTF
+      { \legacy_if_p:n { hit@#1 } } { \legacy_if_p:n { hit@#2 } } {#3} {#4}
+  }
+\cs_new:Npn \hit@ifstage
+  {
+    \legacy_if:nTF { hit@opening }
+      { \hit@stage@opening } { \hit@ifT { midterm } { \hit@stage@midterm } }
+  }
+\cs_new:Npn \hit@ifwidema #1
+  {
+    \bool_lazy_and:nnT
+      {
+        \bool_lazy_or_p:nn
+          { \legacy_if_p:n { hit@weihai } } { \legacy_if_p:n { hit@shenzhen } }
+      }
+      { \legacy_if_p:n { hit@master } }
+      {#1}
+  }
+\cs_new:Npn \hit@ifszmaop #1#2
+  {
+    \bool_lazy_all:nTF
+      {
+        { \legacy_if_p:n { hit@shenzhen } }
+        { \legacy_if_p:n { hit@master } }
+        { \legacy_if_p:n { hit@opening } }
+      }
+      {#1} {#2}
+  }
+\cs_new:Npn \hit@ifhrbmastage #1
+  {
+    \bool_lazy_all:nT
+      {
+        { \legacy_if_p:n { hit@harbin } }
+        { \legacy_if_p:n { hit@master } }
+        {
+          \bool_lazy_or_p:nn
+            { \legacy_if_p:n { hit@opening } } { \legacy_if_p:n { hit@midterm } }
+        }
+      }
+      {#1}
+  }
+\cs_new:Npn \hit@ifhrbmastage@TF #1#2
+  {
+    \bool_lazy_all:nTF
+      {
+        { \legacy_if_p:n { hit@harbin } }
+        { \legacy_if_p:n { hit@master } }
+        {
+          \bool_lazy_or_p:nn
+            { \legacy_if_p:n { hit@opening } } { \legacy_if_p:n { hit@midterm } }
+        }
+      }
+      {#1} {#2}
+  }
+\cs_new:Npn \hit@ifshenzhenmaop #1#2
+  {
+    \bool_lazy_all:nTF
+      {
+        { \legacy_if_p:n { hit@shenzhen } }
+        { \legacy_if_p:n { hit@opening } }
+        { \legacy_if_p:n { hit@master } }
+      }
+      {#1} {#2}
+  }
+\cs_new:Npn \hit@ifharbinmaop #1#2
+  {
+    \bool_lazy_all:nTF
+      {
+        { \legacy_if_p:n { hit@harbin } }
+        { \legacy_if_p:n { hit@opening } }
+        { \legacy_if_p:n { hit@master } }
+      }
+      {#1} {#2}
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 处理文档类选项
@@ -162,14 +258,12 @@
 % \changes{v3.2a}{0000/00/00}{选项后处理（AutoFakeBold 与 fontset 透传）从 artpluscls 移入 artplus-options 模块}
 %    \begin{macrocode}
 \RequirePackage{ifthen}
-\ifthenelse
-{\equal{\hit@fontset}{}}%
+\hit@iffontset{}%
 {%
   \PassOptionsToPackage{AutoFakeBold=2}{xeCJK}
 }%
 {%
-  \ifthenelse
-  {\equal{\hit@fontset}{siyuan}}%
+  \hit@iffontset{siyuan}%
   {\relax}%
   {%
     \PassOptionsToPackage{AutoFakeBold=2}{xeCJK}
@@ -721,13 +815,12 @@
 %<*artplus-frontmatter>
 
 \newcommand{\hit@report@titlepage@graduate}{
-  \ifthenelse
-  {\equal{\hit@fontset}{siyuan}}%
+  \hit@iffontset{siyuan}%
   {\xiaosi[1]\vspace*{0.65em}}%
   {\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
   \vspace*{10mm}
   \begin{center}
-    \songti\erhao\textbf{\hit@cschoolname\ifhit@shenzhen\hit@shenzhencampus\fi}
+    \songti\erhao\textbf{\hit@cschoolname\hit@ifT{shenzhen}{\hit@shenzhencampus}}
   \end{center}
   \begin{center}
     \songti\erhao\textbf{\hit@cthesismidtermcheck}
@@ -796,6 +889,11 @@
 \def\@inlinecite#1{\begingroup\citestyle{inline}\let\@cite\NAT@citenum\citep{#1}\endgroup}
 \let\onlinecite\inlinecite
 
+\ExplSyntaxOff
+\newcommand\hit@art@bibhead{%
+  \section*{参考文献}%
+  \addcontentsline{toc}{section}{参考文献}%
+}
 \ExplSyntaxOn
 \renewenvironment{thebibliography}[1]{%
   \list{\@biblabel{\@arabic\c@enumiv}}{%
@@ -871,6 +969,102 @@
 % ^^A ======================================================================
 %    \begin{macrocode}
 %<*art-options>
+% \changes{v3.2a}{0000/00/00}{加通用选择器 \cs{hit@if}，与 \file{hithesisbook.cls}
+%   一致。}
+% \cs{hit@if}\marg{flag}\marg{真}\marg{假} 按标志位二选一，
+% \cs{hit@iffontset}\marg{名字}\marg{真}\marg{假} 比对 \option{fontset}，
+% \cs{hit@ifnotempty}\marg{宏}\marg{真} 在宏非空时执行，
+% \cs{hit@ifwider}\marg{长度}\marg{阈值}\marg{真}\marg{假} 比长度。
+% \cs{hit@ifT}\marg{flag}\marg{真} 是只有真分支的那一半。封面里几个多条件判断
+% 也各自取了名：\cs{hit@ifand} 两个标志位同时成立，\cs{hit@ifstage} 取「开题」
+% 或「中期」，\cs{hit@ifwidema} 是威海或深圳的硕士，\cs{hit@ifszmaop} 是深圳硕士
+% 开题，\cs{hit@ifhrbmastage} 是哈尔滨硕士的开题或中期。参数从 expl3 之外传
+% 进来，里面的空格照原样保留；替换旧写法时注意 \cs{fi} 后面被跳过的那个空格。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\cs_new:Npn \hit@if #1#2#3 { \legacy_if:nTF { hit@#1 } {#2} {#3} }
+\cs_new:Npn \hit@ifT #1#2 { \legacy_if:nT { hit@#1 } {#2} }
+\cs_new:Npn \hit@iffontset #1#2#3
+  { \str_if_eq:eeTF { \hit@fontset } {#1} {#2} {#3} }
+\cs_new_protected:Npn \hit@ifnotempty #1#2 { \tl_if_empty:NF #1 {#2} }
+\cs_new:Npn \hit@ifwider #1#2#3#4 { \dim_compare:nNnTF {#1} > {#2} {#3} {#4} }
+\cs_new:Npn \hit@ifand #1#2#3#4
+  {
+    \bool_lazy_and:nnTF
+      { \legacy_if_p:n { hit@#1 } } { \legacy_if_p:n { hit@#2 } } {#3} {#4}
+  }
+\cs_new:Npn \hit@ifstage
+  {
+    \legacy_if:nTF { hit@opening }
+      { \hit@stage@opening } { \hit@ifT { midterm } { \hit@stage@midterm } }
+  }
+\cs_new:Npn \hit@ifwidema #1
+  {
+    \bool_lazy_and:nnT
+      {
+        \bool_lazy_or_p:nn
+          { \legacy_if_p:n { hit@weihai } } { \legacy_if_p:n { hit@shenzhen } }
+      }
+      { \legacy_if_p:n { hit@master } }
+      {#1}
+  }
+\cs_new:Npn \hit@ifszmaop #1#2
+  {
+    \bool_lazy_all:nTF
+      {
+        { \legacy_if_p:n { hit@shenzhen } }
+        { \legacy_if_p:n { hit@master } }
+        { \legacy_if_p:n { hit@opening } }
+      }
+      {#1} {#2}
+  }
+\cs_new:Npn \hit@ifhrbmastage #1
+  {
+    \bool_lazy_all:nT
+      {
+        { \legacy_if_p:n { hit@harbin } }
+        { \legacy_if_p:n { hit@master } }
+        {
+          \bool_lazy_or_p:nn
+            { \legacy_if_p:n { hit@opening } } { \legacy_if_p:n { hit@midterm } }
+        }
+      }
+      {#1}
+  }
+\cs_new:Npn \hit@ifhrbmastage@TF #1#2
+  {
+    \bool_lazy_all:nTF
+      {
+        { \legacy_if_p:n { hit@harbin } }
+        { \legacy_if_p:n { hit@master } }
+        {
+          \bool_lazy_or_p:nn
+            { \legacy_if_p:n { hit@opening } } { \legacy_if_p:n { hit@midterm } }
+        }
+      }
+      {#1} {#2}
+  }
+\cs_new:Npn \hit@ifshenzhenmaop #1#2
+  {
+    \bool_lazy_all:nTF
+      {
+        { \legacy_if_p:n { hit@shenzhen } }
+        { \legacy_if_p:n { hit@opening } }
+        { \legacy_if_p:n { hit@master } }
+      }
+      {#1} {#2}
+  }
+\cs_new:Npn \hit@ifharbinmaop #1#2
+  {
+    \bool_lazy_all:nTF
+      {
+        { \legacy_if_p:n { hit@harbin } }
+        { \legacy_if_p:n { hit@opening } }
+        { \legacy_if_p:n { hit@master } }
+      }
+      {#1} {#2}
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 处理文档类选项
@@ -1012,14 +1206,12 @@
 % \changes{v3.2a}{0000/00/00}{选项后处理（AutoFakeBold 与 fontset 透传）从 artcls 移入 art-options 模块}
 %    \begin{macrocode}
 \RequirePackage{ifthen}
-\ifthenelse
-{\equal{\hit@fontset}{}}%
+\hit@iffontset{}%
 {%
   \PassOptionsToPackage{AutoFakeBold=2}{xeCJK}
 }%
 {%
-  \ifthenelse
-  {\equal{\hit@fontset}{siyuan}}%
+  \hit@iffontset{siyuan}%
   {\relax}%
   {%
     \PassOptionsToPackage{AutoFakeBold=2}{xeCJK}
@@ -1146,40 +1338,44 @@
 % 单独使用 \pkg{newtxmath} 宏包改变数学字体时，会使 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令使用 CM 字体，根据 \href{https://github.com/sjtug/SJTUThesis/blob/b164d0f5b3087ed86c1038b5a85014b47a92c6f2/texmf/tex/latex/sjtuthesis/fd/sjtu-math-font-termes.def#L52-L65}{SJTUThesis 的字体设置} 进行调整
 % \changes{v3.0.19}{2022/05/05}{对 \pkg{newtxmath} 宏包打补丁，修复 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令的字体问题。}
 %    \begin{macrocode}
-\ifhit@newtxmath
-  \let\oldencodingdefault\encodingdefault
-  \let\oldrmdefault\rmdefault
-  \let\oldsfdefault\sfdefault
-  \let\oldttdefault\ttdefault
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{直接修改编码，而不引入新的宏包。}
+% \changes{v3.2a}{0000/00/00}{newtxmath 的加载分支迁到 expl3。}
 %    \begin{macrocode}
-  \def\encodingdefault{T1}
-  \renewcommand{\rmdefault}{ntxtlf}
-  \renewcommand{\sfdefault}{qhv}
-  \renewcommand{\ttdefault}{ntxtt}
-  \RequirePackage{newtxmath}
-  \let\encodingdefault\oldencodingdefault
-  \let\rmdefault\oldrmdefault
-  \let\sfdefault\oldsfdefault
-  \let\ttdefault\oldttdefault
-\fi
+\ExplSyntaxOn
+\legacy_if:nT { hit@newtxmath }
+  {
+    \cs_set_eq:NN \oldencodingdefault \encodingdefault
+    \cs_set_eq:NN \oldrmdefault \rmdefault
+    \cs_set_eq:NN \oldsfdefault \sfdefault
+    \cs_set_eq:NN \oldttdefault \ttdefault
+    \tl_set:Nn \encodingdefault { T1 }
+    \tl_set:Nn \rmdefault { ntxtlf }
+    \tl_set:Nn \sfdefault { qhv }
+    \tl_set:Nn \ttdefault { ntxtt }
+    \RequirePackage { newtxmath }
+    \cs_set_eq:NN \encodingdefault \oldencodingdefault
+    \cs_set_eq:NN \rmdefault \oldrmdefault
+    \cs_set_eq:NN \sfdefault \oldsfdefault
+    \cs_set_eq:NN \ttdefault \oldttdefault
+  }
+\ExplSyntaxOff
 
 \RequirePackage{graphicx}
 \RequirePackage{pdfpages}
 \includepdfset{fitpaper=true}
 \RequirePackage{enumitem}       %使用enumitem宏包,改变列表项的格式
 \RequirePackage{environ}
-\ifhit@raggedbottom
-  \RequirePackage[bottom,perpage,hang]{footmisc}
-  \raggedbottom
-\else
-  \RequirePackage[perpage,hang]{footmisc}
-\fi
-\ifhit@pifootnote
-  \RequirePackage{pifont}
-\fi
+\ExplSyntaxOn
+\legacy_if:nTF { hit@raggedbottom }
+  {
+    \RequirePackage [ bottom , perpage , hang ] { footmisc }
+    \raggedbottom
+  }
+  { \RequirePackage [ perpage , hang ] { footmisc } }
+\legacy_if:nT { hit@pifootnote } { \RequirePackage { pifont } }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % \pkg{xeCJK} 包不再自动加载 \pkg{xeCJKfntef}
@@ -1271,11 +1467,14 @@
 %</art-geometry>
 %<*art-deps-c>
 
-\ifhit@debug
-  \RequirePackage{layout}
-  \RequirePackage{layouts}
-  \RequirePackage{lineno}
-\fi
+\ExplSyntaxOn
+\legacy_if:nT { hit@debug }
+  {
+    \RequirePackage { layout }
+    \RequirePackage { layouts }
+    \RequirePackage { lineno }
+  }
+\ExplSyntaxOff
 
 \RequirePackage{fancyhdr}
 \RequirePackage{tabularx}
@@ -1444,23 +1643,23 @@
     section={
       beforeskip=25bp,
       afterskip=27pt,
-      format=\ifhit@opening\centering\xiaoer\else\xiaosan\fi\heiti,
-      aftername=\ifhit@opening \quad \else \enspace \fi,
-      break=\ifhit@opening \clearpage \else {} \fi
+      format=\hit@if{opening}{\centering\xiaoer}{\xiaosan}\heiti,
+      aftername=\hit@if{opening}{\quad}{\enspace},
+      break=\hit@if{opening}{\clearpage}{{} }
     },
     subsection={
-      beforeskip=\ifhit@opening 12pt \else 15pt \fi,
-      afterskip=\ifhit@opening 12pt \else 15pt \fi,
-      format=\heiti\ifhit@opening \xiaosan \else \sihao \fi,
+      beforeskip=\hit@if{opening}{12pt }{15pt },
+      afterskip=\hit@if{opening}{12pt }{15pt },
+      format=\heiti\hit@if{opening}{\xiaosan}{\sihao},
       fixskip=true,
-      aftername=\ifhit@opening {\ } \else \enspace \fi
+      aftername=\hit@if{opening}{{\ } }{\enspace}
     },
     subsubsection={
-      beforeskip=\ifhit@opening 12pt \else 15pt \fi,
-      afterskip=\ifhit@opening 12pt \else 15pt \fi,
+      beforeskip=\hit@if{opening}{12pt }{15pt },
+      afterskip=\hit@if{opening}{12pt }{15pt },
       format=\heiti\sihao,
       fixskip=true,
-      aftername=\ifhit@opening {\ } \else \enspace \fi
+      aftername=\hit@if{opening}{{\ } }{\enspace}
     }
   }%
 }
@@ -1510,7 +1709,7 @@
       \vskip 0.75pt
       \hrule\@height.75pt\@width\headwidth
     }
-    \fancyhead[C]{\songti\xiaowu[0]哈尔滨工业大学（深圳）\ifhit@midterm 中期 \else 硕士学位论文开题 \fi 报告}
+    \fancyhead[C]{\songti\xiaowu[0]哈尔滨工业大学（深圳）\hit@if{midterm}{中期 }{硕士学位论文开题 }报告}
     \fancyfoot[C]{-\ \thepage\ -}
   }
   \fancypagestyle{hit@shenzhen@headings@front}{%
@@ -1540,10 +1739,15 @@
 \ExplSyntaxOff
 %</art-pagestyle>
 %<*art-deps-c>
-\ifboolexpr{bool {hit@weihai} and bool {hit@master} and bool {hit@opening}}
+\ExplSyntaxOn
+\bool_lazy_all:nT
   {
-    \pagestyle{hit@weihai@headings@main}
-  }{}
+    { \legacy_if_p:n { hit@weihai } }
+    { \legacy_if_p:n { hit@master } }
+    { \legacy_if_p:n { hit@opening } }
+  }
+  { \pagestyle { hit@weihai@headings@main } }
+\ExplSyntaxOff
 %    \end{macrocode}
 % \changes{v3.1c}{2023/04/16}{为深圳校区硕士开题设置章节样式与页眉页脚样式。}
 % 为深圳校区硕士开题设置章节样式与页眉页脚样式。%
@@ -1801,8 +2005,7 @@
 %<*art-frontmatter>
 
 \newcommand{\hit@report@titlepage@graduate}{
-  \ifthenelse
-  {\equal{\hit@fontset}{siyuan}}%
+  \hit@iffontset{siyuan}%
   {\xiaosi[1]\vspace*{0.65em}}%
   {\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
   \vspace*{10mm}
@@ -1814,22 +2017,14 @@
 % \changes{v3.1d}{2025/03/03}{修改威海校区硕士开题封面中的字号与字距。\issue[219]}
 %    \begin{macrocode}
   \begin{center}
-    % \kaishu\xiaoer\textbf{\hit@cschoolname\ifhit@shenzhen\hit@shenzhencampus\fi}
-    \ifboolexpr{ (bool {hit@weihai} or bool {hit@shenzhen}) and bool {hit@master} }%
-    {\ziju{1/6}}{}\kaishu\xiaoer\textbf{\hit@cschoolname\ifhit@weihai （威海）\fi}
+    % \kaishu\xiaoer\textbf{\hit@cschoolname\hit@ifT{shenzhen}{\hit@shenzhencampus}}
+    \hit@ifwidema{\ziju{1/6}}\kaishu\xiaoer\textbf{\hit@cschoolname\hit@ifT{weihai}{（威海）}}
   \end{center}
   \vspace{5mm}
   \begin{center}
-    \ifboolexpr{ bool {hit@shenzhen} and bool {hit@master} and bool {hit@opening} }%
-    {\xiaoyi\ziju{1/8}}{\erhao}
+    \hit@ifszmaop{\xiaoyi\ziju{1/8}}{\erhao}
     \songti\textbf{\hit@cxuewei\hit@cthesisname
-      \ifhit@opening
-        \hit@stage@opening
-      \else
-        \ifhit@midterm
-          \hit@stage@midterm
-        \fi
-      \fi
+      \hit@ifstage
       \hit@stage@doctype
     }
   \end{center}
@@ -1843,9 +2038,9 @@
 % \changes{v3.2a}{0000/00/00}{本部硕士开题、中期封面添加“学位论文”或“实践成果”。}
 %    \begin{macrocode}
      
-      \ifboolexpr{ bool {hit@harbin} and bool {hit@master} and ( bool {hit@opening} or bool {hit@midterm} ) }{
+      \hit@ifhrbmastage{
         \songti\sanhao\textbf{（\hit@ctype）}
-      }{}
+      }
     \end{center}
   }
   \parbox[b][3cm][t]{\textwidth}{
@@ -1866,25 +2061,18 @@
     \end{center}
   }
   \vfill
-  \ifhit@harbin
-    \hit@harbin@schoolbottommark
-  \else
+  \hit@if{harbin}{\hit@harbin@schoolbottommark}{%
 %    \end{macrocode}
 %
 % \changes{v3.0.22}{2022/05/16}{深圳校区中期模板封面范例中没有“哈工大（深圳）制”字样。\issue[126]}
 % \changes{v3.1c}{2023/04/16}{深圳校区硕士开题封面范例中有“深圳校区教务部~制”。}
 %    \begin{macrocode}
-    \ifhit@shenzhen
-      \ifhit@opening
-        \hit@shenzhen@master@schoolbottommark
-      \fi
-    \fi
-  \fi
+    \hit@ifand{shenzhen}{opening}{\hit@shenzhen@master@schoolbottommark}{}%
+  }
 }
 
 \newcommand{\hit@report@titlepage@bachelor}{
-  \ifthenelse%
-  {\equal{\hit@fontset}{siyuan}}%
+  \hit@iffontset{siyuan}%
   {\xiaosi[1]\vspace*{0.65em}}%
   {\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}}%
   \vspace*{10mm}
@@ -1897,18 +2085,11 @@
 %    \begin{macrocode}
   \begin{center}
     \songti\xiaoyi\textbf{%
-      \ifhit@harbin%
-        \ziju{1/12}
-        本科%
-      \fi%
+      \hit@ifT{harbin}%
+        {\ziju{1/12}
+        本科}%
       \hit@bachelor@cthesisname
-      \ifhit@opening
-        \hit@stage@opening
-      \else
-        \ifhit@midterm
-          \hit@stage@midterm
-        \fi
-      \fi
+      \hit@ifstage
       \hit@stage@doctype
     }
   \end{center}
@@ -1928,25 +2109,20 @@
       \newlength\subject@length
       \newlength\tmp@length
       \settowidth{\tmp@length}{\hit@csubject}
-      \setlength{\subject@length}{\ifdim\tmp@length>6.1cm\tmp@length \else 6.1cm \fi}
+      \setlength{\subject@length}{\hit@ifwider{\tmp@length}{6.1cm}{\tmp@length }{6.1cm }}
     \begin{tabular}{l@{\ \ }c}
       \textbf{\hit@bachelor@cmajortitle} & \underline{\makebox[\subject@length]{\textbf{\hit@csubject}}}\\
       \textbf{\hit@bachelor@cstudenttitle} & \underline{\makebox[\subject@length]{\textbf{\hit@cauthor}}}\\
       \textbf{\hit@bachelor@cstudentidtitle} & \underline{\makebox[\subject@length]{\textbf{\hit@cstudentid}}}\\
-      \ifhit@weihai % 威海校区特有
-        \textbf{\hit@bachelor@cclass} & \underline{\makebox[\subject@length]{\textbf{\hit@cclassid}}}\\
-      \fi
+      \hit@ifT{weihai}% 威海校区特有
+        {\textbf{\hit@bachelor@cclass} & \underline{\makebox[\subject@length]{\textbf{\hit@cclassid}}}\\}%
       \textbf{\hit@bachelor@csupervisortitle} & \underline{\makebox[\subject@length]{\textbf{\hit@csupervisor}}}\\
       \textbf{\hit@bachelor@cdatetitle} & \underline{\makebox[\subject@length]{\textbf{\hit@cdate}}}\\
     \end{tabular}\renewcommand{\arraystretch}{1}
   \end{center}
   }
   \vfill
-  \ifhit@weihai
-    \relax
-  \else
-    \hit@harbin@bachelor@schoolbottommark
-  \fi
+  \hit@if{weihai}{}{\hit@harbin@bachelor@schoolbottommark}
 }
 
 \newcommand{\hit@report@backpage@bachelor}{
@@ -2041,27 +2217,31 @@
 %    \end{macrocode}
 % \begin{macro}{\makecover}
 %    \begin{macrocode}
-\def\makecover{
-  \begin{titlepage}
-    \ifhit@bachelor
-      \hit@report@titlepage@bachelor
-    \else
-      \hit@report@titlepage@graduate
-    \fi
-    \clearpage
 %    \end{macrocode}
 %
 % \changes{v3.1c}{2023/04/16}{新增对空白页的控制。\issue[138]}
 % \changes{v3.1c}{2023/04/16}{修改深圳硕士中期的页脚。\issue[166]}
+% \changes{v3.2a}{0000/00/00}{\cs{makecover} 的分派逻辑迁到 expl3。}
+% 封面分派。本科与研究生两套封面；\option{print} 打开时补一张空白页供双面打印；
+% \option{toc} 打开时排目录。深圳硕士的页眉另有一套。
 %    \begin{macrocode}
-    \ifhit@print \thispagestyle{empty}\mbox{} \clearpage \fi
-    \ifhit@toc
-      \tableofcontents
+\ExplSyntaxOn
+\cs_set_protected:Npn \makecover
+  {
+    \begin { titlepage }
+      \legacy_if:nTF { hit@bachelor }
+        { \hit@report@titlepage@bachelor }
+        { \hit@report@titlepage@graduate }
       \clearpage
-    \fi
-  \end{titlepage}
-  \ifboolexpr{ bool {hit@shenzhen} and bool {hit@master} }{\pagestyle{hit@shenzhen@headings@main}}{}{}
-}
+      \legacy_if:nT { hit@print }
+        { \thispagestyle { empty } \mbox { } \clearpage }
+      \legacy_if:nT { hit@toc } { \tableofcontents \clearpage }
+    \end { titlepage }
+    \bool_lazy_and:nnT
+      { \legacy_if_p:n { hit@shenzhen } } { \legacy_if_p:n { hit@master } }
+      { \pagestyle { hit@shenzhen@headings@main } }
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 % \end{macro}
 % \begin{macro}{\makebackcover}
@@ -2102,13 +2282,20 @@
 % 深圳校区硕士开题部分参考文献没有序号。其他校区的提了问题再改。
 % \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
 %    \begin{macrocode}
+\ExplSyntaxOff
+\newcommand\hit@art@bibhead{%
+  \section*{参考文献}%
+  \addcontentsline{toc}{section}{参考文献}%
+}
 \ExplSyntaxOn
 \renewenvironment{thebibliography}[1]{%
-  \ifboolexpr{ bool {hit@shenzhen} and bool {hit@master} and bool {hit@opening} }%
-  {%
-    \section*{参考文献}
-    \addcontentsline{toc}{section}{参考文献}
-  }{}
+  \bool_lazy_all:nT
+    {
+      { \legacy_if_p:n { hit@shenzhen } }
+      { \legacy_if_p:n { hit@master } }
+      { \legacy_if_p:n { hit@opening } }
+    }
+    { \hit@art@bibhead }
   \list{\@biblabel{\@arabic\c@enumiv}}{%
     \str_if_eq:VnT \g_bib_labelalign_str {left} {
       \RenewDocumentCommand\makelabel{m}{##1\hfill}
@@ -2254,7 +2441,7 @@
 % 咱也不知道谁想的，其他校区的本科毕设叫“毕业设计（论文）”，哈尔滨的叫“毕业论文（设计）”
 %    \begin{macrocode}
 \def\hit@bachelor@cxuewei{本科}
-\def\hit@bachelor@cthesisname{毕业\ifhit@harbin 论文（设计）\else 设计（论文）\fi}
+\def\hit@bachelor@cthesisname{毕业\hit@if{harbin}{论文（设计）}{设计（论文）}}
 \def\hit@bachelor@cclass{班号}
 %    \end{macrocode}
 %
@@ -2280,12 +2467,12 @@
 %
 % \changes{v3.2a}{0000/00/00}{修改本部硕士开题、中期封面“学院（部）”和“学科/学位专业类别”。}
 %    \begin{macrocode}
-\def\hit@graduate@caffiltitle{\makebox[6\ccwd][s]{\ifboolexpr{ bool {hit@harbin} and bool {hit@master} and ( bool {hit@opening} or bool {hit@midterm} ) }{学院（部}{院（系}}）}
+\def\hit@graduate@caffiltitle{\makebox[6\ccwd][s]{\hit@ifhrbmastage@TF{学院（部}{院（系}}）}
 \def\hit@graduate@cmajortitle{%
-  \ifboolexpr{ bool {hit@harbin} and bool {hit@master} and ( bool {hit@opening} or bool {hit@midterm} ) }%
+  \hit@ifhrbmastage@TF%
     {\makebox[8\ccwd][s]{学科/专业学位类别}}%
     {\makebox[6\ccwd][s]{%
-      \ifboolexpr{ bool {hit@shenzhen} and bool {hit@opening} and bool {hit@master} }%
+      \hit@ifshenzhenmaop%
         {学科\,/\,专业}%
         {学科}%
     }}%
@@ -2293,8 +2480,8 @@
 \def\hit@graduate@supervisor{\makebox[6\ccwd][s]{导师}}
 \def\hit@graduate@studenttitle{\makebox[6\ccwd][s]{研究生}}
 \def\hit@graduate@studentid{\makebox[6\ccwd][s]{学号}}
-\def\hit@graduate@datetitle{\ifhit@opening\hit@stage@opening
-\else\ifhit@midterm\hit@stage@midterm\fi\fi\hit@stage@doctype 日期}
+\def\hit@graduate@datetitle{\hit@if{opening}{\hit@stage@opening}%
+{\hit@ifT{midterm}{\hit@stage@midterm}}\hit@stage@doctype 日期}
 \def\hit@graduate@enrolldate{\makebox[6\ccwd][s]{入学时间}}
 \def\hit@graduate@thesistitle{\makebox[6\ccwd][s]{论文题目}}
 \def\hit@graduate@cafflimajor{\makebox[6\ccwd][s]{学科专业}}
@@ -2304,10 +2491,10 @@
 %
 % \changes{v3.2a}{0000/00/00}{修改本部硕士开题封面“学位”。}
 %    \begin{macrocode}
-\def\hit@cthesisname{\ifboolexpr{ bool {hit@harbin} and bool {hit@opening} and bool {hit@master} }{学位}{学位论文}}
+\def\hit@cthesisname{\hit@ifharbinmaop{学位}{学位论文}}
 \def\hit@cthesismidtermcheck{博\hspace{.125\ccwd}士\hspace{.125\ccwd}学\hspace{.125\ccwd}位\hspace{.125\ccwd}论\hspace{.125\ccwd}文\hspace{.125\ccwd}中\hspace{.125\ccwd}期\hspace{.125\ccwd}检\hspace{.125\ccwd}查\hspace{.125\ccwd}报\hspace{.125\ccwd}告}
 \def\hit@weihaicampus{（威海）}
-\def\hit@cschoolnametitle{\ifboolexpr{bool {hit@harbin} and bool {hit@bachelor}}{学校}{授予学位单位}}
+\def\hit@cschoolnametitle{\hit@ifand{harbin}{bachelor}{学校}{授予学位单位}}
 \def\hit@cdatetitle{答辩日期}
 \def\hit@caffiltitle{所在单位}
 \def\hit@csubjecttitle{学科}
