@@ -73,12 +73,14 @@ $(PACKAGE).pdf: $(TARGETS)
 
 else ifeq ($(METHOD),xelatex)
 
+# nonstopmode：手册里写错宏名之类的错误会让 xelatex 停在交互提示上等输入，
+# 无人看管时会一直挂着。cls 目标早就加了，doc 漏了。
 $(PACKAGE).pdf: $(TARGETS)
-	TEXINPUTS=src: $(METHOD) src/$(PACKAGE).dtx
+	TEXINPUTS=src: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 	makeindex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
 	makeindex -s gglo.ist -o $(PACKAGE).gls $(PACKAGE).glo
-	TEXINPUTS=src: $(METHOD) src/$(PACKAGE).dtx
-	TEXINPUTS=src: $(METHOD) src/$(PACKAGE).dtx
+	TEXINPUTS=src: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 
 else
 $(error Unknown METHOD: $(METHOD))
