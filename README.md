@@ -264,7 +264,7 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
 ### 模板的编译方法
 
-1. 生成论文格式文件(第一步要生成 *.cls，*.cfg，*.ist，然后再生成论文)
+1. 生成论文格式文件(第一步要生成 *.cls，*.ist，然后再生成论文)
 
    - 推荐：一条命令生成并分发到各示例目录
 
@@ -277,7 +277,7 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
      这条命令只把生成物放在当前目录。示例目录是独立可用的，要把用到的那份类文件、
      配置文件、`.bst` 与 `.eps` 复制过去，例如：
 
-         cp hithesisbook.cls hithesisbook.cfg hithesis.ist hithesis.bst \
+         cp hithesisbook.cls hithesis.ist hithesis.bst \
             hitszthesis.bst *.eps examples/hitbook/chinese/
          cp golfer.eps examples/hitbook/chinese/figures/
 

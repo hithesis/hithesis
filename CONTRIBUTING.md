@@ -10,8 +10,8 @@
 hithesis/
 ├── src/
 │   ├── hithesis.dtx      <- 入口：driver、三类共用的文件头、索引样式、dtx-style
-│   ├── hithesis-book.dtx <- 毕业论文类 hithesisbook 与它的 cfg
-│   ├── hithesis-art.dtx  <- 开题中期类 hithesisart、深圳博士中期类 hithesisartplus 与 cfg
+│   ├── hithesis-book.dtx <- 毕业论文类 hithesisbook
+│   ├── hithesis-art.dtx  <- 开题中期类 hithesisart、深圳博士中期类 hithesisartplus
 │   ├── hithesis-bst.dtx  <- 参考文献样式 hithesis.bst / hitszthesis.bst
 │   ├── hithesis-doc.dtx  <- 用户手册
 │   └── hithesis-eps.dtx  <- EPS 图像数据（校徽、封面、示例插图）
@@ -29,7 +29,7 @@ hithesis/
 └── .github/              <- Issue / PR 模板、CI 配置
 ```
 
-构建产物（`*.cls`、`*.cfg`、`*.bst`、`*.ist`、`*.eps`、`*.pdf`）都由源文件生成，不进版本库。
+构建产物（`*.cls`、`*.bst`、`*.ist`、`*.eps`、`*.pdf`）都由源文件生成，不进版本库。
 
 ## 2. 开发环境
 
@@ -49,7 +49,7 @@ hithesis/
 构建有两条等价路径。`make` 这条还负责把生成物分发到示例目录：
 
 ```shell
-make cls          # 生成 cls/cfg/bst/ist/eps，并分发到四个示例目录
+make cls          # 生成 cls/bst/ist/eps，并分发到四个示例目录
 make doc          # 编译用户手册 hithesis.pdf
 make distribute   # 只做分发（cls 已经生成过时用）
 make clean        # 清理生成产物
