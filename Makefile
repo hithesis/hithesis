@@ -23,7 +23,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix version-changes \
+.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint version-changes \
         baseline smoke regression-test tl-packages testclean
 
 all: doc
@@ -148,6 +148,11 @@ changes-check:
 
 changes-fix:
 	@python3 scripts/changes.py --fix
+
+# dtx 注释里的文档宏检查。写错宏名不影响 cls 生成，只有 make doc 会报，
+# 而那要跑一分多钟；这个几秒钟出结果，提交前先挡一道。
+doclint:
+	@python3 scripts/check-dtx-doc.py
 
 # 中文标点检查，默认只报告；确认后 make punct-fix 写回
 punct:
