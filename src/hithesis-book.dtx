@@ -208,6 +208,15 @@
 \DeclareBoolOption[false]{tocfour}
 %    \end{macrocode}
 %
+% \changes{v3.2a}{0000/00/00}{目录三个选项的旧名改写同一批三态变量，保证新旧
+%   两套名字结果一致。变量要在 \cs{ProcessKeyvalOptions} 之前声明，因为这几个
+%   键也能作类选项。}
+% 三个三态变量在这里声明，旧名的处理器直接写它们。新名在 \texttt{hit/toc} 族里
+% 注册，写的是同一批变量，所以两套名字可以混用、后设的覆盖先设的。
+%    \begin{macrocode}
+
+%    \end{macrocode}
+%
 % 目录中“目录”位置是否空行（默认开启）。
 %    \begin{macrocode}
 \DeclareBoolOption[true]{tocblank}
@@ -288,16 +297,12 @@
 %   此时 campus 与 type 尚未解析、\option{harbin} 与 \option{bachelor} 被兜底逻辑置真，
 %   条件恒取第一支，任何组合下默认值都是 true。改为统一声明 false，选项解析完成
 %   后再按校区与学位补默认值，并记录用户是否显式设置过以免覆盖。}
-% 默认值要等 campus 与 type 解析完才能定，所以这里只声明，真正的默认值在
-% \cs{ProcessKeyvalOptions} 之后设置。\cs{hit@bsfront@given} 记录用户有没有
-% 显式写过这个选项，写过就不再套用默认值。
+% \changes{v3.2a}{0000/00/00}{条件默认值改由三态取值承载，不再需要
+%   记录用户是否显式设过。}
+% 这个选项的默认值随校区与学位而变，交给三态取值处理：\texttt{auto}
+% 时按哈尔滨本科为真解析，用户写了具体值就用具体值。
 %    \begin{macrocode}
 \DeclareBoolOption[false]{bsfrontpagenumberline}
-\newif\ifhit@bsfront@given
-\expandafter\let\expandafter\hit@bsfront@setkey
-  \csname KV@hit@bsfrontpagenumberline\endcsname
-\expandafter\def\csname KV@hit@bsfrontpagenumberline\endcsname#1{%
-  \hit@bsfront@giventrue\hit@bsfront@setkey{#1}}
 \DeclareBoolOption[true]{bsheadrule}
 %    \end{macrocode}
 %
@@ -331,6 +336,23 @@
 %
 % 解析转发到模块的选项。
 %    \begin{macrocode}
+\ExplSyntaxOn
+\tl_new:N \g__hit_toc_english_tl  \tl_gset:Nn \g__hit_toc_english_tl { auto }
+\tl_new:N \g__hit_toc_blank_tl    \tl_gset:Nn \g__hit_toc_blank_tl   { auto }
+\tl_new:N \g__hit_toc_four_tl     \tl_gset:Nn \g__hit_toc_four_tl    { auto }
+\define@key { hit } { tocfour }  [ true ] { \tl_gset:Nn \g__hit_toc_four_tl    {#1} }
+\define@key { hit } { tocblank } [ true ] { \tl_gset:Nn \g__hit_toc_blank_tl   {#1} }
+\define@key { hit } { engtoc }   [ true ] { \tl_gset:Nn \g__hit_toc_english_tl {#1} }
+\tl_new:N \g__hit_pnline_main_tl   \tl_gset:Nn \g__hit_pnline_main_tl  { auto }
+\tl_new:N \g__hit_pnline_front_tl  \tl_gset:Nn \g__hit_pnline_front_tl { auto }
+\tl_new:N \g__hit_headrule_tl      \tl_gset:Nn \g__hit_headrule_tl     { auto }
+\define@key { hit } { bsmainpagenumberline }  [ true ]
+  { \tl_gset:Nn \g__hit_pnline_main_tl  {#1} }
+\define@key { hit } { bsfrontpagenumberline } [ true ]
+  { \tl_gset:Nn \g__hit_pnline_front_tl {#1} }
+\define@key { hit } { bsheadrule } [ true ]
+  { \tl_gset:Nn \g__hit_headrule_tl {#1} }
+\ExplSyntaxOff
 \ProcessKeyvalOptions*
 %    \end{macrocode}
 %
@@ -353,13 +375,7 @@
 % 用户显式设过就不动。
 %    \begin{macrocode}
 \ExplSyntaxOn
-\legacy_if:nF { hit@bsfront@given }
-  {
-    \bool_lazy_and:nnT
-      { \legacy_if_p:n { hit@harbin } }
-      { \legacy_if_p:n { hit@bachelor } }
-      { \legacy_if_set_true:n { hit@bsfrontpagenumberline } }
-  }
+
 \ExplSyntaxOff
 %    \end{macrocode}
 %
@@ -953,13 +969,11 @@
 %    \end{macrocode}
 % 规范中并没有加空行这一要求，此处不应该加，所以只在 \option{tocblank} 下才加。
 %    \begin{macrocode}
-    \legacy_if:nF { hit@english }
+    \__hit_tri_if:NnT \g__hit_toc_blank_tl
+      { ! \legacy_if_p:n { hit@english } }
       {
-        \legacy_if:nT { hit@tocblank }
-          {
-            \addtocontents { toc } { \vspace { \baselineskip } }
-            \addtocontents { toe } { \vspace { \baselineskip } }
-          }
+        \addtocontents { toc } { \vspace { \baselineskip } }
+        \addtocontents { toe } { \vspace { \baselineskip } }
       }
 %    \end{macrocode}
 %
@@ -1168,23 +1182,54 @@
       \hrule\@height.75pt\@width\headwidth
     }%
 }
-\def\hit@book@bachelorfoot{%
-  \fancyfoot[C]{
-        \xiaowu
-        \if@mainmatter
-          \ifhit@bsmainpagenumberline
-            -\hspace{\hit@pagenumber@sep}\thepage\hspace{\hit@pagenumber@sep}-%
-          \else
-            \thepage%
-          \fi
-        \else
-          \ifhit@bsfrontpagenumberline
-            -\hspace{\hit@pagenumber@sep}\thepage\hspace{\hit@pagenumber@sep}-%
-          \else
-            \thepage%
-          \fi
-        \fi
-        }%
+\def\hit@pagenum@plain{\thepage}
+\def\hit@pagenum@decorated{%
+  \ifhit@bachelor
+    -\hspace{\hit@pagenumber@sep}\thepage\hspace{\hit@pagenumber@sep}-%
+  \else
+    -~\thepage~-%
+  \fi}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{页码装饰与页眉横线的开关改为三态，本科与非本科
+%   走同一套逻辑。装饰形式仍按学位区分：本科用 \cs{hspace}，其余用不断行空格。}
+% \option{pagenumberline} 的 \texttt{auto}：正文一律带装饰；前置部分除深圳与
+% 威海本科外都带。\option{headrule} 的 \texttt{auto} 一律为真。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\cs_new_protected:Npn \hit@pagenum@main
+  {
+    \__hit_tri_if:NnTF \g__hit_pnline_main_tl { \c_true_bool }
+      { \hit@pagenum@decorated } { \hit@pagenum@plain }
+  }
+\cs_new_protected:Npn \hit@pagenum@front
+  {
+    \__hit_tri_if:NnTF \g__hit_pnline_front_tl
+      {
+        ! \bool_lazy_and_p:nn
+            { \legacy_if_p:n { hit@bachelor } }
+            {
+              \bool_lazy_or_p:nn
+                { \legacy_if_p:n { hit@shenzhen } }
+                { \legacy_if_p:n { hit@weihai } }
+            }
+      }
+      { \hit@pagenum@decorated } { \hit@pagenum@plain }
+  }
+\cs_new_protected:Npn \hit@book@rule
+  {
+    \__hit_tri_if:NnTF \g__hit_headrule_tl { \c_true_bool }
+      { \hit@book@headrule } { \renewcommand { \headrulewidth } { 0pt } }
+  }
+\ExplSyntaxOff
+\def\hit@book@foot{%
+  \fancyfoot[C]{%
+    \xiaowu
+    \if@mainmatter
+      \hit@pagenum@main
+    \else
+      \hit@pagenum@front
+    \fi}%
 }
 %    \end{macrocode}
 % 
@@ -1322,14 +1367,12 @@
                       }
                   }
               }
-            \hit@book@bachelorfoot
-            \legacy_if:nTF { hit@bsheadrule }
-              { \hit@book@headrule }
-              { \renewcommand { \headrulewidth } { 0pt } }
+            \hit@book@foot
+            \hit@book@rule
           }
           {
-            \fancyfoot [ C ] { \xiaowu - \nobreakspace \thepage \nobreakspace - }
-            \hit@book@headrule
+            \hit@book@foot
+            \hit@book@rule
           }
       }
     \renewcommand { \footrulewidth } { 0pt }
@@ -2674,6 +2717,52 @@ breaklines=true
 \ExplSyntaxOn
 \cs_new_protected:Npn \__hit_legacy_key:n #1
   { \kvsetkeys { hit } { \l_keys_key_str = {#1} } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{加三态取值机制。选项可取 \texttt{auto}、
+%   \texttt{true}、\texttt{false}，或按学位分别指定；\texttt{auto} 的含义由
+%   各选项自己定义，在用到的时候才解析。}
+% 有些选项的合适取值随学位或语言而变。以前的做法是把条件写死在使用处，
+% 用户设了也没反应；现在统一成三态：
+% \begin{latex}
+% toc = { english = auto }                        % 模板按学位决定
+% toc = { english = true }                        % 一律排
+% toc = { english = { doctor = true } }           % 只对博士指定，其余仍按 auto
+% \end{latex}
+% 分学位映射里没列到的学位保持 \texttt{auto}，不是 \texttt{false}。
+%    \begin{macrocode}
+\tl_new:N \l__hit_tri_tl
+\keys_define:nn { hit / degree-map }
+  {
+    bachelor .code:n = { \legacy_if:nT { hit@bachelor } { \tl_set:Nn \l__hit_tri_tl {#1} } } ,
+    master   .code:n = { \legacy_if:nT { hit@master   } { \tl_set:Nn \l__hit_tri_tl {#1} } } ,
+    doctor   .code:n = { \legacy_if:nT { hit@doctor   } { \tl_set:Nn \l__hit_tri_tl {#1} } } ,
+    postdoc  .code:n = { \legacy_if:nT { hit@postdoc  } { \tl_set:Nn \l__hit_tri_tl {#1} } } ,
+  }
+%    \end{macrocode}
+% 设值。带等号的当作分学位映射，其余直接存。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_tri_set:Nn #1#2
+  {
+    \tl_if_in:nnTF {#2} { = }
+      {
+        \tl_set:Nn \l__hit_tri_tl { auto }
+        \keys_set:nn { hit / degree-map } {#2}
+        \tl_set_eq:NN #1 \l__hit_tri_tl
+      }
+      { \tl_set:Nn #1 {#2} }
+  }
+%    \end{macrocode}
+% 取值。\texttt{auto} 时执行第二个参数给出的布尔表达式来决定。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_tri_if:NnTF #1#2#3#4
+  {
+    \str_case:VnF #1
+      { { true } {#3} { false } {#4} }
+      { \bool_if:nTF {#2} {#3} {#4} }
+  }
+\cs_new_protected:Npn \__hit_tri_if:NnT #1#2#3
+  { \__hit_tri_if:NnTF #1 {#2} {#3} { } }
 \clist_map_inline:nn { info , style , toc , bib , const }
   { \keys_define:nn { hit / #1 } { unknown .code:n = { \__hit_legacy_key:n {##1} } } }
 %    \end{macrocode}
@@ -2683,6 +2772,73 @@ breaklines=true
 % 参考文献相关的五个键迁进 \texttt{hit/bib}。它们此前分散在 \file{book} 与
 % \file{art} 两个模块、命名也不统一（\texttt{citetwo} 看不出是控制什么的）。
 % 新旧两套名字设的是同一批内部变量，所以可以混用。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{目录的四个选项迁入 \texttt{hit/toc} 族，改用连字符
+%   命名，其中三个改为三态取值。}
+% 目录相关的四个键。前三个用三态，\texttt{auto} 的含义分别是：\option{english}
+% 博士排、其余不排；\option{blank} 英文版不插、其余插；\option{four} 一律不开。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{排版开关迁入 \texttt{hit/style} 族并改用连字符命名。}
+% 这批都是普通布尔，新名设的是旧标志位本身，所以两套名字天然一致。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_style_pair:nn #1#2 { \__hit_bool_key:nnn { style } {#1} {#2} }
+\cs_new_protected:Npn \__hit_bool_key:nnn #1#2#3
+  {
+    \use:x
+      {
+        \keys_define:nn { hit / #1 }
+          {
+            #2 .choice: ,
+            #2 / true  .code:n = { \exp_not:N \legacy_if_set_true:n  { hit@#3 } } ,
+            #2 / false .code:n = { \exp_not:N \legacy_if_set_false:n { hit@#3 } } ,
+            #2 .default:n = true ,
+          }
+      }
+  }
+\keys_define:nn { hit / style }
+  {
+    headrule .code:n = { \__hit_tri_set:Nn \g__hit_headrule_tl {#1} } ,
+    pagenumberline .meta:nn = { hit / style / pagenumberline } {#1} ,
+  }
+\keys_define:nn { hit / style / pagenumberline }
+  {
+    mainmatter  .code:n = { \__hit_tri_set:Nn \g__hit_pnline_main_tl  {#1} } ,
+    frontmatter .code:n = { \__hit_tri_set:Nn \g__hit_pnline_front_tl {#1} } ,
+  }
+\clist_map_inline:nn
+  {
+    { chapter-bold } { chapterbold } ,
+    { chapter-hang } { chapterhang } ,
+    { sans-title } { arialtitle } ,
+    { caption-center-last } { capcenterlast } ,
+    { subcaption-center-last } { subcapcenterlast } ,
+    { abstract-upper } { absupper } ,
+    { etitle-auto } { etitleauto } ,
+    { glue } { glue } ,
+    { open-right } { openright } ,
+    { library } { library } ,
+    { ragged-bottom } { raggedbottom } ,
+  }
+  { \__hit_style_pair:nn #1 }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\keys_define:nn { hit / toc }
+  {
+    english .code:n = { \__hit_tri_set:Nn \g__hit_toc_english_tl {#1} } ,
+    blank   .code:n = { \__hit_tri_set:Nn \g__hit_toc_blank_tl   {#1} } ,
+    four    .code:n = { \__hit_tri_set:Nn \g__hit_toc_four_tl    {#1} } ,
+    sans-font .choice: ,
+    sans-font / true  .code:n = { \legacy_if_set_true:n  { hit@arialtoc } } ,
+    sans-font / false .code:n = { \legacy_if_set_false:n { hit@arialtoc } } ,
+    sans-font .default:n = true ,
+  }
+%    \end{macrocode}
+%
 %    \begin{macrocode}
 \keys_define:nn { hit / bib }
   {
@@ -3935,9 +4091,7 @@ breaklines=true
 \ExplSyntaxOn
 \setcounter { secnumdepth } { 3 }
 \setcounter { tocdepth } { 2 }
-\bool_lazy_and:nnT
-  { \legacy_if_p:n { hit@bachelor } }
-  { \legacy_if_p:n { hit@tocfour } }
+\__hit_tri_if:NnT \g__hit_toc_four_tl { \c_false_bool }
   { \setcounter { tocdepth } { 3 } }
 \ExplSyntaxOff
 %    \end{macrocode}
@@ -3965,14 +4119,14 @@ breaklines=true
         \pdfbookmark [ 0 ] { \contentsname } { ccontent }
         \normalsize \@starttoc { toc }
       }
-    \legacy_if:nTF { hit@doctor }
+    \__hit_tri_if:NnTF \g__hit_toc_english_tl { \legacy_if_p:n { hit@doctor } }
       { \tableofengcontents }
 %    \end{macrocode}
 %
 % 有些硕士的范例中带有英文目录，这里添加手动开关
 % \changes{v3.0.11}{2020/10/29}{有些硕士的范例中带有英文目录，这里添加手动开关}
 %    \begin{macrocode}
-      { \legacy_if:nT { hit@engtoc } { \tableofengcontents } }
+      { }
 %    \end{macrocode}
 % \end{macro}
 % 将英文目录潜入中文目录命令中，进一步简化thesis.tex结构

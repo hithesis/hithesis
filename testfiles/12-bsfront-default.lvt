@@ -1,16 +1,33 @@
-% bsfrontpagenumberline 的条件默认值。它要等 campus 与 type 解析完才能定，
-% 所以默认值在选项后处理里补，而不是在声明处判断。四组分别覆盖：
-% 哈尔滨本科（应为 true）、哈尔滨硕士与威海本科（应为 false）、
-% 以及用户显式设置时不被默认值覆盖。
+% 前置部分页码装饰的三态默认值。auto 的含义是「除深圳与威海本科外都带装饰」，
+% 这里用威海本科验证反例。
+%
+% 探针必须在导言区定义。写在 \TEST{} 参数里的 \ExplSyntaxOn 不起作用，
+% 参数在读入时就已经记号化了。
 \input{regression-test}
 \documentclass[fontset=fandol,type=bachelor,campus=weihai]{hithesisbook}
+\ExplSyntaxOn
+\cs_new_protected:Npn \showfront
+  {
+    \iow_term:x { setting = \g__hit_pnline_front_tl }
+    \__hit_tri_if:NnTF \g__hit_pnline_front_tl
+      {
+        ! \bool_lazy_and_p:nn { \legacy_if_p:n { hit@bachelor } }
+            {
+              \bool_lazy_or_p:nn { \legacy_if_p:n { hit@shenzhen } }
+                                 { \legacy_if_p:n { hit@weihai } }
+            }
+      }
+      { \iow_term:n { resolved = decorated } }
+      { \iow_term:n { resolved = plain } }
+  }
+\ExplSyntaxOff
 \begin{document}
 \START
 \makeatletter
-\TEST{威海本科不套用哈尔滨本科的默认值}{
+\TEST{威海本科的前置页码不带装饰}{
   \typeout{campus-harbin=\ifhit@harbin true\else false\fi}
   \typeout{type-bachelor=\ifhit@bachelor true\else false\fi}
-  \typeout{bsfrontpagenumberline=\ifhit@bsfrontpagenumberline true\else false\fi}
+  \showfront
 }
 \makeatother
 \END
