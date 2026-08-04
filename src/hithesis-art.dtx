@@ -715,11 +715,12 @@
   \hit@harbinfalse
   \expandafter\csname hit@#1true\endcsname
 }
-\ifhit@weihai\relax\else
-  \ifhit@shenzhen\relax\else
-    \hit@harbintrue
-  \fi
-\fi
+\ExplSyntaxOn
+\bool_lazy_or:nnF
+  { \legacy_if_p:n { hit@weihai } }
+  { \legacy_if_p:n { hit@shenzhen } }
+  { \legacy_if_set_true:n { hit@harbin } }
+\ExplSyntaxOff
 
 \newif\ifhit@opening
 \newif\ifhit@midterm
@@ -775,37 +776,49 @@
 
 \ProcessKeyvalOptions*
 
-\ifhit@bachelor\relax\else
-  \ifhit@master\relax\else
-    \ifhit@doctor\relax\else
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{art-options 的三段选项校验改用 \cs{bool\_lazy\_any:nF}、
+%   \cs{bool\_lazy\_or:nnF} 与 \cs{bool\_lazy\_all:nT}，嵌套的 \cs{relax}\cs{else}
+%   链换成显式判断。报错文本含英文与空格，按 CONTRIBUTING §4.6 留在 expl3 之外。}
+% 三段报错文本原样留在 expl3 之外，里面的空格与花括号都有意义。
+%    \begin{macrocode}
+\def\hit@art@error@type{%
     \ClassError{hithesisart}{%
       \MessageBreak Please specify thesis type in option:
       \MessageBreak type=[bachelor | master | doctor]
-    }
-    \fi
-  \fi
-\fi
-
-\ifhit@opening\relax\else
-  \ifhit@midterm\relax\else
+    }}
+\def\hit@art@error@stage{%
     \ClassError{hithesisart}{%
       \MessageBreak Please specify stage in option:
       \MessageBreak stage=<opening|midterm>
-    }
-  \fi
-\fi
-
-\ifhit@doctor
-  \ifhit@midterm
-    \ifhit@shenzhen
+    }}
+\def\hit@art@error@szdoctor{%
       \ClassError{hithesisart}{%
         \MessageBreak This document class does not support midterm report for doctor
         in shenzhen campus.
         \MessageBreak please use \string\documentclass{hithesisartplus}
-      }
-    \fi
-  \fi
-\fi
+      }}
+\ExplSyntaxOn
+\bool_lazy_any:nF
+  {
+    { \legacy_if_p:n { hit@bachelor } }
+    { \legacy_if_p:n { hit@master } }
+    { \legacy_if_p:n { hit@doctor } }
+  }
+  { \hit@art@error@type }
+\bool_lazy_or:nnF
+  { \legacy_if_p:n { hit@opening } }
+  { \legacy_if_p:n { hit@midterm } }
+  { \hit@art@error@stage }
+\bool_lazy_all:nT
+  {
+    { \legacy_if_p:n { hit@doctor } }
+    { \legacy_if_p:n { hit@midterm } }
+    { \legacy_if_p:n { hit@shenzhen } }
+  }
+  { \hit@art@error@szdoctor }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{选项后处理（AutoFakeBold 与 fontset 透传）从 artcls 移入 art-options 模块}
