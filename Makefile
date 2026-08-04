@@ -44,10 +44,10 @@ $(TARGETS): $(SOURCES)
 #
 # build.lua 里的 distribute 目标有一份等价实现，给不装 make 的平台用（CI 的
 # macOS/Windows 任务走那条）。改动下面的清单时两边都要改。
-BOOKFILES = $(PACKAGE)book.cls $(PACKAGE)book.cfg $(PACKAGE).bst hitszthesis.bst \
+BOOKFILES = $(PACKAGE)book.cls $(PACKAGE).bst hitszthesis.bst \
             hitlogo.eps bthesistitle.eps shenzhenbthesistitle.eps zfb.eps \
             hrb-bachelor-bottommark.eps
-ARTFILES  = $(PACKAGE)art.cls $(PACKAGE)art.cfg $(PACKAGE).bst hitszthesis.bst \
+ARTFILES  = $(PACKAGE)art.cls $(PACKAGE).bst hitszthesis.bst \
             hitlogo.eps bthesistitle.eps zfb.eps
 
 distribute:
@@ -57,7 +57,7 @@ distribute:
 	@cp $(PACKAGE).ist examples/hitbook/chinese/
 	@cp $(ARTFILES) hrb-bachelor-bottommark.eps examples/hitart/reports/
 	@mkdir -p examples/hitart/reports/figures && cp golfer.eps examples/hitart/reports/figures/
-	@cp $(PACKAGE)artplus.cls $(PACKAGE)art.cfg $(PACKAGE).bst hitszthesis.bst \
+	@cp $(PACKAGE)artplus.cls $(PACKAGE).bst hitszthesis.bst \
 	    hitlogo.eps bthesistitle.eps zfb.eps examples/hitart/reportplus/
 	@mkdir -p examples/hitart/reportplus/figures && cp golfer.eps examples/hitart/reportplus/figures/
 

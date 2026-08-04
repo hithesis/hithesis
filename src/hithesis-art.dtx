@@ -18,7 +18,7 @@
 % ^^A hithesis 的 art / artplus 家族实现
 % ^^A
 % ^^A 开题、中期报告（hithesisart）与深圳博士中期（hithesisartplus）两个类的
-% ^^A 全部代码，以及 art 类的配置文件 hithesisart.cfg。
+% ^^A 全部代码。
 % ^^A
 % ^^A 三个类共用的文件头（\NeedsTeXFormat、\ProvidesClass 等）留在 hithesis.dtx，
 % ^^A hithesis.ins 里每个 \file 先从那里取头，再从本文件取实现。
@@ -521,16 +521,178 @@
 %    \begin{macrocode}
 \ExplSyntaxOn
 \cs_new_protected:Npn \__hit_legacy_key:n #1
-  { \kvsetkeys { hit } { \l_keys_key_str = {#1} } }
+  {
+    \__hit_legacy_warn:
+    \kvsetkeys { hit } { \l_keys_key_str = {#1} }
+  }
 \clist_map_inline:nn { info , style , toc , bib , const }
   { \keys_define:nn { hit / #1 } { unknown .code:n = { \__hit_legacy_key:n {##1} } } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{元信息、可本地化字符串与参考文献选项正式注册进
+%   对应的族，不再依赖子族兜底转发。}
+% 元信息字段与可本地化字符串。做法与 \file{hithesisbook.cls} 相同：
+% 前者的处理器直接调用同名命令，后者的键名由宏名去掉 \texttt{hit@} 前缀、
+% 其余 \texttt{@} 换成连字符得来。
+%    \begin{macrocode}
+\clist_new:N \l__hit_info_clist
+\clist_set:Nn \l__hit_info_clist
+  {
+    caffil , cauthor , cclassid , cdate , cenrolldate , cstudentid , csubject
+    , csupervisor , ctitlecover , ctitleone , ctitletwo , ctype
+  }
+\prop_new:N \g__hit_info_prop
+\clist_map_inline:Nn \l__hit_info_clist
+  {
+    \keys_define:nn { hit / info } { #1 .code:n = { \use:c { #1 } {##1} } }
+    \prop_gput:Nnn \g__hit_info_prop {#1} { }
+  }
+\str_new:N \l__hit_const_name_str
+\cs_new_protected:Npn \__hit_const_set:n #1
+  {
+    \str_set_eq:NN \l__hit_const_name_str \l_keys_key_str
+    \str_replace_all:Nnn \l__hit_const_name_str { - } { @ }
+    \cs_gset:cpx { hit@ \l__hit_const_name_str } { \exp_not:n {#1} }
+  }
+\clist_map_inline:nn
+  {
+    bachelor-caffiltitle , bachelor-caffiltitlesz , bachelor-caffiltitlewh ,
+    bachelor-cclass , bachelor-cdatetitle , bachelor-checkdate , bachelor-
+    cmajortitle , bachelor-cstudentidtitle , bachelor-cstudenttitle ,
+    bachelor-csupervisortitle , bachelor-cthesisname , bachelor-cxuewei ,
+    bachelor-teachercomment , bachelor-teachersign , caffiltitle ,
+    cassosupervisortitle , cauthortitle , ccosupervisortitle , cdatetitle ,
+    cdegree , cdegreetitle , cschoolname , cschoolnametitle , csubjecttitle ,
+    csupervisortitle , cthesismidtermcheck , cthesisname , cthesistitleprefix
+    , cxuewei , cxueweishort , graduate-caffiltitle , graduate-cafflimajor ,
+    graduate-cmajortitle , graduate-datetitle , graduate-enrolldate ,
+    graduate-studentid , graduate-studenttitle , graduate-supervisor ,
+    graduate-thesistitle , hi , internatclassifiedindextitle ,
+    natclassifiedindextitle , schoolid , schoolidtitle , secretlevel ,
+    shenzhencampus , stage-doctype , stage-midterm , stage-opening , title-
+    csep , weihaicampus
+  }
+  { \keys_define:nn { hit / const } { #1 .code:n = { \__hit_const_set:n {##1} } } }
+%    \end{macrocode}
+%
+% 参考文献的三个选项，改用连字符命名。
+%    \begin{macrocode}
+\keys_define:nn { hit / bib }
+  {
+    label-align .code:n = { \str_set:Nn \g_bib_labelalign_str {#1} } ,
+    author-case .code:n =
+      { \str_if_eq:nnT {#1} { full } { \bool_set_true:N \g_bib_authorupper_bool } } ,
+    max-author .code:n =
+      {
+        \int_set:Nn \g_bib_maxauthor_int {#1}
+        \int_if_zero:nT { \g_bib_maxauthor_int } { \int_gdecr:N \g_bib_maxauthor_int }
+      } ,
+  }
+\keys_define:nn { hit / style }
+  {
+    ragged-bottom .choice: ,
+    ragged-bottom / true  .code:n = { \legacy_if_set_true:n  { hit@raggedbottom } } ,
+    ragged-bottom / false .code:n = { \legacy_if_set_false:n { hit@raggedbottom } } ,
+    ragged-bottom .default:n = true ,
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{加旧名到新名的映射表与废弃警告。}
+% 兼容期的处理，与 \file{hithesisbook.cls} 一致：旧名照常生效，只在日志里提示。
+%    \begin{macrocode}
+\prop_new:N \g__hit_rename_prop
+\prop_gset_from_keyval:Nn \g__hit_rename_prop
+  {
+    raggedbottom   = { style = { ragged-bottom = ... } } ,
+    biblabelalign  = { bib = { label-align = ... } } ,
+    bibauthorupper = { bib = { author-case = ... } } ,
+    bibmaxauthor   = { bib = { max-author = ... } } ,
+  }
+\msg_new:nnn { hithesis } { renamed-option }
+  {
+    选项~#1~已改名，请写成~\iow_char:N \\ hitsetup{#2}。 \\
+    旧名将在~v4.1a（2028~年主要版本）中移除。
+  }
+\msg_new:nnn { hithesis } { flat-info }
+  {
+    元信息字段的扁平写法已不推荐，例如~\iow_char:N \\ hitsetup{#1~=~...}， \\
+    请改写成~\iow_char:N \\ hitsetup{info~=~{#1~=~...}}。 \\
+    扁平写法将在~v4.1a（2028~年主要版本）中移除。
+  }
+\msg_new:nnn { hithesis } { style-in-classoptions }
+  {
+    排版选项~#1~不该写在~\iow_char:N \\ documentclass~的可选参数里， \\
+    请改用~\iow_char:N \\ hitsetup。 \\
+    在类选项里指定的支持将在~v4.1a（2028~年主要版本）中移除。
+  }
+\prop_new:N \g__hit_warned_prop
+\tl_new:N \l__hit_warn_tl
+\cs_generate_variant:Nn \prop_get:NnNTF { NV }
+\cs_generate_variant:Nn \msg_warning:nnn { nnV }
+\cs_new_protected:Npn \__hit_warn_once:nnn #1#2#3
+  {
+    \prop_if_in:NnF \g__hit_warned_prop {#1}
+      {
+        \prop_gput:Nnn \g__hit_warned_prop {#1} { }
+        \msg_warning:nnnn { hithesis } {#2} {#1} {#3}
+      }
+  }
+\cs_generate_variant:Nn \__hit_warn_once:nnn { VnV }
+\bool_new:N \g__hit_flat_info_bool
+\cs_new_protected:Npn \__hit_legacy_warn:
+  {
+    \prop_get:NVNTF \g__hit_rename_prop \l_keys_key_str \l__hit_warn_tl
+      { \__hit_warn_once:VnV \l_keys_key_str { renamed-option } \l__hit_warn_tl }
+      {
+        \bool_lazy_and:nnT
+          { ! \bool_if_p:N \g__hit_flat_info_bool }
+          { \prop_if_in_p:NV \g__hit_info_prop \l_keys_key_str }
+          {
+            \bool_gset_true:N \g__hit_flat_info_bool
+            \msg_warning:nnV { hithesis } { flat-info } \l_keys_key_str
+          }
+      }
+  }
+\clist_new:N \l__hit_classopt_clist
+\cs_new:Npn \__hit_opt_name:w #1 = #2 \q_stop { \tl_trim_spaces:n {#1} }
+\cs_new_protected:Npn \__hit_check_classoptions:
+  {
+    \cs_if_exist:cT { @classoptionslist }
+      {
+        \exp_args:NNv \clist_set:Nn \l__hit_classopt_clist { @classoptionslist }
+        \clist_map_inline:Nn \l__hit_classopt_clist
+          {
+            \tl_set:Nx \l__hit_warn_tl { \__hit_opt_name:w ##1 = \q_stop }
+            \prop_if_in:NVT \g__hit_rename_prop \l__hit_warn_tl
+              {
+                \exp_args:NV \__hit_warn_once:nnn \l__hit_warn_tl
+                  { style-in-classoptions } { }
+              }
+          }
+      }
+  }
+\__hit_check_classoptions:
+%    \end{macrocode}
+%
+% 根族路由。\option{toc} 既是族名又是老的布尔选项名，所以它单独处理：
+% 值是 \texttt{true}/\texttt{false} 时当老写法，其余当子族的键值表。
+%    \begin{macrocode}
 \keys_define:nn { hit }
   {
     info  .meta:nn = { hit / info  } {#1} ,
     style .meta:nn = { hit / style } {#1} ,
-    toc   .meta:nn = { hit / toc   } {#1} ,
     bib   .meta:nn = { hit / bib   } {#1} ,
     const .meta:nn = { hit / const } {#1} ,
+    toc .code:n =
+      {
+        \str_case:nnF {#1}
+          {
+            { true }  { \legacy_if_set_true:n  { hit@toc } }
+            { false } { \legacy_if_set_false:n { hit@toc } }
+          }
+          { \keys_set:nn { hit / toc } {#1} }
+      } ,
+    toc .default:n = true ,
     unknown .code:n = { \__hit_legacy_key:n {#1} } ,
   }
 \RenewDocumentCommand \hitsetup { m } { \keys_set:nn { hit } {#1} }
@@ -690,7 +852,6 @@
 % 杂项
 % \changes{v3.2a}{0000/00/00}{misc-artplus 模块合并为 artpluscls 内联钩子}
 %    \begin{macrocode}
-\AtEndOfClass{\input{hithesisart.cfg}}
 \AtEndOfClass{\sloppy}
 %</artpluscls-tail>
 %    \end{macrocode}
@@ -1454,17 +1615,179 @@
 % \texttt{hit} 族。转发时值要重新加花括号，否则含逗号的值会被二次拆分成多个键。
 %    \begin{macrocode}
 \ExplSyntaxOn
-\cs_gset_protected:Npn \__hit_legacy_key:n #1
-  { \kvsetkeys { hit } { \l_keys_key_str = {#1} } }
+\cs_new_protected:Npn \__hit_legacy_key:n #1
+  {
+    \__hit_legacy_warn:
+    \kvsetkeys { hit } { \l_keys_key_str = {#1} }
+  }
 \clist_map_inline:nn { info , style , toc , bib , const }
   { \keys_define:nn { hit / #1 } { unknown .code:n = { \__hit_legacy_key:n {##1} } } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{元信息、可本地化字符串与参考文献选项正式注册进
+%   对应的族，不再依赖子族兜底转发。}
+% 元信息字段与可本地化字符串。做法与 \file{hithesisbook.cls} 相同：
+% 前者的处理器直接调用同名命令，后者的键名由宏名去掉 \texttt{hit@} 前缀、
+% 其余 \texttt{@} 换成连字符得来。
+%    \begin{macrocode}
+\clist_new:N \l__hit_info_clist
+\clist_set:Nn \l__hit_info_clist
+  {
+    caffil , cauthor , cclassid , cdate , cenrolldate , cstudentid , csubject
+    , csupervisor , ctitlecover , ctitleone , ctitletwo , ctype
+  }
+\prop_new:N \g__hit_info_prop
+\clist_map_inline:Nn \l__hit_info_clist
+  {
+    \keys_define:nn { hit / info } { #1 .code:n = { \use:c { #1 } {##1} } }
+    \prop_gput:Nnn \g__hit_info_prop {#1} { }
+  }
+\str_new:N \l__hit_const_name_str
+\cs_new_protected:Npn \__hit_const_set:n #1
+  {
+    \str_set_eq:NN \l__hit_const_name_str \l_keys_key_str
+    \str_replace_all:Nnn \l__hit_const_name_str { - } { @ }
+    \cs_gset:cpx { hit@ \l__hit_const_name_str } { \exp_not:n {#1} }
+  }
+\clist_map_inline:nn
+  {
+    bachelor-caffiltitle , bachelor-caffiltitlesz , bachelor-caffiltitlewh ,
+    bachelor-cclass , bachelor-cdatetitle , bachelor-checkdate , bachelor-
+    cmajortitle , bachelor-cstudentidtitle , bachelor-cstudenttitle ,
+    bachelor-csupervisortitle , bachelor-cthesisname , bachelor-cxuewei ,
+    bachelor-teachercomment , bachelor-teachersign , caffiltitle ,
+    cassosupervisortitle , cauthortitle , ccosupervisortitle , cdatetitle ,
+    cdegree , cdegreetitle , cschoolname , cschoolnametitle , csubjecttitle ,
+    csupervisortitle , cthesismidtermcheck , cthesisname , cthesistitleprefix
+    , cxuewei , cxueweishort , graduate-caffiltitle , graduate-cafflimajor ,
+    graduate-cmajortitle , graduate-datetitle , graduate-enrolldate ,
+    graduate-studentid , graduate-studenttitle , graduate-supervisor ,
+    graduate-thesistitle , hi , internatclassifiedindextitle ,
+    natclassifiedindextitle , schoolid , schoolidtitle , secretlevel ,
+    shenzhencampus , stage-doctype , stage-midterm , stage-opening , title-
+    csep , weihaicampus
+  }
+  { \keys_define:nn { hit / const } { #1 .code:n = { \__hit_const_set:n {##1} } } }
+%    \end{macrocode}
+%
+% 参考文献的三个选项，改用连字符命名。
+%    \begin{macrocode}
+\keys_define:nn { hit / bib }
+  {
+    label-align .code:n = { \str_set:Nn \g_bib_labelalign_str {#1} } ,
+    author-case .code:n =
+      { \str_if_eq:nnT {#1} { full } { \bool_set_true:N \g_bib_authorupper_bool } } ,
+    max-author .code:n =
+      {
+        \int_set:Nn \g_bib_maxauthor_int {#1}
+        \int_if_zero:nT { \g_bib_maxauthor_int } { \int_gdecr:N \g_bib_maxauthor_int }
+      } ,
+  }
+\keys_define:nn { hit / style }
+  {
+    ragged-bottom .choice: ,
+    ragged-bottom / true  .code:n = { \legacy_if_set_true:n  { hit@raggedbottom } } ,
+    ragged-bottom / false .code:n = { \legacy_if_set_false:n { hit@raggedbottom } } ,
+    ragged-bottom .default:n = true ,
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{加旧名到新名的映射表与废弃警告。}
+% 兼容期的处理，与 \file{hithesisbook.cls} 一致：旧名照常生效，只在日志里提示。
+%    \begin{macrocode}
+\prop_new:N \g__hit_rename_prop
+\prop_gset_from_keyval:Nn \g__hit_rename_prop
+  {
+    raggedbottom   = { style = { ragged-bottom = ... } } ,
+    biblabelalign  = { bib = { label-align = ... } } ,
+    bibauthorupper = { bib = { author-case = ... } } ,
+    bibmaxauthor   = { bib = { max-author = ... } } ,
+  }
+\msg_new:nnn { hithesis } { renamed-option }
+  {
+    选项~#1~已改名，请写成~\iow_char:N \\ hitsetup{#2}。 \\
+    旧名将在~v4.1a（2028~年主要版本）中移除。
+  }
+\msg_new:nnn { hithesis } { flat-info }
+  {
+    元信息字段的扁平写法已不推荐，例如~\iow_char:N \\ hitsetup{#1~=~...}， \\
+    请改写成~\iow_char:N \\ hitsetup{info~=~{#1~=~...}}。 \\
+    扁平写法将在~v4.1a（2028~年主要版本）中移除。
+  }
+\msg_new:nnn { hithesis } { style-in-classoptions }
+  {
+    排版选项~#1~不该写在~\iow_char:N \\ documentclass~的可选参数里， \\
+    请改用~\iow_char:N \\ hitsetup。 \\
+    在类选项里指定的支持将在~v4.1a（2028~年主要版本）中移除。
+  }
+\prop_new:N \g__hit_warned_prop
+\tl_new:N \l__hit_warn_tl
+\cs_generate_variant:Nn \prop_get:NnNTF { NV }
+\cs_generate_variant:Nn \msg_warning:nnn { nnV }
+\cs_new_protected:Npn \__hit_warn_once:nnn #1#2#3
+  {
+    \prop_if_in:NnF \g__hit_warned_prop {#1}
+      {
+        \prop_gput:Nnn \g__hit_warned_prop {#1} { }
+        \msg_warning:nnnn { hithesis } {#2} {#1} {#3}
+      }
+  }
+\cs_generate_variant:Nn \__hit_warn_once:nnn { VnV }
+\bool_new:N \g__hit_flat_info_bool
+\cs_new_protected:Npn \__hit_legacy_warn:
+  {
+    \prop_get:NVNTF \g__hit_rename_prop \l_keys_key_str \l__hit_warn_tl
+      { \__hit_warn_once:VnV \l_keys_key_str { renamed-option } \l__hit_warn_tl }
+      {
+        \bool_lazy_and:nnT
+          { ! \bool_if_p:N \g__hit_flat_info_bool }
+          { \prop_if_in_p:NV \g__hit_info_prop \l_keys_key_str }
+          {
+            \bool_gset_true:N \g__hit_flat_info_bool
+            \msg_warning:nnV { hithesis } { flat-info } \l_keys_key_str
+          }
+      }
+  }
+\clist_new:N \l__hit_classopt_clist
+\cs_new:Npn \__hit_opt_name:w #1 = #2 \q_stop { \tl_trim_spaces:n {#1} }
+\cs_new_protected:Npn \__hit_check_classoptions:
+  {
+    \cs_if_exist:cT { @classoptionslist }
+      {
+        \exp_args:NNv \clist_set:Nn \l__hit_classopt_clist { @classoptionslist }
+        \clist_map_inline:Nn \l__hit_classopt_clist
+          {
+            \tl_set:Nx \l__hit_warn_tl { \__hit_opt_name:w ##1 = \q_stop }
+            \prop_if_in:NVT \g__hit_rename_prop \l__hit_warn_tl
+              {
+                \exp_args:NV \__hit_warn_once:nnn \l__hit_warn_tl
+                  { style-in-classoptions } { }
+              }
+          }
+      }
+  }
+\__hit_check_classoptions:
+%    \end{macrocode}
+%
+% 根族路由。\option{toc} 既是族名又是老的布尔选项名，所以它单独处理：
+% 值是 \texttt{true}/\texttt{false} 时当老写法，其余当子族的键值表。
+%    \begin{macrocode}
 \keys_define:nn { hit }
   {
     info  .meta:nn = { hit / info  } {#1} ,
     style .meta:nn = { hit / style } {#1} ,
-    toc   .meta:nn = { hit / toc   } {#1} ,
     bib   .meta:nn = { hit / bib   } {#1} ,
     const .meta:nn = { hit / const } {#1} ,
+    toc .code:n =
+      {
+        \str_case:nnF {#1}
+          {
+            { true }  { \legacy_if_set_true:n  { hit@toc } }
+            { false } { \legacy_if_set_false:n { hit@toc } }
+          }
+          { \keys_set:nn { hit / toc } {#1} }
+      } ,
+    toc .default:n = true ,
     unknown .code:n = { \__hit_legacy_key:n {#1} } ,
   }
 \RenewDocumentCommand \hitsetup { m } { \keys_set:nn { hit } {#1} }
@@ -1842,7 +2165,6 @@
 % 杂项
 % \changes{v3.2a}{0000/00/00}{misc-art 模块合并为 artcls 内联钩子}
 %    \begin{macrocode}
-\AtEndOfClass{\input{hithesisart.cfg}}
 \AtEndOfClass{\sloppy}
 %</artcls-tail>
 %    \end{macrocode}

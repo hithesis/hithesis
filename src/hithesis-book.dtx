@@ -17,7 +17,7 @@
 % ^^A ======================================================================
 % ^^A hithesis 的 book 家族实现
 % ^^A
-% ^^A 毕业论文类 hithesisbook 的全部代码，以及配置文件 hithesisbook.cfg。
+% ^^A 毕业论文类 hithesisbook 的全部代码。
 % ^^A
 % ^^A 类文件头（\NeedsTeXFormat、\ProvidesClass 等）留在 hithesis.dtx，
 % ^^A hithesis.ins 里每个 \file 先从那里取头，再从本文件取实现。
@@ -484,7 +484,6 @@
 %
 %<*bookcls-tail>
 %    \begin{macrocode}
-\AtEndOfClass{\input{hithesisbook.cfg}}
 \AtEndOfClass{\sloppy}
 %    \end{macrocode}
 %
@@ -2716,7 +2715,10 @@ breaklines=true
 %    \begin{macrocode}
 \ExplSyntaxOn
 \cs_new_protected:Npn \__hit_legacy_key:n #1
-  { \kvsetkeys { hit } { \l_keys_key_str = {#1} } }
+  {
+    \__hit_legacy_warn:
+    \kvsetkeys { hit } { \l_keys_key_str = {#1} }
+  }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{加三态取值机制。选项可取 \texttt{auto}、
@@ -2799,8 +2801,103 @@ breaklines=true
           }
       }
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\file{cfg} 里的可本地化字符串做成 \texttt{hit/const}
+%   族的键，用户在导言区即可改写，不必去动生成物。}
+% 类文件里定义了一批可本地化的字符串：封面各字段的标签、声明与授权的正文、
+% 签名栏文字等。各院系叫法不一，用户有改的需要，原先要改就得动生成物。
+% 这里把它们做成键：
+% \begin{latex}
+% \hitsetup{ const = { csupervisortitle = {导师} } }
+% \end{latex}
+% 键名由宏名机械地得来：去掉 \texttt{hit@} 前缀，其余的 \texttt{@} 换成连字符，
+% 所以 \cs{hit@ckeywords@separator} 对应 \texttt{ckeywords-separator}。
+% 默认值在类文件末尾给出，\cs{hitsetup} 在导言区执行，所以用户设的值覆盖默认值。
+%    \begin{macrocode}
+\str_new:N \l__hit_const_name_str
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{元信息字段正式注册进 \texttt{hit/info} 族，
+%   不再依赖子族兜底转发。}
+% 元信息字段。这批由 \cs{hit@def@term} 与 \cs{hit@parse@keywords} 批量生成，
+% 每个字段同时有一个同名命令（\cs{ctitle} 等），键的处理器直接调用那个命令，
+% 所以三种写法结果一致：\cs{hitsetup} 的扁平写法、分族写法、以及命令写法。
+%    \begin{macrocode}
+\clist_new:N \l__hit_info_clist
+\clist_set:Nn \l__hit_info_clist
+  {
+    statesecrets , natclassifiedindex , intclassifiedindex , ctitlecover ,
+    ctitle , csubtitle , cxueke , cauthor , csupervisor , cassosupervisor ,
+    ccosupervisor , caffil , csubject , firstpagecdate , cdate , cnumber ,
+    cpositionname , cfinishdate , csubmitdate , cstartdate , cenddate ,
+    cstudentid , cstudenttype , ctitleone , ctitletwo , etitle , esubtitle ,
+    exueke , eauthor , esupervisor , eassosupervisor , ecosupervisor , eaffil
+    , esubject , edate , estudenttype , ckeywords , ekeywords
+  }
+\prop_new:N \g__hit_info_prop
+\clist_map_inline:Nn \l__hit_info_clist
+  {
+    \keys_define:nn { hit / info } { #1 .code:n = { \use:c { #1 } {##1} } }
+    \prop_gput:Nnn \g__hit_info_prop {#1} { }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_const_set:n #1
+  {
+    \str_set_eq:NN \l__hit_const_name_str \l_keys_key_str
+    \str_replace_all:Nnn \l__hit_const_name_str { - } { @ }
+    \cs_gset:cpx { hit@ \l__hit_const_name_str } { \exp_not:n {#1} }
+  }
+\clist_map_inline:nn
+  {
+    acknowledgement-ctitle , acknowledgement-etitle , authorization-ctitle ,
+    authorization-etitle , authorizationtext , authorizationtext-bachelor ,
+    authorizationtitle , authorsig , bachelor-caffiltitle , bachelor-cdatetitle
+    , bachelor-checkdate , bachelor-cstudenttitle , bachelor-cthesisname ,
+    bachelor-cxuewei , bachelor-teachercomment , bachelor-teachersign , bibname-
+    etitle , caffiltitle , cassosupervisortitle , cauthortitle , cbraceleft ,
+    cbraceright , ccosupervisortitle , cdatetitle , cdegree , cdegreetitle ,
+    ckeywords-separator , ckeywords-title , conclusion-ctitle , conclusion-
+    etitle , correspondingaddr-ctitle , cschoolname , cschoolnametitle ,
+    csubjecttitle , csupervisortitle , cthesisname , cthesistitleprefix ,
+    cxuewei , cxueweishort , datefill , declarename , declarename-bachelor ,
+    declaretext , denotation-ctitle , denotation-etitle , doctorpublication-
+    ctitle , eaffiltitle , eassosupervisortitle , eauthortitle , ebraceleft ,
+    ebraceright , ecosupervisortitle , edatetitle , edegree , edegreetitle ,
+    ekeywords-separator , eschoolname , eschoolnametitle , esubjecttitle ,
+    esupervisortitle , exuewei , exueweier , frontdate , graduate-caffiltitle ,
+    graduate-cafflimajor , graduate-cmajortitle , graduate-datetitle , graduate-
+    enrolldate , graduate-studentid , graduate-studenttitle , graduate-
+    supervisor , graduate-thesistitle , harbin-bachelor-schoolbottommark ,
+    harbin-schoolbottommark , harbincampus , hi , index-etitle ,
+    internatclassifiedindextitle , natclassifiedindextitle , postdoc-UDC ,
+    postdoc-authorname , postdoc-classifiedindex , postdoc-documenttitle ,
+    postdoc-documenttitlenospace , postdoc-enddate , postdoc-finishdate ,
+    postdoc-major , postdoc-number , postdoc-positionname , postdoc-secretlevel
+    , postdoc-separator , postdoc-startdate , postdoc-submitdate , postdoc-
+    supervisor , publication-ctitle , publication-etitle , resolution-ctitle ,
+    resolution-etitle , resume-ctitle , resume-etitle , schoolid , schoolidtitle
+    , second-authorizationtext-bachelor , secretlevel , shenzhen-doctor-midterm-
+    note , shenzhen-schoolbottommark , shenzhencampus , shenzhencampus-postdoc ,
+    inline-sep , stage-doctype , stage-midterm , stage-opening ,
+    teachersig , title-csep ,
+    title-esep , weihaicampus
+  }
+  { \keys_define:nn { hit / const } { #1 .code:n = { \__hit_const_set:n {##1} } } }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
 \keys_define:nn { hit / style }
   {
+    ziju .choices:nn = { regu , word }
+      {
+        \legacy_if_set_false:n { hit@zijvregu }
+        \legacy_if_set_false:n { hit@zijvword }
+        \legacy_if_set_true:n { hit@zijv \l_keys_choice_tl }
+      } ,
+    ziju .value_required:n = true ,
     headrule .code:n = { \__hit_tri_set:Nn \g__hit_headrule_tl {#1} } ,
     pagenumberline .meta:nn = { hit / style / pagenumberline } {#1} ,
   }
@@ -2863,6 +2960,133 @@ breaklines=true
     split-item / false .code:n = { \legacy_if_set_false:n { hit@splitbibitem } } ,
     split-item .default:n = true ,
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{加旧名到新名的映射表与废弃警告。旧名照常生效，
+%   只是编译时提示新写法。}
+% 兼容期的处理。旧名一律照常生效，只在日志里给一条提示。三类提示分开：
+% 改过名的选项逐个报，元信息字段的扁平写法合并成一条报，
+% \cs{documentclass} 里传排版类选项单独报。
+%    \begin{macrocode}
+\prop_new:N \g__hit_rename_prop
+\prop_gset_from_keyval:Nn \g__hit_rename_prop
+  {
+    arialtoc         = { toc = { sans-font = ... } } ,
+    tocfour          = { toc = { four = ... } } ,
+    tocblank         = { toc = { blank = ... } } ,
+    engtoc           = { toc = { english = ... } } ,
+    arialtitle       = { style = { sans-title = ... } } ,
+    chapterbold      = { style = { chapter-bold = ... } } ,
+    chapterhang      = { style = { chapter-hang = ... } } ,
+    capcenterlast    = { style = { caption-center-last = ... } } ,
+    subcapcenterlast = { style = { subcaption-center-last = ... } } ,
+    absupper         = { style = { abstract-upper = ... } } ,
+    etitleauto       = { style = { etitle-auto = ... } } ,
+    glue             = { style = { glue = ... } } ,
+    openright        = { style = { open-right = ... } } ,
+    library          = { style = { library = ... } } ,
+    raggedbottom     = { style = { ragged-bottom = ... } } ,
+    zijv             = { style = { ziju = ... } } ,
+    bsheadrule       = { style = { headrule = ... } } ,
+    bsmainpagenumberline  = { style = { pagenumberline = { mainmatter = ... } } } ,
+    bsfrontpagenumberline = { style = { pagenumberline = { frontmatter = ... } } } ,
+    citetwo          = { bib = { adjacent-cite = ... } } ,
+    splitbibitem     = { bib = { split-item = ... } } ,
+    biblabelalign    = { bib = { label-align = ... } } ,
+    bibauthorupper   = { bib = { author-case = ... } } ,
+    bibmaxauthor     = { bib = { max-author = ... } } ,
+  }
+%    \end{macrocode}
+%
+% 提示文案。\texttt{v4.1a} 是兼容期结束后的第一个主要版本。
+%    \begin{macrocode}
+\msg_new:nnn { hithesis } { renamed-option }
+  {
+    选项~#1~已改名，请写成~\iow_char:N \\ hitsetup{#2}。 \\
+    旧名将在~v4.1a（2028~年主要版本）中移除。
+  }
+\msg_new:nnn { hithesis } { flat-info }
+  {
+    元信息字段的扁平写法已不推荐，例如~\iow_char:N \\ hitsetup{#1~=~...}， \\
+    请改写成~\iow_char:N \\ hitsetup{info~=~{#1~=~...}}。 \\
+    扁平写法将在~v4.1a（2028~年主要版本）中移除。
+  }
+\msg_new:nnn { hithesis } { style-in-classoptions }
+  {
+    排版选项~#1~不该写在~\iow_char:N \\ documentclass~的可选参数里， \\
+    请改用~\iow_char:N \\ hitsetup。 \\
+    在类选项里指定的支持将在~v4.1a（2028~年主要版本）中移除。
+  }
+\msg_new:nnn { hithesis } { manual-sides }
+  {
+    单双面由学位与校区决定，类选项~#1~会被模板覆盖。 \\
+    如果确实需要另行指定，请联系模板维护者说明用途。
+  }
+%    \end{macrocode}
+%
+% 报过的名字记下来，同一个名字只报一次。元信息字段合并成一条，
+% 用第一个碰到的字段名举例。
+%    \begin{macrocode}
+\prop_new:N \g__hit_warned_prop
+\tl_new:N \l__hit_warn_tl
+\cs_generate_variant:Nn \prop_get:NnNTF { NV }
+\cs_generate_variant:Nn \msg_warning:nnn { nnV }
+\cs_new_protected:Npn \__hit_warn_once:nnn #1#2#3
+  {
+    \prop_if_in:NnF \g__hit_warned_prop {#1}
+      {
+        \prop_gput:Nnn \g__hit_warned_prop {#1} { }
+        \msg_warning:nnnn { hithesis } {#2} {#1} {#3}
+      }
+  }
+\cs_generate_variant:Nn \__hit_warn_once:nnn { VnV }
+\bool_new:N \g__hit_flat_info_bool
+\cs_new_protected:Npn \__hit_legacy_warn:
+  {
+    \prop_get:NVNTF \g__hit_rename_prop \l_keys_key_str \l__hit_warn_tl
+      {
+        \__hit_warn_once:VnV \l_keys_key_str
+          { renamed-option } \l__hit_warn_tl
+      }
+      {
+        \bool_lazy_and:nnT
+          { ! \bool_if_p:N \g__hit_flat_info_bool }
+          { \prop_if_in_p:NV \g__hit_info_prop \l_keys_key_str }
+          {
+            \bool_gset_true:N \g__hit_flat_info_bool
+            \msg_warning:nnV { hithesis } { flat-info } \l_keys_key_str
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \cs{documentclass} 的可选参数里出现排版选项时提示一次。
+% \cs{@classoptionslist} 在选项处理完之后仍然保留，所以放到这里扫描。
+%    \begin{macrocode}
+\clist_new:N \l__hit_classopt_clist
+\cs_new:Npn \__hit_opt_name:w #1 = #2 \q_stop { \tl_trim_spaces:n {#1} }
+\cs_new_protected:Npn \__hit_check_classoptions:
+  {
+    \cs_if_exist:cT { @classoptionslist }
+      {
+        \exp_args:NNv \clist_set:Nn \l__hit_classopt_clist { @classoptionslist }
+        \clist_map_inline:Nn \l__hit_classopt_clist
+          {
+            \tl_set:Nx \l__hit_warn_tl { \__hit_opt_name:w ##1 = \q_stop }
+            \prop_if_in:NVT \g__hit_rename_prop \l__hit_warn_tl
+              {
+                \exp_args:NV \__hit_warn_once:nnn \l__hit_warn_tl
+                  { style-in-classoptions } { }
+              }
+            \clist_if_in:nVT { oneside , twoside } \l__hit_warn_tl
+              {
+                \exp_args:NV \__hit_warn_once:nnn \l__hit_warn_tl
+                  { manual-sides } { }
+              }
+          }
+      }
+  }
+\__hit_check_classoptions:
 \keys_define:nn { hit }
   {
     info  .meta:nn = { hit / info  } {#1} ,

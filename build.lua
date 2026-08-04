@@ -3,7 +3,7 @@
 -- l3build 随 TeX Live 发行，装了 TeX 就有，不依赖 make / bash / python，
 -- 三个平台都能原生跑。常用命令：
 --
---   l3build unpack     跑 docstrip 生成 cls/cfg/bst/ist/eps
+--   l3build unpack     跑 docstrip 生成 cls/bst/ist/eps
 --   l3build distribute 把生成物拷进四个示例目录，等价于 make distribute
 --   l3build doc        编译用户手册 hithesis.pdf
 --   l3build install    装进本地 TEXMFHOME
@@ -21,7 +21,7 @@ unpackfiles = {"hithesis.ins"}
 
 -- 装进 TEXMF 的东西。examples 里那几份副本由下面的 distribute 目标分发，
 -- 不属于安装内容。
-installfiles = {"*.cls", "*.cfg", "*.ist", "*.bst", "*.eps", "*.sty"}
+installfiles = {"*.cls", "*.ist", "*.bst", "*.eps", "*.sty"}
 
 typesetfiles = {"hithesis.dtx"}
 typesetexe   = "xelatex"
@@ -48,12 +48,12 @@ unpackopts  = "-interaction=nonstopmode"
 -- distribute 目标是等价实现，两边的文件清单要一起改。没让 Makefile 直接转调
 -- 这里，是因为 l3build 不在 scheme-minimal 里，那样会把它变成 make 的硬依赖。
 local BOOKFILES = {
-  "hithesisbook.cls", "hithesisbook.cfg", "hithesis.bst", "hitszthesis.bst",
+  "hithesisbook.cls", "hithesis.bst", "hitszthesis.bst",
   "hitlogo.eps", "bthesistitle.eps", "shenzhenbthesistitle.eps", "zfb.eps",
   "hrb-bachelor-bottommark.eps",
 }
 local ARTFILES = {
-  "hithesisart.cls", "hithesisart.cfg", "hithesis.bst", "hitszthesis.bst",
+  "hithesisart.cls", "hithesis.bst", "hitszthesis.bst",
   "hitlogo.eps", "bthesistitle.eps", "zfb.eps",
 }
 
@@ -93,7 +93,7 @@ local function distribute()
   if one("hithesis.ist", "examples/hitbook/chinese") ~= 0 then return 1 end
   if put(ARTFILES, "examples/hitart/reports") ~= 0 then return 1 end
   if one("hrb-bachelor-bottommark.eps", "examples/hitart/reports") ~= 0 then return 1 end
-  if put({"hithesisartplus.cls", "hithesisart.cfg", "hithesis.bst",
+  if put({"hithesisartplus.cls", "hithesis.bst",
           "hitszthesis.bst", "hitlogo.eps", "bthesistitle.eps", "zfb.eps"},
          "examples/hitart/reportplus") ~= 0 then return 1 end
   return 0
