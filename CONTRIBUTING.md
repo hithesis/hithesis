@@ -276,6 +276,11 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 所以留着不动。`\ifthenelse{\equal{#1}{...}}` 比较章标题的两处也留着——`\equal`
 与 `\str_if_eq:nn` 对健壮命令的处理不完全一样，换了不保险。
 
+`\ExplSyntaxOn` 也不能写进宏参数里。`\hit@if{english}{\ExplSyntaxOn\cs_new:Npn …}`
+看着像能用，其实参数在调用处就记号化完了，那时 `_` 和 `:` 还不是字母，`\cs_new:Npn`
+被拆成 `\cs` 加一串杂字符。整份类文件都编不过，二十四个变体直接没有产物。
+正确写法是把开关放到 `\hit@if` 外面，两个分支都在 expl3 语法下。
+
 有些宏不能转，转了行为就变。`\@afterheading` 里 `\clubpenalty 1` 后面紧跟
 `\if@afterindent`，TeX 扫描惩罚值时会把这个可展开的条件一起展开，条件是在扫描
 过程中求值的。换成 protected 的 `\legacy_if:nF` 之后扫描立刻结束，求值时机变了，
