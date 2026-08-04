@@ -338,38 +338,59 @@
 % \changes{v3.2a}{0000/00/00}{选项后处理（shenzhen重定向、type校验、PassOptions、fontset/zijv/geometrynew 默认）从 bookcls 移入 book-options，cls 只保留 LoadClass}
 % 深圳校区本科现在直接指向本部本科模板，旧深圳本科模板代码暂时保留。
 %    \begin{macrocode}
-\ifhit@shenzhen
-  \ifhit@bachelor
-    \hit@shenzhenfalse
-    \hit@harbintrue
-  \fi
-\fi
+\ExplSyntaxOn
+\bool_lazy_and:nnT
+  { \legacy_if_p:n { hit@shenzhen } }
+  { \legacy_if_p:n { hit@bachelor } }
+  {
+    \legacy_if_set_false:n { hit@shenzhen }
+    \legacy_if_set_true:n { hit@harbin }
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 校区与学位这时才定下来，\option{bsfrontpagenumberline} 的默认值在此补齐。
 % 用户显式设过就不动。
 %    \begin{macrocode}
-\ifhit@bsfront@given\else
-  \ifhit@harbin\ifhit@bachelor
-    \hit@bsfrontpagenumberlinetrue
-  \fi\fi
-\fi
+\ExplSyntaxOn
+\legacy_if:nF { hit@bsfront@given }
+  {
+    \bool_lazy_and:nnT
+      { \legacy_if_p:n { hit@harbin } }
+      { \legacy_if_p:n { hit@bachelor } }
+      { \legacy_if_set_true:n { hit@bsfrontpagenumberline } }
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 用户至少要提供一个选项，指定论文类型。
 % \changes{v3.0.0}{2020/05/20}{此处添加博后选项}
 %    \begin{macrocode}
-\ifhit@bachelor\relax\else
-  \ifhit@master\relax\else
-    \ifhit@doctor\relax\else
-      \ifhit@postdoc\relax\else
+%    \end{macrocode}
+%
+% 这条校验目前触发不到。选项解析之前有一段兜底，在 \option{master}、
+% \option{doctor}、\option{postdoc} 都未置位时把 \option{bachelor} 置真，
+% 而那段兜底在 \cs{ProcessKeyvalOptions} 之前执行，所以到这里
+% \option{bachelor} 一定为真，四个条件不可能同时落空。实测
+% \cs{documentclass}\oarg{campus=harbin} 不给 \option{type} 时不报错，
+% 直接按本科排版。\file{hithesisart.cls} 没有这段兜底，它的同名校验能正常
+% 触发。改动会让不写 \option{type} 的文档从「默认本科」变成报错，属用户
+% 可见变更，此处只记录。
+%    \begin{macrocode}
+\def\hit@book@error@type{%
         \ClassError{hithesis}{%
         \MessageBreak Please specify thesis type in option:
-          \MessageBreak type=[bachelor | master | doctor | postdoc]}{}
-      \fi
-    \fi
-  \fi
-\fi
+          \MessageBreak type=[bachelor | master | doctor | postdoc]}{}}
+\ExplSyntaxOn
+\bool_lazy_any:nF
+  {
+    { \legacy_if_p:n { hit@bachelor } }
+    { \legacy_if_p:n { hit@master } }
+    { \legacy_if_p:n { hit@doctor } }
+    { \legacy_if_p:n { hit@postdoc } }
+  }
+  { \hit@book@error@type }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 使用 \XeTeX\ 引擎时，\pkg{fontspec} 宏包会被 \pkg{xeCJK} 自动调用。传递
@@ -383,15 +404,13 @@
 % \changes{v3.0.17}{2022/02/23}{\pkg{newtx} 更新至 v1.7 版本后与 \pkg{ctex} 宏包冲突, 需要手动引入 \option{nofontspec} 选项. 判断方法为是否存在 v1.7 更新后的新宏包 \pkg{newtx.sty}}
 % 载入单双面打印设置，本、硕单面，博士双面。
 %    \begin{macrocode}
-\ifhit@bachelor
-\PassOptionsToClass{oneside}{book}
-\fi
-\ifhit@master
-\PassOptionsToClass{oneside}{book}
-\fi
-\ifhit@doctor
-\PassOptionsToClass{twoside}{book}
-\fi
+\ExplSyntaxOn
+\bool_lazy_or:nnT
+  { \legacy_if_p:n { hit@bachelor } }
+  { \legacy_if_p:n { hit@master } }
+  { \PassOptionsToClass { oneside } { book } }
+\legacy_if:nT { hit@doctor } { \PassOptionsToClass { twoside } { book } }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % \changes{v1.0.02}{2017/08/27}{添加了思源字体说明}
@@ -401,42 +420,40 @@
 % 字体版本为Adobe版。
 %    \begin{macrocode}
 \RequirePackage{ifthen}
-\ifthenelse%
-{\equal{\hit@fontset}{}}%
-{%
-  \PassOptionsToPackage{AutoFakeBold=2}{xeCJK}
-}%
-{%
-  \ifthenelse%
-  {\equal{\hit@fontset}{siyuan}}%
-  {\relax}%
-  {%
-    \PassOptionsToPackage{AutoFakeBold=2}{xeCJK}
-  }%
-  \PassOptionsToClass{fontset=\hit@fontset}{ctexbook}
-}%
+\ExplSyntaxOn
+\tl_if_empty:NTF \hit@fontset
+  { \PassOptionsToPackage { AutoFakeBold=2 } { xeCJK } }
+  {
+    \str_if_eq:VnF \hit@fontset { siyuan }
+      { \PassOptionsToPackage { AutoFakeBold=2 } { xeCJK } }
+    \PassOptionsToClass { fontset=\hit@fontset } { ctexbook }
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 设置字距默认选项
 % \changes{v3.0.13}{2020/11/10}{设置字距默认选项}
 %    \begin{macrocode}
-\ifhit@zijvregu\relax\else
-  \ifhit@zijvword\relax\else
-    \hit@zijvregutrue
-  \fi
-\fi
+\ExplSyntaxOn
+\bool_lazy_or:nnF
+  { \legacy_if_p:n { hit@zijvregu } }
+  { \legacy_if_p:n { hit@zijvword } }
+  { \legacy_if_set_true:n { hit@zijvregu } }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 重新设置geometry的默认选项
 % \changes{v3.0.13}{2020/11/10}{重新设置geometry的默认选项}
 %    \begin{macrocode}
-\ifhit@geometrynewone\relax\else
-  \ifhit@geometrynewtwo\relax\else
-    \ifhit@geometrynewno\relax\else
-      \hit@geometrynewtwotrue
-    \fi
-  \fi
-\fi
+\ExplSyntaxOn
+\bool_lazy_any:nF
+  {
+    { \legacy_if_p:n { hit@geometrynewone } }
+    { \legacy_if_p:n { hit@geometrynewtwo } }
+    { \legacy_if_p:n { hit@geometrynewno } }
+  }
+  { \legacy_if_set_true:n { hit@geometrynewtwo } }
+\ExplSyntaxOff
 %</book-options>
 %<*bookcls-load>
 %    \end{macrocode}
