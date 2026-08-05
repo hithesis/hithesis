@@ -3372,8 +3372,51 @@
         \bool_gset_true:N \g__hit_subreuse_bool
       }
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{旧写法加废弃提示（\issue[284]）}
+% 旧写法的提示。每种只报一次，用 \cs{\_\_hit\_warn\_once:nnn} 记名。\pkg{subfigure}
+% 专有的开关与命令没有对应写法，报出来总比「未定义控制序列」强。
+%    \begin{macrocode}
+\msg_new:nnn { hithesis } { deprecated-subfig }
+  {
+    #2 \\
+    请改写成~\iow_char:N \\ subfigure[\iow_char:N \\ bisubcaption{中文}{英文}]%
+    {\iow_char:N \\ label{键}图}。 \\
+    旧写法将在~v4.1（2028~年主要版本）中移除。
+  }
+\msg_new:nnn { hithesis } { removed-subfig }
+  {
+    \iow_char:N \\ #1~是~subfigure~宏包的东西，模板已改用~subcaption，这条已经失效。 \\
+    请改用~\iow_char:N \\ #2。
+  }
+\msg_new:nnn { hithesis } { removed-subfig-none }
+  {
+    \iow_char:N \\ #1~是~subfigure~宏包的东西，模板已改用~subcaption，这条已经失效。 \\
+    subcaption~没有对应写法。
+  }
+\cs_new_protected:Npn \__hit_sub_dropped:nn #1#2
+  { \__hit_warn_once:nnn {#1} { removed-subfig } {#2} }
+\clist_map_inline:nn
+  { subcaphang , subcapcenter , subcapnooneline , subcapraggedright }
+  {
+    \cs_new_protected:cpn { #1 true }
+      { \__hit_sub_dropped:nn {if#1} { captionsetup[sub] } }
+    \cs_new_protected:cpn { #1 false }
+      { \__hit_sub_dropped:nn {if#1} { captionsetup[sub] } }
+  }
+\cs_new_protected:Npn \listsubcaptions
+  { \__hit_warn_once:nnn { listsubcaptions } { removed-subfig-none } { } }
+%    \end{macrocode}
+%
+% 拆嵌套写法之前先提示。
+%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_sub_unnest:nw #1 \subfigure [#2]#3 \q_stop
-  { \__hit_sub_bi:nnn {#2} {#1} {#3} }
+  {
+    \__hit_warn_once:nnn { nested-subfigure } { deprecated-subfig }
+      { 嵌套的~subfigure~写法已不推荐。 }
+    \__hit_sub_bi:nnn {#2} {#1} {#3}
+  }
 \cs_new_protected:Npn \__hit_sub_bi:w \bisubcaption #1#2 \q_stop #3
   { \__hit_sub_bi:nnn {#1} {#2} {#3} }
 \cs_new_protected:Npn \__hit_sub_nocap:n #1
@@ -3387,6 +3430,8 @@
     \dim_compare:nNnTF { \box_wd:N \l__hit_sub_box } = { 0pt }
       {
         \tl_gset_eq:NN \g__hit_subpending_tl \g__hit_sublabel_tl
+        \__hit_warn_once:nnn { empty-subfigure } { deprecated-subfig }
+          { 用空的~subfigure~占标签已不推荐。 }
         \leavevmode
         \__hit_sub_eat_rewind:
       }
