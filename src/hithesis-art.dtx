@@ -45,8 +45,8 @@
 % 进来，里面的空格照原样保留；替换旧写法时注意 \cs{fi} 后面被跳过的那个空格。
 %    \begin{macrocode}
 \ExplSyntaxOn
-\cs_new:Npn \hit@if #1#2#3 { \legacy_if:nTF { hit@#1 } {#2} {#3} }
-\cs_new:Npn \hit@ifT #1#2 { \legacy_if:nT { hit@#1 } {#2} }
+\cs_new:Npn \hit@if #1#2#3 { \bool_if:cTF { g__hit_#1_bool } {#2} {#3} }
+\cs_new:Npn \hit@ifT #1#2 { \bool_if:cT { g__hit_#1_bool } {#2} }
 \cs_new:Npn \hit@iffontset #1#2#3
   { \str_if_eq:eeTF { \hit@fontset } {#1} {#2} {#3} }
 \cs_new_protected:Npn \hit@ifnotempty #1#2 { \tl_if_empty:NF #1 {#2} }
@@ -54,11 +54,11 @@
 \cs_new:Npn \hit@ifand #1#2#3#4
   {
     \bool_lazy_and:nnTF
-      { \legacy_if_p:n { hit@#1 } } { \legacy_if_p:n { hit@#2 } } {#3} {#4}
+      { \bool_if_p:c { g__hit_#1_bool } } { \bool_if_p:c { g__hit_#2_bool } } {#3} {#4}
   }
 \cs_new:Npn \hit@ifstage
   {
-    \legacy_if:nTF { hit@opening }
+    \bool_if:NTF \g__hit_opening_bool
       { \hit@stage@opening } { \hit@ifT { midterm } { \hit@stage@midterm } }
   }
 \cs_new:Npn \hit@ifwidema #1
@@ -66,18 +66,18 @@
     \bool_lazy_and:nnT
       {
         \bool_lazy_or_p:nn
-          { \legacy_if_p:n { hit@weihai } } { \legacy_if_p:n { hit@shenzhen } }
+          { \bool_if_p:N \g__hit_weihai_bool } { \bool_if_p:N \g__hit_shenzhen_bool }
       }
-      { \legacy_if_p:n { hit@master } }
+      { \bool_if_p:N \g__hit_master_bool }
       {#1}
   }
 \cs_new:Npn \hit@ifszmaop #1#2
   {
     \bool_lazy_all:nTF
       {
-        { \legacy_if_p:n { hit@shenzhen } }
-        { \legacy_if_p:n { hit@master } }
-        { \legacy_if_p:n { hit@opening } }
+        { \bool_if_p:N \g__hit_shenzhen_bool }
+        { \bool_if_p:N \g__hit_master_bool }
+        { \bool_if_p:N \g__hit_opening_bool }
       }
       {#1} {#2}
   }
@@ -85,11 +85,11 @@
   {
     \bool_lazy_all:nT
       {
-        { \legacy_if_p:n { hit@harbin } }
-        { \legacy_if_p:n { hit@master } }
+        { \bool_if_p:N \g__hit_harbin_bool }
+        { \bool_if_p:N \g__hit_master_bool }
         {
           \bool_lazy_or_p:nn
-            { \legacy_if_p:n { hit@opening } } { \legacy_if_p:n { hit@midterm } }
+            { \bool_if_p:N \g__hit_opening_bool } { \bool_if_p:N \g__hit_midterm_bool }
         }
       }
       {#1}
@@ -98,11 +98,11 @@
   {
     \bool_lazy_all:nTF
       {
-        { \legacy_if_p:n { hit@harbin } }
-        { \legacy_if_p:n { hit@master } }
+        { \bool_if_p:N \g__hit_harbin_bool }
+        { \bool_if_p:N \g__hit_master_bool }
         {
           \bool_lazy_or_p:nn
-            { \legacy_if_p:n { hit@opening } } { \legacy_if_p:n { hit@midterm } }
+            { \bool_if_p:N \g__hit_opening_bool } { \bool_if_p:N \g__hit_midterm_bool }
         }
       }
       {#1} {#2}
@@ -111,9 +111,9 @@
   {
     \bool_lazy_all:nTF
       {
-        { \legacy_if_p:n { hit@shenzhen } }
-        { \legacy_if_p:n { hit@opening } }
-        { \legacy_if_p:n { hit@master } }
+        { \bool_if_p:N \g__hit_shenzhen_bool }
+        { \bool_if_p:N \g__hit_opening_bool }
+        { \bool_if_p:N \g__hit_master_bool }
       }
       {#1} {#2}
   }
@@ -121,9 +121,9 @@
   {
     \bool_lazy_all:nTF
       {
-        { \legacy_if_p:n { hit@harbin } }
-        { \legacy_if_p:n { hit@opening } }
-        { \legacy_if_p:n { hit@master } }
+        { \bool_if_p:N \g__hit_harbin_bool }
+        { \bool_if_p:N \g__hit_opening_bool }
+        { \bool_if_p:N \g__hit_master_bool }
       }
       {#1} {#2}
   }
@@ -134,46 +134,50 @@
 %    \begin{macrocode}
 
 %% 处理文档类选项
-\RequirePackage{kvoptions}
-\SetupKeyvalOptions{
-  family=hit,
-  prefix=hit@,
-  setkeys=\kvsetkeys
-}
-
-\newif\ifhit@bachelor
-\newif\ifhit@master
-\newif\ifhit@doctor
-\define@key{hit}{type}{%
-  \hit@bachelorfalse
-  \hit@masterfalse
-  \hit@doctorfalse
-  \expandafter\csname hit@#1true\endcsname
-}
-
-\newif\ifhit@shenzhen
-\newif\ifhit@weihai
-\newif\ifhit@harbin
-\define@key{hit}{campus}{%
-  \hit@shenzhenfalse
-  \hit@weihaifalse
-  \hit@harbinfalse
-  \expandafter\csname hit@#1true\endcsname
-}
 \ExplSyntaxOn
-\bool_lazy_or:nnF
-  { \legacy_if_p:n { hit@weihai } }
-  { \legacy_if_p:n { hit@shenzhen } }
-  { \legacy_if_set_true:n { hit@harbin } }
+\msg_new:nnn { hithesis } { bad-option-value }
+  { 选项~#1~不接受取值~#2。 }
+\cs_new_protected:Npn \hit@boolopt #1#2
+  {
+    \bool_new:c { g__hit_#1_bool }
+    \str_if_eq:nnT {#2} { true } { \bool_gset_true:c { g__hit_#1_bool } }
+    \keys_define:nn { hit / class }
+      { #1 .bool_gset:c = { g__hit_#1_bool } , #1 .default:n = { true } }
+  }
+\cs_new_protected:Npn \hit@stringopt #1
+  {
+    \tl_new:c { hit@#1 }
+    \keys_define:nn { hit / class } { #1 .tl_gset:c = { hit@#1 } }
+  }
+\cs_new_protected:Npn \hit@choiceopt #1#2#3#4
+  {
+    \clist_map_inline:nn {#3} { \bool_new:c { g__hit_#2##1_bool } }
+    \tl_if_empty:nF {#4} { \bool_gset_true:c { g__hit_#2#4_bool } }
+    \keys_define:nn { hit / class }
+      {
+        #1 .code:n =
+          {
+            \clist_map_inline:nn {#3}
+              { \bool_gset_false:c { g__hit_#2####1_bool } }
+            \bool_if_exist:cTF { g__hit_#2##1_bool }
+              { \bool_gset_true:c { g__hit_#2##1_bool } }
+              { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {##1} }
+          } ,
+      }
+  }
 \ExplSyntaxOff
 
-\newif\ifhit@opening
-\newif\ifhit@midterm
-\define@key{hit}{stage}{%
-  \hit@openingfalse
-  \hit@midtermfalse
-  \expandafter\csname hit@#1true\endcsname
-}
+\hit@choiceopt{type}{}{bachelor,master,doctor}{}
+
+\hit@choiceopt{campus}{}{shenzhen,weihai,harbin}{}
+\ExplSyntaxOn
+\bool_lazy_or:nnF
+  { \bool_if_p:N \g__hit_weihai_bool }
+  { \bool_if_p:N \g__hit_shenzhen_bool }
+  { \bool_gset_true:N \g__hit_harbin_bool }
+\ExplSyntaxOff
+
+\hit@choiceopt{stage}{}{opening,midterm}{}
 %    \end{macrocode}
 % \changes{v3.2a}{0000/00/00}{设置参考文献列表中的作者是否全大写和最大显示数量}
 % \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
@@ -182,32 +186,53 @@
 \ExplSyntaxOn
 \bool_new:N \g_bib_authorupper_bool
 \bool_set_false:N \g_bib_authorupper_bool
-\define@key{hit}{bibauthorupper}{%
-  \str_if_eq:nnT {#1} {full} {
-    \bool_set_true:N \g_bib_authorupper_bool
+\keys_define:nn { hit / class }
+  {
+    bibauthorupper .code:n =
+      {
+        \str_if_eq:nnT {#1} {full}
+          { \bool_set_true:N \g_bib_authorupper_bool }
+      } ,
   }
-}
 
 \int_new:N \g_bib_maxauthor_int
 \int_set:Nn \g_bib_maxauthor_int {3}
-\define@key{hit}{bibmaxauthor}{%
-  \int_set:Nn \g_bib_maxauthor_int {#1}
-  \int_if_zero:nT {\g_bib_maxauthor_int} {
-    \int_gdecr:N \g_bib_maxauthor_int
+\keys_define:nn { hit / class }
+  {
+    bibmaxauthor .code:n =
+      {
+        \int_set:Nn \g_bib_maxauthor_int {#1}
+        \int_if_zero:nT { \g_bib_maxauthor_int }
+          { \int_gdecr:N \g_bib_maxauthor_int }
+      } ,
   }
-}
 
 \str_new:N \g_bib_labelalign_str
-\define@key{hit}{biblabelalign}{%
-  \str_set:Nn \g_bib_labelalign_str {#1}
-}
+\keys_define:nn { hit / class }
+  { biblabelalign .code:n = { \str_set:Nn \g_bib_labelalign_str {#1} } }
 \ExplSyntaxOff
 
-\DeclareStringOption{fontset}
-\DeclareDefaultOption{\PassOptionsToClass{\CurrentOption}{ctexart}}
+\hit@stringopt{fontset}
+\ExplSyntaxOn
+\keys_define:nn { hit / class }
+  {
+    unknown .code:n =
+      {
+        \tl_if_empty:nTF {#1}
+          { \exp_args:NV \PassOptionsToClass \l_keys_key_str { ctexart } }
+          {
+            \use:x
+              {
+                \exp_not:N \PassOptionsToClass
+                  { \l_keys_key_str = \exp_not:n {#1} } { ctexart }
+              }
+          }
+      } ,
+  }
+\ExplSyntaxOff
 \PassOptionsToPackage{no-math}{fontspec}
 
-\ProcessKeyvalOptions*
+\ProcessKeyOptions [ hit / class ]
 
 %    \end{macrocode}
 %
@@ -251,20 +276,20 @@
 \ExplSyntaxOn
 \bool_lazy_any:nF
   {
-    { \legacy_if_p:n { hit@bachelor } }
-    { \legacy_if_p:n { hit@master } }
-    { \legacy_if_p:n { hit@doctor } }
+    { \bool_if_p:N \g__hit_bachelor_bool }
+    { \bool_if_p:N \g__hit_master_bool }
+    { \bool_if_p:N \g__hit_doctor_bool }
   }
   { \hit@artplus@error@type }
 \bool_lazy_or:nnF
-  { \legacy_if_p:n { hit@opening } }
-  { \legacy_if_p:n { hit@midterm } }
+  { \bool_if_p:N \g__hit_opening_bool }
+  { \bool_if_p:N \g__hit_midterm_bool }
   { \hit@artplus@error@stage }
 \bool_lazy_all:nF
   {
-    { \legacy_if_p:n { hit@doctor } }
-    { \legacy_if_p:n { hit@midterm } }
-    { \legacy_if_p:n { hit@shenzhen } }
+    { \bool_if_p:N \g__hit_doctor_bool }
+    { \bool_if_p:N \g__hit_midterm_bool }
+    { \bool_if_p:N \g__hit_shenzhen_bool }
   }
   { \hit@artplus@error@combo }
 \ExplSyntaxOff
@@ -748,8 +773,12 @@
 %<*artplus-meta>
 
 %% 中文封面
+\ExplSyntaxOn
+\cs_new_protected:Npn \hit@def@classkey #1
+  { \keys_define:nn { hit / class } { #1 .code:n = { \use:c {#1} {##1} } } }
+\ExplSyntaxOff
 \def\hit@def@term#1{%
-  \define@key{hit}{#1}{\csname #1\endcsname{##1}}
+  \hit@def@classkey{#1}
   \expandafter\gdef\csname #1\endcsname##1{%
     \expandafter\gdef\csname hit@#1\endcsname{##1}
   }
@@ -770,7 +799,7 @@
 \hit@def@term{cenrolldate}
 
 \def\hit@parse@keywords#1{
-  \define@key{hit}{#1}{\csname #1\endcsname{##1}}
+  \hit@def@classkey{#1}
   \expandafter\gdef\csname hit@#1\endcsname{}
   \expandafter\gdef\csname #1\endcsname##1{
     \@for\reserved@a:=##1\do{
@@ -789,18 +818,18 @@
 %
 % \changes{v3.2a}{0000/00/00}{\cs{hitsetup} 改用 l3keys 做入口，加一层按职责
 %   划分的子族路由，与 \file{hithesisbook.cls} 一致。子族暂时只转发，键仍由
-%   \pkg{kvoptions} 处理。}
-% 入口换成 l3keys，根族路由到子族，子族一律把键转回 \pkg{kvoptions} 的
+%   \texttt{hit/class} 族处理。}
+% 入口换成 l3keys，根族路由到子族，子族一律把键转回
 % \texttt{hit} 族。转发时值要重新加花括号，否则含逗号的值会被二次拆分成多个键。
 %    \begin{macrocode}
 \ExplSyntaxOn
 \cs_new_protected:Npn \__hit_legacy_key:n #1
   {
     \__hit_legacy_warn:
-    % 键名先自己展开。靠 \cs{kvsetkeys} 去展开 \cs{l\_keys\_key\_str} 不可靠：
+    % 键名先自己展开。靠 \cs{keys\_set:nn} 去展开 \cs{l\_keys\_key\_str} 不可靠：
     % 载入的宏包集合一变就可能失效，换定理实现时踩过。
     \use:x
-      { \exp_not:N \kvsetkeys { hit } { \l_keys_key_str = { \exp_not:n {#1} } } }
+      { \exp_not:N \keys_set:nn { hit / class } { \l_keys_key_str = { \exp_not:n {#1} } } }
   }
 \clist_map_inline:nn { info , style , toc , bib , const }
   { \keys_define:nn { hit / #1 } { unknown .code:n = { \__hit_legacy_key:n {##1} } } }
@@ -881,8 +910,8 @@
 \keys_define:nn { hit / style }
   {
     ragged-bottom .choice: ,
-    ragged-bottom / true  .code:n = { \legacy_if_set_true:n  { hit@raggedbottom } } ,
-    ragged-bottom / false .code:n = { \legacy_if_set_false:n { hit@raggedbottom } } ,
+    ragged-bottom / true  .code:n = { \bool_gset_true:N \g__hit_raggedbottom_bool } ,
+    ragged-bottom / false .code:n = { \bool_gset_false:N \g__hit_raggedbottom_bool } ,
     ragged-bottom .default:n = true ,
   }
 %    \end{macrocode}
@@ -994,8 +1023,8 @@
       {
         \str_case:nnF {#1}
           {
-            { true }  { \legacy_if_set_true:n  { hit@toc } }
-            { false } { \legacy_if_set_false:n { hit@toc } }
+            { true }  { \bool_gset_true:N \g__hit_toc_bool }
+            { false } { \bool_gset_false:N \g__hit_toc_bool }
           }
           { \keys_set:nn { hit / toc } {#1} }
       } ,
@@ -1226,8 +1255,8 @@
 % 进来，里面的空格照原样保留；替换旧写法时注意 \cs{fi} 后面被跳过的那个空格。
 %    \begin{macrocode}
 \ExplSyntaxOn
-\cs_new:Npn \hit@if #1#2#3 { \legacy_if:nTF { hit@#1 } {#2} {#3} }
-\cs_new:Npn \hit@ifT #1#2 { \legacy_if:nT { hit@#1 } {#2} }
+\cs_new:Npn \hit@if #1#2#3 { \bool_if:cTF { g__hit_#1_bool } {#2} {#3} }
+\cs_new:Npn \hit@ifT #1#2 { \bool_if:cT { g__hit_#1_bool } {#2} }
 \cs_new:Npn \hit@iffontset #1#2#3
   { \str_if_eq:eeTF { \hit@fontset } {#1} {#2} {#3} }
 \cs_new_protected:Npn \hit@ifnotempty #1#2 { \tl_if_empty:NF #1 {#2} }
@@ -1235,11 +1264,11 @@
 \cs_new:Npn \hit@ifand #1#2#3#4
   {
     \bool_lazy_and:nnTF
-      { \legacy_if_p:n { hit@#1 } } { \legacy_if_p:n { hit@#2 } } {#3} {#4}
+      { \bool_if_p:c { g__hit_#1_bool } } { \bool_if_p:c { g__hit_#2_bool } } {#3} {#4}
   }
 \cs_new:Npn \hit@ifstage
   {
-    \legacy_if:nTF { hit@opening }
+    \bool_if:NTF \g__hit_opening_bool
       { \hit@stage@opening } { \hit@ifT { midterm } { \hit@stage@midterm } }
   }
 \cs_new:Npn \hit@ifwidema #1
@@ -1247,18 +1276,18 @@
     \bool_lazy_and:nnT
       {
         \bool_lazy_or_p:nn
-          { \legacy_if_p:n { hit@weihai } } { \legacy_if_p:n { hit@shenzhen } }
+          { \bool_if_p:N \g__hit_weihai_bool } { \bool_if_p:N \g__hit_shenzhen_bool }
       }
-      { \legacy_if_p:n { hit@master } }
+      { \bool_if_p:N \g__hit_master_bool }
       {#1}
   }
 \cs_new:Npn \hit@ifszmaop #1#2
   {
     \bool_lazy_all:nTF
       {
-        { \legacy_if_p:n { hit@shenzhen } }
-        { \legacy_if_p:n { hit@master } }
-        { \legacy_if_p:n { hit@opening } }
+        { \bool_if_p:N \g__hit_shenzhen_bool }
+        { \bool_if_p:N \g__hit_master_bool }
+        { \bool_if_p:N \g__hit_opening_bool }
       }
       {#1} {#2}
   }
@@ -1266,11 +1295,11 @@
   {
     \bool_lazy_all:nT
       {
-        { \legacy_if_p:n { hit@harbin } }
-        { \legacy_if_p:n { hit@master } }
+        { \bool_if_p:N \g__hit_harbin_bool }
+        { \bool_if_p:N \g__hit_master_bool }
         {
           \bool_lazy_or_p:nn
-            { \legacy_if_p:n { hit@opening } } { \legacy_if_p:n { hit@midterm } }
+            { \bool_if_p:N \g__hit_opening_bool } { \bool_if_p:N \g__hit_midterm_bool }
         }
       }
       {#1}
@@ -1279,11 +1308,11 @@
   {
     \bool_lazy_all:nTF
       {
-        { \legacy_if_p:n { hit@harbin } }
-        { \legacy_if_p:n { hit@master } }
+        { \bool_if_p:N \g__hit_harbin_bool }
+        { \bool_if_p:N \g__hit_master_bool }
         {
           \bool_lazy_or_p:nn
-            { \legacy_if_p:n { hit@opening } } { \legacy_if_p:n { hit@midterm } }
+            { \bool_if_p:N \g__hit_opening_bool } { \bool_if_p:N \g__hit_midterm_bool }
         }
       }
       {#1} {#2}
@@ -1292,9 +1321,9 @@
   {
     \bool_lazy_all:nTF
       {
-        { \legacy_if_p:n { hit@shenzhen } }
-        { \legacy_if_p:n { hit@opening } }
-        { \legacy_if_p:n { hit@master } }
+        { \bool_if_p:N \g__hit_shenzhen_bool }
+        { \bool_if_p:N \g__hit_opening_bool }
+        { \bool_if_p:N \g__hit_master_bool }
       }
       {#1} {#2}
   }
@@ -1302,9 +1331,9 @@
   {
     \bool_lazy_all:nTF
       {
-        { \legacy_if_p:n { hit@harbin } }
-        { \legacy_if_p:n { hit@opening } }
-        { \legacy_if_p:n { hit@master } }
+        { \bool_if_p:N \g__hit_harbin_bool }
+        { \bool_if_p:N \g__hit_opening_bool }
+        { \bool_if_p:N \g__hit_master_bool }
       }
       {#1} {#2}
   }
@@ -1315,46 +1344,54 @@
 %    \begin{macrocode}
 
 %% 处理文档类选项
-\RequirePackage{kvoptions}
-\SetupKeyvalOptions{
-  family=hit,
-  prefix=hit@,
-  setkeys=\kvsetkeys
-}
-
-\newif\ifhit@bachelor
-\newif\ifhit@master
-\newif\ifhit@doctor
-\define@key{hit}{type}{%
-  \hit@bachelorfalse
-  \hit@masterfalse
-  \hit@doctorfalse
-  \expandafter\csname hit@#1true\endcsname
-}
-
-\newif\ifhit@shenzhen
-\newif\ifhit@weihai
-\newif\ifhit@harbin
-\define@key{hit}{campus}{%
-  \hit@shenzhenfalse
-  \hit@weihaifalse
-  \hit@harbinfalse
-  \expandafter\csname hit@#1true\endcsname
-}
 \ExplSyntaxOn
-\bool_lazy_or:nnF
-  { \legacy_if_p:n { hit@weihai } }
-  { \legacy_if_p:n { hit@shenzhen } }
-  { \legacy_if_set_true:n { hit@harbin } }
+\msg_new:nnn { hithesis } { bad-option-value }
+  { 选项~#1~不接受取值~#2。 }
+\cs_new_protected:Npn \hit@boolopt #1#2
+  {
+    \bool_new:c { g__hit_#1_bool }
+    \str_if_eq:nnT {#2} { true } { \bool_gset_true:c { g__hit_#1_bool } }
+    \keys_define:nn { hit / class }
+      { #1 .bool_gset:c = { g__hit_#1_bool } , #1 .default:n = { true } }
+  }
+\cs_new_protected:Npn \hit@stringopt #1
+  {
+    \tl_new:c { hit@#1 }
+    \keys_define:nn { hit / class } { #1 .tl_gset:c = { hit@#1 } }
+  }
+\cs_new_protected:Npn \hit@choiceopt #1#2#3#4
+  {
+    \clist_map_inline:nn {#3} { \bool_new:c { g__hit_#2##1_bool } }
+    \tl_if_empty:nF {#4} { \bool_gset_true:c { g__hit_#2#4_bool } }
+    \keys_define:nn { hit / class }
+      {
+        #1 .code:n =
+          {
+            \clist_map_inline:nn {#3}
+              { \bool_gset_false:c { g__hit_#2####1_bool } }
+            \bool_if_exist:cTF { g__hit_#2##1_bool }
+              { \bool_gset_true:c { g__hit_#2##1_bool } }
+              { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {##1} }
+          } ,
+      }
+  }
+\clist_map_inline:nn { raggedbottom , toc , newtxmath }
+  { \hit@boolopt {#1} { true } }
+\clist_map_inline:nn { pifootnote , debug , print }
+  { \hit@boolopt {#1} { false } }
 \ExplSyntaxOff
 
-\newif\ifhit@opening
-\newif\ifhit@midterm
-\define@key{hit}{stage}{%
-  \hit@openingfalse
-  \hit@midtermfalse
-  \expandafter\csname hit@#1true\endcsname
-}
+\hit@choiceopt{type}{}{bachelor,master,doctor}{}
+
+\hit@choiceopt{campus}{}{shenzhen,weihai,harbin}{}
+\ExplSyntaxOn
+\bool_lazy_or:nnF
+  { \bool_if_p:N \g__hit_weihai_bool }
+  { \bool_if_p:N \g__hit_shenzhen_bool }
+  { \bool_gset_true:N \g__hit_harbin_bool }
+\ExplSyntaxOff
+
+\hit@choiceopt{stage}{}{opening,midterm}{}
 %    \end{macrocode}
 % \changes{v3.2a}{0000/00/00}{设置参考文献列表中的作者是否全大写和最大显示数量}
 % \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
@@ -1363,44 +1400,59 @@
 \ExplSyntaxOn
 \bool_new:N \g_bib_authorupper_bool
 \bool_set_false:N \g_bib_authorupper_bool
-\define@key{hit}{bibauthorupper}{%
-  \str_if_eq:nnT {#1} {full} {
-    \bool_set_true:N \g_bib_authorupper_bool
+\keys_define:nn { hit / class }
+  {
+    bibauthorupper .code:n =
+      {
+        \str_if_eq:nnT {#1} {full}
+          { \bool_set_true:N \g_bib_authorupper_bool }
+      } ,
   }
-}
 
 \int_new:N \g_bib_maxauthor_int
 \int_set:Nn \g_bib_maxauthor_int {3}
-\define@key{hit}{bibmaxauthor}{%
-  \int_set:Nn \g_bib_maxauthor_int {#1}
-  \int_if_zero:nT {\g_bib_maxauthor_int} {
-    \int_gdecr:N \g_bib_maxauthor_int
+\keys_define:nn { hit / class }
+  {
+    bibmaxauthor .code:n =
+      {
+        \int_set:Nn \g_bib_maxauthor_int {#1}
+        \int_if_zero:nT { \g_bib_maxauthor_int }
+          { \int_gdecr:N \g_bib_maxauthor_int }
+      } ,
   }
-}
 
 \str_new:N \g_bib_labelalign_str
-\define@key{hit}{biblabelalign}{%
-  \str_set:Nn \g_bib_labelalign_str {#1}
-}
+\keys_define:nn { hit / class }
+  { biblabelalign .code:n = { \str_set:Nn \g_bib_labelalign_str {#1} } }
 \ExplSyntaxOff
 
-\DeclareBoolOption[true]{raggedbottom}
-\DeclareBoolOption[false]{pifootnote}
-\DeclareBoolOption[false]{debug}
-\DeclareBoolOption[true]{toc}
-\DeclareBoolOption[true]{newtxmath}
 %    \end{macrocode}
 
 % \changes{v3.1c}{2023/04/16}{增加用于打印的选项 \meta{print}.\issue[138]}
 %    \begin{macrocode}
-\DeclareBoolOption[false]{print}
 
 
-\DeclareStringOption{fontset}
-\DeclareDefaultOption{\PassOptionsToClass{\CurrentOption}{ctexart}}
+\hit@stringopt{fontset}
+\ExplSyntaxOn
+\keys_define:nn { hit / class }
+  {
+    unknown .code:n =
+      {
+        \tl_if_empty:nTF {#1}
+          { \exp_args:NV \PassOptionsToClass \l_keys_key_str { ctexart } }
+          {
+            \use:x
+              {
+                \exp_not:N \PassOptionsToClass
+                  { \l_keys_key_str = \exp_not:n {#1} } { ctexart }
+              }
+          }
+      } ,
+  }
+\ExplSyntaxOff
 \PassOptionsToPackage{no-math}{fontspec}
 
-\ProcessKeyvalOptions*
+\ProcessKeyOptions [ hit / class ]
 
 %    \end{macrocode}
 %
@@ -1443,20 +1495,20 @@
 \ExplSyntaxOn
 \bool_lazy_any:nF
   {
-    { \legacy_if_p:n { hit@bachelor } }
-    { \legacy_if_p:n { hit@master } }
-    { \legacy_if_p:n { hit@doctor } }
+    { \bool_if_p:N \g__hit_bachelor_bool }
+    { \bool_if_p:N \g__hit_master_bool }
+    { \bool_if_p:N \g__hit_doctor_bool }
   }
   { \hit@art@error@type }
 \bool_lazy_or:nnF
-  { \legacy_if_p:n { hit@opening } }
-  { \legacy_if_p:n { hit@midterm } }
+  { \bool_if_p:N \g__hit_opening_bool }
+  { \bool_if_p:N \g__hit_midterm_bool }
   { \hit@art@error@stage }
 \bool_lazy_all:nT
   {
-    { \legacy_if_p:n { hit@doctor } }
-    { \legacy_if_p:n { hit@midterm } }
-    { \legacy_if_p:n { hit@shenzhen } }
+    { \bool_if_p:N \g__hit_doctor_bool }
+    { \bool_if_p:N \g__hit_midterm_bool }
+    { \bool_if_p:N \g__hit_shenzhen_bool }
   }
   { \hit@art@error@szdoctor }
 \ExplSyntaxOff
@@ -1768,7 +1820,7 @@
 % \changes{v3.2a}{0000/00/00}{newtxmath 的加载分支迁到 expl3。}
 %    \begin{macrocode}
 \ExplSyntaxOn
-\legacy_if:nT { hit@newtxmath }
+\bool_if:NT \g__hit_newtxmath_bool
   {
     \cs_set_eq:NN \oldencodingdefault \encodingdefault
     \cs_set_eq:NN \oldrmdefault \rmdefault
@@ -1792,13 +1844,13 @@
 \RequirePackage{enumitem}       %使用enumitem宏包,改变列表项的格式
 \RequirePackage{environ}
 \ExplSyntaxOn
-\legacy_if:nTF { hit@raggedbottom }
+\bool_if:NTF \g__hit_raggedbottom_bool
   {
     \RequirePackage [ bottom , perpage , hang ] { footmisc }
     \raggedbottom
   }
   { \RequirePackage [ perpage , hang ] { footmisc } }
-\legacy_if:nT { hit@pifootnote } { \RequirePackage { pifont } }
+\bool_if:NT \g__hit_pifootnote_bool { \RequirePackage { pifont } }
 \ExplSyntaxOff
 %    \end{macrocode}
 %
@@ -1865,10 +1917,10 @@
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{art-geometry 模块改用 expl3 实现。标志位仍由
-%   kvoptions 声明，用 \cs{legacy\_if:nTF} 桥接；深圳硕士那处的
+%   kvoptions 声明，用 \cs{legacy\_if:nTF} 桥接（现已换成 expl3 布尔）；深圳硕士那处的
 %   \cs{ifboolexpr} 换成 \cs{bool\_lazy\_and:nnT}，此处不再依赖 etoolbox。}
 %    \begin{macrocode}
-\legacy_if:nTF { hit@debug }
+\bool_if:NTF \g__hit_debug_bool
   { \RequirePackage [ showframe ] { geometry } }
   { \RequirePackage { geometry } }
 % 根据 PlutoThesis 原版定义而来。a4paper 即 210 * 297mm。
@@ -1880,10 +1932,10 @@
     footskip = 0true~mm , foot = 5.2true~mm
   }
 \bool_lazy_and:nnT
-  { \legacy_if_p:n { hit@shenzhen } }
-  { \legacy_if_p:n { hit@master } }
+  { \bool_if_p:N \g__hit_shenzhen_bool }
+  { \bool_if_p:N \g__hit_master_bool }
   {
-    \legacy_if:nTF { hit@opening }
+    \bool_if:NTF \g__hit_opening_bool
       { \geometry { headsep = 25pt } }
       { \geometry { headsep = 17pt } }
   }
@@ -1892,7 +1944,7 @@
 %<*art-deps-c>
 
 \ExplSyntaxOn
-\legacy_if:nT { hit@debug }
+\bool_if:NT \g__hit_debug_bool
   {
     \RequirePackage { layout }
     \RequirePackage { layouts }
@@ -1936,11 +1988,11 @@
 % 深圳硕士中期把图注排成「图 1-1 标题」的格式。
 %    \begin{macrocode}
 \bool_lazy_and:nnT
-  { \legacy_if_p:n { hit@shenzhen } }
+  { \bool_if_p:N \g__hit_shenzhen_bool }
   {
     \bool_lazy_and_p:nn
-      { \legacy_if_p:n { hit@master } }
-      { \legacy_if_p:n { hit@midterm } }
+      { \bool_if_p:N \g__hit_master_bool }
+      { \bool_if_p:N \g__hit_midterm_bool }
   }
   {
     \RequirePackage { caption }
@@ -1952,11 +2004,11 @@
 % \changes{v3.2a}{0000/00/00}{schrb: 将哈尔滨校区本科开题报告图表公式编号实现为“图 X-X”、“表 X-X”、“公式 (X-X)”的格式}
 %    \begin{macrocode}
 \bool_lazy_and:nnT
-  { \legacy_if_p:n { hit@harbin } }
+  { \bool_if_p:N \g__hit_harbin_bool }
   {
     \bool_lazy_and_p:nn
-      { \legacy_if_p:n { hit@bachelor } }
-      { \legacy_if_p:n { hit@opening } }
+      { \bool_if_p:N \g__hit_bachelor_bool }
+      { \bool_if_p:N \g__hit_opening_bool }
   }
   {
     \RequirePackage { caption }
@@ -2044,11 +2096,11 @@
 % \changes{v3.1d}{2025/03/03}{哈尔滨本科中期的一级节标题变成了中文……\issue[213]}
 %    \begin{macrocode}
 \bool_lazy_and:nnT
-  { \legacy_if_p:n { hit@harbin } }
+  { \bool_if_p:N \g__hit_harbin_bool }
   {
     \bool_lazy_and_p:nn
-      { \legacy_if_p:n { hit@bachelor } }
-      { \legacy_if_p:n { hit@midterm } }
+      { \bool_if_p:N \g__hit_bachelor_bool }
+      { \bool_if_p:N \g__hit_midterm_bool }
   }
   {
     \ctexset
@@ -2093,8 +2145,8 @@
 \ExplSyntaxOff
 \ExplSyntaxOn
 \bool_lazy_and:nnT
-  { \legacy_if_p:n { hit@shenzhen } }
-  { \legacy_if_p:n { hit@master } }
+  { \bool_if_p:N \g__hit_shenzhen_bool }
+  { \bool_if_p:N \g__hit_master_bool }
   { \hit@art@shenzhenmaster@sectionset }
 \ExplSyntaxOff
 %</art-chapter>
@@ -2161,16 +2213,16 @@
 \ExplSyntaxOff
 \ExplSyntaxOn
 \bool_lazy_and:nnT
-  { \legacy_if_p:n { hit@weihai } }
+  { \bool_if_p:N \g__hit_weihai_bool }
   {
     \bool_lazy_and_p:nn
-      { \legacy_if_p:n { hit@master } }
-      { \legacy_if_p:n { hit@opening } }
+      { \bool_if_p:N \g__hit_master_bool }
+      { \bool_if_p:N \g__hit_opening_bool }
   }
   { \hit@art@weihaimaster@pagestyle }
 \bool_lazy_and:nnT
-  { \legacy_if_p:n { hit@shenzhen } }
-  { \legacy_if_p:n { hit@master } }
+  { \bool_if_p:N \g__hit_shenzhen_bool }
+  { \bool_if_p:N \g__hit_master_bool }
   { \hit@art@shenzhenmaster@pagestyle }
 \ExplSyntaxOff
 %</art-pagestyle>
@@ -2178,9 +2230,9 @@
 \ExplSyntaxOn
 \bool_lazy_all:nT
   {
-    { \legacy_if_p:n { hit@weihai } }
-    { \legacy_if_p:n { hit@master } }
-    { \legacy_if_p:n { hit@opening } }
+    { \bool_if_p:N \g__hit_weihai_bool }
+    { \bool_if_p:N \g__hit_master_bool }
+    { \bool_if_p:N \g__hit_opening_bool }
   }
   { \pagestyle { hit@weihai@headings@main } }
 \ExplSyntaxOff
@@ -2212,8 +2264,12 @@
 %    \begin{macrocode}
 %<*art-meta>
 %% 中文封面
+\ExplSyntaxOn
+\cs_new_protected:Npn \hit@def@classkey #1
+  { \keys_define:nn { hit / class } { #1 .code:n = { \use:c {#1} {##1} } } }
+\ExplSyntaxOff
 \def\hit@def@term#1{%
-  \define@key{hit}{#1}{\csname #1\endcsname{##1}}
+  \hit@def@classkey{#1}
   \expandafter\gdef\csname #1\endcsname##1{%
     \expandafter\gdef\csname hit@#1\endcsname{##1}
   }
@@ -2231,7 +2287,7 @@
 \hit@def@term{cdate}
 
 \def\hit@parse@keywords#1{
-  \define@key{hit}{#1}{\csname #1\endcsname{##1}}
+  \hit@def@classkey{#1}
   \expandafter\gdef\csname hit@#1\endcsname{}
   \expandafter\gdef\csname #1\endcsname##1{
     \@for\reserved@a:=##1\do{
@@ -2250,18 +2306,18 @@
 %
 % \changes{v3.2a}{0000/00/00}{\cs{hitsetup} 改用 l3keys 做入口，加一层按职责
 %   划分的子族路由，与 \file{hithesisbook.cls} 一致。子族暂时只转发，键仍由
-%   \pkg{kvoptions} 处理。}
-% 入口换成 l3keys，根族路由到子族，子族一律把键转回 \pkg{kvoptions} 的
+%   \texttt{hit/class} 族处理。}
+% 入口换成 l3keys，根族路由到子族，子族一律把键转回
 % \texttt{hit} 族。转发时值要重新加花括号，否则含逗号的值会被二次拆分成多个键。
 %    \begin{macrocode}
 \ExplSyntaxOn
 \cs_new_protected:Npn \__hit_legacy_key:n #1
   {
     \__hit_legacy_warn:
-    % 键名先自己展开。靠 \cs{kvsetkeys} 去展开 \cs{l\_keys\_key\_str} 不可靠：
+    % 键名先自己展开。靠 \cs{keys\_set:nn} 去展开 \cs{l\_keys\_key\_str} 不可靠：
     % 载入的宏包集合一变就可能失效，换定理实现时踩过。
     \use:x
-      { \exp_not:N \kvsetkeys { hit } { \l_keys_key_str = { \exp_not:n {#1} } } }
+      { \exp_not:N \keys_set:nn { hit / class } { \l_keys_key_str = { \exp_not:n {#1} } } }
   }
 \clist_map_inline:nn { info , style , toc , bib , const }
   { \keys_define:nn { hit / #1 } { unknown .code:n = { \__hit_legacy_key:n {##1} } } }
@@ -2342,8 +2398,8 @@
 \keys_define:nn { hit / style }
   {
     ragged-bottom .choice: ,
-    ragged-bottom / true  .code:n = { \legacy_if_set_true:n  { hit@raggedbottom } } ,
-    ragged-bottom / false .code:n = { \legacy_if_set_false:n { hit@raggedbottom } } ,
+    ragged-bottom / true  .code:n = { \bool_gset_true:N \g__hit_raggedbottom_bool } ,
+    ragged-bottom / false .code:n = { \bool_gset_false:N \g__hit_raggedbottom_bool } ,
     ragged-bottom .default:n = true ,
   }
 %    \end{macrocode}
@@ -2455,8 +2511,8 @@
       {
         \str_case:nnF {#1}
           {
-            { true }  { \legacy_if_set_true:n  { hit@toc } }
-            { false } { \legacy_if_set_false:n { hit@toc } }
+            { true }  { \bool_gset_true:N \g__hit_toc_bool }
+            { false } { \bool_gset_false:N \g__hit_toc_bool }
           }
           { \keys_set:nn { hit / toc } {#1} }
       } ,
@@ -2681,11 +2737,11 @@
 %  \ifboolexpr{ bool {hit@weihai} or bool {hit@midterm}}{\tocloftpagestyle{empty}}{\tocloftpagestyle{hit@shenzhen@headings@front}}
 \ExplSyntaxOn
 \bool_lazy_and:nnTF
-  { \legacy_if_p:n { hit@shenzhen } }
+  { \bool_if_p:N \g__hit_shenzhen_bool }
   {
     \bool_lazy_and_p:nn
-      { \legacy_if_p:n { hit@master } }
-      { \legacy_if_p:n { hit@opening } }
+      { \bool_if_p:N \g__hit_master_bool }
+      { \bool_if_p:N \g__hit_opening_bool }
   }
   { \tocloftpagestyle { hit@shenzhen@headings@front } }
   { \tocloftpagestyle { empty } }
@@ -2715,16 +2771,16 @@
 \cs_set_protected:Npn \makecover
   {
     \begin { titlepage }
-      \legacy_if:nTF { hit@bachelor }
+      \bool_if:NTF \g__hit_bachelor_bool
         { \hit@report@titlepage@bachelor }
         { \hit@report@titlepage@graduate }
       \clearpage
-      \legacy_if:nT { hit@print }
+      \bool_if:NT \g__hit_print_bool
         { \thispagestyle { empty } \mbox { } \clearpage }
-      \legacy_if:nT { hit@toc } { \tableofcontents \clearpage }
+      \bool_if:NT \g__hit_toc_bool { \tableofcontents \clearpage }
     \end { titlepage }
     \bool_lazy_and:nnT
-      { \legacy_if_p:n { hit@shenzhen } } { \legacy_if_p:n { hit@master } }
+      { \bool_if_p:N \g__hit_shenzhen_bool } { \bool_if_p:N \g__hit_master_bool }
       { \pagestyle { hit@shenzhen@headings@main } }
   }
 \ExplSyntaxOff
@@ -2795,9 +2851,9 @@
 \renewenvironment{thebibliography}[1]{%
   \bool_lazy_all:nT
     {
-      { \legacy_if_p:n { hit@shenzhen } }
-      { \legacy_if_p:n { hit@master } }
-      { \legacy_if_p:n { hit@opening } }
+      { \bool_if_p:N \g__hit_shenzhen_bool }
+      { \bool_if_p:N \g__hit_master_bool }
+      { \bool_if_p:N \g__hit_opening_bool }
     }
     { \hit@art@bibhead }
   \list{\@biblabel{\@arabic\c@enumiv}}{%

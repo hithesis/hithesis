@@ -208,7 +208,9 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 只有在 `\ExplSyntaxOn` 下才算字母，所以没法零散替换某一处写法，只能一个模块整体
 切过去，前后用 `\ExplSyntaxOn` / `\ExplSyntaxOff` 圈起来。
 
-**选项与标志位暂时不动。** 它们由 `kvoptions` 声明，属于用户接口，本轮不碰。
+**选项与标志位已改用 l3keys。** 类选项在 `hit/class` 族里声明，`\ProcessKeyOptions` 解析，
+未知选项转给 `ctexbook`/`ctexart`；标志位是 `\g__hit_<名>_bool`，读用 `\hit@if` 或
+`\bool_if:N`，写用 `\bool_gset_true:N`。
 模块内部要读旧标志位，用 expl3 的桥接函数：
 
 ```latex
@@ -292,7 +294,7 @@ scripts/convert-macro.py src/hithesis-book.dtx hit@engcover --apply
 已迁移：`book-geometry`、`art-geometry`、`book-mainmatter`、`art-chapter`、
 `art-pagestyle`、`art-toc`、`book-toc`、`book-pagestyle`、`art-floats`、`book-deps-c`、
 `book-glossary`、`art-deps-a`、`book-deps-a`、`art-options` 与
-`artplus-options`、`book-options`（均仅校验与后处理逻辑，选项声明仍归 kvoptions）、
+`artplus-options`、`book-options`、
 `book-meta`、`art-meta`、`artplus-meta`、`book-floats`、`book-hyperlink`、
 `book-frontmatter`、`art-frontmatter`、`book-chapter`、`book-appendix`、`book-bib`、
 `art-bib`、`book-footnote`、`art-deps-c`。
