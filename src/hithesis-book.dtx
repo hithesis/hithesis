@@ -741,12 +741,53 @@
     head-space  .code:n = { \__hit_thm_opt:nn { postheadspace } {#1} } ,
     head-indent .code:n = { \__hit_thm_opt:nn { headindent } {#1} } ,
     within .code:n = { \tl_gset:Nn \g__hit_thm_within_tl {#1} } ,
-    style  .code:n = { } ,
   }
 \cs_new_protected:Npn \hit@thm@style #1
   { \keys_set:nn { hit / thm } {#1} \__hit_thm_newstyle: }
 \cs_new_protected:Npn \hit@thm@list #1
   { \keyval_parse:nnn { \use_none:n } { \hit@thm@declare } {#1} }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{为 \pkg{ntheorem} 专有命令加兼容层（\issue[183]）}
+% \pkg{ntheorem} 专有命令的兼容层。前四条能一一对应到 \cs{hitsetup} 的
+% \option{theorem} 键，转发过去；后面几条 \pkg{thmtools} 没有对应写法，报个警告
+% 后忽略。\cs{theoremstyle} 不动，那是 \pkg{amsthm} 自己的命令。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_thm_legacy:nnn #1#2#3
+  {
+    \__hit_warn_once:nnn {#1} { deprecated-ntheorem } {#2}
+    \hit@thm@style { #2 = {#3} }
+  }
+\cs_new_protected:Npn \__hit_thm_dropped:nn #1#2
+  { \__hit_warn_once:nnn {#1} { removed-ntheorem } {#2} }
+\cs_new_protected:Npn \theorembodyfont #1
+  { \__hit_thm_legacy:nnn { theorembodyfont } { body-font } {#1} }
+\cs_new_protected:Npn \theoremheaderfont #1
+  { \__hit_thm_legacy:nnn { theoremheaderfont } { head-font } {#1} }
+\cs_new_protected:Npn \theoremsymbol #1
+  { \__hit_thm_legacy:nnn { theoremsymbol } { qed } {#1} }
+\cs_new_protected:Npn \theoremseparator #1
+  { \__hit_thm_legacy:nnn { theoremseparator } { head-punct } {#1} }
+\cs_new_protected:Npn \theoremnumbering #1
+  { \__hit_warn_once:nnn { theoremnumbering } { removed-ntheorem-numbering } { } }
+\cs_new_protected:Npn \theoremprework #1
+  { \__hit_thm_dropped:nn { theoremprework } { declaretheorem } }
+\cs_new_protected:Npn \theorempostwork #1
+  { \__hit_thm_dropped:nn { theorempostwork } { declaretheorem } }
+\cs_new_protected:Npn \theoremclass #1
+  { \__hit_thm_dropped:nn { theoremclass } { declaretheorem } }
+\cs_new_protected:Npn \theoremlisttype #1
+  { \__hit_thm_dropped:nn { theoremlisttype } { listoftheorems } }
+\cs_new_protected:Npn \listtheorems #1
+  {
+    \__hit_thm_dropped:nn { listtheorems } { listoftheorems }
+    \listoftheorems [ ignoreall , show = {#1} ]
+  }
+\cs_new_protected:Npn \thref #1
+  {
+    \__hit_thm_dropped:nn { thref } { autoref }
+    \autoref {#1}
+  }
 \ExplSyntaxOff
 \RequirePackage{amssymb}
 %    \end{macrocode}
@@ -1863,7 +1904,7 @@
 % 英文版黑体加粗
 % \changes{v3.0.0}{2020/05/21}{英文版黑体加粗}
 %    \begin{macrocode}
-\hit@thm@style{ style = {plain}, qed = {} }
+\hit@thm@style{ qed = {} }
 %    \end{macrocode}
 %
 % 此处去除了冒号，（如果需要在加上这个冒号？），反正规范中没有。
@@ -3505,6 +3546,22 @@ breaklines=true
     请改用~\iow_char:N \\ hitsetup。 \\
     在类选项里指定的支持将在~v4.1a（2028~年主要版本）中移除。
   }
+\msg_new:nnn { hithesis } { deprecated-ntheorem }
+  {
+    \iow_char:N \\ #1~是~ntheorem~的命令，模板已改用~thmtools。 \\
+    请改写成~\iow_char:N \\ hitsetup{theorem~=~{#2~=~...}}。 \\
+    兼容写法将在~v4.1a（2028~年主要版本）中移除。
+  }
+\msg_new:nnn { hithesis } { removed-ntheorem }
+  {
+    \iow_char:N \\ #1~是~ntheorem~的命令，模板已改用~thmtools，这条已经失效。 \\
+    请改用~\iow_char:N \\ #2。
+  }
+\msg_new:nnn { hithesis } { removed-ntheorem-numbering }
+  {
+    \iow_char:N \\ #1~是~ntheorem~的命令，模板已改用~thmtools，这条已经失效。 \\
+    编号形式请在~\iow_char:N \\ newtheorem~之后自行重定义~\iow_char:N \\ the<环境名>。
+  }
 \msg_new:nnn { hithesis } { manual-sides }
   {
     单双面由学位与校区决定，类选项~#1~会被模板覆盖。 \\
@@ -3582,6 +3639,7 @@ breaklines=true
     toc   .meta:nn = { hit / toc   } {#1} ,
     bib   .meta:nn = { hit / bib   } {#1} ,
     const .meta:nn = { hit / const } {#1} ,
+    theorem .code:n = { \hit@thm@style {#1} } ,
     unknown .code:n = { \__hit_legacy_key:n {#1} } ,
   }
 \RenewDocumentCommand \hitsetup { m } { \keys_set:nn { hit } {#1} }
