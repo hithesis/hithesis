@@ -1,6 +1,6 @@
 #!/bin/bash
 # 编译子图专项测试。用法：bash tools/compile-subfigure.sh [输出目录]
-# 认 OPT 环境变量，例如 OPT=subfigpkg=modern
+# 认 OPT 环境变量，可以往 \documentclass 里再塞选项
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=${1:-$ROOT/tests/work/subfigure}
