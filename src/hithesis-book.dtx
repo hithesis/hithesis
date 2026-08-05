@@ -302,8 +302,17 @@
 %
 % 数学字体是否使用新罗马
 % \changes{v2.0.05}{2018/12/05}{添加数学字体开关}
+% \changes{v3.2a}{0000/00/00}{数学引擎换成 \pkg{unicode-math}，\option{newtxmath}
+%   降级为 \option{math-font} 的一档，默认值改为假}
 %    \begin{macrocode}
-\hit@boolopt{newtxmath}{true}
+\hit@boolopt{newtxmath}{false}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{新增 \option{math-font} 与 \option{math-style} 选项}
+% 数学字体与数学排版风格。
+%    \begin{macrocode}
+\hit@stringopt@as{math-font}{mathfont}
+\hit@stringopt@as{math-style}{mathstyle}
 %    \end{macrocode}
 %
 % 此处应广大刀客要求添加一参考文献分割开关
@@ -824,7 +833,6 @@
     \autoref {#1}
   }
 \ExplSyntaxOff
-\RequirePackage{amssymb}
 %    \end{macrocode}
 %
 % 删除 \pkg{newtxtext}，由于最新一次更新 (\texttt{revision 62369}) 中与 \pkg{ctex} 宏包冲突，且无法解决，将正文字体替换为 TG TermesX 与 TG Heros.
@@ -1059,13 +1067,90 @@
 % 单独使用 \pkg{newtxmath} 宏包改变数学字体时，会使 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令使用 CM 字体，根据 \href{https://github.com/sjtug/SJTUThesis/blob/b164d0f5b3087ed86c1038b5a85014b47a92c6f2/texmf/tex/latex/sjtuthesis/fd/sjtu-math-font-termes.def#L52-L65}{SJTUThesis 的字体设置} 进行调整
 % \changes{v3.0.19}{2022/05/05}{对 \pkg{newtxmath} 宏包打补丁，修复 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令的字体问题。}
 %    \begin{macrocode}
+\ExplSyntaxOn
+\str_new:N \l__hit_math_font_str
+\str_set:Nx \l__hit_math_font_str { \hit@mathfont }
+\str_if_eq:VnT \l__hit_math_font_str { } { \str_set:Nn \l__hit_math_font_str { auto } }
+\str_if_eq:VnT \l__hit_math_font_str { auto }
+  {
+    \bool_if:NTF \g__hit_newtxmath_bool
+      { \str_set:Nn \l__hit_math_font_str { newtx } }
+      { \str_set:Nn \l__hit_math_font_str { xits } }
+  }
+%    \end{macrocode}
+%
+% 数学排版风格。\texttt{TeX} 是 \TeX{} 传统写法（大写希腊字母直立、小写倾斜），
+% \texttt{ISO} 按 ISO 80000-2（希腊字母一律倾斜、粗体同理），\texttt{GB} 在 ISO
+% 的基础上把偏导符号 \cs{partial} 改直立，这是国标的要求。
+%
+% 五个 \texttt{math*=sym} 是为了照顾旧文档。\pkg{unicode-math} 默认让
+% \cs{mathrm}、\cs{mathbf} 这几个走正文字体，正文字体里没有数学希腊字母，
+% \cs{mathbf} 套希腊字母这种写法会静悄悄掉字；改成 \texttt{sym} 就跟原先的
+% 8~位数学字体一样从数学字体取字。
+%    \begin{macrocode}
+\str_new:N \l__hit_math_style_str
+\str_set:Nx \l__hit_math_style_str { \hit@mathstyle }
+\str_if_eq:VnT \l__hit_math_style_str { } { \str_set:Nn \l__hit_math_style_str { GB } }
+\clist_new:N \l__hit_math_opt_clist
+\str_case:VnF \l__hit_math_style_str
+  {
+    { TeX } { \clist_set:Nn \l__hit_math_opt_clist { math-style=TeX , bold-style=TeX , mathrm=sym , mathit=sym , mathbf=sym , mathsf=sym , mathtt=sym } }
+    { ISO } { \clist_set:Nn \l__hit_math_opt_clist { math-style=ISO , bold-style=ISO , mathrm=sym , mathit=sym , mathbf=sym , mathsf=sym , mathtt=sym } }
+    { GB }
+      { \clist_set:Nn \l__hit_math_opt_clist
+          { math-style=ISO , bold-style=ISO , partial=upright , mathrm=sym , mathit=sym , mathbf=sym , mathsf=sym , mathtt=sym } }
+  }
+  { \msg_error:nnx { hithesis } { math-style-unknown } { \l__hit_math_style_str } }
+\msg_new:nnn { hithesis } { math-style-unknown }
+  { 选项~math-style~的取值~'#1'~无效，只能是~TeX、ISO~或~GB。 }
+\msg_new:nnn { hithesis } { math-font-unknown }
+  { 选项~math-font~的取值~'#1'~无效。 }
+%    \end{macrocode}
+%
+% \pkg{unicode-math} 各档对应的字体文件。第二个参数是粗体数学版本，
+% \pkg{amsmath} 的 \cs{boldsymbol} 要用它；没有独立粗体的字体就填回常规体，
+% 不填会报 \texttt{Font shape .../b/n undefined} 并掉字。\texttt{newtx} 与
+% \texttt{none} 不走 \pkg{unicode-math}，单列在后面。
+%    \begin{macrocode}
+\bool_new:N \g__hit_unicodemath_bool
+\cs_new_protected:Npn \__hit_set_math_font:nn #1#2
+  {
+    \bool_gset_true:N \g__hit_unicodemath_bool
+    \exp_args:NV \PassOptionsToPackage \l__hit_math_opt_clist { unicode-math }
+    \RequirePackage { unicode-math }
+    \setmathfont {#1}
+    \setmathfont {#2} [ version = bold ]
+%    \end{macrocode}
+%
+% \pkg{unicode-math} 的 \cs{symbf} 跟着 \texttt{bold-style} 走，ISO 下是粗斜体，
+% 而 \cs{mathbf} 在传统 \TeX{} 里一直是粗正体。把 \cs{mathbf} 单独接到
+% \cs{symbfup} 上，旧文档里的 \cs{mathbf} 才不会变成斜体。\pkg{unicode-math}
+% 在 \cs{begin\{document\}} 时会重新安排一遍数学字母表，所以要挂在钩子里。
+%    \begin{macrocode}
+    \AddToHook { begindocument/end } { \cs_set_eq:NN \mathbf \symbfup }
+  }
+\cs_new_protected:Npn \__hit_set_math_xits:
+  { \__hit_set_math_font:nn { XITSMath-Regular.otf } { XITSMath-Bold.otf } }
+\cs_new_protected:Npn \__hit_set_math_stix:
+  { \__hit_set_math_font:nn { STIXTwoMath-Regular.otf } { STIXTwoMath-Regular.otf } }
+\cs_new_protected:Npn \__hit_set_math_termes:
+  { \__hit_set_math_font:nn { texgyretermes-math.otf } { texgyretermes-math.otf } }
+\cs_new_protected:Npn \__hit_set_math_libertinus:
+  { \__hit_set_math_font:nn { libertinusmath-regular.otf } { libertinusmath-bold.otf } }
+\cs_new_protected:Npn \__hit_set_math_newcm:
+  { \__hit_set_math_font:nn { NewCMMath-Regular.otf } { NewCMMath-Bold.otf } }
+\cs_new_protected:Npn \__hit_set_math_lm:
+  { \__hit_set_math_font:nn { latinmodern-math.otf } { latinmodern-math.otf } }
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{直接修改编码，而不引入新的宏包。}
 % \changes{v3.2a}{0000/00/00}{newtxmath 的加载分支迁到 expl3。}
+% \pkg{newtxmath} 是 8~位字体路径，加载时得临时把三件套换成 \pkg{newtx} 自己的
+% 编码与字族，否则 \texttt{operators}、\cs{mathrm}、\cs{mathit}、\cs{mathbf}
+% 会退回 CM。做法取自
+% \href{https://github.com/sjtug/SJTUThesis/blob/b164d0f5b3087ed86c1038b5a85014b47a92c6f2/texmf/tex/latex/sjtuthesis/fd/sjtu-math-font-termes.def#L52-L65}{SJTUThesis 的字体设置}。
 %    \begin{macrocode}
-\ExplSyntaxOn
-\bool_if:NT \g__hit_newtxmath_bool
+\cs_new_protected:Npn \__hit_set_math_newtx:
   {
     \cs_set_eq:NN \oldencodingdefault \encodingdefault
     \cs_set_eq:NN \oldrmdefault \rmdefault
@@ -1081,6 +1166,22 @@
     \cs_set_eq:NN \sfdefault \oldsfdefault
     \cs_set_eq:NN \ttdefault \oldttdefault
   }
+\cs_new_protected:Npn \__hit_set_math_none: { }
+%    \end{macrocode}
+%
+% \pkg{amssymb} 与 \pkg{unicode-math} 冲突，只在 8~位路径上加载；走
+% \pkg{unicode-math} 时它提供的符号由数学字体自带。它要排在 \pkg{newtxmath}
+% 前面，两者都定义 \cs{Bbbk}，反过来会报重复定义。
+%    \begin{macrocode}
+\cs_if_exist:cTF { __hit_set_math_ \l__hit_math_font_str : }
+  {
+    \bool_lazy_or:nnT
+      { \str_if_eq_p:Vn \l__hit_math_font_str { newtx } }
+      { \str_if_eq_p:Vn \l__hit_math_font_str { none } }
+      { \RequirePackage { amssymb } }
+    \use:c { __hit_set_math_ \l__hit_math_font_str : }
+  }
+  { \msg_error:nnx { hithesis } { math-font-unknown } { \l__hit_math_font_str } }
 \ExplSyntaxOff
 %    \end{macrocode}
 %
@@ -2503,7 +2604,18 @@
 \RequirePackage{siunitx}
 \sisetup{group-minimum-digits=4, group-separator= \hspace{0.25em}}
 \sisetup{detect-weight,detect-mode,detect-family}
-\RequirePackage{bm}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{走 \pkg{unicode-math} 时 \cs{bm} 改用 \cs{symbf}}
+% \pkg{bm} 只在 8~位数学字体下加载。\pkg{unicode-math} 的符号是扩展 mathchar，
+% \pkg{bm} 处理不了，会报 \texttt{Extended mathchar used as mathchar}，
+% 这时把 \cs{bm} 接到 \pkg{unicode-math} 自己的 \cs{symbf} 上。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\bool_if:NTF \g__hit_unicodemath_bool
+  { \cs_set_eq:NN \bm \symbf }
+  { \RequirePackage { bm } }
+\ExplSyntaxOff
 \RequirePackage{mathrsfs}
 %    \end{macrocode}
 %
