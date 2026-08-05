@@ -647,13 +647,15 @@
 % 恒定义），于是 \pkg{subfigure}、\pkg{lstlisting} 和定理环境的 PDF 锚点都丢了章号
 % 前缀。这里在保留 \pkg{aliasctr} 别名跟随行为的前提下把 \cs{theH} 补回去。
 %    \begin{macrocode}
-\let\hit@org@addtoreset\@addtoreset
-\def\@addtoreset#1#2{%
-  \hit@org@addtoreset{#1}{#2}%
-  \expandafter\xdef\csname theH#1\endcsname{%
-    \expandafter\noexpand\csname theH#2\endcsname.%
-    \noexpand\the\noexpand\value{#1}}%
-}
+\ExplSyntaxOn
+\cs_set_eq:NN \hit@org@addtoreset \@addtoreset
+\cs_set:Npn \@addtoreset #1#2
+  {
+    \hit@org@addtoreset {#1} {#2}
+    \cs_gset:cpx { theH #1 }
+      { \exp_not:c { theH #2 } . \exp_not:N \the \exp_not:N \value {#1} }
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{定理环境的样式与声明收进 \cs{hit@thm@style} 与
@@ -1461,7 +1463,7 @@
 %   页脚这两块内容留在 expl3 之外定义成宏：它们的花括号后换行会产生一个空格
 %   记号，\cs{ExplSyntaxOn} 下会消失，见 CONTRIBUTING §4.6。}
 \RequirePackage{fancyhdr}
-\let\hit@headrule\headrule
+\ExplSyntaxOn\cs_set_eq:NN \hit@headrule \headrule\ExplSyntaxOff
 \fancypagestyle{hit@empty}{%
   \fancyhf{}
   \let\headrule\hit@headrule%
@@ -1554,8 +1556,8 @@
 % \changes{v3.1d}{2025/03/03}{定义页脚中横线与页码的距离。\issue[172]}
 % 哈尔滨本科页脚的横线与页码的间距比原来的大，用判断来控制。
 %    \begin{macrocode}
-\newlength\hit@pagenumber@sep
 \ExplSyntaxOn
+\skip_new:N \hit@pagenumber@sep
 \bool_lazy_and:nnTF
   { \bool_if_p:N \g__hit_harbin_bool }
   { \bool_if_p:N \g__hit_bachelor_bool }
@@ -1781,17 +1783,19 @@
 \ExplSyntaxOn
 \cs_set:Npn \footnoterule
   { \vskip -3\p@ \hrule \@width 0.3\textwidth \@height 0.4\p@ \vskip 2.6\p@ }
+\cs_set_eq:NN \hit@footnotesize \footnotesize
+\cs_set:Npn \footnotesize { \hit@footnotesize \xiaowu [1.5] }
 \ExplSyntaxOff
-\let\hit@footnotesize\footnotesize
-\ExplSyntaxOn\cs_set:Npn \footnotesize { \hit@footnotesize \xiaowu [1.5] }\ExplSyntaxOff
 \footnotemargin1.5em\relax
 %    \end{macrocode}
 %
 % \cs{@makefnmark} 默认是上标样式，而在脚注部分要求为正文大小。利用\cs{patchcmd}
 % 动态调整 \cs{@makefnmark} 的定义。
 %    \begin{macrocode}
-\let\hit@makefnmark\@makefnmark
-\ExplSyntaxOn\cs_new:Npn \hit@@makefnmark { \hbox { { \normalfont \@thefnmark } } }\ExplSyntaxOff
+\ExplSyntaxOn
+\cs_set_eq:NN \hit@makefnmark \@makefnmark
+\cs_new:Npn \hit@@makefnmark { \hbox { { \normalfont \@thefnmark } } }
+\ExplSyntaxOff
 \pretocmd{\@makefntext}{\let\@makefnmark\hit@@makefnmark}{}{}
 \apptocmd{\@makefntext}{\let\@makefnmark\hit@makefnmark}{}{}
 %</book-footnote>
@@ -2116,8 +2120,8 @@
 % 我们采用 \pkg{longtable} 来处理跨页的表格。同样我们需要设置其默认字体为五号，
 % 行距设置为1.3倍行距。此处还需要提供一个设置长表格内部字体的命令。
 %    \begin{macrocode}
-\let\hit@LT@array\LT@array
 \ExplSyntaxOn
+\cs_set_eq:NN \hit@LT@array \LT@array
 \cs_set:Npn \LT@array { \wuhao \hit@LT@array }% 长表格默认字号
 \NewDocumentCommand \ltfontsize { m }
   { \cs_set:Npn \LT@array { #1 \hit@LT@array } }
@@ -2551,7 +2555,7 @@ breaklines=true
   ckeywords-separator = {；},
   ekeywords-separator = {,},
 }
-\let\CJK@todaysave=\today
+\ExplSyntaxOn\cs_set_eq:NN \CJK@todaysave \today\ExplSyntaxOff
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{日期格式改用 expl3 定义。年月之间那个空格是原写法
@@ -2990,7 +2994,7 @@ breaklines=true
 % 文章节，如果有，则是英文目录中显示的内容。
 %    \begin{macro}{\chapter}
 %    \begin{macrocode}
-\let\hit@chapter\chapter
+\ExplSyntaxOn\cs_set_eq:NN \hit@chapter \chapter\ExplSyntaxOff
 \RenewDocumentCommand{\chapter}{s o m o}{%
   \hit@clearpage\phantomsection%
   \IfBooleanTF{#1}%
@@ -3035,7 +3039,7 @@ breaklines=true
 %    \end{macro}
 %    \begin{macro}{\section}
 %    \begin{macrocode}
-\let\hit@section\section
+\ExplSyntaxOn\cs_set_eq:NN \hit@section \section\ExplSyntaxOff
 \RenewDocumentCommand\section{s o m o}{
   \IfBooleanTF{#1}%
   {%	if \section*
@@ -3064,7 +3068,7 @@ breaklines=true
 %    \end{macro}
 %    \begin{macro}{\subsection}
 %    \begin{macrocode}
-\let\hit@subsection\subsection
+\ExplSyntaxOn\cs_set_eq:NN \hit@subsection \subsection\ExplSyntaxOff
 \RenewDocumentCommand\subsection{s o m o}{
   \IfBooleanTF{#1}%
   {%	if \subsection*
@@ -3093,7 +3097,7 @@ breaklines=true
 %    \end{macro}
 %    \begin{macro}{\subsubsection}
 %    \begin{macrocode}
-\let\hit@subsubsection\subsubsection
+\ExplSyntaxOn\cs_set_eq:NN \hit@subsubsection \subsubsection\ExplSyntaxOff
 \RenewDocumentCommand\subsubsection{s o m o}{
   \IfBooleanTF{#1}%
   {%	if \subsubsection*
@@ -4125,8 +4129,8 @@ breaklines=true
 % ^^A ======================================================================
 %    \begin{macrocode}
 %<*book-frontmatter>
-\newlength{\hit@title@width}
 \ExplSyntaxOn
+\skip_new:N \hit@title@width
 \NewDocumentCommand \hit@put@title { O{\hit@title@width} m }
   { \begin { CJKfilltwosides } [b] {#1} #2 \end { CJKfilltwosides } }
 \ExplSyntaxOff
@@ -4363,9 +4367,9 @@ breaklines=true
 %    \begin{macrocode}
 
 
-\newlength{\hit@ctitleonelength}%
-\newlength{\hit@ctitletwolength}%
 \ExplSyntaxOn
+\skip_new:N \hit@ctitleonelength
+\skip_new:N \hit@ctitletwolength
 \cs_new_protected:Npn \hit@second@titlepage@bachelor
   {
 ~
@@ -4464,10 +4468,10 @@ breaklines=true
 % 又为哈尔滨本科增加一个长度命令 \cmd{\hit@schoolname@nddate}
 %    \begin{macrocode}
 
-\newlength{\hit@schoolname@nddate}
+\ExplSyntaxOn\skip_new:N \hit@schoolname@nddate\ExplSyntaxOff
 \hit@ifand{harbin}{bachelor}{\setlength{\hit@schoolname@nddate}{10.8mm}}{\setlength{\hit@schoolname@nddate}{1.4cm}}
 
-\newlength{\hit@etitlelength}%
+\ExplSyntaxOn\skip_new:N \hit@etitlelength\ExplSyntaxOff
 %    \end{macrocode}
 %    \begin{macro}{\hit@first@titlepage@other}
 %    \begin{macrocode}
@@ -4830,8 +4834,8 @@ breaklines=true
 %    \end{macro}
 % 生成参考文献和关键字。
 %    \begin{macrocode}
-\newbox\hit@kw
 \ExplSyntaxOn
+\box_new:N \hit@kw
 \NewDocumentCommand \hit@put@keywords { m m }
   {
     \group_begin:
@@ -5152,8 +5156,8 @@ breaklines=true
 %<*book-appendix>
 \RequirePackage{enumitem}
 \RequirePackage{xparse}
-\let\hit@appendix\appendix
 \ExplSyntaxOn
+\cs_set_eq:NN \hit@appendix \appendix
 \bool_new:N \g__hit_inappendix_bool
 \cs_new:Npn \hit@engtoc@chapapp { \hit@if{inappendix}{Appendix~}{Chapter~} }
 \ExplSyntaxOff
@@ -5475,8 +5479,8 @@ breaklines=true
       \citep {#1}
     \group_end:
   }
+\cs_set_eq:NN \onlinecite \inlinecite
 \ExplSyntaxOff
-\let\onlinecite\inlinecite
 %    \end{macrocode}
 %
 % \changes{v3.1a}{2022/05/17}{按照 \hitszthesis{} 生成深圳校区的参考文献样式 \texttt{hitszthesis.bst}。\issue[97]}
