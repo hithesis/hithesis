@@ -16,43 +16,27 @@ OPT=subfigpkg=modern bash tools/compile-subfigure.sh
 
 ## classic 与 modern 的差距
 
-用 `pdftotext -bbox` 逐词比位置，两边页数、横排、编号、`\ref`、图目录条目一致，
-只剩竖向偏移（五号子图题下测得）：
+用 `pdftotext -bbox` 逐词比位置。两边页数、横排、编号、`\ref`、图目录条目一致，
+横向最大差 1.5bp（子表列宽），竖向：
 
 | 位置 | modern 比 classic |
 | --- | --- |
-| 子图题 | 高 4.10bp |
+| 单语子图题 | 高 4.09bp |
+| 双语子图题（两行） | 高 9.95～19.91bp |
 | 图之后的正文 | 高 1.86bp |
 
-原因查清了，两个数都来自图题盒子的深度：
+原因是图题盒子的深度：`subfigure` 单行子图题排成裸 `\hbox`，深度随文字走（这份
+内容下 1.865pt）；`caption` 排成段落，行里带 strut，深度固定 4.110pt，装进 `\vbox`
+之后又折进高度，盒子深度成了 0。图之后的材料因此高 1.865bp，子图题自身再多差一个
+strut 深度超出量 2.245pt，两行就翻倍。
 
-- `subfigure` 单行子图题排成裸 `\hbox`，深度是文字的自然深度，这份内容下是
-  1.865pt。`caption` 排成段落，行里带 strut，深度固定 4.110pt，装进 `\vbox`
-  之后又被折进高度，盒子深度成了 0。图之后的材料因此高 1.865bp。
-- 子图题自身再多差一个 strut 的深度超出量 2.245pt，合起来 4.11bp。
-
-已经排掉的原因：`\subfigtopskip`（tight 模式下 TeX Live 自带的 `subfigure.cfg`
-把它设成 5pt，两边都加）、`\baselineskip`（图题先装 `\vbox` 再放进竖直列表，行间
-胶已经和 `subfigure` 一致，图题基线离内容底两边都是 20.58083pt）、caption 的
-`skip`（设成 0，改由行间胶承担）。
+已经排掉的原因：`\subfigtopskip`（TeX Live 自带的 `subfigure.cfg` 把 subfigure 设成
+tight，两边都是 5pt）、`\baselineskip`（图题先装 `\vbox` 再放进竖直列表，行间胶已
+与 `subfigure` 一致，图题基线离内容底两边都是 20.58083pt）、caption 的 `skip`（设成
+0，改由行间胶承担）。
 
 要抹平只能剥掉 `caption` 的 strut，那等于放弃它保证的子图题基线整齐。这里认为
 `caption` 的做法更好，差值留着。
 
-## 旧写法在 modern 下
-
-兼容层接住了三个旧习惯用法，拿 `examples/hitbook/chinese` 那份真实文档
-（一个字没改，只加 `subfigpkg=modern`）验过：0 错误、0 Overfull、50 页不变，
-50 页里只有 4 页有位移。
-
-- `\subfigure{\label{键}}`：内容为空、只为占标签，记下标签留给下一个子图，本身不排。
-- 紧跟的 `\addtocounter{subfigure}{-2}`：直接吃掉。
-- `\subfigure[英文]{\subfigure[中文]{图}}`：拆开转成 `\bisubcaption`。
-
-## 已知问题
-
-`\subtable` 在 modern 下会把表格内容吃掉，只剩子表题。同一个 `tabular` 改用
-`\subfigure` 放在 `table` 里就正常，所以问题在 `\subtable` 的分发路径上，不在
-`\__hit_subfloat:nn`。已排除：`\@currenvir` 在 `table` 浮动体里确实是 `table`
-（分发应当走命令那支）、`tabular` 装箱正常（48.09pt × 24.28pt）、后面没有别的包
-再改 `\subtable`。
+子表题的位置两边都在表上方：`subfigure` 那边是 `\ifsubtabletopcap`，modern 这边按
+`\@captype` 自己分，上方时上下留白对调并补 `\subfigcaptopadj`。
