@@ -1181,6 +1181,13 @@
 % 行间胶，图与图题之间就少了一整个 \cs{baselineskip}。装箱之后 \cs{vbox} 的高度
 % 就是首行基线的位置，行间胶照常算，与 \pkg{subfigure} 的结果一致。
 %    \begin{macrocode}
+        \tl_if_empty:NF \g__hit_subpending_tl
+          {
+            \tl_gset:Nx \g__hit_sublabel_tl { \g__hit_subpending_tl }
+            \tl_gclear:N \g__hit_subpending_tl
+          }
+        \dim_compare:nNnT { \box_wd:N \l__hit_sub_box } = { 0pt }
+          { \box_set_wd:Nn \l__hit_sub_box { \linewidth } }
         \vbox_set:Nn \l__hit_subcap_box
           {
             \hsize \box_wd:N \l__hit_sub_box
@@ -1223,8 +1230,53 @@
           { \__hit_subtab_env: }
           { \__hit_subfloat_cmd: }
       }
+%    \end{macrocode}
+%
+% 旧写法有三个习惯用法，兼容期内都要接住：
+% \begin{itemize}
+% \item \cs{subfigure}\marg{\cs{label}\marg{键}}：内容是空的，只为了把标签挂到
+%   下一个编号上。这里记下标签留给下一个子图，本身什么也不排。
+% \item 紧跟其后的 \cs{addtocounter}\marg{subfigure}\marg{-2}：那是给上面那招凑
+%   计数器用的，\pkg{subcaption} 的计数器语义不同，直接吃掉。
+% \item \cs{subfigure}\oarg{英文}\marg{\cs{subfigure}\oarg{中文}\marg{图}}：双语
+%   子图题的套娃，拆开转成 \cs{bisubcaption}。
+% \end{itemize}
+%    \begin{macrocode}
+    \tl_new:N \g__hit_subpending_tl
+    \cs_new_protected:Npn \__hit_sub_eat:w \addtocounter #1#2
+      { \str_if_eq:nnF {#1} { subfigure } { \addtocounter {#1} {#2} } }
+    \cs_new_protected:Npn \__hit_sub_eat_rewind:
+      {
+        \peek_remove_spaces:n
+          { \peek_meaning:NT \addtocounter { \__hit_sub_eat:w } }
+      }
+    \cs_new_protected:Npn \__hit_sub_unnest:nw #1 \subfigure [#2]#3 \q_stop
+      { \__hit_subfloat:nn { \bisubcaption {#2} {#1} } {#3} }
+    \cs_new_protected:Npn \__hit_sub_nocap:n #1
+      {
+        \tl_gclear:N \g__hit_sublabel_tl
+        \hbox_set:Nn \l__hit_sub_box
+          {
+            \cs_set_protected:Npn \label ##1 { \tl_gset:Nn \g__hit_sublabel_tl {##1} }
+            #1
+          }
+        \dim_compare:nNnTF { \box_wd:N \l__hit_sub_box } = { 0pt }
+          {
+            \tl_gset_eq:NN \g__hit_subpending_tl \g__hit_sublabel_tl
+            \__hit_sub_eat_rewind:
+          }
+          { \__hit_subfloat:nn { } { \box_use_drop:N \l__hit_sub_box } }
+      }
     \NewDocumentCommand \__hit_subfloat_cmd: { o m }
-      { \IfNoValueTF {#1} { \__hit_subfloat:nn { } {#2} } { \__hit_subfloat:nn {#1} {#2} } }
+      {
+        \IfNoValueTF {#1}
+          { \__hit_sub_nocap:n {#2} }
+          {
+            \tl_if_head_eq_meaning:nNTF {#2} \subfigure
+              { \__hit_sub_unnest:nw {#1} #2 \q_stop }
+              { \__hit_subfloat:nn {#1} {#2} }
+          }
+      }
   }
 %    \end{macrocode}
 %
@@ -1236,7 +1288,7 @@
 % \cs{addtocounter} 把计数器凑回来，换了宏包就不成立了。
 %    \begin{macrocode}
 \NewDocumentCommand \bisubcaption { m m }
-  { #1 \par \thesubfigure \hskip \subfiglabelskip #2 }
+  { { \centering #1 \par \thesubfigure \hskip \subfiglabelskip #2 \par } }
 \ExplSyntaxOff
 %    \end{macrocode}
 %

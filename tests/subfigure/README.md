@@ -38,3 +38,21 @@ OPT=subfigpkg=modern bash tools/compile-subfigure.sh
 
 要抹平只能剥掉 `caption` 的 strut，那等于放弃它保证的子图题基线整齐。这里认为
 `caption` 的做法更好，差值留着。
+
+## 旧写法在 modern 下
+
+兼容层接住了三个旧习惯用法，拿 `examples/hitbook/chinese` 那份真实文档
+（一个字没改，只加 `subfigpkg=modern`）验过：0 错误、0 Overfull、50 页不变，
+50 页里只有 4 页有位移。
+
+- `\subfigure{\label{键}}`：内容为空、只为占标签，记下标签留给下一个子图，本身不排。
+- 紧跟的 `\addtocounter{subfigure}{-2}`：直接吃掉。
+- `\subfigure[英文]{\subfigure[中文]{图}}`：拆开转成 `\bisubcaption`。
+
+## 已知问题
+
+`\subtable` 在 modern 下会把表格内容吃掉，只剩子表题。同一个 `tabular` 改用
+`\subfigure` 放在 `table` 里就正常，所以问题在 `\subtable` 的分发路径上，不在
+`\__hit_subfloat:nn`。已排除：`\@currenvir` 在 `table` 浮动体里确实是 `table`
+（分发应当走命令那支）、`tabular` 装箱正常（48.09pt × 24.28pt）、后面没有别的包
+再改 `\subtable`。
