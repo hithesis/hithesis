@@ -265,6 +265,14 @@
 \hit@boolopt{subcapcenterlast}{false}
 %    \end{macrocode}
 %
+% \changes{v3.2a}{0000/00/00}{加 \option{subfigpkg} 选项，为 \pkg{subfigure}
+%   换 \pkg{subcaption} 做准备（\issue[284]）}
+% 子图宏包。\pkg{subfigure} 二十多年没人维护，与 \pkg{cleveref}、\pkg{hyperref}
+% 配合有问题，逐步换成 \pkg{subcaption}。兼容期内默认仍是 \option{classic}。
+%    \begin{macrocode}
+\hit@choiceopt{subfigpkg}{subfigpkg}{classic,modern}{classic}
+%    \end{macrocode}
+%
 % 中文目录中Abstract是否均为大写
 % \changes{v1.0.13}{2018/04/05}{此处添加中文目录中Abstract是否均为大写选项}
 %    \begin{macrocode}
@@ -1117,11 +1125,106 @@
 \RequirePackage{flafter}       % 使得所有浮动体不能被放置在其浮动环境之前，以免浮动体在引述它的文本之前出现.
 \RequirePackage{multirow}       %使用Multirow宏包，使得表格可以合并多个row格
 \ExplSyntaxOn
-\bool_if:NT \g__hit_subcapcenterlast_bool
-  { \PassOptionsToPackage { centerlast } { subfigure } }
+\bool_if:NTF \g__hit_subfigpkgmodern_bool
+  {
+    \RequirePackage { subcaption }
+    \RequirePackage { ccaption }
+  }
+  {
+    \bool_if:NT \g__hit_subcapcenterlast_bool
+      { \PassOptionsToPackage { centerlast } { subfigure } }
+    \RequirePackage { subfigure }
+    \RequirePackage [ subfigure ] { ccaption }
+  }
 \ExplSyntaxOff
-\RequirePackage{subfigure}%支持子图 %centerlast 设置最后一行是否居中
-\RequirePackage[subfigure]{ccaption} %支持双语标题
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\option{subfigpkg}\texttt{=modern} 下的
+%   \pkg{subfigure} 兼容层（\issue[284]）}
+% \option{modern} 下的兼容层。\pkg{subfigure} 的六个长度用户文档里在用
+% （示例正文就有 \cs{setlength}\marg{\cs{subfigcapskip}}），照原值声明；
+% \cs{subfigure} 与 \cs{subtable} 转成 \cs{subcaptionbox}，外面套回
+% \pkg{subfigure} 的上下留白，这样版面能对上，计数器、标签、图目录条目和
+% 超链接锚点则由 \pkg{subcaption} 负责。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\bool_if:NT \g__hit_subfigpkgmodern_bool
+  {
+    \skip_new:N \subfigtopskip     \skip_set:Nn \subfigtopskip    { 5pt }
+    \skip_new:N \subfigcapskip     \skip_set:Nn \subfigcapskip    { 0pt }
+    \skip_new:N \subfigbottomskip  \skip_set:Nn \subfigbottomskip { 5pt }
+    \dim_new:N  \subfigcaptopadj   \dim_set:Nn  \subfigcaptopadj  { 3pt }
+    \dim_new:N  \subfigcapmargin   \dim_set:Nn  \subfigcapmargin  { 0pt }
+    \skip_new:N \subfiglabelskip
+    \skip_set:Nn \subfiglabelskip { 0.33em~plus~0.07em~minus~0.03em }
+%    \end{macrocode}
+%
+% \cs{subcaptionbox} 要求 \cs{label} 写在图题里，而旧写法把它写在内容里
+% （\pkg{subfigure} 自己 \cs{let} 掉 \cs{label} 来接）。这里照样接住：内容先
+% 装箱，装箱时把 \cs{label} 的参数记下来，再塞回图题参数末尾。
+%    \begin{macrocode}
+    \box_new:N \l__hit_sub_box
+    \tl_new:N \g__hit_sublabel_tl
+    \cs_new_protected:Npn \__hit_subfloat:nn #1#2
+      {
+        \tl_gclear:N \g__hit_sublabel_tl
+        \hbox_set:Nn \l__hit_sub_box
+          {
+            \cs_set_protected:Npn \label ##1 { \tl_gset:Nn \g__hit_sublabel_tl {##1} }
+            #2
+          }
+        \leavevmode
+        \vtop
+          {
+            \hsize \box_wd:N \l__hit_sub_box
+            \linewidth \hsize
+            \vbox { \vskip \subfigtopskip \box_use_drop:N \l__hit_sub_box }
+            \vskip \subfigcapskip
+            \subcaption
+              {
+                #1
+                \tl_if_empty:NF \g__hit_sublabel_tl
+                  { \exp_args:NV \label \g__hit_sublabel_tl }
+              }
+            \vskip \subfigbottomskip
+          }
+      }
+%    \end{macrocode}
+%
+% \pkg{subcaption} 把 \texttt{subfigure} 和 \texttt{subtable} 定义成环境，而
+% \cs{begin}\marg{subfigure} 展开出来就是 \cs{subfigure}，跟旧的命令写法同名。
+% 两套语法要并存，只能在入口按 \cs{@currenvir} 分流：从 \cs{begin} 进来的走
+% \pkg{subcaption} 的环境，直接调用的走兼容壳。
+%    \begin{macrocode}
+    \cs_new_eq:NN \__hit_subfig_env: \subfigure
+    \cs_new_eq:NN \__hit_subtab_env: \subtable
+    \cs_set_protected:Npn \subfigure
+      {
+        \str_if_eq:eeTF { \@currenvir } { subfigure }
+          { \__hit_subfig_env: }
+          { \__hit_subfloat_cmd: }
+      }
+    \cs_set_protected:Npn \subtable
+      {
+        \str_if_eq:eeTF { \@currenvir } { subtable }
+          { \__hit_subtab_env: }
+          { \__hit_subfloat_cmd: }
+      }
+    \NewDocumentCommand \__hit_subfloat_cmd: { o m }
+      { \IfNoValueTF {#1} { \__hit_subfloat:nn { } {#2} } { \__hit_subfloat:nn {#1} {#2} } }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{加 \cs{bisubcaption}，双语子图题不再靠嵌套
+%   \cs{subfigure} 凑（\issue[284]）}
+% 双语子图题。两种模式下定义相同：子图题本来就排在 \cs{parbox} 里，\cs{par}
+% 断行有效，第二行自己补一个同号的标签，形状与 \cs{bicaption} 一致。原先靠
+% \cs{subfigure}\oarg{英文}\marg{\cs{subfigure}\oarg{中文}\marg{图}} 套娃再拿
+% \cs{addtocounter} 把计数器凑回来，换了宏包就不成立了。
+%    \begin{macrocode}
+\NewDocumentCommand \bisubcaption { m m }
+  { #1 \par \thesubfigure \hskip \subfiglabelskip #2 }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 中英文索引包。
@@ -2153,7 +2256,23 @@
 %    \begin{macrocode}
 \captionnamefont{\wuhao}
 \captiontitlefont{\wuhao}
-\ExplSyntaxOn\cs_set:Npn \subcapsize { \wuhao }\ExplSyntaxOff
+\ExplSyntaxOn
+\cs_set:Npn \subcapsize { \wuhao }
+%    \end{macrocode}
+%
+% \option{modern} 下子图题的字体、标签分隔与最后一行对齐交给 \pkg{caption}，
+% 键名不同但取的是同一批值。
+%    \begin{macrocode}
+\bool_if:NT \g__hit_subfigpkgmodern_bool
+  {
+    \DeclareCaptionFont { hit@subcap } { \subcapsize }
+    \DeclareCaptionLabelSeparator { hit@sub } { \hskip \subfiglabelskip }
+    \captionsetup [ sub ]
+      { font = hit@subcap , labelformat = simple , labelsep = hit@sub }
+    \bool_if:NT \g__hit_subcapcenterlast_bool
+      { \captionsetup [ sub ] { justification = centerlast } }
+  }
+\ExplSyntaxOff
 \setlength{\abovecaptionskip}{0pt}%为了双标题之间的间距，不能设置
 \setlength{\belowcaptionskip}{0pt}
 % 自定义项目列表标签及格式 \begin{publist} 列表项 \end{publist}
