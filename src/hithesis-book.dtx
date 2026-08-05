@@ -2133,10 +2133,20 @@
 %    \begin{macrocode}
 \ExplSyntaxOn
 \box_new:N \l__hit_quan_box
-\box_new:N \l__hit_quanref_box
-\int_new:N \l__hit_quan_slot_int
 \box_new:N \l__hit_quanmark_box
-\box_new:N \l__hit_quandraw_box
+\int_new:N \l__hit_quan_slot_int
+\dim_new:N \l__hit_quandia_dim
+\fp_new:N \l__hit_quank_fp
+\fp_new:N \l__hit_quanx_fp
+%    \end{macrocode}
+%
+% 圈里数字的横向压缩比例，与圈线的粗细（相对 em）。两个常数都是拿
+% \option{fontset}\texttt{=windows}（SimSun）的自带带圈字符量出来的：数字压到
+% 0.45 倍看着与字形版一致；字形的圈线粗细约为 0.034 em，而
+% \cs{linethickness} 的默认值是绝对长度，字号一放大就明显偏细，所以改成跟着 em 走。
+%    \begin{macrocode}
+\fp_const:Nn \c__hit_quan_fill_fp { 0.5 }
+\dim_const:Nn \c__hit_quan_rule_dim { 0.045em }
 %    \end{macrocode}
 %
 % 把当前 CJK 字体设成当前字体。\cs{songti} 只是选 CJK 家族，西文数字仍走西文字体；
@@ -2165,11 +2175,15 @@
   }
 %    \end{macrocode}
 %
-% 当前宋体有现成的带圈字符就直接用，字形比画出来的圈规整；没有才用
-% \pkg{circledsteps} 画。画的时候数字也取当前宋体，它的西文数字是全宽的，横向压到
-% 半宽左右才像个圈里的数字——位数多了按比例继续压，圈始终是正圆。
+% 当前宋体有现成的带圈字符就直接用，字形比画出来的规整；没有才画。
+%
+% 画的几何按字体自带的 \texttt{U+2460} 定：量出它的直径，数字缩到直径的一半（字形
+% 版里数字大致就占这个比例），剩下的补成 \pkg{circledsteps} 的内边距，圈就与字形版
+% 一样大、数字也一样大。位数多了只在横向压，圈保持正圆。圈线粗细跟 em 走——圈线粗细
+% 取 0.045~em，是拿 SimSun 的字形量出来的；\cs{linethickness} 的默认值是绝对长度，
+% 字号一放大就偏细，所以跟着 em 走。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_quan:n #1
+\NewDocumentCommand \quan { m }
   {
     \group_begin:
       \__hit_cjkfont:
@@ -2178,48 +2192,57 @@
         { \int_compare_p:nNn \l__hit_quan_slot_int > { 0 } }
         { \int_compare_p:nNn { \XeTeXcharglyph \l__hit_quan_slot_int } > { 0 } }
         { \tex_char:D \l__hit_quan_slot_int }
-        {
+        { \__hit_quan_draw:n {#1} }
+    \group_end:
+  }
+\cs_new_protected:Npn \__hit_quan_draw:n #1
+  {
+    \hbox_set:Nn \l__hit_quanmark_box { \tex_char:D "2460 }
+    \hbox_set:Nn \l__hit_quan_box { #1 }
+    \dim_set:Nn \l__hit_quandia_dim
+      { \box_ht:N \l__hit_quanmark_box + \box_dp:N \l__hit_quanmark_box }
+    \dim_compare:nNnT { \l__hit_quandia_dim } = { 0pt }
+      { \dim_set:Nn \l__hit_quandia_dim { 1em } }
 %    \end{macrocode}
 %
-% 画出来的圈要和字符版一样大。\cs{Circled} 的圈是按内容外框撑的，而 CJK 数字是
-% 全高全宽的，只压横向会撑成竖椭圆。所以先量一遍 \texttt{U+2460}（带圈的一那个字符）的盒子当基准，把画好的圈整体缩放到同样尺寸；位数多的先横向压回一位数的
-% 宽度，免得圈里挤不下。
+% 数字缩到直径的一半；横向如果还塞不进内圈，再按比例压窄。
 %    \begin{macrocode}
-          \hbox_set:Nn \l__hit_quan_box    { #1 }
-          \hbox_set:Nn \l__hit_quanref_box { 0 }
-          \hbox_set:Nn \l__hit_quanmark_box { \tex_char:D "2460 }
-          \hbox_set:Nn \l__hit_quandraw_box
-            {
-              \Circled
-                {
-                  \scalebox
-                    {
-                      \fp_eval:n
-                        {
-                          \dim_to_fp:n { \box_wd:N \l__hit_quanref_box }
-                          / \dim_to_fp:n { \box_wd:N \l__hit_quan_box }
-                        }
-                    }
-                    [ 1 ] { \box_use:N \l__hit_quan_box }
-                }
-            }
-          \dim_compare:nNnTF { \box_wd:N \l__hit_quanmark_box } > { 0pt }
-            {
-              \resizebox { \box_wd:N \l__hit_quanmark_box } { ! }
-                { \box_use:N \l__hit_quandraw_box }
-            }
-            { \box_use:N \l__hit_quandraw_box }
+    \fp_set:Nn \l__hit_quank_fp
+      {
+        \c__hit_quan_fill_fp * \dim_to_fp:n { \l__hit_quandia_dim }
+        / \dim_to_fp:n { \box_ht:N \l__hit_quan_box + \box_dp:N \l__hit_quan_box }
+      }
+    \fp_set:Nn \l__hit_quanx_fp
+      {
+        \fp_min:nn { 1 }
+          {
+            \c__hit_quan_fill_fp * \dim_to_fp:n { \l__hit_quandia_dim }
+            / ( \l__hit_quank_fp * \dim_to_fp:n { \box_wd:N \l__hit_quan_box } )
+          }
+      }
+    \group_begin:
+      \linethickness { \c__hit_quan_rule_dim }
+      \pgfkeys
+        {
+          /csteps/inner~ysep =
+            \fp_to_dim:n
+              { \dim_to_fp:n { \l__hit_quandia_dim } * ( 1 - \c__hit_quan_fill_fp ) } ,
+          /csteps/inner~xsep =
+            \fp_to_dim:n
+              { \dim_to_fp:n { \l__hit_quandia_dim } * ( 1 - \c__hit_quan_fill_fp ) } ,
+        }
+      \Circled
+        {
+          \scalebox { \fp_eval:n { \l__hit_quank_fp * \l__hit_quanx_fp } }
+            [ \fp_use:N \l__hit_quank_fp ] { \box_use:N \l__hit_quan_box }
         }
     \group_end:
   }
-\NewDocumentCommand \Quan { m } { \__hit_quan:n {#1} }
-\NewDocumentCommand \quan { o m } { \IfNoValueTF {#1} { \__hit_quan:n {#2} } { \__hit_quan:n {#1#2} } }
-\NewDocumentCommand \quansplit { m } { \__hit_quan:n {#1} }
 \cs_new_protected:Npn \hit@textcircled #1
   {
     \hit@if{pifootnote}%
       {\ding{\the\numexpr\value{#1}+171\relax}}%
-      {\quansplit{\arabic{#1}}}%
+      {\quan{\arabic{#1}}}%
   }
 \cs_set:Npn \thefootnote   { \hit@textcircled { footnote } }
 \cs_set:Npn \thempfootnote { \hit@textcircled { mpfootnote } }
