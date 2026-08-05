@@ -430,7 +430,7 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2022-10-18 | cyf       | WeChat          |
 | 2023-02-28 | hidadeng  | QQ              |
 | 2023-04-16 | Yang      | Alipay          |
-| 2023-04-28 | Lin | Alipay |
+| 2023-04-28 | Lin       | Alipay          |
 | 2023-05-11 | hzy       | WeChat          |
 | 2023-09-05 | 曹世达    | Wechat          |
 | 2023-11-30 | JerryLiu  | WeChat          |
@@ -438,9 +438,10 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2024-04-09 | 老学水    | Alipay          |
 | 2024-04-10 | csat      | WeChat          |
 | 2024-04-14 | Cen       | WeChat          |
-| 2025-01-14 | 沉梦昂志  |  WeChat         |
-| 2025-03-10 |  xw       |Alipay           |
+| 2025-01-14 | 沉梦昂志  | WeChat          |
+| 2025-03-10 |  xw       | Alipay          |
 | 2025-04-09 | Lrz       | WeChat          |
-| 2026-01-03 | 无题      |  Alipay         |
+| 2026-01-03 | 无题      | Alipay          |
 | 2026-01-26 | *新       | WeChat          |
 | 2026-03-20 | 青云      | WeChat          |
+| 2026-08-01 | w*r       | WeChat.         |
