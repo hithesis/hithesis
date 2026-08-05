@@ -1165,6 +1165,9 @@
 %    \begin{macrocode}
     \box_new:N \l__hit_sub_box
     \box_new:N \l__hit_subcap_box
+    \box_new:N \l__hit_submeas_box
+    \dim_new:N \l__hit_subtot_dim
+    \bool_new:N \l__hit_suboneline_bool
     \tl_new:N \g__hit_sublabel_tl
     \cs_new_protected:Npn \__hit_subfloat:nn #1#2
       {
@@ -1188,10 +1191,28 @@
           }
         \dim_compare:nNnT { \box_wd:N \l__hit_sub_box } = { 0pt }
           { \box_set_wd:Nn \l__hit_sub_box { \linewidth } }
-        \vbox_set:Nn \l__hit_subcap_box
+%    \end{macrocode}
+%
+% \pkg{subfigure} 单行子图题排成裸 \cs{hbox}，高深随文字；排不下才退回
+% \cs{parbox}，那时才有 strut。\pkg{caption} 一律带 strut，深度固定，图之后的
+% 材料会高一截。照 \pkg{subfigure} 的做法先拿同样的字体量一遍宽度，装得下就
+% 关掉 strut。量的时候计数器还没走，\cs{thesubfigure} 拿到的是上一个号，宽度
+% 一样，不影响判断。
+%    \begin{macrocode}
+        \hbox_set:Nn \l__hit_submeas_box
+          {
+            \subcapsize \thesubfigure \hskip \subfiglabelskip #1
+          }
+        \dim_compare:nNnTF
+          { \box_wd:N \l__hit_submeas_box } < { \box_wd:N \l__hit_sub_box }
+          { \bool_set_true:N \l__hit_suboneline_bool }
+          { \bool_set_false:N \l__hit_suboneline_bool }
+        \tex_setbox:D \l__hit_subcap_box \tex_vbox:D
           {
             \hsize \box_wd:N \l__hit_sub_box
             \linewidth \hsize
+            \bool_if:NT \l__hit_suboneline_bool
+              { \captionsetup [ sub ] { strut = false } }
             \subcaption
               {
                 #1
@@ -1205,6 +1226,21 @@
 % 盒子是这里手工摆的，\pkg{caption} 的 \option{position} 管不到，按 \cs{@captype}
 % 自己分。上方时上下留白对调，并按 \pkg{subfigure} 的做法补 \cs{subfigcaptopadj}。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \pkg{subfigure} 多行子图题用 \cs{parbox}\texttt{[t]}：高度是首行的高度，其余算深度。
+% \cs{vbox} 相反，把一切折进高度、深度为 0，放进竖直列表时参考点就错了。这里拿
+% 量宽度那个 \cs{hbox} 的高度当首行高度，把图题盒子的高深重设一遍。单行时结果与
+% \pkg{subfigure} 的裸 \cs{hbox} 逐值相同。
+%    \begin{macrocode}
+        \bool_if:NT \l__hit_suboneline_bool
+          {
+            \dim_set:Nn \l__hit_subtot_dim
+              { \box_ht:N \l__hit_subcap_box + \box_dp:N \l__hit_subcap_box }
+            \box_set_ht:Nn \l__hit_subcap_box { \box_ht:N \l__hit_submeas_box }
+            \box_set_dp:Nn \l__hit_subcap_box
+              { \l__hit_subtot_dim - \box_ht:N \l__hit_submeas_box }
+          }
         \leavevmode
         \str_if_eq:eeTF { \@captype } { table }
           {
