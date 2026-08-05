@@ -208,6 +208,11 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 只有在 `\ExplSyntaxOn` 下才算字母，所以没法零散替换某一处写法，只能一个模块整体
 切过去，前后用 `\ExplSyntaxOn` / `\ExplSyntaxOff` 圈起来。
 
+**`\gdef` 要配 `\cs_gset_nopar:cpn`，不是 `\cs_gset:cpn`。** 后者是 `\long\gdef`，
+而 `\ifx\hit@X\@empty` 这种判断连 `\long` 前缀一起比，加了前缀空值就不再等于
+`\@empty`。踩过一次：封面上空的副导师栏被印了出来，12 个变体有差异。同理
+`\newcommand*` 对应 `\cs_set_nopar:Npn`。
+
 **选项与标志位已改用 l3keys。** 类选项在 `hit/class` 族里声明，`\ProcessKeyOptions` 解析，
 未知选项转给 `ctexbook`/`ctexart`；标志位是 `\g__hit_<名>_bool`，读用 `\hit@if` 或
 `\bool_if:N`，写用 `\bool_gset_true:N`。
