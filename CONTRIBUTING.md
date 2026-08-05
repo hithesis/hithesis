@@ -216,21 +216,40 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 \bool_lazy_and:nnT { \legacy_if_p:n { hit@harbin } } { \legacy_if_p:n { hit@bachelor } } { ... }
 ```
 
-**`\ExplSyntaxOn` 会改变空格与 `~` 的含义。** 三种情形都实测踩过：
+**`\ExplSyntaxOn` 会改变空格与 `~` 的含义。** 两件事，方向相反，容易搞混：
 
 - 字面文本里的空格被吞。`text={150true mm}` 直接照抄会变成 `150truemm`，要写 `~`。
 - **`~` 在两种语法下含义不同。** LaTeX 里它是活动字符，表示不断行空格；expl3 里
   它是普通空格（catcode 10）。原有代码里的 `~` 照抄进 `\ExplSyntaxOn`，不断行空格
   就退化成了普通空格。`book-pagestyle` 的 `\fancyfoot[C]{\xiaowu-~\thepage~-}` 这样
-  照抄之后，42 个变体里有 21 个的 PDF 变了。要保持原意就写 `\nobreakspace`。
-- 控制空格 `\ ` 的记号化与平时不同。`art-chapter` 里 `aftername=\ifhit@opening {\ }`
-  照抄进 expl3 之后，变体 32 的 PDF 就变了。
+  照抄之后，42 个变体里有 21 个的 PDF 变了。要保持原意就写 `\nobreakspace{}`。
 
-前两条方向相反，容易搞混：**要空格时写 `~`，而原文里已有的 `~` 要改写成
-`\nobreakspace`。**
+一句话：**要空格时写 `~`，原文里已有的 `~` 要改写成 `\nobreakspace{}`。**
 
-第二种情形没有简单的等价写法。可靠做法是把这类取值留在 expl3 之外定义成一个宏，
-再由 expl3 的条件调用它，记号与改动前逐个相同：
+控制空格 `\ ` 不在此列。它在两种语法下是同一个控制序列，`\meaning` 查出来都是
+`\ `，`\begin{tabular}{l@{\ \ }c}` 写在 expl3 里排出来的结果与写在外面完全一样，
+实测确认过。曾经以为它没有等价写法，那是把 `{\ }` 后面被吞掉的那个字面空格
+误当成了控制空格本身的问题。
+
+行尾孤零零一个反斜杠是控制序列 `\^^M`，`\meaning` 是 `macro:->\ `。进 expl3 要写成
+显式的 `\ `，后面跟个 `%` 保住那个空格不被编辑器裁掉。
+
+**被跳过的空格也不能删。** `\noindent Classified` 里那个空格不产生记号，但它终结
+控制字的名字。删掉就粘成 `\noindentClassified` 了。expl3 下字面空格被忽略，所以
+原样留着就行——只有需要产生空格记号的地方才换成 `~`。
+
+空格规则不必手工数。`scripts/latex-to-expl3.py` 按 TeX 的记号化状态机把一段代码
+改写成 expl3 下记号序列相同的形式，`scripts/convert-macro.py` 直接改写 dtx 里某个
+宏的定义：
+
+```
+scripts/convert-macro.py src/hithesis-book.dtx hit@engcover --apply
+```
+
+八个封面版式宏就是这么转的。脚本不是万能的，改完照样要跑全量变体逐字节比对。
+
+**内容与控制流分开**是另一条路：把大段字面排版内容留在 expl3 之外定义成宏，
+再由 expl3 的条件调用它。适合内容整块、判断在外层的情形：
 
 ```latex
 \ExplSyntaxOff
@@ -238,9 +257,6 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 \ExplSyntaxOn
 \bool_lazy_and:nnT { ... } { ... } { \hit@art@shenzhenmaster@sectionset }
 ```
-
-判断标准：模块里如果有大段字面排版内容（页眉文字、`\ctexset` 取值、控制空格），
-就用这个办法把内容与控制流分开，别把内容裹进 `\ExplSyntaxOn`。
 
 **大段排版内容里的判断走助手函数。** 上面那条把内容留在 expl3 之外的做法，遇到
 判断散落在内容各处时不好用。这时反过来：判断本身定义成 expl3 函数，放在模块顶层，
