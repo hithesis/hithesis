@@ -2113,15 +2113,113 @@
 % ^^A ======================================================================
 %    \begin{macrocode}
 %<*book-footnote>
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{带圈脚注号改用 \pkg{circledsteps} 的 \cs{Circled}}
+% 带圈脚注号原来用 \cs{textcircled}，它是拿字体里的组合用圈套上数字，圈偏、数字
+% 也不居中。改用 \pkg{circledsteps} 的 \cs{Circled}，圈是 Ti\emph{k}Z 画的，位置
+% 正、两位数还会自动加宽。
+%    \begin{macrocode}
+\RequirePackage{circledsteps}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{带圈数字支持多位数，圈保持正圆}
+% \cs{Circled} 里字数一多圈就拉成椭圆。量一下内容比一位数宽多少，按这个比例横向
+% 压回去，圈就始终是正圆。原来那个模板用的是固定的 \texttt{0.45}，那是因为它的
+% 西文数字取自 SimSun、是全宽的；这里西文是比例宽度，固定常数不适用，改成算出来。
+%
+% \cs{quan} 一到两位、\cs{Quan} 任意位数、\cs{quansplit} 按位数分派——三个都保留，
+% 但压缩比例自动算，所以实际走的是同一条路。
+%    \begin{macrocode}
 \ExplSyntaxOn
+\box_new:N \l__hit_quan_box
+\box_new:N \l__hit_quanref_box
+\int_new:N \l__hit_quan_slot_int
+\box_new:N \l__hit_quanmark_box
+\box_new:N \l__hit_quandraw_box
+%    \end{macrocode}
+%
+% 把当前 CJK 字体设成当前字体。\cs{songti} 只是选 CJK 家族，西文数字仍走西文字体；
+% 圈号里的数字要跟正文宋体一致，得真的切过去。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_cjkfont:
+  { \usefont { \f@encoding } { \CJK@family } { m } { n } }
+%    \end{macrocode}
+%
+% \texttt{n} 对应的带圈数字码位：1--20 在 \texttt{U+2460}，21--35 在
+% \texttt{U+3251}，36--50 在 \texttt{U+32B1}，超出范围返回 0。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_quan_slot:n #1
+  {
+    \int_compare:nNnTF {#1} < { 1 } { 0 }
+      {
+        \int_compare:nNnTF {#1} < { 21 } { \int_eval:n { #1 - 1 + "2460 } }
+          {
+            \int_compare:nNnTF {#1} < { 36 } { \int_eval:n { #1 - 21 + "3251 } }
+              {
+                \int_compare:nNnTF {#1} < { 51 }
+                  { \int_eval:n { #1 - 36 + "32B1 } } { 0 }
+              }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 当前宋体有现成的带圈字符就直接用，字形比画出来的圈规整；没有才用
+% \pkg{circledsteps} 画。画的时候数字也取当前宋体，它的西文数字是全宽的，横向压到
+% 半宽左右才像个圈里的数字——位数多了按比例继续压，圈始终是正圆。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_quan:n #1
+  {
+    \group_begin:
+      \__hit_cjkfont:
+      \int_set:Nn \l__hit_quan_slot_int { \__hit_quan_slot:n {#1} }
+      \bool_lazy_and:nnTF
+        { \int_compare_p:nNn \l__hit_quan_slot_int > { 0 } }
+        { \int_compare_p:nNn { \XeTeXcharglyph \l__hit_quan_slot_int } > { 0 } }
+        { \tex_char:D \l__hit_quan_slot_int }
+        {
+%    \end{macrocode}
+%
+% 画出来的圈要和字符版一样大。\cs{Circled} 的圈是按内容外框撑的，而 CJK 数字是
+% 全高全宽的，只压横向会撑成竖椭圆。所以先量一遍 \texttt{U+2460}（带圈的一那个字符）的盒子当基准，把画好的圈整体缩放到同样尺寸；位数多的先横向压回一位数的
+% 宽度，免得圈里挤不下。
+%    \begin{macrocode}
+          \hbox_set:Nn \l__hit_quan_box    { #1 }
+          \hbox_set:Nn \l__hit_quanref_box { 0 }
+          \hbox_set:Nn \l__hit_quanmark_box { \tex_char:D "2460 }
+          \hbox_set:Nn \l__hit_quandraw_box
+            {
+              \Circled
+                {
+                  \scalebox
+                    {
+                      \fp_eval:n
+                        {
+                          \dim_to_fp:n { \box_wd:N \l__hit_quanref_box }
+                          / \dim_to_fp:n { \box_wd:N \l__hit_quan_box }
+                        }
+                    }
+                    [ 1 ] { \box_use:N \l__hit_quan_box }
+                }
+            }
+          \dim_compare:nNnTF { \box_wd:N \l__hit_quanmark_box } > { 0pt }
+            {
+              \resizebox { \box_wd:N \l__hit_quanmark_box } { ! }
+                { \box_use:N \l__hit_quandraw_box }
+            }
+            { \box_use:N \l__hit_quandraw_box }
+        }
+    \group_end:
+  }
+\NewDocumentCommand \Quan { m } { \__hit_quan:n {#1} }
+\NewDocumentCommand \quan { o m } { \IfNoValueTF {#1} { \__hit_quan:n {#2} } { \__hit_quan:n {#1#2} } }
+\NewDocumentCommand \quansplit { m } { \__hit_quan:n {#1} }
 \cs_new_protected:Npn \hit@textcircled #1
   {
-    \hit@ifmore{\value{#1}}{9}%
-      {\ClassError{hithesis}%
-        {Too many footnotes in this page.}{Keep footnote less than 10.}}%
     \hit@if{pifootnote}%
       {\ding{\the\numexpr\value{#1}+171\relax}}%
-      {\textcircled{\xiaoliu\arabic{#1}}}%
+      {\quansplit{\arabic{#1}}}%
   }
 \cs_set:Npn \thefootnote   { \hit@textcircled { footnote } }
 \cs_set:Npn \thempfootnote { \hit@textcircled { mpfootnote } }
