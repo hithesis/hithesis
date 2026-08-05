@@ -238,6 +238,17 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 控制字的名字。删掉就粘成 `\noindentClassified` 了。expl3 下字面空格被忽略，所以
 原样留着就行——只有需要产生空格记号的地方才换成 `~`。
 
+挑对应的 expl3 定义命令，别一律用 `\NewDocumentCommand`——它是 protected 的。
+`\longbionenumcaption` 原本是 `\renewcommand*`，改成 `\NewDocumentCommand` 之后
+它在 `\caption` 这类会移动的参数里不再展开，四十二个变体全变。对应关系：
+
+| 原写法 | expl3 写法 |
+| --- | --- |
+| `\newcommand` / `\renewcommand` | `\cs_set:Npn`（long，不 protected） |
+| `\newcommand*` / `\renewcommand*` | `\cs_set_nopar:Npn` |
+| `\def` | `\cs_set:Npn`（按需 `_nopar`） |
+| 带可选参数的 | 只能用 `\NewDocumentCommand`，改完要单独验 |
+
 空格规则不必手工数。`scripts/latex-to-expl3.py` 按 TeX 的记号化状态机把一段代码
 改写成 expl3 下记号序列相同的形式，`scripts/convert-macro.py` 直接改写 dtx 里某个
 宏的定义：

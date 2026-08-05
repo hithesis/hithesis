@@ -14,7 +14,13 @@ _mod = {}
 exec(pathlib.Path(__file__).with_name("latex-to-expl3.py").read_text(encoding="utf-8").split('if __name__')[0], _mod)
 convert = _mod["convert"]
 
-HEAD = re.compile(r"\\(?:newcommand\*?\{?\\(?P<name>[a-zA-Z@]+)\}?(?:\[(?P<n>\d)\])?(?:\[(?P<d>[^\]]*)\])?|def\\(?P<dname>[a-zA-Z@]+)(?P<dp>(?:#\d)*))(?:[ \t]*(?:%[^\n]*)?\n)?[ \t]*\{")
+HEAD = re.compile(
+    r"\\(?:(?:re)?newcommand\*?\{?\\(?P<name>[a-zA-Z@]+)\}?"
+    r"(?:\[(?P<n>\d)\])?(?:\[(?P<d>[^\]]*)\])?"
+    r"|(?:re)?newenvironment\{(?P<ename>[a-zA-Z@*]+)\}"
+    r"(?:\[(?P<en>\d)\])?(?:\[(?P<ed>[^\]]*)\])?"
+    r"|def\\(?P<dname>[a-zA-Z@]+)(?P<dp>(?:#\d)*))"
+    r"(?:[ \t]*(?:%[^\n]*)?\n)?[ \t]*\{")
 
 def find_body(src, start):
     depth, i = 0, start
@@ -31,29 +37,50 @@ def run(path, macro, apply=False, nth=1):
     src = pathlib.Path(path).read_text(encoding="utf-8")
     m = None; hit = 0
     for mm in HEAD.finditer(src):
-        if (mm.group("name") or mm.group("dname")) == macro:
+        if (mm.group("name") or mm.group("dname") or mm.group("ename")) == macro:
             hit += 1
             if hit == nth: m = mm; break
     if not m: raise SystemExit(f"没找到 {macro}")
     open_at = m.end() - 1
     close_at = find_body(src, open_at)
     body = src[open_at+1:close_at]
+    isenv = m.group("ename") is not None
+    end_body = None
+    if isenv:                                   # 环境还有第二段
+        k = close_at + 1
+        while k < len(src):                      # 跳空白，也跳注释
+            if src[k] in " \t\n": k += 1
+            elif src[k] == "%": k = src.index("\n", k) + 1
+            else: break
+        if k < len(src) and src[k] == "{":
+            e2 = find_body(src, k)
+            end_body = src[k+1:e2]; close_at = e2
     conv, warn = convert(body)
+    conv2 = convert(end_body)[0] if end_body is not None else None
     for w in warn: print("警告:", w, file=sys.stderr)
-    nargs = int(m.group("n") or 0) or len(m.group("dp") or "")//2
-    default = m.group("d")
+    nargs = int(m.group("n") or m.group("en") or 0) or len(m.group("dp") or "")//2
+    default = m.group("d") or m.group("ed")
     isdef = m.group("dname") is not None
-    if nargs == 0: sig = ""
+    if nargs == 0: sig = " { }" if isenv else ""
     elif default is not None: sig = " { O{%s}%s }" % (default, " m"*(nargs-1))
     else: sig = " { %s }" % (" ".join(["m"]*nargs))
-    if isdef:
+    if isenv:
+        verb = "Renew" if src[m.start():m.start()+14].startswith("\\renewenv") else "New"
+        head = "\\ExplSyntaxOn\n\\%sDocumentEnvironment { %s }%s\n  {" % (verb, macro, sig)
+    elif isdef:
         params = "".join(" #%d" % (k+1) for k in range(nargs))
         head = "\\ExplSyntaxOn\n\\cs_set:Npn \\%s%s\n  {" % (macro, params)
-    elif nargs == 0:
-        head = "\\ExplSyntaxOn\n\\cs_new_protected:Npn \\%s\n  {" % macro
+    elif default is None:
+        # \newcommand 生成的是 long 且不 protected 的宏，\NewDocumentCommand 是
+        # protected 的，在 \caption 这类会移动的参数里行为不同。默认用 \cs_set:Npn。
+        params = "".join(" #%d" % (k+1) for k in range(nargs))
+        head = "\\ExplSyntaxOn\n\\cs_set:Npn \\%s%s\n  {" % (macro, params)
     else:
         head = "\\ExplSyntaxOn\n\\NewDocumentCommand \\%s%s\n  {" % (macro, sig)
-    new = head + "\n" + conv.rstrip("\n") + "\n  }\n\\ExplSyntaxOff"
+    new = head + "\n" + conv.rstrip("\n") + "\n  }"
+    if conv2 is not None:
+        new += "\n  {\n" + conv2.rstrip("\n") + "\n  }"
+    new += "\n\\ExplSyntaxOff"
     out = src[:m.start()] + new + src[close_at+1:]
     if apply: pathlib.Path(path).write_text(out, encoding="utf-8")
     else: print(new[:1200])
