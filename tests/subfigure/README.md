@@ -17,15 +17,24 @@ OPT=subfigpkg=modern bash tools/compile-subfigure.sh
 ## classic 与 modern 的差距
 
 用 `pdftotext -bbox` 逐词比位置，两边页数、横排、编号、`\ref`、图目录条目一致，
-只剩一个恒定的竖向偏移（五号子图题下测得）：
+只剩竖向偏移（五号子图题下测得）：
 
 | 位置 | modern 比 classic |
 | --- | --- |
-| 子图题 | 高 4.97bp |
-| 主图题 | 高 2.74bp |
+| 子图题 | 高 4.10bp |
+| 图之后的正文 | 高 1.86bp |
 
-也就是图与子图题之间少 4.97bp，子图题与主图题之间多 2.23bp。已排除的原因：
-`\subfigtopskip`（设成 0 两边同步变，差值不动）、`\baselineskip`（在图题前恢复
-成外层的值，差值不动）。还没查的方向是 `subfigure` 单行子图题走的是裸
-`\hbox to\@tempdima{\hss...\hss}`，而 `\subcaption` 一律排成段落，两者的
-高度与 `\lineskip` 处理不同。
+原因查清了，两个数都来自图题盒子的深度：
+
+- `subfigure` 单行子图题排成裸 `\hbox`，深度是文字的自然深度，这份内容下是
+  1.865pt。`caption` 排成段落，行里带 strut，深度固定 4.110pt，装进 `\vbox`
+  之后又被折进高度，盒子深度成了 0。图之后的材料因此高 1.865bp。
+- 子图题自身再多差一个 strut 的深度超出量 2.245pt，合起来 4.11bp。
+
+已经排掉的原因：`\subfigtopskip`（tight 模式下 TeX Live 自带的 `subfigure.cfg`
+把它设成 5pt，两边都加）、`\baselineskip`（图题先装 `\vbox` 再放进竖直列表，行间
+胶已经和 `subfigure` 一致，图题基线离内容底两边都是 20.58083pt）、caption 的
+`skip`（设成 0，改由行间胶承担）。
+
+要抹平只能剥掉 `caption` 的 strut，那等于放弃它保证的子图题基线整齐。这里认为
+`caption` 的做法更好，差值留着。

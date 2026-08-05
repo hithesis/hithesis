@@ -1164,6 +1164,7 @@
 % 装箱，装箱时把 \cs{label} 的参数记下来，再塞回图题参数末尾。
 %    \begin{macrocode}
     \box_new:N \l__hit_sub_box
+    \box_new:N \l__hit_subcap_box
     \tl_new:N \g__hit_sublabel_tl
     \cs_new_protected:Npn \__hit_subfloat:nn #1#2
       {
@@ -1173,19 +1174,31 @@
             \cs_set_protected:Npn \label ##1 { \tl_gset:Nn \g__hit_sublabel_tl {##1} }
             #2
           }
-        \leavevmode
-        \vtop
+%    \end{macrocode}
+%
+% 图题先单独装进 \cs{vbox} 再放进竖直列表。\pkg{caption} 排图题时会先放一条零高
+% \cs{hrule}（\cs{vspace} 在竖直模式下的常规动作），\cs{hrule} 会掐掉 \TeX\ 的
+% 行间胶，图与图题之间就少了一整个 \cs{baselineskip}。装箱之后 \cs{vbox} 的高度
+% 就是首行基线的位置，行间胶照常算，与 \pkg{subfigure} 的结果一致。
+%    \begin{macrocode}
+        \vbox_set:Nn \l__hit_subcap_box
           {
             \hsize \box_wd:N \l__hit_sub_box
             \linewidth \hsize
-            \vbox { \vskip \subfigtopskip \box_use_drop:N \l__hit_sub_box }
-            \vskip \subfigcapskip
             \subcaption
               {
                 #1
                 \tl_if_empty:NF \g__hit_sublabel_tl
                   { \exp_args:NV \label \g__hit_sublabel_tl }
               }
+          }
+        \leavevmode
+        \vtop
+          {
+            \hsize \box_wd:N \l__hit_sub_box
+            \vbox { \vskip \subfigtopskip \box_use_drop:N \l__hit_sub_box }
+            \vskip \subfigcapskip
+            \box_use_drop:N \l__hit_subcap_box
             \vskip \subfigbottomskip
           }
       }
@@ -2268,7 +2281,7 @@
     \DeclareCaptionFont { hit@subcap } { \subcapsize }
     \DeclareCaptionLabelSeparator { hit@sub } { \hskip \subfiglabelskip }
     \captionsetup [ sub ]
-      { font = hit@subcap , labelformat = simple , labelsep = hit@sub }
+      { font = hit@subcap , labelformat = simple , labelsep = hit@sub , skip = 0pt }
     \bool_if:NT \g__hit_subcapcenterlast_bool
       { \captionsetup [ sub ] { justification = centerlast } }
   }
