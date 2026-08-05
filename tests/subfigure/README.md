@@ -16,27 +16,52 @@ OPT=subfigpkg=modern bash tools/compile-subfigure.sh
 
 ## classic 与 modern 的差距
 
-用 `pdftotext -bbox` 逐词比位置。两边页数、横排、编号、`\ref`、图目录条目一致，
-横向最大差 1.5bp（子表列宽），竖向：
+用 `pdftotext -bbox` 逐词比位置。页数、编号、`\ref`、图目录条目一致。
 
-| 位置 | modern 比 classic |
-| --- | --- |
-| 单语子图题 | 高 4.09bp |
-| 双语子图题（两行） | 高 9.95～19.91bp |
-| 图之后的正文 | 高 1.86bp |
+| 情形 | 竖移 | 横移 |
+| --- | --- | --- |
+| 单语子图题 | 0 | 0 |
+| 子表 | 0 | 1.5bp（列宽） |
+| 双语子图题（`\bisubcaption`，两行） | 9.95～19.91bp | 0 |
 
-原因是图题盒子的深度：`subfigure` 单行子图题排成裸 `\hbox`，深度随文字走（这份
-内容下 1.865pt）；`caption` 排成段落，行里带 strut，深度固定 4.110pt，装进 `\vbox`
-之后又折进高度，盒子深度成了 0。图之后的材料因此高 1.865bp，子图题自身再多差一个
-strut 深度超出量 2.245pt，两行就翻倍。
+单语的做法照抄 `subfigure`：它单行子图题排成裸 `\hbox`，高深随文字，排不下才退回
+`\parbox`，那时才有 strut。所以这里也先拿同样的字体量一遍宽度（量的时候计数器还没
+走，`\thesubfigure` 拿到上一个号，宽度一样），装得下就
 
-已经排掉的原因：`\subfigtopskip`（TeX Live 自带的 `subfigure.cfg` 把 subfigure 设成
-tight，两边都是 5pt）、`\baselineskip`（图题先装 `\vbox` 再放进竖直列表，行间胶已
-与 `subfigure` 一致，图题基线离内容底两边都是 20.58083pt）、caption 的 `skip`（设成
-0，改由行间胶承担）。
+1. `\captionsetup[sub]{strut=false}`，图题行的高深与 `subfigure` 逐值相同；
+2. 把图题盒子的高度重设成量出来的首行高度、深度设成余下部分——`\vbox` 默认把一切
+   折进高度、深度为 0，放进竖直列表时参考点是错的。
 
-要抹平只能剥掉 `caption` 的 strut，那等于放弃它保证的子图题基线整齐。这里认为
-`caption` 的做法更好，差值留着。
+再加上图题先装 `\vbox` 再放进竖直列表（`caption` 排图题前会放一条零高 `\hrule`，
+把行间胶掐掉，少一整个 `\baselineskip`）与 `skip=0pt`，单语情形逐值对齐。
+
+双行还差着，原因是 `subfigure` 多行走 `\parbox[t]`：高度是首行的高度、其余算深度。
+上面第 2 条对多行直接套会把整行的排布搞乱（试过，子图会重排），要按多行的首行高度
+（带 strut）单独算。这是下一步。
 
 子表题的位置两边都在表上方：`subfigure` 那边是 `\ifsubtabletopcap`，modern 这边按
 `\@captype` 自己分，上方时上下留白对调并补 `\subfigcaptopadj`。
+
+## 旧写法在 modern 下
+
+兼容层接住了三个旧习惯用法，拿 `examples/hitbook/chinese` 那份真实文档
+（一个字没改，只加 `subfigpkg=modern`）验过：0 错误、0 Overfull、50 页不变，
+50 页里只有 4 页有位移，最大横移 1.62bp、最大竖移 11.53bp；这份示例的子图题全是
+双语两行，正好是还没对齐的那一类。长子图题的断行点差一个字，那个差异来自写法本身
+（一个图题盒排两行 vs 原来两个嵌套盒），换成 `\bisubcaption` 留在 classic 上也一样。
+
+- `\subfigure{\label{键}}`：内容为空、只为占标签，记下标签留给下一个子图，本身不排。
+- 紧跟的 `\addtocounter{subfigure}{-2}`：直接吃掉。
+- `\subfigure[英文]{\subfigure[中文]{图}}`：拆开转成 `\bisubcaption`。
+
+## 三种组合的差异
+
+相对现状（旧写法 + classic），拿同一份 50 页示例量：
+
+| 组合 | 有差异的页 | 最大横移 | 最大竖移 |
+| --- | --- | --- | --- |
+| 旧写法 + modern | 4/50 | 0.57mm | 4.07mm |
+| 新写法 + modern | 4/50 | 0.98mm | 4.07mm |
+| 新写法 + classic | 2/50 | 0.98mm | 1.44mm |
+
+三组的文字流差异完全相同，都是第 27 页那条最长子图题的断行差一个字。
