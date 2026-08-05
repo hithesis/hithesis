@@ -6,6 +6,7 @@
 
 ```
 bash tools/compile-subfigure.sh
+OPT=subcapcenterlast bash tools/compile-subfigure.sh   # 走最后一行居中那条分支
 ```
 
 输出在 `tests/work/subfigure/subfigure.pdf`。
@@ -55,3 +56,18 @@ bash tools/compile-subfigure.sh
 - `\subfigure[英文]{\subfigure[中文]{图}}`：拆开按 `\bisubcaption` 的结构排。
 
 新写法是 `\subfigure[\bisubcaption{中文}{英文}]{\label{键}图}`。
+
+## 边界情形
+
+42 变体查不出标签问题——示例里的 `golfer4x` 标签没人引用。下面这几种写法要单独试，
+每种都应当 0 错误、0 `multiply defined`、`\ref` 全部解析：
+
+1. 旧写法 `\subfigure{\label{键}}` + `\addtocounter{subfigure}{-2}`，并且真的 `\ref` 它
+2. 嵌套但内层前面有别的记号（`\subfigure[EN]{\centering\subfigure[中文]{图}}`）——
+   认不出来，会报一次提示并排成两个编号
+3. `\subfigure{}` 内容真空
+4. `subcaption` 原生环境语法 `\begin{subfigure}{宽度}...\end{subfigure}`
+5. 新写法 `\subfigure[\bisubcaption{中文}{英文}]{\label{键}图}`
+
+踩到过的两个：双语时内外两层都挂同一个标签会报一堆 `multiply defined`；只让内层挂
+又写不进 `.aux`。现在是外层挂、内层跳过。
