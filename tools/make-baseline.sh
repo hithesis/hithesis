@@ -14,7 +14,7 @@ mkdir -p modules \
   examples/hitbook/english/modules \
   examples/hitart/reports/modules \
   examples/hitart/reportplus/modules
-latex hithesis.ins > /tmp/hithesis-ins.log 2>&1 || {
+TEXINPUTS=src: latex -interaction=nonstopmode hithesis.ins > /tmp/hithesis-ins.log 2>&1 || {
   echo "FATAL: latex hithesis.ins failed; see /tmp/hithesis-ins.log"
   exit 1
 }
