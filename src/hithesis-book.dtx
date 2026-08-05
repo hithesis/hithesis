@@ -46,10 +46,16 @@
     \keys_define:nn { hit / class }
       { #1 .bool_gset:c = { g__hit_#1_bool } , #1 .default:n = { true } }
   }
-\cs_new_protected:Npn \hit@stringopt #1
+\cs_new_protected:Npn \hit@stringopt #1 { \hit@stringopt@as {#1} {#1} }
+%    \end{macrocode}
+%
+% 键名带连字符时（如 \option{cjk-font}）不能直接拿来拼控制序列，另给一个把键名与
+% 变量名分开的版本。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@stringopt@as #1#2
   {
-    \tl_new:c { hit@#1 }
-    \keys_define:nn { hit / class } { #1 .tl_gset:c = { hit@#1 } }
+    \tl_new:c { hit@#2 }
+    \keys_define:nn { hit / class } { #1 .tl_gset:c = { hit@#2 } }
   }
 \cs_new_protected:Npn \hit@choiceopt #1#2#3#4
   {
@@ -325,6 +331,14 @@
 \hit@stringopt{font}
 %    \end{macrocode}
 %
+% \changes{v3.2a}{0000/00/00}{中文字体独立成 \option{cjk-font} 选项}
+% 中文字体。不写就照旧把 \option{fontset} 转给 \pkg{ctexbook}，由 \pkg{ctex} 设置；
+% 写了就由模板自己设，\pkg{ctexbook} 收到的是 \texttt{fontset=none}。这样默认行为
+% 一点没变，想换字体来源的人才走新路。
+%    \begin{macrocode}
+\hit@stringopt@as{cjk-font}{cjkfont}
+%    \end{macrocode}
+%
 % 将其余选项默认传递给 \pkg{ctexbook}。
 %    \begin{macrocode}
 \ExplSyntaxOn
@@ -461,13 +475,17 @@
 %    \begin{macrocode}
 \RequirePackage{ifthen}
 \ExplSyntaxOn
-\tl_if_empty:NTF \hit@fontset
-  { \PassOptionsToPackage { AutoFakeBold=2 } { xeCJK } }
+\tl_if_empty:NTF \hit@cjkfont
   {
-    \str_if_eq:VnF \hit@fontset { siyuan }
+    \tl_if_empty:NTF \hit@fontset
       { \PassOptionsToPackage { AutoFakeBold=2 } { xeCJK } }
-    \PassOptionsToClass { fontset=\hit@fontset } { ctexbook }
+      {
+        \str_if_eq:VnF \hit@fontset { siyuan }
+          { \PassOptionsToPackage { AutoFakeBold=2 } { xeCJK } }
+        \PassOptionsToClass { fontset=\hit@fontset } { ctexbook }
+      }
   }
+  { \PassOptionsToClass { fontset=none } { ctexbook } }
 \ExplSyntaxOff
 %    \end{macrocode}
 %
@@ -899,6 +917,140 @@
   }
 \cs_new_protected:Npn \__hit_set_font_none: { }
 \use:c { __hit_set_font_ \l__hit_font_str : }
+\ExplSyntaxOff
+\ExplSyntaxOn
+\cs_new_protected:Npn \__hit_set_cjk_font_windows:
+  {
+    \setCJKmainfont { SimSun } [ AutoFakeBold = true , ItalicFont = KaiTi ]
+    \setCJKsansfont { SimHei } [ AutoFakeBold = true ]
+    \setCJKmonofont { FangSong }
+    \setCJKfamilyfont { zhsong } { SimSun } [ AutoFakeBold = true ]
+    \setCJKfamilyfont { zhhei }  { SimHei } [ AutoFakeBold = true ]
+    \setCJKfamilyfont { zhkai }  { KaiTi }
+    \setCJKfamilyfont { zhfs }   { FangSong }
+  }
+\cs_new_protected:Npn \__hit_set_cjk_font_mac:
+  {
+    \defaultCJKfontfeatures { }
+    \setCJKmainfont { Songti~SC }
+      [
+        UprightFont    = *~Light ,
+        BoldFont       = *~Bold ,
+        ItalicFont     = Kaiti~SC~Regular ,
+        BoldItalicFont = Kaiti~SC~Bold ,
+      ]
+    \setCJKsansfont { Heiti~SC } [ UprightFont = *~Light , BoldFont = *~Medium ]
+    \setCJKmonofont { STFangsong }
+    \setCJKfamilyfont { zhsong } { Songti~SC }
+      [ UprightFont = *~Light , BoldFont = *~Bold ]
+    \setCJKfamilyfont { zhhei } { Heiti~SC }
+      [ UprightFont = *~Light , BoldFont = *~Medium ]
+    \setCJKfamilyfont { zhfs }  { STFangsong }
+    \setCJKfamilyfont { zhkai } { Kaiti~SC }
+      [ UprightFont = *~Regular , BoldFont = *~Bold ]
+  }
+\cs_new_protected:Npn \__hit_set_cjk_font_noto:
+  {
+    \defaultCJKfontfeatures { }
+    \setCJKmainfont { Noto~Serif~CJK~SC }
+      [
+        UprightFont    = *~Light ,
+        BoldFont       = *~Bold ,
+        ItalicFont     = FandolKai-Regular ,
+        ItalicFeatures = { Extension = .otf } ,
+        Script         = CJK ,
+      ]
+    \setCJKsansfont { Noto~Sans~CJK~SC } [ BoldFont = *~Medium , Script = CJK ]
+    \setCJKmonofont { Noto~Sans~Mono~CJK~SC } [ Script = CJK ]
+    \setCJKfamilyfont { zhsong } { Noto~Serif~CJK~SC }
+      [ UprightFont = *~Light , BoldFont = *~Bold , Script = CJK ]
+    \setCJKfamilyfont { zhhei } { Noto~Sans~CJK~SC }
+      [ BoldFont = *~Medium , Script = CJK ]
+    \setCJKfamilyfont { zhfs }  { FandolFang } [ Extension = .otf , UprightFont = *-Regular ]
+    \setCJKfamilyfont { zhkai } { FandolKai }  [ Extension = .otf , UprightFont = *-Regular ]
+  }
+%    \end{macrocode}
+%
+% 思源。字重用 Adobe 版的名字，与原先文档里说明的一致。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_set_cjk_font_siyuan:
+  {
+    \defaultCJKfontfeatures { }
+    \setCJKmainfont  { Source~Han~Serif~SC }
+    \setCJKsansfont  { Source~Han~Sans~SC }
+    \setCJKmonofont  { Source~Han~Serif~SC }
+    \setCJKfamilyfont { zhsong } { Source~Han~Serif~SC }
+    \setCJKfamilyfont { zhhei }  { Source~Han~Sans~SC }
+    \setCJKfamilyfont { zhfs }  { FandolFang } [ Extension = .otf , UprightFont = *-Regular ]
+    \setCJKfamilyfont { zhkai } { FandolKai }  [ Extension = .otf , UprightFont = *-Regular ]
+  }
+\cs_new_protected:Npn \__hit_set_cjk_font_fandol:
+  {
+    \defaultCJKfontfeatures { }
+    \setCJKmainfont { FandolSong }
+      [
+        Extension      = .otf ,
+        UprightFont    = *-Regular ,
+        BoldFont       = *-Bold ,
+        ItalicFont     = FandolKai-Regular ,
+        ItalicFeatures = { Extension = .otf } ,
+      ]
+    \setCJKsansfont { FandolHei } [ Extension = .otf , UprightFont = *-Regular , BoldFont = *-Bold ]
+    \setCJKmonofont { FandolFang } [ Extension = .otf , UprightFont = *-Regular ]
+    \setCJKfamilyfont { zhsong } { FandolSong }
+      [ Extension = .otf , UprightFont = *-Regular , BoldFont = *-Bold ]
+    \setCJKfamilyfont { zhhei } { FandolHei }
+      [ Extension = .otf , UprightFont = *-Regular , BoldFont = *-Bold ]
+    \setCJKfamilyfont { zhfs }  { FandolFang } [ Extension = .otf , UprightFont = *-Regular ]
+    \setCJKfamilyfont { zhkai } { FandolKai }  [ Extension = .otf , UprightFont = *-Regular ]
+  }
+\cs_new_protected:Npn \__hit_set_cjk_font_none: { }
+\ExplSyntaxOff
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{中文字体可由模板自己设置，不再只能转给 ctex}
+% 中文字体。四组来源抄自 \pkg{ustcthesis}：\texttt{windows} 用中易，\texttt{mac}
+% 用华文，\texttt{noto} 用思源，\texttt{fandol} 用 Fandol。另加 \texttt{siyuan}
+% 一档——原来这个值是原样转给 \pkg{ctex} 的，而 \pkg{ctex} 并没有这个 fontset，
+% 得用户自己写 \file{.def}；现在模板自己认。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\str_new:N \l__hit_cjk_font_str
+\str_set:Nx \l__hit_cjk_font_str { \hit@cjkfont }
+\str_if_eq:VnF \l__hit_cjk_font_str { }
+  {
+    \str_if_eq:VnT \l__hit_cjk_font_str { auto }
+      {
+        \str_case:enF { \hit@fontset }
+          {
+            { windows } { \str_set:Nn \l__hit_cjk_font_str { windows } }
+            { mac }     { \str_set:Nn \l__hit_cjk_font_str { mac } }
+            { ubuntu }  { \str_set:Nn \l__hit_cjk_font_str { noto } }
+            { fandol }  { \str_set:Nn \l__hit_cjk_font_str { fandol } }
+            { siyuan }  { \str_set:Nn \l__hit_cjk_font_str { siyuan } }
+          }
+          {
+            \sys_if_platform_windows:TF
+              { \str_set:Nn \l__hit_cjk_font_str { windows } }
+              {
+                \bool_if:NTF \g__hit_platform_mac_bool
+                  { \str_set:Nn \l__hit_cjk_font_str { mac } }
+                  { \str_set:Nn \l__hit_cjk_font_str { fandol } }
+              }
+          }
+      }
+    \use:c { __hit_set_cjk_font_ \l__hit_cjk_font_str : }
+%    \end{macrocode}
+%
+% \pkg{ctex} 只在自己管字体时才给出 \cs{songti} 这几个命令，现在字体由模板设置，
+% \pkg{ctex} 收到的是 \texttt{fontset=none}，得自己补上。\texttt{cjk-font=none}
+% 时也一样定义，此时 \texttt{zhsong} 等四个字族要由用户自己 \cs{setCJKfamilyfont}。
+%    \begin{macrocode}
+    \cs_set_protected:Npn \songti { \CJKfamily { zhsong } }
+    \cs_set_protected:Npn \heiti { \CJKfamily { zhhei } }
+    \cs_set_protected:Npn \fangsong { \CJKfamily { zhfs } }
+    \cs_set_protected:Npn \kaishu { \CJKfamily { zhkai } }
+  }
 \ExplSyntaxOff
 %</book-fonts>
 %<*book-deps-a>
