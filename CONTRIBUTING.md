@@ -17,7 +17,7 @@ hithesis/
 │   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
 │   ├── hit-doc.dtx             <- 用户手册
 │   ├── hit-eps.dtx             <- EPS 图像数据（校徽、封面、示例插图）
-│   └── shared/                 <- 三个类共用的底层模块，见 §4.2
+│   └── shared/                 <- 各个类共用的底层模块，见 §4.2
 ├── hithesis.ins          <- docstrip 驱动文件，留在根目录：它的输出路径都相对于此
 ├── build.lua             <- l3build 配置：unpack / distribute / doc / check / ctan
 ├── Makefile              <- 构建与测试入口
@@ -125,7 +125,7 @@ cd examples/hitart/reports  && make report
 | 报告类的固定词汇 | `src/hit-report.dtx` 的 `reportcfg` 模块 |
 | 开题、中期报告 | `src/hit-report.dtx` |
 | 深圳博士中期 | `src/hitsz-midterm-report.dtx` |
-| 三个类共用的底层 | `src/shared/hit-*.dtx` |
+| 各个类共用的底层 | `src/shared/hit-*.dtx` |
 | 参考文献样式 | `src/hit-bst.dtx` |
 | 用户手册文字 | `src/hit-doc.dtx` |
 | 类的公共文件头、索引样式 | `src/hithesis.dtx` |
@@ -160,9 +160,9 @@ cd examples/hitart/reports  && make report
 
 ### 4.2 版式各写各的，底层机制共用
 
-三个 cls（毕业论文 / 开题中期 / 深圳博士中期）的版式代码物理隔离，由各自的 `thesis-*` / `report-*` / `szmidterm-*` 模块承载，分别写在 `src/hit-thesis.dtx`、`src/hit-report.dtx`、`src/hitsz-midterm-report.dtx` 里。三个类对应三套学校规范，各自演化，碰巧相似的版式不要合并，规范一独立变动就会变成维护负担。
+各个 cls 的版式代码物理隔离，由各自的 `<类>-*` 模块承载。当前是三个：`thesis-*` 在 `src/hit-thesis.dtx`、`report-*` 在 `src/hit-report.dtx`、`szmidterm-*` 在 `src/hitsz-midterm-report.dtx`。每个类对应一套学校规范，各自演化，碰巧相似的版式不要合并，规范一独立变动就会变成维护负担。新增一个类就是新增一个 `hit-<名>.dtx` 加一组 `<名>-*` 模块。
 
-底层机制是另一回事。字号、数学、表格、脚注这些三套规范要求一致的东西，共用一份放在 `src/shared/hit-*.dtx`，守卫叫 `shared-*`：
+底层机制是另一回事。字号、数学、表格、脚注这些各套规范要求一致的东西，共用一份放在 `src/shared/hit-*.dtx`，守卫叫 `shared-*`：
 
 | 文件 | 管什么 |
 |---|---|
@@ -173,9 +173,9 @@ cd examples/hitart/reports  && make report
 | `hit-publist.dtx` | `publist` 列表 |
 | `hit-meta.dtx` | `\hitsetup` 的键机制与旧名兼容 |
 
-判断标准是「三套规范会不会分开改」。会分开改的（封面、页眉、章节标题、目录）留在各自的类文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `shared/`。
+判断标准是「各套规范会不会分开改」。会分开改的（封面、页眉、章节标题、目录）留在各自的类文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `shared/`。
 
-共享层的写法与类模块不同：文件里只放定义，需要在特定时机执行的部分包成 `\hit@setup@<名>`，由各个类在原来那段代码所在的位置调用。这样共享之后生成物的执行顺序不变，能用「三个 cls 逐字节不变」来验收。
+共享层的写法与类模块不同：文件里只放定义，需要在特定时机执行的部分包成 `\hit@setup@<名>`，由各个类在原来那段代码所在的位置调用。这样共享之后生成物的执行顺序不变，能用「生成的 cls 逐字节不变」来验收。
 
 例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hit-eps.dtx` 也跨类共享，但它们不走 `shared/`，因为不是拼进 cls 的模块。
 
@@ -326,7 +326,7 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 `thesis-frontmatter`、`report-frontmatter`、`thesis-chapter`、`thesis-appendix`、`thesis-bib`、
 `report-bib`、`thesis-footnote`、`report-deps-c`。
 
-生成的三个类文件里，`\ifhit@…` 与 `\ifboolexpr` 只剩三十处，全在 `thesiscfg` 与
+生成的类文件里，`\ifhit@…` 与 `\ifboolexpr` 只剩三十处，全在 `thesiscfg` 与
 `reportcfg` 那两段固定词汇的顶层分支里。那些分支的两侧各是几十行 `\gdef` 与
 `\newtheorem`，内容里有大量带空格的英文串；把它们塞进宏参数只会让 dtx 更难读，
 所以留着不动。`\ifthenelse{\equal{#1}{...}}` 比较章标题的两处也留着——`\equal`
@@ -494,8 +494,8 @@ CI 会在推送后跑这几项：
 
 | 范围 | 对应 |
 |---|---|
-| `thesis` `report` `szmidterm` | 三个类，即 `src/hit-thesis.dtx`、`src/hit-report.dtx`、`src/hitsz-midterm-report.dtx` |
-| `shared` | 三个类共用的底层模块 `src/shared/hit-*.dtx` |
+| `thesis` `report` `szmidterm` | 各个类，当前是 `src/hit-thesis.dtx`、`src/hit-report.dtx`、`src/hitsz-midterm-report.dtx` |
+| `shared` | 各个类共用的底层模块 `src/shared/hit-*.dtx` |
 | `bst` `eps` | 参考文献样式、图像数据 |
 | `manual` | 用户手册 `src/hit-doc.dtx` |
 | `readme` `contributing` | 对应的 md 文件 |
@@ -585,7 +585,7 @@ git push -u origin feature/my-topic
 
 ### 9.3 跨类改动
 
-一个改动对三个类都适用时，三处必须同步。如果改的是三套规范一致的底层机制，考虑抽进 `src/shared/`，见 §4.2。
+一个改动对多个类都适用时，每处都要同步。如果改的是各套规范一致的底层机制，考虑抽进 `src/shared/`，见 §4.2。
 
 ## 10. 常见陷阱
 
