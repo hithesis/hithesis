@@ -8,7 +8,7 @@
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
 [![CTAN](https://img.shields.io/ctan/v/hithesis)](https://ctan.org/pkg/hithesis)
 ![GitHub repo size](https://img.shields.io/github/repo-size/hithesis/hithesis)
-<!-- [![GitHub All Releases](https://img.shields.io/github/downloads/dustincys/hithesis/total)](https://github.com/dustincys/hithesis/tags)  -->
+<!-- [![GitHub All Releases](https://img.shields.io/github/downloads/dustincys/hithesis/total)](https://github.com/hithesis/hithesis/tags)  -->
 
 <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/"><img alt="知识共享许可协议" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/88x31.png" /></a><br />本作品采用<a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">知识共享署名-非商业性使用 4.0 国际许可协议</a>进行许可。
 
@@ -216,10 +216,10 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
 | LaTeX安装包  | 是否支持非完整安装         | 平台          | 是否支持自动安装Package | 最小满足hithesis安装脚本                                                                                                           |
 | ------------ | -------------------------- | ------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| TeXLive      | 是，称为BasicTeX           | WIN/Mac/Linux | 否                      | [install-TeXLive_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TeXLive_hithesis.sh)     |
-| MiKTeX       | 是                         | WIN/Mac/Linux | 是                      | [install-MiKTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-MiKTeX_hithesis.sh)       |
-| MacTeX       | 否，MacTeX官方推荐BasicTeX | Mac           | 否                      | [install BasicTeX on Mac](https://github.com/dustincys/hithesis/blob/mac/.github/workflows/test2.yml)                              |
-| TinyTeX      | 自身就是最Mini的安装包     | Linux/Mac     | 否                      | [install-TinyTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TinyTeX_hithesis.sh)      |
+| TeXLive      | 是，称为BasicTeX           | WIN/Mac/Linux | 否                      | [install-TeXLive_hithesis.sh](https://github.com/hithesis/hithesis/blob/master/.github/workflows/install-TeXLive_hithesis.sh)     |
+| MiKTeX       | 是                         | WIN/Mac/Linux | 是                      | [install-MiKTeX_hithesis.sh](https://github.com/hithesis/hithesis/blob/master/.github/workflows/install-MiKTeX_hithesis.sh)       |
+| MacTeX       | 否，MacTeX官方推荐BasicTeX | Mac           | 否                      | [install BasicTeX on Mac](https://github.com/hithesis/hithesis/blob/mac/.github/workflows/test2.yml)                              |
+| TinyTeX      | 自身就是最Mini的安装包     | Linux/Mac     | 否                      | [install-TinyTeX_hithesis.sh](https://github.com/hithesis/hithesis/blob/master/.github/workflows/install-TinyTeX_hithesis.sh)      |
 
 <!-- 强烈推荐安装TinyTeX，只占不到300M左右，如果用开源字体集合fandol不用额外安装字体。 -->
 
