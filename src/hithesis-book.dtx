@@ -3531,9 +3531,25 @@ breaklines=true
 % \changes{v3.1d}{2025/03/03}{将 \cs{hit@firstpage} 默认设置为 \cs{hit@cdate}}
 % \changes{v3.1d}{2025/03/03}{删除 \cs{hit@firstpage} 的默认值, 将这个设置转到 \cs{hitsetup} 之后}
 %    \begin{macrocode}
-\edate{\ifcase \month \or January\or February\or March\or April\or May%
-       \or June\or July \or August\or September\or October\or November
-       \or December\fi\unskip,\ \ \the\year}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{英文月份的 \cs{ifcase} 链换成 \cs{int\_case:nn}}
+% 月份名里没有空格，可以放心写在 expl3 里；\cs{edate} 那一行还留在外面，因为
+% 逗号后面那两个控制空格在 expl3 下没有等价写法。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\cs_new:Npn \hit@emonth
+  {
+    \int_case:nn { \month }
+      {
+        { 1 } { January }   { 2 } { February } { 3 }  { March }
+        { 4 } { April }     { 5 } { May }      { 6 }  { June }
+        { 7 } { July }      { 8 } { August }   { 9 }  { September }
+        { 10 } { October }  { 11 } { November } { 12 } { December }
+      }
+  }
+\ExplSyntaxOff
+\edate{\hit@emonth,\ \ \the\year}
 %</bookcfg>
 %    \end{macrocode}
 %
@@ -3637,19 +3653,26 @@ breaklines=true
 % 添加博后标题格式
 % \changes{v3.0.0}{2020/05/21}{添加博后标题格式}
 %    \begin{macrocode}
-\renewcommand\@afterheading{%
-  \@nobreaktrue
-  \everypar{%
-    \if@nobreak
-      \@nobreakfalse
-      \clubpenalty 1
-      \if@afterindent \else
-        {\setbox\z@\lastbox}%
-      \fi
-    \else
-      \clubpenalty 1
-      \everypar{}%
-    \fi}}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\cs{@afterheading} 的两个内核开关迁到 \cs{legacy\_if:nTF}}
+%    \begin{macrocode}
+\ExplSyntaxOn
+\cs_set:Npn \@afterheading
+  {
+    \@nobreaktrue
+    \everypar
+      {
+        \legacy_if:nTF { @nobreak }
+          {
+            \@nobreakfalse
+            \clubpenalty 1
+            \legacy_if:nF { @afterindent } { { \setbox \z@ \lastbox } }
+          }
+          { \clubpenalty 1 \everypar { } }
+      }
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 % 设置一到四级标题、目录、书签格式。
