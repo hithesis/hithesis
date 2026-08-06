@@ -2955,57 +2955,87 @@
 % \changes{v1.0.06}{2017/10/25}{此处更改了选项的名称}
 % \changes{v1.0.07}{2017/11/04}{优化了最后一行居中算法，使其两边对齐、单词内部断行}
 %    \begin{macrocode}
-\long\def\@makecaption#1#2{%
-  \vskip\abovecaptionskip
-  \wuhao\sbox\@tempboxa{#1\hit@if{bachelor}{\hskip\ccwd}{\enskip}#2}%
-  \hit@ifwiderdim{\wd\@tempboxa}{\hsize}{%
-    \hit@if{capcenterlast}{%
-      \vskip 6.3bp%
-      {\setbox0=\vbox{#1\hit@if{bachelor}{\hskip\ccwd}{\enskip}#2}
-        \setbox1=\vbox{%
-          \unvbox0
-          \setbox2=\lastbox
-          \hbox to \textwidth{\hfill\unhcopy2 \unskip\unskip\hfill}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\cs{@makecaption} 与 \cs{LT@makecaption} 迁到 expl3}
+% \cs{hit@capsep} 是题号与题名之间的间隔，本科一个汉字宽，其余是 \cs{enskip}。
+% \cs{hit@caplastline} 把最后一行单独取出来居中，\option{capcenterlast} 开时用。
+% 里面的盒子编号与分组照抄原来的写法，只是换成 expl3 的拼法。量宽仍用 \cs{sbox}
+% 而不是 \cs{hbox\_set:Nn}：前者会套一层 \cs{color@begingroup}，盒子里的颜色
+% 改动不会漏出去，后者没有。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\cs_new:Npn \hit@capsep { \hit@if { bachelor } { \hskip \ccwd } { \enskip } }
+\cs_new_protected:Npn \hit@caplastline #1
+  {
+    \vskip 6.3bp
+    {
+      \tex_setbox:D 0 = \tex_vbox:D {#1}
+      \tex_setbox:D 1 = \tex_vbox:D
+        {
+          \tex_unvbox:D 0
+          \tex_setbox:D 2 = \tex_lastbox:D
+          \hbox_to_wd:nn { \textwidth }
+            { \hfill \tex_unhcopy:D 2 \unskip \unskip \hfill }
         }
-      \unvbox1}
-    }{%
-      #1\hit@if{bachelor}{\hskip\ccwd}{\enskip}#2%
-    }%
-    \par
-  }{%
-  \global \@minipagefalse
-  \hb@xt@\hsize{\hfil\box\@tempboxa\hfil}%
-  }%
-\vskip\belowcaptionskip}
+      \tex_unvbox:D 1
+    }
+  }
+\cs_set:Npn \@makecaption #1#2
+  {
+    \vskip \abovecaptionskip
+    \wuhao
+    \sbox \@tempboxa { #1 \hit@capsep #2 }
+    \dim_compare:nNnTF { \box_wd:N \@tempboxa } > { \hsize }
+      {
+        \hit@if { capcenterlast }
+          { \hit@caplastline { #1 \hit@capsep #2 } }
+          { #1 \hit@capsep #2 }
+        \par
+      }
+      {
+        \tex_global:D \@minipagefalse
+        \hb@xt@ \hsize { \hfil \box \@tempboxa \hfil }
+      }
+    \vskip \belowcaptionskip
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 %    \end{macro}
 %    \begin{macro}{\LT@makecaption}
 % 有关longtable的caption支持
 %    \begin{macrocode}
-\long\def\LT@makecaption#1#2#3{%
-  \LT@mcol\LT@cols c{\hbox to\z@{\hss\parbox[t]\LTcapwidth{%
-    \wuhao\sbox\@tempboxa{#1{#2\hit@if{bachelor}{\hskip\ccwd}{\enskip}}#3}%
-    \hit@ifwiderdim{\wd\@tempboxa}{\hsize}{%
-      \hit@if{capcenterlast}{%
-        \vskip 6.3bp%
-        {\setbox0=\vbox{#1{#2\hit@if{bachelor}{\hskip\ccwd}{\enskip}}#3}
-          \setbox1=\vbox{%
-             \unvbox0
-             \setbox2=\lastbox
-             \hbox to \textwidth{\hfill\unhcopy2 \unskip\unskip\hfill}
+\ExplSyntaxOn
+\cs_set:Npn \LT@makecaption #1#2#3
+  {
+    \LT@mcol \LT@cols c
+      {
+        \hbox_to_zero:n
+          {
+            \hss
+            \parbox [t] \LTcapwidth
+              {
+                \wuhao
+                \sbox \@tempboxa { #1 { #2 \hit@capsep } #3 }
+                \dim_compare:nNnTF { \box_wd:N \@tempboxa } > { \hsize }
+                  {
+                    \hit@if { capcenterlast }
+                      { \hit@caplastline { #1 { #2 \hit@capsep } #3 } }
+                      { #1 { #2 \hit@capsep } #3 }
+                    \par
+                  }
+                  {
+                    \tex_global:D \@minipagefalse
+                    \hbox_to_wd:nn { \hsize } { \hfil \box \@tempboxa \hfil }
+                  }
+                \endgraf \vskip \belowcaptionskip
+              }
+            \hss
           }
-        \unvbox1}
-      }{%
-        #1{#2\hit@if{bachelor}{\hskip\ccwd}{\enskip}}#3%
-      }%
-      \par
-    }{%
-      \global \@minipagefalse
-      \hbox to\hsize{\hfil\box\@tempboxa\hfil}
-    }%
-    \endgraf\vskip\belowcaptionskip}%
-  \hss}}}
+      }
+  }
+\ExplSyntaxOff
 %    \end{macrocode}
 %
 %    \end{macro}
