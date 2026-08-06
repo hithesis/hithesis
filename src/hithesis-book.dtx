@@ -1279,21 +1279,29 @@
 % \changes{v3.0.15}{2020/05/21}{添加参考文献GBT2015}
 % \changes{v3.1c}{2023/04/16}{增加相邻两个参考文献连接符为逗号“,”的功能。\issue[137]}
 %    \begin{macrocode}
-\bool_if:NT \g__hit_citetwocomma_bool
-  {
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\pkg{natbib} 的补丁提成一条命令，在 expl3 之外定义}
+% \cs{patchcmd} 会把目标宏体 detokenize 后按当前 catcode 重扫，所以整条调用都得
+% 在 expl3 之外写。而 \cs{ExplSyntaxOff} 塞进 \cs{bool\_if:NT} 的参数里是不生效的
+% （参数早在读到 \cs{bool\_if:NT} 时就记号化完了），只能先在外面定义好，再由条件
+% 调用。
+%    \begin{macrocode}
 \ExplSyntaxOff
-    \patchcmd \NAT@citexnum { \def@NAT@last@yr { - \NAT@penalty } }
+\newcommand\hit@patch@citetwocomma{%
+  \patchcmd\NAT@citexnum{\def@NAT@last@yr{-\NAT@penalty}}%
+    {%
+      \ifx\NAT@last@yr\relax
+      \def@NAT@last@yr{\@citea}%
+      \else
+      \def@NAT@last@yr{-\NAT@penalty}%
+      \fi
+    }%
+    {\typeout{Use comma between neighboring citations}}%
+    {\ClassError{hithesisbook}{fail to patch \NAT@citexnum}{}}%
+}
 \ExplSyntaxOn
-      {
-        \ifx \NAT@last@yr \relax
-        \def@NAT@last@yr { \@citea }%
-        \else
-        \def@NAT@last@yr { - \NAT@penalty }%
-        \fi
-      }
-      { \typeout { Use~comma~between~neighboring~citations } }
-      { \ClassError { hithesisbook } { fail~to~patch~\NAT@citexnum } { } }
-  }
+\bool_if:NT \g__hit_citetwocomma_bool { \hit@patch@citetwocomma }
 %</book-hyperlink>
 %<*book-deps-b>
 %    \end{macrocode}
@@ -6420,12 +6428,10 @@ breaklines=true
     \if*#2*\else\textsuperscript{#2}\fi
   }{}%
 }{}{}
-\ExplSyntaxOn
 \renewcommand\NAT@citesuper[3]{\ifNAT@swa
   \if*#2*\else#2\NAT@spacechar\fi
 \unskip\kern\p@\textsuperscript{\NAT@@open#1\NAT@@close\if*#3*\else#3\fi}%
    \else #1\fi\endgroup}
-\ExplSyntaxOff
 \patchcmd{\NAT@citex}{%
   \if*#2*\else\NAT@cmt#2\fi
   \if\relax\NAT@date\relax\else\NAT@@close\fi
