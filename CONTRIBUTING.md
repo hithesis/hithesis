@@ -597,6 +597,8 @@ git push -u origin feature/my-topic
 | 新加的 dtx 排在共用文件之后 | `Incompatible order of input files` | docstrip 给同一个 `\file` 里重复出现的输入文件按出现次序各记一条，全局只有一张追加式的文件表。两个 cls 各自大量引用同一个 dtx、之后又共用另一个 dtx，就排不出一致的先后。`reportcfg` 因此留在 `hit-report.dtx` 里没有单独成文件 |
 | 模块内残留 `\ProvidesPackage` | 日志里出现不存在的宏包 | 模块拼进 cls，不该有包身份声明 |
 | 守卫缺失 | 代码漏进别的文件 | 每个 `%<*X>` 都要有配对的 `%</X>` |
+| `\changes` 文本里写了 `=` | `make doc` 报 `Extra }`，修改记录那条目被拦腰截断 | `gglo.ist` 把 `=` 当 makeindex 的 actual 分隔符。改成 `\option{font} 取 \texttt{auto}` 这种写法，别写 `font=auto` |
+| 给 expl3 内部名套 `\begin{macro}` | `make doc` 报 `Missing $ inserted` | 名字里的 `_` 在文档模式下是下标。`\__hit_...` 这类只写普通说明，不套 `macro` 环境 |
 | `\changes` 漏写 | 看不到历史脉络 | 迁移、重命名、删除都要写 |
 | 在 expl3 里走裸 `\input` 加载文件 | 被读进来的文件按 expl3 的 catcode 解析，带字面空格的键名散架。`\usetikzlibrary{calc}` 会报 `/tikz/cs/point/.storein` 未知 | `\RequirePackage` 没问题（LaTeX 加载宏包时会恢复 catcode），但 `\usetikzlibrary` 这类自己 `\input` 的要用 `\ExplSyntaxOff` 圈起来 |
 | 在 expl3 里用 `\patchcmd`/`\pretocmd`/`\apptocmd` | 目标宏的排版悄悄错位。etoolbox 会把宏体 detokenize 后按当前 catcode 重扫，体内的字面空格被吃掉。踩过一次：`\pretocmd{\@makefntext}` 让脚注整块上移 4.2pt，正文一个字没动、页数没变，`pdftotext` 比对看不出来 | 用 `\ExplSyntaxOff` 圈起来。fduthesis、bithesis、sjtuthesis 一处 etoolbox 补丁都不用，长远看这些补丁值得换掉 |
