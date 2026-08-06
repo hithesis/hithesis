@@ -311,6 +311,105 @@
   { \msg_error:nnx { hithesis } { math-font-unknown } { \l__hit_math_font_str } }
   }
 %    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{新增 \env{eqdenote} 环境，公式的物理量注释}
+% \env{eqdenote} 排公式下面那张「式中……」注释表。规范要求注释的转行与破折号后
+% 第一个字对齐，所以底下是一个 \pkg{tabularx}，说明列取 \texttt{X}。
+%
+% 排出来是三列：引导词、符号、说明。用户只写后两列，第二行起那个空的引导词格子
+% 由环境自己补。可选参数换引导词，传空则留出等宽的空位，拆成两段接排时左缘对得上。
+%    \begin{macrocode}
+\dim_new:N \l__hit_eqdenote_depth_dim
+\seq_new:N \l__hit_eqdenote_seq
+\tl_new:N \l__hit_eqdenote_tl
+\cs_new:Npn \hit@eqdenote@label
+  {
+    \bool_if_exist:NTF \g__hit_english_bool
+      {
+        \bool_if:NTF \g__hit_english_bool
+          { \hit@eqdenote@elabel } { \hit@eqdenote@clabel }
+      }
+      { \hit@eqdenote@clabel }
+  }
+\msg_new:nnn { hithesis } { eqdenote-no-item }
+  {
+    eqdenote~环境里每条注释都要用~\iow_char:N \\item~起头，
+    这一处没有找到，排出来的表格会错位。
+  }
+%    \end{macrocode}
+%
+% 表格要用 \cs{begin}\marg{tabularx} 与 \cs{end}\marg{tabularx} 成对写在一条命令
+% 里。\pkg{tabularx} 会把正文反复排好几遍来定 \texttt{X} 列宽度，直接在环境的开始
+% 代码里写 \cs{tabularx}，收尾那几句也会被卷进去重排，\cs{prevdepth} 在受限水平
+% 模式下会报错。
+%    \begin{macrocode}
+\tl_new:N \l__hit_eqdenote_font_tl
+%    \end{macrocode}
+%
+% \pkg{longtable} 被模板改成了五号（\cs{LT@array} 里加了 \cs{wuhao}），那是给插表
+% 用的。式中注释是正文的一部分，字号要跟正文一样，所以进表格前用 \cs{ltfontsize}
+% 把当前字号还回去。字号对了，\cs{ccwd}、\cs{strutbox} 与行距也就都跟正文一致。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_eqdenote_keepfont:
+  {
+    \tl_set:Nx \l__hit_eqdenote_font_tl
+      {
+        \exp_not:N \fontsize { \f@size } { \f@baselineskip }
+        \exp_not:N \selectfont
+      }
+    \exp_args:NV \ltfontsize \l__hit_eqdenote_font_tl
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\env{eqdenote} 底下从 \pkg{tabularx} 换成
+%   \pkg{xltabular}，注释表放不下时自动转页接排，不必手动拆成两个环境}
+% \pkg{xltabular} 是 \pkg{longtable} 加 \texttt{X} 列，表格能自动跨页接排。
+% \cs{LTleft} 与 \cs{LTright} 让表格靠左，\cs{LTpre} 与 \cs{LTpost} 去掉
+% \pkg{longtable} 默认在表格前后加的 \cs{bigskipamount}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_eqdenote_table:nn #1#2
+  {
+    \__hit_eqdenote_keepfont:
+    \skip_zero:N \LTleft
+    \skip_set:Nn \LTright { 0pt~plus~1fill }
+    \skip_zero:N \LTpre
+    \skip_zero:N \LTpost
+    \begin{xltabular} { \textwidth }
+      { @{} l @{ \hspace { \ccwd } } r @{ \hit@eqdenote@dash } X @{} }
+      #1 & #2 \\
+    \end{xltabular}
+  }
+%    \end{macrocode}
+%
+% 每条注释一个 \cs{item}，不必自己写 \cs{\textbackslash\textbackslash}，也不必记着
+% 末条不加。做法是把环境正文按 \cs{item} 切开，再用「\cs{\textbackslash
+% \textbackslash} 加一个空格子」接起来。切分只认顶层的 \cs{item}，嵌在花括号里的
+% 不算。正文里一个 \cs{item} 都没有时会给出警告，因为那样第二行起缺一个空格子，
+% 表格会错位。
+%
+% 收尾的三句是给后面的元素定位用的。整张表是段落里的一个高盒子，深度取自表格行的
+% strut，比正文行深，\TeX{} 只好退到 \cs{lineskip}，末行会与后面的正文挨得比正文
+% 行距近；而标题的 \cs{addvspace} 是从盒子底量的，又会偏松。把盒子底与
+% \cs{prevdepth} 都收到正文行的深度，接正文和接标题就都跟正文一致。
+%    \begin{macrocode}
+\NewDocumentEnvironment { eqdenote } { O{\hit@eqdenote@label} +b }
+  {
+    \seq_set_split:Nnn \l__hit_eqdenote_seq { \item } {#2}
+    \seq_get_left:NN \l__hit_eqdenote_seq \l__hit_eqdenote_tl
+    \tl_if_blank:VTF \l__hit_eqdenote_tl
+      { \seq_pop_left:NN \l__hit_eqdenote_seq \l__hit_eqdenote_tl }
+      { \msg_warning:nn { hithesis } { eqdenote-no-item } }
+    \tl_set:Nn \l__hit_eqdenote_tl {#1}
+    \tl_if_blank:nT {#1}
+      { \tl_set:Nn \l__hit_eqdenote_tl { \hphantom { \hit@eqdenote@label } } }
+    \exp_args:NV \__hit_eqdenote_table:nn \l__hit_eqdenote_tl
+      { \seq_use:Nn \l__hit_eqdenote_seq { \\ & } }
+    \par
+    \settodepth \l__hit_eqdenote_depth_dim { 中 }
+    \kern \dim_eval:n { \l__hit_eqdenote_depth_dim - \dp \strutbox }
+    \tex_prevdepth:D \l__hit_eqdenote_depth_dim
+  }
+  { }
 %    \begin{macrocode}
 %</shared-math>
 %    \end{macrocode}
