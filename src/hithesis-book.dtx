@@ -2515,17 +2515,22 @@
 \footnotemargin1.5em\relax
 %    \end{macrocode}
 %
-% \cs{@makefnmark} 默认是上标样式，而在脚注部分要求为正文大小。利用\cs{patchcmd}
-% 动态调整 \cs{@makefnmark} 的定义。
+% \cs{@makefnmark} 默认是上标样式，而在脚注部分要求为正文大小。
+% \changes{v3.2a}{0000/00/00}{\cs{@makefntext} 改成包一层，不再用 \pkg{etoolbox}
+%   前后插码。\cs{pretocmd} 会把宏体 detokenize 后按当前 catcode 重扫，在 expl3
+%   里会吃掉 \cs{@makefntext} 体内的字面空格，脚注整块上移 4.2bp}
+% 原来是往 \cs{@makefntext} 的宏体前后各插一句 \cs{let}，效果等于在原宏体跑之前
+% 换掉 \cs{@makefnmark}、跑完再换回来。包一层做的是同一件事，位置也一样。
 %    \begin{macrocode}
 \cs_set_eq:NN \hit@makefnmark \@makefnmark
 \cs_new:Npn \hit@@makefnmark { \hbox { { \normalfont \@thefnmark } } }
-\ExplSyntaxOff
-\pretocmd{\@makefntext}{\let\@makefnmark\hit@@makefnmark}{}{}
-\ExplSyntaxOn
-\ExplSyntaxOff
-\apptocmd{\@makefntext}{\let\@makefnmark\hit@makefnmark}{}{}
-\ExplSyntaxOn
+\cs_set_eq:NN \hit@orig@makefntext \@makefntext
+\cs_set:Npn \@makefntext #1
+  {
+    \cs_set_eq:NN \@makefnmark \hit@@makefnmark
+    \hit@orig@makefntext {#1}
+    \cs_set_eq:NN \@makefnmark \hit@makefnmark
+  }
 %</book-footnote>
 %    \end{macrocode}
 %
