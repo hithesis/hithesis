@@ -128,7 +128,7 @@ def default_targets() -> list[Path]:
     """
     globs = [
         "*.md", "*/*.md",
-        "src/hithesis-doc.dtx",
+        "src/hit-doc.dtx",
         "build.lua", "Makefile",
         ".github/workflows/*.yml",
         "scripts/*.py", "scripts/*.sh",

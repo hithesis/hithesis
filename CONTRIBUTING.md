@@ -9,14 +9,14 @@
 ```
 hithesis/
 ├── src/
-│   ├── hithesis.dtx      <- 入口：driver、三类共用的文件头、索引样式、dtx-style
-│   ├── hit-thesis.dtx    <- 毕业论文类 hithesisbook
-│   ├── hit-report.dtx    <- 开题中期类 hithesisart
-│   ├── hitsz-report.dtx  <- 深圳博士中期类 hithesisartplus
-│   ├── hithesis-bst.dtx  <- 参考文献样式 hithesis.bst / hitszthesis.bst
-│   ├── hithesis-doc.dtx  <- 用户手册
-│   ├── hithesis-eps.dtx  <- EPS 图像数据（校徽、封面、示例插图）
-│   └── shared/           <- 三个类共用的底层模块，见 §4.2
+│   ├── hithesis.dtx            <- 入口：driver、三类共用的文件头、索引样式、dtx-style
+│   ├── hit-thesis.dtx          <- 毕业论文类 hithesisbook
+│   ├── hit-report.dtx          <- 开题中期类 hithesisart
+│   ├── hitsz-midterm-report.dtx <- 深圳博士中期类 hithesisartplus
+│   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
+│   ├── hit-doc.dtx             <- 用户手册
+│   ├── hit-eps.dtx             <- EPS 图像数据（校徽、封面、示例插图）
+│   └── shared/                 <- 三个类共用的底层模块，见 §4.2
 ├── hithesis.ins          <- docstrip 驱动文件，留在根目录：它的输出路径都相对于此
 ├── build.lua             <- l3build 配置：unpack / distribute / doc / check / ctan
 ├── Makefile              <- 构建与测试入口
@@ -121,10 +121,10 @@ cd examples/hitart/reports  && make report
 |---|---|
 | 毕业论文的任何行为 | `src/hit-thesis.dtx` |
 | 开题、中期报告 | `src/hit-report.dtx` |
-| 深圳博士中期 | `src/hitsz-report.dtx` |
+| 深圳博士中期 | `src/hitsz-midterm-report.dtx` |
 | 三个类共用的底层 | `src/shared/hit-*.dtx` |
-| 参考文献样式 | `src/hithesis-bst.dtx` |
-| 用户手册文字 | `src/hithesis-doc.dtx` |
+| 参考文献样式 | `src/hit-bst.dtx` |
+| 用户手册文字 | `src/hit-doc.dtx` |
 | 类的公共文件头、索引样式 | `src/hithesis.dtx` |
 
 文件内用 `grep -n '%<\*thesis-' src/hit-thesis.dtx` 之类列出模块起点。模块用注释标出：
@@ -157,7 +157,7 @@ cd examples/hitart/reports  && make report
 
 ### 4.2 版式各写各的，底层机制共用
 
-三个 cls（毕业论文 / 开题中期 / 深圳博士中期）的版式代码物理隔离，由各自的 `thesis-*` / `report-*` / `szreport-*` 模块承载，分别写在 `src/hit-thesis.dtx`、`src/hit-report.dtx`、`src/hitsz-report.dtx` 里。三个类对应三套学校规范，各自演化，碰巧相似的版式不要合并，规范一独立变动就会变成维护负担。
+三个 cls（毕业论文 / 开题中期 / 深圳博士中期）的版式代码物理隔离，由各自的 `thesis-*` / `report-*` / `szmidterm-*` 模块承载，分别写在 `src/hit-thesis.dtx`、`src/hit-report.dtx`、`src/hitsz-midterm-report.dtx` 里。三个类对应三套学校规范，各自演化，碰巧相似的版式不要合并，规范一独立变动就会变成维护负担。
 
 底层机制是另一回事。字号、数学、表格、脚注这些三套规范要求一致的东西，共用一份放在 `src/shared/hit-*.dtx`，守卫叫 `shared-*`：
 
@@ -174,13 +174,13 @@ cd examples/hitart/reports  && make report
 
 共享层的写法与类模块不同：文件里只放定义，需要在特定时机执行的部分包成 `\hit@setup@<名>`，由各个类在原来那段代码所在的位置调用。这样共享之后生成物的执行顺序不变，能用「三个 cls 逐字节不变」来验收。
 
-例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hithesis-eps.dtx` 也跨类共享，但它们不走 `shared/`，因为不是拼进 cls 的模块。
+例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hit-eps.dtx` 也跨类共享，但它们不走 `shared/`，因为不是拼进 cls 的模块。
 
 ### 4.3 一个模块一个职责
 
 模块名要能反映它唯一的职责：
 
-模块名的形式是「类-职责」，类的前缀是 `thesis` / `report` / `szreport` / `shared`：
+模块名的形式是「类-职责」，类的前缀是 `thesis` / `report` / `szmidterm` / `shared`：
 
 - √ `thesis-chapter` 只管毕业论文的章节标题格式
 - √ `thesis-bib` 只管毕业论文的参考文献加载与样式
@@ -318,8 +318,8 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 已迁移：`thesis-geometry`、`report-geometry`、`thesis-mainmatter`、`report-chapter`、
 `report-pagestyle`、`report-toc`、`thesis-toc`、`thesis-pagestyle`、`report-floats`、`thesis-deps-c`、
 `thesis-glossary`、`report-deps-a`、`thesis-deps-a`、`report-options` 与
-`szreport-options`、`thesis-options`、
-`thesis-meta`、`report-meta`、`szreport-meta`、`thesis-floats`、`thesis-hyperlink`、
+`szmidterm-options`、`thesis-options`、
+`thesis-meta`、`report-meta`、`szmidterm-meta`、`thesis-floats`、`thesis-hyperlink`、
 `thesis-frontmatter`、`report-frontmatter`、`thesis-chapter`、`thesis-appendix`、`thesis-bib`、
 `report-bib`、`thesis-footnote`、`report-deps-c`。
 
@@ -491,10 +491,10 @@ CI 会在推送后跑这几项：
 
 | 范围 | 对应 |
 |---|---|
-| `thesis` `report` `szreport` | 三个类，即 `src/hit-thesis.dtx`、`src/hit-report.dtx`、`src/hitsz-report.dtx` |
+| `thesis` `report` `szmidterm` | 三个类，即 `src/hit-thesis.dtx`、`src/hit-report.dtx`、`src/hitsz-midterm-report.dtx` |
 | `shared` | 三个类共用的底层模块 `src/shared/hit-*.dtx` |
 | `bst` `eps` | 参考文献样式、图像数据 |
-| `manual` | 用户手册 `src/hithesis-doc.dtx` |
+| `manual` | 用户手册 `src/hit-doc.dtx` |
 | `readme` `contributing` | 对应的 md 文件 |
 | `tests` `scripts` | `tests/`、`testfiles/`、`tools/`、`scripts/` |
 | `deps` | 依赖清单 `.github/tl_packages` |
@@ -505,11 +505,11 @@ CI 会在推送后跑这几项：
 
 ```
 feat(thesis): 增加深圳校区博士封面的联合导师字段
-fix(report,szreport): 修正中期报告页眉在偶数页丢失
+fix(report,szmidterm): 修正中期报告页眉在偶数页丢失
 refactor(thesis): 把封面绘制从 thesiscls 拆到 thesis-cover 模块
 docs(manual): 补充 newgeometry 三个取值的版心差异
 docs(contributing): 提交消息改用 Conventional Commits
-test: 补充 report 与 szreport 的字段清单交叉验证
+test: 补充 report 与 szmidterm 的字段清单交叉验证
 ci: l3build check 铺到所有 TeX Live 版本
 ```
 
