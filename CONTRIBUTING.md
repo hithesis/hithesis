@@ -11,6 +11,7 @@ hithesis/
 ├── src/
 │   ├── hithesis.dtx            <- 入口：driver、三类共用的文件头、索引样式、dtx-style
 │   ├── hit-thesis.dtx          <- 毕业论文类 hithesisbook
+│   ├── hit-thesis-config.dtx   <- 毕业论文的固定词汇（改学校规范先看这里）
 │   ├── hit-report.dtx          <- 开题中期类 hithesisart
 │   ├── hitsz-midterm-report.dtx <- 深圳博士中期类 hithesisartplus
 │   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
@@ -120,6 +121,8 @@ cd examples/hitart/reports  && make report
 | 要改什么 | 打开哪个 |
 |---|---|
 | 毕业论文的任何行为 | `src/hit-thesis.dtx` |
+| 毕业论文的固定词汇 | `src/hit-thesis-config.dtx` |
+| 报告类的固定词汇 | `src/hit-report.dtx` 的 `reportcfg` 模块 |
 | 开题、中期报告 | `src/hit-report.dtx` |
 | 深圳博士中期 | `src/hitsz-midterm-report.dtx` |
 | 三个类共用的底层 | `src/shared/hit-*.dtx` |
@@ -591,6 +594,7 @@ git push -u origin feature/my-topic
 | hyperref 加载顺序 | 引用、书签锚点错乱 | hyperref 已在 `X-deps` 内部的精确位置加载，别在其他模块重新加载 |
 | enumitem 覆盖 cft* 长度 | 目录间距异常 | `X-toc` 的 `\from` 要排在 `X-deps` 之后 |
 | `\from` 顺序写错 | 宏未定义、样式失效 | docstrip 按 `\from` 顺序输出，不按守卫块在 dtx 里的位置 |
+| 新加的 dtx 排在共用文件之后 | `Incompatible order of input files` | docstrip 给同一个 `\file` 里重复出现的输入文件按出现次序各记一条，全局只有一张追加式的文件表。两个 cls 各自大量引用同一个 dtx、之后又共用另一个 dtx，就排不出一致的先后。`reportcfg` 因此留在 `hit-report.dtx` 里没有单独成文件 |
 | 模块内残留 `\ProvidesPackage` | 日志里出现不存在的宏包 | 模块拼进 cls，不该有包身份声明 |
 | 守卫缺失 | 代码漏进别的文件 | 每个 `%<*X>` 都要有配对的 `%</X>` |
 | `\changes` 漏写 | 看不到历史脉络 | 迁移、重命名、删除都要写 |
