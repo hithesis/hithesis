@@ -3152,14 +3152,7 @@ breaklines=true
 %<*book-meta>
 % \changes{v3.2a}{0000/00/00}{meta 模块抽取后，etoolbox 需提前加载以使用 \cs{AfterPreamble}}
 \RequirePackage{etoolbox}
-\cs_new_protected:Npn \hit@def@classkey #1
-  { \keys_define:nn { hit / class } { #1 .code:n = { \use:c {#1} {##1} } } }
-\cs_new_protected:Npn \hit@def@term #1
-  {
-    \hit@def@classkey {#1}
-    \cs_gset_nopar:cpn {#1} ##1 { \cs_gset_nopar:cpn { hit@#1 } {##1} }
-    \use:c {#1} { }
-  }
+% \changes{v3.2a}{0000/00/00}{\cs{hitsetup} 的底层机制挪到 \file{src/shared/hit-meta.dtx}}
 
 \hit@def@term{statesecrets} %密级
 \hit@def@term{natclassifiedindex}  %国内图书分类号
@@ -3224,33 +3217,9 @@ breaklines=true
 \NewDocumentEnvironment { eabstract } { } { \Collect@Body \hit@@eabstract } { }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{0000/00/00}{关键词的逗号拆分迁到 expl3}
-% \cs{ckeywords}\marg{甲,乙,丙} 把逗号表拼成 \cs{hit@ckeywords}，词与词之间插一个
-% \cs{hit@ckeywords@separator}。分隔符是以 \cs{use:c} 的形式存进去的，取值在排版
-% 时才解析，用户后改分隔符照样生效。拆分用 \cs{seq\_set\_split\_keep\_spaces:Nnn} 而不
-% 是 \cs{clist\_map\_inline:nn}，因为后者会把每项前后的空格吃掉，而封面示例里写的是
-% \texttt{\{\string\TeX, \string\LaTeX, CJK\}} 这种逗号后带空格的形式，吃掉就
-% 与原先的 \cs{@for} 不一致了。
+% \changes{v3.2a}{0000/00/00}{关键词的逗号拆分挪到 \file{src/shared/hit-meta.dtx}}
+% 关键词的拆分机制见 \file{src/shared/hit-meta.dtx}。
 %    \begin{macrocode}
-\seq_new:N \l__hit_keywords_seq
-\cs_new_protected:Npn \hit@parse@keywords #1
-  {
-    \hit@def@classkey {#1}
-    \cs_gset_nopar:cpn { hit@#1 } { }
-    \cs_gset_protected_nopar:cpn {#1} ##1
-      {
-        \seq_set_split_keep_spaces:Nnn \l__hit_keywords_seq { , } {##1}
-        \seq_map_inline:Nn \l__hit_keywords_seq
-          {
-            \tl_if_empty:cF { hit@#1 }
-              {
-                \tl_gput_right:cn { hit@#1 }
-                  { \ignorespaces \use:c { hit@#1@separator } }
-              }
-            \tl_gput_right:cn { hit@#1 } {####1}
-          }
-      }
-  }
 \hit@parse@keywords{ckeywords}
 \hit@parse@keywords{ekeywords}
 \keys_define:nn { hit / class }
@@ -3263,7 +3232,6 @@ breaklines=true
       } ,
     design .default:n = { true } ,
   }
-\cs_new_protected:Npn \hitsetup #1 { }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{\cs{hitsetup} 改用 l3keys 做入口，加一层按职责
@@ -3277,123 +3245,16 @@ breaklines=true
 % \hitsetup{info={ctitle={...}}}       % 新的分族写法
 % \end{latex}
 % 根族的 \option{unknown} 兜底负责扁平写法，子族的兜底负责分族写法。等某个键真正
-% 迁到 l3keys 之后，它就不再走兜底，两条路自然收敛。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_legacy_key:n #1
-  {
-    \__hit_legacy_warn:
-    % 键名先自己展开。靠 \cs{keys\_set:nn} 去展开 \cs{l\_keys\_key\_str} 不可靠：
-    % 载入的宏包集合一变就可能失效，换定理实现时踩过。
-    \use:x
-      { \exp_not:N \keys_set:nn { hit / class } { \l_keys_key_str = { \exp_not:n {#1} } } }
-  }
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{加三态取值机制。选项可取 \texttt{auto}、
-%   \texttt{true}、\texttt{false}，或按学位分别指定；\texttt{auto} 的含义由
-%   各选项自己定义，在用到的时候才解析。}
-% 有些选项的合适取值随学位或语言而变。以前的做法是把条件写死在使用处，
-% 用户设了也没反应；现在统一成三态：
-% \begin{latex}
-% toc = { english = auto }                        % 模板按学位决定
-% toc = { english = true }                        % 一律排
-% toc = { english = { doctor = true } }           % 只对博士指定，其余仍按 auto
-% \end{latex}
-% 分学位映射里没列到的学位保持 \texttt{auto}，不是 \texttt{false}。
-%    \begin{macrocode}
-\tl_new:N \l__hit_tri_tl
-\keys_define:nn { hit / degree-map }
-  {
-    bachelor .code:n = { \bool_if:NT \g__hit_bachelor_bool { \tl_set:Nn \l__hit_tri_tl {#1} } } ,
-    master   .code:n = { \bool_if:NT \g__hit_master_bool { \tl_set:Nn \l__hit_tri_tl {#1} } } ,
-    doctor   .code:n = { \bool_if:NT \g__hit_doctor_bool { \tl_set:Nn \l__hit_tri_tl {#1} } } ,
-    postdoc  .code:n = { \bool_if:NT \g__hit_postdoc_bool { \tl_set:Nn \l__hit_tri_tl {#1} } } ,
-  }
-%    \end{macrocode}
-% 设值。带等号的当作分学位映射，其余直接存。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_tri_set:Nn #1#2
-  {
-    \tl_if_in:nnTF {#2} { = }
-      {
-        \tl_set:Nn \l__hit_tri_tl { auto }
-        \keys_set:nn { hit / degree-map } {#2}
-        \tl_set_eq:NN #1 \l__hit_tri_tl
-      }
-      { \tl_set:Nn #1 {#2} }
-  }
-%    \end{macrocode}
-% 取值。\texttt{auto} 时执行第二个参数给出的布尔表达式来决定。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_tri_if:NnTF #1#2#3#4
-  {
-    \str_case:VnF #1
-      { { true } {#3} { false } {#4} }
-      { \bool_if:nTF {#2} {#3} {#4} }
-  }
-\cs_new_protected:Npn \__hit_tri_if:NnT #1#2#3
-  { \__hit_tri_if:NnTF #1 {#2} {#3} { } }
-\clist_map_inline:nn { info , style , toc , bib , const }
-  { \keys_define:nn { hit / #1 } { unknown .code:n = { \__hit_legacy_key:n {##1} } } }
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{参考文献的五个选项迁入 \texttt{hit/bib} 族，
-%   改用连字符命名。旧名转回 \texttt{hit/class} 族处理，行为不变。}
-% 参考文献相关的五个键迁进 \texttt{hit/bib}。它们此前分散在 \file{book} 与
-% \file{art} 两个模块、命名也不统一（\texttt{citetwo} 看不出是控制什么的）。
-% 新旧两套名字设的是同一批内部变量，所以可以混用。
-%    \begin{macrocode}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{目录的四个选项迁入 \texttt{hit/toc} 族，改用连字符
-%   命名，其中三个改为三态取值。}
-% 目录相关的四个键。前三个用三态，\texttt{auto} 的含义分别是：\option{english}
-% 博士排、其余不排；\option{blank} 英文版不插、其余插；\option{four} 一律不开。
-%    \begin{macrocode}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{排版开关迁入 \texttt{hit/style} 族并改用连字符命名。}
-% 这批都是普通布尔，新名设的是旧标志位本身，所以两套名字天然一致。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_style_pair:nn #1#2 { \__hit_bool_key:nnn { style } {#1} {#2} }
-\cs_new_protected:Npn \__hit_bool_key:nnn #1#2#3
-  {
-    \use:x
-      {
-        \keys_define:nn { hit / #1 }
-          {
-            #2 .choice: ,
-            #2 / true  .code:n = { \exp_not:N \bool_gset_true:c { g__hit_#3_bool } } ,
-            #2 / false .code:n = { \exp_not:N \bool_gset_false:c { g__hit_#3_bool } } ,
-            #2 .default:n = true ,
-          }
-      }
-  }
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{\file{cfg} 里的可本地化字符串做成 \texttt{hit/const}
-%   族的键，用户在导言区即可改写，不必去动生成物。}
-% 类文件里定义了一批可本地化的字符串：封面各字段的标签、声明与授权的正文、
-% 签名栏文字等。各院系叫法不一，用户有改的需要，原先要改就得动生成物。
-% 这里把它们做成键：
-% \begin{latex}
-% \hitsetup{ const = { csupervisortitle = {导师} } }
-% \end{latex}
-% 键名由宏名机械地得来：去掉 \texttt{hit@} 前缀，其余的 \texttt{@} 换成连字符，
-% 所以 \cs{hit@ckeywords@separator} 对应 \texttt{ckeywords-separator}。
-% 默认值在类文件末尾给出，\cs{hitsetup} 在导言区执行，所以用户设的值覆盖默认值。
-%    \begin{macrocode}
-\str_new:N \l__hit_const_name_str
-%    \end{macrocode}
+% 迁到 l3keys 之后，它就不再走兜底，两条路自然收敛。兜底本身、三态取值与布尔键的
+% 声明机制都在 \file{src/shared/hit-meta.dtx}。
 %
 % \changes{v3.2a}{0000/00/00}{元信息字段正式注册进 \texttt{hit/info} 族，
 %   不再依赖子族兜底转发。}
-% 元信息字段。这批由 \cs{hit@def@term} 与 \cs{hit@parse@keywords} 批量生成，
+% 元信息字段名单。这批由 \cs{hit@def@term} 与 \cs{hit@parse@keywords} 批量生成，
 % 每个字段同时有一个同名命令（\cs{ctitle} 等），键的处理器直接调用那个命令，
 % 所以三种写法结果一致：\cs{hitsetup} 的扁平写法、分族写法、以及命令写法。
 %    \begin{macrocode}
-\clist_new:N \l__hit_info_clist
-\clist_set:Nn \l__hit_info_clist
+\hit@info@declare
   {
     statesecrets , natclassifiedindex , intclassifiedindex , ctitlecover ,
     ctitle , csubtitle , cxueke , cauthor , csupervisor , cassosupervisor ,
@@ -3403,22 +3264,14 @@ breaklines=true
     exueke , eauthor , esupervisor , eassosupervisor , ecosupervisor , eaffil
     , esubject , edate , estudenttype , ckeywords , ekeywords
   }
-\prop_new:N \g__hit_info_prop
-\clist_map_inline:Nn \l__hit_info_clist
-  {
-    \keys_define:nn { hit / info } { #1 .code:n = { \use:c { #1 } {##1} } }
-    \prop_gput:Nnn \g__hit_info_prop {#1} { }
-  }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{0000/00/00}{\file{cfg} 里的可本地化字符串做成 \texttt{hit/const}
+%   族的键，用户在导言区即可改写，不必去动生成物。}
+% 可本地化字符串的名单。默认值在类文件末尾给出，\cs{hitsetup} 在导言区执行，
+% 所以用户设的值覆盖默认值。键名怎么由宏名得来见 \file{src/shared/hit-meta.dtx}。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_const_set:n #1
-  {
-    \str_set_eq:NN \l__hit_const_name_str \l_keys_key_str
-    \str_replace_all:Nnn \l__hit_const_name_str { - } { @ }
-    \cs_gset:cpx { hit@ \l__hit_const_name_str } { \exp_not:n {#1} }
-  }
-\clist_map_inline:nn
+\hit@const@declare
   {
     acknowledgement-ctitle , acknowledgement-etitle , authorization-ctitle ,
     authorization-etitle , authorizationtext , authorizationtext-bachelor ,
@@ -3457,18 +3310,19 @@ breaklines=true
     teachersig , title-csep ,
     title-esep , weihaicampus
   }
-  { \keys_define:nn { hit / const } { #1 .code:n = { \__hit_const_set:n {##1} } } }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{0000/00/00}{固定词汇的默认值改成声明式的表，走与 \option{const}
-%   族相同的入口，不再是一串 \cs{gdef}。}
-% \cs{hit@const@set} 把一张键值表灌进 \texttt{hit/const} 族。默认值与用户在导言区
-% 写的 \cs{hitsetup}\{const=\{…\}\} 走的是同一条路，区别只是先后：类文件末尾先设
-% 默认值，导言区后设的覆盖它。表是在 expl3 之外记号化的，取值里的空格照原样保留。
-%    \begin{macrocode}
-\cs_new_protected:Npn \hit@const@set #1 { \keys_set:nn { hit / const } {#1} }
-%    \end{macrocode}
-%
+% \changes{v3.2a}{0000/00/00}{参考文献的五个选项迁入 \texttt{hit/bib} 族，
+%   改用连字符命名。旧名转回 \texttt{hit/class} 族处理，行为不变。}
+% \changes{v3.2a}{0000/00/00}{目录的四个选项迁入 \texttt{hit/toc} 族，改用连字符
+%   命名，其中三个改为三态取值。}
+% \changes{v3.2a}{0000/00/00}{排版开关迁入 \texttt{hit/style} 族并改用连字符命名。}
+% 三个族的键。排版开关都是普通布尔，用 \cs{\_\_hit\_style\_pair:nn} 成对声明，
+% 新名设的是旧标志位本身，所以两套名字天然一致。目录的前三个键用三态取值，
+% \texttt{auto} 的含义分别是：\option{english} 博士排、其余不排；\option{blank}
+% 英文版不插、其余插；\option{four} 一律不开。参考文献的五个键此前分散在
+% \file{book} 与 \file{art} 两个模块、命名也不统一（\texttt{citetwo} 看不出是
+% 控制什么的），新旧两套名字设的是同一批内部变量，所以可以混用。
 %    \begin{macrocode}
 \keys_define:nn { hit / style }
   {
@@ -3549,7 +3403,6 @@ breaklines=true
 % 改过名的选项逐个报，元信息字段的扁平写法合并成一条报，
 % \cs{documentclass} 里传排版类选项单独报。
 %    \begin{macrocode}
-\prop_new:N \g__hit_rename_prop
 \prop_gset_from_keyval:Nn \g__hit_rename_prop
   {
     arialtoc         = { toc = { sans-font = ... } } ,
@@ -3579,108 +3432,17 @@ breaklines=true
   }
 %    \end{macrocode}
 %
-% 提示文案。\texttt{v4.1} 是兼容期结束后的第一个主要版本。
+% \changes{v3.2a}{0000/00/00}{提示文案、只报一次的机制与类选项扫描挪到
+%   \file{src/shared/hit-meta.dtx}}
+% 单双面由学位与校区决定，所以扫描类选项时额外查一下 \option{oneside} 与
+% \option{twoside}。另外两个类没有这条。
 %    \begin{macrocode}
-\msg_new:nnn { hithesis } { renamed-option }
+\cs_set_protected:Npn \__hit_classopt_extra:
   {
-    选项~#1~已改名，请写成~\iow_char:N \\ hitsetup{#2}。 \\
-    旧名将在~v4.1（2028~年主要版本）中移除。
-  }
-\msg_new:nnn { hithesis } { flat-info }
-  {
-    元信息字段的扁平写法已不推荐，例如~\iow_char:N \\ hitsetup{#1~=~...}， \\
-    请改写成~\iow_char:N \\ hitsetup{info~=~{#1~=~...}}。 \\
-    扁平写法将在~v4.1（2028~年主要版本）中移除。
-  }
-\msg_new:nnn { hithesis } { style-in-classoptions }
-  {
-    排版选项~#1~不该写在~\iow_char:N \\ documentclass~的可选参数里， \\
-    请改用~\iow_char:N \\ hitsetup。 \\
-    在类选项里指定的支持将在~v4.1（2028~年主要版本）中移除。
-  }
-\msg_new:nnn { hithesis } { deprecated-ntheorem }
-  {
-    \iow_char:N \\ #1~是~ntheorem~的命令，模板已改用~thmtools。 \\
-    请改写成~\iow_char:N \\ hitsetup{theorem~=~{#2~=~...}}。 \\
-    兼容写法将在~v4.1（2028~年主要版本）中移除。
-  }
-\msg_new:nnn { hithesis } { removed-ntheorem }
-  {
-    \iow_char:N \\ #1~是~ntheorem~的命令，模板已改用~thmtools，这条已经失效。 \\
-    请改用~\iow_char:N \\ #2。
-  }
-\msg_new:nnn { hithesis } { removed-ntheorem-numbering }
-  {
-    \iow_char:N \\ #1~是~ntheorem~的命令，模板已改用~thmtools，这条已经失效。 \\
-    编号形式请在~\iow_char:N \\ newtheorem~之后自行重定义~\iow_char:N \\ the<环境名>。
-  }
-\msg_new:nnn { hithesis } { manual-sides }
-  {
-    单双面由学位与校区决定，类选项~#1~会被模板覆盖。 \\
-    如果确实需要另行指定，请联系模板维护者说明用途。
-  }
-%    \end{macrocode}
-%
-% 报过的名字记下来，同一个名字只报一次。元信息字段合并成一条，
-% 用第一个碰到的字段名举例。
-%    \begin{macrocode}
-\prop_new:N \g__hit_warned_prop
-\tl_new:N \l__hit_warn_tl
-\cs_generate_variant:Nn \prop_get:NnNTF { NV }
-\cs_generate_variant:Nn \msg_warning:nnn { nnV }
-\cs_new_protected:Npn \__hit_warn_once:nnn #1#2#3
-  {
-    \prop_if_in:NnF \g__hit_warned_prop {#1}
+    \clist_if_in:nVT { oneside , twoside } \l__hit_warn_tl
       {
-        \prop_gput:Nnn \g__hit_warned_prop {#1} { }
-        \msg_warning:nnnn { hithesis } {#2} {#1} {#3}
-      }
-  }
-\cs_generate_variant:Nn \__hit_warn_once:nnn { VnV }
-\bool_new:N \g__hit_flat_info_bool
-\cs_new_protected:Npn \__hit_legacy_warn:
-  {
-    \prop_get:NVNTF \g__hit_rename_prop \l_keys_key_str \l__hit_warn_tl
-      {
-        \__hit_warn_once:VnV \l_keys_key_str
-          { renamed-option } \l__hit_warn_tl
-      }
-      {
-        \bool_lazy_and:nnT
-          { ! \bool_if_p:N \g__hit_flat_info_bool }
-          { \prop_if_in_p:NV \g__hit_info_prop \l_keys_key_str }
-          {
-            \bool_gset_true:N \g__hit_flat_info_bool
-            \msg_warning:nnV { hithesis } { flat-info } \l_keys_key_str
-          }
-      }
-  }
-%    \end{macrocode}
-%
-% \cs{documentclass} 的可选参数里出现排版选项时提示一次。
-% \cs{@classoptionslist} 在选项处理完之后仍然保留，所以放到这里扫描。
-%    \begin{macrocode}
-\clist_new:N \l__hit_classopt_clist
-\cs_new:Npn \__hit_opt_name:w #1 = #2 \q_stop { \tl_trim_spaces:n {#1} }
-\cs_new_protected:Npn \__hit_check_classoptions:
-  {
-    \cs_if_exist:cT { @classoptionslist }
-      {
-        \exp_args:NNv \clist_set:Nn \l__hit_classopt_clist { @classoptionslist }
-        \clist_map_inline:Nn \l__hit_classopt_clist
-          {
-            \tl_set:Nx \l__hit_warn_tl { \__hit_opt_name:w ##1 = \q_stop }
-            \prop_if_in:NVT \g__hit_rename_prop \l__hit_warn_tl
-              {
-                \exp_args:NV \__hit_warn_once:nnn \l__hit_warn_tl
-                  { style-in-classoptions } { }
-              }
-            \clist_if_in:nVT { oneside , twoside } \l__hit_warn_tl
-              {
-                \exp_args:NV \__hit_warn_once:nnn \l__hit_warn_tl
-                  { manual-sides } { }
-              }
-          }
+        \exp_args:NV \__hit_warn_once:nnn \l__hit_warn_tl
+          { manual-sides } { }
       }
   }
 \__hit_check_classoptions:
