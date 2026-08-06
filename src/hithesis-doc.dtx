@@ -164,6 +164,31 @@
 % 分区只影响源码的组织方式，用户不会接触到。维护者若要了解各区块的职责划分与新增区块的
 % 步骤，见仓库根目录的 \file{CONTRIBUTING.md}。
 %
+% \subsection{expl3 与空格}
+% \label{sec:expl3-space}
+% \changes{v3.2a}{0000/00/00}{手册补一节说明 expl3 语法下空格的处理，
+%   \file{hithesis-book.dtx} 里早有一处 \cs{ref} 指向这里}
+% v3.2a 起三个类文件从头到尾都在 \pkg{expl3} 的 catcode régime 里，由开头的
+% \cs{ProvidesExplClass} 打开，中间不再有成对的 \cs{ExplSyntaxOn} 与
+% \cs{ExplSyntaxOff}。这套 catcode 下空格的含义和平时不一样，改代码时有三件事要留神。
+%
+% \textbf{字面空格会被吞。} \texttt{text=\{150true mm\}} 照抄进去会变成
+% \texttt{150truemm}，要空格得写 \texttt{\~{}}。控制词后面的空格是名字终结符，
+% 本来就会被吸收，不用管。行末的换行同样被忽略，多行的文本值里原本靠换行产生的
+% 那个空格要补 \texttt{\~{}}，原本靠空行产生的 \cs{par} 要显式写出来。
+%
+% \textbf{\texttt{\~{}} 的含义反过来了。} 平时它是活动字符，表示不断行空格；
+% \pkg{expl3} 下它是普通空格。原有代码里的 \texttt{\~{}} 照抄进来，不断行空格
+% 就退化成了普通空格，要保持原意得写 \cs{nobreakspace}\{\}。
+%
+% \textbf{控制空格不在此列}，它在两种语法下是同一个控制
+% 序列，照写即可。
+%
+% 另有两处例外，必须退回 2e 的 catcode：走裸 \cs{input} 的加载器（如
+% \cs{usetikzlibrary}），以及 \pkg{etoolbox} 的 \cs{patchcmd} 一族——它们会把
+% 文件或宏体按当前 catcode 重扫，字面空格照样被吞。v3.2a 已经把这两类都消掉了，
+% 类文件里一处 \cs{ExplSyntaxOn} 都没有。
+%
 % \subsection{生成模板}
 % \label{sec:generate-cls}
 % \note[提示：]{若使用 \TeX 发行版自带的 \hithesis\ 或 Github/OSChina
@@ -275,6 +300,69 @@
 % 贝 \file{hithesisbook.cls}
 % 与 \file{hithesis.ist}，免去上面命令的执行。
 %
+%
+% \subsection{从 v3.1e 升上来要注意的}
+% \label{sec:breaking}
+% \changes{v3.2a}{0000/00/00}{手册加一节列出相对 v3.1e 的破坏性变更}
+% v3.2a 把三个类的底层全部迁到 \pkg{expl3}，对外接口大体不变，但有几处确实变了。
+% 下面按「会不会编不过」排序。
+%
+% \subsubsection{编不过的}
+%
+% \begin{itemize}
+% \item \textbf{删掉了 \cs{dachu}、\cs{banxiaosi}、\cs{dawu} 三个字号。}
+%   它们不在中文字号的标准阶梯里，手册的字号对照表从来没列过。用到的改成相邻的
+%   标准字号：\cs{dachu}（58bp）改 \cs{chuhao}，\cs{banxiaosi}（13bp）改
+%   \cs{sihao} 或 \cs{xiaosi}，\cs{dawu}（11bp）改 \cs{xiaosi} 或 \cs{wuhao}。
+% \item \textbf{删掉了 \option{pifootnote} 选项与 \pkg{pifont}。}
+%   带圈脚注号现在统一由 \cs{quan} 排，先取当前宋体自带的带圈字符，超出字体可用
+%   范围才画圈。要 Dingbats 那套 ➀➁➂ 的自己 \cs{usepackage}\marg{pifont}。
+% \item \textbf{不再预载 \pkg{tikz} 的 \texttt{calc} 库。}
+%   自己的插图里写了 \texttt{(\$…\$)} 坐标运算的，在导言区补一句
+%   \cs{usetikzlibrary}\marg{calc}。
+% \item \textbf{\cs{bicaption} 去掉了四参数形式。}
+%   原来要写 \cs{bicaption}\oarg{标签}\marg{}\marg{中文题}\marg{Fig.}\marg{英文题}，
+%   现在写 \cs{bicaption}\oarg{标签}\marg{中文题}\marg{英文题} 即可，英文图表名
+%   改用 \cs{hitsetup}\marg{const=\{efigurename=…\}} 设置。
+% \item \textbf{最低 \TeX~Live 版本提到 2022。}
+% \end{itemize}
+%
+% \subsubsection{能编过但要留意的}
+%
+% \begin{itemize}
+% \item \textbf{子图从 \pkg{subfigure} 换成了 \pkg{subcaption}。}
+%   \cs{subfigure}、\cs{subtable}、\cs{subref} 三个旧命令仍然能用，
+%   \cs{ifsubcaphang} 等五个开关会自动转成对应的 \cs{captionsetup}，但都会发一条
+%   建议改写的警告。
+% \item \textbf{定理从 \pkg{ntheorem} 换成了 \pkg{thmtools}。}
+%   \cs{theorembodyfont}、\cs{theoremheaderfont}、\cs{theoremsymbol}、
+%   \cs{theoremseparator} 会转成 \cs{hitsetup} 里的对应键；\cs{theoremprework}、
+%   \cs{theorempostwork}、\cs{theoremclass}、\cs{listtheorems}、\cs{thref} 没有
+%   对应实现，会提示改用 \pkg{thmtools} 的写法。
+% \item \textbf{类选项从 \pkg{kvoptions} 换成了 l3keys。}
+%   排版类的选项写在 \cs{documentclass} 的可选参数里仍然生效，但会提示改用
+%   \cs{hitsetup}，这条支持将在 v4.1 移除。
+% \item \textbf{\env{publist} 改用 \pkg{enumitem} 实现。}
+%   用法与版面都没变，仍然是 \cs{item} 逐条列。
+% \item \textbf{\option{citetwo}\texttt{=comma} 现在真的生效了。}
+%   这个选项从 2022 年加进来就一直是坏的（补丁打不上但吞掉了失败），修好之后
+%   两个相邻连续序号会排成 \texttt{[1,2]} 而不是 \texttt{[1-2]}。原先误以为它
+%   没作用的，升级后版面会变。
+% \item \textbf{\cs{hitsetup}\marg{bib=\{adjacent-cite=…\}} 与
+%   \cs{hitsetup}\marg{style=\{ziju=…\}} 原先会报错}，现在修好了。
+% \end{itemize}
+%
+% \subsubsection{新增的}
+%
+% \begin{itemize}
+% \item \option{font} 与 \option{cjk-font} 两个选项，西文与中文字体可以分别指定，
+%   见第 \ref{sec:chinese-fonts} 节。
+% \item \option{math-font} 与 \option{math-style} 两个选项，数学字体走
+%   \pkg{unicode-math}，见第 \ref{sec:math-fonts} 节。
+% \item \env{eqdenote} 环境，排公式下面的「式中……」注释表，见第
+%   \ref{sec:eqdenote} 节。
+% \item \option{style/glue} 选项 art 与 artplus 也有了，与 book 一致。
+% \end{itemize}
 %
 % \section{使用说明}
 % \label{sec:usage}
