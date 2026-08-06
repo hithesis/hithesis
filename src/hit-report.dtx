@@ -15,921 +15,15 @@
 % \fi
 %
 % ^^A ======================================================================
-% ^^A hithesis 的 art / artplus 家族实现
+% ^^A hithesis 的 report 类实现
 % ^^A
-% ^^A 开题、中期报告（hithesisart）与深圳博士中期（hithesisartplus）两个类的
-% ^^A 全部代码。
+% ^^A 开题、中期报告（hithesisart）的全部代码。文件末尾的 art-subfig 与 artcfg
+% ^^A 两个模块由 hithesisartplus 一并使用。
 % ^^A
 % ^^A 三个类共用的文件头（\NeedsTeXFormat、\ProvidesExplClass 等）留在 hithesis.dtx，
-% ^^A hithesis.ins 里每个 \file 先从那里取头，再从本文件取实现。
+% ^^A 共用的底层模块在 src/shared/，hithesis.ins 里每个 \file 先取头，再取实现。
 % ^^A ======================================================================
 %
-% ^^A ======================================================================
-% ^^A Module artpluscls: artplus 类主体（深圳博士中期报告专用）
-% ^^A ======================================================================
-% ^^A ======================================================================
-% ^^A Module artplus-options: 文档类选项的声明与后处理（type/campus/fontset 等）（artplus）
-% ^^A ======================================================================
-%    \begin{macrocode}
-%<*artplus-options>
-% \changes{v3.2a}{0000/00/00}{加通用选择器 \cs{hit@if}，与 \file{hithesisbook.cls}
-%   一致。}
-% \cs{hit@if}\marg{flag}\marg{真}\marg{假} 按标志位二选一，
-% \cs{hit@iffontset}\marg{名字}\marg{真}\marg{假} 比对 \option{fontset}，
-% \cs{hit@ifnotempty}\marg{宏}\marg{真} 在宏非空时执行，
-% \cs{hit@ifwider}\marg{长度}\marg{阈值}\marg{真}\marg{假} 比长度。
-% \cs{hit@ifT}\marg{flag}\marg{真} 是只有真分支的那一半。封面里几个多条件判断
-% 也各自取了名：\cs{hit@ifand} 两个标志位同时成立，\cs{hit@ifstage} 取「开题」
-% 或「中期」，\cs{hit@ifwidema} 是威海或深圳的硕士，\cs{hit@ifszmaop} 是深圳硕士
-% 开题，\cs{hit@ifhrbmastage} 是哈尔滨硕士的开题或中期。参数从 expl3 之外传
-% 进来，里面的空格照原样保留；替换旧写法时注意 \cs{fi} 后面被跳过的那个空格。
-%    \begin{macrocode}
-\cs_new:Npn \hit@if #1#2#3 { \bool_if:cTF { g__hit_#1_bool } {#2} {#3} }
-\cs_new:Npn \hit@ifT #1#2 { \bool_if:cT { g__hit_#1_bool } {#2} }
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{补上 \option{style/glue} 与 \cs{hit@glueskip}、
-%   \cs{hit@gluesize}，与 \file{hithesisbook.cls} 对齐。默认关，版面不变}
-% \option{glue} 开时给标题前后距与行距一个伸缩量，关时是固定值。
-%    \begin{macrocode}
-\cs_new:Npn \hit@glueskip #1#2
-  { \bool_if:NTF \g__hit_glue_bool { #1~plus~#2~minus~0bp } { #1 } }
-\cs_new:Npn \hit@gluesize #1#2#3
-  {
-    \bool_if:NTF \g__hit_glue_bool
-      { \fontsize {#1} { #2~plus~#3 } } { \fontsize {#1} {#2} }
-  }
-\cs_new:Npn \hit@iffontset #1#2#3
-  { \str_if_eq:eeTF { \hit@fontset } {#1} {#2} {#3} }
-\cs_new_protected:Npn \hit@ifnotempty #1#2 { \tl_if_empty:NF #1 {#2} }
-\cs_new:Npn \hit@ifwider #1#2#3#4 { \dim_compare:nNnTF {#1} > {#2} {#3} {#4} }
-\cs_new:Npn \hit@ifand #1#2#3#4
-  {
-    \bool_lazy_and:nnTF
-      { \bool_if_p:c { g__hit_#1_bool } } { \bool_if_p:c { g__hit_#2_bool } } {#3} {#4}
-  }
-\cs_new:Npn \hit@ifstage
-  {
-    \bool_if:NTF \g__hit_opening_bool
-      { \hit@stage@opening } { \hit@ifT { midterm } { \hit@stage@midterm } }
-  }
-\cs_new:Npn \hit@ifwidema #1
-  {
-    \bool_lazy_and:nnT
-      {
-        \bool_lazy_or_p:nn
-          { \bool_if_p:N \g__hit_weihai_bool } { \bool_if_p:N \g__hit_shenzhen_bool }
-      }
-      { \bool_if_p:N \g__hit_master_bool }
-      {#1}
-  }
-\cs_new:Npn \hit@ifszmaop #1#2
-  {
-    \bool_lazy_all:nTF
-      {
-        { \bool_if_p:N \g__hit_shenzhen_bool }
-        { \bool_if_p:N \g__hit_master_bool }
-        { \bool_if_p:N \g__hit_opening_bool }
-      }
-      {#1} {#2}
-  }
-\cs_new:Npn \hit@ifhrbmastage #1
-  {
-    \bool_lazy_all:nT
-      {
-        { \bool_if_p:N \g__hit_harbin_bool }
-        { \bool_if_p:N \g__hit_master_bool }
-        {
-          \bool_lazy_or_p:nn
-            { \bool_if_p:N \g__hit_opening_bool } { \bool_if_p:N \g__hit_midterm_bool }
-        }
-      }
-      {#1}
-  }
-\cs_new:Npn \hit@ifhrbmastage@TF #1#2
-  {
-    \bool_lazy_all:nTF
-      {
-        { \bool_if_p:N \g__hit_harbin_bool }
-        { \bool_if_p:N \g__hit_master_bool }
-        {
-          \bool_lazy_or_p:nn
-            { \bool_if_p:N \g__hit_opening_bool } { \bool_if_p:N \g__hit_midterm_bool }
-        }
-      }
-      {#1} {#2}
-  }
-\cs_new:Npn \hit@ifshenzhenmaop #1#2
-  {
-    \bool_lazy_all:nTF
-      {
-        { \bool_if_p:N \g__hit_shenzhen_bool }
-        { \bool_if_p:N \g__hit_opening_bool }
-        { \bool_if_p:N \g__hit_master_bool }
-      }
-      {#1} {#2}
-  }
-\cs_new:Npn \hit@ifharbinmaop #1#2
-  {
-    \bool_lazy_all:nTF
-      {
-        { \bool_if_p:N \g__hit_harbin_bool }
-        { \bool_if_p:N \g__hit_opening_bool }
-        { \bool_if_p:N \g__hit_master_bool }
-      }
-      {#1} {#2}
-  }
-%    \end{macrocode}
-%
-% 处理文档类选项
-%    \begin{macrocode}
-
-%% 处理文档类选项
-\msg_new:nnn { hithesis } { bad-option-value }
-  { 选项~#1~不接受取值~#2。 }
-\cs_new_protected:Npn \hit@boolopt #1#2
-  {
-    \bool_new:c { g__hit_#1_bool }
-    \str_if_eq:nnT {#2} { true } { \bool_gset_true:c { g__hit_#1_bool } }
-    \keys_define:nn { hit / class }
-      { #1 .bool_gset:c = { g__hit_#1_bool } , #1 .default:n = { true } }
-  }
-\cs_new_protected:Npn \hit@stringopt #1 { \hit@stringopt@as {#1} {#1} }
-%    \end{macrocode}
-%
-% 键名与变量名不同的字符串选项，\option{cjk-font} 这种带连字符的键要走这个。
-%    \begin{macrocode}
-\cs_new_protected:Npn \hit@stringopt@as #1#2
-  {
-    \tl_new:c { hit@#2 }
-    \keys_define:nn { hit / class } { #1 .tl_gset:c = { hit@#2 } }
-  }
-\cs_new_protected:Npn \hit@choiceopt #1#2#3#4
-  {
-    \clist_map_inline:nn {#3} { \bool_new:c { g__hit_#2##1_bool } }
-    \tl_if_empty:nF {#4} { \bool_gset_true:c { g__hit_#2#4_bool } }
-    \keys_define:nn { hit / class }
-      {
-        #1 .code:n =
-          {
-            \clist_map_inline:nn {#3}
-              { \bool_gset_false:c { g__hit_#2####1_bool } }
-            \bool_if_exist:cTF { g__hit_#2##1_bool }
-              { \bool_gset_true:c { g__hit_#2##1_bool } }
-              { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {##1} }
-          } ,
-      }
-  }
-\clist_map_inline:nn { raggedbottom , toc } { \hit@boolopt {#1} { false } }
-\hit@boolopt{newtxmath}{false}
-\hit@boolopt{glue}{false}
-
-\hit@choiceopt{type}{}{bachelor,master,doctor}{}
-
-\hit@choiceopt{campus}{}{shenzhen,weihai,harbin}{}
-\bool_lazy_or:nnF
-  { \bool_if_p:N \g__hit_weihai_bool }
-  { \bool_if_p:N \g__hit_shenzhen_bool }
-  { \bool_gset_true:N \g__hit_harbin_bool }
-
-\hit@choiceopt{stage}{}{opening,midterm}{}
-%    \end{macrocode}
-% \changes{v3.2a}{0000/00/00}{设置参考文献列表中的作者是否全大写和最大显示数量}
-% \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
-%    \begin{macrocode}
-
-\bool_new:N \g_bib_authorupper_bool
-\bool_set_false:N \g_bib_authorupper_bool
-\keys_define:nn { hit / class }
-  {
-    bibauthorupper .code:n =
-      {
-        \str_if_eq:nnT {#1} {full}
-          { \bool_set_true:N \g_bib_authorupper_bool }
-      } ,
-  }
-
-\int_new:N \g_bib_maxauthor_int
-\int_set:Nn \g_bib_maxauthor_int {3}
-\keys_define:nn { hit / class }
-  {
-    bibmaxauthor .code:n =
-      {
-        \int_set:Nn \g_bib_maxauthor_int {#1}
-        \int_if_zero:nT { \g_bib_maxauthor_int }
-          { \int_gdecr:N \g_bib_maxauthor_int }
-      } ,
-  }
-
-\str_new:N \g_bib_labelalign_str
-\keys_define:nn { hit / class }
-  { biblabelalign .code:n = { \str_set:Nn \g_bib_labelalign_str {#1} } }
-
-\hit@stringopt{fontset}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{西文字体独立成 \option{font} 选项}
-% 西文字体，取值与 \file{hithesisbook.cls} 相同。
-%    \begin{macrocode}
-\hit@stringopt{font}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{中文字体独立成 \option{cjk-font} 选项}
-% 中文字体。留空时照旧把 \option{fontset} 转给 \pkg{ctex}，给了值就由模板自己设置。
-%    \begin{macrocode}
-\hit@stringopt@as{cjk-font}{cjkfont}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{新增 \option{math-font} 与 \option{math-style} 选项}
-% 数学字体与数学排版风格，取值与 \file{hithesisbook.cls} 相同。
-%    \begin{macrocode}
-\hit@stringopt@as{math-font}{mathfont}
-\hit@stringopt@as{math-style}{mathstyle}
-\keys_define:nn { hit / class }
-  {
-    unknown .code:n =
-      {
-        \tl_if_empty:nTF {#1}
-          { \exp_args:NV \PassOptionsToClass \l_keys_key_str { ctexart } }
-          {
-            \use:x
-              {
-                \exp_not:N \PassOptionsToClass
-                  { \l_keys_key_str = \exp_not:n {#1} } { ctexart }
-              }
-          }
-      } ,
-  }
-\PassOptionsToPackage{no-math}{fontspec}
-
-\ProcessKeyOptions [~hit~/~class~]
-
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{artplus-options 的三段选项校验改用
-%   \cs{bool\_lazy\_any:nF}、\cs{bool\_lazy\_or:nnF} 与 \cs{bool\_lazy\_all:nF}。
-%   第三段原来写成三层嵌套、同一段报错文本重复三遍，现在合成一次判断。报错
-%   文本按 CONTRIBUTING §4.6 留在 expl3 之外。}
-% 本类只支持深圳校区博士的中期报告，三个条件缺一不可，原来靠三层嵌套分别报错，
-% 三处文本相同，合成一次判断。
-%    \begin{macrocode}
-\cs_new_protected:Npn \hit@artplus@error@type
-  {
-    \ClassError { hithesisartplus }
-      {
-        \MessageBreak Please~specify~thesis~type~in~option:~
-        \MessageBreak type=[bachelor~|~master~|~doctor]~
-      }
-  }
-\cs_new_protected:Npn \hit@artplus@error@stage
-  {
-    \ClassError { hithesisartplus }
-      {
-        \MessageBreak Please~specify~stage~in~option:~
-        \MessageBreak stage=<opening|midterm>~
-      }
-  }
-\cs_new_protected:Npn \hit@artplus@error@combo
-  {
-    \ClassError { hithesisartplus }
-      {
-        \MessageBreak This~document~class~only~support~midterm~report~for~doctor
-        in~shenzhen~campus
-      }
-  }
-\bool_lazy_any:nF
-  {
-    { \bool_if_p:N \g__hit_bachelor_bool }
-    { \bool_if_p:N \g__hit_master_bool }
-    { \bool_if_p:N \g__hit_doctor_bool }
-  }
-  { \hit@artplus@error@type }
-\bool_lazy_or:nnF
-  { \bool_if_p:N \g__hit_opening_bool }
-  { \bool_if_p:N \g__hit_midterm_bool }
-  { \hit@artplus@error@stage }
-\bool_lazy_all:nF
-  {
-    { \bool_if_p:N \g__hit_doctor_bool }
-    { \bool_if_p:N \g__hit_midterm_bool }
-    { \bool_if_p:N \g__hit_shenzhen_bool }
-  }
-  { \hit@artplus@error@combo }
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{选项后处理（AutoFakeBold 与 fontset 透传）从 artpluscls 移入 artplus-options 模块}
-%    \begin{macrocode}
-\RequirePackage{ifthen}
-\tl_if_empty:NTF \hit@cjkfont
-  {
-    \PassOptionsToPackage { AutoFakeBold=2 } { xeCJK }
-    \tl_if_empty:NF \hit@fontset
-      { \PassOptionsToClass { fontset=\hit@fontset } { ctexart } }
-  }
-  { \PassOptionsToClass { fontset=none } { ctexart } }
-%</artplus-options>
-%<*artpluscls-load>
-\LoadClass[a4paper,UTF8,zihao=-4,scheme=plain]{ctexart}
-%    \end{macrocode}
-% \changes{v3.2a}{0000/00/00}{模块内容改由 \file{hithesis.ins} 按运行期顺序直接拼入 cls，不再生成 \file{modules/*.sty}}
-%    \begin{macrocode}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{LoadClass 之后的所有标准包加载、配置整体打包至 artplus-deps 模块；artpluscls 仅保留 LoadClass}
-%    \begin{macrocode}
-%</artpluscls-load>
-%    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module artplus-deps: 第三方宏包集中加载与基础配置（含 hyperlink/geometry 内联）（artplus）
-% ^^A ======================================================================
-%    \begin{macrocode}
-%<*artplus-deps-a>
-%    \end{macrocode}
-%
-% 各种宏包
-%    \begin{macrocode}
-
-%% 各种宏包
-\RequirePackage{etoolbox}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{artplus-deps-a 的引擎检查改用 \cs{sys\_if\_engine\_xetex:F}，
-%   与 art-deps-a、book-deps-a 保持一致}
-%    \begin{macrocode}
-\sys_if_engine_xetex:F
-  { \ClassError { hithesis } { Please~use:~\MessageBreak~xelatex } { } }
-\RequirePackage{xparse}
-
-\hit@setup@math
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{数学部分抽到 \file{src/shared/hit-math.dtx}}
-% 数学宏包、定理机制与数学字体的设置见 \file{src/shared/hit-math.dtx}。
-%
-% 删除 \pkg{newtxtext}，由于最新一次更新 (\texttt{revision 62369}) 中与 \pkg{ctex} 宏包冲突，且无法解决，将正文字体替换为 TG TermesX 与 TG Heros.
-% \changes{v3.0.18}{2022/05/02}{删除 \pkg{newtxtext}，由于最新一次更新 (\texttt{revision 62369}) 中与 \pkg{ctex} 宏包冲突，且无法解决，将正文字体替换为 TG Termes 与 TG Heros.}
-% \changes{v3.0.19}{2022/05/05}{将 TG Termes 字体替换为 TG TermesX 字体，与 \pkg{newtxmath} 宏包更适配，删除 \option{Scale} 选项。}
-% \changes{v3.2a}{0000/00/00}{英文字体三件套设置从 artpluscls 拆出至 artplus-fonts 模块}
-%    \begin{macrocode}
-%</artplus-deps-a>
-%    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module artplus-fonts: 正文字号、中英文主字体与字号宏命令（\wuhao 等）（artplus）
-% ^^A ======================================================================
-%    \begin{macrocode}
-%<*artplus-fonts>
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{字体层主体抽到 \file{src/shared/hit-fonts.dtx}，
-%   这里只留调用与本类特有的部分}
-%    \begin{macrocode}
-\hit@setup@fonts
-\cs_set:Npn \normalsize
-  {
-    \@setfontsize \normalsize { 12bp } { 15bp }
-    \abovedisplayskip = 6pt
-    \abovedisplayshortskip = 6pt
-    \belowdisplayskip = \abovedisplayskip
-    \belowdisplayshortskip = \abovedisplayshortskip
-  }
-%</artplus-fonts>
-%<*artplus-deps-a>
-
-\RequirePackage{graphicx}
-\RequirePackage{pdfpages}
-\includepdfset{fitpaper=true}
-\RequirePackage{enumitem}       %使用enumitem宏包,改变列表项的格式
-\RequirePackage{environ}
-\hit@setup@footnote@pkg
-%    \end{macrocode}
-%
-% \pkg{xeCJK} 包不再自动加载 \pkg{xeCJKfntef}
-% \changes{v3.0.17}{2022/02/23}{\pkg{xeCJK} 包不再自动加载 \pkg{xeCJKfntef}}
-%    \begin{macrocode}
-\RequirePackage{xeCJKfntef}
-%    \end{macrocode}
-%
-% \pkg{newtx} 更新至 v1.7 版本后与 \pkg{ctex} 宏包冲突, 需要手动引入 \option{nofontspec} 选项. 判断方法为是否存在 v1.7 更新后的新宏包 \pkg{newtx.sty}
-% \changes{v3.0.17}{2022/02/23}{\pkg{newtx} 更新至 v1.7 版本后与 \pkg{ctex} 宏包冲突, 需要手动引入 \option{nofontspec} 选项. 判断方法为是否存在 v1.7 更新后的新宏包 \pkg{newtx.sty}}
-%    \begin{macrocode}
-
-\RequirePackage{longtable}
-\hit@setup@table
-\hit@setup@footnote
-\hit@setup@publist
-\RequirePackage{booktabs}
-%    \end{macrocode}
-%
-% 重定义 \pkg{booktabs} 宏包的默认线宽，绘制三线表时不再需要显式设置，以实现更好的内容与格式分离
-% \changes{v3.0.20}{2022/05/06}{重定义 \pkg{booktabs} 宏包的默认线宽，绘制三线表时不再需要显式设置，以实现更好的内容与格式分离}
-%    \begin{macrocode}
-\heavyrulewidth=1.5pt
-\lightrulewidth=1pt
-\cmidrulewidth=0.5pt
-
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{natbib/hyperref/url 配置从 artplus-deps 拆出至 artplus-hyperlink 模块（对齐 book-hyperlink/-art）}
-%    \begin{macrocode}
-%</artplus-deps-a>
-%    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module artplus-hyperlink: hyperref/url 配置（PDF 书签、链接颜色）（artplus）
-% ^^A ======================================================================
-%    \begin{macrocode}
-%<*artplus-hyperlink>
-\RequirePackage{hyperref}
-\hypersetup{%
-  CJKbookmarks=true,
-  linktoc=all,
-  bookmarksnumbered=true,
-  bookmarksopen=true,
-  bookmarksopenlevel=1,
-  breaklinks=true,
-  colorlinks=false,
-  plainpages=false,
-  pdfborder=0~0~0
-}
-\urlstyle{same}
-%</artplus-hyperlink>
-%<*artplus-deps-b>
-
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{geometry 配置从 artplus-deps 拆出至 artplus-geometry 模块（对齐 book-geometry/-art）}
-%    \begin{macrocode}
-%</artplus-deps-b>
-%    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module artplus-geometry: 版芯尺寸与页边距（artplus）
-% ^^A ======================================================================
-%    \begin{macrocode}
-%<*artplus-geometry>
-\RequirePackage{geometry}
-\geometry{%根据PlutoThesis 原版定义而来
-  a4paper, % 210 * 297mm
-  hcentering,
-  ignoreall,
-  nomarginpar,
-  centering,
-  text={150true~mm,236true~mm},
-  left=30true~mm,
-  head=5true~mm,
-  headsep=2true~mm,
-  footskip=0true~mm,
-  foot=5.2true~mm
-}
-%</artplus-geometry>
-%<*artplus-deps-c>
-
-\RequirePackage{tikzpagenodes}
-\RequirePackage{eso-pic}
-\RequirePackage{tikz}
-
-\RequirePackage{fancyhdr}
-\RequirePackage{tabularx}
-\RequirePackage{xltabular}
-\RequirePackage{varwidth}
-\RequirePackage{changepage}
-\RequirePackage{multicol}
-\RequirePackage[below]{placeins}%允许上一个section的浮动图形出现在下一个section的开始部分,还提供\FloatBarrier命令,使所有未处理的浮动图形立即被处理
-\RequirePackage{flafter}       % 使得所有浮动体不能被放置在其浮动环境之前，以免浮动体在引述它的文本之前出现.
-\RequirePackage{multirow}       %使用Multirow宏包，使得表格可以合并多个row格
-\RequirePackage{subcaption}%支持子图，必须在 ccaption 之前
-\RequirePackage{ccaption} %支持双语标题
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{\cs{bicaption} 支持省略英文图表名的四参数写法}
-% \pkg{ccaption} 的 \cs{bicaption} 是五个参数，第四个是第二条题注用的图表名，
-% 用户得写成 \texttt{Fig.} 加一个负细空格才能把 \cs{fnum@figure} 插的空格抵掉。
-% 这里让第四个参数可以省略，省略时取 \option{const} 族里的 \option{efigurename}
-% 与 \option{etablename}。五个参数的写法照旧——那才是 \pkg{ccaption} 的标准形式，
-% 换到别的模板不用改。
-%    \begin{macrocode}
-\cs_new_eq:NN \__hit_bicaption:w \bicaption
-\msg_new:nnn { hithesis } { bicaption-five-args }
-  {
-    \iow_char:N \\ bicaption~不再接受五个参数。 \\
-    英文图表名请改用~\iow_char:N \\ hitsetup{const={efigurename=...}}~设置， \\
-    调用处只写~\iow_char:N \\ bicaption[标签]{中文题}{英文题}。
-  }
-\cs_new_protected:Npn \__hit_bicaption:nnnnn #1#2#3#4#5
-  {
-    \tl_if_novalue:nTF {#1}
-      { \__hit_bicaption:w {#2} {#3} {#4} {#5} }
-      { \__hit_bicaption:w [#1] {#2} {#3} {#4} {#5} }
-%    \end{macrocode}
-%
-% 旧的五参数写法会在这里剩下一个 \marg{英文题} 掉进正文。探一眼，撞见就报错，
-% 免得静默排出来。题注后面正常不会紧跟花括号组。
-%    \begin{macrocode}
-    \peek_meaning:NT \c_group_begin_token
-      { \msg_error:nn { hithesis } { bicaption-five-args } }
-  }
-\RenewDocumentCommand \bicaption { o +m +m +g }
-  {
-    \IfNoValueTF {#4}
-      { \__hit_bicaption:nnnnn {#1} { } {#2} { \use:c { hit@e \@captype name } } {#3} }
-      { \__hit_bicaption:nnnnn {#1} {#2} {#3} { \use:c { hit@e \@captype name } } {#4} }
-  }
-%    \end{macrocode}
-% % \changes{v3.0.21}{2022/05/11}{删除 \pkg{xltxtra} 宏包, 来实现规范样式的上标。 \issue[125]}
-%    \begin{macrocode}
-
-\RequirePackage{lipsum}%random text
-%    \end{macrocode}
-%
-% 添加字号、行距等设置
-%    \begin{macrocode}
-%</artplus-deps-c>
-%<*artplus-deps-c>
-%    \end{macrocode}
-%
-% 进行字号、行距等设置
-% \changes{v3.2a}{0000/00/00}{章节标题格式从 artpluscls 拆出至 artplus-chapter 模块}
-%    \begin{macrocode}
-%</artplus-deps-c>
-%    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module artplus-chapter: 章节标题格式（字号、缩进、间距、编号样式）（artplus）
-% ^^A ======================================================================
-%    \begin{macrocode}
-%<*artplus-chapter>
-\RequirePackage{xparse}
-\RequirePackage{tikz}
-
-%% 进行字号、行距等设置
-\ctexset{%
-  section={
-    afterindent=true,
-    beforeskip={7.5bp},%上下空0.5行
-    afterskip={7.5bp},
-    format={\normalsize},
-    aftername=\enspace,
-    fixskip=true,
-    break={},
-  },
-  subsection={
-    afterindent=true,
-    beforeskip={7bp},
-    afterskip={7bp},
-    format={\normalsize},
-    aftername=\enspace,
-    fixskip=true,
-    break={},
-  },
-  subsubsection={
-    afterindent=true,
-    beforeskip={3bp},
-    afterskip={3bp},
-    format={\normalsize},
-    aftername=\enspace,
-    fixskip=true,
-    break={},
-  },
-  paragraph/afterindent=true,
-  subparagraph/afterindent=true
-}
-
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{\cs{section} 迁到 expl3（与 \file{hithesisbook.cls} 一致）}
-%    \begin{macrocode}
-\cs_set_eq:NN \hit@section \section
-\RenewDocumentCommand \section { s o m s }
-  {
-    \IfBooleanF {#4}
-      { \noindent \tikz [ overlay ] \draw ( -5mm , 0mm ) -- ( 155mm , 0mm ) ; }
-    \IfBooleanTF {#1}
-      {% \section*
-        \IfNoValueTF {#2}
-          { \hit@section * {#3} }
-          { \hit@section * [#2] {#3} }
-      }
-      {% \section
-        \IfNoValueTF {#2}
-          { \hit@section {#3} }
-          { \hit@section [#2] {#3} }
-      }
-  }
-%</artplus-chapter>
-%<*artplus-deps-c>
-%    \end{macrocode}
-%
-% 中文封面
-%    \begin{macrocode}
-%</artplus-deps-c>
-%    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module artplus-meta: 元信息字段（\hitsetup 接受的 key）（artplus）
-% ^^A ======================================================================
-%    \begin{macrocode}
-%<*artplus-meta>
-
-%% 中文封面
-%    \end{macrocode}
-% \changes{v3.1d}{2025/03/03}{取消了深圳博士中期——即reportplus——中未使用到的参数ctitlecover}
-%    \begin{macrocode}
-\hit@def@term{ctitleone}
-\hit@def@term{ctitletwo}
-\hit@def@term{csubject}
-\hit@def@term{cauthor}
-\hit@def@term{cstudentid}
-\hit@def@term{cclassid}
-\hit@def@term{caffil}
-\hit@def@term{csupervisor}
-\hit@def@term{cdate}
-\hit@def@term{cenrolldate}
-
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{关键词的逗号拆分与 \cs{hitsetup} 的入口挪到
-%   \file{src/shared/hit-meta.dtx}}
-% 关键词怎么拆、\cs{hitsetup} 的占位定义都见 \file{src/shared/hit-meta.dtx}。
-%
-% \changes{v3.2a}{0000/00/00}{\cs{hitsetup} 改用 l3keys 做入口，加一层按职责
-%   划分的子族路由，与 \file{hithesisbook.cls} 一致。子族暂时只转发，键仍由
-%   \texttt{hit/class} 族处理。}
-% 入口换成 l3keys，根族路由到子族，子族一律把键转回
-% \texttt{hit} 族。转发时值要重新加花括号，否则含逗号的值会被二次拆分成多个键。
-%
-% \changes{v3.2a}{0000/00/00}{元信息、可本地化字符串与参考文献选项正式注册进
-%   对应的族，不再依赖子族兜底转发。}
-% 元信息字段与可本地化字符串。做法与 \file{hithesisbook.cls} 相同：
-% 前者的处理器直接调用同名命令，后者的键名由宏名去掉 \texttt{hit@} 前缀、
-% 其余 \texttt{@} 换成连字符得来。
-%    \begin{macrocode}
-\hit@info@declare
-  {
-    caffil , cauthor , cclassid , cdate , cenrolldate , cstudentid , csubject
-    , csupervisor , ctitlecover , ctitleone , ctitletwo , ctype
-  }
-\hit@const@declare
-  {
-    authorizationtitle , authorsig , datefill , frontdate ,
-    harbin-bachelor-schoolbottommark , harbin-schoolbottommark ,
-    shenzhen-doctor-midterm-note , shenzhen-master-schoolbottommark ,
-    teachersig ,
-    bachelor-caffiltitle , bachelor-caffiltitlesz , bachelor-caffiltitlewh ,
-    bachelor-cclass , bachelor-cdatetitle , bachelor-checkdate , bachelor-
-    cmajortitle , bachelor-cstudentidtitle , bachelor-cstudenttitle ,
-    bachelor-csupervisortitle , bachelor-cthesisname , bachelor-cxuewei ,
-    bachelor-teachercomment , bachelor-teachersign , caffiltitle ,
-    cassosupervisortitle , cauthortitle , ccosupervisortitle , cdatetitle ,
-    cdegree , cdegreetitle , cschoolname , cschoolnametitle , csubjecttitle ,
-    csupervisortitle , cthesismidtermcheck , cthesisname , cthesistitleprefix
-    , cxuewei , cxueweishort , efigurename , etablename ,
-    eqdenote-clabel , eqdenote-elabel , eqdenote-dash ,
-    graduate-caffiltitle , graduate-cafflimajor ,
-    graduate-cmajortitle , graduate-datetitle , graduate-enrolldate ,
-    graduate-studentid , graduate-studenttitle , graduate-supervisor ,
-    graduate-thesistitle , hi , internatclassifiedindextitle ,
-    natclassifiedindextitle , schoolid , schoolidtitle , secretlevel ,
-    shenzhencampus , stage-doctype , stage-midterm , stage-opening , title-
-    csep , weihaicampus
-  }
-%    \end{macrocode}
-%
-% 参考文献的三个选项，改用连字符命名。
-%    \begin{macrocode}
-\keys_define:nn { hit / bib }
-  {
-    label-align .code:n = { \str_set:Nn \g_bib_labelalign_str {#1} } ,
-    author-case .code:n =
-      { \str_if_eq:nnT {#1} { full } { \bool_set_true:N \g_bib_authorupper_bool } } ,
-    max-author .code:n =
-      {
-        \int_set:Nn \g_bib_maxauthor_int {#1}
-        \int_if_zero:nT { \g_bib_maxauthor_int } { \int_gdecr:N \g_bib_maxauthor_int }
-      } ,
-  }
-\keys_define:nn { hit / style }
-  {
-    ragged-bottom .choice: ,
-    ragged-bottom / true  .code:n = { \bool_gset_true:N \g__hit_raggedbottom_bool } ,
-    ragged-bottom / false .code:n = { \bool_gset_false:N \g__hit_raggedbottom_bool } ,
-    ragged-bottom .default:n = true ,
-  }
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{加旧名到新名的映射表与废弃警告。}
-% 兼容期的处理，与 \file{hithesisbook.cls} 一致：旧名照常生效，只在日志里提示。
-%    \begin{macrocode}
-\prop_gset_from_keyval:Nn \g__hit_rename_prop
-  {
-    raggedbottom   = { style = { ragged-bottom = ... } } ,
-    biblabelalign  = { bib = { label-align = ... } } ,
-    bibauthorupper = { bib = { author-case = ... } } ,
-    bibmaxauthor   = { bib = { max-author = ... } } ,
-  }
-\__hit_check_classoptions:
-%    \end{macrocode}
-%
-% 根族路由。\option{toc} 既是族名又是老的布尔选项名，所以它单独处理：
-% 值是 \texttt{true}/\texttt{false} 时当老写法，其余当子族的键值表。
-%    \begin{macrocode}
-\keys_define:nn { hit }
-  {
-    info  .meta:nn = { hit / info  } {#1} ,
-    style .meta:nn = { hit / style } {#1} ,
-    bib   .meta:nn = { hit / bib   } {#1} ,
-    const .meta:nn = { hit / const } {#1} ,
-    theorem .code:n = { \hit@thm@style {#1} } ,
-    toc .code:n =
-      {
-        \str_case:nnF {#1}
-          {
-            { true }  { \bool_gset_true:N \g__hit_toc_bool }
-            { false } { \bool_gset_false:N \g__hit_toc_bool }
-          }
-          { \keys_set:nn { hit / toc } {#1} }
-      } ,
-    toc .default:n = true ,
-    unknown .code:n = { \__hit_legacy_key:n {#1} } ,
-  }
-\RenewDocumentCommand \hitsetup { m } { \keys_set:nn { hit } {#1} }
-%</artplus-meta>
-%    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module artplus-pagestyle: 页眉页脚样式（artplus）
-% ^^A ======================================================================
-% \changes{v3.2a}{0000/00/00}{页眉页脚样式从 artplus-frontmatter 的 \cs{makecover} 内联提取到独立的 artplus-pagestyle 模块（对齐 book-pagestyle/-art）}
-%    \begin{macrocode}
-%<*artplus-pagestyle>
-\RequirePackage{fancyhdr}
-\fancypagestyle{hit@artplus@main}{%
-  \fancyhf{}%
-  \cs_set:Npn \headrulewidth {0pt}%
-  \cs_set:Npn \footrulewidth {0pt}%
-  \fancyfoot[C]{\xiaowu-\nobreakspace{}\thepage\nobreakspace{}-}%
-}
-%</artplus-pagestyle>
-%    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module artplus-frontmatter: 封面与扉页（中英、本科、博士后等多版本）（artplus）
-% ^^A ======================================================================
-%    \begin{macrocode}
-%<*artplus-frontmatter>
-
-\cs_new_protected:Npn \hit@report@titlepage@graduate
-  {
-~
- \xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}%
- \vspace*{10mm}~
- \begin{center}~
- \songti\erhao\textbf{\hit@cschoolname\hit@ifT{shenzhen}{\hit@shenzhencampus}}
- \end{center}~
- \begin{center}~
- \songti\erhao\textbf{\hit@cthesismidtermcheck}
- \end{center}~
- \vspace{66bp}~
- \parbox[b][3cm][t]{\textwidth}{~
- \begin{center}\songti\sihao
- \cs_set:Npn \arraystretch {1.67}~
- \begin{tabular}{l@{\ \ }c}~
- \textbf{\hit@graduate@studenttitle}~&~\textbf{\hit@cauthor}\\~
- \hline
- \textbf{\hit@graduate@enrolldate}~&~\textbf{\hit@cenrolldate}\\~
- \hline
- \textbf{\hit@graduate@thesistitle}~&~\textbf{\hit@ctitleone}\\~
- \hline
- &\textbf{\hit@ctitletwo}\\~
- \hline
- \textbf{\hit@graduate@cafflimajor}~&~\textbf{\hit@csubject}\\~
- \hline
- \textbf{\hit@graduate@datetitle}~&~\textbf{\hit@cdate}\\~
- \hline
- \textbf{\hit@graduate@supervisor}~&~\textbf{\hit@csupervisor}\\~
- \hline
- \end{tabular}\cs_set:Npn \arraystretch {1}
- \end{center}~
- }~
-  }
-
-\cs_new_protected:Npn \hit@artplus@framepicture
-  {
-%
-~\begin{tikzpicture}[remember~picture,overlay]~
- \draw ([shift={(-5mm,0mm)}]current~page~text~area.south~west)~rectangle~([shift={(5mm,2mm)}]current~page~text~area.north~east);~
- \end{tikzpicture}%
-  }
-\cs_set_protected:Npn \makecover
-  {
-    \begin { titlepage }
-      \hit@report@titlepage@graduate
-      \clearpage
-      \hit@shenzhen@doctor@midterm@note
-      \bool_if:NT \g__hit_toc_bool { \clearpage \tableofcontents \clearpage }
-    \end { titlepage }
-    \AddToShipoutPicture { \hit@artplus@framepicture }
-    \pagestyle { hit@artplus@main }
-  }
-%</artplus-frontmatter>
-%<*artplus-deps-c>
-%    \end{macrocode}
-%
-% 引用和参考文献格式
-% \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
-% \changes{v3.2a}{0000/00/00}{参考文献格式从 artpluscls 拆出至 artplus-bib 模块}
-%    \begin{macrocode}
-%</artplus-deps-c>
-%    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module artplus-bib: 参考文献加载与 natbib/gbt7714 设置（artplus）
-% ^^A ======================================================================
-%    \begin{macrocode}
-%<*artplus-bib>
-\RequirePackage[sort&compress,numbers]{natbib}
-\RequirePackage{xparse}
-
-%% 引用和参考文献格式
-\cs_new_protected:Npn \bibstyle@numerical
-  {
-\bibpunct{[}{]}{,}{s}{,}{\textsuperscript{,}}
-  }
-\cs_new_protected:Npn \bibstyle@inline
-  {
-\bibpunct{[}{]}{,}{n}{,}{\hit@inline@sep}
-  }
-
-\citestyle{numerical}
-\DeclareRobustCommand\inlinecite{\@inlinecite}
-\cs_set:Npn \@inlinecite #1
-  {
-\group_begin: \citestyle{inline} \cs_set_eq:NN \@cite \NAT@citenum \citep{#1} \group_end:
-  }
-\cs_set_eq:NN \onlinecite \inlinecite
-
-\cs_new_protected:Npn \hit@art@bibhead
-  {
-    \section * { 参考文献 }
-    \addcontentsline { toc } { section } { 参考文献 }
-  }
-\RenewDocumentEnvironment{thebibliography}{m}{%
-  \list{\@biblabel{\@arabic\c@enumiv}}{%
-    \str_if_eq:VnT \g_bib_labelalign_str {left} {
-      \RenewDocumentCommand\makelabel{m}{##1\hfill}
-    }
-    \settowidth{\labelwidth}{\@biblabel{#1}}
-    \dim_set:Nn \labelsep {0.5em}
-    \dim_set:Nn \itemindent {0pt}
-    \dim_set:Nn \leftmargin {\labelsep+\labelwidth}
-    \dim_add:Nn \itemsep {-0.8em}
-    \usecounter{enumiv}%
-    \cs_set_eq:NN \p@enumiv \@empty
-  \cs_set:Npn \theenumiv {\@arabic\c@enumiv}}%
-  \sloppy\frenchspacing
-  \flushbottom
-  \clubpenalty0
-  \@clubpenalty \clubpenalty
-  \widowpenalty0%
-  \interlinepenalty-50%
-  \sfcode`\.\@m
-}{}
-%    \end{macrocode}
-% \changes{v3.2a}{0000/00/00}{为上面的环境补充了一对空大括号}
-% \changes{v3.2a}{0000/00/00}{控制参考文献列表中作者是否全大写和最大显示数量}
-%    \begin{macrocode}
-%% 用以控制参考文献列表中单个作者的格式
-\exp_args:NNe \cs_new:Nn \g_bib_author_cs:n {
-    \bool_if:NTF \g_bib_authorupper_bool {
-        \exp_not:N \text_uppercase:n {#1}
-    } {
-        {#1}
-    }
-}
-%% 用以输出参考文献列表中的作者
-\NewDocumentCommand{\bibauthor}{m}{
-  \int_zero:N \l_tmpa_int
-  \exp_args:Ne \tl_map_inline:nn {
-    \exp_args:Ne \tl_tail:n {#1}
-  } {
-    \int_compare:nNnT
-      \l_tmpa_int = \g_bib_maxauthor_int {
-      \prg_break:n {\tl_head:N {#1}}
-    }
-    \int_incr:N \l_tmpa_int
-    \g_bib_author_cs:n {##1}
-  }
-  \prg_break_point:
-}
-%</artplus-bib>
-%<*artpluscls-tail>
-%    \end{macrocode}
-% 杂项
-% \changes{v3.2a}{0000/00/00}{misc-artplus 模块合并为 artpluscls 内联钩子}
-%    \begin{macrocode}
-\AtEndOfClass{\sloppy}
-%</artpluscls-tail>
-%    \end{macrocode}
-%
-% 添加artcls
-% \changes{v3.0.0}{2020/05/21}{添加artcls}
-%    \begin{macrocode}
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% artcls
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%    \end{macrocode}
 % ^^A ======================================================================
 % ^^A Module artcls: art 类主体（开题/中期报告）
 % ^^A ======================================================================
@@ -937,7 +31,7 @@
 % ^^A Module art-options: 文档类选项的声明与后处理（type/campus/fontset 等）（art）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*art-options>
+%<*report-options>
 % \changes{v3.2a}{0000/00/00}{加通用选择器 \cs{hit@if}，与 \file{hithesisbook.cls}
 %   一致。}
 % \cs{hit@if}\marg{flag}\marg{真}\marg{假} 按标志位二选一，
@@ -1239,8 +333,8 @@
       { \PassOptionsToClass { fontset=\hit@fontset } { ctexart } }
   }
   { \PassOptionsToClass { fontset=none } { ctexart } }
-%</art-options>
-%<*artcls-load>
+%</report-options>
+%<*reportcls-load>
 \LoadClass[a4paper,UTF8,zihao=-4,scheme=plain]{ctexart}
 %    \end{macrocode}
 % \changes{v3.2a}{0000/00/00}{模块内容改由 \file{hithesis.ins} 按运行期顺序直接拼入 cls，不再生成 \file{modules/*.sty}}
@@ -1250,13 +344,13 @@
 % \changes{v3.2a}{0000/00/00}{LoadClass 之后的所有标准包加载、配置整体打包至 art-deps 模块；artcls 仅保留 LoadClass}
 % \changes{v3.2a}{0000/00/00}{目录排版从 art-frontmatter 拆出至 art-toc 模块（对齐 book 家族的 book-toc）；排在 art-deps 之后以避免 enumitem 覆盖 cft* 类长度}
 %    \begin{macrocode}
-%</artcls-load>
+%</reportcls-load>
 %    \end{macrocode}
 % ^^A ======================================================================
 % ^^A Module art-deps: 第三方宏包集中加载与基础配置（含 hyperlink/geometry 内联）（art）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*art-deps-a>
+%<*report-deps-a>
 %    \end{macrocode}
 %
 % 各种宏包
@@ -1281,13 +375,13 @@
 % \changes{v3.0.19}{2022/05/05}{将 TG Termes 字体替换为 TG TermesX 字体，与 \pkg{newtxmath} 宏包更适配，删除 \option{Scale} 选项。}
 % \changes{v3.2a}{0000/00/00}{英文字体三件套设置从 artcls 拆出至 art-fonts 模块}
 %    \begin{macrocode}
-%</art-deps-a>
+%</report-deps-a>
 %    \end{macrocode}
 % ^^A ======================================================================
 % ^^A Module art-fonts: 正文字号、中英文主字体与字号宏命令（\wuhao 等）（art）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*art-fonts>
+%<*report-fonts>
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{字体层主体抽到 \file{src/shared/hit-fonts.dtx}，
@@ -1302,8 +396,8 @@
     \belowdisplayskip = \abovedisplayskip
     \belowdisplayshortskip = \abovedisplayshortskip
   }
-%</art-fonts>
-%<*art-deps-a>
+%</report-fonts>
+%<*report-deps-a>
 %    \end{macrocode}
 %
 %    \begin{macrocode}
@@ -1343,13 +437,13 @@
 %
 % \changes{v3.2a}{0000/00/00}{natbib/hyperref/url 配置从 art-deps 拆出至 art-hyperlink 模块（对齐 book-hyperlink）}
 %    \begin{macrocode}
-%</art-deps-a>
+%</report-deps-a>
 %    \end{macrocode}
 % ^^A ======================================================================
 % ^^A Module art-hyperlink: hyperref/url 配置（PDF 书签、链接颜色）（art）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*art-hyperlink>
+%<*report-hyperlink>
 \RequirePackage{hyperref}
 \hypersetup{%
   CJKbookmarks=true,
@@ -1363,20 +457,20 @@
   pdfborder=0~0~0
 }
 \urlstyle{same}
-%</art-hyperlink>
-%<*art-deps-b>
+%</report-hyperlink>
+%<*report-deps-b>
 
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{geometry 配置从 art-deps 拆出至 art-geometry 模块（对齐 book-geometry）}
 %    \begin{macrocode}
-%</art-deps-b>
+%</report-deps-b>
 %    \end{macrocode}
 % ^^A ======================================================================
 % ^^A Module art-geometry: 版芯尺寸与页边距（art）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*art-geometry>
+%<*report-geometry>
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{art-geometry 模块改用 expl3 实现。标志位仍由
@@ -1402,8 +496,8 @@
       { \geometry { headsep = 25pt } }
       { \geometry { headsep = 17pt } }
   }
-%</art-geometry>
-%<*art-deps-c>
+%</report-geometry>
+%<*report-deps-c>
 
 \bool_if:NT \g__hit_debug_bool
   {
@@ -1469,13 +563,13 @@
 % \changes{v3.1d}{2025/03/03}{将深圳校区硕士中期报告图注实现为“图 1-1 标题”的格式}
 % \changes{v3.2a}{0000/00/00}{图注/表注编号条件块从 artcls 拆出至 art-floats 模块}
 %    \begin{macrocode}
-%</art-deps-c>
+%</report-deps-c>
 %    \end{macrocode}
 % ^^A ======================================================================
 % ^^A Module art-floats: 浮动体默认行为与双语题注（art）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*art-floats>
+%<*report-floats>
 % \changes{v3.2a}{0000/00/00}{art-floats 改用 expl3，两处 \cs{ifboolexpr} 换成
 %   \cs{bool\_lazy\_and:nnT}，本模块不再依赖 etoolbox}
 %    \end{macrocode}
@@ -1516,14 +610,14 @@
     \@addtoreset { table }    { section }
     \@addtoreset { equation } { section }
   }
-%</art-floats>
-%<*art-deps-c>
+%</report-floats>
+%<*report-deps-c>
 %    \end{macrocode}
 %
 % 添加字号、行距等设置
 %    \begin{macrocode}
-%</art-deps-c>
-%<*art-deps-c>
+%</report-deps-c>
+%<*report-deps-c>
 %    \end{macrocode}
 %
 % 更改哈尔滨校区博士硕士开题节标题为小三号字体
@@ -1540,13 +634,13 @@
 % \changes{v3.1d}{2025/03/03}{增加 \cs{parindent} 的值。\issue[201]}
 % \changes{v3.2a}{0000/00/00}{章节标题格式从 artcls 拆出至 art-chapter 模块}
 %    \begin{macrocode}
-%</art-deps-c>
+%</report-deps-c>
 %    \end{macrocode}
 % ^^A ======================================================================
 % ^^A Module art-chapter: 章节标题格式（字号、缩进、间距、编号样式）（art）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*art-chapter>
+%<*report-chapter>
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{art-chapter 模块改用 expl3 实现。两处
@@ -1637,13 +731,13 @@
   { \bool_if_p:N \g__hit_shenzhen_bool }
   { \bool_if_p:N \g__hit_master_bool }
   { \hit@art@shenzhenmaster@sectionset }
-%</art-chapter>
+%</report-chapter>
 %    \end{macrocode}
 % ^^A ======================================================================
 % ^^A Module art-pagestyle: 页眉页脚样式（fancyhdr 配置）（art）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*art-pagestyle>
+%<*report-pagestyle>
 % \changes{v3.2a}{0000/00/00}{art-pagestyle 自包含 etoolbox 与 fancyhdr 依赖}
 % \changes{v3.2a}{0000/00/00}{art-pagestyle 的控制流改用 expl3。页眉定义含中文
 %   与控制空格，按 CONTRIBUTING §4.6 留在 expl3 之外定义成宏，再由条件调用。}
@@ -1707,8 +801,8 @@
   { \bool_if_p:N \g__hit_shenzhen_bool }
   { \bool_if_p:N \g__hit_master_bool }
   { \hit@art@shenzhenmaster@pagestyle }
-%</art-pagestyle>
-%<*art-deps-c>
+%</report-pagestyle>
+%<*report-deps-c>
 \bool_lazy_all:nT
   {
     { \bool_if_p:N \g__hit_weihai_bool }
@@ -1725,8 +819,8 @@
 % \changes{v3.1d}{2025/03/03}{根据 \issue[228] 更新深圳硕士中期节标题字号和间距}
 % \changes{v3.2a}{0000/00/00}{深圳硕士的 ctexset 与 fancypagestyle 被拆为两个独立条件块，分别放入 art-chapter 与 artcls，保持行为等价}
 %    \begin{macrocode}
-%</art-deps-c>
-%<*art-deps-c>
+%</report-deps-c>
+%<*report-deps-c>
 %    \end{macrocode}
 
 %  \changes{v3.1d}{2025/03/03}{目录格式将在下文中设置}
@@ -1736,13 +830,13 @@
 %
 % 中文封面
 %    \begin{macrocode}
-%</art-deps-c>
+%</report-deps-c>
 %    \end{macrocode}
 % ^^A ======================================================================
 % ^^A Module art-meta: 元信息字段（\hitsetup 接受的 key）（art）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*art-meta>
+%<*report-meta>
 %% 中文封面
 
 \hit@def@term{ctitlecover}
@@ -1862,13 +956,13 @@
     unknown .code:n = { \__hit_legacy_key:n {#1} } ,
   }
 \RenewDocumentCommand \hitsetup { m } { \keys_set:nn { hit } {#1} }
-%</art-meta>
+%</report-meta>
 %    \end{macrocode}
 % ^^A ======================================================================
 % ^^A Module art-frontmatter: 封面与扉页（中英、本科、博士后等多版本）（art）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*art-frontmatter>
+%<*report-frontmatter>
 
 \cs_new_protected:Npn \hit@report@titlepage@graduate
   {
@@ -2016,8 +1110,8 @@
 % 深圳校区硕士中期目录也有标题。
 % 用 \pkg{tocloft} 宏包实现深圳校区硕士开题和中期的目录，逐步进行迁移。
 %    \begin{macrocode}
-%</art-frontmatter>
-%<*art-toc>
+%</report-frontmatter>
+%<*report-toc>
 %\ifboolexpr{ {bool {hit@shenzhen} or bool {hit@weihai}} and bool {hit@master} }{
   % renew \CTEX@toc@width@n,
   % add width of a space to numwidth (stored in \@tempdima)
@@ -2079,8 +1173,8 @@
   %     \normalsize\@starttoc{toc}
   %   }
 %}
-%</art-toc>
-%<*art-frontmatter>
+%</report-toc>
+%<*report-frontmatter>
 %    \end{macrocode}
 % \begin{macro}{\makecover}
 %    \begin{macrocode}
@@ -2113,20 +1207,20 @@
 %    \begin{macrocode}
 \cs_set_protected:Npn \makebackcover
   { \clearpage \hit@report@backpage@bachelor }
-%</art-frontmatter>
-%<*art-deps-c>
+%</report-frontmatter>
+%<*report-deps-c>
 %    \end{macrocode}
 % \end{macro}
 % 引用和参考文献格式
 % \changes{v3.2a}{0000/00/00}{参考文献格式从 artcls 拆出至 art-bib 模块}
 %    \begin{macrocode}
-%</art-deps-c>
+%</report-deps-c>
 %    \end{macrocode}
 % ^^A ======================================================================
 % ^^A Module art-bib: 参考文献加载与 natbib/gbt7714 设置（art）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*art-bib>
+%<*report-bib>
 \RequirePackage[sort&compress,numbers]{natbib}
 \RequirePackage{etoolbox}
 \RequirePackage{xparse}
@@ -2216,14 +1310,14 @@
   }
   \prg_break_point:
 }
-%</art-bib>
-%<*artcls-tail>
+%</report-bib>
+%<*reportcls-tail>
 %    \end{macrocode}
 % 杂项
 % \changes{v3.2a}{0000/00/00}{misc-art 模块合并为 artcls 内联钩子}
 %    \begin{macrocode}
 \AtEndOfClass{\sloppy}
-%</artcls-tail>
+%</reportcls-tail>
 %    \end{macrocode}
 %
 % \subsection{定义选项}
@@ -2237,7 +1331,7 @@
 % ^^A Module artcfg: art 类配置文件
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*artcfg>
+%<*reportcfg>
 \hit@thm@style{~
   body-font~~~=~{\normalfont},~
   head-font~~~=~{\normalfont\heiti},~
@@ -2476,14 +1570,14 @@
 }
 \cs_set:Npn \hithesis { \textsc { hi } \- \textsc { Thesis } }
 \cs_set:Npn \hit { 哈尔滨工业大学 }
-%</artcfg>
+%</reportcfg>
 %    \end{macrocode}
 %
 % ^^A ======================================================================
 % ^^A Module art-subfig: 子图兼容层（art 与 artplus 共用）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*art-subfig>
+%<*report-subfig>
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{\pkg{subfigure} 换成 \pkg{subcaption}，旧写法
@@ -2792,6 +1886,6 @@
 \DeclareCaptionLabelSeparator { hit@sub } { \hskip \subfiglabelskip }
 \captionsetup [ sub ]
   { font = hit@subcap , labelformat = simple , labelsep = hit@sub , skip = 0pt }
-%</art-subfig>
+%</report-subfig>
 %    \end{macrocode}
 %

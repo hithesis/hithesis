@@ -10,11 +10,13 @@
 hithesis/
 ├── src/
 │   ├── hithesis.dtx      <- 入口：driver、三类共用的文件头、索引样式、dtx-style
-│   ├── hithesis-book.dtx <- 毕业论文类 hithesisbook
-│   ├── hithesis-art.dtx  <- 开题中期类 hithesisart、深圳博士中期类 hithesisartplus
+│   ├── hit-thesis.dtx    <- 毕业论文类 hithesisbook
+│   ├── hit-report.dtx    <- 开题中期类 hithesisart
+│   ├── hitsz-report.dtx  <- 深圳博士中期类 hithesisartplus
 │   ├── hithesis-bst.dtx  <- 参考文献样式 hithesis.bst / hitszthesis.bst
 │   ├── hithesis-doc.dtx  <- 用户手册
-│   └── hithesis-eps.dtx  <- EPS 图像数据（校徽、封面、示例插图）
+│   ├── hithesis-eps.dtx  <- EPS 图像数据（校徽、封面、示例插图）
+│   └── shared/           <- 三个类共用的底层模块，见 §4.2
 ├── hithesis.ins          <- docstrip 驱动文件，留在根目录：它的输出路径都相对于此
 ├── build.lua             <- l3build 配置：unpack / distribute / doc / check / ctan
 ├── Makefile              <- 构建与测试入口
@@ -117,23 +119,25 @@ cd examples/hitart/reports  && make report
 
 | 要改什么 | 打开哪个 |
 |---|---|
-| 毕业论文的任何行为 | `src/hithesis-book.dtx` |
-| 开题、中期、深圳博士中期 | `src/hithesis-art.dtx` |
+| 毕业论文的任何行为 | `src/hit-thesis.dtx` |
+| 开题、中期报告 | `src/hit-report.dtx` |
+| 深圳博士中期 | `src/hitsz-report.dtx` |
+| 三个类共用的底层 | `src/shared/hit-*.dtx` |
 | 参考文献样式 | `src/hithesis-bst.dtx` |
 | 用户手册文字 | `src/hithesis-doc.dtx` |
 | 类的公共文件头、索引样式 | `src/hithesis.dtx` |
 
-文件内用 `grep -n '%<\*book-' src/hithesis-book.dtx` 之类列出模块起点。模块用注释标出：
+文件内用 `grep -n '%<\*thesis-' src/hit-thesis.dtx` 之类列出模块起点。模块用注释标出：
 
 ```
 % ^^A ======================================================================
-% ^^A Module book-footnote: 脚注样式与编号（book）
+% ^^A Module thesis-footnote: 脚注样式与编号（thesis）
 % ^^A ======================================================================
 ```
 
 这些 `^^A` 行必须待在 macrocode 之外，否则会被当成代码原样印进手册。
 
-同一个模块在 dtx 里可能被切成多段、与别的模块交替排布。例如 `art-deps` 有 9 段，因为
+同一个模块在 dtx 里可能被切成多段、与别的模块交替排布。例如 `report-deps` 有 9 段，因为
 `hyperlink` 和 `geometry` 要插在它中间才能保持原有的加载顺序。这是有意为之，不要合并整理。
 
 ## 4. 硬性约定
@@ -151,21 +155,36 @@ cd examples/hitart/reports  && make report
 
 新增是允许的。重命名、删除、改默认值并非完全禁止，但要先开 issue 讨论，或者走完 §9 的废弃期。
 
-### 4.2 book / art / artplus 三类完全独立
+### 4.2 版式各写各的，底层机制共用
 
-三个 cls（毕业论文 / 开题中期 / 深圳博士中期）的代码物理隔离，由各自的 `book-*` / `art-*` / `artplus-*` 模块承载。内容相似也不跨类共享。
+三个 cls（毕业论文 / 开题中期 / 深圳博士中期）的版式代码物理隔离，由各自的 `thesis-*` / `report-*` / `szreport-*` 模块承载，分别写在 `src/hit-thesis.dtx`、`src/hit-report.dtx`、`src/hitsz-report.dtx` 里。三个类对应三套学校规范，各自演化，碰巧相似的版式不要合并，规范一独立变动就会变成维护负担。
 
-理由是三个类对应三套学校规范，各自演化。当下的碰巧相似会在规范独立变动时变成维护负担。
+底层机制是另一回事。字号、数学、表格、脚注这些三套规范要求一致的东西，共用一份放在 `src/shared/hit-*.dtx`，守卫叫 `shared-*`：
 
-例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hithesis-eps.dtx` 跨类共享。
+| 文件 | 管什么 |
+|---|---|
+| `hit-fonts.dtx` | 中西文字体与字号阶梯 |
+| `hit-math.dtx` | amsmath/thmtools、定理环境、`eqdenote` |
+| `hit-table.dtx` | 长表格字号 |
+| `hit-footnote.dtx` | 带圈脚注号与脚注版式 |
+| `hit-publist.dtx` | `publist` 列表 |
+| `hit-meta.dtx` | `\hitsetup` 的键机制与旧名兼容 |
+
+判断标准是「三套规范会不会分开改」。会分开改的（封面、页眉、章节标题、目录）留在各自的类文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `shared/`。
+
+共享层的写法与类模块不同：文件里只放定义，需要在特定时机执行的部分包成 `\hit@setup@<名>`，由各个类在原来那段代码所在的位置调用。这样共享之后生成物的执行顺序不变，能用「三个 cls 逐字节不变」来验收。
+
+例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hithesis-eps.dtx` 也跨类共享，但它们不走 `shared/`，因为不是拼进 cls 的模块。
 
 ### 4.3 一个模块一个职责
 
 模块名要能反映它唯一的职责：
 
-- √ `chapter-book` 只管 book 类的章节标题格式
-- √ `bib-book` 只管 book 类的参考文献加载与样式
-- × `floats-book` 兼管列表、定理、段落、引用
+模块名的形式是「类-职责」，类的前缀是 `thesis` / `report` / `szreport` / `shared`：
+
+- √ `thesis-chapter` 只管毕业论文的章节标题格式
+- √ `thesis-bib` 只管毕业论文的参考文献加载与样式
+- × `thesis-floats` 兼管列表、定理、段落、引用
 
 加代码前先问这段代码语义上属于哪个模块，找到答案再写。找不到就考虑拆一个新的出来，见 §5。
 
@@ -177,11 +196,11 @@ v3.2a 起模块内容直接拼进 `.cls`，不再生成独立的 `.sty`。在类
 
 ```
 % ^^A ======================================================================
-% ^^A Module book-footnote: 脚注样式与编号（book）
+% ^^A Module thesis-footnote: 脚注样式与编号（thesis）
 % ^^A ======================================================================
-%<*book-footnote>
+%<*thesis-footnote>
 ...实际代码...
-%</book-footnote>
+%</thesis-footnote>
 ```
 
 ### 4.5 `\changes` 历史条目
@@ -228,7 +247,7 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 - 字面文本里的空格被吞。`text={150true mm}` 直接照抄会变成 `150truemm`，要写 `~`。
 - **`~` 在两种语法下含义不同。** LaTeX 里它是活动字符，表示不断行空格；expl3 里
   它是普通空格（catcode 10）。原有代码里的 `~` 照抄进 `\ExplSyntaxOn`，不断行空格
-  就退化成了普通空格。`book-pagestyle` 的 `\fancyfoot[C]{\xiaowu-~\thepage~-}` 这样
+  就退化成了普通空格。`thesis-pagestyle` 的 `\fancyfoot[C]{\xiaowu-~\thepage~-}` 这样
   照抄之后，42 个变体里有 21 个的 PDF 变了。要保持原意就写 `\nobreakspace{}`。
 
 一句话：**要空格时写 `~`，原文里已有的 `~` 要改写成 `\nobreakspace{}`。**
@@ -261,7 +280,7 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 宏的定义：
 
 ```
-scripts/convert-macro.py src/hithesis-book.dtx hit@engcover --apply
+scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 ```
 
 八个封面版式宏就是这么转的。脚本不是万能的，改完照样要跑全量变体逐字节比对。
@@ -271,16 +290,16 @@ scripts/convert-macro.py src/hithesis-book.dtx hit@engcover --apply
 
 ```latex
 \ExplSyntaxOff
-\def\hit@art@shenzhenmaster@sectionset{\ctexset{ ...原样照抄... }}
+\def\hit@report@shenzhenmaster@sectionset{\ctexset{ ...原样照抄... }}
 \ExplSyntaxOn
-\bool_lazy_and:nnT { ... } { ... } { \hit@art@shenzhenmaster@sectionset }
+\bool_lazy_and:nnT { ... } { ... } { \hit@report@shenzhenmaster@sectionset }
 ```
 
 **大段排版内容里的判断走助手函数。** 上面那条把内容留在 expl3 之外的做法，遇到
 判断散落在内容各处时不好用。这时反过来：判断本身定义成 expl3 函数，放在模块顶层，
 内容里只写函数调用。参数是在 expl3 之外记号化的，里面的空格照原样保留。
 
-现有的一批助手（`book-options` 与两个 `*-options` 模块里各有一份）：
+现有的一批助手（`thesis-options` 与两个 `*-options` 模块里各有一份）：
 
 | 函数 | 作用 |
 | --- | --- |
@@ -296,16 +315,16 @@ scripts/convert-macro.py src/hithesis-book.dtx hit@engcover --apply
 另有若干针对具体组合的具名函数（`\hit@ifgrad`、`\hit@ifhrbmastage` 等），
 命名规律是校区加学位加阶段。
 
-已迁移：`book-geometry`、`art-geometry`、`book-mainmatter`、`art-chapter`、
-`art-pagestyle`、`art-toc`、`book-toc`、`book-pagestyle`、`art-floats`、`book-deps-c`、
-`book-glossary`、`art-deps-a`、`book-deps-a`、`art-options` 与
-`artplus-options`、`book-options`、
-`book-meta`、`art-meta`、`artplus-meta`、`book-floats`、`book-hyperlink`、
-`book-frontmatter`、`art-frontmatter`、`book-chapter`、`book-appendix`、`book-bib`、
-`art-bib`、`book-footnote`、`art-deps-c`。
+已迁移：`thesis-geometry`、`report-geometry`、`thesis-mainmatter`、`report-chapter`、
+`report-pagestyle`、`report-toc`、`thesis-toc`、`thesis-pagestyle`、`report-floats`、`thesis-deps-c`、
+`thesis-glossary`、`report-deps-a`、`thesis-deps-a`、`report-options` 与
+`szreport-options`、`thesis-options`、
+`thesis-meta`、`report-meta`、`szreport-meta`、`thesis-floats`、`thesis-hyperlink`、
+`thesis-frontmatter`、`report-frontmatter`、`thesis-chapter`、`thesis-appendix`、`thesis-bib`、
+`report-bib`、`thesis-footnote`、`report-deps-c`。
 
-生成的三个类文件里，`\ifhit@…` 与 `\ifboolexpr` 只剩三十处，全在 `bookcfg` 与
-`artcfg` 那两段固定词汇的顶层分支里。那些分支的两侧各是几十行 `\gdef` 与
+生成的三个类文件里，`\ifhit@…` 与 `\ifboolexpr` 只剩三十处，全在 `thesiscfg` 与
+`reportcfg` 那两段固定词汇的顶层分支里。那些分支的两侧各是几十行 `\gdef` 与
 `\newtheorem`，内容里有大量带空格的英文串；把它们塞进宏参数只会让 dtx 更难读，
 所以留着不动。`\ifthenelse{\equal{#1}{...}}` 比较章标题的两处也留着——`\equal`
 与 `\str_if_eq:nn` 对健壮命令的处理不完全一样，换了不保险。
@@ -351,14 +370,14 @@ scripts/convert-macro.py src/hithesis-book.dtx hit@engcover --apply
 目录里引导点的起始位置就变了。改写前先按 TeX 的记号化规则数一遍哪些换行会留下
 空格：行尾是控制字的不留，行尾是 `}` 或字符的留。
 
-抽公共函数时先查同名宏。`\hit@toc@font` 在 `book-toc` 里只在 `toc/sans-font`
+抽公共函数时先查同名宏。`\hit@toc@font` 在 `thesis-toc` 里只在 `toc/sans-font`
 打开时才定义，关着的时候故意保持未定义，用处是 `\csname hit@toc@font\endcsname`
 取到 `\relax`。在别处用 `\cs_new:Npn` 定义同名函数不会报错（那边用的是
 `\cs_set:Npn`），但会让目录每一行都多出一个 `\heiti`。四十二变体比对能查出来，
 逐字节差异出现在第一个内容流，`.toc` 与 `.aux` 反而完全一致。
 
-评估后跳过：`art-hyperlink`（零条件）、`book-bib`（含 natbib 补丁需逐字保留）、
-`book-appendix`（条件几乎全嵌在含字面空格的排版内容里，按本节规则该留在 expl3 之外，
+评估后跳过：`report-hyperlink`（零条件）、`thesis-bib`（含 natbib 补丁需逐字保留）、
+`thesis-appendix`（条件几乎全嵌在含字面空格的排版内容里，按本节规则该留在 expl3 之外，
 而模块本身几乎全是这类内容）。
 
 迁移一个模块的验收三步，缺一不可：
@@ -367,7 +386,7 @@ scripts/convert-macro.py src/hithesis-book.dtx hit@engcover --apply
    的生成，只在这一步暴露。已经踩过：`\opt{}` 本项目没有（应为 `\option{}`），
    `\cs{}` 的参数里 `_` 会被当成数学下标（要写 `\_`）。
 2. `l3build check` 全过。
-3. 与改动前的 PDF 逐字节比对。挑变体容易漏，`book-pagestyle` 那次 42 个里有 21 个
+3. 与改动前的 PDF 逐字节比对。挑变体容易漏，`thesis-pagestyle` 那次 42 个里有 21 个
    变了，只挑几个未必抽中，所以跑全量。建参照树用
    `git worktree add --detach <目录> <上一个提交>`，比在原地 `git stash` 安全。
 
@@ -377,23 +396,23 @@ scripts/convert-macro.py src/hithesis-book.dtx hit@engcover --apply
 
 ## 5. 新增模块的步骤
 
-以给 `bookcls` 加 `book-footnote` 为例（这个模块已经存在，仅作示范）：
+以给 `thesiscls` 加 `thesis-footnote` 为例（这个模块已经存在，仅作示范）：
 
 1. 在 dtx 里加守卫块。位置按现有 cls 的内部顺序选：
 
    ```
    % ^^A ======================================================================
-   % ^^A Module book-footnote: 脚注样式与编号（book）
+   % ^^A Module thesis-footnote: 脚注样式与编号（thesis）
    % ^^A ======================================================================
-   %<*book-footnote>
+   %<*thesis-footnote>
    ...实际代码...
-   %</book-footnote>
+   %</thesis-footnote>
    ```
 
 2. 在 `hithesis.ins` 的对应 `\file{...book.cls}` 里插一条 `\from`：
 
    ```
-   \from{\jobname.dtx}{book-footnote}
+   \from{hit-thesis.dtx}{thesis-footnote}
    ```
 
    位置就是它要被执行的位置。docstrip 严格按 `\from` 的书写顺序输出，与守卫块在 dtx 里的位置无关。三处 `\file`（根目录、chinese、english）都要改。
@@ -451,7 +470,7 @@ CI 会在推送后跑这几项：
 详细说明：改了什么、为什么、影响范围、验证结果。
 ```
 
-摘要用祈使句，不加句号，控制在 50 字以内。范围可省，也可以像 `fix(book,art):`
+摘要用祈使句，不加句号，控制在 50 字以内。范围可省，也可以像 `fix(thesis,report):`
 这样并列多个。破坏性变更在类型后加 `!`，并在正文里用 `BREAKING CHANGE:` 起一段
 说明用户要怎么改。
 
@@ -472,7 +491,8 @@ CI 会在推送后跑这几项：
 
 | 范围 | 对应 |
 |---|---|
-| `book` `art` `artplus` | 三个类家族，即 `src/hithesis-{book,art}.dtx` |
+| `thesis` `report` `szreport` | 三个类，即 `src/hit-thesis.dtx`、`src/hit-report.dtx`、`src/hitsz-report.dtx` |
+| `shared` | 三个类共用的底层模块 `src/shared/hit-*.dtx` |
 | `bst` `eps` | 参考文献样式、图像数据 |
 | `manual` | 用户手册 `src/hithesis-doc.dtx` |
 | `readme` `contributing` | 对应的 md 文件 |
@@ -484,12 +504,12 @@ CI 会在推送后跑这几项：
 `docs:` 看不出改的是手册还是 README，`docs(manual):` 一眼就知道。
 
 ```
-feat(book): 增加深圳校区博士封面的联合导师字段
-fix(art,artplus): 修正中期报告页眉在偶数页丢失
-refactor(book): 把封面绘制从 bookcls 拆到 book-cover 模块
+feat(thesis): 增加深圳校区博士封面的联合导师字段
+fix(report,szreport): 修正中期报告页眉在偶数页丢失
+refactor(thesis): 把封面绘制从 thesiscls 拆到 thesis-cover 模块
 docs(manual): 补充 newgeometry 三个取值的版心差异
 docs(contributing): 提交消息改用 Conventional Commits
-test: 补充 art 与 artplus 的字段清单交叉验证
+test: 补充 report 与 szreport 的字段清单交叉验证
 ci: l3build check 铺到所有 TeX Live 版本
 ```
 
@@ -562,7 +582,7 @@ git push -u origin feature/my-topic
 
 ### 9.3 跨类改动
 
-一个改动对 book/art/artplus 都适用时，三处必须同步。
+一个改动对三个类都适用时，三处必须同步。如果改的是三套规范一致的底层机制，考虑抽进 `src/shared/`，见 §4.2。
 
 ## 10. 常见陷阱
 
