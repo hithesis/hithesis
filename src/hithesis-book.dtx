@@ -1281,15 +1281,31 @@
 %   补丁想要的效果（页码注排在方括号外并上标）\pkg{gbt7714} 本来就提供了}
 % \cs{NAT@citesuper} 是上标引用样式的排法，这个是真在起作用的，留着。
 %    \begin{macrocode}
-\msg_new:nnn { hithesis } { citetwo-comma-unavailable }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\option{citetwo=comma} 换个实现，从 2022 年加进来
+%   就没生效过}
+% \option{citetwo} 管相邻两个连续序号之间用什么连接：\texttt{endash} 排成
+% \texttt{[1-2]}，\texttt{comma} 排成 \texttt{[1,2]}。三个及以上连续的照样压成
+% \texttt{[1-3]}。
+%
+% 原先是拿 \cs{patchcmd} 去改 \cs{NAT@citexnum}，那个宏的参数文本是
+% \texttt{[\#1][\#2]\#3}，带分隔符，\pkg{etoolbox} 补不了，所以一直是失败的。
+% 改成动 \cs{def@NAT@last@yr}：它是 \pkg{natbib} 定义的普通宏，参数不带分隔符，
+% 而且只在压缩连续序号的那一处被调用。区间刚开始时 \cs{NAT@last@yr} 还是
+% \cs{relax}，这时改用普通分隔符 \cs{@citea}（就是逗号），后面几个仍旧走短横线。
+% 判断放在运行期，所以写在 \cs{documentclass} 里还是导言区的 \cs{hitsetup} 里
+% 都生效。
+%    \begin{macrocode}
+\cs_set_eq:NN \hit@orig@def@NAT@last@yr \def@NAT@last@yr
+\cs_set:Npn \def@NAT@last@yr #1
   {
-    选项~citetwo=comma（\iow_char:N \\hitsetup 里的~bib=\{adjacent-cite=comma\}）
-    目前没有实现。\\ 原来靠~\iow_char:N \\patchcmd~改~natbib~的
-    \iow_char:N \\NAT@citexnum，而那个宏的参数带分隔符，etoolbox~补不了，
-    一直是失败的。\\ 相邻文献之间仍然用短横线连接。
+    \bool_lazy_and:nnTF
+      { \bool_if_p:N \g__hit_citetwocomma_bool }
+      { \token_if_eq_meaning_p:NN \NAT@last@yr \relax }
+      { \hit@orig@def@NAT@last@yr { \@citea } }
+      { \hit@orig@def@NAT@last@yr {#1} }
   }
-\bool_if:NT \g__hit_citetwocomma_bool
-  { \msg_warning:nn { hithesis } { citetwo-comma-unavailable } }
 \renewcommand\NAT@citesuper[3]{\ifNAT@swa
   \if*#2*\else#2\NAT@spacechar\fi
 \unskip\kern\p@\textsuperscript{\NAT@@open#1\NAT@@close\if*#3*\else#3\fi}%
@@ -4332,7 +4348,7 @@ breaklines=true
       {
         \bool_gset_false:N \g__hit_zijvregu_bool
         \bool_gset_false:N \g__hit_zijvword_bool
-        \bool_gset_true:c { g__hit_zijv \l_keys_choice_tl_bool }
+        \bool_gset_true:c { g__hit_zijv \l_keys_choice_tl _bool }
       } ,
     ziju .value_required:n = true ,
     headrule .code:n = { \__hit_tri_set:Nn \g__hit_headrule_tl {#1} } ,
@@ -4381,7 +4397,7 @@ breaklines=true
       {
         \bool_gset_false:N \g__hit_citetwocomma_bool
         \bool_gset_false:N \g__hit_citetwoendash_bool
-        \bool_gset_true:c { g__hit_citetwo \l_keys_choice_tl_bool }
+        \bool_gset_true:c { g__hit_citetwo \l_keys_choice_tl _bool }
       } ,
     adjacent-cite .value_required:n = true ,
     label-align .code:n = { \str_set:Nn \g_bib_labelalign_str {#1} } ,
