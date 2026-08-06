@@ -7,7 +7,8 @@
    取版本命名发布包，手册封面的 ``\\date{v\\fileversion (\\filedate)}`` 也读它；
 2. 同一文件里五条 ``\\ProvidesExplClass`` / ``\\ProvidesExplFile``，写进生成的
    ``.cls`` 与 ``.cfg``，用户 ``\\listfiles`` 看到的就是这个；
-3. 四个示例文件开头 ASCII 横幅里的 ``hithesis vX.Y``。横幅是等宽画，左边距是手工
+3. 四个示例文件开头 ASCII 横幅里的版本号（与 ``Copyright (C)`` 同一行）。横幅是
+   等宽画，左边距是手工
    对齐过的（两行文字起点在同一列），所以只按原宽度补回右边的空白，不重新居中，
    否则右边的图形会错位。手册用 ``\\lstinputlisting`` 把示例源码贴进正文，这一处
    同时就是手册里的展示，示例改完跑 ``make doc`` 即可。
@@ -50,8 +51,9 @@ RE_PROVIDESFILE = re.compile(
 RE_PROVIDESEXPL = re.compile(
     r"(\\ProvidesExpl(?:Class|File)\{[^}]*\}\{)([^}]*)(\}\{)([^}]*)(\})"
 )
-# 横幅里的 hithesis vX.Y
-RE_BANNER = re.compile(r"hithesis v[0-9][0-9A-Za-z.]*")
+# 横幅里的版本号。只认与 Copyright 同一行的那个，免得误伤正文里的版本叙述。
+RE_BANNER_LINE = re.compile(r"^%.*Copyright \(C\)")
+RE_BANNER_VER = re.compile(r"v[0-9]+\.[0-9]+[0-9A-Za-z.]*")
 
 
 def read(path: Path) -> tuple[bytes, str]:
@@ -77,8 +79,12 @@ def collect() -> dict[str, list[tuple[str, str]]]:
         if not p.exists():
             continue
         _, t = read(p)
-        for m in RE_BANNER.finditer(t):
-            note(m.group(0).split("v", 1)[1], (str(p.relative_to(ROOT)), "横幅"))
+        for line in t.split("\n"):
+            if not RE_BANNER_LINE.match(line):
+                continue
+            m = RE_BANNER_VER.search(line)
+            if m:
+                note(m.group(0)[1:], (str(p.relative_to(ROOT)), "横幅"))
     return found
 
 
@@ -129,10 +135,12 @@ def set_version(version: str, date: str | None) -> int:
         lines = text.split("\n")
         hit = 0
         for k, line in enumerate(lines):
-            m = RE_BANNER.search(line)
+            if not RE_BANNER_LINE.match(line):
+                continue
+            m = RE_BANNER_VER.search(line)
             if not m:
                 continue
-            lines[k] = replace_keep_left(line, m.group(0), f"hithesis v{version}")
+            lines[k] = replace_keep_left(line, m.group(0), f"v{version}")
             hit += 1
         if hit:
             out = "\n".join(lines)
