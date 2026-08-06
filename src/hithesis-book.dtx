@@ -461,10 +461,10 @@
 %    \begin{macrocode}
 %    \end{macrocode}
 %
-% \pkg{ifthen} 留着。三处 \cs{ifthenelse}\marg{\cs{equal}…} 都不能换成
-% \cs{str\_if\_eq:eeTF}：后者是完全展开后比较，而 \cs{equal} 走 \cs{protected@edef}，
-% 挡得住 \cs{hspace} 这类不可展开的命令。被比较的正是章标题，\cs{cabstractcname}
-% 在非本科档是「摘\cs{hspace}\marg{\cs{ccwd}}要」，完全展开会留下悬空的 \cs{fi}。
+% \changes{v3.2a}{0000/00/00}{类内部不再用 \cs{ifthenelse}，\pkg{ifthen} 只为
+%   兼容旧文档而保留}
+% \pkg{ifthen} 模板自己已经不用了（三处 \cs{ifthenelse} 换成了 \cs{hit@ifsame}），
+% 留着是怕旧论文里直接写了 \cs{ifthenelse} 而没自己加载。
 %    \begin{macrocode}
 \RequirePackage{ifthen}
 \tl_if_empty:NTF \hit@cjkfont
@@ -522,6 +522,26 @@
 \cs_new:Npn \hit@iffontset #1#2#3
   { \str_if_eq:eeTF { \hit@fontset } {#1} {#2} {#3} }
 \cs_new_protected:Npn \hit@ifnotempty #1#2 { \tl_if_empty:NF #1 {#2} }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{加 \cs{hit@ifsame}，替掉三处 \cs{ifthenelse}}
+% \cs{hit@ifsame}\marg{甲}\marg{乙}\marg{真}\marg{假} 比两段文字是否相同。不能用
+% \cs{str\_if\_eq:eeTF}，那是完全展开后比较，遇上 \cs{hspace} 这类不可展开的命令
+% 会留下悬空的 \cs{fi}；被比的正是章标题，\cs{cabstractcname} 在非本科档就是
+% 「摘\cs{hspace}\marg{\cs{ccwd}}要」。这里照 \cs{ifthenelse}\marg{\cs{equal}…}
+% 的做法先各自 \cs{protected@edef} 一遍，把 robust 命令挡住，再比记号表。
+%    \begin{macrocode}
+\tl_new:N \l__hit_cmpa_tl
+\tl_new:N \l__hit_cmpb_tl
+\cs_new_protected:Npn \hit@ifsame #1#2#3#4
+  {
+    \group_begin:
+      \protected@edef \l__hit_cmpa_tl {#1}
+      \protected@edef \l__hit_cmpb_tl {#2}
+      \tl_if_eq:NNTF \l__hit_cmpa_tl \l__hit_cmpb_tl
+        { \group_end: #3 }
+        { \group_end: #4 }
+  }
 \cs_new:Npn \hit@ifwider #1#2#3#4 { \dim_compare:nNnTF {#1} > {#2} {#3} {#4} }
 \cs_new:Npn \hit@ifwiderdim #1#2#3#4 { \dim_compare:nNnTF {#1} > {#2} {#3} {#4} }
 \cs_new:Npn \hit@ifmore #1#2#3 { \int_compare:nNnT {#1} > {#2} {#3} }
@@ -3528,7 +3548,7 @@ breaklines=true
     \bool_if:NTF \g__hit_english_bool
       { \MakeUppercase {#1} ~ }
       {
-        \ifthenelse { \equal {#1} { \eabstractcname } }
+        \hit@ifsame {#1} { \eabstractcname }
           { \bool_if:NT \g__hit_chapterbold_bool { \bfseries } #1 }
           {
             \bool_if:NT \g__hit_chapterhang_bool
@@ -3799,7 +3819,7 @@ breaklines=true
         \phantomsection
         \IfValueTF {#2} { \markboth {#2} {#2} } { \markboth {#3} {#3} }
         \par
-        \ifthenelse { \equal {#3} { \cabstractcname } }
+        \hit@ifsame {#3} { \cabstractcname }
           { \relax }
           {
             \addcontentsline { toc } { chapter }
@@ -3825,7 +3845,7 @@ breaklines=true
       {
         \phantomsection
         \IfValueTF {#2} { \markboth {#2} {#2} } { \markboth {#3} {#3} }
-        \ifthenelse { \equal {#3} { \eabstractcname } }
+        \hit@ifsame {#3} { \eabstractcname }
           {
             \addcontentsline { toc } { chapter }
               {
