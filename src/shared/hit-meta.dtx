@@ -238,7 +238,16 @@
 % 报过的名字记下来，同一个名字只报一次。元信息字段合并成一条，用第一个碰到的
 % 字段名举例。旧名到新名的映射表 \cs{g\_\_hit\_rename\_prop} 由各个类填。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{改名映射分成两张表。\cs{g\_\_hit\_rename\_prop} 装
+%   排版选项，写进 \cs{documentclass} 会另报一条；\cs{g\_\_hit\_rename\_load\_prop}
+%   装加载期选项，写进 \cs{documentclass} 本来就对，只报改名}
+% 两张改名表。排版选项写在 \cs{documentclass} 里要提示改用 \cs{hitsetup}；
+% 加载期选项（字体、校区、学位这类）必须写在 \cs{documentclass} 里，只提示改名。
+%    \begin{macrocode}
 \prop_new:N \g__hit_rename_prop
+\prop_new:N \g__hit_rename_load_prop
 \prop_new:N \g__hit_warned_prop
 \tl_new:N \l__hit_warn_tl
 \cs_generate_variant:Nn \prop_get:NnNTF { NV }
@@ -261,6 +270,12 @@
           { renamed-option } \l__hit_warn_tl
       }
       {
+    \prop_get:NVNTF \g__hit_rename_load_prop \l_keys_key_str \l__hit_warn_tl
+      {
+        \__hit_warn_once:VnV \l_keys_key_str
+          { renamed-option } \l__hit_warn_tl
+      }
+      {
         \bool_lazy_and:nnT
           { ! \bool_if_p:N \g__hit_flat_info_bool }
           { \prop_if_in_p:NV \g__hit_info_prop \l_keys_key_str }
@@ -268,6 +283,7 @@
             \bool_gset_true:N \g__hit_flat_info_bool
             \msg_warning:nnV { hithesis } { flat-info } \l_keys_key_str
           }
+      }
       }
   }
 %    \end{macrocode}
@@ -278,6 +294,9 @@
 % 要额外查什么就重定义它，默认什么都不做。
 %    \begin{macrocode}
 \clist_new:N \l__hit_classopt_clist
+\tl_new:N \l__hit_warn_new_tl
+\cs_generate_variant:Nn \prop_get:NnNT { NV }
+\cs_generate_variant:Nn \__hit_warn_once:nnn { VnV }
 \cs_new_protected:Npn \__hit_classopt_extra: { }
 \cs_new:Npn \__hit_opt_name:w #1 = #2 \q_stop { \tl_trim_spaces:n {#1} }
 \cs_new_protected:Npn \__hit_check_classoptions:
@@ -292,6 +311,11 @@
               {
                 \exp_args:NV \__hit_warn_once:nnn \l__hit_warn_tl
                   { style-in-classoptions } { }
+              }
+            \prop_get:NVNT \g__hit_rename_load_prop \l__hit_warn_tl \l__hit_warn_new_tl
+              {
+                \exp_args:NVnV \__hit_warn_once:nnn \l__hit_warn_tl
+                  { renamed-option } \l__hit_warn_new_tl
               }
             \__hit_classopt_extra:
           }
