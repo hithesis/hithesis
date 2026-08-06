@@ -145,10 +145,20 @@ delim_1 "\\hspace*{\\fill}"
 %
 % 默认字体为fandol
 % \changes{v3.0.02}{2020/06/11}{默认字体为fandol}
+% \changes{v3.2a}{0000/00/00}{手册西文改用 Noto Serif 与 Noto Sans，装了才用，
+%   没有就回退到原来的 TeX Gyre Pagella 与 IBM Plex Sans}
+% 西文用 Noto Serif 与 Noto Sans，两者都在 \TeX~Live 里，CI 上也有。
+%
+% 中文没有跟着换 Noto CJK。\pkg{ctex} 的 \texttt{ubuntu} fontset 楷体取
+% \texttt{AR~PL~KaitiM~GB}，装了 Noto 也未必有这一支；直接写
+% \texttt{Noto~Serif~CJK~SC} 又只能拿到 \file{NotoSerifCJK.ttc} 的默认字面，
+% 也就是日文那面，\texttt{Language=Chinese~Simplified} 不起作用，排出来是
+% 日文字形。所以中文仍旧用 fandol，简体字形正确，\TeX~Live 自带。
 %    \begin{macrocode}
 \RequirePackage[UTF8,scheme=chinese,fontset=fandol]{ctex}
-  % \RequirePackage{newpxtext}
-  % \RequirePackage{newpxmath}
+\IfFontExistsTF{Noto Serif}{
+  \setmainfont{Noto Serif}
+}{
   \setmainfont{TeXGyrePagellaX}[
     Extension   = .otf,
     UprightFont = *-Regular,
@@ -156,26 +166,60 @@ delim_1 "\\hspace*{\\fill}"
     ItalicFont  = *-Italic,
     BoldItalicFont = *-BoldItalic,
   ]
-\setsansfont{IBMPlexSansCondensed}[%
+}
+\IfFontExistsTF{Noto Sans}{
+  \setsansfont{Noto Sans}
+}{
+  \setsansfont{IBMPlexSansCondensed}[%
     Extension      = .otf,
     UprightFont    = *-Regular,
     BoldFont       = *-Bold,
     ItalicFont     = *-Italic,
     BoldItalicFont = *-BoldItalic
   ]
-\IfFontExistsTF{Iosevka Slab}{
-  \setmonofont{Iosevka Slab}
-}{
-  \IfFontExistsTF{Latin Modern Mono}{
-    \setmonofont{Latin Modern Mono}
-  }{}
 }
 %    \end{macrocode}
+%
+% 手册里代码块的字体。首选霞鹜文楷等宽，它的中西文等宽，中文注释与西文代码能对齐；
+% 中西文一起设，否则 \cs{ttfamily} 下的中文仍走 \pkg{ctex} 的仿宋，宽度对不上。
+% 字体名与文件名两种写法都试一次：前者靠 fontconfig 找已装字体，后者给把
+% \file{.ttf} 直接放在工程目录的人用。找不到就退回原来那条链。
 %
 % 添加fallback字体，这样无论本机/CI/Debian/macOS都不会炸
 % \changes{v3.1e}{2026/01/08}{添加fallback字体，这样无论本机/CI/Debian/macOS都不会炸}
 % \changes{v3.2a}{0000/00/00}{修复Latin Modern Mono fallback缺少\cs{IfFontExistsTF}防护导致CI编译文档失败的问题}
+% \changes{v3.2a}{0000/00/00}{手册的代码字体首选霞鹜文楷等宽，中西文等宽，
+%   中文注释与西文代码能对齐。装了才用，CI 上没有就按原来的链回退}
 %    \begin{macrocode}
+\newif\ifhit@doc@mono
+\IfFontExistsTF{LXGW WenKai Mono}{
+  \setmonofont{LXGW WenKai Mono}
+  \setCJKmonofont{LXGW WenKai Mono}
+  \hit@doc@monotrue
+}{
+  \IfFontExistsTF{LXGWWenKaiMono-Regular}{
+    \setmonofont{LXGWWenKaiMono-Regular}
+    \setCJKmonofont{LXGWWenKaiMono-Regular}
+    \hit@doc@monotrue
+  }{}
+}
+\ifhit@doc@mono\else
+  \IfFontExistsTF{Iosevka Slab}{
+    \setmonofont{Iosevka Slab}
+  }{
+    \IfFontExistsTF{Latin Modern Mono}{
+      \setmonofont{Latin Modern Mono}
+    }{}
+  }
+\fi
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{代码块里的中文跟着走等宽字体。\cs{MacroFont} 用
+%   \cs{fontfamily} 直接设西文族，而 \pkg{xeCJK} 钩的是 \cs{ttfamily} 这个命令，
+%   所以中文一直留在宋体上}
+% \cs{MacroFont} 末尾补一句 \cs{ttfamily}，让中文注释跟着切到等宽字体。
+%    \begin{macrocode}
+\g@addto@macro\MacroFont{\ttfamily}
 \RequirePackage[
   top=2.5cm, bottom=2.5cm,
   left=4cm, right=2cm,
