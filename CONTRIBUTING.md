@@ -574,6 +574,8 @@ git push -u origin feature/my-topic
 | 模块内残留 `\ProvidesPackage` | 日志里出现不存在的宏包 | 模块拼进 cls，不该有包身份声明 |
 | 守卫缺失 | 代码漏进别的文件 | 每个 `%<*X>` 都要有配对的 `%</X>` |
 | `\changes` 漏写 | 看不到历史脉络 | 迁移、重命名、删除都要写 |
+| 在 expl3 里加载宏包 | 宏包自己的源码被按 expl3 的 catcode 读，带字面空格的键名会散架。tikz 的 `.store in` 就报 `/tikz/cs/point/.storein` 未知 | `\RequirePackage` 一律留在 `\ExplSyntaxOn` 之外 |
+| 在 expl3 里用 `\patchcmd`/`\pretocmd`/`\apptocmd` | 目标宏的排版悄悄错位。etoolbox 会把宏体 detokenize 后按当前 catcode 重扫，体内的字面空格被吃掉。踩过一次：`\pretocmd{\@makefntext}` 让脚注整块上移 4.2pt | 这几条也留在 expl3 之外 |
 | expl3 里换行也被忽略 | 多行文本值里，行末换行原本产生的空格没了，空行原本产生的 `\par` 也没了 | 行末补 `~`（行末是控制词的不用补，那个空格本来就被吸收），空行写成 `\par` |
 | 用脚本批量给常量表加 `\ExplSyntaxOn` | 常量变 `\relax`、分支走错、`Incomplete \iffalse` | 三种切法都会出事：切进跨模块守卫的语句中间、切在 `\hit@ifand{a}{b}` 与它的两个分支之间、切进多行文本值内部。只能逐条手工包，包完用常量 dump 对照（见下） |
 | 改常量表后只跑 42 变体 | 没被封面用到的常量改坏了也看不出来 | 先 dump 全部 131 个常量在 master/doctor/bachelor/postdoc 四档下的 `\meaning` 做基线，改完再 dump 比对 |
