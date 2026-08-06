@@ -58,6 +58,28 @@ with open(path, 'w', encoding='utf-8') as f:
     f.write(text)
 PYEOF
 
+# 变体指定了 BIBSTYLE 就把工作目录里所有 \bibliographystyle 换掉。示例文档里
+# 这一句可能写在正文的 body/*.tex 里而不是入口文件，所以整棵树扫一遍。
+# 只换行首的那种，注释掉的备选项照原样留着。
+if [ -n "${BIBSTYLE:-}" ]; then
+  python3 - "$WORK" "$BIBSTYLE" <<'PYEOF'
+import sys, re, pathlib
+root, style = pathlib.Path(sys.argv[1]), sys.argv[2]
+total = 0
+for p in root.rglob("*.tex"):
+    text = p.read_text(encoding="utf-8")
+    text, n = re.subn(r'^(\s*)\\bibliographystyle\{[^}]*\}',
+                      lambda m: m.group(1) + "\\bibliographystyle{" + style + "}",
+                      text, flags=re.MULTILINE)
+    if n:
+        p.write_text(text, encoding="utf-8")
+        total += n
+if total == 0:
+    print("BIBSTYLE set but no \\bibliographystyle found", file=sys.stderr)
+    sys.exit(1)
+PYEOF
+fi
+
 # Use latexmk if a .latexmkrc is present in the example dir;
 # it handles bibtex/splitindex automatically and is deterministic.
 cd "$WORK"
