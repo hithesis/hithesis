@@ -40,8 +40,8 @@
 % \cs{hit@ifwider}\marg{长度}\marg{阈值}\marg{真}\marg{假} 比长度。
 % \cs{hit@ifT}\marg{flag}\marg{真} 是只有真分支的那一半。封面里几个多条件判断
 % 也各自取了名：\cs{hit@ifand} 两个标志位同时成立，\cs{hit@ifstage} 取「开题」
-% 或「中期」，\cs{hit@ifwidema} 是威海或深圳的硕士，\cs{hit@ifszmaop} 是深圳硕士
-% 开题，\cs{hit@ifhrbmastage} 是哈尔滨硕士的开题或中期。参数从 expl3 之外传
+% 或「中期」。按校区、学位、阶段组合出来的那几个判断由 \cs{hit@defcond} 生成，
+% 一条一行，见下；生成器在 \file{src/shared/hit-options.dtx}。参数从 expl3 之外传
 % 进来，里面的空格照原样保留；替换旧写法时注意 \cs{fi} 后面被跳过的那个空格。
 %
 % \changes{v3.2a}{0000/00/00}{补上 \option{style/glue} 与 \cs{hit@glueskip}、
@@ -53,72 +53,12 @@
     \bool_if:NTF \g__hit_opening_bool
       { \hit@stage@opening } { \hit@ifT { midterm } { \hit@stage@midterm } }
   }
-\cs_new:Npn \hit@ifwidema #1
-  {
-    \bool_lazy_and:nnT
-      {
-        \bool_lazy_or_p:nn
-          { \bool_if_p:N \g__hit_weihai_bool } { \bool_if_p:N \g__hit_shenzhen_bool }
-      }
-      { \bool_if_p:N \g__hit_master_bool }
-      {#1}
-  }
-\cs_new:Npn \hit@ifszmaop #1#2
-  {
-    \bool_lazy_all:nTF
-      {
-        { \bool_if_p:N \g__hit_shenzhen_bool }
-        { \bool_if_p:N \g__hit_master_bool }
-        { \bool_if_p:N \g__hit_opening_bool }
-      }
-      {#1} {#2}
-  }
-\cs_new:Npn \hit@ifhrbmastage #1
-  {
-    \bool_lazy_all:nT
-      {
-        { \bool_if_p:N \g__hit_harbin_bool }
-        { \bool_if_p:N \g__hit_master_bool }
-        {
-          \bool_lazy_or_p:nn
-            { \bool_if_p:N \g__hit_opening_bool } { \bool_if_p:N \g__hit_midterm_bool }
-        }
-      }
-      {#1}
-  }
-\cs_new:Npn \hit@ifhrbmastage@TF #1#2
-  {
-    \bool_lazy_all:nTF
-      {
-        { \bool_if_p:N \g__hit_harbin_bool }
-        { \bool_if_p:N \g__hit_master_bool }
-        {
-          \bool_lazy_or_p:nn
-            { \bool_if_p:N \g__hit_opening_bool } { \bool_if_p:N \g__hit_midterm_bool }
-        }
-      }
-      {#1} {#2}
-  }
-\cs_new:Npn \hit@ifshenzhenmaop #1#2
-  {
-    \bool_lazy_all:nTF
-      {
-        { \bool_if_p:N \g__hit_shenzhen_bool }
-        { \bool_if_p:N \g__hit_opening_bool }
-        { \bool_if_p:N \g__hit_master_bool }
-      }
-      {#1} {#2}
-  }
-\cs_new:Npn \hit@ifharbinmaop #1#2
-  {
-    \bool_lazy_all:nTF
-      {
-        { \bool_if_p:N \g__hit_harbin_bool }
-        { \bool_if_p:N \g__hit_opening_bool }
-        { \bool_if_p:N \g__hit_master_bool }
-      }
-      {#1} {#2}
-  }
+\hit@defcond{widema}{ ( \g__hit_weihai_bool || \g__hit_shenzhen_bool ) && \g__hit_master_bool }
+\hit@defcond{szmaop}{ \g__hit_shenzhen_bool && \g__hit_master_bool && \g__hit_opening_bool }
+\hit@defcond{hrbmastage}{ \g__hit_harbin_bool && \g__hit_master_bool
+     && ( \g__hit_opening_bool || \g__hit_midterm_bool ) }
+\hit@defcond{shenzhenmaop}{ \g__hit_shenzhen_bool && \g__hit_opening_bool && \g__hit_master_bool }
+\hit@defcond{harbinmaop}{ \g__hit_harbin_bool && \g__hit_opening_bool && \g__hit_master_bool }
 %    \end{macrocode}
 %
 % 处理文档类选项
@@ -941,7 +881,7 @@
  \end{center}~
  \vspace{5mm}~
  \begin{center}~
- \hit@ifszmaop{\xiaoyi\ziju{1/8}}{\erhao}~
+ \hit@ifszmaop@TF{\xiaoyi\ziju{1/8}}{\erhao}~
  \songti\textbf{\hit@cxuewei\hit@cthesisname
  \hit@ifstage
  \hit@stage@doctype
@@ -1460,7 +1400,7 @@
 \hit@ifand{harbin}{bachelor}{ \hit@const@set{~cschoolnametitle~=~{学校}~} }{}
 \hit@ifT{midterm}
   { \hit@const@set{~graduate-datetitle~=~{\hit@stage@midterm\hit@stage@doctype 日期}~} }
-\hit@ifshenzhenmaop
+\hit@ifshenzhenmaop@TF
   { \hit@const@set{~graduate-cmajortitle~=~{\makebox[6\ccwd][s]{学科\,/\,专业}}~} }
   { }
 \hit@ifhrbmastage@TF
@@ -1471,7 +1411,7 @@
     }~
   }
   { }
-\hit@ifharbinmaop{ \hit@const@set{~cthesisname~=~{学位}~} }{ }
+\hit@ifharbinmaop@TF{ \hit@const@set{~cthesisname~=~{学位}~} }{ }
 %    \end{macrocode}
 %
 %    \begin{macrocode}

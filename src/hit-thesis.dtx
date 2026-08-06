@@ -478,7 +478,8 @@
 % \cs{hit@ifwider}\marg{长度}\marg{阈值}\marg{真}\marg{假} 与 \cs{hit@ifwiderdim}
 % 比长度，\cs{hit@ifmore}\marg{整数}\marg{阈值}\marg{真} 比整数。
 % \cs{hit@ifT}\marg{flag}\marg{真} 是只有真分支的那一半。
-% 另有几个组合判断：\cs{hit@ifand} 是两个标志位同时成立；\cs{hit@ifhrbmd} 是
+% 按校区、学位组合出来的判断由 \cs{hit@defcond} 生成，一条一行，生成器在
+% \file{src/shared/hit-options.dtx}。\cs{hit@ifand} 是两个标志位同时成立；\cs{hit@ifhrbmd} 是
 % 哈尔滨硕博；\cs{hit@ifgrad} 是哈尔滨硕博或深圳硕士；\cs{hit@ifstudenttype}
 % 决定要不要在封面上标出学生类别；\cs{hit@ifszmaorhrbbs} 是深圳硕士或哈尔滨本科。
 % 参数从 expl3 之外传进来，里面的空格照原样保留。注意原写法里 \cs{fi} 之后的
@@ -498,56 +499,12 @@
 %    \begin{macrocode}
 \tl_new:N \l__hit_cmpa_tl
 \tl_new:N \l__hit_cmpb_tl
-\cs_new:Npn \hit@ifhrbmd #1#2
-  {
-    \bool_lazy_and:nnTF
-      { \bool_if_p:N \g__hit_harbin_bool }
-      {
-        \bool_lazy_or_p:nn
-          { \bool_if_p:N \g__hit_master_bool } { \bool_if_p:N \g__hit_doctor_bool }
-      }
-      {#1} {#2}
-  }
-\cs_new:Npn \hit@ifszmaorhrbbs #1#2
-  {
-    \bool_lazy_or:nnTF
-      {
-        \bool_lazy_and_p:nn
-          { \bool_if_p:N \g__hit_shenzhen_bool } { \bool_if_p:N \g__hit_master_bool }
-      }
-      {
-        \bool_lazy_and_p:nn
-          { \bool_if_p:N \g__hit_harbin_bool } { \bool_if_p:N \g__hit_bachelor_bool }
-      }
-      {#1} {#2}
-  }
-\cs_new:Npn \hit@ifgrad #1#2
-  {
-    \bool_lazy_or:nnTF
-      {
-        \bool_lazy_and_p:nn
-          { \bool_if_p:N \g__hit_harbin_bool }
-          {
-            \bool_lazy_or_p:nn
-              { \bool_if_p:N \g__hit_master_bool } { \bool_if_p:N \g__hit_doctor_bool }
-          }
-      }
-      {
-        \bool_lazy_and_p:nn
-          { \bool_if_p:N \g__hit_shenzhen_bool } { \bool_if_p:N \g__hit_master_bool }
-      }
-      {#1} {#2}
-  }
-\cs_new:Npn \hit@ifstudenttype #1
-  {
-    \bool_lazy_all:nF
-      {
-        { ! \bool_if_p:N \g__hit_shenzhen_bool }
-        { ! \bool_if_p:N \g__hit_master_bool }
-        { \bool_if_p:N \g__hit_fulltime_bool }
-      }
-      {#1}
-  }
+\hit@defcond{hrbmd}{ \g__hit_harbin_bool && ( \g__hit_master_bool || \g__hit_doctor_bool ) }
+\hit@defcond{szmaorhrbbs}{ ( \g__hit_shenzhen_bool && \g__hit_master_bool )
+     || ( \g__hit_harbin_bool && \g__hit_bachelor_bool ) }
+\hit@defcond{grad}{ ( \g__hit_harbin_bool && ( \g__hit_master_bool || \g__hit_doctor_bool ) )
+     || ( \g__hit_shenzhen_bool && \g__hit_master_bool ) }
+\hit@defcond{studenttype}{ ! ( ! \g__hit_shenzhen_bool && ! \g__hit_master_bool && \g__hit_fulltime_bool ) }
 %    \end{macrocode}
 %
 %    \begin{macrocode}
@@ -3748,7 +3705,7 @@ breaklines=true
  \xiaoer[1]~
  \begin{center}~
  \songti\bfseries
- \hit@ifgrad{\hit@cxuewei}{\hit@cdegree}\hit@cthesisname
+ \hit@ifgrad@TF{\hit@cxuewei}{\hit@cdegree}\hit@cthesisname
  \end{center}}~
  \parbox[t][5cm][t]{\textwidth}{\erhao
  \begin{center}\heiti\hit@ctitlecover\end{center}~
@@ -3815,7 +3772,7 @@ breaklines=true
  Dissertation~for~the~Master~Degree~
  }~
  {%
- \hit@ifhrbmd
+ \hit@ifhrbmd@TF
  {Dissertation~for~the~{\hit@exueweier}~Degree}~
  {Dissertation~for~the~{\hit@exueweier}~Degree~in~\hit@exueke}
  }
