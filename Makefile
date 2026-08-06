@@ -8,7 +8,7 @@ VERSION = `grep -m 1 -o "v[0-9]\+\.[0-9]\+\.[0-9]\+" src/$(PACKAGE).dtx`
 
 # 所有 dtx 都要列进来。只列 src/hithesis.dtx 的话，改 book/art/bst 等文件
 # make 会认为目标是最新的，直接跳过生成，拿旧产物继续跑测试。
-SOURCES = $(PACKAGE).ins $(wildcard src/*.dtx)
+SOURCES = $(PACKAGE).ins $(wildcard src/*.dtx) $(wildcard src/shared/*.dtx)
 TARGETS = dtx-style.sty
 
 RELEASE_NOTES = RELEASE_NOTES.md
@@ -36,7 +36,7 @@ cls: $(TARGETS)
 # TEXINPUTS 指到 src/：这样 .ins 与 driver 里写不带目录的文件名即可，
 # make（在根目录跑）和 l3build（把源码拍平到 build/unpacked）都能找到。
 $(TARGETS): $(SOURCES)
-	TEXINPUTS=src: latex -interaction=nonstopmode $(PACKAGE).ins
+	TEXINPUTS=src:src/shared: latex -interaction=nonstopmode $(PACKAGE).ins
 	$(MAKE) --no-print-directory distribute
 
 # .ins 只生成到根目录，示例目录里的那份由这里分发。
@@ -69,18 +69,18 @@ viewdoc: doc
 ifeq ($(METHOD),latexmk)
 
 $(PACKAGE).pdf: $(TARGETS)
-	TEXINPUTS=src: $(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/shared: $(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
 
 else ifeq ($(METHOD),xelatex)
 
 # nonstopmode：手册里写错宏名之类的错误会让 xelatex 停在交互提示上等输入，
 # 无人看管时会一直挂着。cls 目标早就加了，doc 漏了。
 $(PACKAGE).pdf: $(TARGETS)
-	TEXINPUTS=src: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/shared: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 	makeindex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
 	makeindex -s gglo.ist -o $(PACKAGE).gls $(PACKAGE).glo
-	TEXINPUTS=src: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
-	TEXINPUTS=src: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/shared: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/shared: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 
 else
 $(error Unknown METHOD: $(METHOD))

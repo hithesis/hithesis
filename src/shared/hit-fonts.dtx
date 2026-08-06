@@ -1,0 +1,355 @@
+% \iffalse meta-comment
+%
+% hit-fonts.dtx —— book / art / artplus 共用的字体层
+%
+% \fi
+%
+% \section{共享字体层}
+%
+% \changes{v3.2a}{0000/00/00}{字体层从三份各自的 \texttt{*-fonts} 模块抽出合并}
+% 三个类的字体设置原来是三份几乎一样的拷贝。docstrip 按输入文件首次出现的顺序
+% 排全局次序，共享文件只能排在各自类 dtx 之前，也就是每个 \cs{file} 列表的第二位
+% （类文件头之后）。那个位置在 \cs{LoadClass} 之前，\pkg{fontspec} 与选项都还没
+% 就绪，所以这里只放声明与定义，要执行的部分包在 \cs{hit@setup@fonts} 里，由各类
+% 在原来 \texttt{*-fonts} 的位置调用。
+%
+% 留在各类手里的只有 \cs{normalsize}（三个类行距不同）与 book 独有的 \cs{xsanhao}。
+%
+%    \begin{macrocode}
+%<*shared-fonts>
+\bool_new:N \g__hit_platform_mac_bool
+\str_new:N \l__hit_font_str
+\str_new:N \l__hit_cjk_font_str
+\cs_new_protected:Npn \hit@setup@fonts
+  {
+%    \end{macrocode}
+%
+% 平台探测。\pkg{expl3} 只认得出 Windows，macOS 靠系统字体文件判断。
+%    \begin{macrocode}
+\sys_if_platform_unix:T
+  {
+    \file_if_exist:nT { /System/Library/Fonts/Menlo.ttc }
+      { \bool_gset_true:N \g__hit_platform_mac_bool }
+  }
+%    \end{macrocode}
+%
+% \option{font}\texttt{=auto} 时按 \option{fontset} 定；\option{fontset} 也没写
+% 就按平台猜。选中 Times New Roman 但机器上没有时退回 TeX Gyre，免得直接报错。
+%    \begin{macrocode}
+\str_set:Nx \l__hit_font_str { \hit@font }
+\str_if_eq:VnT \l__hit_font_str { } { \str_set:Nn \l__hit_font_str { auto } }
+\str_if_eq:VnT \l__hit_font_str { auto }
+  {
+    \str_case:enF { \hit@fontset }
+      {
+        { windows } { \str_set:Nn \l__hit_font_str { times } }
+        { mac }     { \str_set:Nn \l__hit_font_str { times } }
+        { }
+          {
+            \sys_if_platform_windows:TF
+              { \str_set:Nn \l__hit_font_str { times } }
+              {
+                \bool_if:NTF \g__hit_platform_mac_bool
+                  { \str_set:Nn \l__hit_font_str { times } }
+                  { \str_set:Nn \l__hit_font_str { termes } }
+              }
+          }
+      }
+      { \str_set:Nn \l__hit_font_str { termes } }
+  }
+\str_if_eq:VnT \l__hit_font_str { times }
+  {
+    \fontspec_font_if_exist:nF { Times~New~Roman }
+      { \str_set:Nn \l__hit_font_str { termes } }
+  }
+\cs_new_protected:Npn \__hit_set_font_times:
+  {
+    \setmainfont { Times~New~Roman }
+    \setsansfont { Arial }
+    \setmonofont { Courier~New } [ Scale = MatchLowercase ]
+  }
+\cs_new_protected:Npn \__hit_set_font_termes:
+  {
+    \setmainfont { TeXGyreTermesX }
+      [
+        UprightFont    = *-Regular ,
+        BoldFont       = *-Bold ,
+        ItalicFont     = *-Italic ,
+        BoldItalicFont = *-BoldItalic ,
+        Extension      = .otf ,
+      ]
+    \setsansfont { texgyreheros }
+      [
+        UprightFont    = *-regular ,
+        BoldFont       = *-bold ,
+        ItalicFont     = *-italic ,
+        BoldItalicFont = *-bolditalic ,
+        Extension      = .otf ,
+      ]
+    \setmonofont { texgyrecursor }
+      [
+        UprightFont    = *-regular ,
+        BoldFont       = *-bold ,
+        ItalicFont     = *-italic ,
+        BoldItalicFont = *-bolditalic ,
+        Extension      = .otf ,
+      ]
+  }
+\cs_new_protected:Npn \__hit_set_font_none: { }
+\use:c { __hit_set_font_ \l__hit_font_str : }
+\cs_new_protected:Npn \__hit_set_cjk_font_windows:
+  {
+    \setCJKmainfont { SimSun } [ AutoFakeBold = true , ItalicFont = KaiTi ]
+    \setCJKsansfont { SimHei } [ AutoFakeBold = true ]
+    \setCJKmonofont { FangSong }
+    \setCJKfamilyfont { zhsong } { SimSun } [ AutoFakeBold = true ]
+    \setCJKfamilyfont { zhhei }  { SimHei } [ AutoFakeBold = true ]
+    \setCJKfamilyfont { zhkai }  { KaiTi }
+    \setCJKfamilyfont { zhfs }   { FangSong }
+  }
+\cs_new_protected:Npn \__hit_set_cjk_font_mac:
+  {
+    \defaultCJKfontfeatures { }
+    \setCJKmainfont { Songti~SC }
+      [
+        UprightFont    = *~Light ,
+        BoldFont       = *~Bold ,
+        ItalicFont     = Kaiti~SC~Regular ,
+        BoldItalicFont = Kaiti~SC~Bold ,
+      ]
+    \setCJKsansfont { Heiti~SC } [ UprightFont = *~Light , BoldFont = *~Medium ]
+    \setCJKmonofont { STFangsong }
+    \setCJKfamilyfont { zhsong } { Songti~SC }
+      [ UprightFont = *~Light , BoldFont = *~Bold ]
+    \setCJKfamilyfont { zhhei } { Heiti~SC }
+      [ UprightFont = *~Light , BoldFont = *~Medium ]
+    \setCJKfamilyfont { zhfs }  { STFangsong }
+    \setCJKfamilyfont { zhkai } { Kaiti~SC }
+      [ UprightFont = *~Regular , BoldFont = *~Bold ]
+  }
+\cs_new_protected:Npn \__hit_set_cjk_font_noto:
+  {
+    \defaultCJKfontfeatures { }
+    \setCJKmainfont { Noto~Serif~CJK~SC }
+      [
+        UprightFont    = *~Light ,
+        BoldFont       = *~Bold ,
+        ItalicFont     = FandolKai-Regular ,
+        ItalicFeatures = { Extension = .otf } ,
+        Script         = CJK ,
+      ]
+    \setCJKsansfont { Noto~Sans~CJK~SC } [ BoldFont = *~Medium , Script = CJK ]
+    \setCJKmonofont { Noto~Sans~Mono~CJK~SC } [ Script = CJK ]
+    \setCJKfamilyfont { zhsong } { Noto~Serif~CJK~SC }
+      [ UprightFont = *~Light , BoldFont = *~Bold , Script = CJK ]
+    \setCJKfamilyfont { zhhei } { Noto~Sans~CJK~SC }
+      [ BoldFont = *~Medium , Script = CJK ]
+    \setCJKfamilyfont { zhfs }  { FandolFang } [ Extension = .otf , UprightFont = *-Regular ]
+    \setCJKfamilyfont { zhkai } { FandolKai }  [ Extension = .otf , UprightFont = *-Regular ]
+  }
+\cs_new_protected:Npn \__hit_set_cjk_font_fandol:
+  {
+    \defaultCJKfontfeatures { }
+    \setCJKmainfont { FandolSong }
+      [
+        Extension      = .otf ,
+        UprightFont    = *-Regular ,
+        BoldFont       = *-Bold ,
+        ItalicFont     = FandolKai-Regular ,
+        ItalicFeatures = { Extension = .otf } ,
+      ]
+    \setCJKsansfont { FandolHei } [ Extension = .otf , UprightFont = *-Regular , BoldFont = *-Bold ]
+    \setCJKmonofont { FandolFang } [ Extension = .otf , UprightFont = *-Regular ]
+    \setCJKfamilyfont { zhsong } { FandolSong }
+      [ Extension = .otf , UprightFont = *-Regular , BoldFont = *-Bold ]
+    \setCJKfamilyfont { zhhei } { FandolHei }
+      [ Extension = .otf , UprightFont = *-Regular , BoldFont = *-Bold ]
+    \setCJKfamilyfont { zhfs }  { FandolFang } [ Extension = .otf , UprightFont = *-Regular ]
+    \setCJKfamilyfont { zhkai } { FandolKai }  [ Extension = .otf , UprightFont = *-Regular ]
+  }
+%    \end{macrocode}
+%
+% Adobe 与方正，抄 \pkg{ctex} 同名 fontset，让 \option{cjk-font=auto} 也认这两个值。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_set_cjk_font_adobe:
+  {
+    \defaultCJKfontfeatures { }
+    \setCJKmainfont { AdobeSongStd-Light }
+      [ BoldFont = AdobeHeitiStd-Regular , ItalicFont = AdobeKaitiStd-Regular ]
+    \setCJKsansfont { AdobeHeitiStd-Regular }
+    \setCJKmonofont { AdobeFangsongStd-Regular }
+    \setCJKfamilyfont { zhsong } { AdobeSongStd-Light }
+    \setCJKfamilyfont { zhhei }  { AdobeHeitiStd-Regular }
+    \setCJKfamilyfont { zhfs }   { AdobeFangsongStd-Regular }
+    \setCJKfamilyfont { zhkai }  { AdobeKaitiStd-Regular }
+  }
+\cs_new_protected:Npn \__hit_set_cjk_font_founder:
+  {
+    \defaultCJKfontfeatures { }
+    \setCJKmainfont { FZShuSong-Z01 }
+      [ BoldFont = FZXiaoBiaoSong-B05 , ItalicFont = FZKai-Z03 ]
+    \setCJKsansfont { FZXiHeiI-Z08 } [ BoldFont = FZHei-B01 ]
+    \setCJKmonofont { FZFangSong-Z02 }
+    \setCJKfamilyfont { zhsong } { FZShuSong-Z01 } [ BoldFont = FZXiaoBiaoSong-B05 ]
+    \setCJKfamilyfont { zhhei }  { FZHei-B01 }
+    \setCJKfamilyfont { zhfs }   { FZFangSong-Z02 }
+    \setCJKfamilyfont { zhkai }  { FZKai-Z03 }
+  }
+\cs_new_protected:Npn \__hit_set_cjk_font_none: { }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{中文字体可由模板自己设置，不再只能转给 ctex}
+% 中文字体。四组来源抄自 \pkg{ustcthesis}：\texttt{windows} 用中易，\texttt{mac}
+% 用华文，\texttt{noto} 用思源，\texttt{fandol} 用 Fandol，\texttt{adobe} 与
+% \texttt{founder} 同 \pkg{ctex} 的同名 fontset。
+%    \begin{macrocode}
+\str_set:Nx \l__hit_cjk_font_str { \hit@cjkfont }
+\str_if_eq:VnF \l__hit_cjk_font_str { }
+  {
+    \str_if_eq:VnT \l__hit_cjk_font_str { auto }
+      {
+        \str_case:enF { \hit@fontset }
+          {
+            { windows } { \str_set:Nn \l__hit_cjk_font_str { windows } }
+            { mac }     { \str_set:Nn \l__hit_cjk_font_str { mac } }
+            { ubuntu }  { \str_set:Nn \l__hit_cjk_font_str { noto } }
+            { fandol }  { \str_set:Nn \l__hit_cjk_font_str { fandol } }
+            { adobe }   { \str_set:Nn \l__hit_cjk_font_str { adobe } }
+            { founder } { \str_set:Nn \l__hit_cjk_font_str { founder } }
+          }
+          {
+            \sys_if_platform_windows:TF
+              { \str_set:Nn \l__hit_cjk_font_str { windows } }
+              {
+                \bool_if:NTF \g__hit_platform_mac_bool
+                  { \str_set:Nn \l__hit_cjk_font_str { mac } }
+                  { \str_set:Nn \l__hit_cjk_font_str { fandol } }
+              }
+          }
+      }
+    \msg_new:nnn { hithesis } { cjk-font-unknown }
+      { 选项~cjk-font~的取值~'##1'~无效。 }
+    \cs_if_exist:cTF { __hit_set_cjk_font_ \l__hit_cjk_font_str : }
+      { \use:c { __hit_set_cjk_font_ \l__hit_cjk_font_str : } }
+      { \msg_error:nnx { hithesis } { cjk-font-unknown } { \l__hit_cjk_font_str } }
+%    \end{macrocode}
+%
+% \pkg{ctex} 只在自己管字体时才给出 \cs{songti} 这几个命令，现在字体由模板设置，
+% \pkg{ctex} 收到的是 \texttt{fontset=none}，得自己补上。\texttt{cjk-font=none}
+% 时也一样定义，此时 \texttt{zhsong} 等四个字族要由用户自己 \cs{setCJKfamilyfont}。
+%    \begin{macrocode}
+    \cs_set_protected:Npn \songti { \CJKfamily { zhsong } }
+    \cs_set_protected:Npn \heiti { \CJKfamily { zhhei } }
+    \cs_set_protected:Npn \fangsong { \CJKfamily { zhfs } }
+    \cs_set_protected:Npn \kaishu { \CJKfamily { zhkai } }
+  }
+  }
+%    \end{macrocode}
+%
+% WORD 中的字号对应该关系如下（1bp = 72.27/72 pt）:
+% \begin{center}
+% \begin{tabular}{llll}
+% \toprule
+% 初号 & 42bp & 14.82mm & 42.1575pt \\
+% 小初 & 36bp & 12.70mm & 36.135 pt \\
+% 一号 & 26bp & 9.17mm & 26.0975pt \\
+% 小一 & 24bp & 8.47mm & 24.09pt \\
+% 二号 & 22bp & 7.76mm & 22.0825pt \\
+% 小二 & 18bp & 6.35mm & 18.0675pt \\
+% 三号 & 16bp & 5.64mm & 16.06pt \\
+% 小三 & 15bp & 5.29mm & 15.05625pt \\
+% 四号 & 14bp & 4.94mm & 14.0525pt \\
+% 小四 & 12bp & 4.23mm & 12.045pt \\
+% 五号 & 10.5bp & 3.70mm & 10.59375pt \\
+% 小五 & 9bp & 3.18mm & 9.03375pt \\
+% 六号 & 7.5bp & 2.56mm & \\
+% 小六 & 6.5bp & 2.29mm & \\
+% 七号 & 5.5bp & 1.94mm & \\
+% 八号 & 5bp & 1.76mm & \\\bottomrule
+% \end{tabular}
+% \end{center}
+%
+% \begin{macro}{\hit@def@fontsize}
+% 根据习惯定义字号。用法：\cs{hit@def@fontsize}\marg{字号名称}\marg{磅数}避免了
+% 字号选择和行距的紧耦合。所有字号定义时为单倍行距，并提供选项指定行距倍数。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@def@fontsize #1#2
+  {
+    \exp_args:Nc \NewDocumentCommand {#1} { O{1.3} }
+      { \fontsize {#2} { ##1 \dimexpr #2 } \selectfont }
+  }
+%    \end{macrocode}
+%
+% \end{macro}
+%
+% \begin{macro}{\dachu}
+% \begin{macro}{\chuhao}
+% \begin{macro}{\xiaochu}
+% \begin{macro}{\yihao}
+% \begin{macro}{\xiaoyi}
+% \begin{macro}{\erhao}
+% \begin{macro}{\xiaoer}
+% \begin{macro}{\sanhao}
+% \begin{macro}{\xsanhao}
+% \changes{v3.1b}{2022/06/06}{增加 \cs{xsanhao} 为了深圳校区的原创性声明标题。}
+% \begin{macro}{\xiaosan}
+% \begin{macro}{\sihao}
+% \begin{macro}{\banxiaosi}
+% \begin{macro}{\xiaosi}
+% \begin{macro}{\dawu}
+% \begin{macro}{\wuhao}
+% \begin{macro}{\xiaowu}
+% \begin{macro}{\liuhao}
+% \begin{macro}{\xiaoliu}
+% \begin{macro}{\qihao}
+% \begin{macro}{\bahao}
+% 一组字号定义。
+%    \begin{macrocode}
+\hit@def@fontsize{dachu}{58bp}
+\hit@def@fontsize{chuhao}{42bp}
+\hit@def@fontsize{xiaochu}{36bp}
+\hit@def@fontsize{yihao}{26bp}
+\hit@def@fontsize{xiaoyi}{24bp}
+\hit@def@fontsize{erhao}{22bp}
+\hit@def@fontsize{xiaoer}{18bp}
+\hit@def@fontsize{sanhao}{16bp}
+\hit@def@fontsize{xiaosan}{15bp}
+\hit@def@fontsize{sihao}{14bp}
+\hit@def@fontsize{banxiaosi}{13bp}
+\hit@def@fontsize{xiaosi}{12bp}
+\hit@def@fontsize{dawu}{11bp}
+\hit@def@fontsize{wuhao}{10.5bp}
+\hit@def@fontsize{xiaowu}{9bp}
+\hit@def@fontsize{liuhao}{7.5bp}
+\hit@def@fontsize{xiaoliu}{6.5bp}
+\hit@def@fontsize{qihao}{5.5bp}
+\hit@def@fontsize{bahao}{5bp}
+%    \end{macrocode}
+%
+% \cs{xsanhao} 为了深圳校区本科生的原创性声明标题。在规范中标题的字体为“三号”，但是如果使用 \cs{sanhao} 则不能在一行排下，故参考 \hitszthesis{} 的做法，定义一个稍微小一些的字号。
+%    \begin{macrocode}
+%</shared-fonts>
+%    \end{macrocode}
+%
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+%
+% \Finale

@@ -74,7 +74,7 @@ def main() -> int:
     ap.add_argument("--update", action="store_true", help="把当前用到的命令写回基线")
     args = ap.parse_args()
 
-    paths = [Path(f) for f in args.files] if args.files else sorted(ROOT.glob("src/*.dtx"))
+    paths = [Path(f) for f in args.files] if args.files else sorted(ROOT.glob("src/*.dtx")) + sorted(ROOT.glob("src/shared/*.dtx"))
     errors, used = scan(paths)
 
     if args.update:
