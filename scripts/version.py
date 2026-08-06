@@ -7,9 +7,10 @@
    取版本命名发布包，手册封面的 ``\\date{v\\fileversion (\\filedate)}`` 也读它；
 2. 同一文件里五条 ``\\ProvidesExplClass`` / ``\\ProvidesExplFile``，写进生成的
    ``.cls`` 与 ``.cfg``，用户 ``\\listfiles`` 看到的就是这个；
-3. 四个示例文件开头 ASCII 横幅里的 ``hithesis vX.Y``。横幅是等宽画，改字要按原
-   宽度重新居中，否则右边的图形会错位。手册用 ``\\lstinputlisting`` 把示例源码贴
-   进正文，所以这一处同时也是手册里的展示，示例改完跑 ``make doc`` 即可。
+3. 四个示例文件开头 ASCII 横幅里的 ``hithesis vX.Y``。横幅是等宽画，左边距是手工
+   对齐过的（两行文字起点在同一列），所以只按原宽度补回右边的空白，不重新居中，
+   否则右边的图形会错位。手册用 ``\\lstinputlisting`` 把示例源码贴进正文，这一处
+   同时就是手册里的展示，示例改完跑 ``make doc`` 即可。
 
 ``\\changes`` 条目里的版本号与正文里「v3.2a 起……」这类叙述不在同步范围内：前者
 是历史记录，后者说的是某项改动发生在哪一版，都不该跟着走。
@@ -81,22 +82,25 @@ def collect() -> dict[str, list[tuple[str, str]]]:
     return found
 
 
-def recentre(line: str, old: str, new: str) -> str:
-    """把 line 里的 old 换成 new，吃掉两侧空白后按原宽度重新居中。"""
+def replace_keep_left(line: str, old: str, new: str) -> str:
+    """把 line 里的 old 换成 new，左边距不动，只调右边的空白补回原宽度。
+
+    横幅的左缘是手工对齐过的（两行文字起点在同一列），重新居中反而会挪位置。
+    版本号多数时候等长（3.2a → 3.2b），这样连一个字符都不会动。
+    """
     i = line.find(old)
     if i < 0:
         return line
-    a = i
-    while a > 0 and line[a - 1] == " ":
-        a -= 1
     b = i + len(old)
-    while b < len(line) and line[b] == " ":
-        b += 1
-    width = b - a
-    if len(new) > width:
-        raise SystemExit(f"横幅放不下 {new!r}，原区间只有 {width} 列：{line!r}")
-    left = (width - len(new)) // 2
-    return line[:a] + " " * left + new + " " * (width - len(new) - left) + line[b:]
+    tail = 0
+    while b + tail < len(line) and line[b + tail] == " ":
+        tail += 1
+    room = len(old) + tail
+    if len(new) > room:
+        raise SystemExit(
+            f"横幅放不下 {new!r}：从文字起点到右边图形只有 {room} 列，"
+            f"手工调一下这一行再跑。原行：{line!r}")
+    return line[:i] + new + " " * (room - len(new)) + line[b + tail:]
 
 
 def set_version(version: str, date: str | None) -> int:
@@ -128,7 +132,7 @@ def set_version(version: str, date: str | None) -> int:
             m = RE_BANNER.search(line)
             if not m:
                 continue
-            lines[k] = recentre(line, m.group(0), f"hithesis v{version}")
+            lines[k] = replace_keep_left(line, m.group(0), f"hithesis v{version}")
             hit += 1
         if hit:
             out = "\n".join(lines)
