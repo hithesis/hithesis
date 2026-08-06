@@ -3924,52 +3924,71 @@ breaklines=true
 % \changes{v3.2a}{0000/00/00}{附录章标题的两套定义各自取名，分派改用 expl3。}
 % \cs{hit@appendix@chapter} 分英文版与中文版两套，只有一套会真的执行。
 %    \begin{macrocode}
-\hit@if{english}%
-{%
-\NewDocumentCommand{\hit@appendix@chapter}{s o m o}{%
-  \IfBooleanT{#1}%
+%    \end{macrocode}
+%
+% \cs{ExplSyntaxOn} 写在 \cs{hit@if} 的花括号参数里不起作用：参数在读到
+% \cs{hit@if} 的时候就按外层的 catcode 记号化完了。所以两套定义各自取名放在
+% 外面，再用 \cs{hit@if} 选一个 \cs{cs\_new\_eq:NN} 过去。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\NewDocumentCommand \__hit_appendix_chapter_en:w { s o m o }
   {
-    \phantomsection
-    \IfValueTF{#2}{
-      \markboth{#2}{#2}
-    }{
-      \markboth{#3}{#3}
-    }
-
-    \ifthenelse%
-    {\equal{#3}{\cabstractcname}}%
-    {\relax}
-    {\addcontentsline{toc}{chapter}{\texorpdfstring{\hit@chaptoc@font #3}{#3}}}
-
-    \IfValueT{#4}{\addcontentsline{toe}{chapter}{\texorpdfstring{\bfseries #4}{#4}}}
-    \hit@chapter*{#3}
+    \IfBooleanT {#1}
+      {
+        \phantomsection
+        \IfValueTF {#2} { \markboth {#2} {#2} } { \markboth {#3} {#3} }
+        \par
+        \ifthenelse { \equal {#3} { \cabstractcname } }
+          { \relax }
+          {
+            \addcontentsline { toc } { chapter }
+              { \texorpdfstring { \hit@chaptoc@font #3 } {#3} }
+          }
+        \par
+        \IfValueT {#4}
+          {
+            \addcontentsline { toe } { chapter }
+              { \texorpdfstring { \bfseries #4 } {#4} }
+          }
+        \hit@chapter * {#3}
+      }
   }
-}
-}%
-{%
 %    \end{macrocode}
 %
 % 添加英文版附表格式
 % \changes{v3.0.0}{2020/05/21}{添加英文版附表格式}
 %    \begin{macrocode}
-\NewDocumentCommand{\hit@appendix@chapter}{s o m o}{%
-  \IfBooleanT{#1}%
+\NewDocumentCommand \__hit_appendix_chapter_zh:w { s o m o }
   {
-    \phantomsection
-    \IfValueTF{#2}{
-      \markboth{#2}{#2}
-    }{
-      \markboth{#3}{#3}
-    }
-    \ifthenelse%
-      {\equal{#3}{\eabstractcname}}%
-      {\addcontentsline{toc}{chapter}{\texorpdfstring{\hit@chaptoc@font \hit@if{absupper}{\MakeUppercase{#3}}{#3}}{#3}}}%
-      {\addcontentsline{toc}{chapter}{\texorpdfstring{\hit@chaptoc@font #3}{#3}}}
-    \IfValueT{#4}{\addcontentsline{toe}{chapter}{\texorpdfstring{\bfseries #4}{#4}}}
-    \hit@chapter*{#3}
+    \IfBooleanT {#1}
+      {
+        \phantomsection
+        \IfValueTF {#2} { \markboth {#2} {#2} } { \markboth {#3} {#3} }
+        \ifthenelse { \equal {#3} { \eabstractcname } }
+          {
+            \addcontentsline { toc } { chapter }
+              {
+                \texorpdfstring
+                  { \hit@chaptoc@font \hit@if { absupper } { \MakeUppercase {#3} } {#3} }
+                  {#3}
+              }
+          }
+          {
+            \addcontentsline { toc } { chapter }
+              { \texorpdfstring { \hit@chaptoc@font #3 } {#3} }
+          }
+        \IfValueT {#4}
+          {
+            \addcontentsline { toe } { chapter }
+              { \texorpdfstring { \bfseries #4 } {#4} }
+          }
+        \hit@chapter * {#3}
+      }
   }
-}
-}
+\hit@if { english }
+  { \cs_new_eq:NN \hit@appendix@chapter \__hit_appendix_chapter_en:w }
+  { \cs_new_eq:NN \hit@appendix@chapter \__hit_appendix_chapter_zh:w }
+\ExplSyntaxOff
 \ExplSyntaxOn
 \NewDocumentCommand \BiAppChapter { m m }
   {
