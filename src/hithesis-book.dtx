@@ -3146,14 +3146,14 @@
 \RenewDocumentCommand \algocf@captiontext { m m }
   { \wuhao #1 \algocf@typo \nobreakspace { } \AlCapFnt { } #2 }
 \ExplSyntaxOff
-\expandafter\ifx\csname algocf@within\endcsname\relax
-\ExplSyntaxOn\cs_set:Npn \thealgocf { \@arabic \c@algocf }\ExplSyntaxOff
-\else
 \ExplSyntaxOn
-\cs_set:Npn \thealgocf
-  { \csname the \algocf@within \endcsname - \@arabic \c@algocf }
+\cs_if_exist:NTF \algocf@within
+  {
+    \cs_set:Npn \thealgocf
+      { \use:c { the \algocf@within } - \@arabic \c@algocf }
+  }
+  { \cs_set:Npn \thealgocf { \@arabic \c@algocf } }
 \ExplSyntaxOff
-\fi
 \ExplSyntaxOn
 \RenewDocumentCommand \algocf@makecaption { m m }
   {
@@ -4151,17 +4151,37 @@ breaklines=true
 \NewDocumentEnvironment { cabstract } { } { \Collect@Body \hit@@cabstract } { }
 \NewDocumentEnvironment { eabstract } { } { \Collect@Body \hit@@eabstract } { }
 \ExplSyntaxOff
-\def\hit@parse@keywords#1{
-  \hit@def@classkey{#1}
-  \expandafter\gdef\csname hit@#1\endcsname{}
-  \expandafter\gdef\csname #1\endcsname##1{
-    \@for\reserved@a:=##1\do{
-      \expandafter\ifx\csname hit@#1\endcsname\@empty\else
-        \expandafter\g@addto@macro\csname hit@#1\endcsname{%
-          \ignorespaces\csname hit@#1@separator\endcsname}
-      \fi
-      \expandafter\expandafter\expandafter\g@addto@macro%
-        \expandafter\csname hit@#1\expandafter\endcsname\expandafter{\reserved@a}}}}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{关键词的逗号拆分迁到 expl3}
+% \cs{ckeywords}\marg{甲,乙,丙} 把逗号表拼成 \cs{hit@ckeywords}，词与词之间插一个
+% \cs{hit@ckeywords@separator}。分隔符是以 \cs{use:c} 的形式存进去的，取值在排版
+% 时才解析，用户后改分隔符照样生效。拆分用 \cs{seq\_set\_split\_keep\_spaces:Nnn} 而不
+% 是 \cs{clist\_map\_inline:nn}，因为后者会把每项前后的空格吃掉，而封面示例里写的是
+% \texttt{\{\string\TeX, \string\LaTeX, CJK\}} 这种逗号后带空格的形式，吃掉就
+% 与原先的 \cs{@for} 不一致了。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\seq_new:N \l__hit_keywords_seq
+\cs_new_protected:Npn \hit@parse@keywords #1
+  {
+    \hit@def@classkey {#1}
+    \cs_gset_nopar:cpn { hit@#1 } { }
+    \cs_gset_protected_nopar:cpn {#1} ##1
+      {
+        \seq_set_split_keep_spaces:Nnn \l__hit_keywords_seq { , } {##1}
+        \seq_map_inline:Nn \l__hit_keywords_seq
+          {
+            \tl_if_empty:cF { hit@#1 }
+              {
+                \tl_gput_right:cn { hit@#1 }
+                  { \ignorespaces \use:c { hit@#1@separator } }
+              }
+            \tl_gput_right:cn { hit@#1 } {####1}
+          }
+      }
+  }
+\ExplSyntaxOff
 \hit@parse@keywords{ckeywords}
 \hit@parse@keywords{ekeywords}
 \ExplSyntaxOn
