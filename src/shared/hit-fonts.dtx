@@ -99,7 +99,18 @@
       ]
   }
 \cs_new_protected:Npn \__hit_set_font_none: { }
-\use:c { __hit_set_font_ \l__hit_font_str : }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\option{font} 的取值写错时报错。原先是裸的
+%   \cs{use:c}，\cs{csname} 会把没定义的名字变成 \cs{relax}，于是拼错的人拿到
+%   一份完全没设西文字体的文档，还看不到任何提示}
+% 与 \option{cjk-font} 一致，先查函数在不在，不在就报错。
+%    \begin{macrocode}
+\msg_new:nnn { hithesis } { font-unknown }
+  { 选项~font~的取值~'##1'~无效。 }
+\cs_if_exist:cTF { __hit_set_font_ \l__hit_font_str : }
+  { \use:c { __hit_set_font_ \l__hit_font_str : } }
+  { \msg_error:nnx { hithesis } { font-unknown } { \l__hit_font_str } }
 \cs_new_protected:Npn \__hit_set_cjk_font_windows:
   {
     \setCJKmainfont { SimSun } [ AutoFakeBold = true , ItalicFont = KaiTi ]
@@ -130,7 +141,7 @@
     \setCJKfamilyfont { zhkai } { Kaiti~SC }
       [ UprightFont = *~Regular , BoldFont = *~Bold ]
   }
-\cs_new_protected:Npn \__hit_set_cjk_font_noto:
+\cs_new_protected:Npn \__hit_set_cjk_font_ubuntu:
   {
     \defaultCJKfontfeatures { }
     \setCJKmainfont { Noto~Serif~CJK~SC }
@@ -202,9 +213,12 @@
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{中文字体可由模板自己设置，不再只能转给 ctex}
-% 中文字体。\texttt{windows} 用中易，\texttt{mac} 用华文，\texttt{noto} 用思源，
-% \texttt{fandol} 用 Fandol，前四组抄自 \pkg{ustcthesis}。\texttt{adobe} 与
-% \texttt{founder} 同 \pkg{ctex} 的同名 fontset。
+% \changes{v3.2a}{0000/00/00}{\option{cjk-font} 的 \texttt{noto} 一档改名
+%   \texttt{ubuntu}，与 \pkg{ctex} 的同名 fontset 对齐。这个选项 v3.2a 才加，
+%   还没发过版，不走废弃期}
+% 中文字体。\texttt{windows} 用中易，\texttt{mac} 用华文，\texttt{ubuntu} 用思源，
+% \texttt{fandol} 用 Fandol，前四组抄自 \pkg{ustcthesis}。取值一律取
+% \pkg{ctex} 的 fontset 名，所以思源那一档叫 \texttt{ubuntu} 而不是 \texttt{noto}。
 %    \begin{macrocode}
 \str_set:Nx \l__hit_cjk_font_str { \hit@cjkfont }
 \str_if_eq:VnF \l__hit_cjk_font_str { }
@@ -215,7 +229,7 @@
           {
             { windows } { \str_set:Nn \l__hit_cjk_font_str { windows } }
             { mac }     { \str_set:Nn \l__hit_cjk_font_str { mac } }
-            { ubuntu }  { \str_set:Nn \l__hit_cjk_font_str { noto } }
+            { ubuntu }  { \str_set:Nn \l__hit_cjk_font_str { ubuntu } }
             { fandol }  { \str_set:Nn \l__hit_cjk_font_str { fandol } }
             { adobe }   { \str_set:Nn \l__hit_cjk_font_str { adobe } }
             { founder } { \str_set:Nn \l__hit_cjk_font_str { founder } }
@@ -246,8 +260,8 @@
     \cs_set_protected:Npn \heiti { \CJKfamily { zhhei } }
     \cs_set_protected:Npn \fangsong { \CJKfamily { zhfs } }
     \cs_set_protected:Npn \kaishu { \CJKfamily { zhkai } }
-  }
-  }
+  }% \str_if_eq:VnF \l__hit_cjk_font_str { } 到此为止
+  }% \hit@setup@fonts 到此为止
 %    \end{macrocode}
 %
 % WORD 中的字号对应该关系如下（1bp = 72.27/72 pt）:
@@ -273,11 +287,17 @@
 % \end{tabular}
 % \end{center}
 %
-% \begin{macro}{\hit@def@fontsize}
-% 根据习惯定义字号。用法：\cs{hit@def@fontsize}\marg{字号名称}\marg{磅数}避免了
-% 字号选择和行距的紧耦合。所有字号定义时为单倍行距，并提供选项指定行距倍数。
+% \changes{v3.2a}{0000/00/00}{\cs{hit@def@fontsize} 改名 \cs{\_\_hit\_def\_fontsize:nn}。
+%   它只在本文件里用，按这一层自己的规矩该是内部名}
+% 根据习惯定义字号。用法：\cs{\_\_hit\_def\_fontsize:nn}\marg{字号名称}\marg{磅数}，
+% 避免字号选择和行距的紧耦合。所有字号定义时为单倍行距，并提供选项指定行距倍数。
+%
+% 底下这十七个是中文字号的标准阶梯，模板自己只用到十一个，另外六个
+% （\cs{chuhao}、\cs{xiaochu}、\cs{liuhao}、\cs{xiaoliu}、\cs{qihao}、\cs{bahao}）
+% 是留给用户在正文里用的，别看着"没引用"就删。v3.2a 删掉的那三个
+% （\cs{dachu}、\cs{banxiaosi}、\cs{dawu}）不在标准阶梯里，那才是该删的。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@def@fontsize #1#2
+\cs_new_protected:Npn \__hit_def_fontsize:nn #1#2
   {
     \exp_args:Nc \NewDocumentCommand {#1} { O{1.3} }
       { \fontsize {#2} { ##1 \dimexpr #2 } \selectfont }
@@ -307,23 +327,23 @@
 % \begin{macro}{\bahao}
 % 一组字号定义。
 %    \begin{macrocode}
-\hit@def@fontsize{chuhao}{42bp}
-\hit@def@fontsize{xiaochu}{36bp}
-\hit@def@fontsize{yihao}{26bp}
-\hit@def@fontsize{xiaoyi}{24bp}
-\hit@def@fontsize{erhao}{22bp}
-\hit@def@fontsize{xiaoer}{18bp}
-\hit@def@fontsize{sanhao}{16bp}
-\hit@def@fontsize{xsanhao}{15.9bp}
-\hit@def@fontsize{xiaosan}{15bp}
-\hit@def@fontsize{sihao}{14bp}
-\hit@def@fontsize{xiaosi}{12bp}
-\hit@def@fontsize{wuhao}{10.5bp}
-\hit@def@fontsize{xiaowu}{9bp}
-\hit@def@fontsize{liuhao}{7.5bp}
-\hit@def@fontsize{xiaoliu}{6.5bp}
-\hit@def@fontsize{qihao}{5.5bp}
-\hit@def@fontsize{bahao}{5bp}
+\__hit_def_fontsize:nn{chuhao}{42bp}
+\__hit_def_fontsize:nn{xiaochu}{36bp}
+\__hit_def_fontsize:nn{yihao}{26bp}
+\__hit_def_fontsize:nn{xiaoyi}{24bp}
+\__hit_def_fontsize:nn{erhao}{22bp}
+\__hit_def_fontsize:nn{xiaoer}{18bp}
+\__hit_def_fontsize:nn{sanhao}{16bp}
+\__hit_def_fontsize:nn{xsanhao}{15.9bp}
+\__hit_def_fontsize:nn{xiaosan}{15bp}
+\__hit_def_fontsize:nn{sihao}{14bp}
+\__hit_def_fontsize:nn{xiaosi}{12bp}
+\__hit_def_fontsize:nn{wuhao}{10.5bp}
+\__hit_def_fontsize:nn{xiaowu}{9bp}
+\__hit_def_fontsize:nn{liuhao}{7.5bp}
+\__hit_def_fontsize:nn{xiaoliu}{6.5bp}
+\__hit_def_fontsize:nn{qihao}{5.5bp}
+\__hit_def_fontsize:nn{bahao}{5bp}
 %    \end{macrocode}
 %
 % \cs{xsanhao} 是给深圳校区本科生的原创性声明标题用的。规范里那个标题是三号，
@@ -334,7 +354,6 @@
 %</shared-fonts>
 %    \end{macrocode}
 %
-% \end{macro}
 % \end{macro}
 % \end{macro}
 % \end{macro}
