@@ -1,22 +1,21 @@
 % \iffalse meta-comment
 %
-% hit-fonts.dtx 是 book / art / artplus 共用的字体层
+% hit-fonts.dtx 是三个类共用的字体层
 %
 % \fi
 %
 % \section{共享字体层}
 %
-% \changes{v3.2a}{0000/00/00}{字体层从三份各自的 \texttt{*-fonts} 模块抽出合并}
-% book、art、artplus 的字体设置原来是三份拷贝，只差 \cs{normalsize} 的行距。
-% 这里合成一份，\cs{normalsize} 仍旧留在各自的类里。
+% \changes{v3.2a}{0000/00/00}{三个类的字体设置合成一份共享层}
+% \changes{v3.2a}{0000/00/00}{新增 \option{font} 与 \option{cjk-font}，西文与中文
+%   字体可以分别指定，不再只能整体转给 \pkg{ctex}}
+% \changes{v3.2a}{0000/00/00}{废弃模板自带的 \texttt{siyuan} fontset，改用
+%   \option{cjk-font} 取 \texttt{ubuntu}}
+% 三个类共用的字体设置。西文与中文各由 \option{font} 与 \option{cjk-font} 决定，
+% 字号是一套中文标准阶梯。
 %
-% 这个文件必须写在每个 \cs{file} 列表的第二位，也就是类文件头之后、类自己的 dtx
-% 之前。因为 docstrip 按输入文件首次出现的顺序排全局次序，后出现的排在后面，写在
-% 别处会报 Incompatible order of input files。
-%
-% 第二位在 \cs{LoadClass} 之前，此时 \pkg{fontspec} 和 \pkg{xeCJK} 还没加载，
-% \option{font} 与 \option{cjk-font} 也还没解析。所以这个文件只做声明和定义，要
-% 执行的部分放进 \cs{hit@setup@fonts}，由各个类在原来 \texttt{*-fonts} 的位置调用。
+% 本文件排在每个 \cs{file} 列表的第二位，此时 \pkg{fontspec} 与 \pkg{xeCJK} 尚未
+% 加载，所以只做声明，要执行的放进 \cs{hit@setup@fonts}，由各个类调用。
 %
 %    \begin{macrocode}
 %<*shared-fonts>
@@ -36,22 +35,11 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{0000/00/00}{\option{font} 的 \texttt{auto} 一档改成除开源字体集外
-%   一律优先 Times New Roman。原先只有 \option{fontset} 取 \texttt{windows} 或
-%   \texttt{mac} 时才用，\texttt{adobe} 与 \texttt{founder} 这两个 Windows 上的
-%   商业字体集反而拿不到 Times New Roman}
-% \option{font}\texttt{=auto} 的规则：\option{fontset} 写的是开源字体集
-% （\texttt{fandol}、\texttt{ubuntu}）就配开源西文，其余一律优先
-% Times New Roman，机器上没装再退回 TeX Gyre Termes。
-%
-% 反过来列开源集有两个好处。一是 \pkg{ctex} 的 \texttt{macnew}、\texttt{macold}
-% 这些没列进来的值不会掉进错误的兜底；二是写 \texttt{fandol} 或 \texttt{ubuntu}
-% 的人多半图的就是"到哪台机器都编出一样的东西"，给他配一个装没装看运气的
-% Times New Roman 不合他的意思。回归测试的 42 个变体全用 \texttt{fandol}，
-% 靠的也是这条。
-%
-% 平台探测在这条路上不再需要：不写 \option{fontset} 时同样先试
-% Times New Roman，没有就退回，结果与原先按平台猜一致。
+% \changes{v3.2a}{0000/00/00}{\option{font} 取 \texttt{auto} 时改为除开源字体集外
+%   一律优先 Times New Roman，原先 \texttt{adobe} 与 \texttt{founder} 拿不到}
+% \option{font} 取 \texttt{auto} 时，\option{fontset} 是开源字体集
+% （\texttt{fandol}、\texttt{ubuntu}）就用 TeX Gyre Termes，其余优先
+% Times New Roman，找不到再退回。
 %    \begin{macrocode}
 \str_set:Nx \l__hit_font_str { \hit@font }
 \str_if_eq:VnT \l__hit_font_str { } { \str_set:Nn \l__hit_font_str { auto } }
@@ -105,10 +93,9 @@
 \cs_new_protected:Npn \__hit_set_font_none: { }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{0000/00/00}{\option{font} 的取值写错时报错。原先是裸的
-%   \cs{use:c}，\cs{csname} 会把没定义的名字变成 \cs{relax}，于是拼错的人拿到
-%   一份完全没设西文字体的文档，还看不到任何提示}
-% 与 \option{cjk-font} 一致，先查函数在不在，不在就报错。
+% \changes{v3.2a}{0000/00/00}{\option{font} 取值无效时报错，原先被 \cs{use:c}
+%   静默吞掉，拼错的人拿到一份没设西文字体的文档}
+% 取值无效时报错。
 %    \begin{macrocode}
 \msg_new:nnn { hithesis } { font-unknown }
   { 选项~font~的取值~'##1'~无效。 }
@@ -187,7 +174,7 @@
   }
 %    \end{macrocode}
 %
-% Adobe 与方正照抄 \pkg{ctex} 的同名 fontset，\option{cjk-font=auto} 也认这两个值。
+% Adobe 与方正两档。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_set_cjk_font_adobe:
   {
@@ -216,13 +203,10 @@
 \cs_new_protected:Npn \__hit_set_cjk_font_none: { }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{0000/00/00}{中文字体可由模板自己设置，不再只能转给 ctex}
 % \changes{v3.2a}{0000/00/00}{\option{cjk-font} 的 \texttt{noto} 一档改名
-%   \texttt{ubuntu}，与 \pkg{ctex} 的同名 fontset 对齐。这个选项 v3.2a 才加，
-%   还没发过版，不走废弃期}
-% 中文字体。\texttt{windows} 用中易，\texttt{mac} 用华文，\texttt{ubuntu} 用思源，
-% \texttt{fandol} 用 Fandol，前四组抄自 \pkg{ustcthesis}。取值一律取
-% \pkg{ctex} 的 fontset 名，所以思源那一档叫 \texttt{ubuntu} 而不是 \texttt{noto}。
+%   \texttt{ubuntu}，与 \pkg{ctex} 的 fontset 同名}
+% 中文字体。不写 \option{cjk-font} 则整块跳过，字体由 \pkg{ctex} 按
+% \option{fontset} 设置。取值一律沿用 \pkg{ctex} 的 fontset 名。
 %    \begin{macrocode}
 \str_set:Nx \l__hit_cjk_font_str { \hit@cjkfont }
 \str_if_eq:VnF \l__hit_cjk_font_str { }
@@ -255,10 +239,8 @@
       { \msg_error:nnx { hithesis } { cjk-font-unknown } { \l__hit_cjk_font_str } }
 %    \end{macrocode}
 %
-% \pkg{ctex} 只在自己管字体时才定义 \cs{songti} 这几个命令。现在字体由模板设置，
-% 传给 \pkg{ctex} 的是 \texttt{fontset=none}，这几个命令要自己补。
-% \texttt{cjk-font=none} 时同样定义，此时 \texttt{zhsong} 等四个字族由用户自己
-% \cs{setCJKfamilyfont}。
+% 字体由模板设置时传给 \pkg{ctex} 的是 \texttt{fontset=none}，这四个命令
+% \pkg{ctex} 不会定义，要自己补。
 %    \begin{macrocode}
     \cs_set_protected:Npn \songti { \CJKfamily { zhsong } }
     \cs_set_protected:Npn \heiti { \CJKfamily { zhhei } }
@@ -291,15 +273,11 @@
 % \end{tabular}
 % \end{center}
 %
-% \changes{v3.2a}{0000/00/00}{\cs{hit@def@fontsize} 改名 \cs{\_\_hit\_def\_fontsize:nn}。
-%   它只在本文件里用，按这一层自己的规矩该是内部名}
-% 根据习惯定义字号。用法：\cs{\_\_hit\_def\_fontsize:nn}\marg{字号名称}\marg{磅数}，
-% 避免字号选择和行距的紧耦合。所有字号定义时为单倍行距，并提供选项指定行距倍数。
-%
-% 底下这十七个是中文字号的标准阶梯，模板自己只用到十一个，另外六个
-% （\cs{chuhao}、\cs{xiaochu}、\cs{liuhao}、\cs{xiaoliu}、\cs{qihao}、\cs{bahao}）
-% 是留给用户在正文里用的，别看着"没引用"就删。v3.2a 删掉的那三个
-% （\cs{dachu}、\cs{banxiaosi}、\cs{dawu}）不在标准阶梯里，那才是该删的。
+% \changes{v3.2a}{0000/00/00}{\cs{hit@def@fontsize} 改名
+%   \cs{\_\_hit\_def\_fontsize:nn}，它只在本文件里用}
+% 定义一个字号命令，参数为名称与磅数。字号与行距解耦，行距由可选参数给出，
+% 默认 1.3 倍。下面十七个是中文字号的标准阶梯，模板自己只用到其中十一个，
+% 其余留给用户。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_def_fontsize:nn #1#2
   {
@@ -350,10 +328,8 @@
 \__hit_def_fontsize:nn{bahao}{5bp}
 %    \end{macrocode}
 %
-% \cs{xsanhao} 是给深圳校区本科生的原创性声明标题用的。规范里那个标题是三号，
-% 但 \cs{sanhao} 一行排不下，所以参考 \hitszthesis{} 定义了一个略小的字号。
-% 只有 \file{hithesisbook.cls} 用得到，三个类都定义是因为多一条 \cs{fontsize}
-% 不费什么，没必要为它单开一处特判。
+% \cs{xsanhao} 比三号略小，给深圳校区本科生的原创性声明标题用，取自
+% \hitszthesis{}。规范里那个标题是三号，但 \cs{sanhao} 一行排不下。
 %    \begin{macrocode}
 %</shared-fonts>
 %    \end{macrocode}
