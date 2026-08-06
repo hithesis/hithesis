@@ -24,7 +24,7 @@ endif
 NPROC ?= 8
 
 .PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint version-changes \
-        baseline smoke regression-test tl-packages testclean
+        baseline smoke regression-test tl-packages testclean version version-check version-set
 
 all: doc
 
@@ -163,3 +163,16 @@ punct-fix:
 
 version-changes:
 	@python3 scripts/changes.py --version
+
+# 版本号散在 ProvidesFile、五条 ProvidesExpl* 与四个示例横幅里，这里一处改全部同步。
+# 手册封面读 \fileversion，示例横幅由 \lstinputlisting 贴进手册，改完跑 make doc 跟上。
+version:
+	@python3 scripts/version.py
+
+version-check:
+	@python3 scripts/version.py --check
+
+# 用法：make version-set VERSION=3.2b DATE=2026/08/07（DATE 可省）
+version-set:
+	@test -n "$(VERSION)" || { echo "用法：make version-set VERSION=3.2b [DATE=YYYY/MM/DD]"; exit 2; }
+	@python3 scripts/version.py --set $(VERSION) $(if $(DATE),--date $(DATE))

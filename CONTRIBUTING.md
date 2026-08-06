@@ -583,6 +583,24 @@ git push -u origin feature/my-topic
 
 具体计划依情况讨论。
 
+### 9.2b 版本号
+
+版本号散在三处：`src/hithesis.dtx` 的 `\ProvidesFile`（唯一的源，Makefile 取它命名发布包，手册封面的 `\date{v\fileversion (\filedate)}` 也读它）、同一文件里五条 `\ProvidesExplClass` / `\ProvidesExplFile`、以及四个示例开头 ASCII 横幅里的 `hithesis vX.Y`。手册里那四处展示是 `\lstinputlisting` 把示例源码贴进来的，改完示例跑一次 `make doc` 就跟上了。
+
+一处改全部同步：
+
+```
+make version                       # 列出各处版本，不一致时退出码 1
+make version-check                 # 同上，CI 用
+make version-set VERSION=3.2b DATE=2026/08/07
+```
+
+横幅是等宽 ASCII 画，脚本会按原宽度重新居中，右边的图形不会错位。
+
+`\changes` 条目里的版本号与正文里「v3.2a 起……」这类叙述**不在同步范围**：前者是历史记录，后者说的是某项改动发生在哪一版。
+
+发版顺序：`make version-set` 定版本 → `scripts/changes.py --stamp` 填 changes 的日期 → 打 tag。
+
 ### 9.3 跨类改动
 
 一个改动对多个类都适用时，每处都要同步。如果改的是各套规范一致的底层机制，考虑抽进 `src/shared/`，见 §4.2。
