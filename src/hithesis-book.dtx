@@ -5843,12 +5843,40 @@ breaklines=true
 % \changes{v1.0.04}{2017/09/17}{将leftskip设置参数至于外侧，以便后续添加可以适应标题长度的\cs{contentsline}方法}
 %    \begin{macrocode}
 \setlength\@tempdima{4em}%
-\ExplSyntaxOff
-\patchcmd{\@dottedtocline}{#4}{\csname hit@toc@font\endcsname #4}{}{}
-\ExplSyntaxOn
-\ExplSyntaxOff
-\patchcmd{\@dottedtocline}{\hb@xt@\@pnumwidth}{\hbox}{}{}
-\ExplSyntaxOn
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\cs{@dottedtocline} 改成直接重定义，不再用
+%   \pkg{etoolbox} 打补丁。补丁命令会把宏体 detokenize 后按当前 catcode 重扫，
+%   在 expl3 里会吃掉宏体内的字面空格，只能退出 expl3 才敢用}
+% 与内核原版比只有两处不同：条目文字外面套一层 \cs{hit@toc@font}，用
+% \cs{use:c} 取，它可能还没定义，取不到时是 \cs{relax}；页码盒子从
+% 定宽的 \cs{hb@xt@}\cs{@pnumwidth} 改成自然宽度的 \cs{hbox}，双语目录里页码
+% 才不会被挤掉。
+%    \begin{macrocode}
+\cs_set:Npn \@dottedtocline #1#2#3#4#5
+  {
+    \int_compare:nNnF {#1} > { \c@tocdepth }
+      {
+        \vskip \z@ \@plus .2\p@
+        {
+          \leftskip #2\relax
+          \rightskip \@tocrmarg
+          \parfillskip - \rightskip
+          \parindent #2\relax
+          \@afterindenttrue
+          \interlinepenalty \@M
+          \leavevmode
+          \@tempdima #3\relax
+          \advance \leftskip \@tempdima
+          \null \nobreak \hskip - \leftskip
+          { \use:c { hit@toc@font } #4 } \nobreak
+          \leaders \hbox { $ \m@th \mkern \@dotsep mu \hbox {.} \mkern \@dotsep mu $ }
+          \hfill \nobreak
+          \hbox { \hfil \normalfont \normalcolor #5 \kern -\p@ \kern \p@ }
+          \par
+        }
+      }
+  }
 %    \end{macrocode}
 %
 % \changes{v2.0.08}{2017/06/15}{修改本科生论文目录格式（感谢QQ:嬴政　同学）}
