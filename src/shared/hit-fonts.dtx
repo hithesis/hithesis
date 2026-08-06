@@ -1,19 +1,22 @@
 % \iffalse meta-comment
 %
-% hit-fonts.dtx —— book / art / artplus 共用的字体层
+% hit-fonts.dtx 是 book / art / artplus 共用的字体层
 %
 % \fi
 %
 % \section{共享字体层}
 %
 % \changes{v3.2a}{0000/00/00}{字体层从三份各自的 \texttt{*-fonts} 模块抽出合并}
-% 三个类的字体设置原来是三份几乎一样的拷贝。docstrip 按输入文件首次出现的顺序
-% 排全局次序，共享文件只能排在各自类 dtx 之前，也就是每个 \cs{file} 列表的第二位
-% （类文件头之后）。那个位置在 \cs{LoadClass} 之前，\pkg{fontspec} 与选项都还没
-% 就绪，所以这里只放声明与定义，要执行的部分包在 \cs{hit@setup@fonts} 里，由各类
-% 在原来 \texttt{*-fonts} 的位置调用。
+% book、art、artplus 的字体设置原来是三份拷贝，只差 \cs{normalsize} 的行距。
+% 这里合成一份，\cs{normalsize} 仍旧留在各自的类里。
 %
-% 留在各类手里的只有 \cs{normalsize}（三个类行距不同）与 book 独有的 \cs{xsanhao}。
+% 这个文件必须写在每个 \cs{file} 列表的第二位，也就是类文件头之后、类自己的 dtx
+% 之前。因为 docstrip 按输入文件首次出现的顺序排全局次序，后出现的排在后面，写在
+% 别处会报 Incompatible order of input files。
+%
+% 第二位在 \cs{LoadClass} 之前，此时 \pkg{fontspec} 和 \pkg{xeCJK} 还没加载，
+% \option{font} 与 \option{cjk-font} 也还没解析。所以这个文件只做声明和定义，要
+% 执行的部分放进 \cs{hit@setup@fonts}，由各个类在原来 \texttt{*-fonts} 的位置调用。
 %
 %    \begin{macrocode}
 %<*shared-fonts>
@@ -24,7 +27,7 @@
   {
 %    \end{macrocode}
 %
-% 平台探测。\pkg{expl3} 只认得出 Windows，macOS 靠系统字体文件判断。
+% 平台探测。\pkg{expl3} 只能判断是不是 Windows，macOS 看系统字体文件在不在。
 %    \begin{macrocode}
 \sys_if_platform_unix:T
   {
@@ -33,8 +36,8 @@
   }
 %    \end{macrocode}
 %
-% \option{font}\texttt{=auto} 时按 \option{fontset} 定；\option{fontset} 也没写
-% 就按平台猜。选中 Times New Roman 但机器上没有时退回 TeX Gyre，免得直接报错。
+% \option{font}\texttt{=auto} 时看 \option{fontset}，\option{fontset} 也没写就看
+% 平台。选中 Times New Roman 而机器上没装时退回 TeX Gyre。
 %    \begin{macrocode}
 \str_set:Nx \l__hit_font_str { \hit@font }
 \str_if_eq:VnT \l__hit_font_str { } { \str_set:Nn \l__hit_font_str { auto } }
@@ -169,7 +172,7 @@
   }
 %    \end{macrocode}
 %
-% Adobe 与方正，抄 \pkg{ctex} 同名 fontset，让 \option{cjk-font=auto} 也认这两个值。
+% Adobe 与方正照抄 \pkg{ctex} 的同名 fontset，\option{cjk-font=auto} 也认这两个值。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_set_cjk_font_adobe:
   {
@@ -199,8 +202,8 @@
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{中文字体可由模板自己设置，不再只能转给 ctex}
-% 中文字体。四组来源抄自 \pkg{ustcthesis}：\texttt{windows} 用中易，\texttt{mac}
-% 用华文，\texttt{noto} 用思源，\texttt{fandol} 用 Fandol，\texttt{adobe} 与
+% 中文字体。\texttt{windows} 用中易，\texttt{mac} 用华文，\texttt{noto} 用思源，
+% \texttt{fandol} 用 Fandol，前四组抄自 \pkg{ustcthesis}。\texttt{adobe} 与
 % \texttt{founder} 同 \pkg{ctex} 的同名 fontset。
 %    \begin{macrocode}
 \str_set:Nx \l__hit_cjk_font_str { \hit@cjkfont }
@@ -234,9 +237,10 @@
       { \msg_error:nnx { hithesis } { cjk-font-unknown } { \l__hit_cjk_font_str } }
 %    \end{macrocode}
 %
-% \pkg{ctex} 只在自己管字体时才给出 \cs{songti} 这几个命令，现在字体由模板设置，
-% \pkg{ctex} 收到的是 \texttt{fontset=none}，得自己补上。\texttt{cjk-font=none}
-% 时也一样定义，此时 \texttt{zhsong} 等四个字族要由用户自己 \cs{setCJKfamilyfont}。
+% \pkg{ctex} 只在自己管字体时才定义 \cs{songti} 这几个命令。现在字体由模板设置，
+% 传给 \pkg{ctex} 的是 \texttt{fontset=none}，这几个命令要自己补。
+% \texttt{cjk-font=none} 时同样定义，此时 \texttt{zhsong} 等四个字族由用户自己
+% \cs{setCJKfamilyfont}。
 %    \begin{macrocode}
     \cs_set_protected:Npn \songti { \CJKfamily { zhsong } }
     \cs_set_protected:Npn \heiti { \CJKfamily { zhhei } }
@@ -313,6 +317,7 @@
 \hit@def@fontsize{erhao}{22bp}
 \hit@def@fontsize{xiaoer}{18bp}
 \hit@def@fontsize{sanhao}{16bp}
+\hit@def@fontsize{xsanhao}{15.9bp}
 \hit@def@fontsize{xiaosan}{15bp}
 \hit@def@fontsize{sihao}{14bp}
 \hit@def@fontsize{banxiaosi}{13bp}
@@ -326,7 +331,10 @@
 \hit@def@fontsize{bahao}{5bp}
 %    \end{macrocode}
 %
-% \cs{xsanhao} 为了深圳校区本科生的原创性声明标题。在规范中标题的字体为“三号”，但是如果使用 \cs{sanhao} 则不能在一行排下，故参考 \hitszthesis{} 的做法，定义一个稍微小一些的字号。
+% \cs{xsanhao} 是给深圳校区本科生的原创性声明标题用的。规范里那个标题是三号，
+% 但 \cs{sanhao} 一行排不下，所以参考 \hitszthesis{} 定义了一个略小的字号。
+% 只有 \file{hithesisbook.cls} 用得到，三个类都定义是因为多一条 \cs{fontsize}
+% 不费什么，没必要为它单开一处特判。
 %    \begin{macrocode}
 %</shared-fonts>
 %    \end{macrocode}
