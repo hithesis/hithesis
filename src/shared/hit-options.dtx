@@ -1,0 +1,113 @@
+% \iffalse meta-comment
+%
+% hit-options.dtx 是各个类共用的选项声明与判断助手
+%
+% \fi
+%
+% \section{共享选项层}
+%
+% \changes{v3.2a}{0000/00/00}{声明选项的四个助手与一族判断函数抽出来给各个类共用，
+%   原先每个类各写一遍，十五个定义逐字节相同}
+% 声明类选项的助手，以及排版代码里用来读标志位的一族判断函数。原先每个类的
+% \texttt{*-options} 模块里各写一遍，十五个定义一字不差。
+%
+% 这个文件只放定义，不执行任何依赖类状态的东西，所以排在类自己的模块之前没关系。
+% 各个类照旧在自己的 \texttt{*-options} 里调用 \cs{hit@boolopt} 这些声明选项。
+%
+%    \begin{macrocode}
+%<*shared-options>
+%    \end{macrocode}
+%
+% 声明选项
+%
+% \cs{hit@boolopt}\marg{名}\marg{默认} 声明一个布尔选项，标志位是
+% \cs{g\_\_hit\_}\meta{名}\cs{\_bool}；\cs{hit@stringopt}\marg{名} 声明一个存字符串的选项，
+% 存进 \cs{hit@}\meta{名}。键名带连字符时不能直接拿来拼控制序列，
+% \cs{hit@stringopt@as}\marg{键名}\marg{宏名} 把两者分开。
+%
+% \cs{hit@choiceopt}\marg{键名}\marg{前缀}\marg{取值表}\marg{默认} 声明一组互斥取值，
+% 每个取值一个标志位，选中的置真、其余置假，取值不在表里就报错。
+%    \begin{macrocode}
+\msg_new:nnn { hithesis } { bad-option-value }
+  { 选项~#1~不接受取值~#2。 }
+\cs_new_protected:Npn \hit@boolopt #1#2
+  {
+    \bool_new:c { g__hit_#1_bool }
+    \str_if_eq:nnT {#2} { true } { \bool_gset_true:c { g__hit_#1_bool } }
+    \keys_define:nn { hit / class }
+      { #1 .bool_gset:c = { g__hit_#1_bool } , #1 .default:n = { true } }
+  }
+\cs_new_protected:Npn \hit@stringopt #1 { \hit@stringopt@as {#1} {#1} }
+\cs_new_protected:Npn \hit@stringopt@as #1#2
+  {
+    \tl_new:c { hit@#2 }
+    \keys_define:nn { hit / class } { #1 .tl_gset:c = { hit@#2 } }
+  }
+\cs_new_protected:Npn \hit@choiceopt #1#2#3#4
+  {
+    \clist_map_inline:nn {#3} { \bool_new:c { g__hit_#2##1_bool } }
+    \tl_if_empty:nF {#4} { \bool_gset_true:c { g__hit_#2#4_bool } }
+    \keys_define:nn { hit / class }
+      {
+        #1 .code:n =
+          {
+            \clist_map_inline:nn {#3}
+              { \bool_gset_false:c { g__hit_#2####1_bool } }
+            \bool_if_exist:cTF { g__hit_#2##1_bool }
+              { \bool_gset_true:c { g__hit_#2##1_bool } }
+              { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {##1} }
+          } ,
+      }
+  }
+%    \end{macrocode}
+%
+% 读标志位的判断函数
+%
+% 排版代码里大量出现「按某个标志位二选一」，写成 \cs{bool\_if:cTF} 要带上
+% \cs{g\_\_hit\_}\ldots\cs{\_bool} 这一长串，所以各起了名字。参数是在 \pkg{expl3}
+% 之外记号化的，里面的字面空格照原样保留——这正是它们存在的另一个理由，
+% 含排版内容的判断不必整段搬进 \pkg{expl3}。
+%    \begin{macrocode}
+\cs_new:Npn \hit@if #1#2#3 { \bool_if:cTF { g__hit_#1_bool } {#2} {#3} }
+\cs_new:Npn \hit@ifT #1#2 { \bool_if:cT { g__hit_#1_bool } {#2} }
+\cs_new:Npn \hit@ifand #1#2#3#4
+  {
+    \bool_lazy_and:nnTF
+      { \bool_if_p:c { g__hit_#1_bool } } { \bool_if_p:c { g__hit_#2_bool } } {#3} {#4}
+  }
+\cs_new:Npn \hit@iffontset #1#2#3
+  { \str_if_eq:eeTF { \hit@fontset } {#1} {#2} {#3} }
+\cs_new_protected:Npn \hit@ifnotempty #1#2 { \tl_if_empty:NF #1 {#2} }
+\cs_new:Npn \hit@ifwider #1#2#3#4 { \dim_compare:nNnTF {#1} > {#2} {#3} {#4} }
+\cs_new:Npn \hit@ifwiderdim #1#2#3#4 { \dim_compare:nNnTF {#1} > {#2} {#3} {#4} }
+\cs_new:Npn \hit@ifmore #1#2#3 { \int_compare:nNnT {#1} > {#2} {#3} }
+\cs_new_protected:Npn \hit@ifsame #1#2#3#4
+  {
+    \group_begin:
+      \protected@edef \l__hit_cmpa_tl {#1}
+      \protected@edef \l__hit_cmpb_tl {#2}
+      \tl_if_eq:NNTF \l__hit_cmpa_tl \l__hit_cmpb_tl
+        { \group_end: #3 }
+        { \group_end: #4 }
+  }
+%    \end{macrocode}
+%
+% style/glue 的伸缩量
+%
+% \option{style/glue} 开时给标题前后距与行距一个伸缩量，关时是固定值。
+% 这两个函数把原地重复过二十多次的判断收成一处。
+%    \begin{macrocode}
+\cs_new:Npn \hit@glueskip #1#2
+  { \bool_if:NTF \g__hit_glue_bool { #1~plus~#2~minus~0bp } { #1 } }
+\cs_new:Npn \hit@gluesize #1#2#3
+  {
+    \bool_if:NTF \g__hit_glue_bool
+      { \fontsize {#1} { #2~plus~#3 } } { \fontsize {#1} {#2} }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</shared-options>
+%    \end{macrocode}
+%
+% \Finale
