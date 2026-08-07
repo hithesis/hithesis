@@ -352,6 +352,73 @@
     \clist_map_inline:nn {#1}
       { \keys_define:nn { hit / const } { ##1 .code:n = { \__hit_constant_set:n {####1} } } }
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{常量可以直接驱动既有命令名或转发给 \pkg{ctex}，
+%   配置里那批 \cs{cs\_new:Npn} \cs{equationname} 与 \cs{ctexset} 因此不必再写在
+%   配置里——配置只出取值，造轮子的部分都在这一层}
+% 有两类可本地化的词不走 \cs{hit@}\meta{名} 这个存法：一类是 \cs{equationname}、
+% \cs{cabstractcname} 这种早就对外可见的名字，改名会破坏接口；一类是
+% \cs{contentsname}、\cs{figurename} 这种归 \pkg{ctex} 管的名字，得走 \cs{ctexset}。
+%
+% \cs{hit@declare@constant@as}\marg{键名列表} 声明的键，值直接写进同名命令
+% （\texttt{equationname} 写 \cs{equationname}，不是 \cs{hit@equationname}）。
+% \cs{hit@declare@constant@ctex}\marg{键名=ctex键,\ldots} 声明的键，值转给
+% \cs{ctexset}；两个名字常常一样，不一样的写等号（\texttt{chapter-name=chapter/name}）。
+%
+% 两者都照旧认取值里的 \texttt{<键名>} 引用。
+%    \begin{macrocode}
+\tl_new:N \l__hit_constant_target_tl
+\prop_new:N \g__hit_constant_target_prop
+\cs_new_protected:Npn \__hit_constant_target:
+  {
+    \prop_get:NVN \g__hit_constant_target_prop \l_keys_key_str
+      \l__hit_constant_target_tl
+  }
+\cs_new_protected:Npn \__hit_constant_set_as:n #1
+  {
+    \tl_set:Nn \l__hit_constant_value_tl {#1}
+    \__hit_expand_references:N \l__hit_constant_value_tl
+    \__hit_constant_target:
+    \cs_gset:cpx { \l__hit_constant_target_tl }
+      { \exp_not:V \l__hit_constant_value_tl }
+  }
+\cs_new_protected:Npn \__hit_constant_set_ctex:n #1
+  {
+    \tl_set:Nn \l__hit_constant_value_tl {#1}
+    \__hit_expand_references:N \l__hit_constant_value_tl
+    \__hit_constant_target:
+    \exp_args:Nx \ctexset
+      { \l__hit_constant_target_tl = { \exp_not:V \l__hit_constant_value_tl } }
+  }
+\cs_new_protected:Npn \hit@declare@constant@as #1
+  {
+    \clist_map_inline:nn {#1}
+      {
+        \prop_gput:Nnn \g__hit_constant_target_prop {##1} {##1}
+        \keys_define:nn { hit / const }
+          { ##1 .code:n = { \__hit_constant_set_as:n {####1} } }
+      }
+  }
+\cs_new_protected:Npn \hit@declare@constant@ctex #1
+  { \clist_map_inline:nn {#1} { \__hit_declare_constant_ctex:w ##1 = ##1 = \q_stop } }
+\tl_new:N \l__hit_constant_key_tl
+\cs_generate_variant:Nn \prop_gput:Nnn { NVV }
+\cs_new_protected:Npn \__hit_declare_constant_ctex:w #1 = #2 = #3 \q_stop
+  {
+    \tl_set:Nx \l__hit_constant_key_tl { \tl_trim_spaces:n {#1} }
+    \tl_set:Nx \l__hit_constant_target_tl { \tl_trim_spaces:n {#2} }
+    \prop_gput:NVV \g__hit_constant_target_prop
+      \l__hit_constant_key_tl \l__hit_constant_target_tl
+    \exp_args:Nnx \keys_define:nn { hit / const }
+      {
+        \l__hit_constant_key_tl .code:n =
+          { \exp_not:N \__hit_constant_set_ctex:n { \exp_not:n {##1} } }
+      }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
 \cs_new_protected:Npn \hit@set@constant #1 { \keys_set:nn { hit / const } {#1} }
 %    \end{macrocode}
 % \end{macro}
