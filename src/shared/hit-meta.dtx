@@ -176,13 +176,54 @@
 % \cs{hit@set@constant} 把一张键值表灌进 \texttt{hit/const} 族。默认值与用户在导言区
 % 写的 \cs{hitsetup}\{const=\{…\}\} 走的是同一条路，区别只是先后：类文件末尾先设
 % 默认值，导言区后设的覆盖它。表是在 expl3 之外记号化的，取值里的空格照原样保留。
+%
+% \changes{v3.2a}{0000/00/00}{常量取值里可以用 \texttt{<键名>} 引用别的常量，
+%   不必再写内部宏名}
+% 有些取值要拼进别的常量。取值里写 \texttt{<键名>} 就行，尖括号里是手册上那个键名：
+% \begin{latex}
+% \hitsetup{ const = { cauthortitle = {<cxueweishort>士研究生} } }
+% \end{latex}
+% 替换发生在设值时（\texttt{<键名>} 换成对应的控制序列），取值仍发生在排版时，所以
+% 被引用的常量之后再改也跟得上。尖括号里只认小写字母与连字符，取值里真正的
+% \texttt{<} 不会被误伤；直接写 \cs{hit@}\meta{名} 的老写法照旧可用。
+%
+% 这样写还避开一个坑：\cs{hit@cxueweishort} 是控制字，后面必须留一个空格来终止它，
+% 那个空格不会排出来。照抄的人容易以为空格是版式的一部分。\texttt{<键名>} 后面没有
+% 控制字，空格就是空格。
 %    \begin{macrocode}
 \str_new:N \l__hit_constant_name_str
+\tl_new:N \l__hit_constant_value_tl
+\tl_new:N \l__hit_reference_tl
+\seq_new:N \l__hit_reference_seq
+\cs_generate_variant:Nn \tl_replace_all:Nnn { Nnx }
+\cs_generate_variant:Nn \regex_extract_all:nnN { nVN }
+\cs_new_protected:Npn \__hit_key_to_macro_name:n #1
+  {
+    \str_set:Nn \l__hit_constant_name_str {#1}
+    \str_replace_all:Nnn \l__hit_constant_name_str { - } { @ }
+  }
+\cs_generate_variant:Nn \__hit_key_to_macro_name:n { V }
+\cs_new_protected:Npn \__hit_expand_references:N #1
+  {
+    \regex_extract_all:nVN { < [a-z\-]+ > } #1 \l__hit_reference_seq
+    \seq_remove_duplicates:N \l__hit_reference_seq
+    \seq_map_inline:Nn \l__hit_reference_seq
+      {
+        \tl_set:Nn \l__hit_reference_tl {##1}
+        \tl_remove_all:Nn \l__hit_reference_tl { < }
+        \tl_remove_all:Nn \l__hit_reference_tl { > }
+        \__hit_key_to_macro_name:V \l__hit_reference_tl
+        \tl_replace_all:Nnx #1 {##1}
+          { \exp_not:c { hit@ \l__hit_constant_name_str } }
+      }
+  }
 \cs_new_protected:Npn \__hit_constant_set:n #1
   {
-    \str_set_eq:NN \l__hit_constant_name_str \l_keys_key_str
-    \str_replace_all:Nnn \l__hit_constant_name_str { - } { @ }
-    \cs_gset:cpx { hit@ \l__hit_constant_name_str } { \exp_not:n {#1} }
+    \tl_set:Nn \l__hit_constant_value_tl {#1}
+    \__hit_expand_references:N \l__hit_constant_value_tl
+    \__hit_key_to_macro_name:V \l_keys_key_str
+    \cs_gset:cpx { hit@ \l__hit_constant_name_str }
+      { \exp_not:V \l__hit_constant_value_tl }
   }
 \cs_new_protected:Npn \hit@declare@constant #1
   {
@@ -198,25 +239,25 @@
 \msg_new:nnn { hithesis } { renamed-option }
   {
     选项~#1~已改名，请写成~\iow_char:N \\ hitsetup{#2}。 \\
-    旧名将在~v4.1（2028~年主要版本）中移除。
+    旧名将在~v4.1（2027~年主要版本）中移除。
   }
 \msg_new:nnn { hithesis } { flat-info }
   {
     元信息字段的扁平写法已不推荐，例如~\iow_char:N \\ hitsetup{#1~=~...}， \\
     请改写成~\iow_char:N \\ hitsetup{info~=~{#1~=~...}}。 \\
-    扁平写法将在~v4.1（2028~年主要版本）中移除。
+    扁平写法将在~v4.1（2027~年主要版本）中移除。
   }
 \msg_new:nnn { hithesis } { style-in-classoptions }
   {
     排版选项~#1~不该写在~\iow_char:N \\ documentclass~的可选参数里， \\
     请改用~\iow_char:N \\ hitsetup。 \\
-    在类选项里指定的支持将在~v4.1（2028~年主要版本）中移除。
+    在类选项里指定的支持将在~v4.1（2027~年主要版本）中移除。
   }
 \msg_new:nnn { hithesis } { deprecated-ntheorem }
   {
     \iow_char:N \\ #1~是~ntheorem~的命令，模板已改用~thmtools。 \\
     请改写成~\iow_char:N \\ hitsetup{theorem~=~{#2~=~...}}。 \\
-    兼容写法将在~v4.1（2028~年主要版本）中移除。
+    兼容写法将在~v4.1（2027~年主要版本）中移除。
   }
 \msg_new:nnn { hithesis } { removed-ntheorem }
   {
