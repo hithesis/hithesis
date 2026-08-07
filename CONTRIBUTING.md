@@ -408,9 +408,10 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 
 三种情况例外：
 
-- **接管第三方定义时**，用 `\hit@original@X` 保存 `\X`，`X` 照抄原名，这样一眼看出
-  接管的是谁：`\hit@original@makefnmark`、`\hit@original@LT@array`、
-  `\hit@original@def@NAT@last@yr`。
+- **接管第三方定义时**，用 `\hit@original@…` 保存原定义，后半截照样写全称，别抄内核
+  的缩写：存 `\@makefnmark` 的叫 `\hit@original@make@footnote@mark`，存 `\LT@array`
+  的叫 `\hit@original@longtable@array`，存 `\def@NAT@last@yr` 的叫
+  `\hit@original@natbib@last@year`。存的是谁，写在紧跟的注释里。
 - **标志位对应用户选项时**，名字跟着选项键走，别另起。`g__hit_arialtitle_bool` 对
   选项 `arialtitle`，改成别的反而断了对应关系。选择型选项的标志位是
   `g__hit_<键名>_<取值>_bool`，前缀必须与键名一致。
