@@ -26,7 +26,7 @@
 ```sh
 BASE=examples/hitbook/chinese          # 取哪个 example 目录作模板
 OPTIONS=fontset=fandol,type=bachelor,campus=harbin   # 替换进 \documentclass[...] 的选项
-CLS=hithesisbook                       # 文档类名
+CLS=hit-thesis                         # 文档类名
 ENTRY=thesis.tex                       # 主文件，默认 thesis.tex
 BIBSTYLE=hitszthesis                    # 可选，替换掉整棵树里的 \bibliographystyle
 ```
@@ -35,9 +35,12 @@ BIBSTYLE=hitszthesis                    # 可选，替换掉整棵树里的 \bib
 `\documentclass`，再用 `latexmk -xelatex` 编译。
 
 变体 42 与 43 是同一份文档的两种写法：42 走 `hithesisartplus` 空壳，43 走
-`hithesisart` 加三个选项。深圳博士中期 v3.2a 从独立文档类并回 `hithesisart`，
-两者的 PDF 必须逐字节相同，空壳一断就会在这里露出来。空壳在 v4.1 移除，
+`hit-report` 加三个选项。深圳博士中期 v3.2a 从独立文档类并回报告类，
+两者的 PDF 必须逐字节相同，空壳一断就会在这里露出来。空壳在 v4.1a 移除，
 届时删掉 42。
+
+另外两个空壳 `hithesisbook` 与 `hithesisart` 走 `testfiles/23`、`testfiles/24`，
+那边比变体便宜，只钉转发结果。
 
 要加新组合，往 `tests/variants/` 里丢一个 `.conf` 就行，别处不用改。
 

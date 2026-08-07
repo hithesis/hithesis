@@ -13,7 +13,7 @@ REPORTCONTENTS=$(REPORTMAIN).tex front/*.tex body/*.tex $(FIGURES)
 # NOTE: update this to reflect your local file types.
 FIGURES=$(wildcard figures/*.eps figures/*.pdf)
 BIBFILE=*.bib
-CLSFILES=$(PACKAGE)art.cls $(PACKAGE)artplus.cls *.bst
+CLSFILES=hit-report.cls $(PACKAGE)art.cls $(PACKAGE)artplus.cls *.bst
 
 # make deletion work on Windows
 ifdef SystemRoot

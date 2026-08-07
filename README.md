@@ -277,7 +277,7 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
      这条命令只把生成物放在当前目录。示例目录是独立可用的，要把用到的那份类文件、
      配置文件、`.bst` 与 `.eps` 复制过去，例如：
 
-         cp hithesisbook.cls hithesis.ist hithesis.bst \
+         cp hit-thesis.cls hithesis.ist hithesis.bst \
             hitszthesis.bst *.eps examples/hitbook/chinese/
          cp golfer.eps examples/hitbook/chinese/figures/
 

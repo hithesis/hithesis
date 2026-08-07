@@ -178,13 +178,20 @@ def find_template_root(extracted: Path) -> Path | None:
     return wrapped[0] if len(wrapped) == 1 else None
 
 
+
+def _book_cls_exists(root) -> bool:
+    """学位论文类文件在不在。v3.2a 起叫 hit-thesis.cls，之前叫 hithesisbook.cls。"""
+    d = root / "examples" / "hitbook" / "chinese"
+    return (d / "hit-thesis.cls").exists() or (d / "hithesisbook.cls").exists()
+
 def ensure_generated_files(root: Path) -> bool:
     """源码存档里没有生成好的 .cls，得先生成一遍。
 
     走 make cls 而不是直接 latex hithesis.ins：模块化之后 docstrip 要往
     modules/ 之类的目录里写文件，而它不会自己建目录，建目录那步在 Makefile 里。
     """
-    if (root / "examples" / "hitbook" / "chinese" / "hithesisbook.cls").exists():
+    # 参照版本可能早于类改名，两个名字认哪个都算生成过
+    if _book_cls_exists(root):
         return True
     if not (root / "hithesis.ins").exists():
         print(f"{root} 里既没有生成好的 cls，也没有 hithesis.ins，当不了参照")
@@ -195,7 +202,7 @@ def ensure_generated_files(root: Path) -> bool:
         ["make", "cls"],
         cwd=root, capture_output=True, text=True,
     )
-    if not (root / "examples" / "hitbook" / "chinese" / "hithesisbook.cls").exists():
+    if not _book_cls_exists(root):
         print("生成失败：\n" + "\n".join(result.stdout.strip().splitlines()[-15:]))
         return False
     return True

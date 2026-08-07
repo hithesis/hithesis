@@ -10,8 +10,8 @@
 hithesis/
 ├── src/
 │   ├── hithesis.dtx            <- 入口：driver、三类共用的文件头、索引样式、dtx-style
-│   ├── hit-thesis.dtx          <- 毕业论文类 hithesisbook
-│   ├── hit-report.dtx          <- 开题中期类 hithesisart（含深圳博士中期）
+│   ├── hit-thesis.dtx          <- 学位论文类 hit-thesis
+│   ├── hit-report.dtx          <- 开题中期类 hit-report（含深圳博士中期）
 │   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
 │   ├── hit-doc.dtx             <- 用户手册
 │   ├── hit-eps.dtx             <- EPS 图像数据（校徽、封面、示例插图）
@@ -182,7 +182,7 @@ src/
 
 各个 cls 的版式代码物理隔离，由各自的 `<类>-*` 模块承载。当前是两个：`thesis-*` 在 `src/hit-thesis.dtx`，`report-*` 在 `src/hit-report.dtx`。每个类对应一套学校规范，各自演化，碰巧相似的版式不要合并，规范一独立变动就会变成维护负担。新增一个类就是新增一个 `hit-<名>.dtx` 加一组 `<名>-*` 模块。
 
-反过来，同一套规范下的分支不要单开一个类。深圳博士中期原先是 `hithesisartplus`，与 `hithesisart` 九成代码逐字相同，差的只有封面、页眉、节标题、正文行距四处；v3.2a 并回 `report-*`，由 `campus=shenzhen,type=doctor,stage=midterm` 三个选项选中，与其余十七格并列。判断标准是差异在哪一层：规范不同才分类，版式不同就加分支。
+反过来，同一套规范下的分支不要单开一个类。深圳博士中期原先是 `hithesisartplus`，与 `hithesisart`（今 `hit-report`）九成代码逐字相同，差的只有封面、页眉、节标题、正文行距四处；v3.2a 并回 `report-*`，由 `campus=shenzhen,type=doctor,stage=midterm` 三个选项选中，与其余十七格并列。判断标准是差异在哪一层：规范不同才分类，版式不同就加分支。
 
 底层机制是另一回事。字号、数学、表格、脚注这些各套规范要求一致的东西，共用一份放在 `src/utils/hit-*.dtx`，守卫叫 `shared-*`：
 
