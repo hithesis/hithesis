@@ -309,14 +309,18 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 | `\hit@if@option@TF{flag}{真}{假}` | 按标志位二选一 |
 | `\hit@if@option@T{flag}{真}` | 只有真分支 |
 | `\hit@if@both@options@TF{f1}{f2}{真}{假}` | 两个标志位同时成立 |
-| `\hit@iffontset{名字}{真}{假}` | 比对 `fontset` |
 | `\hit@if@not@empty@T\宏{真}` | 宏非空时执行 |
 | `\hit@if@wider@TF{长度}{阈值}{真}{假}` | 比长度 |
 | `\hit@if@greater@T{整数}{阈值}{真}` | 比整数 |
+| `\hit@if@same@TF{甲}{乙}{真}{假}` | 展开后比字符串 |
 | `\hit@glue@skip{基准}{伸缩}` | `style/glue` 决定要不要给伸缩量 |
+| `\hit@glue@font@size{字号}{行距}{伸缩}` | 同上，用于 `\fontsize` |
 
-另有若干针对具体组合的具名函数（`\hit@if@harbin@master@or@doctor@or@shenzhen@master`、`\hit@if@harbin@master@opening@or@midterm` 等），
-命名规律是校区加学位加阶段。
+这批定义在 `src/shared/hit-options.dtx`，各个类共用。
+
+另有若干针对具体组合的具名函数，由 `\hit@define@condition{名}{布尔表达式}` 生成，
+名字读下来就是条件本身：`\hit@if@harbin@master@or@doctor@or@shenzhen@master`、
+`\hit@if@harbin@master@opening@or@midterm`。末尾带 `@TF` 的要给两个分支。
 
 已迁移：`thesis-geometry`、`report-geometry`、`thesis-mainmatter`、`report-chapter`、
 `report-pagestyle`、`report-toc`、`thesis-toc`、`thesis-pagestyle`、`report-floats`、`thesis-deps-c`、
@@ -396,6 +400,21 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 命名向 fduthesis 与 BIThesis 看齐：内部函数 `\__hit_模块_动作:参数签名`，变量
 `\g__hit_描述_类型` / `\l__hit_描述_类型`。等有成规模的 expl3 代码之后再引入
 `l3docstrip` 的 `%<@@=hit>` 前缀替换，那之前先写全名。
+
+**底层名字一律写全称，不缩写。** 长一点没关系，看不懂才要命。`caption@separator`
+不写 `capsep`，`page@number@main` 不写 `pagenum@main`，`theorem` 不写 `thm`，
+连 `or` 这样的虚词也留着。分隔符：`\hit@…` 这层用 `@`（控制序列里不能有连字符，
+`-` 是 catcode 12，控制词读到就断），expl3 那层用 `_`。
+
+三种情况例外：
+
+- **接管第三方定义时**，用 `\hit@original@X` 保存 `\X`，`X` 照抄原名，这样一眼看出
+  接管的是谁：`\hit@original@makefnmark`、`\hit@original@LT@array`、
+  `\hit@original@def@NAT@last@yr`。
+- **标志位对应用户选项时**，名字跟着选项键走，别另起。`g__hit_arialtitle_bool` 对
+  选项 `arialtitle`，改成别的反而断了对应关系。选择型选项的标志位是
+  `g__hit_<键名>_<取值>_bool`，前缀必须与键名一致。
+- **拼音名**（`cxueke`、`ziju` 这些）暂时保留，等元信息字段那轮统一处理。
 
 ## 5. 新增模块的步骤
 
