@@ -175,7 +175,7 @@ cd examples/hitart/reports  && make report
 | `hit-math.dtx` | amsmath/thmtools、定理环境、`eqdenote` |
 | `hit-table.dtx` | 长表格字号 |
 | `hit-footnote.dtx` | 带圈脚注号与脚注版式 |
-| `hit-publist.dtx` | `publist` 列表 |
+| `hit-list.dtx` | `enumitem` 加载、列表间距、`publist` |
 | `hit-meta.dtx` | `\hitsetup` 的键机制与旧名兼容 |
 | `hit-hyperlink.dtx` | hyperref 配置（书签、链接边框、url 字体） |
 | `hit-title.dtx` | `title` 键的解析与三种取用 |
