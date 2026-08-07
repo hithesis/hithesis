@@ -1,0 +1,137 @@
+% \iffalse meta-comment
+%
+% hit-caption.dtx 是各个类共用的双语题注
+%
+% \fi
+%
+% \section{共享双语题注}
+%
+% \changes{v3.2a}{0000/00/00}{双语题注抽出来给各个类共用，原先每个类各写一遍}
+% \changes{v3.2a}{0000/00/00}{英文题注改成 \cs{caption} 的尾随可选参数，
+%   \cs{bicaption} 降为兼容写法}
+% 中英文对照的题注原先要换一个命令 \cs{bicaption}，用户得记住「这张图要不要双语」
+% 并挑命令。现在写法只有一个：
+% \begin{latex}
+% \caption{中文题}
+% \caption{中文题}[English caption]
+% \caption[目录用短标题]{中文题}[English caption]
+% \end{latex}
+% 给了尾随的 \oarg{英文题} 就排双语，不给就单语。目录用的短标题仍是 \cs{caption}
+% 原本那个前置可选参数，两者位置不同，不会混。
+%
+% 要不要排双语还受 \option{style/bilingual-caption} 管，默认 \texttt{auto}，即
+% 「给了英文题就排」。写死 \texttt{false} 时英文题一概不排，同一份稿子投不同用途
+% 时不必逐条删。它是三态键，也能按学位分别指定。
+%
+% \cs{bicaption} 仍然可用：\pkg{ccaption} 的五参数原形与本模板之前的三、四参数写法
+% 都接得住，只是各提示一次，v4.1 移除。
+%
+%    \begin{macrocode}
+%<*shared-caption>
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@setup@caption}
+% 接管 \cs{caption} 要等到 \texttt{begindocument/end}。\pkg{caption}（由
+% \pkg{subcaption} 带进来）和 \pkg{ccaption} 都在 \cs{AtBeginDocument} 里重定义
+% \cs{caption}，在类文件里接管会被它们覆盖掉——踩过一次，接管看似成功，
+% \cs{meaning}\cs{caption} 到了正文里已经是 \pkg{caption} 的定义了。
+% \texttt{begindocument/end} 排在所有 \cs{AtBeginDocument} 之后。
+%
+% \cs{\_\_hit\_bicaption:w} 存的是 \pkg{ccaption} 的原形，这个在类文件里存就行；
+% \cs{hit@original@caption} 存的是接管前那条完整的 \cs{caption} 链。
+%    \begin{macrocode}
+\tl_new:N \g__hit_bilingual_caption_tl
+\tl_gset:Nn \g__hit_bilingual_caption_tl { auto }
+\keys_define:nn { hit / style }
+  {
+    bilingual-caption .code:n =
+      { \__hit_tristate_set:Nn \g__hit_bilingual_caption_tl {#1} } ,
+    bilingual-caption .default:n = { true } ,
+  }
+\msg_new:nnn { hithesis } { bicaption-deprecated }
+  {
+    \iow_char:N \\ bicaption~已不推荐，英文题注改成~\iow_char:N \\ caption~的
+    尾随可选参数： \\
+    \iow_char:N \\ caption{中文题}[English~caption]。 \\
+    旧写法将在~v4.1（2027~年主要版本）中移除。
+  }
+\msg_new:nnn { hithesis } { bicaption-five-args }
+  {
+    \iow_char:N \\ bicaption~的五参数写法已不推荐。 \\
+    英文图表名请改用~\iow_char:N \\ hitsetup{const={figure-prefix-en=...}}~设置，
+    题注写成~\iow_char:N \\ caption{中文题}[English~caption]。 \\
+    旧写法将在~v4.1（2027~年主要版本）中移除。
+  }
+%    \end{macrocode}
+%
+% 排双语题注：走 \pkg{ccaption} 的原形，英文图表名取 \option{const} 族里的
+% \option{figure-prefix-en} 与 \option{table-prefix-en}，用户不必每次手写
+% \texttt{Fig.} 加负细空格去抵 \cs{fnum@figure} 插的那个空格。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bilingual@caption #1#2#3
+  {
+    \tl_if_novalue:nTF {#1}
+      { \__hit_bicaption:w {} {#2} { \use:c { hit@ \@captype @prefix@en } } {#3} }
+      { \__hit_bicaption:w [#1] {} {#2} { \use:c { hit@ \@captype @prefix@en } } {#3} }
+  }
+\cs_new_protected:Npn \hit@single@caption #1#2
+  {
+    \tl_if_novalue:nTF {#1}
+      { \hit@original@caption {#2} }
+      { \hit@original@caption [#1] {#2} }
+  }
+%    \end{macrocode}
+%
+% \cs{caption} 的接管。给了尾随的英文题、并且开关没关死，才走双语。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@caption
+  {
+    \cs_set_eq:NN \__hit_bicaption:w \bicaption
+    \AddToHook { begindocument/end }
+      {
+    \cs_set_eq:NN \hit@original@caption \caption
+    \RenewDocumentCommand \caption { o +m o }
+      {
+        \IfNoValueTF {##3}
+          { \hit@single@caption {##1} {##2} }
+          {
+            \__hit_tristate_if:NnTF \g__hit_bilingual_caption_tl { \c_true_bool }
+              { \hit@bilingual@caption {##1} {##2} {##3} }
+              { \hit@single@caption {##1} {##2} }
+          }
+      }
+%    \end{macrocode}
+%
+% \cs{bicaption} 的兼容层。三种写法靠「后面还跟不跟一个花括号组」区分：跟着的是
+% \pkg{ccaption} 的五参数原形，抓走那一组照原形排；不跟就是本模板之前的三、四参数
+% 写法。探之前先跳空格，与 \cs{@ifnextchar} 的惯例一致——旧示例里那五个参数是连着
+% 写的，但用户可能换了行。题注后面正常不会紧跟花括号组。
+%    \begin{macrocode}
+    \RenewDocumentCommand \bicaption { o +m +m +g }
+      {
+        \peek_meaning_ignore_spaces:NTF \c_group_begin_token
+          { \__hit_bicaption_legacy:nnnn {##1} {##2} {##3} {##4} }
+          {
+            \msg_warning:nn { hithesis } { bicaption-deprecated }
+            \IfNoValueTF {##4}
+              { \hit@bilingual@caption {##1} {##2} {##3} }
+              { \hit@bilingual@caption {##1} {##3} {##4} }
+          }
+      }
+      }
+  }
+\cs_new_protected:Npn \__hit_bicaption_legacy:nnnn #1#2#3#4#5
+  {
+    \msg_warning:nn { hithesis } { bicaption-five-args }
+    \tl_if_novalue:nTF {#1}
+      { \__hit_bicaption:w {#2} {#3} {#4} {#5} }
+      { \__hit_bicaption:w [#1] {#2} {#3} {#4} {#5} }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+%</shared-caption>
+%    \end{macrocode}
+%
+% \Finale
