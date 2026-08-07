@@ -1,6 +1,6 @@
 #!/bin/bash
 # 编译定理专项测试。用法：bash tools/compile-theorem.sh [输出目录]
-# 认 LANG_OPT 环境变量，例如 LANG_OPT=language=english
+# 认 LANG_OPT 环境变量，例如 LANG_OPT=lang=en
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 OUT=${1:-$ROOT/tests/work/theorem}

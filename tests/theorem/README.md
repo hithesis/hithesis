@@ -11,6 +11,6 @@
 跑法：
 
     bash tools/compile-theorem.sh            # 中文
-    LANG_OPT=language=english bash tools/compile-theorem.sh
+    LANG_OPT=lang=en bash tools/compile-theorem.sh
 
 换实现前后各跑一遍，`cmp` 两个 PDF。
