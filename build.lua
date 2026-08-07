@@ -52,12 +52,12 @@ unpackopts  = "-interaction=nonstopmode"
 -- hithesis.sty 是空壳，给导言区还写着 \usepackage{hithesis} 的老文档兜底，
 -- 一并分发：老文档多半就是照着示例目录改出来的。
 local BOOKFILES = {
-  "hithesisbook.cls", "hithesis.sty", "hithesis.bst", "hitszthesis.bst",
+  "hithesisbook.cls", "hithesis-compat.sty", "hithesis.bst", "hitszthesis.bst",
   "hitlogo.eps", "bthesistitle.eps", "shenzhenbthesistitle.eps", "zfb.eps",
   "hrb-bachelor-bottommark.eps",
 }
 local ARTFILES = {
-  "hithesisart.cls", "hithesis.sty", "hithesis.bst", "hitszthesis.bst",
+  "hithesisart.cls", "hithesis-compat.sty", "hithesis.bst", "hitszthesis.bst",
   "hitlogo.eps", "bthesistitle.eps", "zfb.eps",
 }
 
@@ -97,7 +97,7 @@ local function distribute()
   if one("hithesis.ist", "examples/hitbook/chinese") ~= 0 then return 1 end
   if put(ARTFILES, "examples/hitart/reports") ~= 0 then return 1 end
   if one("hrb-bachelor-bottommark.eps", "examples/hitart/reports") ~= 0 then return 1 end
-  if put({"hithesisartplus.cls", "hithesis.sty", "hithesis.bst",
+  if put({"hithesisartplus.cls", "hithesis-compat.sty", "hithesis.bst",
           "hitszthesis.bst", "hitlogo.eps", "bthesistitle.eps", "zfb.eps"},
          "examples/hitart/reportplus") ~= 0 then return 1 end
   return 0
