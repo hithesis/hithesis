@@ -44,10 +44,12 @@ $(TARGETS): $(SOURCES)
 #
 # build.lua 里的 distribute 目标有一份等价实现，给不装 make 的平台用（CI 的
 # macOS/Windows 任务走那条）。改动下面的清单时两边都要改。
-BOOKFILES = $(PACKAGE)book.cls $(PACKAGE).bst hitszthesis.bst \
+# hithesis.sty 是空壳，给导言区还写着 \usepackage{hithesis} 的老文档兜底，
+# 一并分发到示例目录：老文档多半就是照着示例目录改出来的。
+BOOKFILES = $(PACKAGE)book.cls $(PACKAGE).sty $(PACKAGE).bst hitszthesis.bst \
             hitlogo.eps bthesistitle.eps shenzhenbthesistitle.eps zfb.eps \
             hrb-bachelor-bottommark.eps
-ARTFILES  = $(PACKAGE)art.cls $(PACKAGE).bst hitszthesis.bst \
+ARTFILES  = $(PACKAGE)art.cls $(PACKAGE).sty $(PACKAGE).bst hitszthesis.bst \
             hitlogo.eps bthesistitle.eps zfb.eps
 
 distribute:
@@ -57,7 +59,7 @@ distribute:
 	@cp $(PACKAGE).ist examples/hitbook/chinese/
 	@cp $(ARTFILES) hrb-bachelor-bottommark.eps examples/hitart/reports/
 	@mkdir -p examples/hitart/reports/figures && cp golfer.eps examples/hitart/reports/figures/
-	@cp $(PACKAGE)artplus.cls $(PACKAGE).bst hitszthesis.bst \
+	@cp $(PACKAGE)artplus.cls $(PACKAGE).sty $(PACKAGE).bst hitszthesis.bst \
 	    hitlogo.eps bthesistitle.eps zfb.eps examples/hitart/reportplus/
 	@mkdir -p examples/hitart/reportplus/figures && cp golfer.eps examples/hitart/reportplus/figures/
 

@@ -49,13 +49,15 @@ unpackopts  = "-interaction=nonstopmode"
 -- 用 Lua 而不是 shell，是为了 macOS/Windows 上不装 make 也能跑。Makefile 里的
 -- distribute 目标是等价实现，两边的文件清单要一起改。没让 Makefile 直接转调
 -- 这里，是因为 l3build 不在 scheme-minimal 里，那样会把它变成 make 的硬依赖。
+-- hithesis.sty 是空壳，给导言区还写着 \usepackage{hithesis} 的老文档兜底，
+-- 一并分发：老文档多半就是照着示例目录改出来的。
 local BOOKFILES = {
-  "hithesisbook.cls", "hithesis.bst", "hitszthesis.bst",
+  "hithesisbook.cls", "hithesis.sty", "hithesis.bst", "hitszthesis.bst",
   "hitlogo.eps", "bthesistitle.eps", "shenzhenbthesistitle.eps", "zfb.eps",
   "hrb-bachelor-bottommark.eps",
 }
 local ARTFILES = {
-  "hithesisart.cls", "hithesis.bst", "hitszthesis.bst",
+  "hithesisart.cls", "hithesis.sty", "hithesis.bst", "hitszthesis.bst",
   "hitlogo.eps", "bthesistitle.eps", "zfb.eps",
 }
 
@@ -95,7 +97,7 @@ local function distribute()
   if one("hithesis.ist", "examples/hitbook/chinese") ~= 0 then return 1 end
   if put(ARTFILES, "examples/hitart/reports") ~= 0 then return 1 end
   if one("hrb-bachelor-bottommark.eps", "examples/hitart/reports") ~= 0 then return 1 end
-  if put({"hithesisartplus.cls", "hithesis.bst",
+  if put({"hithesisartplus.cls", "hithesis.sty", "hithesis.bst",
           "hitszthesis.bst", "hitlogo.eps", "bthesistitle.eps", "zfb.eps"},
          "examples/hitart/reportplus") ~= 0 then return 1 end
   return 0
