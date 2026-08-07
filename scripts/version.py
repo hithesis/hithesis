@@ -13,7 +13,7 @@
    否则右边的图形会错位。手册用 ``\\lstinputlisting`` 把示例源码贴进正文，这一处
    同时就是手册里的展示，示例改完跑 ``make doc`` 即可。
 
-``\\changes`` 条目里的版本号与正文里「v3.2a 起……」这类叙述不在同步范围内：前者
+``\\changes`` 条目里的版本号与正文里“v3.2a 起……”这类叙述不在同步范围内：前者
 是历史记录，后者说的是某项改动发生在哪一版，都不该跟着走。
 
 用法::
@@ -72,7 +72,7 @@ def read(path: Path) -> tuple[bytes, str]:
 
 
 def collect() -> dict[str, list[tuple[str, str]]]:
-    """收集各处的版本号，返回 {版本: [(文件, 出处)]}。"""
+    """收集各处的版本号。返回的字典以版本号为键，值是“文件与出处”的列表。"""
     found: dict[str, list[tuple[str, str]]] = {}
 
     def note(ver: str, where: str) -> None:

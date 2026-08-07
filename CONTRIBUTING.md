@@ -173,9 +173,9 @@ cd examples/hitart/reports  && make report
 | `hit-publist.dtx` | `publist` 列表 |
 | `hit-meta.dtx` | `\hitsetup` 的键机制与旧名兼容 |
 
-判断标准是「各套规范会不会分开改」。会分开改的（封面、页眉、章节标题、目录）留在各自的类文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `shared/`。
+判断标准是“各套规范会不会分开改”。会分开改的（封面、页眉、章节标题、目录）留在各自的类文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `shared/`。
 
-共享层的写法与类模块不同：文件里只放定义，需要在特定时机执行的部分包成 `\hit@setup@<名>`，由各个类在原来那段代码所在的位置调用。这样共享之后生成物的执行顺序不变，能用「生成的 cls 逐字节不变」来验收。
+共享层的写法与类模块不同：文件里只放定义，需要在特定时机执行的部分包成 `\hit@setup@<名>`，由各个类在原来那段代码所在的位置调用。这样共享之后生成物的执行顺序不变，能用“生成的 cls 逐字节不变”来验收。
 
 例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hit-eps.dtx` 也跨类共享，但它们不走 `shared/`，因为不是拼进 cls 的模块。
 
@@ -183,7 +183,7 @@ cd examples/hitart/reports  && make report
 
 模块名要能反映它唯一的职责：
 
-模块名的形式是「类-职责」，类的前缀是 `thesis` / `report` / `szmidterm` / `shared`：
+模块名的形式是“类-职责”，类的前缀是 `thesis` / `report` / `szmidterm` / `shared`：
 
 - √ `thesis-chapter` 只管毕业论文的章节标题格式
 - √ `thesis-bib` 只管毕业论文的参考文献加载与样式
@@ -361,7 +361,7 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 在模块顶层定义成具名函数，宏体里只写函数名。
 
 分支里带 `#1` 的，别用 `\newcommand` 把它包成宏——那样 `#` 要加倍，漏了就是
-「Illegal parameter number」。当成 `\hit@if@option@TF` 的参数传进去就没这个问题，参数里的
+“Illegal parameter number”。当成 `\hit@if@option@TF` 的参数传进去就没这个问题，参数里的
 `#` 原样通过。
 
 判断分支末尾的空格按同一条规则数：以控制字结尾的分支，后面的空格被跳过；
@@ -617,7 +617,7 @@ make version-set VERSION=3.2b DATE=2026/08/07
 
 横幅是等宽 ASCII 画，左边距是手工对齐过的（两行文字起点在同一列），脚本只补右边的空白，不重新居中，右边的图形不会错位。版本号等长时（3.2a → 3.2b）一个字符都不动。
 
-`\changes` 条目里的版本号与正文里「v3.2a 起……」这类叙述**不在同步范围**：前者是历史记录，后者说的是某项改动发生在哪一版。
+`\changes` 条目里的版本号与正文里“v3.2a 起……”这类叙述**不在同步范围**：前者是历史记录，后者说的是某项改动发生在哪一版。
 
 发版顺序：`make version-set` 定版本 → `scripts/changes.py --stamp` 填 changes 的日期 → 打 tag。
 

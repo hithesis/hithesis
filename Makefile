@@ -158,6 +158,10 @@ doclint:
 punct:
 	@python3 scripts/fix-punct.py
 
+# CI 门禁：有可改之处就退出码 1
+punct-check:
+	@python3 scripts/fix-punct.py --check
+
 punct-fix:
 	@python3 scripts/fix-punct.py --fix
 
