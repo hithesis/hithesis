@@ -32,6 +32,39 @@
 %    \begin{macrocode}
 \msg_new:nnn { hithesis } { bad-option-value }
   { 选项~#1~不接受取值~#2。 }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{基础类加载之后再遇到不认识的键就报警告，
+%   不再默默传给基础类}
+% \texttt{hit/class} 族认不出的键有两种来路。基础类还没加载时，那是写在
+% \cs{documentclass} 里给基础类的选项（\option{oneside} 这类），照旧传过去。
+% 基础类加载完之后再出现，只可能是 \cs{hitsetup} 里拼错了键名——这时传给基础类
+% 等于扔掉，所以改成报一条警告。带连字符的键名有一百多个，打错是迟早的事，
+% 静默丢值最难查。
+%    \begin{macrocode}
+\bool_new:N \g__hit_base_class_loaded_bool
+\msg_new:nnn { hithesis } { unknown-key }
+  {
+    不认识的键~#1，已忽略。 \\
+    检查拼写，键名清单见手册。
+  }
+\cs_generate_variant:Nn \msg_warning:nnn { nnV }
+\cs_new_protected:Npn \hit@pass@or@warn #1#2
+  {
+    \bool_if:NTF \g__hit_base_class_loaded_bool
+      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str }
+      {
+        \tl_if_empty:nTF {#2}
+          { \exp_args:NV \PassOptionsToClass \l_keys_key_str {#1} }
+          {
+            \use:x
+              {
+                \exp_not:N \PassOptionsToClass
+                  { \l_keys_key_str = \exp_not:n {#2} } {#1}
+              }
+          }
+      }
+  }
 \cs_new_protected:Npn \hit@declare@boolean@option #1#2
   {
     \bool_new:c { g__hit_#1_bool }
