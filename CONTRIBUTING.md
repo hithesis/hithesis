@@ -94,6 +94,11 @@ l3build save 08-xxx    # 生成 testfiles/08-xxx.tlg
 l3build check          # 确认全绿
 ```
 
+`support/` 放测试夹具，`checksuppfiles` 列出的文件会在检查时拷进测试目录。现在只有
+一份 `hithesis.sty`——假冒的旧版宏包，用来验证类文件里那条重定向确实挡住了它
+（见 `testfiles/21-legacy-document.lvt`）。它是源文件不是产物，`.gitignore` 里为它
+开了例外。
+
 `l3build save` 生成的基线**必须逐行读一遍再提交**。它只是把当前行为拍下来，行为
 本来就是错的它照样存；漏写 `\makeatletter` 之类的失误也会被原样固化成基线。
 

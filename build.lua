@@ -29,6 +29,10 @@ typesetfiles = {"hithesis.dtx"}
 typesetexe   = "xelatex"
 unpackexe    = "latex"
 
+-- support/hithesis.sty 是假冒的旧版宏包，检查时拷进测试目录，用来验证类文件里
+-- 那条重定向确实挡住了它。见 testfiles/21-legacy-document.lvt。
+checksuppfiles = {"hithesis.sty"}
+
 checkengines = {"xetex"}
 stdengine    = "xetex"
 
