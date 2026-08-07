@@ -180,6 +180,7 @@ cd examples/hitart/reports  && make report
 | `hit-hyperlink.dtx` | hyperref 配置（书签、链接边框、url 字体） |
 | `hit-title.dtx` | `title` 键的解析与三种取用 |
 | `hit-caption.dtx` | 双语题注（`\caption{中}[英]`）与 `\bicaption` 兼容 |
+| `hit-subfigure.dtx` | `\subfigure` 兼容层，整个文件到 v4.1 可删 |
 | `hit-options.dtx` | 选项声明助手与读标志位的判断函数 |
 
 判断标准是“各套规范会不会分开改”。会分开改的（封面、页眉、章节标题、目录）留在各自的类文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `shared/`。
