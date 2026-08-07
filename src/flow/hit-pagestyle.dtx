@@ -1,0 +1,261 @@
+% \iffalse meta-comment
+%
+% hit-pagestyle.dtx 是页眉与页脚
+%
+% \fi
+%
+% \section{页眉与页脚}
+%
+% ^^A ======================================================================
+% ^^A Module thesis-pagestyle: 页眉页脚样式（fancyhdr 配置）（hit-thesis）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*thesis-pagestyle>
+% \changes{v3.2a}{0000/00/00}{pagestyle 模块抽取后，fancyhdr 需提前加载}
+% \changes{v3.2a}{0000/00/00}{book-pagestyle 的条件树改用 expl3。页眉横线与本科
+%   页脚这两块内容留在 expl3 之外定义成宏：它们的花括号后换行会产生一个空格
+%   记号，\cs{ExplSyntaxOn} 下会消失，见 CONTRIBUTING §4.6。}
+\RequirePackage{fancyhdr}
+\cs_set_eq:NN \hit@original@head@rule \headrule
+\fancypagestyle{hit@empty}{%
+  \fancyhf{}
+  \cs_set_eq:NN \headrule \hit@original@head@rule
+  \cs_set:Npn \headrulewidth {0pt}
+  \cs_set:Npn \footrulewidth {0pt}
+}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{schrb: 添加扫描PDF专用页面样式，只显示页码}
+%    \begin{macrocode}
+\fancypagestyle{hit@scanpage}{%
+  \fancyhf{}
+  \fancyfoot[C]{\xiaowu-\nobreakspace{}\thepage\nobreakspace{}-}
+  \cs_set_eq:NN \headrule \relax
+  \cs_set:Npn \headrulewidth {0pt}
+  \cs_set:Npn \footrulewidth {0pt}
+}
+%    \end{macrocode}
+%
+% 页眉那条粗细双线三处都一样，本科页脚的页码格式只此一处。两块都含花括号后
+% 换行产生的空格记号，所以留在 expl3 之外原样定义。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@thesis@head@rule
+  {
+    \cs_set:Npn \headrule
+      {
+        \vskip 1.190132pt
+        \hrule \@height 2.276208pt \@width \headwidth
+        \vskip 0.75pt
+        \hrule \@height .75pt \@width \headwidth
+      }
+  }
+\cs_new_protected:Npn \hit@page@number@plain { \thepage }
+\cs_new_protected:Npn \hit@page@number@decorated
+  {
+    \hit@if@option@TF{bachelor}%
+      {-\hspace{\hit@page@number@separator}\thepage\hspace{\hit@page@number@separator}-}%
+      {-\nobreakspace{}\thepage\nobreakspace{}-}%
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{页码装饰与页眉横线的开关改为三态，本科与非本科
+%   走同一套逻辑。装饰形式仍按学位区分：本科用 \cs{hspace}，其余用不断行空格。}
+% \option{pagenumberline} 的 \texttt{auto}：正文一律带装饰；前置部分除深圳与
+% 威海本科外都带。\option{headrule} 的 \texttt{auto} 一律为真。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@page@number@main
+  {
+    \__hit_tristate_if:NnTF \g__hit_page_number_line_main_tl { \c_true_bool }
+      { \hit@page@number@decorated } { \hit@page@number@plain }
+  }
+\cs_new_protected:Npn \hit@page@number@front
+  {
+    \__hit_tristate_if:NnTF \g__hit_page_number_line_front_tl
+      {
+        ! \bool_lazy_and_p:nn
+            { \bool_if_p:N \g__hit_bachelor_bool }
+            {
+              \bool_lazy_or_p:nn
+                { \bool_if_p:N \g__hit_shenzhen_bool }
+                { \bool_if_p:N \g__hit_weihai_bool }
+            }
+      }
+      { \hit@page@number@decorated } { \hit@page@number@plain }
+  }
+\cs_new_protected:Npn \hit@thesis@head@rule@setup
+  {
+    \__hit_tristate_if:NnTF \g__hit_head_rule_tl { \c_true_bool }
+      { \hit@thesis@head@rule } { \cs_set:Npn \headrulewidth { 0pt } }
+  }
+\cs_new_protected:Npn \hit@thesis@footer
+  {
+    \fancyfoot [C]
+      {
+        \xiaowu
+        \legacy_if:nTF { @mainmatter }
+          { \hit@page@number@main } { \hit@page@number@front }
+      }
+  }
+%    \end{macrocode}
+% 
+% \changes{v3.1d}{2025/03/03}{定义页脚中横线与页码的距离。\issue[172]}
+% 哈尔滨本科页脚的横线与页码的间距比原来的大，用判断来控制。
+%    \begin{macrocode}
+\skip_new:N \hit@page@number@separator
+\bool_lazy_and:nnTF
+  { \bool_if_p:N \g__hit_harbin_bool }
+  { \bool_if_p:N \g__hit_bachelor_bool }
+  { \dim_set:Nn \hit@page@number@separator { .3333333em } }
+  { \dim_set:Nn \hit@page@number@separator { .1666667em } }
+%    \end{macrocode}
+%
+% 此处根据本科生模板的多种版本，提供选项自定义页码、页眉样式。
+% \changes{v1.0.15}{2018/06/05}{添加控制本科论文的页码横线选项}
+% \changes{v1.0.15}{2018/06/05}{删除冗余的页面格式}
+% \changes{v3.0.0}{2020/05/21}{添加英文版页眉格式控制}
+% \changes{v3.0.0}{2020/05/21}{添加博后页眉控制}
+% \changes{v3.1b}{2022/06/06}{本部硕博页眉中不再包含学科。}
+% \changes{v3.1d}{2025/03/03}{根据 \issue[222] 修改深圳博士的页眉}
+% \changes{v3.0.10}{2020/10/28}{根据窝工2020年深圳校区新规定，mainmatter之前都用正文内容作为页眉，之后都用哈尔滨工业大学作为页眉}
+% \changes{v3.0.01}{2020/06/06}{此处设置威海本科页眉与本部一样}
+%    \begin{macrocode}
+\fancypagestyle { hit@headings }
+  {
+    \fancyhf { }
+    \bool_if:NTF \g__hit_en_bool
+      {
+        \fancyhead [ C ] { \xiaowu [ 0 ] \leftmark }
+        \fancyfoot [ C ] { \xiaowu - \nobreakspace \thepage \nobreakspace - }
+        \hit@thesis@head@rule
+      }
+      {
+        \bool_if:NT \g__hit_postdoc_bool
+          {
+            \fancyhead [ CO ] { \songti \xiaowu [ 0 ] \leftmark }
+            \fancyhead [ CE ]
+              { \songti \xiaowu [ 0 ] \hit@school@zh \hit@postdoc@report@zh }
+          }
+        \bool_if:NTF \g__hit_doctor_bool
+          {
+            \fancyhead [ CO ] { \songti \xiaowu [ 0 ] \leftmark }
+            \bool_if:NT \g__hit_harbin_bool
+              {
+                \fancyhead [ CE ]
+                  { \songti \xiaowu [ 0 ] \hit@school@zh \hit@degree@level@zh \hit@document@type@zh }
+              }
+            \bool_if:NT \g__hit_shenzhen_bool
+              {
+                \fancyhead [ CE ]
+                  {
+                    \songti \xiaowu [ 0 ] \hit@school@zh
+                    \hit@if@option@TF{doctor}{}{\hit@shenzhen@campus}
+                    \hit@degree@of@discipline@format@zh \hit@document@type@zh
+                  }
+              }
+            \bool_if:NT \g__hit_weihai_bool
+              {
+                \fancyhead [ CE ]
+                  {
+                    \songti \xiaowu [ 0 ] \hit@school@zh \hit@weihai@campus
+                    \hit@degree@of@discipline@format@zh \hit@document@type@zh
+                  }
+              }
+          }
+          {
+            \bool_if:NT \g__hit_master_bool
+              {
+                \bool_if:NT \g__hit_harbin_bool
+                  {
+                    \fancyhead [ C ]
+                      { \songti \xiaowu [ 0 ] \hit@school@zh \hit@degree@level@zh \hit@document@type@zh }
+                  }
+                \bool_if:NT \g__hit_shenzhen_bool
+                  {
+                    \legacy_if:nTF { @mainmatter }
+                      {
+                        \fancyhead [ C ]
+                          {
+                            \songti \xiaowu [ 0 ] \hit@school@zh \hit@degree@of@discipline@format@zh
+                            \hit@document@type@zh
+                          }
+                      }
+                      { \fancyhead [ C ] { \xiaowu [ 0 ] \leftmark } }
+                  }
+                \bool_if:NT \g__hit_weihai_bool
+                  {
+                    \fancyhead [ C ]
+                      {
+                        \songti \xiaowu [ 0 ] \hit@school@zh \hit@weihai@campus
+                        \hit@degree@of@discipline@format@zh \hit@document@type@zh
+                      }
+                  }
+              }
+          }
+        \bool_if:NTF \g__hit_bachelor_bool
+          {
+            \bool_if:NT \g__hit_harbin_bool
+              {
+                \fancyhead [ C ]
+                  {
+                    \songti \xiaowu [ 0 ] \hit@school@zh \hit@bachelor@degree@level@zh
+                    \hit@bachelor@document@type@zh
+                  }
+              }
+            \bool_if:NT \g__hit_shenzhen_bool
+              {
+                \fancyhead [ C ]
+                  {
+                    \songti \xiaowu [ 0 ] \hit@school@zh \hit@shenzhen@campus
+                    \hit@bachelor@degree@level@zh \hit@bachelor@document@type@zh
+                  }
+              }
+%    \end{macrocode}
+% 威海本科页眉与本部一样。里层这个 \option{bachelor} 判断在外层已经成立，
+% 恒取真支，保留是为了与改动前逐字对应。
+%    \begin{macrocode}
+            \bool_if:NT \g__hit_weihai_bool
+              {
+                \bool_if:NTF \g__hit_bachelor_bool
+                  {
+                    \fancyhead [ C ]
+                      {
+                        \songti \xiaowu [ 0 ] \hit@school@zh \hit@bachelor@degree@level@zh
+                        \hit@bachelor@document@type@zh
+                      }
+                  }
+                  {
+                    \fancyhead [ C ]
+                      {
+                        \songti \xiaowu [ 0 ] \hit@school@zh \hit@weihai@campus
+                        \hit@bachelor@degree@level@zh \hit@bachelor@document@type@zh
+                      }
+                  }
+              }
+            \hit@thesis@footer
+            \hit@thesis@head@rule@setup
+          }
+          {
+            \hit@thesis@footer
+            \hit@thesis@head@rule@setup
+          }
+      }
+    \cs_set:Npn \footrulewidth { 0pt }
+  }
+%    \end{macrocode}
+%
+% 此处解决页眉经典 bug。
+%
+% \changes{v3.2a}{0000/00/00}{\cs{ExplSyntaxOn} 从 \cs{AtBeginDocument} 的参数里
+%   挪到外面。写在参数里不生效，\cs{@mkboth} 的两个参数会带上花括号内的空格}
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_pagestyle_at_begin:
+  {
+    \pagestyle { hit@empty }
+    \RenewDocumentCommand \chaptermark { m }
+      { \@mkboth { \CTEXthechapter \enspace ##1 } { } }
+  }
+\AtBeginDocument { \__hit_pagestyle_at_begin: }
+%</thesis-pagestyle>
+%    \end{macrocode}
+%
+% \Finale

@@ -122,16 +122,31 @@ cd examples/hitart/reports  && make report
 
 ## 3. dtx 导航
 
+`src/` 按职责分四个目录：
+
+```
+src/
+  config/   各变体的配置，只有取值，不造轮子
+  utils/    小工具，各个类共用
+  flow/     页面流：版心、页眉页脚、章节标题、段落、浮动体
+  pages/    论文的一页一个文件：封面、摘要、目录、声明、致谢、成果、决议、附录、参考文献
+```
+
+`flow/` 与 `pages/` 里的文件按类分开，`hit-cover.dtx` 是毕业论文封面，`hit-report-cover.dtx`
+是开题报告封面。不共用：docstrip 记录输入文件的首次出现顺序，同一个文件被多份输出
+在不同位置引用会报 `Incompatible order of input files`。
+
 先按家族找文件，再在文件里按 docstrip 守卫找模块：
 
 | 要改什么 | 打开哪个 |
 |---|---|
 | 毕业论文的任何行为 | `src/hit-thesis.dtx` |
-| 各个类的配置 | `src/hit-config.dtx` |
-
+| 各个类的配置 | `src/config/hit-config.dtx` |
 | 开题、中期报告 | `src/hit-report.dtx` |
 | 深圳博士中期 | `src/hitsz-midterm-report.dtx` |
-| 各个类共用的底层 | `src/shared/hit-*.dtx` |
+| 各个类共用的小工具 | `src/utils/hit-*.dtx` |
+| 论文的某一页 | `src/pages/hit-*.dtx` |
+| 版心、页眉、标题、浮动体 | `src/flow/hit-*.dtx` |
 | 参考文献样式 | `src/hit-bst.dtx` |
 | 用户手册文字 | `src/hit-doc.dtx` |
 | 类的公共文件头、索引样式 | `src/hithesis.dtx` |
@@ -168,7 +183,7 @@ cd examples/hitart/reports  && make report
 
 各个 cls 的版式代码物理隔离，由各自的 `<类>-*` 模块承载。当前是三个：`thesis-*` 在 `src/hit-thesis.dtx`、`report-*` 在 `src/hit-report.dtx`、`szmidterm-*` 在 `src/hitsz-midterm-report.dtx`。每个类对应一套学校规范，各自演化，碰巧相似的版式不要合并，规范一独立变动就会变成维护负担。新增一个类就是新增一个 `hit-<名>.dtx` 加一组 `<名>-*` 模块。
 
-底层机制是另一回事。字号、数学、表格、脚注这些各套规范要求一致的东西，共用一份放在 `src/shared/hit-*.dtx`，守卫叫 `shared-*`：
+底层机制是另一回事。字号、数学、表格、脚注这些各套规范要求一致的东西，共用一份放在 `src/utils/hit-*.dtx`，守卫叫 `shared-*`：
 
 | 文件 | 管什么 |
 |---|---|
@@ -327,7 +342,7 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 | `\hit@glue@skip{基准}{伸缩}` | `style/glue` 决定要不要给伸缩量 |
 | `\hit@glue@font@size{字号}{行距}{伸缩}` | 同上，用于 `\fontsize` |
 
-这批定义在 `src/shared/hit-options.dtx`，各个类共用。
+这批定义在 `src/utils/hit-options.dtx`，各个类共用。
 
 另有若干针对具体组合的具名函数，由 `\hit@define@condition{名}{布尔表达式}` 生成，
 名字读下来就是条件本身：`\hit@if@harbin@master@or@doctor@or@shenzhen@master`、
@@ -526,7 +541,9 @@ CI 会在推送后跑这几项：
 | 范围 | 对应 |
 |---|---|
 | `thesis` `report` `szmidterm` | 各个类，当前是 `src/hit-thesis.dtx`、`src/hit-report.dtx`、`src/hitsz-midterm-report.dtx` |
-| `shared` | 各个类共用的底层模块 `src/shared/hit-*.dtx` |
+| `utils` | 各个类共用的小工具 `src/utils/hit-*.dtx` |
+| `pages` | 论文的某一页 `src/pages/hit-*.dtx` |
+| `flow` | 页面流的版式 `src/flow/hit-*.dtx` |
 | `bst` `eps` | 参考文献样式、图像数据 |
 | `manual` | 用户手册 `src/hit-doc.dtx` |
 | `readme` `contributing` | 对应的 md 文件 |
@@ -634,7 +651,7 @@ make version-set VERSION=3.2b DATE=2026/08/07
 
 ### 9.3 跨类改动
 
-一个改动对多个类都适用时，每处都要同步。如果改的是各套规范一致的底层机制，考虑抽进 `src/shared/`，见 §4.2。
+一个改动对多个类都适用时，每处都要同步。如果改的是各套规范一致的底层机制，考虑抽进 `src/utils/`，见 §4.2。
 
 ## 10. 常见陷阱
 

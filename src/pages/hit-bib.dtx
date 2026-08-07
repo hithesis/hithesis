@@ -1,0 +1,161 @@
+% \iffalse meta-comment
+%
+% hit-bib.dtx 是参考文献页
+%
+% \fi
+%
+% \section{参考文献页}
+%
+% ^^A ======================================================================
+% ^^A Module thesis-bib: 参考文献加载与 natbib/gbt7714 设置（hit-thesis）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*thesis-bib>
+\RequirePackage[sort&compress]{gbt7714}
+\RequirePackage{etoolbox}
+\RequirePackage{xparse}
+\cs_new:Npn \bibstyle@numerical
+  { \bibpunct {[} {]} {,} {s} {,} { \textsuperscript {,} } }
+%    \end{macrocode}
+%
+% 删除inline等定义，此命令与 \pkg{gbt7714} 冲突
+% \changes{v3.0.15}{2021/05/06}{删除inline等定义，此命令与 \pkg{gbt7714} 冲突}
+%    \begin{macrocode}
+% \newcommand\bibstyle@authoryear{\bibpunct{(}{)}{;}{a}{,}{,}}
+%    \end{macrocode}
+%
+% \changes{v2.0.06}{2018/12/05}{在\cs{inlinecite}内添加空格}
+%    \begin{macrocode}
+% \newcommand\bibstyle@inline{\bibpunct{[}{]}{,}{n}{,}{\hit@inline@separator}}
+\citestyle{numerical}
+\DeclareRobustCommand\inlinecite{\@inlinecite}
+\cs_set:Npn \@inlinecite #1
+  {
+    \group_begin:
+      \citestyle { inline }
+      \cs_set_eq:NN \@cite \NAT@citenum
+      \citep {#1}
+    \group_end:
+  }
+\cs_set_eq:NN \onlinecite \inlinecite
+%    \end{macrocode}
+%
+% \changes{v3.1a}{2022/05/17}{按照 \hitszthesis{} 生成深圳校区的参考文献样式 \texttt{hitszthesis.bst}。\issue[97]}
+%    \begin{macro}{\@biblabel}
+% 设置参考文献列表的序号中的括号为中文括号。
+% \changes{v3.1b}{2022/06/06}{将 ［］前加上 \cs{mbox\{\}} 来获得正确的序号长度。} 
+% 在［\#1］前加上 \cs{mbox\{\}} 来获得正确的序号长度，否则会因为 \XeLaTeX 下的标点挤压而计算错误，这里应该整个包裹起来，否则换行后缩进会有问题。
+% \changes{v3.1d}{2025/03/03}{按着 \issue[211] 来修改，将 \cs{mbox\{\}} 包住整个 label。}
+% \changes{v3.1d}{2025/03/03}{按照 \issue[215] 将哈尔滨硕博毕业论文的参考文献序号也改为全角。}
+%    \begin{macrocode}
+\bool_lazy_or:nnT
+  { \bool_if_p:N \g__hit_shenzhen_bool }
+  {
+    \bool_lazy_and_p:nn
+      { \bool_if_p:N \g__hit_harbin_bool }
+      {
+        \bool_lazy_or_p:nn
+          { \bool_if_p:N \g__hit_master_bool } { \bool_if_p:N \g__hit_doctor_bool }
+      }
+  }
+  { \cs_set:Npn \@biblabel #1 { \mbox { ［#1］ } } }
+%    \end{macrocode}
+% \end{macro}
+% 
+% \begin{environment}{thebibliography}
+% 修改默认的 \env{thebibliography} 环境来适应间距的要求。
+% \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
+%    \begin{macrocode}
+\RenewDocumentEnvironment{thebibliography}{m}{%
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{更改完全角符号后的半角点号可能出现在行首，规避一下。}
+% 这里我直接贴一个 issue 的链接：\href{https://github.com/CTeX-org/ctex-kit/issues/701}{CTeX-Kit \#701}
+% \changes{v3.2a}{0000/00/00}{FullRight引入了太多bug, 取消之 (bst文件中加入了nolinebreak)}
+%    \begin{macrocode}
+  % \xeCJKDeclareCharClass{FullRight}{"002E}%
+  \hit@clear@page\phantomsection%
+  \hit@appendix@chapter*{\bibname}[\hit@bibliography@heading@en]
+  \normalsize
+  \list{\@biblabel{\@arabic\c@enumiv}}{%
+    \str_if_eq:VnT \g_bib_labelalign_str {left} {
+      \RenewDocumentCommand\makelabel{m}{##1\hfill}
+    }
+    \settowidth{\labelwidth}{\@biblabel{#1}}
+%    \end{macrocode}
+% \changes{v3.1b}{2022/06/06}{修改深圳校区的 \cs{labelsep} 为 0pt。}
+%    \begin{macrocode}
+    \hit@if@option@TF{shenzhen}{\dim_set:Nn \labelsep {0pt}}{\dim_set:Nn \labelsep {0.5em}}
+    \dim_set:Nn \itemindent {0pt}
+    \dim_set:Nn \leftmargin {\labelsep+\labelwidth}
+    \dim_add:Nn \itemsep {-0.8em}
+    \usecounter{enumiv}%
+    \cs_set_eq:NN \p@enumiv \@empty
+  \cs_set:Npn \theenumiv {\@arabic\c@enumiv}}%
+  \sloppy\frenchspacing
+%    \end{macrocode}
+% \changes{v2.0.07}{2019/03/02}{添加flushbottom到thebibliography环境中}
+%    \begin{macrocode}
+  \flushbottom
+%    \end{macrocode}
+% \changes{v2.0.03}{2018/10/08}{添加参考文献分割开关}
+%    \begin{macrocode}
+  \hit@if@option@TF{splitbibitem}%
+  {%
+  \clubpenalty0
+  \@clubpenalty \clubpenalty
+  \widowpenalty0%
+  \interlinepenalty-50%
+  }%
+  {%
+  \clubpenalty4000
+  \@clubpenalty \clubpenalty
+  \widowpenalty4000%
+  \interlinepenalty4000%
+  }%
+\sfcode`\.\@m}
+{\cs_set_nopar:Npn \@noitemerr
+  {\@latex@warning{Empty `thebibliography' environment}}%
+\endlist\frenchspacing}
+%    \end{macrocode}
+% \end{environment}
+%    \begin{macrocode}
+\cs_set:Npn \NAT@cite #1#2#3
+      {\ifNAT@swa\NAT@@open\if*#2*\else#2\NAT@spacechar\fi
+        #1\NAT@@close\if*#3*\else\textsuperscript{#3}\fi\else#1\fi\endgroup}
+%    \end{macrocode}
+% \changes{v3.2a}{0000/00/00}{控制参考文献列表中作者是否全大写和最大显示数量}
+%    \begin{macrocode}
+%% 用以控制参考文献列表中单个作者的格式
+\exp_args:NNe \cs_new:Nn \g_bib_author_cs:n {
+    \bool_if:NTF \g_bib_authorupper_bool {
+        \exp_not:N \text_uppercase:n {#1}
+    } {
+        {#1}
+    }
+}
+%% 用以输出参考文献列表中的作者
+\NewDocumentCommand{\bibauthor}{m}{
+  \int_zero:N \l_tmpa_int
+  \exp_args:Ne \tl_map_inline:nn {
+    \exp_args:Ne \tl_tail:n {#1}
+  } {
+    \int_compare:nNnT
+      \l_tmpa_int = \g_bib_maxauthor_int {
+      \prg_break:n {\tl_head:N {#1}}
+    }
+    \int_incr:N \l_tmpa_int
+    \g_bib_author_cs:n {##1}
+  }
+  \prg_break_point:
+}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\cs{citeup}（上标引用宏）从 book-floats 迁入 book-bib，归位至引用语义所属模块}
+% 上标引用宏 \cs{citeup}（语义属引用,非浮动体）。
+%    \begin{macrocode}
+\NewDocumentCommand \citeup { m } { \textsuperscript { \cite {#1} } }
+%</thesis-bib>
+%    \end{macrocode}
+%
+% \Finale

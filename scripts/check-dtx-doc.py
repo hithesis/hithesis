@@ -49,10 +49,51 @@ def comment_lines(path: Path):
         yield i, body
 
 
+# 手册渲染驱动整段包在 \iffalse 里，不按 macrocode 规矩走，跳过。
+# bst 与 eps 是逐字照抄的外部文件，同理。
+STRUCT_SKIP = {"hithesis.dtx", "hit-bst.dtx", "hit-eps.dtx"}
+
+BEGIN_CODE = "%    \\begin{macrocode}"
+END_CODE = "%    \\end{macrocode}"
+ENV_MARK = re.compile(r"%\s*\\(begin|end)\{(macro|environment)\}")
+
+
+def check_structure(path: Path):
+    """核对 macrocode 的开合。
+
+    docstrip 只认守卫，不看 macrocode，所以这类错误不会让 make cls 失败，
+    只在 make doc 时炸：代码行落到 macrocode 外面，_ 变成数学下标；
+    \\end{macro} 落到 macrocode 里面，环境关不上。两种都在这里拦。
+    """
+    errors = []
+    inside = False
+    for i, ln in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        s = ln.strip()
+        if s == BEGIN_CODE:
+            if inside:
+                errors.append((path, i, "macrocode 已经开着，不能再开"))
+            inside = True
+            continue
+        if s == END_CODE:
+            if not inside:
+                errors.append((path, i, "多出来的 \\end{macrocode}"))
+            inside = False
+            continue
+        if inside and ENV_MARK.match(ln):
+            errors.append((path, i, f"{s[:40]} 落在 macrocode 里，环境关不上"))
+        if not inside and ln and not ln.startswith("%"):
+            errors.append((path, i, f"代码行落在 macrocode 外面：{ln[:40]}"))
+    if inside:
+        errors.append((path, i, "文件结束时 macrocode 还开着"))
+    return errors
+
+
 def scan(paths):
     errors = []
     used = set()
     for p in paths:
+        if p.name not in STRUCT_SKIP:
+            errors.extend(check_structure(p))
         for lineno, body in comment_lines(p):
             for m in re.finditer(r"\\([a-zA-Z@]+)", body):
                 used.add(m.group(1))

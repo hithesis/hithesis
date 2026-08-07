@@ -21,7 +21,7 @@
 % ^^A 两个模块由 hithesisartplus 一并使用。
 % ^^A
 % ^^A 各个类共用的文件头（\NeedsTeXFormat、\ProvidesExplClass 等）留在 hithesis.dtx，
-% ^^A 共用的底层模块在 src/shared/，hithesis.ins 里每个 \file 先取头，再取实现。
+% ^^A 共用的小工具在 src/utils/，hithesis.ins 里每个 \file 先取头，再取实现。
 % ^^A ======================================================================
 %
 % ^^A ======================================================================
@@ -32,10 +32,12 @@
 % ^^A ======================================================================
 %    \begin{macrocode}
 %<*report-options>
+%    \end{macrocode}
+%
 % \changes{v3.2a}{0000/00/00}{加通用选择器 \cs{hit@if@option@TF}，与 \file{hithesisbook.cls}
 %   一致。}
 % 读标志位的那族判断函数（\cs{hit@if@option@TF} 等）定义在
-% \file{src/shared/hit-options.dtx}，各个类共用。这里只写本类特有的两个：
+% \file{src/utils/hit-options.dtx}，各个类共用。这里只写本类特有的两个：
 % \cs{hit@stage@name} 取「开题」或「中期」；按校区、学位、阶段组合出来的判断由
 % \cs{hit@define@condition} 生成，一条一行，见下。参数从 expl3 之外传进来，
 % 里面的空格照原样保留；替换旧写法时注意 \cs{fi} 后面被跳过的那个空格。
@@ -267,7 +269,7 @@
 %<*report-fonts>
 %    \end{macrocode}
 %
-% \changes{v3.2a}{0000/00/00}{字体层主体抽到 \file{src/shared/hit-fonts.dtx}，
+% \changes{v3.2a}{0000/00/00}{字体层主体抽到 \file{src/utils/hit-fonts.dtx}，
 %   这里只留调用与本类特有的部分}
 %    \begin{macrocode}
 \hit@setup@fonts
@@ -291,7 +293,7 @@
 %    \end{macrocode}
 %
 % 列表间距不调，走 \LaTeX{} 的默认值——本类的规范没有这条要求。取值变量留空即可，
-% 机制与取值都在 \file{src/shared/hit-list.dtx}。
+% 机制与取值都在 \file{src/utils/hit-list.dtx}。
 %    \begin{macrocode}
 \hit@setup@list@spacing
 \RequirePackage{environ}
@@ -344,37 +346,7 @@
 %    \begin{macrocode}
 %</report-deps-b>
 %    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module report-geometry: 版芯尺寸与页边距（hit-report）
-% ^^A ======================================================================
 %    \begin{macrocode}
-%<*report-geometry>
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{art-geometry 模块改用 expl3 实现。标志位仍由
-%   kvoptions 声明，用 \cs{legacy\_if:nTF} 桥接（现已换成 expl3 布尔）；深圳硕士那处的
-%   \cs{ifboolexpr} 换成 \cs{bool\_lazy\_and:nnT}，此处不再依赖 etoolbox。}
-%    \begin{macrocode}
-\bool_if:NTF \g__hit_debug_bool
-  { \RequirePackage [ showframe ] { geometry } }
-  { \RequirePackage { geometry } }
-% 根据 PlutoThesis 原版定义而来。a4paper 即 210 * 297mm。
-\geometry
-  {
-    a4paper , hcentering , ignoreall , nomarginpar , centering ,
-    text = { 150true~mm , 236true~mm } ,
-    left = 30true~mm , head = 5true~mm , headsep = 2true~mm ,
-    footskip = 0true~mm , foot = 5.2true~mm
-  }
-\bool_lazy_and:nnT
-  { \bool_if_p:N \g__hit_shenzhen_bool }
-  { \bool_if_p:N \g__hit_master_bool }
-  {
-    \bool_if:NTF \g__hit_opening_bool
-      { \geometry { headsep = 25pt } }
-      { \geometry { headsep = 17pt } }
-  }
-%</report-geometry>
 %<*report-deps-c>
 
 \bool_if:NT \g__hit_debug_bool
@@ -416,52 +388,7 @@
 %    \begin{macrocode}
 %</report-deps-c>
 %    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module report-floats: 浮动体默认行为与双语题注（hit-report）
-% ^^A ======================================================================
 %    \begin{macrocode}
-%<*report-floats>
-% \changes{v3.2a}{0000/00/00}{art-floats 改用 expl3，两处 \cs{ifboolexpr} 换成
-%   \cs{bool\_lazy\_and:nnT}，本模块不再依赖 etoolbox}
-%    \end{macrocode}
-%
-% 深圳硕士中期把图注排成「图 1-1 标题」的格式。
-%    \begin{macrocode}
-\bool_lazy_and:nnT
-  { \bool_if_p:N \g__hit_shenzhen_bool }
-  {
-    \bool_lazy_and_p:nn
-      { \bool_if_p:N \g__hit_master_bool }
-      { \bool_if_p:N \g__hit_midterm_bool }
-  }
-  {
-    \RequirePackage { caption }
-    \cs_set:Npn \thefigure { \thesection - \arabic { figure } }
-    \captionsetup [ figure ] { labelsep=space }
-  }
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{schrb: 将哈尔滨校区本科开题报告图表公式编号实现为“图 X-X”、“表 X-X”、“公式 (X-X)”的格式}
-%    \begin{macrocode}
-\bool_lazy_and:nnT
-  { \bool_if_p:N \g__hit_harbin_bool }
-  {
-    \bool_lazy_and_p:nn
-      { \bool_if_p:N \g__hit_bachelor_bool }
-      { \bool_if_p:N \g__hit_opening_bool }
-  }
-  {
-    \RequirePackage { caption }
-    \cs_set:Npn \thefigure { \thesection - \arabic { figure } }
-    \cs_set:Npn \thetable { \thesection - \arabic { table } }
-    \cs_set:Npn \theequation { \thesection - \arabic { equation } }
-    \captionsetup [ figure ] { labelsep=space }
-    \captionsetup [ table ]  { labelsep=space }
-    \@addtoreset { figure }   { section }
-    \@addtoreset { table }    { section }
-    \@addtoreset { equation } { section }
-  }
-%</report-floats>
 %<*report-deps-c>
 %    \end{macrocode}
 %
@@ -485,172 +412,7 @@
 %    \begin{macrocode}
 %</report-deps-c>
 %    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module report-chapter: 章节标题格式（字号、缩进、间距、编号样式）（hit-report）
-% ^^A ======================================================================
 %    \begin{macrocode}
-%<*report-chapter>
-%    \end{macrocode}
-%
-% \changes{v3.2a}{0000/00/00}{art-chapter 模块改用 expl3 实现。两处
-%   \cs{ifboolexpr} 换成 \cs{bool\_lazy\_and:nnT} 与 \cs{bool\_lazy\_and:nnnT}，
-%   本模块不再依赖 etoolbox。\cs{ctexset} 值里的 \cs{ifhit@opening} 保持原样，
-%   那些条件由 ctex 延后求值，改写它们没有收益。}
-%    \begin{macrocode}
-\dim_set:Nn \parindent { 2\ccwd }
-\ctexset
-  {
-    section =
-      {
-        afterindent = true ,
-        beforeskip = { 7.5bp } ,     % 上下空 0.5 行
-        afterskip  = { 7.5bp } ,
-        format = { \heiti \xiaosan [ 1.25 ] } ,
-        aftername = \enspace ,
-        fixskip = true ,
-        break = { } ,
-      } ,
-    subsection =
-      {
-        afterindent = true ,
-        beforeskip = { 7bp } , afterskip = { 7bp } ,
-        format = { \heiti \sihao [ 1.25 ] } ,
-        aftername = \enspace , fixskip = true , break = { } ,
-      } ,
-    subsubsection =
-      {
-        afterindent = true ,
-        beforeskip = { 3bp } , afterskip = { 3bp } ,
-        format = { \heiti \normalsize } ,
-        aftername = \enspace , fixskip = true , break = { } ,
-      } ,
-    paragraph / afterindent = true ,
-    subparagraph / afterindent = true
-  }
-%    \end{macrocode}
-%
-% \changes{v3.1d}{2025/03/03}{哈尔滨本科中期的一级节标题变成了中文……\issue[213]}
-%    \begin{macrocode}
-\bool_lazy_and:nnT
-  { \bool_if_p:N \g__hit_harbin_bool }
-  {
-    \bool_lazy_and_p:nn
-      { \bool_if_p:N \g__hit_bachelor_bool }
-      { \bool_if_p:N \g__hit_midterm_bool }
-  }
-  {
-    \ctexset
-      { section = { number = \chinese { section } , name = { ,、} , aftername = { } } }
-  }
-%    \end{macrocode}
-%
-% 深圳硕士的节标题格式。这一段的取值里有 \cs{ifhit@opening} 与控制空格
-% \cs{\ }，控制空格在 \cs{ExplSyntaxOn} 下的记号化与平时不同，实测会让
-% 变体 32 的 PDF 产生差异。所以把整块取值放在 expl3 之外定义成一个宏，
-% 记号与改动前逐个相同，再由 expl3 的条件来调用。
-%    \begin{macrocode}
-\cs_set:Npn \hit@report@shenzhen@master@section@settings
-  {
-%
-~\ctexset{~
- section={~
- beforeskip=25bp,~
- afterskip=27pt,~
- format=\hit@if@option@TF{opening}{\centering\xiaoer}{\xiaosan}\heiti,~
- aftername=\hit@if@option@TF{opening}{\quad}{\enspace},~
- break=\hit@if@option@TF{opening}{\clearpage}{{}~}~
- },~
- subsection={~
- beforeskip=\hit@if@option@TF{opening}{12pt~}{15pt~},~
- afterskip=\hit@if@option@TF{opening}{12pt~}{15pt~},~
- format=\heiti\hit@if@option@TF{opening}{\xiaosan}{\sihao},~
- fixskip=true,~
- aftername=\hit@if@option@TF{opening}{{\ }~}{\enspace}~
- },~
- subsubsection={~
- beforeskip=\hit@if@option@TF{opening}{12pt~}{15pt~},~
- afterskip=\hit@if@option@TF{opening}{12pt~}{15pt~},~
- format=\heiti\sihao,~
- fixskip=true,~
- aftername=\hit@if@option@TF{opening}{{\ }~}{\enspace}~
- }~
- }%
-  }
-\bool_lazy_and:nnT
-  { \bool_if_p:N \g__hit_shenzhen_bool }
-  { \bool_if_p:N \g__hit_master_bool }
-  { \hit@report@shenzhen@master@section@settings }
-%</report-chapter>
-%    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module report-pagestyle: 页眉页脚样式（fancyhdr 配置）（hit-report）
-% ^^A ======================================================================
-%    \begin{macrocode}
-%<*report-pagestyle>
-% \changes{v3.2a}{0000/00/00}{art-pagestyle 自包含 etoolbox 与 fancyhdr 依赖}
-% \changes{v3.2a}{0000/00/00}{art-pagestyle 的控制流改用 expl3。页眉定义含中文
-%   与控制空格，按 CONTRIBUTING §4.6 留在 expl3 之外定义成宏，再由条件调用。}
-\RequirePackage{fancyhdr}
-%    \end{macrocode}
-% \changes{v3.1d}{2025/03/03}{为威海校区硕士开题设置章节样式与页眉页脚样式。\issue[219]}
-% \changes{v3.2a}{0000/00/00}{威海硕士开题的页眉定义放入 art-pagestyle，激活仍留 artcls 保持时序}
-% 两处页眉的横线画法相同，但页眉文字与适用条件不同，各自定义。
-%    \begin{macrocode}
-\cs_set:Npn \hit@report@weihai@master@pagestyle
-  {
-%
-~\fancypagestyle{hit@weihai@headings@main}{%
- \fancyhf{}~
- \fancyfoot[C]{\xiaowu\thepage}~
- \cs_set:Npn \headrule {~
- \vskip 1.190132pt~
- \hrule\@height2.276208pt\@width\headwidth
- \vskip 0.75pt~
- \hrule\@height.75pt\@width\headwidth
- }~
- \fancyhead[C]{\songti\xiaowu[0]哈尔滨工业大学（威海）硕士学位论文开题报告}~
- \fancyfoot[C]{-\ \thepage\ -}~
- }%
-  }
-\cs_set:Npn \hit@report@shenzhen@master@pagestyle
-  {
-%
-~\fancypagestyle{hit@shenzhen@headings@main}{%
- \fancyhf{}~
- \fancyfoot[C]{\xiaowu\thepage}~
- \cs_set:Npn \headrule {~
- \vskip 1.190132pt~
- \hrule\@height2.276208pt\@width\headwidth
- \vskip 0.75pt~
- \hrule\@height.75pt\@width\headwidth
- }~
- \fancyhead[C]{\songti\xiaowu[0]哈尔滨工业大学（深圳）\hit@if@option@TF{midterm}{中期~}{硕士学位论文开题~}报告}~
- \fancyfoot[C]{-\ \thepage\ -}~
- }~
- \fancypagestyle{hit@shenzhen@headings@front}{%
- \fancyhf{}~
- \cs_set:Npn \headrule {~
- \vskip 1.190132pt~
- \hrule\@height2.276208pt\@width\headwidth
- \vskip 0.75pt~
- \hrule\@height.75pt\@width\headwidth
- }~
- \fancyhead[C]{\songti\xiaowu[0]哈尔滨工业大学（深圳）硕士学位论文开题报告}~
- }%
-  }
-\bool_lazy_and:nnT
-  { \bool_if_p:N \g__hit_weihai_bool }
-  {
-    \bool_lazy_and_p:nn
-      { \bool_if_p:N \g__hit_master_bool }
-      { \bool_if_p:N \g__hit_opening_bool }
-  }
-  { \hit@report@weihai@master@pagestyle }
-\bool_lazy_and:nnT
-  { \bool_if_p:N \g__hit_shenzhen_bool }
-  { \bool_if_p:N \g__hit_master_bool }
-  { \hit@report@shenzhen@master@pagestyle }
-%</report-pagestyle>
 %<*report-deps-c>
 \bool_lazy_all:nT
   {
@@ -701,8 +463,8 @@
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{关键词的逗号拆分与 \cs{hitsetup} 的入口挪到
-%   \file{src/shared/hit-meta.dtx}}
-% 关键词怎么拆、\cs{hitsetup} 的占位定义都见 \file{src/shared/hit-meta.dtx}。
+%   \file{src/utils/hit-meta.dtx}}
+% 关键词怎么拆、\cs{hitsetup} 的占位定义都见 \file{src/utils/hit-meta.dtx}。
 %
 % \changes{v3.2a}{0000/00/00}{\cs{hitsetup} 改用 l3keys 做入口，加一层按职责
 %   划分的子族路由，与 \file{hithesisbook.cls} 一致。子族暂时只转发，键仍由
@@ -842,101 +604,7 @@
 %    \begin{macrocode}
 %</report-deps-c>
 %    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module report-bib: 参考文献加载与 natbib/gbt7714 设置（hit-report）
-% ^^A ======================================================================
 %    \begin{macrocode}
-%<*report-bib>
-\RequirePackage[sort&compress,numbers]{natbib}
-\RequirePackage{etoolbox}
-\RequirePackage{xparse}
-
-%% 引用和参考文献格式
-\cs_new_protected:Npn \bibstyle@numerical
-  {
-\bibpunct{[}{]}{,}{s}{,}{\textsuperscript{,}}
-  }
-\cs_new_protected:Npn \bibstyle@inline
-  {
-\bibpunct{[}{]}{,}{n}{,}{\hit@inline@separator}
-  }
-
-\citestyle{numerical}
-\DeclareRobustCommand\inlinecite{\@inlinecite}
-\cs_set:Npn \@inlinecite #1
-  {
-\group_begin: \citestyle{inline} \cs_set_eq:NN \@cite \NAT@citenum \citep{#1} \group_end:
-  }
-\cs_set_eq:NN \onlinecite \inlinecite
-%    \end{macrocode}
-%
-% \changes{v3.1c}{2023/04/16}{深圳校区硕士开题部分参考文献没有序号。\issue[141]}
-% 深圳校区硕士开题部分参考文献没有序号。其他校区的提了问题再改。
-% \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
-%    \begin{macrocode}
-\cs_new_protected:Npn \hit@report@bibliography@heading
-  {
-    \section * { 参考文献 }
-    \addcontentsline { toc } { section } { 参考文献 }
-  }
-\RenewDocumentEnvironment{thebibliography}{m}{%
-  \bool_lazy_all:nT
-    {
-      { \bool_if_p:N \g__hit_shenzhen_bool }
-      { \bool_if_p:N \g__hit_master_bool }
-      { \bool_if_p:N \g__hit_opening_bool }
-    }
-    { \hit@report@bibliography@heading }
-  \list{\@biblabel{\@arabic\c@enumiv}}{%
-    \str_if_eq:VnT \g_bib_labelalign_str {left} {
-      \RenewDocumentCommand\makelabel{m}{##1\hfill}
-    }
-    \settowidth{\labelwidth}{\@biblabel{#1}}
-    \dim_set:Nn \labelsep {0.5em}
-    \dim_set:Nn \itemindent {0pt}
-    \dim_set:Nn \leftmargin {\labelsep+\labelwidth}
-    \dim_add:Nn \itemsep {-0.8em}
-    \usecounter{enumiv}%
-    \cs_set_eq:NN \p@enumiv \@empty
-  \cs_set:Npn \theenumiv {\@arabic\c@enumiv}}%
-  \sloppy\frenchspacing
-  \flushbottom
-  \clubpenalty0
-  \@clubpenalty \clubpenalty
-  \widowpenalty0%
-  \interlinepenalty-50%
-  \sfcode`\.\@m
-}
-{\cs_set_nopar:Npn \@noitemerr
-  {\@latex@warning{Empty `thebibliography' environment}}%
-\endlist\frenchspacing}
-%    \end{macrocode}
-% \changes{v3.2a}{0000/00/00}{控制参考文献列表中作者是否全大写和最大显示数量}
-%    \begin{macrocode}
-%% 用以控制参考文献列表中单个作者的格式
-\exp_args:NNe \cs_new:Nn \g_bib_author_cs:n {
-    \bool_if:NTF \g_bib_authorupper_bool {
-        \exp_not:N \text_uppercase:n {#1}
-    } {
-        {#1}
-    }
-}
-%% 用以输出参考文献列表中的作者
-\NewDocumentCommand{\bibauthor}{m}{
-  \int_zero:N \l_tmpa_int
-  \exp_args:Ne \tl_map_inline:nn {
-    \exp_args:Ne \tl_tail:n {#1}
-  } {
-    \int_compare:nNnT
-      \l_tmpa_int = \g_bib_maxauthor_int {
-      \prg_break:n {\tl_head:N {#1}}
-    }
-    \int_incr:N \l_tmpa_int
-    \g_bib_author_cs:n {##1}
-  }
-  \prg_break_point:
-}
-%</report-bib>
 %<*reportcls-tail>
 %    \end{macrocode}
 % 杂项
