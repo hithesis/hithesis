@@ -44,8 +44,10 @@
 %<*shared-config>
 \seq_new:N \g__hit_presetup_seq
 \seq_new:N \l__hit_presetup_value_seq
+\seq_new:N \l__hit_presetup_group_seq
 \bool_new:N \l__hit_presetup_all_bool
 \bool_new:N \l__hit_presetup_any_bool
+\bool_new:N \l__hit_presetup_hit_bool
 \NewDocumentCommand \hitpresetup { O{} +m }
   { \seq_gput_right:Nn \g__hit_presetup_seq { { keys } {#1} {#2} } }
 \NewDocumentCommand \hitpreconfig { +m }
@@ -78,9 +80,16 @@
     \str_if_eq:nnTF {#1} { code }
       {#3}
       {
-        \bool_set_true:N \l__hit_presetup_all_bool
-        \clist_map_inline:nn {#2} { \__hit_presetup_clause:w ##1 \q_stop }
-        \bool_if:NT \l__hit_presetup_all_bool { \hitsetup {#3} }
+        \bool_set_false:N \l__hit_presetup_hit_bool
+        \seq_set_split:Nnn \l__hit_presetup_group_seq { ; } {#2}
+        \seq_map_inline:Nn \l__hit_presetup_group_seq
+          {
+            \bool_set_true:N \l__hit_presetup_all_bool
+            \clist_map_inline:nn {##1} { \__hit_presetup_clause:w ####1 \q_stop }
+            \bool_if:NT \l__hit_presetup_all_bool
+              { \bool_set_true:N \l__hit_presetup_hit_bool }
+          }
+        \bool_if:NT \l__hit_presetup_hit_bool { \hitsetup {#3} }
       }
   }
 \cs_new_protected:Npn \hit@apply@presetup
@@ -805,11 +814,11 @@
 } }
 \ExplSyntaxOn
 \hitpreconfig{
-\hit@if@shenzhen@master@or@harbin@bachelor@TF
-  { \hit@set@constant{~publication-heading-cn~=~{攻读<degree-level-cn>学位期间取得创新性成果}~} }
-  { }
 }
 \ExplSyntaxOff
+\hitpresetup[campus=shenzhen,type=master ; campus=harbin,type=bachelor]{ const = {
+  publication-heading-cn = {攻读<degree-level-cn>学位期间取得创新性成果},
+} }
 \hitpresetup[type=postdoc]{ const = {
   publication-heading-cn = {博士后期间的研究成果},
 } }
@@ -1039,18 +1048,20 @@
 \hit@if@both@options@TF{harbin}{bachelor}{ \hit@set@constant{~school-field-label-cn~=~{学校}~} }{}
 \hit@if@option@T{midterm}
   { \hit@set@constant{~graduate-date-field-label-cn~=~{\hit@stage@midterm\hit@stage@document@type 日期}~} }
-\hit@if@shenzhen@master@opening@TF
-  { \hit@set@constant{~graduate-major-field-label-cn~=~{\makebox[6\ccwd][s]{学科\,/\,专业}}~} }
-  { }
-\hit@if@harbin@master@opening@or@midterm@TF
-  {
-    \hit@set@constant{~
-      graduate-affiliation-field-label-cn~=~{\makebox[6\ccwd][s]{学院（部}）},~
-      graduate-major-field-label-cn~=~{\makebox[8\ccwd][s]{学科/专业学位类别}},~
-    }~
-  }
-  { }
-\hit@if@harbin@master@opening@TF{ \hit@set@constant{~document-type-cn~=~{学位}~} }{ }
+}
+\ExplSyntaxOff
+\hitpresetup[campus=shenzhen,type=master,stage=opening]{ const = {
+  graduate-major-field-label-cn = {\makebox[6\ccwd][s]{学科\,/\,专业}},
+} }
+\hitpresetup[campus=harbin,type=master,stage=opening|midterm]{ const = {
+  graduate-affiliation-field-label-cn = {\makebox[6\ccwd][s]{学院（部}）},
+  graduate-major-field-label-cn       = {\makebox[8\ccwd][s]{学科/专业学位类别}},
+} }
+\hitpresetup[campus=harbin,type=master,stage=opening]{ const = {
+  document-type-cn = {学位},
+} }
+\ExplSyntaxOn
+\hitpreconfig{
 %    \end{macrocode}
 %
 %    \begin{macrocode}
