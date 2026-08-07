@@ -1,0 +1,995 @@
+% \iffalse meta-comment
+%
+% hit-config.dtx 是各个类的配置
+%
+% \fi
+%
+% \section{配置}
+%
+% \changes{v3.2a}{0000/00/00}{各个类的配置集中到 \file{src/hit-config.dtx}，
+%   写法改成与用户一致的 \cs{hitpresetup}}
+% 模板自己要设的东西——固定词汇、各类的默认取值——原先散在三处：
+% \file{hit-thesis-config.dtx}、\file{hit-report.dtx} 里的 \texttt{reportcfg} 段、
+% 以及各个功能模块里零星的赋值。而且写法与用户的不一样：用户写
+% \cs{hitsetup}\{const=\{school-cn=…\}\}，模板自己写
+% \cs{hit@set@constant}\{school-cn=…\}，两套语言。
+%
+% 这个文件把它们收在一处，并且改用与用户完全相同的写法。
+%
+% \begin{macro}{\hitpresetup}
+% \cs{hitpresetup}\oarg{条件}\marg{键值表} 记一条配置。键值表就是 \cs{hitsetup}
+% 接受的那套，一字不差。条件按选项取值写，逗号是且、竖线是或：
+% \begin{latex}
+% \hitpresetup[type=doctor]{ const = { degree-level-cn = 博士 } }
+% \hitpresetup[type=doctor|master]{ ... }        % 博士或硕士
+% \hitpresetup[type=master,campus=harbin]{ ... } % 哈尔滨的硕士
+% \hitpresetup{ ... }                            % 无条件
+% \end{latex}
+%
+% \textbf{记下来不立即执行。} 这个文件在每个 \cs{file} 块里排在最前面读——
+% \pkg{docstrip} 的输入文件表是全局只增的，一个被多份输出共用的文件只有排在最前
+% 才能让各份输出的顺序彼此相容，排在末尾会报 \texttt{Incompatible order of input
+% files}（这堵墙撞过两次）。而配置要等选项解析完才能生效，所以先记进队列，
+% 由各个类在原先配置所在的位置调用 \cs{hit@apply@presetup} 回放。
+%
+% 回放走的是 \cs{hitsetup} 本身，与用户在导言区写的完全同一条路径，只是先后不同：
+% 类文件里先设默认值，用户后设的覆盖它。
+%
+% \begin{macro}{\hitpreconfig}
+% \cs{hitpreconfig}\marg{代码} 记一段原样的代码，同样排队、同样延后回放。它是迁移
+% 用的过渡入口：配置从旧写法搬过来时先整段包进它，输出逐字节不变，再逐块改写成
+% \cs{hitpresetup}。两者共用一个队列，所以混着写也不会打乱先后。
+% \end{macro}
+%    \begin{macrocode}
+%<*shared-config>
+\seq_new:N \g__hit_presetup_seq
+\seq_new:N \l__hit_presetup_value_seq
+\bool_new:N \l__hit_presetup_all_bool
+\bool_new:N \l__hit_presetup_any_bool
+\NewDocumentCommand \hitpresetup { O{} +m }
+  { \seq_gput_right:Nn \g__hit_presetup_seq { { keys } {#1} {#2} } }
+\NewDocumentCommand \hitpreconfig { +m }
+  { \seq_gput_right:Nn \g__hit_presetup_seq { { code } { } {#1} } }
+%    \end{macrocode}
+%
+% 文件全程在 \pkg{expl3} 语境里——\cs{ProvidesExplClass} 已经开好了，这里不要再写
+% \cs{ExplSyntaxOn}/\cs{ExplSyntaxOff}：多写一对 \texttt{Off} 会把后面所有共享模块
+% 的语境一起关掉，踩过一次，症状是 \cs{bool\_new:N} 未定义。
+%
+% 条件求值。每个子句形如 \texttt{选项=取值}，取值可以用竖线并列。选项名只用来给
+% 人读，判断看的是取值对应的标志位 \cs{g\_\_hit\_}\meta{取值}\cs{\_bool}——
+% \option{type}、\option{campus}、\option{stage}、\option{language} 四族的取值都是
+% 这么存的，名字全局唯一。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_presetup_clause:w #1 = #2 \q_stop
+  {
+    \bool_set_false:N \l__hit_presetup_any_bool
+    \seq_set_split:Nnn \l__hit_presetup_value_seq { | } {#2}
+    \seq_map_inline:Nn \l__hit_presetup_value_seq
+      {
+        \bool_if:cT { g__hit_ \tl_trim_spaces:n {##1} _bool }
+          { \bool_set_true:N \l__hit_presetup_any_bool }
+      }
+    \bool_if:NF \l__hit_presetup_any_bool
+      { \bool_set_false:N \l__hit_presetup_all_bool }
+  }
+\cs_new_protected:Npn \__hit_presetup_one:nnn #1#2#3
+  {
+    \str_if_eq:nnTF {#1} { code }
+      {#3}
+      {
+        \bool_set_true:N \l__hit_presetup_all_bool
+        \clist_map_inline:nn {#2} { \__hit_presetup_clause:w ##1 \q_stop }
+        \bool_if:NT \l__hit_presetup_all_bool { \hitsetup {#3} }
+      }
+  }
+\cs_new_protected:Npn \hit@apply@presetup
+  { \seq_map_inline:Nn \g__hit_presetup_seq { \__hit_presetup_one:nnn ##1 } }
+%</shared-config>
+%    \end{macrocode}
+% \end{macro}
+%
+% \section{学位论文类的配置}
+%
+% \changes{v3.2a}{0000/00/00}{\file{hit-thesis-config.dtx} 的内容迁进来}
+% 暂时整段包在 \cs{hitpreconfig} 里，写法与迁移前一字不差；逐块改写成
+% \cs{hitpresetup} 的工作分批做，每批都跑一次全量比对。
+%    \begin{macrocode}
+%<*thesis-config>
+\hitpreconfig{
+\hit@theorem@style{~body-font~=~{\normalfont},~qed~=~{\ensuremath{\square}},~head-punct~=~{}~}
+\hit@if@option@TF{english}{%
+\hit@theorem@style{~head-font~=~{\normalfont\bfseries}~}
+\hit@theorem@declare@star{proof}{Proof}
+}{%
+\hit@theorem@style{~head-font~=~{\normalfont\heiti}~}
+\hit@theorem@declare@star{proof}{证明}
+}%
+%    \end{macrocode}
+%
+% 英文版黑体加粗
+% \changes{v3.0.0}{2020/05/21}{英文版黑体加粗}
+%    \begin{macrocode}
+\hit@theorem@style{~qed~=~{}~}
+%    \end{macrocode}
+%
+% 此处去除了冒号，（如果需要在加上这个冒号？），反正规范中没有。
+% \changes{v2.0.02}{2018/06/28}{取出了定理冒号}
+%    \begin{macrocode}
+\hit@theorem@style{~head-punct~=~{},~within~=~{chapter}~}
+\hit@if@option@TF{english}{%
+\hit@theorem@list{
+  assumption~~~=~Assumption,
+  definition~~~=~Definition,
+  proposition~~=~Proposition,
+  lemma~~~~~~~~=~Lemma,
+  theorem~~~~~~=~Theorem,
+  axiom~~~~~~~~=~Axiom,
+  corollary~~~~=~Corollary,
+  exercise~~~~~=~exercise,
+  example~~~~~~=~Example,
+  remark~~~~~~~=~Remark,
+  problem~~~~~~=~Problem,
+  conjecture~~~=~Conjecture,
+  fact~~~~~~~~~=~Fact,
+}
+}{%
+\hit@theorem@list{
+  assumption~~~=~假设,
+  definition~~~=~定义,
+  proposition~~=~命题,
+  lemma~~~~~~~~=~引理,
+  theorem~~~~~~=~定理,
+  axiom~~~~~~~~=~公理,
+  corollary~~~~=~推论,
+  exercise~~~~~=~练习,
+  example~~~~~~=~例,
+  remark~~~~~~~=~注释,
+  problem~~~~~~=~问题,
+  conjecture~~~=~猜想,
+  fact~~~~~~~~~=~事实,
+}
+}%
+\hit@if@option@TF{english}{%
+\ctexset{%
+  chapter/name={Chapter\enskip,},
+  appendixname={Appendix},
+  contentsname={Contents},
+  listfigurename={List~of~Figures},
+  listtablename={List~of~Tables},
+  figurename={Figure},
+  tablename={Table},
+  bibname={References},
+}
+}{%
+\ctexset{%
+  chapter/name={第,章},
+  appendixname=附录,
+  contentsname={目\hspace{\ccwd}录},
+  listfigurename=插图索引,
+  listtablename=表格索引,
+  figurename=图,
+  tablename=表,
+  bibname=参考文献,
+  indexname=索引,
+}
+}%
+\hit@if@option@T{postdoc}{%
+\ctexset{
+  contentsname={目录},
+}
+}%
+%    \end{macrocode}
+%
+% 添加Article和English版本以及postdoc版本标题名称设置
+% \changes{v3.0.0}{2020/05/21}{添加Article和English版本以及postdoc版本标题名称设置}
+%    \begin{macrocode}
+\hit@if@option@TF{english}
+  { \cs_new:Npn \equationname { Equation } }
+  { \cs_new:Npn \equationname { 公式 } }
+\cs_new:Npn \listfigureename   { Index~of~figure }
+\cs_new:Npn \listtableename    { Index~of~table }
+\cs_new:Npn \listequationename { Index~of~equation }
+\cs_new:Npn \listequationname  { 公式索引 }
+%    \end{macrocode}
+%
+% 设置英文版公式名称
+% \changes{v3.0.0}{2020/05/21}{设置英文版公式名称}
+%    \begin{macrocode}
+\cs_new:Npn \cabstractename { Abstract~(In~Chinese) }
+%    \end{macrocode}
+%
+% 此处删除冗余选项
+% \changes{v1.0.13}{2018/04/05}{此处删除冗余的Abstract标题}
+%    \begin{macrocode}
+\cs_new:Npn \eabstractcname { Abstract }
+\cs_new:Npn \eabstractename { Abstract~(In~English) }
+\hit@if@option@TF{postdoc}
+  { \cs_new:Npn \cabstractcname { 摘要 } }
+  { \cs_new:Npn \cabstractcname { 摘 \hspace { \ccwd } 要 } }
+%    \end{macrocode}
+%
+% 添加博后摘要
+% \changes{v3.0.0}{2020/05/21}{添加博后摘要}
+%    \begin{macrocode}
+\hit@set@constant{~keywords-field-label-cn~=~{关键词：}~}
+\hit@set@constant{
+  keywords-separator-cn~=~{；},
+  keywords-separator-en~=~{,},
+}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{英文图表名收进 \option{const} 族，\cs{bicaption}
+%   不必再由用户手写负细空格}
+% 双语题注里英文那条用的图表名。\cs{fnum@figure} 会在名字和编号之间放一个
+% \cs{nobreakspace}，中文要这个空格、英文不要，所以默认值末尾带一个负细空格把它
+% 抵掉。要换成别的写法直接覆盖这两个键。
+%    \begin{macrocode}
+\hit@set@constant{
+  figure-prefix-en~=~{Fig.$\!$},
+  table-prefix-en~~=~{Table$\!$},
+}
+\cs_set_eq:NN \CJK@todaysave \today
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{日期格式改用 expl3 定义。年月之间那个空格是原写法
+%   里就有的，写成 \texttt{\string~} 才能保住。}
+%    \begin{macrocode}
+\cs_set:Npn \CJK@todaysmall@short { \the \year 年~\the \month 月 }
+\cs_set:Npn \CJK@todaysmall { \the \year 年~\the \month 月~\the \day 日 }
+\cs_set:Npn \CJK@todaybig@short
+  { \zhdigits { \the \year } 年 \zhnumber { \the \month } 月 }
+\cs_set:Npn \CJK@todaybig
+  {
+    \zhdigits { \the \year } 年 \zhnumber { \the \month } 月
+    \zhnumber { \the \day } 日
+  }
+\cs_set:Npn \CJK@today { \CJK@todaysmall }
+\cs_set:Npn \today { \CJK@today }
+\NewDocumentCommand \CJKtoday { O{1} }
+  {
+    \int_case:nnF {#1}
+      {
+        { 0 } { \cs_set:Npn \CJK@today { \CJK@todaysave } }
+        { 1 } { \cs_set:Npn \CJK@today { \CJK@todaysmall } }
+        { 2 } { \cs_set:Npn \CJK@today { \CJK@todaybig } }
+      }
+      { }
+  }
+%    \end{macrocode}
+%
+% 按照word示范要求，此处使用阿拉伯数字
+% \changes{v1.0.14}{2018/05/06}{修正自动生成日期bug}
+%    \begin{macrocode}
+\use:c{date-cn}{\hit@if@option@TF{bachelor}{\CJK@todaysmall}{\CJK@todaysmall@short}}
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{将 \cs{hit@firstpage} 默认设置为 \cs{hit@cdate}}
+% \changes{v3.1d}{2025/03/03}{删除 \cs{hit@firstpage} 的默认值, 将这个设置转到 \cs{hitsetup} 之后}
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{英文月份的 \cs{ifcase} 链换成 \cs{int\_case:nn}}
+% 月份名里没有空格，可以放心写在 expl3 里；\cs{date-en} 那一行还留在外面，因为
+% 逗号后面那两个控制空格在 expl3 下没有等价写法。
+%    \begin{macrocode}
+\cs_new:Npn \hit@month@en
+  {
+    \int_case:nn { \month }
+      {
+        { 1 } { January }   { 2 } { February } { 3 }  { March }
+        { 4 } { April }     { 5 } { May }      { 6 }  { June }
+        { 7 } { July }      { 8 } { August }   { 9 }  { September }
+        { 10 } { October }  { 11 } { November } { 12 } { December }
+      }
+  }
+\use:c{date-en}{\hit@month@en,\ \ \the\year}
+\hit@if@option@T{postdoc}{%
+\hit@set@constant{
+  degree-level-cn~=~{博士},
+  degree-level-en~=~{Doctor},
+  degree-level-attribute-en~=~{Doctoral},
+}
+}%
+%    \end{macrocode}
+%
+% 添加博后选项
+% \changes{v3.0.0}{2020/05/21}{添加博后选项}
+% \changes{v3.1d}{2025/03/03}{统一将一堆 \cmd{\gdef} 放到了一起。}
+%    \begin{macrocode}
+
+\hit@if@option@T{doctor}{%
+\hit@set@constant{
+  degree-level-cn~=~{博士},
+  degree-level-en~=~{Doctor},
+  degree-level-attribute-en~=~{Doctoral},
+}
+}%
+\hit@if@option@T{master}{%
+\hit@set@constant{
+  degree-level-cn~=~{硕士},
+  degree-level-en~=~{Master},
+  degree-level-attribute-en~=~{Master's},
+}
+}%
+\hit@set@constant{
+  degree-of-discipline-format-cn~=~{<discipline-cn><degree-level-cn>},
+  degree-of-discipline-format-en~=~{<degree-level-en>~of~<discipline-en>},
+  author-field-label-cn~=~{<degree-level-cn>研究生},
+  postdoc-classified-index-field-label-cn~=~{分类号},
+  postdoc-secret-level-field-label-cn~=~{密级},
+  postdoc-udc-field-label~=~{U\hspace{0.4\ccwd}D\hspace{0.4\ccwd}C},
+  stage-opening~=~{开题},
+  stage-midterm~=~{中期},
+  stage-document-type~=~{报告},
+  postdoc-number-field-label-cn~=~{编号},
+%    \end{macrocode}
+%
+% 更改博后封皮中字间距
+% \changes{v3.0.12}{2020/11/02}{更改博后封皮中字间距}
+%    \begin{macrocode}
+  postdoc-report-spaced-cn~=~{博\hspace{0.58\ccwd}士\hspace{0.58\ccwd}后\hspace{0.58\ccwd}研\hspace{0.58\ccwd}究\hspace{0.58\ccwd}工\hspace{0.58\ccwd}作\hspace{0.58\ccwd}报\hspace{0.58\ccwd}告},
+  postdoc-report-cn~=~{博士后研究工作报告},
+  postdoc-work-finish-date-field-label-cn~=~{工作完成日期},
+  postdoc-report-submit-date-field-label-cn~=~{报告提交日期},
+  postdoc-author-field-label-cn~=~{博\hspace{0.5\ccwd}士\hspace{0.5\ccwd}后\hspace{0.5\ccwd}姓\hspace{0.5\ccwd}名},
+  postdoc-co-supervisor-field-label-cn~=~{合\hspace{\ccwd}作\hspace{\ccwd}导\hspace{\ccwd}师},
+  postdoc-station-field-label-cn~=~{流\hspace{0.5\ccwd}动\hspace{0.5\ccwd}站\hspace{0.5\ccwd}名\hspace{0.5\ccwd}称},
+  postdoc-specialty-field-label-cn~=~{专\hspace{\ccwd}业\hspace{\ccwd}名\hspace{\ccwd}称},
+  postdoc-research-start-date-field-label-cn~=~{研究工作起始时间},
+  postdoc-research-end-date-field-label-cn~=~{研究工作期满时间},
+  postdoc-separator~=~{：},
+%    \end{macrocode}
+%
+% 添加博后选项
+% \changes{v3.0.0}{2020/05/21}{添加博后选项}
+% \changes{v3.1d}{2025/03/03}{删了一些没用的定义，更改哈尔滨本科的论文名。\issue[172]}
+% 咱也不知道谁想的，其他校区的本科毕设叫“毕业设计（论文）”，哈尔滨的叫“毕业论文（设计）”
+%    \begin{macrocode}
+  bachelor-degree-level-cn~=~{本科},
+  bachelor-document-type-cn~=~{毕业设计（论文）},
+%    \end{macrocode}
+%
+% 添加本科开题封皮中title定义
+% \changes{v3.0.0}{2020/05/21}{添加本科开题封皮中title定义}
+% \changes{v3.1d}{2025/03/03}{哈尔滨本科由院系改成了学院。\issue[172]}
+%    \begin{macrocode}
+  bachelor-affiliation-field-label-cn~=~{院（系）},
+  bachelor-affiliation-field-label-shenzhen-cn~=~{学院},
+  bachelor-affiliation-field-label-weihai-cn~=~{学院},
+  bachelor-student-id-field-label-cn~=~{学号},
+  bachelor-major-field-label-cn~=~{专业},
+  bachelor-supervisor-field-label-cn~=~{指导教师},
+  bachelor-thesis-field-label-cn~=~{题目},
+}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{本科的学位名、作者称谓、毕业论文叫法、院系叫法
+%   从值里的 \cs{hit@if@option@TF} 改成覆盖表}
+% 本科没有“学位简称加士”这套说法，几个词都要单独给。哈尔滨与另外两个校区
+% 对毕业论文和院系的叫法也不一样。
+%    \begin{macrocode}
+\hit@if@option@T{bachelor}{
+  \hit@set@constant{
+    degree-level-cn~=~{学士~},
+    author-field-label-cn~=~{本科生},
+    bachelor-document-type-cn~=~{毕业设计（论文）},
+    bachelor-affiliation-field-label-cn~=~{院（系）},
+  }
+  \hit@if@option@T{harbin}{
+    \hit@set@constant{
+      bachelor-document-type-cn~=~{毕业论文（设计）},
+      bachelor-affiliation-field-label-cn~=~{学院~},
+    }
+  }
+}
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{修改深圳校区本科生第二封面中“学生”为“姓名”。}
+% 深圳校区本科生第二封面中是“姓名”。
+%    \begin{macrocode}
+\hit@set@constant{
+  bachelor-student-field-label-cn~=~{学生},
+  document-type-cn~=~{学位论文},
+  bachelor-date-field-label-cn~=~{日\hspace{2\ccwd}期},
+}
+\hit@if@both@options@TF{shenzhen}{bachelor}{ \hit@set@constant{ bachelor-student-field-label-cn~=~{姓名} } }{}
+
+\hit@set@constant{~bachelor-teacher-comment-field-label-cn~=~{指导教师评语：}~}
+\hit@set@constant{~bachelor-teacher-signature-field-label-cn~=~{指导教师签字：}~}
+\hit@set@constant{~bachelor-check-date-field-label-cn~=~{检查日期：}~}
+
+
+\hit@set@constant{
+  thesis-title-prefix-cn~=~{题\hspace{\ccwd}目},
+  graduate-affiliation-field-label-cn~=~{院\hspace{3\ccwd}（系）},
+  graduate-major-field-label-cn~=~{学\hspace{4\ccwd}科},
+  graduate-supervisor-field-label-cn~=~{导\hspace{4\ccwd}师},
+  graduate-student-field-label-cn~=~{研\hspace{1.5\ccwd}究\hspace{1.5\ccwd}生},
+  graduate-student-id-field-label-cn~=~{学\hspace{4\ccwd}号},
+%    \end{macrocode}
+%
+% \cs{hit@stage@opening} 这条留在值里判断，不能提到覆盖表。\option{stage} 是报告类
+% 的选项，\file{hithesisbook.cls} 里没有 \cs{g\_\_hit\_midterm\_bool}，提到外面
+% 加载期就会报 \texttt{Missing number}。留在值里则只有真的排到这一项时才求值，
+% 而 book 从不用它。
+%    \begin{macrocode}
+  graduate-date-field-label-cn~=~{\hit@if@option@TF{opening}{<stage-opening>}%
+{\hit@if@option@T{midterm}{<stage-midterm>}}<stage-document-type>日期},
+  graduate-enroll-date-field-label-cn~=~{入\hspace{0.6666666\ccwd}学\hspace{0.6666666\ccwd}时\hspace{0.6666666\ccwd}间},
+  graduate-thesis-field-label-cn~=~{论\hspace{0.6666666\ccwd}文\hspace{0.6666666\ccwd}题\hspace{0.6666666\ccwd}目},
+  graduate-affiliation-major-field-label-cn~=~{学\hspace{0.6666666\ccwd}科\hspace{0.6666666\ccwd}专\hspace{0.6666666\ccwd}业},
+  school-cn~=~{哈尔滨工业大学},
+%    \end{macrocode}
+%    \changes{v3.0.22}{2022/05/16}{在深圳校区的本科生新规范中将“（深圳）”更改为“深圳校区”。该处修改会影响深圳博后的封面，故添加 \cs{hit@shenzhencampus@postdoc}。\issue[128]}
+%    \begin{macrocode}
+  shenzhen-campus~=~{深圳校区},
+  shenzhen-campus-postdoc~=~{（深圳）},
+  weihai-campus~=~{（威海）},
+  harbin-campus~=~{（哈尔滨）},
+%    \end{macrocode}
+%
+% 添加哈尔滨校区选项
+% \changes{v3.0.0}{2020/05/21}{添加哈尔滨校区选项}
+% \changes{v3.1d}{2025/03/03}{哈尔滨本科多了一个“学校”。\issue[172]}
+%    \begin{macrocode}
+  school-field-label-cn~=~{授予学位单位},
+  date-field-label-cn~=~{答辩日期},
+  affiliation-field-label-cn~=~{所在单位},
+}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{哈尔滨本科的“学校”从值里的 \cs{hit@if@option@TF} 改成覆盖表}
+%    \begin{macrocode}
+\hit@if@both@options@TF{harbin}{bachelor}{ \hit@set@constant{ school-field-label-cn~=~{学校} } }{}
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{本部研究生第二封面按照书写指南进行修改。}
+% 本部研究生第二封面按照书写指南进行修改。学科”改为“学科或类别”。
+%    \begin{macrocode}
+\hit@set@constant{
+  specialty-field-label-cn~=~{学科},
+  degree-field-label-cn~=~{申请学位},
+  supervisor-field-label-cn~=~{导师},
+  associate-supervisor-field-label-cn~=~{副导师},
+%    \end{macrocode}
+% 虽然只是深圳的要求，但是懒得写判断了，我估计用到的人不多，还有我怕明年深圳再改一波又白写了。
+% \changes{v3.1c}{2023/04/16}{根据 \issue[97] 修改合作导师的名称。}
+%    \begin{macrocode}
+  co-supervisor-field-label-cn~=~{合作导师},
+  title-separator-cn~=~{：},
+  author-field-label-en~=~{Candidate},
+  supervisor-field-label-en~=~{Supervisor},
+  associate-supervisor-field-label-en~=~{Associate~Supervisor},
+%    \end{macrocode}
+%
+% \changes{v3.1c}{2023/04/16}{根据 \issue[97] 修改合作导师的英文。}
+%    \begin{macrocode}
+  co-supervisor-field-label-en~=~{Co-Supervisor~off~Campus},
+  degree-field-label-en~=~{Academic~Degree~Applied~for},
+  specialty-field-label-en~=~{Specialty},
+  affiliation-field-label-en~=~{Affiliation},
+}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{本部硕士的“学科或类别”改成覆盖表里的一条，
+%   原先是 \cs{cs\_set\_nopar:Npn} 直接改宏，绕过了 \texttt{hit/const} 族}
+%    \begin{macrocode}
+\hit@if@both@options@TF{harbin}{master}{ \hit@set@constant{ specialty-field-label-cn~=~{学科或类别} } }{}
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{修改深圳硕士英文封面的 Defence 为 Defense.\issue[97]}
+% 深圳硕士英文封面是 Defense，其他为 Defence.
+%    \begin{macrocode}
+\hit@set@constant{
+  date-field-label-en~=~{Date~of~Defence},
+  school-field-label-en~=~{Degree-Conferring-Institution},
+  school-en~=~{Harbin~Institute~of~Technology},
+  title-separator-en~=~{:},
+  classified-index-national-field-label-cn~=~{国内图书分类号},
+  classified-index-international-field-label-cn~=~{国际图书分类号},
+  secret-level-field-label-cn~=~{密级},
+  school-id-field-label-cn~=~{学校代码},
+  school-id~=~{10213},
+}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{深圳硕士的 Defense 改成覆盖表里的一条}
+%    \begin{macrocode}
+\hit@if@both@options@TF{shenzhen}{master}{ \hit@set@constant{ date-field-label-en~=~{Date~of~Defense} } }{}
+
+\hit@set@constant{
+  conclusion-heading-cn~=~{结\hspace{\ccwd}论},
+  conclusion-heading-en~=~{Conclusions},
+  bibliography-heading-en~=~{References},
+  acknowledgement-heading-cn~=~{致\hspace{\ccwd}谢},
+  acknowledgement-heading-en~=~{Acknowledgements},
+  resume-heading-cn~=~{个人简历},
+}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{博后的三处标题合成一张覆盖表，原先是三段
+%   \cs{hit@if@option@TF}\texttt{\{postdoc\}} 各带两张单键的表}
+% 博后这三个标题与别的学位不同：正文标题不加字距，简历要写明是博士后的。
+%    \begin{macrocode}
+\hit@if@option@T{postdoc}{
+  \hit@set@constant{
+    conclusion-heading-cn~=~{结论},
+    acknowledgement-heading-cn~=~{致谢},
+    resume-heading-cn~=~{博士后个人简历},
+  }
+}
+%    \end{macrocode}
+%
+% 添加博后封皮title的选项
+% \changes{v3.0.0}{2020/05/21}{添加博后封皮title的选项}
+%    \begin{macrocode}
+
+
+\hit@set@constant{
+  corresponding-address-heading-cn~=~{永久通讯地址},
+  resume-heading-en~=~{Resume},
+  authorization-heading-cn~=~{哈尔滨工业大学学位论文原创性声明和使用权限},
+  authorization-heading-en~=~{Statement~of~copyright~and~Letter~of~authorization},
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{增加博士的学位论文评阅人、答辩委员会名单及答辩决议 \issue[247]}
+%    \begin{macrocode}
+  resolution-heading-cn~=~{学位论文评阅人、答辩委员会名单及答辩决议},
+  resolution-heading-en~=~{List~of~Dissertation~Reviewers~and~Defense~Committee~and~Defense~Resolution},
+}
+
+\hit@set@constant{~author-signature-field-label-cn~=~{作者签名：}~}
+\hit@set@constant{~supervisor-signature-field-label-cn~=~{导师签名：}~}
+\hit@set@constant{~date-field-label-front-cn~=~{日期：}~}
+\hit@set@constant{~denotation-heading-cn~=~{物理量名称及符号表}~}
+\hit@set@constant{~denotation-heading-en~=~{List~of~physical~quantity~and~symbol}~}
+\hit@set@constant{~eqdenote-label-cn~=~{式中}~}
+\hit@set@constant{~eqdenote-label-en~=~{where}~}
+\hit@set@constant{~eqdenote-dash~=~{——}~}
+\hit@set@constant{~authorization-usage-heading-cn~=~{学位论文使用权限}~}
+
+\hit@set@constant{~shenzhen-school-bottom-mark~=~{~
+   \begin{center}~
+     \songti\sanhao\textbf{哈工大（深圳）制}~
+   \end{center}~
+   \begin{center}~
+     \songti\sanhao\textbf{二〇一二年三月}~
+   \end{center}~
+}~}
+\hit@set@constant{~harbin-school-bottom-mark~=~{~
+   \begin{center}~
+     \songti\sanhao\textbf{研究生院制}~
+   \end{center}~
+   \begin{center}~
+     \songti\sanhao\textbf{二〇一四年九月}~
+   \end{center}~
+}~}
+%    \end{macrocode}
+%
+% \changes{v3.1c}{2023/04/16}{根据 \issue[151] 将本部本科开题下方的标识更换为 \texttt{.eps} 文件。}
+%    \begin{macrocode}
+\hit@set@constant{~harbin-bachelor-school-bottom-mark~=~{~
+   \begin{center}~
+     % \lishu\xiaoer\textbf{哈尔滨工业大学教务处制}
+     \includegraphics{hrb-bachelor-bottommark.eps}~
+   \end{center}~
+}~}
+
+
+\hit@set@constant{~shenzhen-doctor-midterm-note~=~{
+\thispagestyle{empty}
+{\begin{center}
+\songti\sanhao\textbf{说\hspace{4\ccwd}明}
+\end{center}
+}
+\vspace{1cm}\songti\sihao[2]
+\begin{enumerate}[itemsep=-4bp]
+\item 博士研究生学位论文中期报告一般在入学后的第五学期末完成。
+\item 此报告由学生本人填写，请导师签字后提交一份给检查小组。答辩结束后由检查组长签署意见。
+\item 报告经中期报告检查组长签字同意后，由学科部保存，以备论文答辩时参考。研究生院学生培养处将对研究生的学位论文中期报告进行抽查。
+\item 报告统一用A4纸打印。
+\end{enumerate}
+}~}
+%    \end{macrocode}
+%
+% 添加深圳中期报告内容
+% \changes{v3.0.0}{2020/05/21}{添加深圳中期报告内容}
+%    \begin{macrocode}
+
+
+
+\hit@set@constant{~authorization-text-cn~=~{%
+学位论文是研究生在哈尔滨工业大学攻读学位期间完成的成果，知识产权归属哈尔滨工业大学。学位论文的使用权限如下：~
+\par
+（1）学校可以采用影印、缩印或其他复制手段保存研究生上交的学位论文，并向国家图书馆报送学位论文；（2）学校可以将学位论文部分或全部内容编入有关数据库进行检索和提供相应阅览服务；（3）研究生毕业后发表与此学位论文研究成果相关的学术论文和其他成果时，应征得导师同意，且第一署名单位为哈尔滨工业大学。~
+\par
+保密论文在保密期内遵守有关保密规定，解密后适用于此使用权限规定。~
+\par
+本人知悉学位论文的使用权限，并将遵守有关规定。}~}
+%    \end{macrocode}
+%
+% 添加威海校区原创性声明内容
+% \changes{v3.0.16}{2021/11/29}{添加威海校区原创性声明内容}
+% \changes{v3.1d}{2025/03/03}{哈尔滨本科的原创性声明的标题也改了。\issue[172]}
+%    \begin{macrocode}
+
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{更改深圳校区本科生原创性声明标题}
+% \changes{v3.2a}{0000/00/00}{本科原创性声明的标题从值里的嵌套 \cs{hit@if@option@TF}
+%   改成默认值加两张校区覆盖表}
+% 三个校区的叫法都不一样，默认取哈尔滨的，威海与深圳各自覆盖。
+%    \begin{macrocode}
+\hit@set@constant{~bachelor-declaration-heading-cn~=~{哈尔滨工业大学本科毕业论文（设计）原创性声明和使用权限~}~}
+\hit@if@option@T{weihai}
+  { \hit@set@constant{~bachelor-declaration-heading-cn~=~{本科毕业设计（论文）原创性声明~}~} }
+\hit@if@option@T{shenzhen}
+  { \hit@set@constant{~bachelor-declaration-heading-cn~=~{哈尔滨工业大学深圳校区本科生毕业设计（论文）原创性声明~}~} }
+%    \end{macrocode}
+%    \begin{macro}{\hit@bachelor@authorization@text@cn}
+% \changes{v3.1d}{2025/03/03}{修改哈尔滨本科原创性声明的内容。\issue[172]}
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{本科原创性声明的正文从值里的嵌套 \cs{hit@if@option@TF}
+%   改成默认值加两张校区覆盖表}
+% 默认取深圳的写法，哈尔滨与威海各自覆盖。三段文字都不短，拆开之后各是一整块，
+% 改哪个校区的规范就改哪一块。
+%    \begin{macrocode}
+\hit@set@constant{~bachelor-authorization-text-cn~=~{%
+  本人郑重声明：在哈尔滨工业大学攻读学士学位期间，所提交的毕业设计（论文）《<title-flat-cn>》，是本人在导师指导下独立进行研究工作所取得的成果。对本文的研究工作做出重要贡献的个人和集体，均已在文中以明确方式注明，其它未注明部分不包含他人已发表或撰写过的研究成果，不存在购买、由他人代写、剽窃和伪造数据等作假行为。~
+\par
+    本人愿为此声明承担法律责任。~
+}~}
+\hit@if@option@T{harbin}{
+  \hit@set@constant{~bachelor-authorization-text-cn~=~{%
+    本人郑重声明：此处所提交的本科毕业论文（设计）《<title-flat-cn>》，是本人在导师指导下，在哈尔滨工业大学攻读学士学位期间独立进行研究工作所取得的成果，且毕业论文（设计）中除已标注引用文献的部分外不包含他人完成或已发表的研究成果。对本毕业论文（设计）的研究工作做出重要贡献的个人和集体，均已在文中以明确方式注明。~
+  }~}
+}
+\hit@if@option@T{weihai}{
+  \hit@set@constant{~bachelor-authorization-text-cn~=~{%
+  \kaishu
+  本人呈交给哈尔滨工业大学的学位论文，除所列参考文献和世所公认的文献外，全部是本人毕业设计期间在导师指导下的研究成果。除文中已经标明引用的内容外，本论文不包含任何其他个人或集体已经发表或撰写过的研究成果。对本文的研究做出贡献的个人和集体，均已在文中以明确方式标明。本人完全意识到本声明的法律结果由本人承担。~
+\par
+  若有不实之处，本人愿意承担相关法律责任。~
+}~}
+}
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macro}{\hit@bachelor@second@authorization@text@cn}
+% \changes{v3.1d}{2025/03/03}{修改哈尔滨本科知识产权的内容。\issue[172]}
+%    \begin{macrocode}
+\hit@set@constant{~bachelor-second-authorization-text-cn~=~{%
+  本科毕业论文（设计）是本科生在哈尔滨工业大学攻读学士学位期间完成的成果，知识产权归属哈尔滨工业大学。本科毕业论文（设计）的使用权限如下：~
+\par
+  （1）学校可以采用影印、缩印或其他复制手段保存本科生上交的毕业论文（设计），并向有关部门报送本科毕业论文（设计）；（2）根据需要，学校可以将本科毕业论文（设计）部分或全部内容编入有关数据库进行检索和提供相应阅览服务；（3）本科生毕业后发表与此毕业论文（设计）研究成果相关的学术论文和其他成果时，应征得导师同意，且第一署名单位为哈尔滨工业大学。~
+\par
+  保密论文在保密期内遵守有关保密规定，解密后适用于此使用权限规定。~
+\par
+  本人知悉本科毕业论文（设计）的使用权限，并将遵守有关规定。~
+}~}
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macro}{\hit@declaration@heading@cn}
+%    \begin{macrocode}
+\hit@set@constant{~declaration-heading-cn~=~{学位论文原创性声明}~}
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macro}{\hit@declaration@text@cn}
+%    \begin{macrocode}
+\hit@set@constant{~declaration-text-cn~=~{%
+本人郑重声明：此处所提交的学位论文《<title-flat-cn>》，是本人在导师指导下，在哈尔滨工业大学攻读学位期间独立进行研究工作所取得的成果，且学位论文中除已标注引用文献的部分外不包含他人完成或已发表的研究成果。对本学位论文的研究工作做出重要贡献的个人和集体，均已在文中以明确方式注明。}~}
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{修改深圳校区硕士创新性成果的标题。\issue[97]}
+% \changes{v3.1d}{2025/03/03}{修改哈尔滨校区本科创新性成果的标题。\issue[220]}
+% \changes{v3.2a}{0000/00/00}{成果附录的标题从三层嵌套的 \cs{hit@if@option@TF} 拆成
+%   默认值加三张覆盖表}
+% 成果附录的标题。默认是发表的论文，深圳硕士与哈尔滨本科按各自规范叫创新性成果，
+% 博后和英文版另有叫法。四条按覆盖顺序排，后面的盖前面的。
+%    \begin{macrocode}
+\hit@set@constant{~publication-heading-cn~=~{攻读<degree-level-cn>学位期间发表的论文及其他成果}~}
+\hit@if@shenzhen@master@or@harbin@bachelor@TF
+  { \hit@set@constant{~publication-heading-cn~=~{攻读<degree-level-cn>学位期间取得创新性成果}~} }
+  { }
+\hit@if@option@T{postdoc}{ \hit@set@constant{~publication-heading-cn~=~{博士后期间的研究成果}~} }
+\hit@if@option@T{english}{ \hit@set@constant{~publication-heading-cn~=~{Author's~Publications}~} }
+\hit@set@constant{~doctor-publication-heading-cn~=~{博士生期间的研究成果}~}
+%    \end{macrocode}
+%
+% 博后和英文版附录title
+% \changes{v3.0.0}{2020/05/21}{博后和英文版附录title}
+%    \begin{macrocode}
+
+
+\hit@set@constant{~date-blank-cn~=~{\hspace{2.5em}年\hspace{1.5em}月\hspace{1.5em}日}~}
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{修正英文目录中的硕士期间发表文章。\issue[97]}
+%    \begin{macrocode}
+\hit@set@constant{~publication-heading-en~=~{Papers~published~in~the~period~of~Ph.D.~education}~}
+\hit@if@option@T{master}
+  { \hit@set@constant{~publication-heading-en~=~{Papers~published~in~the~period~of~master~education}~} }
+\hit@if@both@options@TF{shenzhen}{master}
+  { \hit@set@constant{~publication-heading-en~=~{Innovative~achievements~for~Master}~} }
+  { }
+\hit@set@constant{
+  index-heading-en~=~{Index},
+  hi~=~{嗨！thesis},
+  brace-left-cn~=~{（},
+  brace-right-cn~=~{）},
+  brace-left-en~=~{(},
+  brace-right-en~=~{)},
+}
+}
+%</thesis-config>
+%    \end{macrocode}
+%
+% \section{报告类的配置}
+%
+% \changes{v3.2a}{0000/00/00}{\texttt{reportcfg} 从 \file{hit-report.dtx} 迁进来}
+% 两个报告类共用这一份，与迁移前一致。同样先整段包在 \cs{hitpreconfig} 里。
+%    \begin{macrocode}
+%<*report-config,szmidterm-config>
+\hitpreconfig{
+\hit@theorem@style{~
+  body-font~~~=~{\normalfont},~
+  head-font~~~=~{\normalfont\heiti},~
+  qed~~~~~~~~~=~{\ensuremath{\square}},~
+  head-punct~~=~{},~
+  note-braces~=~{}{},~
+  note-font~~~=~{},~
+}~
+\hit@theorem@declare@star{proof}{证明}~
+\hit@theorem@style{~qed~=~{},~head-punct~=~{}~}~
+\hit@theorem@list{~
+  assumption~~~=~假设,~
+  definition~~~=~定义,~
+  proposition~~=~命题,~
+  lemma~~~~~~~~=~引理,~
+  theorem~~~~~~=~定理,~
+  axiom~~~~~~~~=~公理,~
+  corollary~~~~=~推论,~
+  exercise~~~~~=~练习,~
+  example~~~~~~=~例,~
+  remark~~~~~~~=~注释,~
+  problem~~~~~~=~问题,~
+  conjecture~~~=~猜想,~
+}
+\ctexset{%
+  contentsname={目\hspace{\ccwd}录},
+  figurename=图,
+  tablename=表
+}
+\cs_set_eq:NN \CJK@todaysave \today
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{日期格式改用 expl3 定义。年月之间那个空格是原写法
+%   里就有的，写成 \texttt{\string~} 才能保住。}
+%    \begin{macrocode}
+\cs_set:Npn \CJK@todaysmall@short { \the \year 年~\the \month 月 }
+\cs_set:Npn \CJK@todaysmall { \the \year 年~\the \month 月~\the \day 日 }
+\cs_set:Npn \CJK@todaybig@short
+  { \zhdigits { \the \year } 年 \zhnumber { \the \month } 月 }
+\cs_set:Npn \CJK@todaybig
+  {
+    \zhdigits { \the \year } 年 \zhnumber { \the \month } 月
+    \zhnumber { \the \day } 日
+  }
+\cs_set:Npn \CJK@today { \CJK@todaysmall }
+\cs_set:Npn \today { \CJK@today }
+\NewDocumentCommand \CJKtoday { O{1} }
+  {
+    \int_case:nnF {#1}
+      {
+        { 0 } { \cs_set:Npn \CJK@today { \CJK@todaysave } }
+        { 1 } { \cs_set:Npn \CJK@today { \CJK@todaysmall } }
+        { 2 } { \cs_set:Npn \CJK@today { \CJK@todaybig } }
+      }
+      { }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{根据 \issue[220] 去掉本部答辩日期中的“日”}
+%    \begin{macrocode}
+\use:c{date-cn}{%
+  \hit@if@option@TF{bachelor}{%
+    \hit@if@option@TF{harbin}{%
+      \CJK@todaysmall@short
+    }{%
+      \CJK@todaysmall
+    }%
+  }{\CJK@todaysmall@short }%
+}
+\hit@if@option@T{doctor}{%
+\hit@set@constant{~
+  degree-level-cn~=~{博士},~
+  degree-of-discipline-format-cn~=~{<discipline-cn><degree-level-cn>},~
+  author-field-label-cn~=~{<degree-level-cn>研究生},~
+}~
+}%
+\hit@if@option@T{master}{%
+\hit@set@constant{~
+  degree-level-cn~=~{硕士},~
+  degree-of-discipline-format-cn~=~{<discipline-cn><degree-level-cn>},~
+  author-field-label-cn~=~{<degree-level-cn>研究生},~
+}~
+}%
+\hit@if@option@T{bachelor}{%
+\hit@set@constant{~
+  degree-level-cn~=~{学士},~
+}~
+}%
+\hit@set@constant{~
+  figure-prefix-en~=~{Fig.$\!$},~
+  table-prefix-en~~=~{Table$\!$},~
+  stage-opening~=~{开题},~
+  stage-midterm~=~{中期},~
+  stage-document-type~=~{报告},~
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{删了一些没用的定义，更改哈尔滨本科的论文名。\issue[172]}
+% 咱也不知道谁想的，其他校区的本科毕设叫“毕业设计（论文）”，哈尔滨的叫“毕业论文（设计）”
+%    \begin{macrocode}
+  bachelor-degree-level-cn~=~{本科},~
+  bachelor-document-type-cn~=~{毕业设计（论文）},~
+  bachelor-class-field-label-cn~=~{班号},~
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{之前一口气删多了，恢复一下。}
+%    \begin{macrocode}
+  bachelor-major-field-label-cn~=~{专\hspace{2\ccwd}业},~
+  bachelor-student-field-label-cn~=~{学\hspace{2\ccwd}生},~
+  bachelor-student-id-field-label-cn~=~{学\hspace{2\ccwd}号},~
+  bachelor-affiliation-field-label-cn~=~{学院},~
+  bachelor-affiliation-field-label-shenzhen-cn~=~{学院},~
+  bachelor-affiliation-field-label-weihai-cn~=~{学院},~
+  bachelor-supervisor-field-label-cn~=~{指导教师},~
+  bachelor-date-field-label-cn~=~{日\hspace{2\ccwd}期},~
+  bachelor-teacher-comment-field-label-cn~=~{指导教师评语：},~
+  bachelor-teacher-signature-field-label-cn~=~{指导教师签字：},~
+  bachelor-check-date-field-label-cn~=~{检查日期：},~
+  thesis-title-prefix-cn~=~{题\hspace{\ccwd}目},~
+%    \end{macrocode}
+%
+% \changes{v3.1c}{2023/04/16}{修改深圳硕士开题封面“学科”。}
+%
+% \changes{v3.2a}{0000/00/00}{修改本部硕士开题、中期封面“学院（部）”和“学科/学位专业类别”。}
+%    \begin{macrocode}
+  graduate-affiliation-field-label-cn~=~{\makebox[6\ccwd][s]{院（系}）},~
+  graduate-major-field-label-cn~=~{\makebox[6\ccwd][s]{学科}},~
+  graduate-supervisor-field-label-cn~=~{\makebox[6\ccwd][s]{导师}},~
+  graduate-student-field-label-cn~=~{\makebox[6\ccwd][s]{研究生}},~
+  graduate-student-id-field-label-cn~=~{\makebox[6\ccwd][s]{学号}},~
+  graduate-date-field-label-cn~=~{\hit@stage@opening\hit@stage@document@type 日期},~
+  graduate-enroll-date-field-label-cn~=~{\makebox[6\ccwd][s]{入学时间}},~
+  graduate-thesis-field-label-cn~=~{\makebox[6\ccwd][s]{论文题目}},~
+  graduate-affiliation-major-field-label-cn~=~{\makebox[6\ccwd][s]{学科专业}},~
+  school-cn~=~{哈尔滨工业大学},~
+  shenzhen-campus~=~{（深圳）},~
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{修改本部硕士开题封面“学位”。}
+%    \begin{macrocode}
+  document-type-cn~=~{学位论文},~
+  thesis-midterm-check-cn~=~{博\hspace{.125\ccwd}士\hspace{.125\ccwd}学\hspace{.125\ccwd}位\hspace{.125\ccwd}论\hspace{.125\ccwd}文\hspace{.125\ccwd}中\hspace{.125\ccwd}期\hspace{.125\ccwd}检\hspace{.125\ccwd}查\hspace{.125\ccwd}报\hspace{.125\ccwd}告},~
+  weihai-campus~=~{（威海）},~
+  school-field-label-cn~=~{授予学位单位},~
+  date-field-label-cn~=~{答辩日期},~
+  affiliation-field-label-cn~=~{所在单位},~
+  specialty-field-label-cn~=~{学科},~
+  degree-field-label-cn~=~{申请学位},~
+  supervisor-field-label-cn~=~{导师},~
+  associate-supervisor-field-label-cn~=~{副导师},~
+  co-supervisor-field-label-cn~=~{联合导师},~
+  title-separator-cn~=~{：},~
+  classified-index-national-field-label-cn~=~{国内图书分类号},~
+  classified-index-international-field-label-cn~=~{国际图书分类号},~
+  secret-level-field-label-cn~=~{密级},~
+  school-id-field-label-cn~=~{学校代码},~
+  school-id~=~{10213},~
+}~
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{封面上按校区、学位、阶段变的六条词汇从值里的
+%   \cs{hit@if@option@TF} 改成默认值加覆盖表}
+% 上面那张表只放默认值，下面按条件覆盖。后设的盖先设的，所以条件从宽到窄排。
+%    \begin{macrocode}
+\hit@if@option@T{harbin}{
+  \hit@set@constant{~bachelor-document-type-cn~=~{毕业论文（设计）}~}
+}
+\hit@if@both@options@TF{harbin}{bachelor}{ \hit@set@constant{~school-field-label-cn~=~{学校}~} }{}
+\hit@if@option@T{midterm}
+  { \hit@set@constant{~graduate-date-field-label-cn~=~{\hit@stage@midterm\hit@stage@document@type 日期}~} }
+\hit@if@shenzhen@master@opening@TF
+  { \hit@set@constant{~graduate-major-field-label-cn~=~{\makebox[6\ccwd][s]{学科\,/\,专业}}~} }
+  { }
+\hit@if@harbin@master@opening@or@midterm@TF
+  {
+    \hit@set@constant{~
+      graduate-affiliation-field-label-cn~=~{\makebox[6\ccwd][s]{学院（部}）},~
+      graduate-major-field-label-cn~=~{\makebox[8\ccwd][s]{学科/专业学位类别}},~
+    }~
+  }
+  { }
+\hit@if@harbin@master@opening@TF{ \hit@set@constant{~document-type-cn~=~{学位}~} }{ }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\hit@set@constant{~eqdenote-label-cn~=~{式中}~}~
+\hit@set@constant{~eqdenote-label-en~=~{where}~}~
+\hit@set@constant{~eqdenote-dash~=~{——}~}~
+\hit@set@constant{~author-signature-field-label-cn~=~{作者签名：}~}~
+\hit@set@constant{~supervisor-signature-field-label-cn~=~{导师签名：}~}~
+\hit@set@constant{~date-field-label-front-cn~=~{日期：}~}~
+\hit@set@constant{~authorization-usage-heading-cn~=~{学位论文使用权限}~}
+%    \end{macrocode}
+%
+% \changes{v3.0.22}{2022/05/16}{深圳校区中期模板封面范例中没有“哈工大（深圳）制”字样。\issue[126]}
+%    \begin{macrocode}
+% \newcommand{\hit@shenzhen@school@bottom@mark}{
+%    \begin{center}
+%      \songti\sanhao\textbf{哈工大（深圳）制}
+%    \end{center}
+%    \begin{center}
+%      \songti\sanhao\textbf{二〇一二年三月}
+%    \end{center}
+% }
+%    \end{macrocode}
+%
+% 此处删除了时间
+% \changes{v3.0.06}{2020/09/13}{此处删除了时间}
+%    \begin{macrocode}
+\hit@set@constant{~harbin-school-bottom-mark~=~{~
+   \begin{center}~
+     \songti\sanhao\textbf{研究生院制}~
+   \end{center}~
+}~}
+%    \end{macrocode}
+%
+% \changes{v3.1c}{2023/04/16}{根据 \issue[151] 将本部本科开题下方的标识更换为 \texttt{.eps} 文件。}
+%    \begin{macrocode}
+\hit@set@constant{~harbin-bachelor-school-bottom-mark~=~{~
+   \begin{center}~
+     % \lishu\xiaoer\textbf{哈尔滨工业大学教务处制}
+     \includegraphics{hrb-bachelor-bottommark.eps}~
+   \end{center}~
+}~}
+%    \end{macrocode}
+%
+% \changes{v3.1c}{2023/04/16}{深圳校区硕士开题模板含有“深圳校区教务处 制”。\issue[141]}
+%    \begin{macrocode}
+\hit@set@constant{~shenzhen-master-school-bottom-mark~=~{~
+   \begin{center}~
+     \songti\sanhao\textbf{深圳校区教务部\nobreakspace{}制}~
+   \end{center}~
+}~}~
+\hit@set@constant{~shenzhen-doctor-midterm-note~=~{~
+\thispagestyle{empty}~
+{\begin{center}~
+\songti\sanhao\textbf{说\hspace{4\ccwd}明}~
+\end{center}~
+}~
+\vspace{1cm}\songti\sihao[2]~
+\begin{enumerate}[itemsep=-4bp]~
+\item 博士研究生学位论文中期报告一般在入学后的第五学期末完成。~
+\item 此报告由学生本人填写，请导师签字后提交一份给检查小组。答辩结束后由检查组长签署意见。~
+\item 报告经中期报告检查组长签字同意后，由学科部保存，以备论文答辩时参考。研究生院学生培养处将对研究生的学位论文中期报告进行抽查。~
+\item 报告统一用A4纸打印。~
+\end{enumerate}~
+}~}~
+\hit@set@constant{~date-blank-cn~=~{\hspace{2.5em}年\hspace{1.5em}月\hspace{1.5em}日}~}~
+\hit@set@constant{~
+  hi~=~{嗨！thesis},~
+}
+\cs_set:Npn \hithesis { \textsc { hi } \- \textsc { Thesis } }
+\cs_set:Npn \hit { 哈尔滨工业大学 }
+}
+%</report-config,szmidterm-config>
+%    \end{macrocode}
+%
+% \Finale

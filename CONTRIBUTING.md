@@ -11,7 +11,8 @@ hithesis/
 ├── src/
 │   ├── hithesis.dtx            <- 入口：driver、三类共用的文件头、索引样式、dtx-style
 │   ├── hit-thesis.dtx          <- 毕业论文类 hithesisbook
-│   ├── hit-thesis-config.dtx   <- 毕业论文的固定词汇（改学校规范先看这里）
+│   ├── hit-config.dtx         <- 各个类的配置（改学校规范先看这里）
+│   ├── hit-thesis-config.dtx   <- 只剩一句回放调用与几条固定词汇
 │   ├── hit-report.dtx          <- 开题中期类 hithesisart
 │   ├── hitsz-midterm-report.dtx <- 深圳博士中期类 hithesisartplus
 │   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
@@ -126,8 +127,8 @@ cd examples/hitart/reports  && make report
 | 要改什么 | 打开哪个 |
 |---|---|
 | 毕业论文的任何行为 | `src/hit-thesis.dtx` |
-| 毕业论文的固定词汇 | `src/hit-thesis-config.dtx` |
-| 报告类的固定词汇 | `src/hit-report.dtx` 的 `reportcfg` 模块 |
+| 各个类的配置 | `src/hit-config.dtx` |
+
 | 开题、中期报告 | `src/hit-report.dtx` |
 | 深圳博士中期 | `src/hitsz-midterm-report.dtx` |
 | 各个类共用的底层 | `src/shared/hit-*.dtx` |
