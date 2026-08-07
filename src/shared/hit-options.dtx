@@ -14,7 +14,7 @@
 % \texttt{*-options} 模块里各写一遍，十三个定义一字不差。
 %
 % 这个文件只放定义，不执行任何依赖类状态的东西，所以排在类自己的模块之前没关系。
-% 各个类照旧在自己的 \texttt{*-options} 里调用 \cs{hit@boolopt} 这些声明选项。
+% 各个类照旧在自己的 \texttt{*-options} 里调用 \cs{hit@declare@boolean@option} 这些声明选项。
 %
 %    \begin{macrocode}
 %<*shared-options>
@@ -22,30 +22,30 @@
 %
 % 声明选项
 %
-% \cs{hit@boolopt}\marg{名}\marg{默认} 声明一个布尔选项，标志位是
-% \cs{g\_\_hit\_}\meta{名}\cs{\_bool}；\cs{hit@stringopt}\marg{名} 声明一个存字符串的选项，
+% \cs{hit@declare@boolean@option}\marg{名}\marg{默认} 声明一个布尔选项，标志位是
+% \cs{g\_\_hit\_}\meta{名}\cs{\_bool}；\cs{hit@declare@string@option}\marg{名} 声明一个存字符串的选项，
 % 存进 \cs{hit@}\meta{名}。键名带连字符时不能直接拿来拼控制序列，
-% \cs{hit@stringopt@as}\marg{键名}\marg{宏名} 把两者分开。
+% \cs{hit@declare@string@option@as}\marg{键名}\marg{宏名} 把两者分开。
 %
-% \cs{hit@choiceopt}\marg{键名}\marg{前缀}\marg{取值表}\marg{默认} 声明一组互斥取值，
+% \cs{hit@declare@choice@option}\marg{键名}\marg{前缀}\marg{取值表}\marg{默认} 声明一组互斥取值，
 % 每个取值一个标志位，选中的置真、其余置假，取值不在表里就报错。
 %    \begin{macrocode}
 \msg_new:nnn { hithesis } { bad-option-value }
   { 选项~#1~不接受取值~#2。 }
-\cs_new_protected:Npn \hit@boolopt #1#2
+\cs_new_protected:Npn \hit@declare@boolean@option #1#2
   {
     \bool_new:c { g__hit_#1_bool }
     \str_if_eq:nnT {#2} { true } { \bool_gset_true:c { g__hit_#1_bool } }
     \keys_define:nn { hit / class }
       { #1 .bool_gset:c = { g__hit_#1_bool } , #1 .default:n = { true } }
   }
-\cs_new_protected:Npn \hit@stringopt #1 { \hit@stringopt@as {#1} {#1} }
-\cs_new_protected:Npn \hit@stringopt@as #1#2
+\cs_new_protected:Npn \hit@declare@string@option #1 { \hit@declare@string@option@as {#1} {#1} }
+\cs_new_protected:Npn \hit@declare@string@option@as #1#2
   {
     \tl_new:c { hit@#2 }
     \keys_define:nn { hit / class } { #1 .tl_gset:c = { hit@#2 } }
   }
-\cs_new_protected:Npn \hit@choiceopt #1#2#3#4
+\cs_new_protected:Npn \hit@declare@choice@option #1#2#3#4
   {
     \clist_map_inline:nn {#3} { \bool_new:c { g__hit_#2##1_bool } }
     \tl_if_empty:nF {#4} { \bool_gset_true:c { g__hit_#2#4_bool } }
@@ -99,19 +99,22 @@
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{按校区、学位、阶段组合出来的具名判断改由
-%   \cs{hit@defcond} 生成。原先每条手写十来行 \cs{bool\_lazy\_all:nTF} 样板，
+%   \cs{hit@define@condition} 生成。原先每条手写十来行 \cs{bool\_lazy\_all:nTF} 样板，
 %   十一条一百二十多行，实际只有十一处调用}
-% \cs{hit@defcond}\marg{名}\marg{布尔表达式} 造一对判断：\cs{hit@if}\meta{名} 只有
-% 真分支，\cs{hit@if}\meta{名}\texttt{@TF} 两个分支都有。表达式用 \pkg{expl3} 的
-% 布尔写法，\texttt{\&\&}、\texttt{||}、\texttt{!} 与括号都能用。
+% \cs{hit@define@condition}\marg{名}\marg{布尔表达式} 造一对判断：
+% \cs{hit@if@}\meta{名} 只有真分支，\cs{hit@if@}\meta{名}\texttt{@TF} 两个分支都有。
+% 表达式用 \pkg{expl3} 的布尔写法，\texttt{\&\&}、\texttt{||}、\texttt{!} 与括号都能用。
+%
+% 名字里的词用 \texttt{@} 分隔、一个都不缩写，虚词也留着（\texttt{harbin@master@or@doctor}）。
+% 控制序列里不能用连字符，\texttt{@} 是这里的等价物。
 %
 % 判断本身各个类不一样（\file{hithesisbook.cls} 没有阶段，报告类没有博后），所以
 % 生成器放这里，具体声明留在各个类的 \texttt{*-options} 模块，一条一行。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@defcond #1#2
+\cs_new_protected:Npn \hit@define@condition #1#2
   {
-    \cs_new:cpn { hit@if#1 } ##1 { \bool_if:nT {#2} {##1} }
-    \cs_new:cpn { hit@if#1 @TF } ##1##2 { \bool_if:nTF {#2} {##1} {##2} }
+    \cs_new:cpn { hit@if@#1 } ##1 { \bool_if:nT {#2} {##1} }
+    \cs_new:cpn { hit@if@#1 @TF } ##1##2 { \bool_if:nTF {#2} {##1} {##2} }
   }
 %    \end{macrocode}
 %

@@ -40,7 +40,7 @@
 % \cs{hit@ifwider}\marg{长度}\marg{阈值}\marg{真}\marg{假} 比长度。
 % \cs{hit@ifT}\marg{flag}\marg{真} 是只有真分支的那一半。封面里几个多条件判断
 % 也各自取了名：\cs{hit@ifand} 两个标志位同时成立，\cs{hit@ifstage} 取「开题」
-% 或「中期」。按校区、学位、阶段组合出来的那几个判断由 \cs{hit@defcond} 生成，
+% 或「中期」。按校区、学位、阶段组合出来的那几个判断由 \cs{hit@define@condition} 生成，
 % 一条一行，见下；生成器在 \file{src/shared/hit-options.dtx}。参数从 expl3 之外传
 % 进来，里面的空格照原样保留；替换旧写法时注意 \cs{fi} 后面被跳过的那个空格。
 %
@@ -53,12 +53,11 @@
     \bool_if:NTF \g__hit_opening_bool
       { \hit@stage@opening } { \hit@ifT { midterm } { \hit@stage@midterm } }
   }
-\hit@defcond{widema}{ ( \g__hit_weihai_bool || \g__hit_shenzhen_bool ) && \g__hit_master_bool }
-\hit@defcond{szmaop}{ \g__hit_shenzhen_bool && \g__hit_master_bool && \g__hit_opening_bool }
-\hit@defcond{hrbmastage}{ \g__hit_harbin_bool && \g__hit_master_bool
+\hit@define@condition{weihai@or@shenzhen@master}{ ( \g__hit_weihai_bool || \g__hit_shenzhen_bool ) && \g__hit_master_bool }
+\hit@define@condition{shenzhen@master@opening}{ \g__hit_shenzhen_bool && \g__hit_master_bool && \g__hit_opening_bool }
+\hit@define@condition{harbin@master@opening@or@midterm}{ \g__hit_harbin_bool && \g__hit_master_bool
      && ( \g__hit_opening_bool || \g__hit_midterm_bool ) }
-\hit@defcond{shenzhenmaop}{ \g__hit_shenzhen_bool && \g__hit_opening_bool && \g__hit_master_bool }
-\hit@defcond{harbinmaop}{ \g__hit_harbin_bool && \g__hit_opening_bool && \g__hit_master_bool }
+\hit@define@condition{harbin@master@opening}{ \g__hit_harbin_bool && \g__hit_opening_bool && \g__hit_master_bool }
 %    \end{macrocode}
 %
 % 处理文档类选项
@@ -70,19 +69,19 @@
 % 键名与变量名不同的字符串选项，\option{cjk-font} 这种带连字符的键要走这个。
 %    \begin{macrocode}
 \clist_map_inline:nn { raggedbottom , toc }
-  { \hit@boolopt {#1} { true } }
+  { \hit@declare@boolean@option {#1} { true } }
 \clist_map_inline:nn { debug , glue , print , newtxmath }
-  { \hit@boolopt {#1} { false } }
+  { \hit@declare@boolean@option {#1} { false } }
 
-\hit@choiceopt{type}{}{bachelor,master,doctor}{}
+\hit@declare@choice@option{type}{}{bachelor,master,doctor}{}
 
-\hit@choiceopt{campus}{}{shenzhen,weihai,harbin}{}
+\hit@declare@choice@option{campus}{}{shenzhen,weihai,harbin}{}
 \bool_lazy_or:nnF
   { \bool_if_p:N \g__hit_weihai_bool }
   { \bool_if_p:N \g__hit_shenzhen_bool }
   { \bool_gset_true:N \g__hit_harbin_bool }
 
-\hit@choiceopt{stage}{}{opening,midterm}{}
+\hit@declare@choice@option{stage}{}{opening,midterm}{}
 %    \end{macrocode}
 % \changes{v3.2a}{0000/00/00}{设置参考文献列表中的作者是否全大写和最大显示数量}
 % \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
@@ -121,19 +120,19 @@
 %    \begin{macrocode}
 
 
-\hit@stringopt{fontset}
+\hit@declare@string@option{fontset}
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{西文字体独立成 \option{font} 选项}
 % 西文字体，取值与 \file{hithesisbook.cls} 相同。
 %    \begin{macrocode}
-\hit@stringopt@as{font-en}{font@en}
+\hit@declare@string@option@as{font-en}{font@en}
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{中文字体独立成 \option{cjk-font} 选项}
 % 中文字体。留空时照旧把 \option{fontset} 转给 \pkg{ctex}，给了值就由模板自己设置。
 %    \begin{macrocode}
-\hit@stringopt@as{font-cn}{font@cn}
+\hit@declare@string@option@as{font-cn}{font@cn}
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{\option{font} 与 \option{cjk-font} 改名
@@ -150,8 +149,8 @@
 % \changes{v3.2a}{0000/00/00}{新增 \option{math-font} 与 \option{math-style} 选项}
 % 数学字体与数学排版风格，取值与 \file{hithesisbook.cls} 相同。
 %    \begin{macrocode}
-\hit@stringopt@as{math-font}{mathfont}
-\hit@stringopt@as{math-style}{mathstyle}
+\hit@declare@string@option@as{math-font}{mathfont}
+\hit@declare@string@option@as{math-style}{mathstyle}
 \keys_define:nn { hit / class }
   {
     unknown .code:n =
@@ -877,11 +876,11 @@
 %    \begin{macrocode}
  \begin{center}~
  % \kaishu\xiaoer\textbf{\hit@cschoolname\hit@ifT{shenzhen}{\hit@shenzhencampus}}
- \hit@ifwidema{\ziju{1/6}}\kaishu\xiaoer\textbf{\hit@cschoolname\hit@ifT{weihai}{（威海）}}
+ \hit@if@weihai@or@shenzhen@master{\ziju{1/6}}\kaishu\xiaoer\textbf{\hit@cschoolname\hit@ifT{weihai}{（威海）}}
  \end{center}~
  \vspace{5mm}~
  \begin{center}~
- \hit@ifszmaop@TF{\xiaoyi\ziju{1/8}}{\erhao}~
+ \hit@if@shenzhen@master@opening@TF{\xiaoyi\ziju{1/8}}{\erhao}~
  \songti\textbf{\hit@cxuewei\hit@cthesisname
  \hit@ifstage
  \hit@stage@doctype
@@ -897,7 +896,7 @@
 % \changes{v3.2a}{0000/00/00}{本部硕士开题、中期封面添加“学位论文”或“实践成果”。}
 %    \begin{macrocode}
  \par
- \hit@ifhrbmastage{~
+ \hit@if@harbin@master@opening@or@midterm{~
  \songti\sanhao\textbf{（\hit@ctype）}
  }
  \end{center}~
@@ -1400,10 +1399,10 @@
 \hit@ifand{harbin}{bachelor}{ \hit@const@set{~cschoolnametitle~=~{学校}~} }{}
 \hit@ifT{midterm}
   { \hit@const@set{~graduate-datetitle~=~{\hit@stage@midterm\hit@stage@doctype 日期}~} }
-\hit@ifshenzhenmaop@TF
+\hit@if@shenzhen@master@opening@TF
   { \hit@const@set{~graduate-cmajortitle~=~{\makebox[6\ccwd][s]{学科\,/\,专业}}~} }
   { }
-\hit@ifhrbmastage@TF
+\hit@if@harbin@master@opening@or@midterm@TF
   {
     \hit@const@set{~
       graduate-caffiltitle~=~{\makebox[6\ccwd][s]{学院（部}）},~
@@ -1411,7 +1410,7 @@
     }~
   }
   { }
-\hit@ifharbinmaop@TF{ \hit@const@set{~cthesisname~=~{学位}~} }{ }
+\hit@if@harbin@master@opening@TF{ \hit@const@set{~cthesisname~=~{学位}~} }{ }
 %    \end{macrocode}
 %
 %    \begin{macrocode}
