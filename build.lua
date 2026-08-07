@@ -101,9 +101,9 @@ local function distribute()
   if one("hithesis.ist", "examples/hitbook/chinese") ~= 0 then return 1 end
   if put(ARTFILES, "examples/hitart/reports") ~= 0 then return 1 end
   if one("hrb-bachelor-bottommark.eps", "examples/hitart/reports") ~= 0 then return 1 end
-  if put({"hithesisartplus.cls", "hithesis-compat.sty", "hithesis.bst",
-          "hitszthesis.bst", "hitlogo.eps", "bthesistitle.eps", "zfb.eps"},
-         "examples/hitart/reportplus") ~= 0 then return 1 end
+  -- 深圳博士中期已并入 hithesisart，artplus 只剩一个转发用的空壳
+  if put(ARTFILES, "examples/hitart/reportplus") ~= 0 then return 1 end
+  if one("hithesisartplus.cls", "examples/hitart/reportplus") ~= 0 then return 1 end
   return 0
 end
 

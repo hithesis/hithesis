@@ -34,12 +34,17 @@ BIBSTYLE=hitszthesis                    # 可选，替换掉整棵树里的 \bib
 `tools/compile-variant.sh` 把 `BASE` 整个复制到 `tests/work/<变体名>/`，改写主文件第一行的
 `\documentclass`，再用 `latexmk -xelatex` 编译。
 
+变体 42 与 43 是同一份文档的两种写法：42 走 `hithesisartplus` 空壳，43 走
+`hithesisart` 加三个选项。深圳博士中期 v3.2a 从独立文档类并回 `hithesisart`，
+两者的 PDF 必须逐字节相同，空壳一断就会在这里露出来。空壳在 v4.1 移除，
+届时删掉 42。
+
 要加新组合，往 `tests/variants/` 里丢一个 `.conf` 就行，别处不用改。
 
 ## 用法
 
 ```sh
-# 42 个变体全编一遍，渲染结果存为本地基线
+# 43 个变体全编一遍，渲染结果存为本地基线
 make baseline            # 即 bash tools/make-baseline.sh
 
 # 改完 dtx，重编并与本地基线逐页比对

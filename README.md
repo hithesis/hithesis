@@ -290,7 +290,7 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
        examples
        ├── hitart
        │   ├── reportplus  %深圳校区博士中期报告
-       │   └── reports     %除去深圳校区博士中期报告的一校三区本硕博开题、中期报告
+       │   └── reports     %一校三区本硕博开题、中期报告
        └── hitbook
            ├── chinese     %一校三区本硕博毕业论文以及博后出站报告
            └── english     %一校三区本硕博英文版毕业论文

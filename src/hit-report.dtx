@@ -56,6 +56,7 @@
 \hit@define@condition{harbin@master@opening@or@midterm}{ \g__hit_harbin_bool && \g__hit_master_bool
      && ( \g__hit_opening_bool || \g__hit_midterm_bool ) }
 \hit@define@condition{harbin@master@opening}{ \g__hit_harbin_bool && \g__hit_opening_bool && \g__hit_master_bool }
+\hit@define@condition{shenzhen@doctor@midterm}{ \g__hit_shenzhen_bool && \g__hit_doctor_bool && \g__hit_midterm_bool }
 %    \end{macrocode}
 %
 % 处理文档类选项
@@ -67,7 +68,21 @@
 % 键名与变量名不同的字符串选项，\option{cjk-font} 这种带连字符的键要走这个。
 %    \begin{macrocode}
 \clist_map_inline:nn { raggedbottom , toc }
-  { \hit@declare@boolean@option {#1} { true } }
+  {
+    \hit@declare@boolean@option {#1} { true }
+    \bool_new:c { g__hit_#1_given_bool }
+    \keys_define:nn { hit / class }
+      {
+        #1 .code:n =
+          {
+            \bool_gset_true:c { g__hit_#1_given_bool }
+            \str_if_eq:nnTF {##1} { false }
+              { \bool_gset_false:c { g__hit_#1_bool } }
+              { \bool_gset_true:c { g__hit_#1_bool } }
+          } ,
+        #1 .default:n = { true } ,
+      }
+  }
 \clist_map_inline:nn { debug , glue , print , newtxmath }
   { \hit@declare@boolean@option {#1} { false } }
 
@@ -180,15 +195,6 @@
         \MessageBreak stage=<opening|midterm>~
       }
   }
-\cs_new_protected:Npn \hit@report@error@shenzhen@doctor
-  {
-    \ClassError { hithesisart }
-      {
-        \MessageBreak This~document~class~does~not~support~midterm~report~for~doctor~
-        in~shenzhen~campus.~
-        \MessageBreak please~use~\string\documentclass{hithesisartplus}~
-      }
-  }
 \bool_lazy_any:nF
   {
     { \bool_if_p:N \g__hit_bachelor_bool }
@@ -200,13 +206,12 @@
   { \bool_if_p:N \g__hit_opening_bool }
   { \bool_if_p:N \g__hit_midterm_bool }
   { \hit@report@error@stage }
-\bool_lazy_all:nT
+\hit@if@shenzhen@doctor@midterm
   {
-    { \bool_if_p:N \g__hit_doctor_bool }
-    { \bool_if_p:N \g__hit_midterm_bool }
-    { \bool_if_p:N \g__hit_shenzhen_bool }
+    \bool_if:NF \g__hit_toc_given_bool { \bool_gset_false:N \g__hit_toc_bool }
+    \bool_if:NF \g__hit_raggedbottom_given_bool
+      { \bool_gset_false:N \g__hit_raggedbottom_bool }
   }
-  { \hit@report@error@shenzhen@doctor }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{选项后处理（AutoFakeBold 与 fontset 透传）从 artcls 移入 art-options 模块}
@@ -273,13 +278,26 @@
 %   这里只留调用与本类特有的部分}
 %    \begin{macrocode}
 \hit@setup@fonts
-\cs_set:Npn \normalsize
+\hit@if@shenzhen@doctor@midterm@TF
   {
-    \@setfontsize \normalsize { 12bp } { \hit@glue@skip{20.50394bp}{2.834646bp} }
-    \abovedisplayskip = 8pt
-    \abovedisplayshortskip = 8pt
-    \belowdisplayskip = \abovedisplayskip
-    \belowdisplayshortskip = \abovedisplayshortskip
+    \cs_set:Npn \normalsize
+      {
+        \@setfontsize \normalsize { 12bp } { 15bp }
+        \abovedisplayskip = 6pt
+        \abovedisplayshortskip = 6pt
+        \belowdisplayskip = \abovedisplayskip
+        \belowdisplayshortskip = \abovedisplayshortskip
+      }
+  }
+  {
+    \cs_set:Npn \normalsize
+      {
+        \@setfontsize \normalsize { 12bp } { \hit@glue@skip{20.50394bp}{2.834646bp} }
+        \abovedisplayskip = 8pt
+        \abovedisplayshortskip = 8pt
+        \belowdisplayskip = \abovedisplayskip
+        \belowdisplayshortskip = \abovedisplayshortskip
+      }
   }
 %</report-fonts>
 %<*report-deps-a>
@@ -355,6 +373,12 @@
     \RequirePackage { layouts }
     \RequirePackage { lineno }
   }
+\hit@if@shenzhen@doctor@midterm
+  {
+    \RequirePackage { tikzpagenodes }
+    \RequirePackage { eso-pic }
+    \RequirePackage { tikz }
+  }
 
 \RequirePackage{fancyhdr}
 \RequirePackage{tabularx}
@@ -377,6 +401,7 @@
 % 换到别的模板不用改。
 %    \begin{macrocode}
 \hit@setup@caption
+\hit@if@shenzhen@doctor@midterm { \RequirePackage { lipsum } }
 %    \end{macrocode}
 % \changes{v3.0.21}{2022/05/11}{删除 \pkg{xltxtra} 宏包, 来实现规范样式的上标。\issue[125]}
 % 设置深圳校区开题报告的正文行距与毕业论文模板一致
@@ -459,6 +484,7 @@
 \hit@define@term{affiliation-zh}
 \hit@define@term{supervisor-zh}
 \hit@define@term{date-zh}
+\hit@define@term{enroll-date-zh}
 
 %    \end{macrocode}
 %
@@ -558,9 +584,12 @@
     cclassid=class-id ,
     caffil=affiliation-zh ,
     csupervisor=supervisor-zh ,
-    cdate=date-zh
+    cdate=date-zh ,
+    cenrolldate=enroll-date-zh
   }
 \hit@define@legacy@title{ctitlecover}{zh}{first}
+\hit@define@legacy@title{ctitleone}{zh}{first}
+\hit@define@legacy@title{ctitletwo}{zh}{second}
 \prop_gset_from_keyval:Nn \g__hit_renamed_load_option_prop
   {
     font     = { font-en = ... } ,

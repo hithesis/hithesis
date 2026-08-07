@@ -59,8 +59,7 @@ distribute:
 	@cp $(PACKAGE).ist examples/hitbook/chinese/
 	@cp $(ARTFILES) hrb-bachelor-bottommark.eps examples/hitart/reports/
 	@mkdir -p examples/hitart/reports/figures && cp golfer.eps examples/hitart/reports/figures/
-	@cp $(PACKAGE)artplus.cls $(PACKAGE)-compat.sty $(PACKAGE).bst hitszthesis.bst \
-	    hitlogo.eps bthesistitle.eps zfb.eps examples/hitart/reportplus/
+	@cp $(ARTFILES) $(PACKAGE)artplus.cls examples/hitart/reportplus/
 	@mkdir -p examples/hitart/reportplus/figures && cp golfer.eps examples/hitart/reportplus/figures/
 
 doc: $(PACKAGE).pdf

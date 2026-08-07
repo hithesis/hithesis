@@ -11,14 +11,14 @@ hithesis/
 ├── src/
 │   ├── hithesis.dtx            <- 入口：driver、三类共用的文件头、索引样式、dtx-style
 │   ├── hit-thesis.dtx          <- 毕业论文类 hithesisbook
-│   ├── hit-config.dtx         <- 各个类的配置（改学校规范先看这里）
-│   ├── hit-thesis-config.dtx   <- 只剩一句回放调用与几条固定词汇
-│   ├── hit-report.dtx          <- 开题中期类 hithesisart
-│   ├── hitsz-midterm-report.dtx <- 深圳博士中期类 hithesisartplus
+│   ├── hit-report.dtx          <- 开题中期类 hithesisart（含深圳博士中期）
 │   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
 │   ├── hit-doc.dtx             <- 用户手册
 │   ├── hit-eps.dtx             <- EPS 图像数据（校徽、封面、示例插图）
-│   └── shared/                 <- 各个类共用的底层模块，见 §4.2
+│   ├── config/                 <- 各个类的配置（改学校规范先看这里）
+│   ├── utils/                  <- 各个类共用的小工具，见 §4.2
+│   ├── flow/                   <- 版心、页眉页脚、章节标题、段落、浮动体
+│   └── pages/                  <- 论文的一页一个文件
 ├── hithesis.ins          <- docstrip 驱动文件，留在根目录：它的输出路径都相对于此
 ├── build.lua             <- l3build 配置：unpack / distribute / doc / check / ctan
 ├── Makefile              <- 构建与测试入口
@@ -29,7 +29,7 @@ hithesis/
 ├── testfiles/            <- l3build 的宏级测试：*.lvt 用例与 *.tlg 基线
 ├── examples/
 │   ├── hitbook/{chinese,english}/   <- 毕业论文示例
-│   └── hitart/{reports,reportplus}/ <- 开题/中期/博士中期示例
+│   └── hitart/{reports,reportplus}/ <- 开题/中期示例，reportplus 是深圳博士中期
 └── .github/              <- Issue / PR 模板、CI 配置
 ```
 
@@ -65,7 +65,7 @@ make changes-fix   # 自动修正能修的部分
 测试相关：
 
 ```shell
-make baseline        # 42 个变体全编一遍，渲染结果存成本地基线
+make baseline        # 43 个变体全编一遍，渲染结果存成本地基线
 make smoke           # 重编并与本地基线逐页比
 make regression-test # 与参照版本逐页比，发版前跑
 make doc-baseline    # 改动前存一份手册 PDF
@@ -143,7 +143,6 @@ src/
 | 毕业论文的任何行为 | `src/hit-thesis.dtx` |
 | 各个类的配置 | `src/config/hit-config.dtx` |
 | 开题、中期报告 | `src/hit-report.dtx` |
-| 深圳博士中期 | `src/hitsz-midterm-report.dtx` |
 | 各个类共用的小工具 | `src/utils/hit-*.dtx` |
 | 论文的某一页 | `src/pages/hit-*.dtx` |
 | 版心、页眉、标题、浮动体 | `src/flow/hit-*.dtx` |
@@ -181,7 +180,9 @@ src/
 
 ### 4.2 版式各写各的，底层机制共用
 
-各个 cls 的版式代码物理隔离，由各自的 `<类>-*` 模块承载。当前是三个：`thesis-*` 在 `src/hit-thesis.dtx`、`report-*` 在 `src/hit-report.dtx`、`szmidterm-*` 在 `src/hitsz-midterm-report.dtx`。每个类对应一套学校规范，各自演化，碰巧相似的版式不要合并，规范一独立变动就会变成维护负担。新增一个类就是新增一个 `hit-<名>.dtx` 加一组 `<名>-*` 模块。
+各个 cls 的版式代码物理隔离，由各自的 `<类>-*` 模块承载。当前是两个：`thesis-*` 在 `src/hit-thesis.dtx`，`report-*` 在 `src/hit-report.dtx`。每个类对应一套学校规范，各自演化，碰巧相似的版式不要合并，规范一独立变动就会变成维护负担。新增一个类就是新增一个 `hit-<名>.dtx` 加一组 `<名>-*` 模块。
+
+反过来，同一套规范下的分支不要单开一个类。深圳博士中期原先是 `hithesisartplus`，与 `hithesisart` 九成代码逐字相同，差的只有封面、页眉、节标题、正文行距四处；v3.2a 并回 `report-*`，由 `campus=shenzhen,type=doctor,stage=midterm` 三个选项选中，与其余十七格并列。判断标准是差异在哪一层：规范不同才分类，版式不同就加分支。
 
 底层机制是另一回事。字号、数学、表格、脚注这些各套规范要求一致的东西，共用一份放在 `src/utils/hit-*.dtx`，守卫叫 `shared-*`：
 
@@ -199,17 +200,17 @@ src/
 | `hit-subfigure.dtx` | `\subfigure` 兼容层，整个文件到 v4.1 可删 |
 | `hit-options.dtx` | 选项声明助手与读标志位的判断函数 |
 
-判断标准是“各套规范会不会分开改”。会分开改的（封面、页眉、章节标题、目录）留在各自的类文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `shared/`。
+判断标准是“各套规范会不会分开改”。会分开改的（封面、页眉、章节标题、目录）留在各自的类文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `utils/`。
 
-共享层的写法与类模块不同：文件里只放定义，需要在特定时机执行的部分包成 `\hit@setup@<名>`，由各个类在原来那段代码所在的位置调用。这样共享之后生成物的执行顺序不变，能用“生成的 cls 逐字节不变”来验收。
+`utils/` 的写法与类模块不同：文件里只放定义，需要在特定时机执行的部分包成 `\hit@setup@<名>`，由各个类在原来那段代码所在的位置调用。这样共享之后生成物的执行顺序不变，能用“生成的 cls 逐字节不变”来验收。
 
-例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hit-eps.dtx` 也跨类共享，但它们不走 `shared/`，因为不是拼进 cls 的模块。
+例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hit-eps.dtx` 也跨类共享，但它们不走 `utils/`，因为不是拼进 cls 的模块。
 
 ### 4.3 一个模块一个职责
 
 模块名要能反映它唯一的职责：
 
-模块名的形式是“类-职责”，类的前缀是 `thesis` / `report` / `szmidterm` / `shared`：
+模块名的形式是“类-职责”，类的前缀是 `thesis` / `report` / `shared`：
 
 - √ `thesis-chapter` 只管毕业论文的章节标题格式
 - √ `thesis-bib` 只管毕业论文的参考文献加载与样式
@@ -351,8 +352,8 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 已迁移：`thesis-geometry`、`report-geometry`、`thesis-mainmatter`、`report-chapter`、
 `report-pagestyle`、`report-toc`、`thesis-toc`、`thesis-pagestyle`、`report-floats`、`thesis-deps-c`、
 `thesis-glossary`、`report-deps-a`、`thesis-deps-a`、`report-options` 与
-`szmidterm-options`、`thesis-options`、
-`thesis-meta`、`report-meta`、`szmidterm-meta`、`thesis-floats`、`thesis-hyperlink`、
+`thesis-options`、`report-options`、
+`thesis-meta`、`report-meta`、`thesis-floats`、`thesis-hyperlink`、
 `thesis-frontmatter`、`report-frontmatter`、`thesis-chapter`、`thesis-appendix`、`thesis-bib`、
 `report-bib`、`thesis-footnote`、`report-deps-c`。
 
@@ -481,14 +482,14 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 改动前先存基线：
 
 ```shell
-make baseline      # 42 个变体
+make baseline      # 43 个变体
 make doc-baseline  # 手册
 ```
 
 改完之后：
 
 ```shell
-make smoke      # 42 个变体与基线逐页比
+make smoke      # 43 个变体与基线逐页比
 make doc-check  # 手册与基线逐页比
 ```
 
@@ -540,7 +541,7 @@ CI 会在推送后跑这几项：
 
 | 范围 | 对应 |
 |---|---|
-| `thesis` `report` `szmidterm` | 各个类，当前是 `src/hit-thesis.dtx`、`src/hit-report.dtx`、`src/hitsz-midterm-report.dtx` |
+| `thesis` `report` | 各个类，当前是 `src/hit-thesis.dtx`、`src/hit-report.dtx` |
 | `utils` | 各个类共用的小工具 `src/utils/hit-*.dtx` |
 | `pages` | 论文的某一页 `src/pages/hit-*.dtx` |
 | `flow` | 页面流的版式 `src/flow/hit-*.dtx` |
@@ -556,11 +557,11 @@ CI 会在推送后跑这几项：
 
 ```
 feat(thesis): 增加深圳校区博士封面的联合导师字段
-fix(report,szmidterm): 修正中期报告页眉在偶数页丢失
+fix(report): 修正中期报告页眉在偶数页丢失
 refactor(thesis): 把封面绘制从 thesiscls 拆到 thesis-cover 模块
 docs(manual): 补充 newgeometry 三个取值的版心差异
 docs(contributing): 提交消息改用 Conventional Commits
-test: 补充 report 与 szmidterm 的字段清单交叉验证
+test: 补充 thesis 与 report 的字段清单交叉验证
 ci: l3build check 铺到所有 TeX Live 版本
 ```
 
@@ -670,7 +671,7 @@ make version-set VERSION=3.2b DATE=2026/08/07
 | 在 expl3 里用 `\patchcmd`/`\pretocmd`/`\apptocmd` | 目标宏的排版悄悄错位。etoolbox 会把宏体 detokenize 后按当前 catcode 重扫，体内的字面空格被吃掉。踩过一次：`\pretocmd{\@makefntext}` 让脚注整块上移 4.2pt，正文一个字没动、页数没变，`pdftotext` 比对看不出来 | 用 `\ExplSyntaxOff` 圈起来。fduthesis、bithesis、sjtuthesis 一处 etoolbox 补丁都不用，长远看这些补丁值得换掉 |
 | expl3 里换行也被忽略 | 多行文本值里，行末换行原本产生的空格没了，空行原本产生的 `\par` 也没了 | 行末补 `~`（行末是控制词的不用补，那个空格本来就被吸收），空行写成 `\par` |
 | 用脚本批量给常量表加 `\ExplSyntaxOn` | 常量变 `\relax`、分支走错、`Incomplete \iffalse` | 三种切法都会出事：切进跨模块守卫的语句中间、切在 `\hit@if@both@options@TF{a}{b}` 与它的两个分支之间、切进多行文本值内部。只能逐条手工包，包完用常量 dump 对照（见下） |
-| 改常量表后只跑 42 变体 | 没被封面用到的常量改坏了也看不出来 | 先 dump 全部 131 个常量在 master/doctor/bachelor/postdoc 四档下的 `\meaning` 做基线，改完再 dump 比对 |
+| 改常量表后只跑 43 变体 | 没被封面用到的常量改坏了也看不出来 | 先 dump 全部 131 个常量在 master/doctor/bachelor/postdoc 四档下的 `\meaning` 做基线，改完再 dump 比对 |
 | `\ExplSyntaxOn` 写在花括号参数里 | 代码看着在 expl3 里，空格却没被忽略；如 `\addcontentsline { toc }` 的 `#1` 变成 ` toc `，条目静悄悄丢失 | catcode 在读参数时就定了，`\ExplSyntaxOn` 放进 `\hit@if@option@TF{…}{…}` 这类参数中无效。把定义挪到参数外面各自取名，再用 `\hit@if@option@TF` 选一个 `\cs_new_eq:NN` 过去 |
 | `\ifthenelse{\equal{}}` 换成 `\str_if_eq:eeTF` | 编译报 `Incomplete \iffalse`、整段被吞 | 两者不等价。`\equal` 走 `\protected@edef`，挡得住 `\hspace` 这类不可展开的命令；`\str_if_eq:ee` 是完全展开。被比较的内容可能含排版命令时不要换 |
 
