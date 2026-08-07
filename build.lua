@@ -16,9 +16,9 @@ module = "hithesis"
 
 -- 源文件都在 src/，hithesis.ins 留在根目录：它的输出路径相对于调用目录，
 -- 跟着搬会全部指错。
--- src/shared/ 是三个类共用的模块，hithesis.ins 里按裸文件名引用（l3build 拷贝时
+-- src/ 下按职责分目录，hithesis.ins 里按裸文件名引用（l3build 拷贝时
 -- 会把目录拍平），所以这里要单独列一条，否则 unpack 找不到它们。
-sourcefiles = {"src/*.dtx", "src/shared/*.dtx", "hithesis.ins"}
+sourcefiles = {"src/*.dtx", "src/*/*.dtx", "hithesis.ins"}
 unpackfiles = {"hithesis.ins"}
 
 -- 装进 TEXMF 的东西。examples 里那几份副本由下面的 distribute 目标分发，
