@@ -19,16 +19,16 @@
 %<*shared-meta>
 %    \end{macrocode}
 %
-% \begin{macro}{\hit@def@classkey,\hit@def@term}
-% \cs{hit@def@classkey}\marg{名} 把一个键注册进 \texttt{hit/class} 族，处理器直接
-% 调用同名命令。\cs{hit@def@term}\marg{名} 在此之上再造出那个同名命令：
+% \begin{macro}{\hit@define@class@key,\hit@define@term}
+% \cs{hit@define@class@key}\marg{名} 把一个键注册进 \texttt{hit/class} 族，处理器直接
+% 调用同名命令。\cs{hit@define@term}\marg{名} 在此之上再造出那个同名命令：
 % \cs{ctitle}\marg{值} 存进 \cs{hit@ctitle}，并且先置一次空值。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@def@classkey #1
+\cs_new_protected:Npn \hit@define@class@key #1
   { \keys_define:nn { hit / class } { #1 .code:n = { \use:c {#1} {##1} } } }
-\cs_new_protected:Npn \hit@def@term #1
+\cs_new_protected:Npn \hit@define@term #1
   {
-    \hit@def@classkey {#1}
+    \hit@define@class@key {#1}
     \cs_gset_nopar:cpn {#1} ##1 { \cs_gset_nopar:cpn { hit@#1 } {##1} }
     \use:c {#1} { }
   }
@@ -46,7 +46,7 @@
 \seq_new:N \l__hit_keywords_seq
 \cs_new_protected:Npn \hit@parse@keywords #1
   {
-    \hit@def@classkey {#1}
+    \hit@define@class@key {#1}
     \cs_gset_nopar:cpn { hit@#1 } { }
     \cs_gset_protected_nopar:cpn {#1} ##1
       {
@@ -89,38 +89,38 @@
 % 指定；\texttt{auto} 的含义由各选项自己定义，在用到的时候才解析。分学位映射里没
 % 列到的学位保持 \texttt{auto}，不是 \texttt{false}。
 %    \begin{macrocode}
-\tl_new:N \l__hit_tri_tl
+\tl_new:N \l__hit_tristate_tl
 \keys_define:nn { hit / degree-map }
   {
-    bachelor .code:n = { \bool_if:NT \g__hit_bachelor_bool { \tl_set:Nn \l__hit_tri_tl {#1} } } ,
-    master   .code:n = { \bool_if:NT \g__hit_master_bool { \tl_set:Nn \l__hit_tri_tl {#1} } } ,
-    doctor   .code:n = { \bool_if:NT \g__hit_doctor_bool { \tl_set:Nn \l__hit_tri_tl {#1} } } ,
-    postdoc  .code:n = { \bool_if:NT \g__hit_postdoc_bool { \tl_set:Nn \l__hit_tri_tl {#1} } } ,
+    bachelor .code:n = { \bool_if:NT \g__hit_bachelor_bool { \tl_set:Nn \l__hit_tristate_tl {#1} } } ,
+    master   .code:n = { \bool_if:NT \g__hit_master_bool { \tl_set:Nn \l__hit_tristate_tl {#1} } } ,
+    doctor   .code:n = { \bool_if:NT \g__hit_doctor_bool { \tl_set:Nn \l__hit_tristate_tl {#1} } } ,
+    postdoc  .code:n = { \bool_if:NT \g__hit_postdoc_bool { \tl_set:Nn \l__hit_tristate_tl {#1} } } ,
   }
 %    \end{macrocode}
 % 设值。带等号的当作分学位映射，其余直接存。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_tri_set:Nn #1#2
+\cs_new_protected:Npn \__hit_tristate_set:Nn #1#2
   {
     \tl_if_in:nnTF {#2} { = }
       {
-        \tl_set:Nn \l__hit_tri_tl { auto }
+        \tl_set:Nn \l__hit_tristate_tl { auto }
         \keys_set:nn { hit / degree-map } {#2}
-        \tl_set_eq:NN #1 \l__hit_tri_tl
+        \tl_set_eq:NN #1 \l__hit_tristate_tl
       }
       { \tl_set:Nn #1 {#2} }
   }
 %    \end{macrocode}
 % 取值。\texttt{auto} 时执行第二个参数给出的布尔表达式来决定。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_tri_if:NnTF #1#2#3#4
+\cs_new_protected:Npn \__hit_tristate_if:NnTF #1#2#3#4
   {
     \str_case:VnF #1
       { { true } {#3} { false } {#4} }
       { \bool_if:nTF {#2} {#3} {#4} }
   }
-\cs_new_protected:Npn \__hit_tri_if:NnT #1#2#3
-  { \__hit_tri_if:NnTF #1 {#2} {#3} { } }
+\cs_new_protected:Npn \__hit_tristate_if:NnT #1#2#3
+  { \__hit_tristate_if:NnTF #1 {#2} {#3} { } }
 %    \end{macrocode}
 %
 % 造一个普通布尔键：\cs{\_\_hit\_bool\_key:nnn}\marg{族}\marg{键名}\marg{标志位名}，
@@ -143,15 +143,15 @@
 \cs_new_protected:Npn \__hit_style_pair:nn #1#2 { \__hit_bool_key:nnn { style } {#1} {#2} }
 %    \end{macrocode}
 %
-% \begin{macro}{\hit@info@declare}
-% 元信息字段注册进 \texttt{hit/info} 族。这批字段由 \cs{hit@def@term} 与
+% \begin{macro}{\hit@declare@info@field}
+% 元信息字段注册进 \texttt{hit/info} 族。这批字段由 \cs{hit@define@term} 与
 % \cs{hit@parse@keywords} 批量生成，每个都有一个同名命令（\cs{ctitle} 等），
 % 键的处理器直接调用那个命令，所以三种写法结果一致：\cs{hitsetup} 的扁平写法、
 % 分族写法、以及命令写法。名单由各个类传进来。
 %    \begin{macrocode}
 \clist_new:N \l__hit_info_clist
 \prop_new:N \g__hit_info_prop
-\cs_new_protected:Npn \hit@info@declare #1
+\cs_new_protected:Npn \hit@declare@info@field #1
   {
     \clist_set:Nn \l__hit_info_clist {#1}
     \clist_map_inline:Nn \l__hit_info_clist
@@ -163,7 +163,7 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \begin{macro}{\hit@const@declare,\hit@const@set}
+% \begin{macro}{\hit@declare@constant,\hit@set@constant}
 % 类文件里定义了一批可本地化的字符串：封面各字段的标签、声明与授权的正文、
 % 签名栏文字等。各院系叫法不一，用户有改的需要，原先要改就得动生成物。
 % 这里把它们做成键：
@@ -173,23 +173,23 @@
 % 键名由宏名机械地得来：去掉 \texttt{hit@} 前缀，其余的 \texttt{@} 换成连字符，
 % 所以 \cs{hit@ckeywords@separator} 对应 \texttt{ckeywords-separator}。
 %
-% \cs{hit@const@set} 把一张键值表灌进 \texttt{hit/const} 族。默认值与用户在导言区
+% \cs{hit@set@constant} 把一张键值表灌进 \texttt{hit/const} 族。默认值与用户在导言区
 % 写的 \cs{hitsetup}\{const=\{…\}\} 走的是同一条路，区别只是先后：类文件末尾先设
 % 默认值，导言区后设的覆盖它。表是在 expl3 之外记号化的，取值里的空格照原样保留。
 %    \begin{macrocode}
 \str_new:N \l__hit_const_name_str
-\cs_new_protected:Npn \__hit_const_set:n #1
+\cs_new_protected:Npn \__hit_constant_set:n #1
   {
     \str_set_eq:NN \l__hit_const_name_str \l_keys_key_str
     \str_replace_all:Nnn \l__hit_const_name_str { - } { @ }
     \cs_gset:cpx { hit@ \l__hit_const_name_str } { \exp_not:n {#1} }
   }
-\cs_new_protected:Npn \hit@const@declare #1
+\cs_new_protected:Npn \hit@declare@constant #1
   {
     \clist_map_inline:nn {#1}
-      { \keys_define:nn { hit / const } { ##1 .code:n = { \__hit_const_set:n {####1} } } }
+      { \keys_define:nn { hit / const } { ##1 .code:n = { \__hit_constant_set:n {####1} } } }
   }
-\cs_new_protected:Npn \hit@const@set #1 { \keys_set:nn { hit / const } {#1} }
+\cs_new_protected:Npn \hit@set@constant #1 { \keys_set:nn { hit / const } {#1} }
 %    \end{macrocode}
 % \end{macro}
 %
@@ -246,41 +246,41 @@
 % 两张改名表。排版选项写在 \cs{documentclass} 里要提示改用 \cs{hitsetup}；
 % 加载期选项（字体、校区、学位这类）必须写在 \cs{documentclass} 里，只提示改名。
 %    \begin{macrocode}
-\prop_new:N \g__hit_rename_prop
-\prop_new:N \g__hit_rename_load_prop
-\prop_new:N \g__hit_warned_prop
-\tl_new:N \l__hit_warn_tl
+\prop_new:N \g__hit_renamed_option_prop
+\prop_new:N \g__hit_renamed_load_option_prop
+\prop_new:N \g__hit_warned_options_prop
+\tl_new:N \l__hit_warn_message_tl
 \cs_generate_variant:Nn \prop_get:NnNTF { NV }
 \cs_generate_variant:Nn \msg_warning:nnn { nnV }
 \cs_new_protected:Npn \__hit_warn_once:nnn #1#2#3
   {
-    \prop_if_in:NnF \g__hit_warned_prop {#1}
+    \prop_if_in:NnF \g__hit_warned_options_prop {#1}
       {
-        \prop_gput:Nnn \g__hit_warned_prop {#1} { }
+        \prop_gput:Nnn \g__hit_warned_options_prop {#1} { }
         \msg_warning:nnnn { hithesis } {#2} {#1} {#3}
       }
   }
 \cs_generate_variant:Nn \__hit_warn_once:nnn { VnV }
-\bool_new:N \g__hit_flat_info_bool
+\bool_new:N \g__hit_flat_info_warned_bool
 \cs_new_protected:Npn \__hit_legacy_warn:
   {
-    \prop_get:NVNTF \g__hit_rename_prop \l_keys_key_str \l__hit_warn_tl
+    \prop_get:NVNTF \g__hit_renamed_option_prop \l_keys_key_str \l__hit_warn_message_tl
       {
         \__hit_warn_once:VnV \l_keys_key_str
-          { renamed-option } \l__hit_warn_tl
+          { renamed-option } \l__hit_warn_message_tl
       }
       {
-    \prop_get:NVNTF \g__hit_rename_load_prop \l_keys_key_str \l__hit_warn_tl
+    \prop_get:NVNTF \g__hit_renamed_load_option_prop \l_keys_key_str \l__hit_warn_message_tl
       {
         \__hit_warn_once:VnV \l_keys_key_str
-          { renamed-option } \l__hit_warn_tl
+          { renamed-option } \l__hit_warn_message_tl
       }
       {
         \bool_lazy_and:nnT
-          { ! \bool_if_p:N \g__hit_flat_info_bool }
+          { ! \bool_if_p:N \g__hit_flat_info_warned_bool }
           { \prop_if_in_p:NV \g__hit_info_prop \l_keys_key_str }
           {
-            \bool_gset_true:N \g__hit_flat_info_bool
+            \bool_gset_true:N \g__hit_flat_info_warned_bool
             \msg_warning:nnV { hithesis } { flat-info } \l_keys_key_str
           }
       }
@@ -293,31 +293,31 @@
 % \cs{l\_\_hit\_warn\_tl} 里，接着执行一次 \cs{\_\_hit\_classopt\_extra:}，类自己
 % 要额外查什么就重定义它，默认什么都不做。
 %    \begin{macrocode}
-\clist_new:N \l__hit_classopt_clist
-\tl_new:N \l__hit_warn_new_tl
+\clist_new:N \l__hit_class_options_clist
+\tl_new:N \l__hit_warn_new_name_tl
 \cs_generate_variant:Nn \prop_get:NnNT { NV }
 \cs_generate_variant:Nn \__hit_warn_once:nnn { VnV }
-\cs_new_protected:Npn \__hit_classopt_extra: { }
-\cs_new:Npn \__hit_opt_name:w #1 = #2 \q_stop { \tl_trim_spaces:n {#1} }
-\cs_new_protected:Npn \__hit_check_classoptions:
+\cs_new_protected:Npn \__hit_class_option_extra: { }
+\cs_new:Npn \__hit_option_name:w #1 = #2 \q_stop { \tl_trim_spaces:n {#1} }
+\cs_new_protected:Npn \__hit_check_class_options:
   {
     \cs_if_exist:cT { @classoptionslist }
       {
-        \exp_args:NNv \clist_set:Nn \l__hit_classopt_clist { @classoptionslist }
-        \clist_map_inline:Nn \l__hit_classopt_clist
+        \exp_args:NNv \clist_set:Nn \l__hit_class_options_clist { @classoptionslist }
+        \clist_map_inline:Nn \l__hit_class_options_clist
           {
-            \tl_set:Nx \l__hit_warn_tl { \__hit_opt_name:w ##1 = \q_stop }
-            \prop_if_in:NVT \g__hit_rename_prop \l__hit_warn_tl
+            \tl_set:Nx \l__hit_warn_message_tl { \__hit_option_name:w ##1 = \q_stop }
+            \prop_if_in:NVT \g__hit_renamed_option_prop \l__hit_warn_message_tl
               {
-                \exp_args:NV \__hit_warn_once:nnn \l__hit_warn_tl
+                \exp_args:NV \__hit_warn_once:nnn \l__hit_warn_message_tl
                   { style-in-classoptions } { }
               }
-            \prop_get:NVNT \g__hit_rename_load_prop \l__hit_warn_tl \l__hit_warn_new_tl
+            \prop_get:NVNT \g__hit_renamed_load_option_prop \l__hit_warn_message_tl \l__hit_warn_new_name_tl
               {
-                \exp_args:NVnV \__hit_warn_once:nnn \l__hit_warn_tl
-                  { renamed-option } \l__hit_warn_new_tl
+                \exp_args:NVnV \__hit_warn_once:nnn \l__hit_warn_message_tl
+                  { renamed-option } \l__hit_warn_new_name_tl
               }
-            \__hit_classopt_extra:
+            \__hit_class_option_extra:
           }
       }
   }

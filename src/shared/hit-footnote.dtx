@@ -57,12 +57,12 @@
 % \cs{quan} 一到两位、\cs{Quan} 任意位数、\cs{quansplit} 按位数分派——三个都保留，
 % 但压缩比例自动算，所以实际走的是同一条路。
 %    \begin{macrocode}
-\box_new:N \l__hit_quan_box
-\box_new:N \l__hit_quanmark_box
+\box_new:N \l__hit_quan_content_box
+\box_new:N \l__hit_quan_mark_box
 \int_new:N \l__hit_quan_slot_int
-\dim_new:N \l__hit_quandia_dim
-\fp_new:N \l__hit_quank_fp
-\fp_new:N \l__hit_quanx_fp
+\dim_new:N \l__hit_quan_diameter_dim
+\fp_new:N \l__hit_quan_scale_fp
+\fp_new:N \l__hit_quan_squeeze_fp
 %    \end{macrocode}
 %
 % 圈里数字的横向压缩比例，与圈线的粗细（相对 em）。两个常数都是拿
@@ -77,7 +77,7 @@
 % 把当前 CJK 字体设成当前字体。\cs{songti} 只是选 CJK 家族，西文数字仍走西文字体；
 % 圈号里的数字要跟正文宋体一致，得真的切过去。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_cjkfont:
+\cs_new_protected:Npn \__hit_use_cjk_font:
   { \usefont { \f@encoding } { \CJK@family } { m } { n } }
 %    \end{macrocode}
 %
@@ -114,7 +114,7 @@
 \NewDocumentCommand \quan { m }
   {
     \group_begin:
-      \__hit_cjkfont:
+      \__hit_use_cjk_font:
       \int_set:Nn \l__hit_quan_slot_int { \__hit_quan_slot:n {##1} }
       \bool_lazy_and:nnTF
         { \int_compare_p:nNn \l__hit_quan_slot_int > { 0 } }
@@ -125,27 +125,27 @@
   }
 \cs_new_protected:Npn \__hit_quan_draw:n ##1
   {
-    \hbox_set:Nn \l__hit_quanmark_box { \tex_char:D "2460 }
-    \hbox_set:Nn \l__hit_quan_box { ##1 }
-    \dim_set:Nn \l__hit_quandia_dim
-      { \box_ht:N \l__hit_quanmark_box + \box_dp:N \l__hit_quanmark_box }
-    \dim_compare:nNnT { \l__hit_quandia_dim } = { 0pt }
-      { \dim_set:Nn \l__hit_quandia_dim { 1em } }
+    \hbox_set:Nn \l__hit_quan_mark_box { \tex_char:D "2460 }
+    \hbox_set:Nn \l__hit_quan_content_box { ##1 }
+    \dim_set:Nn \l__hit_quan_diameter_dim
+      { \box_ht:N \l__hit_quan_mark_box + \box_dp:N \l__hit_quan_mark_box }
+    \dim_compare:nNnT { \l__hit_quan_diameter_dim } = { 0pt }
+      { \dim_set:Nn \l__hit_quan_diameter_dim { 1em } }
 %    \end{macrocode}
 %
 % 数字缩到直径的一半；横向如果还塞不进内圈，再按比例压窄。
 %    \begin{macrocode}
-    \fp_set:Nn \l__hit_quank_fp
+    \fp_set:Nn \l__hit_quan_scale_fp
       {
-        \c__hit_quan_fill_fp * \dim_to_fp:n { \l__hit_quandia_dim }
-        / \dim_to_fp:n { \box_ht:N \l__hit_quan_box + \box_dp:N \l__hit_quan_box }
+        \c__hit_quan_fill_fp * \dim_to_fp:n { \l__hit_quan_diameter_dim }
+        / \dim_to_fp:n { \box_ht:N \l__hit_quan_content_box + \box_dp:N \l__hit_quan_content_box }
       }
-    \fp_set:Nn \l__hit_quanx_fp
+    \fp_set:Nn \l__hit_quan_squeeze_fp
       {
         \fp_min:nn { 1 }
           {
-            \c__hit_quan_fill_fp * \dim_to_fp:n { \l__hit_quandia_dim }
-            / ( \l__hit_quank_fp * \dim_to_fp:n { \box_wd:N \l__hit_quan_box } )
+            \c__hit_quan_fill_fp * \dim_to_fp:n { \l__hit_quan_diameter_dim }
+            / ( \l__hit_quan_scale_fp * \dim_to_fp:n { \box_wd:N \l__hit_quan_content_box } )
           }
       }
     \group_begin:
@@ -154,15 +154,15 @@
         {
           /csteps/inner~ysep =
             \fp_to_dim:n
-              { \dim_to_fp:n { \l__hit_quandia_dim } * ( 1 - \c__hit_quan_fill_fp ) } ,
+              { \dim_to_fp:n { \l__hit_quan_diameter_dim } * ( 1 - \c__hit_quan_fill_fp ) } ,
           /csteps/inner~xsep =
             \fp_to_dim:n
-              { \dim_to_fp:n { \l__hit_quandia_dim } * ( 1 - \c__hit_quan_fill_fp ) } ,
+              { \dim_to_fp:n { \l__hit_quan_diameter_dim } * ( 1 - \c__hit_quan_fill_fp ) } ,
         }
       \Circled
         {
-          \scalebox { \fp_eval:n { \l__hit_quank_fp * \l__hit_quanx_fp } }
-            [ \fp_use:N \l__hit_quank_fp ] { \box_use:N \l__hit_quan_box }
+          \scalebox { \fp_eval:n { \l__hit_quan_scale_fp * \l__hit_quan_squeeze_fp } }
+            [ \fp_use:N \l__hit_quan_scale_fp ] { \box_use:N \l__hit_quan_content_box }
         }
     \group_end:
   }
@@ -189,11 +189,11 @@
 %    \begin{macrocode}
 \cs_set_eq:NN \hit@makefnmark \@makefnmark
 \cs_new:Npn \hit@@makefnmark { \hbox { { \normalfont \@thefnmark } } }
-\cs_set_eq:NN \hit@orig@makefntext \@makefntext
+\cs_set_eq:NN \hit@original@makefntext \@makefntext
 \cs_set:Npn \@makefntext ##1
   {
     \cs_set_eq:NN \@makefnmark \hit@@makefnmark
-    \hit@orig@makefntext {##1}
+    \hit@original@makefntext {##1}
     \cs_set_eq:NN \@makefnmark \hit@makefnmark
   }
   }
