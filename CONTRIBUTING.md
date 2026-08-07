@@ -173,6 +173,7 @@ cd examples/hitart/reports  && make report
 | `hit-publist.dtx` | `publist` 列表 |
 | `hit-meta.dtx` | `\hitsetup` 的键机制与旧名兼容 |
 | `hit-hyperlink.dtx` | hyperref 配置（书签、链接边框、url 字体） |
+| `hit-title.dtx` | `title` 键的解析与三种取用 |
 | `hit-options.dtx` | 选项声明助手与读标志位的判断函数 |
 
 判断标准是“各套规范会不会分开改”。会分开改的（封面、页眉、章节标题、目录）留在各自的类文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `shared/`。
