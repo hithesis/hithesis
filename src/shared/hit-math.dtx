@@ -365,15 +365,40 @@
 % \changes{v3.2a}{0000/00/00}{\env{eqdenote} 底下从 \pkg{tabularx} 换成
 %   \pkg{xltabular}，注释表放不下时自动转页接排，不必手动拆成两个环境}
 % \pkg{xltabular} 是 \pkg{longtable} 加 \texttt{X} 列，表格能自动跨页接排。
-% \cs{LTleft} 与 \cs{LTright} 让表格靠左，\cs{LTpre} 与 \cs{LTpost} 去掉
-% \pkg{longtable} 默认在表格前后加的 \cs{bigskipamount}。
+% \cs{LTleft} 与 \cs{LTright} 让表格靠左，\cs{LTpost} 去掉 \pkg{longtable} 默认在
+% 表格后面加的 \cs{bigskipamount}。
+%
+% \changes{v3.2a}{0000/00/00}{\env{eqdenote} 的段前距离补上 \pkg{longtable} 漏掉的
+%   行距胶，之前接正文比正常行距紧 4.4pt}
+% \cs{LTpre} 不能简单置零。\pkg{longtable} 把首块排在一个新 vbox 里
+%（\cs{LT@bchunk} 的 \cs{setbox}\cs{z@}\cs{vbox}），vbox 开头 \cs{prevdepth} 是
+% \texttt{-1000pt}，TeX 不给首行插行距胶；\cs{unvbox} 出来时也不补。于是表首行的基线
+% 与上一行正文之间只隔「上一行的深度加首行的高度」，比正常行距紧。量出来是 4.4278pt，
+% 而 \cs{baselineskip} 减去这两项正好是这个数，可见缺的就是那份胶。
+%
+% \cs{\_\_hit\_eqdenote\_pre\_skip:} 把它算出来放进 \cs{LTpre}。先 \cs{par}，
+% 否则 \cs{prevdepth} 还是上一段的。算出来比 \cs{lineskiplimit} 小时改用
+% \cs{lineskip}，与 TeX 自己的规则一致。\cs{prevdepth} 是 \texttt{-1000pt}（页首、
+% 紧跟标题）时本来就不该有胶，置零。
 %    \begin{macrocode}
+\cs_new_protected:Npn \__hit_eqdenote_pre_skip:
+  {
+    \par
+    \dim_compare:nNnTF { \tex_prevdepth:D } < { -999pt }
+      { \skip_zero:N \LTpre }
+      {
+        \skip_set:Nn \LTpre
+          { \baselineskip - \tex_prevdepth:D - \arraystretch \ht \strutbox }
+        \dim_compare:nNnT { \LTpre } < { \lineskiplimit }
+          { \skip_set_eq:NN \LTpre \lineskip }
+      }
+  }
 \cs_new_protected:Npn \__hit_eqdenote_table:nn #1#2
   {
     \__hit_eqdenote_keep_font:
     \skip_zero:N \LTleft
     \skip_set:Nn \LTright { 0pt~plus~1fill }
-    \skip_zero:N \LTpre
+    \__hit_eqdenote_pre_skip:
     \skip_zero:N \LTpost
     \begin{xltabular} { \textwidth }
       { @{} l @{ \hspace { \ccwd } } r @{ \hit@eqdenote@dash } X @{} }
