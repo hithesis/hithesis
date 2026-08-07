@@ -236,7 +236,7 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 `\newcommand*` 对应 `\cs_set_nopar:Npn`。
 
 **选项与标志位已改用 l3keys。** 类选项在 `hit/class` 族里声明，`\ProcessKeyOptions` 解析，
-未知选项转给 `ctexbook`/`ctexart`；标志位是 `\g__hit_<名>_bool`，读用 `\hit@if` 或
+未知选项转给 `ctexbook`/`ctexart`；标志位是 `\g__hit_<名>_bool`，读用 `\hit@if@option@TF` 或
 `\bool_if:N`，写用 `\bool_gset_true:N`。
 模块内部要读旧标志位，用 expl3 的桥接函数：
 
@@ -306,16 +306,16 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 
 | 函数 | 作用 |
 | --- | --- |
-| `\hit@if{flag}{真}{假}` | 按标志位二选一 |
-| `\hit@ifT{flag}{真}` | 只有真分支 |
-| `\hit@ifand{f1}{f2}{真}{假}` | 两个标志位同时成立 |
+| `\hit@if@option@TF{flag}{真}{假}` | 按标志位二选一 |
+| `\hit@if@option@T{flag}{真}` | 只有真分支 |
+| `\hit@if@both@options@TF{f1}{f2}{真}{假}` | 两个标志位同时成立 |
 | `\hit@iffontset{名字}{真}{假}` | 比对 `fontset` |
-| `\hit@ifnotempty\宏{真}` | 宏非空时执行 |
-| `\hit@ifwider{长度}{阈值}{真}{假}` | 比长度 |
-| `\hit@ifmore{整数}{阈值}{真}` | 比整数 |
-| `\hit@glueskip{基准}{伸缩}` | `style/glue` 决定要不要给伸缩量 |
+| `\hit@if@not@empty@T\宏{真}` | 宏非空时执行 |
+| `\hit@if@wider@TF{长度}{阈值}{真}{假}` | 比长度 |
+| `\hit@if@greater@T{整数}{阈值}{真}` | 比整数 |
+| `\hit@glue@skip{基准}{伸缩}` | `style/glue` 决定要不要给伸缩量 |
 
-另有若干针对具体组合的具名函数（`\hit@ifgrad`、`\hit@ifhrbmastage` 等），
+另有若干针对具体组合的具名函数（`\hit@if@harbin@master@or@doctor@or@shenzhen@master`、`\hit@if@harbin@master@opening@or@midterm` 等），
 命名规律是校区加学位加阶段。
 
 已迁移：`thesis-geometry`、`report-geometry`、`thesis-mainmatter`、`report-chapter`、
@@ -336,7 +336,7 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 类文件各自改名加载，故意传错选项，把 `\ClassError` 的输出 diff 一遍。第一次改完
 `\MessageBreak` 后面多了个空格、行尾少了个空格，全靠这个比出来的。
 
-`\ExplSyntaxOn` 不能写进任何在调用处记号化的参数里。`\hit@if{english}{\ExplSyntaxOn
+`\ExplSyntaxOn` 不能写进任何在调用处记号化的参数里。`\hit@if@option@TF{english}{\ExplSyntaxOn
 \cs_new:Npn …}` 看着像能用，其实参数读进来的时候 `_` 和 `:` 还不是字母，`\cs_new:Npn`
 被拆成 `\cs` 加一串杂字符，`\ExplSyntaxOn` 执行时已经晚了三步。整份类文件编不过，
 二十四个变体直接没有产物。`\fancypagestyle` 的第二个参数、`\newcommand` 的宏体也一样。
@@ -357,14 +357,14 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 在模块顶层定义成具名函数，宏体里只写函数名。
 
 分支里带 `#1` 的，别用 `\newcommand` 把它包成宏——那样 `#` 要加倍，漏了就是
-「Illegal parameter number」。当成 `\hit@if` 的参数传进去就没这个问题，参数里的
+「Illegal parameter number」。当成 `\hit@if@option@TF` 的参数传进去就没这个问题，参数里的
 `#` 原样通过。
 
 判断分支末尾的空格按同一条规则数：以控制字结尾的分支，后面的空格被跳过；
 以 `}` 或普通字符结尾的分支，那个空格是真的。`\ifhit@opening {\ } \else \enspace \fi`
-的真分支是 `{\ }` 加一个空格，写成 `\hit@if{opening}{{\ } }{\enspace}` 才对。
+的真分支是 `{\ }` 加一个空格，写成 `\hit@if@option@TF{opening}{{\ } }{\enspace}` 才对。
 
-把 `\ifhit@X A\else B\fi` 换成 `\hit@if{X}{A}{B}` 时，要看原写法 `\fi` 后面
+把 `\ifhit@X A\else B\fi` 换成 `\hit@if@option@TF{X}{A}{B}` 时，要看原写法 `\fi` 后面
 有没有空格。`\fi` 是控制字，后面的空格在记号化时就被跳过了；换成以 `}` 结尾之后
 那个空格变成真的空格。图表题注里 `\fi }#3` 就是这样，六处里有三处踩了这个。
 
@@ -621,9 +621,9 @@ make version-set VERSION=3.2b DATE=2026/08/07
 | 在 expl3 里走裸 `\input` 加载文件 | 被读进来的文件按 expl3 的 catcode 解析，带字面空格的键名散架。`\usetikzlibrary{calc}` 会报 `/tikz/cs/point/.storein` 未知 | `\RequirePackage` 没问题（LaTeX 加载宏包时会恢复 catcode），但 `\usetikzlibrary` 这类自己 `\input` 的要用 `\ExplSyntaxOff` 圈起来 |
 | 在 expl3 里用 `\patchcmd`/`\pretocmd`/`\apptocmd` | 目标宏的排版悄悄错位。etoolbox 会把宏体 detokenize 后按当前 catcode 重扫，体内的字面空格被吃掉。踩过一次：`\pretocmd{\@makefntext}` 让脚注整块上移 4.2pt，正文一个字没动、页数没变，`pdftotext` 比对看不出来 | 用 `\ExplSyntaxOff` 圈起来。fduthesis、bithesis、sjtuthesis 一处 etoolbox 补丁都不用，长远看这些补丁值得换掉 |
 | expl3 里换行也被忽略 | 多行文本值里，行末换行原本产生的空格没了，空行原本产生的 `\par` 也没了 | 行末补 `~`（行末是控制词的不用补，那个空格本来就被吸收），空行写成 `\par` |
-| 用脚本批量给常量表加 `\ExplSyntaxOn` | 常量变 `\relax`、分支走错、`Incomplete \iffalse` | 三种切法都会出事：切进跨模块守卫的语句中间、切在 `\hit@ifand{a}{b}` 与它的两个分支之间、切进多行文本值内部。只能逐条手工包，包完用常量 dump 对照（见下） |
+| 用脚本批量给常量表加 `\ExplSyntaxOn` | 常量变 `\relax`、分支走错、`Incomplete \iffalse` | 三种切法都会出事：切进跨模块守卫的语句中间、切在 `\hit@if@both@options@TF{a}{b}` 与它的两个分支之间、切进多行文本值内部。只能逐条手工包，包完用常量 dump 对照（见下） |
 | 改常量表后只跑 42 变体 | 没被封面用到的常量改坏了也看不出来 | 先 dump 全部 131 个常量在 master/doctor/bachelor/postdoc 四档下的 `\meaning` 做基线，改完再 dump 比对 |
-| `\ExplSyntaxOn` 写在花括号参数里 | 代码看着在 expl3 里，空格却没被忽略；如 `\addcontentsline { toc }` 的 `#1` 变成 ` toc `，条目静悄悄丢失 | catcode 在读参数时就定了，`\ExplSyntaxOn` 放进 `\hit@if{…}{…}` 这类参数中无效。把定义挪到参数外面各自取名，再用 `\hit@if` 选一个 `\cs_new_eq:NN` 过去 |
+| `\ExplSyntaxOn` 写在花括号参数里 | 代码看着在 expl3 里，空格却没被忽略；如 `\addcontentsline { toc }` 的 `#1` 变成 ` toc `，条目静悄悄丢失 | catcode 在读参数时就定了，`\ExplSyntaxOn` 放进 `\hit@if@option@TF{…}{…}` 这类参数中无效。把定义挪到参数外面各自取名，再用 `\hit@if@option@TF` 选一个 `\cs_new_eq:NN` 过去 |
 | `\ifthenelse{\equal{}}` 换成 `\str_if_eq:eeTF` | 编译报 `Incomplete \iffalse`、整段被吞 | 两者不等价。`\equal` 走 `\protected@edef`，挡得住 `\hspace` 这类不可展开的命令；`\str_if_eq:ee` 是完全展开。被比较的内容可能含排版命令时不要换 |
 
 ## 11. 求助

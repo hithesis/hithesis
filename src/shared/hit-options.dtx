@@ -9,7 +9,7 @@
 % \changes{v3.2a}{0000/00/00}{声明选项的四个助手与一族判断函数抽出来给各个类共用，
 %   原先每个类各写一遍，十五个定义逐字节相同}
 % \changes{v3.2a}{0000/00/00}{删掉 \cs{hit@iffontset} 与 \cs{hit@ifwiderdim}：
-%   两个都一处没调用过，后者与 \cs{hit@ifwider} 定义完全相同}
+%   两个都一处没调用过，后者与 \cs{hit@if@wider@TF} 定义完全相同}
 % 声明类选项的助手，以及排版代码里用来读标志位的一族判断函数。原先每个类的
 % \texttt{*-options} 模块里各写一遍，十三个定义一字不差。
 %
@@ -67,20 +67,28 @@
 %
 % 排版代码里大量出现「按某个标志位二选一」，写成 \cs{bool\_if:cTF} 要带上
 % \cs{g\_\_hit\_}\ldots\cs{\_bool} 这一长串，所以各起了名字。参数是在 \pkg{expl3}
-% 之外记号化的，里面的字面空格照原样保留——这正是它们存在的另一个理由，
-% 含排版内容的判断不必整段搬进 \pkg{expl3}。
+% 之外记号化的，里面的字面空格照原样保留，含排版内容的判断因此不必整段搬进
+% \pkg{expl3}。
+%
+% 名字末尾的 \texttt{@TF} 表示真假两个分支都要给，\texttt{@T} 表示只有真分支。
+% \cs{hit@if@option@TF}\marg{名}\marg{真}\marg{假} 读一个布尔选项的标志位，
+% \cs{hit@if@both@options@TF}\marg{名}\marg{名}\marg{真}\marg{假} 要两个同时成立，
+% \cs{hit@if@not@empty@T}\marg{宏}\marg{真} 在宏非空时执行，
+% \cs{hit@if@wider@TF}\marg{长度}\marg{阈值}\marg{真}\marg{假} 比长度，
+% \cs{hit@if@greater@T}\marg{整数}\marg{阈值}\marg{真} 比整数，
+% \cs{hit@if@same@TF}\marg{甲}\marg{乙}\marg{真}\marg{假} 展开后比字符串。
 %    \begin{macrocode}
-\cs_new:Npn \hit@if #1#2#3 { \bool_if:cTF { g__hit_#1_bool } {#2} {#3} }
-\cs_new:Npn \hit@ifT #1#2 { \bool_if:cT { g__hit_#1_bool } {#2} }
-\cs_new:Npn \hit@ifand #1#2#3#4
+\cs_new:Npn \hit@if@option@TF #1#2#3 { \bool_if:cTF { g__hit_#1_bool } {#2} {#3} }
+\cs_new:Npn \hit@if@option@T #1#2 { \bool_if:cT { g__hit_#1_bool } {#2} }
+\cs_new:Npn \hit@if@both@options@TF #1#2#3#4
   {
     \bool_lazy_and:nnTF
       { \bool_if_p:c { g__hit_#1_bool } } { \bool_if_p:c { g__hit_#2_bool } } {#3} {#4}
   }
-\cs_new_protected:Npn \hit@ifnotempty #1#2 { \tl_if_empty:NF #1 {#2} }
-\cs_new:Npn \hit@ifwider #1#2#3#4 { \dim_compare:nNnTF {#1} > {#2} {#3} {#4} }
-\cs_new:Npn \hit@ifmore #1#2#3 { \int_compare:nNnT {#1} > {#2} {#3} }
-\cs_new_protected:Npn \hit@ifsame #1#2#3#4
+\cs_new_protected:Npn \hit@if@not@empty@T #1#2 { \tl_if_empty:NF #1 {#2} }
+\cs_new:Npn \hit@if@wider@TF #1#2#3#4 { \dim_compare:nNnTF {#1} > {#2} {#3} {#4} }
+\cs_new:Npn \hit@if@greater@T #1#2#3 { \int_compare:nNnT {#1} > {#2} {#3} }
+\cs_new_protected:Npn \hit@if@same@TF #1#2#3#4
   {
     \group_begin:
       \protected@edef \l__hit_cmpa_tl {#1}
@@ -89,13 +97,6 @@
         { \group_end: #3 }
         { \group_end: #4 }
   }
-%    \end{macrocode}
-%
-% style/glue 的伸缩量
-%
-% \option{style/glue} 开时给标题前后距与行距一个伸缩量，关时是固定值。
-% 这两个函数把原地重复过二十多次的判断收成一处。
-%    \begin{macrocode}
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{按校区、学位、阶段组合出来的具名判断改由
@@ -118,11 +119,12 @@
   }
 %    \end{macrocode}
 %
-% \option{style/glue} 开时给标题前后距与行距一个伸缩量，关时是固定值。
+% \option{style/glue} 开时给标题前后距与行距一个伸缩量，关时是固定值。这两个函数
+% 把原地重复过二十多次的判断收成一处。
 %    \begin{macrocode}
-\cs_new:Npn \hit@glueskip #1#2
+\cs_new:Npn \hit@glue@skip #1#2
   { \bool_if:NTF \g__hit_glue_bool { #1~plus~#2~minus~0bp } { #1 } }
-\cs_new:Npn \hit@gluesize #1#2#3
+\cs_new:Npn \hit@glue@font@size #1#2#3
   {
     \bool_if:NTF \g__hit_glue_bool
       { \fontsize {#1} { #2~plus~#3 } } { \fontsize {#1} {#2} }
