@@ -9,10 +9,12 @@
 ```
 hithesis/
 ├── src/
-│   ├── hithesis.dtx            <- 入口：driver、三类共用的文件头、索引样式、dtx-style
+│   ├── hithesis.dtx            <- 入口：driver、两个类共用的文件头、旧类名空壳
 │   ├── hit-thesis.dtx          <- 学位论文类 hit-thesis
 │   ├── hit-report.dtx          <- 开题中期类 hit-report（含深圳博士中期）
 │   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
+│   ├── hit-ist.dtx             <- 索引排序样式 hithesis.ist
+│   ├── hit-dtx-style.dtx       <- 排手册用的 dtx-style.sty，不随模板发布
 │   ├── hit-doc.dtx             <- 用户手册
 │   ├── hit-eps.dtx             <- EPS 图像数据（校徽、封面、示例插图）
 │   ├── meta/                   <- 各个类的元信息字段清单
@@ -161,8 +163,10 @@ src/
 | 论文的某一页 | `src/pages/hit-*.dtx` |
 | 版心、页眉、标题、浮动体 | `src/flow/hit-*.dtx` |
 | 参考文献样式 | `src/hit-bst.dtx` |
+| 索引排序样式 | `src/hit-ist.dtx` |
+| 排手册用的样式 | `src/hit-dtx-style.dtx` |
 | 用户手册文字 | `src/hit-doc.dtx` |
-| 类的公共文件头、索引样式 | `src/hithesis.dtx` |
+| 类的公共文件头、旧类名空壳 | `src/hithesis.dtx` |
 
 文件内用 `grep -n '%<\*thesis-' src/hit-thesis.dtx` 之类列出模块起点。模块用注释标出：
 
