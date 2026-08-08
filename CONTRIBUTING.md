@@ -72,7 +72,7 @@ make changes-fix   # 自动修正能修的部分
 测试相关：
 
 ```shell
-make baseline        # 43 个变体全编一遍，渲染结果存成本地基线
+make baseline        # 45 个变体全编一遍，渲染结果存成本地基线
 make smoke           # 重编并与本地基线逐页比
 make regression-test # 与参照版本逐页比，发版前跑
 make doc-baseline    # 改动前存一份手册 PDF
@@ -504,14 +504,14 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 改动前先存基线：
 
 ```shell
-make baseline      # 43 个变体
+make baseline      # 45 个变体
 make doc-baseline  # 手册
 ```
 
 改完之后：
 
 ```shell
-make smoke      # 43 个变体与基线逐页比
+make smoke      # 45 个变体与基线逐页比
 make doc-check  # 手册与基线逐页比
 ```
 
@@ -694,7 +694,7 @@ make version-set VERSION=3.2b DATE=2026/08/07
 | 在 expl3 里用 `\patchcmd`/`\pretocmd`/`\apptocmd` | 目标宏的排版悄悄错位。etoolbox 会把宏体 detokenize 后按当前 catcode 重扫，体内的字面空格被吃掉。踩过一次：`\pretocmd{\@makefntext}` 让脚注整块上移 4.2pt，正文一个字没动、页数没变，`pdftotext` 比对看不出来 | 用 `\ExplSyntaxOff` 圈起来。fduthesis、bithesis、sjtuthesis 一处 etoolbox 补丁都不用，长远看这些补丁值得换掉 |
 | expl3 里换行也被忽略 | 多行文本值里，行末换行原本产生的空格没了，空行原本产生的 `\par` 也没了 | 行末补 `~`（行末是控制词的不用补，那个空格本来就被吸收），空行写成 `\par` |
 | 用脚本批量给常量表加 `\ExplSyntaxOn` | 常量变 `\relax`、分支走错、`Incomplete \iffalse` | 三种切法都会出事：切进跨模块守卫的语句中间、切在 `\hit@if@both@options@TF{a}{b}` 与它的两个分支之间、切进多行文本值内部。只能逐条手工包，包完用常量 dump 对照（见下） |
-| 改常量表后只跑 43 变体 | 没被封面用到的常量改坏了也看不出来 | 先 dump 全部 131 个常量在 master/doctor/bachelor/postdoc 四档下的 `\meaning` 做基线，改完再 dump 比对 |
+| 改常量表后只跑变体 | 没被封面用到的常量改坏了也看不出来 | 先 dump 全部 131 个常量在 master/doctor/bachelor/postdoc 四档下的 `\meaning` 做基线，改完再 dump 比对 |
 | `\ExplSyntaxOn` 写在花括号参数里 | 代码看着在 expl3 里，空格却没被忽略；如 `\addcontentsline { toc }` 的 `#1` 变成 ` toc `，条目静悄悄丢失 | catcode 在读参数时就定了，`\ExplSyntaxOn` 放进 `\hit@if@option@TF{…}{…}` 这类参数中无效。把定义挪到参数外面各自取名，再用 `\hit@if@option@TF` 选一个 `\cs_new_eq:NN` 过去 |
 | `\ifthenelse{\equal{}}` 换成 `\str_if_eq:eeTF` | 编译报 `Incomplete \iffalse`、整段被吞 | 两者不等价。`\equal` 走 `\protected@edef`，挡得住 `\hspace` 这类不可展开的命令；`\str_if_eq:ee` 是完全展开。被比较的内容可能含排版命令时不要换 |
 
