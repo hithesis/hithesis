@@ -1,0 +1,101 @@
+% \iffalse meta-comment
+%
+% hit-structure.dtx 是文档骨架的部件声明
+%
+% \fi
+%
+% \section{文档骨架}
+%
+% \changes{v3.2a}{0000/00/00}{加 \option{structure} 族与 \cs{hitfrontmatter}、
+%   \cs{hitbackmatter}，规范定死的排列顺序改由类负责}
+% 前置与后置部分的排列顺序是规范定死的：结论在参考文献前，附录在参考文献后，
+% 决议在成果后，授权在索引后。用户没有自由度，却要自己在主文件里抄对二十来行
+% \cs{include}。抄错了不会报错，只会排错。
+%
+% 所以把「哪个部件用哪个文件」做成键，顺序交给类：
+% \begin{latex}
+% \hitsetup{ structure = {
+%   conclusion       = {back/conclusion},
+%   bib              = {reference},
+%   appendix         = {back/appA},
+%   publications     = {back/publications},
+%   acknowledgements = {back/acknowledgements},
+% } }
+% \begin{document}
+% \hitfrontmatter
+% \include{body/ch1}
+% \hitbackmatter
+% \end{document}
+% \end{latex}
+% 没声明的部件不排。\option{resolution}、\option{authorization}、\option{contents}
+% 这几样由类自己排，取 \texttt{true} 打开、\texttt{false} 关掉。
+%
+% 原先逐个 \cs{include} 的写法照旧有效，两种可以混着用。
+%
+% 这里只放键与取值的存取，排列顺序写在各个类的 matter 模块里：学位论文走
+% \file{src/flow/hit-matter.dtx}，报告走 \file{src/flow/hit-report-matter.dtx}。
+% 两个类的基础类不是一个，\cs{frontmatter} 在 \cls{ctexart} 底下根本不存在，
+% 所以骨架宏没法共用一份。
+%    \begin{macrocode}
+%<*shared-structure>
+\clist_const:Nn \c__hit_structure_part_clist
+  {
+    denotation , contents , conclusion , bib , bib-style , appendix ,
+    publications , resolution , index , authorization ,
+    acknowledgements , resume ,
+  }
+\clist_map_inline:Nn \c__hit_structure_part_clist
+  {
+    \tl_new:c { g__hit_structure_#1_tl }
+    \keys_define:nn { hit / structure }
+      {
+        #1 .tl_gset:c = { g__hit_structure_#1_tl } ,
+        #1 .default:n = { true } ,
+      }
+  }
+\tl_gset:cn { g__hit_structure_bib-style_tl } { hithesis }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@structure@part:nn}
+% \cs{hit@structure@part:nn}\marg{部件}\marg{动作}：这个部件设了值而且不是
+% \texttt{false} 才做那个动作。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@structure@part:nn #1#2
+  {
+    \tl_if_empty:cF { g__hit_structure_#1_tl }
+      {
+        \str_if_eq:eeF { \tl_use:c { g__hit_structure_#1_tl } } { false }
+          {#2}
+      }
+  }
+\cs_new_protected:Npn \hit@structure@include:n #1
+  {
+    \hit@structure@part:nn {#1}
+      { \exp_args:Nv \include { g__hit_structure_#1_tl } }
+  }
+\cs_new_protected:Npn \hit@structure@input:n #1
+  {
+    \hit@structure@part:nn {#1}
+      { \exp_args:Nv \input { g__hit_structure_#1_tl } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hitfrontmatter,\hitbackmatter}
+% 先占位，各个类在自己的 matter 模块里接管。没接管的话调用会提示，不至于静悄悄
+% 什么都不排。
+%    \begin{macrocode}
+\msg_new:nnn { hithesis } { no-structure }
+  {
+    这个类没有 #1，主文件里的这一句不起作用。 \\
+    前置与后置部分请照旧逐个写 \string\include。
+  }
+\cs_new_protected:Npn \hitfrontmatter
+  { \msg_warning:nnn { hithesis } { no-structure } { \string \hitfrontmatter } }
+\cs_new_protected:Npn \hitbackmatter
+  { \msg_warning:nnn { hithesis } { no-structure } { \string \hitbackmatter } }
+%</shared-structure>
+%    \end{macrocode}
+% \end{macro}
+%
+% \Finale

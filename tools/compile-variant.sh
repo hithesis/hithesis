@@ -66,6 +66,9 @@ PYEOF
 # 变体指定了 BIBSTYLE 就把工作目录里所有 \bibliographystyle 换掉。示例文档里
 # 这一句可能写在正文的 body/*.tex 里而不是入口文件，所以整棵树扫一遍。
 # 只换行首的那种，注释掉的备选项照原样留着。
+#
+# 用 \hitbackmatter 排后置部分时，\bibliographystyle 是类生成的，源码里根本
+# 没有这一行，样式写在 structure 族的 bib-style 键上，所以那个键也要一起换。
 if [ -n "${BIBSTYLE:-}" ]; then
   python3 - "$WORK" "$BIBSTYLE" <<'PYEOF'
 import sys, re, pathlib
@@ -76,6 +79,10 @@ for p in root.rglob("*.tex"):
     text, n = re.subn(r'^(\s*)\\bibliographystyle\{[^}]*\}',
                       lambda m: m.group(1) + "\\bibliographystyle{" + style + "}",
                       text, flags=re.MULTILINE)
+    text, k = re.subn(r'^(\s*bib-style\s*=\s*)\{[^}]*\}',
+                      lambda m: m.group(1) + "{" + style + "}",
+                      text, flags=re.MULTILINE)
+    n += k
     if n:
         p.write_text(text, encoding="utf-8")
         total += n
