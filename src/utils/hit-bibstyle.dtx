@@ -1,0 +1,125 @@
+% \iffalse meta-comment
+%
+% hit-bibstyle.dtx 是各个类共用的参考文献选项与样式
+%
+% \fi
+%
+% \section{共享参考文献样式}
+%
+% \changes{v3.2a}{0000/00/00}{参考文献里两个类原样相同的那几段抽出来共用}
+% 两个类底下的文献宏包不是一个：学位论文走 \pkg{gbt7714}，报告走 \pkg{natbib}。
+% 但三个选项、引用样式、\cs{inlinecite}、著录列表的排版参数这几件事两边写的是
+% 同一份代码，原先各抄一遍。
+%
+% 本文件排在共享层，也就是类骨架之前。\pkg{docstrip} 逼的：它给同一个输出里
+% 重复出现的输入文件改名（原名后面添空格），并要求每个输出的输入文件表是全局表的
+% 子序列。一个输出一旦用上自己独有的文件，扫描位置就落到全局表尾部，再回头引用
+% 排在前面的共享文件就找不到了。所以共享文件只能全部排在类骨架第一次出现之前，
+% 这也是页面模块必须按类分文件的原因。
+%
+% 排得早就带来两条限制，都体现在留在各个类里的那几行上：
+% \cs{citestyle} 要等文献宏包加载完才能调用，所以那一行留在各个类的文献模块里；
+% \cs{bibauthor} 与 \cs{g\_bib\_author\_cs:n} 用 \cs{exp\_args:NNe} 在定义时就把
+% \option{bibauthorupper} 的取值展开定死，得排在 \cs{ProcessKeyOptions} 之后，
+% 比这里晚，所以两个类各留一份。
+%
+% \subsection{选项}
+%
+% \changes{v3.2a}{0000/00/00}{设置参考文献列表中的作者是否全大写和最大显示数量}
+% \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
+% \DescribeMacro{bibauthorupper}
+% \DescribeMacro{bibmaxauthor}
+% \DescribeMacro{biblabelalign}
+% \option{bibauthorupper} 取 \texttt{full} 时作者姓名全大写；\option{bibmaxauthor}
+% 是列表里最多显示几位作者，取 \texttt{0} 表示不限；\option{biblabelalign} 取
+% \texttt{left} 时标号左对齐。
+%    \begin{macrocode}
+%<*shared-bibstyle>
+
+\bool_new:N \g_bib_authorupper_bool
+\bool_set_false:N \g_bib_authorupper_bool
+\keys_define:nn { hit / class }
+  {
+    bibauthorupper .code:n =
+      {
+        \str_if_eq:nnT {#1} {full}
+          { \bool_set_true:N \g_bib_authorupper_bool }
+      } ,
+  }
+
+\int_new:N \g_bib_maxauthor_int
+\int_set:Nn \g_bib_maxauthor_int {3}
+\keys_define:nn { hit / class }
+  {
+    bibmaxauthor .code:n =
+      {
+        \int_set:Nn \g_bib_maxauthor_int {#1}
+        \int_if_zero:nT { \g_bib_maxauthor_int }
+          { \int_gdecr:N \g_bib_maxauthor_int }
+      } ,
+  }
+
+\str_new:N \g_bib_labelalign_str
+\keys_define:nn { hit / class }
+  { biblabelalign .code:n = { \str_set:Nn \g_bib_labelalign_str {#1} } }
+
+%    \end{macrocode}
+%
+% \subsection{引用样式}
+%
+% \begin{macro}{\bibstyle@numerical}
+% \changes{v3.0.15}{2021/05/06}{删除 inline 等定义，此命令与 \pkg{gbt7714} 冲突}
+% 数字上标式引用。\cs{bibstyle@inline} 两个类不一样：报告自己定义一份，
+% 学位论文用 \pkg{gbt7714} 带的那份，所以它不在这里。
+%    \begin{macrocode}
+\cs_new_protected:Npn \bibstyle@numerical
+  { \bibpunct {[} {]} {,} {s} {,} { \textsuperscript {,} } }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\inlinecite,\onlinecite}
+% \changes{v2.0.06}{2018/12/05}{在 \cs{inlinecite} 内添加空格}
+% \cs{inlinecite}\marg{键} 把引用排成正文里的样子，不上标。
+%    \begin{macrocode}
+\DeclareRobustCommand\inlinecite{\@inlinecite}
+\cs_set:Npn \@inlinecite #1
+  {
+    \group_begin:
+      \citestyle { inline }
+      \cs_set_eq:NN \@cite \NAT@citenum
+      \citep {#1}
+    \group_end:
+  }
+\cs_set_eq:NN \onlinecite \inlinecite
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{著录列表}
+%
+% \begin{macro}{\hit@bib@list:nn}
+% \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
+% \cs{hit@bib@list:nn}\marg{最宽的标号}\marg{标号与正文的间距} 开一个著录列表。
+% 两个类的 \env{thebibliography} 前后差得多，标题怎么排、分页惩罚怎么给都不一样，
+% 中间这段 \cs{list} 的参数是一样的，只有间距要各传各的。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@list:nn #1#2
+  {
+    \list { \@biblabel { \@arabic \c@enumiv } }
+      {
+        \str_if_eq:VnT \g_bib_labelalign_str { left }
+          { \RenewDocumentCommand \makelabel { m } { ##1 \hfill } }
+        \settowidth { \labelwidth } { \@biblabel {#1} }
+        \dim_set:Nn \labelsep {#2}
+        \dim_set:Nn \itemindent { 0pt }
+        \dim_set:Nn \leftmargin { \labelsep + \labelwidth }
+        \dim_add:Nn \itemsep { -0.8em }
+        \usecounter { enumiv }
+        \cs_set_eq:NN \p@enumiv \@empty
+        \cs_set:Npn \theenumiv { \@arabic \c@enumiv }
+      }
+  }
+%</shared-bibstyle>
+%    \end{macrocode}
+% \end{macro}
+%
+% \Finale

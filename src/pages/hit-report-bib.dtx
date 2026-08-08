@@ -9,34 +9,24 @@
 % ^^A ======================================================================
 % ^^A Module report-bib: 参考文献加载与 natbib/gbt7714 设置（hit-report）
 % ^^A ======================================================================
+%
+% \changes{v3.2a}{0000/00/00}{引用样式与著录列表参数抽到 \file{hit-bibstyle.dtx}
+%   与学位论文共用，这里只留报告自己的部分}
+% 底下走 \pkg{natbib}，不带 \cs{bibstyle@inline}，自己定义一份。加载完之后
+% 引用样式与著录列表的参数在共享层 \file{hit-bibstyle.dtx}，排在本模块之前。
 %    \begin{macrocode}
 %<*report-bib>
 \RequirePackage[sort&compress,numbers]{natbib}
 \RequirePackage{etoolbox}
 \RequirePackage{xparse}
-
-%% 引用和参考文献格式
-\cs_new_protected:Npn \bibstyle@numerical
-  {
-\bibpunct{[}{]}{,}{s}{,}{\textsuperscript{,}}
-  }
 \cs_new_protected:Npn \bibstyle@inline
-  {
-\bibpunct{[}{]}{,}{n}{,}{\hit@inline@separator}
-  }
-
+  { \bibpunct {[} {]} {,} {n} {,} { \hit@inline@separator } }
 \citestyle{numerical}
-\DeclareRobustCommand\inlinecite{\@inlinecite}
-\cs_set:Npn \@inlinecite #1
-  {
-\group_begin: \citestyle{inline} \cs_set_eq:NN \@cite \NAT@citenum \citep{#1} \group_end:
-  }
-\cs_set_eq:NN \onlinecite \inlinecite
 %    \end{macrocode}
 %
 % \changes{v3.1c}{2023/04/16}{深圳校区硕士开题部分参考文献没有序号。\issue[141]}
 % 深圳校区硕士开题部分参考文献没有序号。其他校区的提了问题再改。
-% \changes{v3.2a}{0000/00/00}{设置参考文献列表标号的对齐方式}
+% \begin{environment}{thebibliography}
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@report@bibliography@heading
   {
@@ -51,18 +41,7 @@
       { \bool_if_p:N \g__hit_opening_bool }
     }
     { \hit@report@bibliography@heading }
-  \list{\@biblabel{\@arabic\c@enumiv}}{%
-    \str_if_eq:VnT \g_bib_labelalign_str {left} {
-      \RenewDocumentCommand\makelabel{m}{##1\hfill}
-    }
-    \settowidth{\labelwidth}{\@biblabel{#1}}
-    \dim_set:Nn \labelsep {0.5em}
-    \dim_set:Nn \itemindent {0pt}
-    \dim_set:Nn \leftmargin {\labelsep+\labelwidth}
-    \dim_add:Nn \itemsep {-0.8em}
-    \usecounter{enumiv}%
-    \cs_set_eq:NN \p@enumiv \@empty
-  \cs_set:Npn \theenumiv {\@arabic\c@enumiv}}%
+  \hit@bib@list:nn {#1} {0.5em}
   \sloppy\frenchspacing
   \flushbottom
   \clubpenalty0
@@ -77,9 +56,15 @@
   {\@latex@warning{Empty `thebibliography' environment}}%
 \endlist\frenchspacing}}
 %    \end{macrocode}
+%
+% \begin{macro}{\bibauthor}
 % \changes{v3.2a}{0000/00/00}{控制参考文献列表中作者是否全大写和最大显示数量}
+% \cs{bibauthor}\marg{作者表} 由 \file{.bst} 调用，按 \option{bibmaxauthor} 截断，
+% 按 \option{bibauthorupper} 决定要不要全大写。两个类各留一份而没有并进
+% \file{hit-bibstyle.dtx}：单个作者的排法用 \cs{exp\_args:NNe} 在定义时就把
+% \option{bibauthorupper} 的取值展开定死，得排在 \cs{ProcessKeyOptions} 之后，
+% 而共享层排在类骨架之前。
 %    \begin{macrocode}
-%% 用以控制参考文献列表中单个作者的格式
 \exp_args:NNe \cs_new:Nn \g_bib_author_cs:n {
     \bool_if:NTF \g_bib_authorupper_bool {
         \exp_not:N \text_uppercase:n {#1}
@@ -87,7 +72,6 @@
         {#1}
     }
 }
-%% 用以输出参考文献列表中的作者
 \NewDocumentCommand{\bibauthor}{m}{
   \int_zero:N \l_tmpa_int
   \exp_args:Ne \tl_map_inline:nn {
@@ -102,7 +86,12 @@
   }
   \prg_break_point:
 }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
 %</report-bib>
 %    \end{macrocode}
+% \end{environment}
 %
 % \Finale

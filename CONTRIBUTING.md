@@ -15,6 +15,7 @@ hithesis/
 │   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
 │   ├── hit-doc.dtx             <- 用户手册
 │   ├── hit-eps.dtx             <- EPS 图像数据（校徽、封面、示例插图）
+│   ├── meta/                   <- 各个类的元信息字段清单
 │   ├── config/                 <- 各个类的配置（改学校规范先看这里）
 │   ├── utils/                  <- 各个类共用的小工具，见 §4.2
 │   ├── flow/                   <- 版心、页眉页脚、章节标题、段落、浮动体
@@ -124,7 +125,7 @@ cd examples/hitart/reports  && make report
 
 ## 3. dtx 导航
 
-`src/` 按职责分四个目录：
+`src/` 按职责分五个目录：
 
 ```
 src/
@@ -139,8 +140,14 @@ src/
 机制两边都不管，在 `utils/hit-meta.dtx`。
 
 `flow/` 与 `pages/` 里的文件按类分开，`hit-cover.dtx` 是毕业论文封面，`hit-report-cover.dtx`
-是开题报告封面。不共用：docstrip 记录输入文件的首次出现顺序，同一个文件被多份输出
-在不同位置引用会报 `Incompatible order of input files`。
+是开题报告封面。不共用，是 docstrip 逼的：它给同一个输出里重复出现的输入文件改名
+（原名后面添空格），并要求每个输出的输入文件表是全局表的子序列。一个输出一旦用上
+自己独有的文件，扫描位置就落到全局表尾部，再回头引用排在前面的共享文件就找不到，
+报 `Incompatible order of input files`。
+
+推论：**共享文件必须全部排在类骨架第一次出现之前**。所以 `utils/hit-bibstyle.dtx`
+排在选项区，而不是排在两个类的参考文献模块旁边。这也决定了哪些代码抽得动：
+要在类骨架之后才能跑的（比如读类选项取值的），抽不动。
 
 先按家族找文件，再在文件里按 docstrip 守卫找模块：
 
