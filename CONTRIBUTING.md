@@ -15,6 +15,7 @@ hithesis/
 │   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
 │   ├── hit-ist.dtx             <- 索引排序样式 hithesis.ist
 │   ├── hit-dtx-style.dtx       <- 排手册用的 dtx-style.sty，不随模板发布
+│   ├── hit-tikz-demo.dtx       <- 示例插图那张染色体示意图用的 TikZ 宏
 │   ├── hit-doc.dtx             <- 用户手册
 │   ├── hit-eps.dtx             <- EPS 图像数据（校徽、封面、示例插图）
 │   ├── meta/                   <- 各个类的元信息字段清单
@@ -165,6 +166,7 @@ src/
 | 参考文献样式 | `src/hit-bst.dtx` |
 | 索引排序样式 | `src/hit-ist.dtx` |
 | 排手册用的样式 | `src/hit-dtx-style.dtx` |
+| 示例插图用的 TikZ 宏 | `src/hit-tikz-demo.dtx` |
 | 用户手册文字 | `src/hit-doc.dtx` |
 | 类的公共文件头、旧类名空壳 | `src/hithesis.dtx` |
 
