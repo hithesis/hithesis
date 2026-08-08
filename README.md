@@ -238,7 +238,7 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
       docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest latex hithesis.ins
 
-- 第三步，在hithesis毕业论文文件夹hitbook或报告文件夹report下执行以下命令进行编译
+- 第三步，在示例目录 examples/demo 下执行以下命令进行编译
 
       docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make thesis
 
@@ -248,7 +248,7 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
       docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make doc
 
-  或者直接在hitbook或报告文件夹report下执行
+  或者直接在 examples/demo 下执行
 
       docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest latexmk
 
@@ -277,9 +277,9 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
      这条命令只把生成物放在当前目录。示例目录是独立可用的，要把用到的那份类文件、
      配置文件、`.bst` 与 `.eps` 复制过去，例如：
 
-         cp hit-thesis.cls hithesis.ist hithesis.bst \
-            hitszthesis.bst *.eps examples/hitbook/chinese/
-         cp golfer.eps examples/hitbook/chinese/figures/
+         cp hit-thesis.cls hit-report.cls hithesis.cls hithesis.ist \
+            hithesis.bst hitszthesis.bst *.eps examples/demo/
+         cp golfer.eps examples/demo/figures/
 
    - 装了 TeX Live 的话也可以用 l3build（随 TeX 发行，三平台通用）
 

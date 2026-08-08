@@ -37,7 +37,7 @@ checkengines = {"xetex"}
 stdengine    = "xetex"
 
 -- 随包发布的文件。examples/ 不交给 l3build：它的 demofiles 会把目录树拍平，
--- 而示例必须保持 examples/hitbook/chinese/... 的层级用户才能直接编译。
+-- 而示例必须保持 examples/demo/... 的层级用户才能直接编译。
 -- 面向用户的完整模板包仍由 scripts/package.sh 打，CTAN 包只含源码与手册。
 textfiles = {"README.md"}
 
@@ -94,16 +94,11 @@ local function distribute()
     return one("golfer.eps", dest .. "/figures")
   end
 
-  for _, d in ipairs({"examples/hitbook/chinese", "examples/hitbook/english"}) do
-    if put(BOOKFILES, d) ~= 0 then return 1 end
-  end
-  -- 只有中文示例用到索引样式
-  if one("hithesis.ist", "examples/hitbook/chinese") ~= 0 then return 1 end
-  if put(ARTFILES, "examples/hitart/reports") ~= 0 then return 1 end
-  if one("hrb-bachelor-bottommark.eps", "examples/hitart/reports") ~= 0 then return 1 end
-  -- 深圳博士中期已并入 hithesisart，artplus 只剩一个转发用的空壳
-  if put(ARTFILES, "examples/hitart/reportplus") ~= 0 then return 1 end
-  if one("hithesisartplus.cls", "examples/hitart/reportplus") ~= 0 then return 1 end
+  if put(BOOKFILES, "examples/demo") ~= 0 then return 1 end
+  if put(ARTFILES, "examples/demo") ~= 0 then return 1 end
+  if one("hithesis.ist", "examples/demo") ~= 0 then return 1 end
+  if one("hrb-bachelor-bottommark.eps", "examples/demo") ~= 0 then return 1 end
+  if one("hithesisartplus.cls", "examples/demo") ~= 0 then return 1 end
   return 0
 end
 
@@ -115,7 +110,7 @@ target_list.distribute = {
 
 -- 手册的排版必须在主目录里跑，不能用 l3build 默认的 build/doc：
 --   * 手册用 \lstinputlisting 把示例源码贴进正文，路径含目录层级
---     （examples/hitbook/english/thesis.tex），而 l3build 拷贝时会拍平
+--     （examples/demo/thesis-en.tex），而 l3build 拷贝时会拍平
 --   * 索引和修改记录要用 gind.ist / gglo.ist 跑两次 makeindex，
 --     不是默认那套流程
 -- 所以这里覆盖 typeset，走与 Makefile 的 doc 目标相同的序列，编完把 PDF

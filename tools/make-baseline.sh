@@ -9,11 +9,7 @@ cd "$ROOT"
 NPROC=${NPROC:-8}
 
 echo "[make-baseline] Regenerating cls files from dtx..."
-mkdir -p modules \
-  examples/hitbook/chinese/modules \
-  examples/hitbook/english/modules \
-  examples/hitart/reports/modules \
-  examples/hitart/reportplus/modules
+mkdir -p modules examples/demo/modules
 TEXINPUTS=src:src/shared: latex -interaction=nonstopmode hithesis.ins > /tmp/hithesis-ins.log 2>&1 || {
   echo "FATAL: latex hithesis.ins failed; see /tmp/hithesis-ins.log"
   exit 1

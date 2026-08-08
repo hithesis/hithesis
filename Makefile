@@ -46,6 +46,7 @@ $(TARGETS): $(SOURCES)
 # macOS/Windows 任务走那条）。改动下面的清单时两边都要改。
 # hithesis.sty 是空壳，给导言区还写着 \usepackage{hithesis} 的老文档兜底，
 # 一并分发到示例目录：老文档多半就是照着示例目录改出来的。
+# 示例只剩 examples/demo 一棵树，学位论文与开题中期的文件都往那里分发。
 BOOKFILES = hit-thesis.cls $(PACKAGE).cls $(PACKAGE)book.cls $(PACKAGE)-compat.sty $(PACKAGE).bst hitszthesis.bst \
             hitlogo.eps bthesistitle.eps shenzhenbthesistitle.eps zfb.eps \
             hrb-bachelor-bottommark.eps
@@ -53,14 +54,8 @@ ARTFILES  = hit-report.cls $(PACKAGE).cls $(PACKAGE)art.cls $(PACKAGE)-compat.st
             hitlogo.eps bthesistitle.eps zfb.eps
 
 distribute:
-	@for d in examples/hitbook/chinese examples/hitbook/english; do \
-	  cp $(BOOKFILES) $$d/; mkdir -p $$d/figures; cp golfer.eps $$d/figures/; \
-	done
-	@cp $(PACKAGE).ist examples/hitbook/chinese/
-	@cp $(ARTFILES) hrb-bachelor-bottommark.eps examples/hitart/reports/
-	@mkdir -p examples/hitart/reports/figures && cp golfer.eps examples/hitart/reports/figures/
-	@cp $(ARTFILES) $(PACKAGE)artplus.cls examples/hitart/reportplus/
-	@mkdir -p examples/hitart/reportplus/figures && cp golfer.eps examples/hitart/reportplus/figures/
+	@cp $(BOOKFILES) $(ARTFILES) hrb-bachelor-bottommark.eps $(PACKAGE).ist $(PACKAGE)artplus.cls examples/demo/
+	@mkdir -p examples/demo/figures && cp golfer.eps examples/demo/figures/
 
 doc: $(PACKAGE).pdf
 

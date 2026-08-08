@@ -31,9 +31,10 @@ hithesis/
 ├── tools/                <- 排版测试脚本
 ├── tests/                <- 变体定义与测试说明
 ├── testfiles/            <- l3build 的宏级测试：*.lvt 用例与 *.tlg 基线
-├── examples/
-│   ├── hitbook/{chinese,english}/   <- 毕业论文示例
-│   └── hitart/{reports,reportplus}/ <- 开题/中期示例，reportplus 是深圳博士中期
+├── examples/demo/        <- 一棵示例树：开题、中期、学位论文放在同一个目录
+│   ├── hitsetup.tex      <- 三份共用的元信息
+│   ├── thesis.tex  thesis-en.tex  opening.tex  midterm.tex   <- 四个入口
+│   └── front/ body/ back/ figures/
 └── .github/              <- Issue / PR 模板、CI 配置
 ```
 
@@ -122,8 +123,8 @@ l3build check          # 确认全绿
 在示例目录里：
 
 ```shell
-cd examples/hitbook/chinese && make thesis
-cd examples/hitart/reports  && make report
+cd examples/demo && make thesis     # 学位论文
+cd examples/demo && make report     # 开题、中期报告
 ```
 
 ## 3. dtx 导航

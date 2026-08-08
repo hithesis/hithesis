@@ -37,9 +37,9 @@ def logs():
 
     只看 TeX 自己写的 .log。compile.log 是 latexmk 的完整输出，里面含中间轮次——
     第一遍必然报未定义引用，后面几遍才解决，扫它会全是假警报。
-    CI 不跑 43 个变体，只编四份示例，所以两处都要认。"""
+    CI 不跑 43 个变体，只编示例，所以两处都要认。"""
     out = []
-    for pat in ("tests/work/*/*.log", "examples/*/*/*.log"):
+    for pat in ("tests/work/*/*.log", "examples/*/*.log"):
         out += [p for p in ROOT.glob(pat) if p.name != "compile.log"]
     return sorted(set(out))
 

@@ -12,7 +12,7 @@ THESISCONTENTS=$(THESISMAIN).tex front/*.tex body/*.tex back/*.tex $(FIGURES)
 # NOTE: update this to reflect your local file types.
 FIGURES=$(wildcard figures/*.eps figures/*.pdf)
 BIBFILE=*.bib
-CLSFILES=hit-thesis.cls $(PACKAGE)book.cls $(PACKAGE).ist *.bst
+CLSFILES=hit-thesis.cls hit-report.cls $(PACKAGE).cls $(PACKAGE).ist *.bst
 
 # make deletion work on Windows
 ifdef SystemRoot
@@ -23,12 +23,18 @@ else
 	OPEN = open
 endif
 
-.PHONY: clean cleanall thesis viewthesis
+.PHONY: clean cleanall thesis viewthesis thesis-en opening midterm
 
 viewthesis: thesis
 	$(OPEN) $(THESISMAIN).pdf
 
 thesis: $(THESISMAIN).pdf
+
+# 这个目录里放着三份交付物：开题、中期、学位论文。元信息在 hitsetup.tex，
+# 三份共用；主文件只有第一行的 kind 不同。学位论文要跑 splitindex 做索引，
+# 走下面那套规则；其余三份交给 latexmk 就够了。
+thesis-en opening midterm:
+	latexmk $(LATEXMKOPTS) $@
 
 ifeq ($(METHOD),latexmk)
 
@@ -66,4 +72,4 @@ clean:
 	-@$(RM) *~ *.idx *.ind *.ilg *.thm *.toe *.bbl
 
 cleanall: clean
-	-@$(RM) $(THESISMAIN).pdf
+	-@$(RM) $(THESISMAIN).pdf thesis-en.pdf opening.pdf midterm.pdf

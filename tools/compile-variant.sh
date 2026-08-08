@@ -35,6 +35,11 @@ CONF="tests/variants/$variant.conf"
 . "$CONF"
 ENTRY=${ENTRY:-thesis.tex}
 
+# 输出一律叫 main：文件名会进 PDF（实测同内容的 a.tex 与 b.tex 编出来第 2261
+# 字节起就不同），入口文件一改名，逐字节比对就全是假差异。钉死输出名之后，
+# 入口叫什么都不影响比对。
+JOBNAME=${JOBNAME:-main}
+
 SRC_DIR="$SRC_ROOT/$BASE"
 [ -d "$SRC_DIR" ] || { echo "  no such source dir: $SRC_DIR"; exit 3; }
 
@@ -84,7 +89,7 @@ fi
 # it handles bibtex/splitindex automatically and is deterministic.
 cd "$WORK"
 if [ -f latexmkrc ] || [ -f .latexmkrc ]; then
-  if ! latexmk -xelatex -interaction=nonstopmode -halt-on-error "$ENTRY" > "compile.log" 2>&1; then
+  if ! latexmk -xelatex -jobname="$JOBNAME" -interaction=nonstopmode -halt-on-error "$ENTRY" > "compile.log" 2>&1; then
     echo "  latexmk failed:"
     tail -40 "compile.log"
     exit 1
@@ -92,7 +97,7 @@ if [ -f latexmkrc ] || [ -f .latexmkrc ]; then
 else
   # Fallback: xelatex thrice (no bibliography support)
   for i in 1 2 3; do
-    if ! xelatex -interaction=nonstopmode -halt-on-error "$ENTRY" > "compile-$i.log" 2>&1; then
+    if ! xelatex -jobname="$JOBNAME" -interaction=nonstopmode -halt-on-error "$ENTRY" > "compile-$i.log" 2>&1; then
       echo "  xelatex pass $i failed:"
       tail -30 "compile-$i.log"
       exit 1
@@ -100,7 +105,7 @@ else
   done
 fi
 
-PDF="${ENTRY%.tex}.pdf"
+PDF="$JOBNAME.pdf"
 [ -f "$PDF" ] || { echo "  PDF not produced"; exit 1; }
 
 if [ "$RENDER_PNG" = "0" ]; then
