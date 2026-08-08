@@ -128,11 +128,15 @@ cd examples/hitart/reports  && make report
 
 ```
 src/
-  config/   各变体的配置，只有取值，不造轮子
-  utils/    小工具，各个类共用
+  meta/     每个类有哪些元信息字段、字段叫什么、旧名是什么
+  config/   这些字段与固定词汇取什么值，只有取值，不造轮子
+  utils/    小工具，两个类共用
   flow/     页面流：版心、页眉页脚、章节标题、段落、浮动体
   pages/    论文的一页一个文件：封面、摘要、目录、声明、致谢、成果、决议、附录、参考文献
 ```
+
+`meta/` 与 `config/` 是一对：前者说“有哪些字段”，后者说“字段取什么值”。
+机制两边都不管，在 `utils/hit-meta.dtx`。
 
 `flow/` 与 `pages/` 里的文件按类分开，`hit-cover.dtx` 是毕业论文封面，`hit-report-cover.dtx`
 是开题报告封面。不共用：docstrip 记录输入文件的首次出现顺序，同一个文件被多份输出
@@ -144,6 +148,7 @@ src/
 |---|---|
 | 毕业论文的任何行为 | `src/hit-thesis.dtx` |
 | 各个类的配置 | `src/config/hit-config.dtx` |
+| 元信息字段清单 | `src/meta/hit-*-meta.dtx` |
 | 开题、中期报告 | `src/hit-report.dtx` |
 | 各个类共用的小工具 | `src/utils/hit-*.dtx` |
 | 论文的某一页 | `src/pages/hit-*.dtx` |
@@ -546,6 +551,7 @@ CI 会在推送后跑这几项：
 | `thesis` `report` | 各个类，当前是 `src/hit-thesis.dtx`、`src/hit-report.dtx` |
 | `utils` | 各个类共用的小工具 `src/utils/hit-*.dtx` |
 | `pages` | 论文的某一页 `src/pages/hit-*.dtx` |
+| `meta` | 元信息字段清单 `src/meta/hit-*-meta.dtx` |
 | `flow` | 页面流的版式 `src/flow/hit-*.dtx` |
 | `bst` `eps` | 参考文献样式、图像数据 |
 | `manual` | 用户手册 `src/hit-doc.dtx` |
