@@ -136,9 +136,19 @@
 % } }
 % \end{latex}
 % 分组只是把里面每个键名接上后缀再转发，\texttt{zh~=~\{~title~=~\ldots~\}} 与
-% \texttt{title-zh~=~\ldots} 完全等价，正式名仍然是带后缀的那个——报错与改名提示
+% \texttt{title-zh~=~\ldots} 完全等价。正式名仍然是带后缀的那个，报错与改名提示
 % 里出现的都是它。没有配对的键（\texttt{student-id}、\texttt{secret-level} 这些）
 % 照旧写在分组外面。
+%
+% \changes{v3.2a}{0000/00/00}{\texttt{zh} 与 \texttt{en} 改成真的子族，
+%   斜杠路径写法跟着一起通}
+% \texttt{zh} 与 \texttt{en} 是真的子族 \texttt{hit/info/zh}，接后缀这件事挂在子族的
+% \texttt{unknown} 上，分组键自己只是一句 \cs{keys\_set:nn}。子族存在还带来一个用法：
+% l3keys 按最后一个斜杠切键名，左边当族名右边当键名，所以斜杠路径也认。
+% \begin{latex}
+% \hitsetup{ info/zh/title = {中文题目}, info/title-en = {English Title} }
+% \end{latex}
+% 三种写法落到同一个键上，键名写错时报的也是同一条提示。
 %
 % \changes{v3.2a}{0000/00/00}{把 \file{hithesis.sty} 重定向到空壳，
 %   用户只覆盖 cls、旧宏包留在目录里也不会撞车}
@@ -170,14 +180,8 @@
   { \__hit_warn_once:nnn {#1} { renamed-environment } {#2} }
 \msg_new:nnn { hithesis } { key-not-in-language-group }
   {
-    键~#1~没有~#2~版本，不能写在~#2~=~{...}~分组里。 \\
-    它不分语言，请写在分组外面；拼错了的话，键名清单见手册。
-  }
-\cs_new_protected:Npn \__hit_language_key:nnn #1#2#3
-  {
-    \keys_if_exist:nnTF { hit / #1 } { #3-#2 }
-      { \keys_set:nn { hit / #1 } { #3-#2 } }
-      { \msg_warning:nnnn { hithesis } { key-not-in-language-group } {#3} {#2} }
+    键~#1~没有~#2~版本，不能写在~#2~底下。 \\
+    它不分语言，请把~#2~去掉；拼错了的话，键名清单见手册。
   }
 \cs_new_protected:Npn \__hit_language_key:nnnn #1#2#3#4
   {
@@ -185,20 +189,25 @@
       { \keys_set:nn { hit / #1 } { #3-#2 = {#4} } }
       { \msg_warning:nnnn { hithesis } { key-not-in-language-group } {#3} {#2} }
   }
-\cs_new_protected:Npn \__hit_language_group:nnn #1#2#3
+\cs_new_protected:Npn \__hit_language_unknown:nnn #1#2#3
   {
-    \keyval_parse:nnn
-      { \__hit_language_key:nnn {#1} {#2} }
-      { \__hit_language_key:nnnn {#1} {#2} }
-      {#3}
+    \use:x
+      {
+        \exp_not:N \__hit_language_key:nnnn
+          {#1} {#2} { \l_keys_key_str } { \exp_not:n {#3} }
+      }
+  }
+\cs_new_protected:Npn \__hit_declare_language_group:nn #1#2
+  {
+    \keys_define:nn { hit / #1 / #2 }
+      { unknown .code:n = { \__hit_language_unknown:nnn {#1} {#2} {##1} } }
+    \keys_define:nn { hit / #1 }
+      { #2 .code:n = { \keys_set:nn { hit / #1 / #2 } {##1} } }
   }
 \clist_map_inline:nn { info , const }
   {
-    \keys_define:nn { hit / #1 }
-      {
-        zh .code:n = { \__hit_language_group:nnn {#1} { zh } {##1} } ,
-        en .code:n = { \__hit_language_group:nnn {#1} { en } {##1} } ,
-      }
+    \__hit_declare_language_group:nn {#1} { zh }
+    \__hit_declare_language_group:nn {#1} { en }
   }
 %    \end{macrocode}
 %
