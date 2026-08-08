@@ -23,7 +23,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint version-changes \
+.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint logcheck logcheck-update version-changes \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
 all: doc
@@ -158,6 +158,13 @@ doclint:
 # 常量键有没有声明了却没人取用的。要先 make cls
 constlint:
 	@python3 scripts/check-unused-const.py
+
+# 扫编译日志里那几类“编得过但有毛病”。要先把变体编出来（make baseline）
+logcheck:
+	@python3 scripts/check-logs.py
+
+logcheck-update:
+	@python3 scripts/check-logs.py --update
 
 # 中文标点检查，默认只报告；确认后 make punct-fix 写回
 punct:

@@ -60,6 +60,7 @@ make clean        # 清理生成产物
 make changes       # 从 \changes 生成 RELEASE_NOTES.md
 make changes-check # 校验 \changes 的日期约定
 make constlint     # 常量键有没有声明了却没人取用的（先 make cls）
+make logcheck      # 扫编译日志里那几类「编得过但有毛病」（先把变体编出来）
 make changes-fix   # 自动修正能修的部分
 ```
 
