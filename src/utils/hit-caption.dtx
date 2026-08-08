@@ -69,12 +69,36 @@
 % 排双语题注：走 \pkg{ccaption} 的原形，英文图表名取 \option{const} 族里的
 % \option{figure-prefix-en} 与 \option{table-prefix-en}，用户不必每次手写
 % \texttt{Fig.} 加负细空格去抵 \cs{fnum@figure} 插的那个空格。
+%
+% \changes{v3.2a}{0000/00/00}{双语题注的短标题接到 \pkg{ccaption} 的第二个参数上。
+%   原先接的是可选参数，而 \cs{bicaption} 的可选参数是 \cs{label} 不是短标题，
+%   于是 \cs{caption}\oarg{短标题} 在双语时被悄悄当成了标签}
+% 短标题给 \cs{bicaption} 的\emph{第二个必选参数}，不是可选参数。ccaption 的
+% \cs{bicaption}\oarg{标签}\marg{短标题}\marg{题注}\marg{英文图表名}\marg{英文题注}
+% 里，可选参数是 \cs{label}：
+% \begin{latex}
+% \newcommand{\bicaption}[5][\@empty]{%
+%   \@if@contemptyarg{#2}{\caption{#3}}{\caption[#2]{#3}}
+%   \ifx\@empty#1\else \label{#1} \fi
+% \end{latex}
+% 接错了的后果是同一个 \cs{caption}\oarg{短标题} 两条路径含义不同：单语时进插图索引，
+% 双语时变成一个标签，索引里排的还是完整题注。
+%
+% \changes{v3.2a}{0000/00/00}{双语题注之后补上 \cs{@currentlabel}，
+%   \cs{label} 写在 \cs{caption} 后面才能拿到图表号}
+% \pkg{ccaption} 之所以提供「可选参数当标签」这条路，是因为 \cs{bicaption} 把整段
+% 包在 \cs{begingroup}\ldots\cs{endgroup} 里，\cs{caption} 设的 \cs{@currentlabel}
+% 是局部的，出了组就没了——写在后面的 \cs{label} 只能拿到章节号。所以排完之后
+% 按计数器重建一次 \cs{@currentlabel}，让 \cs{label} 与普通 \LaTeX{} 一样写在
+% \cs{caption} 后面。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@bilingual@caption #1#2#3
   {
     \tl_if_novalue:nTF {#1}
       { \__hit_bicaption:w {} {#2} { \use:c { hit@ \@captype @prefix@en } } {#3} }
-      { \__hit_bicaption:w [#1] {} {#2} { \use:c { hit@ \@captype @prefix@en } } {#3} }
+      { \__hit_bicaption:w {#1} {#2} { \use:c { hit@ \@captype @prefix@en } } {#3} }
+    \protected@edef \@currentlabel
+      { \use:c { p@ \@captype } \use:c { the \@captype } }
   }
 \cs_new_protected:Npn \hit@single@caption #1#2
   {
