@@ -59,6 +59,7 @@ make distribute   # 只做分发（cls 已经生成过时用）
 make clean        # 清理生成产物
 make changes       # 从 \changes 生成 RELEASE_NOTES.md
 make changes-check # 校验 \changes 的日期约定
+make constlint     # 常量键有没有声明了却没人取用的（先 make cls）
 make changes-fix   # 自动修正能修的部分
 ```
 
