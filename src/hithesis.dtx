@@ -152,6 +152,95 @@
 % \fi
 %
 %
+% \section{派发类 \file{hithesis.cls}}
+%
+% \changes{v3.2a}{0000/00/00}{加派发类 \file{hithesis.cls}，
+%   \option{kind} 选交付物种类，用户目录不必再按类分开}
+% 「这是学位论文还是开题报告」原先编码在类名里。\option{type}、\option{campus}、
+% \option{lang} 都是选项，只有这一条不是，于是主文件第一行不一样，用户目录只能分开。
+% 派发类把它也降成选项：
+% \begin{latex}
+% \documentclass[kind=thesis,  type=doctor, campus=harbin]{hithesis}
+% \documentclass[kind=opening, type=doctor, campus=harbin]{hithesis}
+% \documentclass[kind=midterm, type=doctor, campus=harbin]{hithesis}
+% \end{latex}
+% \option{kind} 不写按 \texttt{thesis} 算。\texttt{opening} 与 \texttt{midterm}
+% 转成报告类的 \option{stage}，其余选项原样转发。
+%
+% \option{kind} 只能写在 \cs{documentclass} 上，挪不进导言区：\cs{LoadClass} 得在
+% 类文件里执行完，而 \cs{hitsetup} 是导言区的事，那时候基础类早装上了。
+%
+% \cs{documentclass}\marg{hit-thesis} 与 \cs{documentclass}\marg{hit-report}
+% 照旧能用，它们才是真正的类，派发类只是转发。
+%
+% 读 \option{kind} 得赶在 \cs{LoadClass} 之前，所以自己扫一遍
+% \cs{@classoptionslist}，不走 \pkg{l3keys}。扫到的 \option{kind} 不往下转发，
+% 两个真类都不认这个键。
+%    \begin{macrocode}
+%<*dispatch>
+\NeedsTeXFormat{LaTeX2e}[2022/06/01]
+\ProvidesClass{hithesis}
+  [2026/08/07 v3.2a Harbin Institute of Technology Thesis Template]
+\ExplSyntaxOn
+\tl_new:N \g__hit_kind_tl
+\tl_gset:Nn \g__hit_kind_tl { thesis }
+\bool_new:N \g__hit_kind_report_bool
+\cs_new_protected:Npn \__hit_kind_scan:w #1 = #2 = #3 \q_stop
+  {
+    \str_if_eq:eeT { \tl_trim_spaces:n {#1} } { kind }
+      { \tl_gset:Nx \g__hit_kind_tl { \tl_trim_spaces:n {#2} } }
+  }
+\cs_if_exist:NT \@classoptionslist
+  {
+    \exp_args:NV \clist_map_inline:nn \@classoptionslist
+      { \__hit_kind_scan:w #1 = = \q_stop }
+  }
+\msg_new:nnn { hithesis } { unknown-kind }
+  {
+    kind~只能取~thesis、opening~或~midterm，收到的是~#1。 \\
+    这一份按~kind=thesis~处理。
+  }
+\str_case:VnF \g__hit_kind_tl
+  {
+    { thesis } { }
+    { opening }
+      {
+        \bool_gset_true:N \g__hit_kind_report_bool
+        \PassOptionsToClass { stage = opening } { hit-report }
+      }
+    { midterm }
+      {
+        \bool_gset_true:N \g__hit_kind_report_bool
+        \PassOptionsToClass { stage = midterm } { hit-report }
+      }
+  }
+  { \msg_warning:nnV { hithesis } { unknown-kind } \g__hit_kind_tl }
+\cs_new_protected:Npn \__hit_forward_option:w #1 = #2 = #3 \q_stop #4
+  {
+    \str_if_eq:eeF { \tl_trim_spaces:n {#1} } { kind }
+      {
+        \bool_if:NTF \g__hit_kind_report_bool
+          { \PassOptionsToClass {#4} { hit-report } }
+          { \PassOptionsToClass {#4} { hit-thesis } }
+      }
+  }
+\cs_new_protected:Npn \__hit_forward_option:n #1
+  { \__hit_forward_option:w #1 = = \q_stop {#1} }
+\cs_new_protected:Npn \hit@forward@option
+  { \exp_args:NV \__hit_forward_option:n \CurrentOption }
+\cs_new_protected:Npn \hit@load@target
+  {
+    \bool_if:NTF \g__hit_kind_report_bool
+      { \LoadClass { hit-report } }
+      { \LoadClass { hit-thesis } }
+  }
+\ExplSyntaxOff
+\DeclareOption*{\hit@forward@option}
+\ProcessOptions\relax
+\hit@load@target
+%</dispatch>
+%    \end{macrocode}
+%
 % \section{兼容用的空壳宏包}
 %
 % \changes{v3.2a}{0000/00/00}{补一个空壳 \file{hithesis.sty}。v3.1e 的示例导言区有

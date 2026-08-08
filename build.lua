@@ -56,12 +56,12 @@ unpackopts  = "-interaction=nonstopmode"
 -- hithesis.sty 是空壳，给导言区还写着 \usepackage{hithesis} 的老文档兜底，
 -- 一并分发：老文档多半就是照着示例目录改出来的。
 local BOOKFILES = {
-  "hit-thesis.cls", "hithesisbook.cls", "hithesis-compat.sty", "hithesis.bst", "hitszthesis.bst",
+  "hit-thesis.cls", "hithesis.cls", "hithesisbook.cls", "hithesis-compat.sty", "hithesis.bst", "hitszthesis.bst",
   "hitlogo.eps", "bthesistitle.eps", "shenzhenbthesistitle.eps", "zfb.eps",
   "hrb-bachelor-bottommark.eps",
 }
 local ARTFILES = {
-  "hit-report.cls", "hithesisart.cls", "hithesis-compat.sty", "hithesis.bst", "hitszthesis.bst",
+  "hit-report.cls", "hithesis.cls", "hithesisart.cls", "hithesis-compat.sty", "hithesis.bst", "hitszthesis.bst",
   "hitlogo.eps", "bthesistitle.eps", "zfb.eps",
 }
 

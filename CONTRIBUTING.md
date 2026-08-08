@@ -9,7 +9,7 @@
 ```
 hithesis/
 ├── src/
-│   ├── hithesis.dtx            <- 入口：driver、两个类共用的文件头、旧类名空壳
+│   ├── hithesis.dtx            <- 入口：driver、共用文件头、派发类 hithesis.cls、旧类名空壳
 │   ├── hit-thesis.dtx          <- 学位论文类 hit-thesis
 │   ├── hit-report.dtx          <- 开题中期类 hit-report（含深圳博士中期）
 │   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
@@ -168,7 +168,7 @@ src/
 | 排手册用的样式 | `src/hit-dtx-style.dtx` |
 | 示例插图用的 TikZ 宏 | `src/hit-tikz-demo.dtx` |
 | 用户手册文字 | `src/hit-doc.dtx` |
-| 类的公共文件头、旧类名空壳 | `src/hithesis.dtx` |
+| 类的公共文件头、派发类、旧类名空壳 | `src/hithesis.dtx` |
 
 文件内用 `grep -n '%<\*thesis-' src/hit-thesis.dtx` 之类列出模块起点。模块用注释标出：
 

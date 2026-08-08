@@ -46,10 +46,10 @@ $(TARGETS): $(SOURCES)
 # macOS/Windows 任务走那条）。改动下面的清单时两边都要改。
 # hithesis.sty 是空壳，给导言区还写着 \usepackage{hithesis} 的老文档兜底，
 # 一并分发到示例目录：老文档多半就是照着示例目录改出来的。
-BOOKFILES = hit-thesis.cls $(PACKAGE)book.cls $(PACKAGE)-compat.sty $(PACKAGE).bst hitszthesis.bst \
+BOOKFILES = hit-thesis.cls $(PACKAGE).cls $(PACKAGE)book.cls $(PACKAGE)-compat.sty $(PACKAGE).bst hitszthesis.bst \
             hitlogo.eps bthesistitle.eps shenzhenbthesistitle.eps zfb.eps \
             hrb-bachelor-bottommark.eps
-ARTFILES  = hit-report.cls $(PACKAGE)art.cls $(PACKAGE)-compat.sty $(PACKAGE).bst hitszthesis.bst \
+ARTFILES  = hit-report.cls $(PACKAGE).cls $(PACKAGE)art.cls $(PACKAGE)-compat.sty $(PACKAGE).bst hitszthesis.bst \
             hitlogo.eps bthesistitle.eps zfb.eps
 
 distribute:
