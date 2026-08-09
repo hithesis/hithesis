@@ -14,6 +14,10 @@
     \\hit@parse@keywords{keywords-zh}{keywords@separator@zh}
 名字以 {keywords@separator@zh} 的形式出现在源码里，也要认。
 
+另外检查语言后缀的对称性。v3.2a 把“固定中文”那批常量的 -zh 后缀去掉之后，
+带 -zh 的键一律意味着“这个词分语言”，所以必须有 -en 兄弟，无一例外。
+反过来不成立：有 9 个 -en 没有 -zh 对应，分两类，都在 EN_ONLY 里列明。
+
 跑法：make cls 之后 python3 scripts/check-unused-const.py
 """
 import re
@@ -21,6 +25,14 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# 只有 -en 没有 -zh 的，分两类，都不是遗漏
+EN_ONLY = {
+    # 同一个词存了两份：这四个的中文那半走 \hit@declare@constant@ctex 转发给
+    # ctex，名字叫 bibname / indexname / figurename / tablename，不带语言后缀。
+    # 两份能不能合成一份还没定，定了就把这里清空。
+    "bibliography-heading", "index-heading", "figure-prefix", "table-prefix",
+}
 
 # \use:c 按 \@captype 之类拼出来的，正则查不到，逐条列明
 CONSTRUCTED = {
@@ -85,7 +97,23 @@ def main() -> int:
     if total:
         print(f"\n共 {total} 个常量两个类都没取用。确认是遗漏还是该删，"
               f"删的时候把为什么删写进 \\changes。")
-    return 0
+
+    # 语言后缀的对称性
+    both = set()
+    for name in ("hit-thesis.cls", "hit-report.cls"):
+        both |= set(declared((ROOT / name).read_text(encoding="utf-8")))
+    zh = {k[:-3] for k in both if k.endswith("-zh")}
+    en = {k[:-3] for k in both if k.endswith("-en")}
+    orphan_zh = sorted(zh - en)
+    orphan_en = sorted(en - zh - EN_ONLY)
+    for k in orphan_zh:
+        print(f"{k}-zh 没有 -en 兄弟。带 -zh 就意味着分语言，"
+              f"要么补上 -en，要么去掉后缀并入不分语言的那批")
+    for k in orphan_en:
+        print(f"{k}-en 没有 -zh 兄弟，也不在 EN_ONLY 名单里。"
+              f"补上 -zh，或者写清为什么只有英文再加进名单")
+    print(f"语言后缀：成对 {len(zh & en)} 对，只有 en 的 {len(en - zh)} 个（名单里 {len(EN_ONLY)} 个）")
+    return 1 if (orphan_zh or orphan_en) else 0
 
 
 if __name__ == "__main__":
