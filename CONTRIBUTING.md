@@ -224,7 +224,7 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 清单分五节。“重定义”那节是上游内核或宏包的命令，名字必须保持原样，改了上游就
 找不到；这一节由 `check-api.py --probe` 实测得出，装上同一套宏包但不装 hithesis，
 逐个 `\ifdefined` 探一遍。“示例宏包”那节由 `hithesis.sty` 提供，不是类给的，用户
-不写 `\usepackage{hithesis}` 就没有；名字照样不能改。名字在哪一节由脚本按它实际
+不写 `\usepackage{hithesis}` 就没有；名字同样不能改。名字在哪一节由脚本按它实际
 定义在哪个生成物里判定，放错节也会报。
 
 判断一样东西该进类还是进示例宏包 `hithesis.sty`（源文件 `src/hit-sty.dtx`），看类自己调不调。`siunitx`、`bm`、
