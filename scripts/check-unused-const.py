@@ -28,10 +28,10 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # 只有 -en 没有 -zh 的，分两类，都不是遗漏
 EN_ONLY = {
-    # 同一个词存了两份：这四个的中文那半走 \hit@declare@constant@ctex 转发给
-    # ctex，名字叫 bibname / indexname / figurename / tablename，不带语言后缀。
-    # 两份能不能合成一份还没定，定了就把这里清空。
-    "bibliography-heading", "index-heading", "figure-prefix", "table-prefix",
+    # 双语题注英文那行的前缀，是缩写形（Fig. / Table），跟 figurename / tablename
+    # 不是一个词：中文档 figurename=图，英文档 figurename=Figure，而这里是 Fig.，
+    # 三个值不是两个。中文那行的前缀直接用 figurename，所以没有 -zh 对应。
+    "figure-prefix", "table-prefix",
 }
 
 # \use:c 按 \@captype 之类拼出来的，正则查不到，逐条列明
