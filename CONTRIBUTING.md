@@ -23,6 +23,7 @@ hithesis/
 │   ├── utils/                  <- 各个类共用的小工具，见 §4.2
 │   ├── flow/                   <- 版心、页眉页脚、章节标题、段落、浮动体
 │   └── pages/                  <- 论文的一页一个文件
+│                                  flow/ 与 pages/ 全是单类专属，文件名带类名
 ├── hithesis.ins          <- docstrip 驱动文件，留在根目录：它的输出路径都相对于此
 ├── build.lua             <- l3build 配置：unpack / distribute / doc / check / ctan
 ├── Makefile              <- 构建与测试入口
@@ -138,7 +139,7 @@ src/
 `meta/` 与 `config/` 是一对：前者说“有哪些字段”，后者说“字段取什么值”。
 机制两边都不管，在 `utils/hit-meta.dtx`。
 
-`flow/` 与 `pages/` 里的文件按类分开，`hit-cover.dtx` 是毕业论文封面，`hit-report-cover.dtx`
+`flow/` 与 `pages/` 里的文件按类分开，`hit-thesis-cover.dtx` 是毕业论文封面，`hit-report-cover.dtx`
 是开题报告封面。不共用，是 docstrip 逼的：它给同一个输出里重复出现的输入文件改名
 （原名后面添空格），并要求每个输出的输入文件表是全局表的子序列。一个输出一旦用上
 自己独有的文件，扫描位置就落到全局表尾部，再回头引用排在前面的共享文件就找不到，
@@ -156,11 +157,11 @@ src/
 | 各个类的配置 | `src/config/hit-config.dtx` |
 | 元信息字段清单 | `src/meta/hit-*-meta.dtx` |
 | 改一句提示文案 | `src/utils/hit-messages.dtx` 一处，24 条全在里面 |
-| 前置后置排哪些部件 | `src/utils/hit-structure.dtx` 声明键，`src/flow/hit-*matter.dtx` 定顺序 |
+| 前置后置排哪些部件 | `src/utils/hit-structure.dtx` 声明键，`src/flow/hit-*-matter.dtx` 定顺序 |
 | 开题、中期报告 | `src/hit-report.dtx` |
 | 各个类共用的小工具 | `src/utils/hit-*.dtx` |
-| 论文的某一页 | `src/pages/hit-*.dtx` |
-| 版心、页眉、标题、浮动体 | `src/flow/hit-*.dtx` |
+| 论文的某一页 | `src/pages/hit-thesis-*.dtx`、`src/pages/hit-report-*.dtx` |
+| 版心、页眉、标题、浮动体 | `src/flow/hit-thesis-*.dtx`、`src/flow/hit-report-*.dtx` |
 | 参考文献样式 | `src/hit-bst.dtx` |
 | 索引排序样式 | `src/hit-ist.dtx` |
 | 排手册用的样式 | `src/hit-dtx-style.dtx` |
@@ -168,9 +169,14 @@ src/
 | 用户手册文字 | `src/hit-doc.dtx` |
 | 类的公共文件头、派发类、旧类名空壳 | `src/hithesis.dtx` |
 
+**文件名的规矩：`hit-<类>-<职责>.dtx` 是单类专属，`hit-<职责>.dtx` 是共用。**
+`flow/` 与 `pages/` 里一个共用的都没有，全部带类名前缀；`utils/` 里全部共用，
+一个前缀都不带，守卫也统一叫 `shared-*`。看文件名就知道改它会影响谁。
+
 **52 个 dtx 的文件名必须全局唯一。** `src/` 下按职责分了目录，但 `hithesis.ins`
 里按裸文件名引用，`l3build ctan` 打包和 TDS 的 `source/latex/hithesis/` 也都是平
-的。两个目录下同名的文件，打包后会互相覆盖。
+的。两个目录下同名的文件，打包后会互相覆盖。这也是类名前缀只能写进文件名、不能
+改成 `flow/thesis/` 与 `flow/report/` 两个子目录的原因——拍平之后就撞了。
 
 文件内用 `grep -n '%<\*thesis-' src/hit-thesis.dtx` 之类列出模块起点。模块用注释标出：
 
