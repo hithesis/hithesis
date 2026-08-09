@@ -23,7 +23,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint logcheck logcheck-update version-changes \
+.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint logcheck logcheck-update version-changes \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
 all: doc
@@ -151,6 +151,9 @@ doclint:
 	@python3 scripts/check-dtx-doc.py
 
 # 常量键有没有声明了却没人取用的。要先 make cls
+apilint:
+	@python3 scripts/check-api.py
+
 constlint:
 	@python3 scripts/check-unused-const.py
 
