@@ -28,6 +28,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 LIST = ROOT / ".github" / "public-api.txt"
 CLASSES = ("hit-thesis.cls", "hit-report.cls")
+# 示例宏包。它的名字也在公开面上，但不是类给的：用户不写 \usepackage{hit-sty}
+# 就没有。单列一节，免得跟类提供的混在一起。
+STY = "hit-sty.sty"
+STY_SECTION = "示例宏包"
 
 # 各种定义形式。\cs_new 与 \NewDocumentCommand 遇到已存在的名字会报错，
 # \cs_set 与 \Renew… 不会，两类都要认：重定义上游命令同样落在公开面上。
@@ -44,10 +48,10 @@ DEFINE = re.compile(
 JUNK = {"CJK", "CTEX", "LT", "NAT", "ext", "make", "p", "tagform", "def", "bibstyle"}
 
 
-def defined_names():
-    """生成物里所有用户能打出来的定义名"""
+def scan(name):
+    """一个生成物里所有用户能打出来的定义名"""
     out = set()
-    for name in CLASSES:
+    if True:
         path = ROOT / name
         if not path.exists():
             sys.exit(f"{name} 还没生成，先跑 make cls")
@@ -63,6 +67,11 @@ def defined_names():
                 if n not in JUNK:
                     out.add(n)
     return out
+
+
+def defined_names():
+    """两个类给的名字"""
+    return set().union(*(scan(c) for c in CLASSES))
 
 
 def listed():
@@ -106,9 +115,13 @@ def probe(names):
 
 def main() -> int:
     names = defined_names()
+    sty_names = scan(STY)
     reg = listed()
-    missing = sorted(names - set(reg))
-    stale = sorted(set(reg) - names)
+    cls_reg = {n for n, s in reg.items() if s != STY_SECTION}
+    sty_reg = {n for n, s in reg.items() if s == STY_SECTION}
+    missing = sorted((names - cls_reg) | (sty_names - sty_reg))
+    stale = sorted((cls_reg - names) | (sty_reg - sty_names))
+    misplaced = sorted((names & sty_reg) | (sty_names & cls_reg))
 
     if "--probe" in sys.argv:
         r = probe(names)
@@ -122,11 +135,14 @@ def main() -> int:
         print(f"{n} 定义在类里但不在公开面清单上。它是能被用户打出来的名字，"
               f"要么登记进 .github/public-api.txt，要么改名带上 hit@ 前缀")
     for n in stale:
-        print(f"{n} 在清单上但类里已经没有了，从清单里删掉")
+        print(f"{n} 在清单上但生成物里已经没有了，从清单里删掉")
+    for n in misplaced:
+        where = "示例宏包" if n in sty_names else "类"
+        print(f"{n} 现在由{where}提供，清单上的分节对不上，挪到对的那一节")
     todo = [n for n, s in reg.items() if s.startswith("公开-")]
     print(f"公开面：登记 {len(reg)} 个，其中还欠文档 {len(todo)} 个；"
-          f"类里实有 {len(names)} 个")
-    return 1 if (missing or stale) else 0
+          f"类里实有 {len(names)} 个，示例宏包 {len(sty_names)} 个")
+    return 1 if (missing or stale or misplaced) else 0
 
 
 if __name__ == "__main__":

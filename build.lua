@@ -23,7 +23,20 @@ unpackfiles = {"hithesis.ins"}
 
 -- 装进 TEXMF 的东西。examples 里那几份副本由下面的 distribute 目标分发，
 -- 不属于安装内容。
-installfiles = {"*.cls", "*.ist", "*.bst", "*.eps", "*.sty"}
+--
+-- 这里不用 *.sty 通配。dtx-style.sty 只在排手册时用，被通配捎进 TEXMF 会污染
+-- 用户机器，而且 dtx-style 这个名字相当通用，别的包也叫这个就撞了。要装的
+-- .sty 只有 hithesis-compat.sty 与 hit-sty.sty 两个，显式列出来。
+--
+-- hit-sty.sty 装进 TEXMF 是为了让 \usepackage{hit-sty} 在任何目录下都能编过。
+-- 它本来就是给用户改的，改法是在自己项目目录里放一份同名文件，那份优先。
+installfiles = {
+  "hit-thesis.cls", "hit-report.cls", "hithesis.cls",
+  "hithesisbook.cls", "hithesisart.cls", "hithesisartplus.cls",
+  "hithesis-compat.sty", "hit-sty.sty",
+  "hithesis.ist", "hithesis.bst", "hitszthesis.bst",
+  "*.eps",
+}
 
 typesetfiles = {"hithesis.dtx"}
 typesetexe   = "xelatex"
@@ -56,12 +69,12 @@ unpackopts  = "-interaction=nonstopmode"
 -- hithesis.sty 是空壳，给导言区还写着 \usepackage{hithesis} 的老文档兜底，
 -- 一并分发：老文档多半就是照着示例目录改出来的。
 local BOOKFILES = {
-  "hit-thesis.cls", "hithesis.cls", "hithesisbook.cls", "hithesis-compat.sty", "hithesis.bst", "hitszthesis.bst",
+  "hit-thesis.cls", "hithesis.cls", "hithesisbook.cls", "hithesis-compat.sty", "hit-sty.sty", "hithesis.bst", "hitszthesis.bst",
   "hitlogo.eps", "bthesistitle.eps", "shenzhenbthesistitle.eps", "zfb.eps",
   "hrb-bachelor-bottommark.eps",
 }
 local ARTFILES = {
-  "hit-report.cls", "hithesis.cls", "hithesisart.cls", "hithesis-compat.sty", "hithesis.bst", "hitszthesis.bst",
+  "hit-report.cls", "hithesis.cls", "hithesisart.cls", "hithesis-compat.sty", "hit-sty.sty", "hithesis.bst", "hitszthesis.bst",
   "hitlogo.eps", "bthesistitle.eps", "zfb.eps",
 }
 

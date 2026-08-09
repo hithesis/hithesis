@@ -15,7 +15,7 @@ hithesis/
 │   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
 │   ├── hit-ist.dtx             <- 索引排序样式 hithesis.ist
 │   ├── hit-dtx-style.dtx       <- 排手册用的 dtx-style.sty，不随模板发布
-│   ├── hit-tikz-demo.dtx       <- 示例插图那张染色体示意图用的 TikZ 宏
+│   ├── hit-sty.dtx             <- 示例宏包 hit-sty.sty，示例文档自己 \usepackage
 │   ├── hit-doc.dtx             <- 用户手册
 │   ├── hit-eps.dtx             <- EPS 图像数据（校徽、封面、示例插图）
 │   ├── meta/                   <- 各个类的元信息字段清单
@@ -169,9 +169,13 @@ src/
 | 参考文献样式 | `src/hit-bst.dtx` |
 | 索引排序样式 | `src/hit-ist.dtx` |
 | 排手册用的样式 | `src/hit-dtx-style.dtx` |
-| 示例插图用的 TikZ 宏 | `src/hit-tikz-demo.dtx` |
+| 示例文档自己要用的东西 | `src/hit-sty.dtx` |
 | 用户手册文字 | `src/hit-doc.dtx` |
 | 类的公共文件头、派发类、旧类名空壳 | `src/hithesis.dtx` |
+
+**52 个 dtx 的文件名必须全局唯一。** `src/` 下按职责分了目录，但 `hithesis.ins`
+里按裸文件名引用，`l3build ctan` 打包和 TDS 的 `source/latex/hithesis/` 也都是平
+的。两个目录下同名的文件，打包后会互相覆盖。
 
 文件内用 `grep -n '%<\*thesis-' src/hit-thesis.dtx` 之类列出模块起点。模块用注释标出：
 
@@ -222,9 +226,15 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 要么登记进 .github/public-api.txt，要么改名带上 hit@ 前缀
 ```
 
-清单分四节。“重定义”那节是上游内核或宏包的命令，名字必须保持原样，改了上游就
+清单分五节。“重定义”那节是上游内核或宏包的命令，名字必须保持原样，改了上游就
 找不到；这一节由 `check-api.py --probe` 实测得出，装上同一套宏包但不装 hithesis，
-逐个 `\ifdefined` 探一遍。
+逐个 `\ifdefined` 探一遍。“示例宏包”那节由 `hit-sty.sty` 提供，不是类给的，用户
+不写 `\usepackage{hit-sty}` 就没有；名字照样不能改。名字在哪一节由脚本按它实际
+定义在哪个生成物里判定，放错节也会报。
+
+判断一样东西该进类还是进 `hit-sty.sty`，看类自己调不调。`siunitx`、`bm`、
+`mathrsfs`、`rotating`、`listings`、`algorithm2e` 这六个宏包类里一句都没用到，
+只是替文档预先装上并配好，就归示例宏包；封面要用的 `xcolor` 与 `tikz` 留在类里。
 
 ### 4.2 版式各写各的，底层机制共用
 

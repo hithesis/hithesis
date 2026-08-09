@@ -76,6 +76,11 @@ def main() -> int:
         p.read_text(encoding="utf-8")
         for p in [ROOT / "src" / "hit-doc.dtx", *sorted((ROOT / "examples").rglob("*.tex"))]
     )
+    # 示例宏包跟类一起发，也取类里的常量（\hit@algorithm@name@zh 就只在那里用）。
+    # 把它接在类文件后面一起搜，不然那两个常量会被报成死键。手册与示例不能这么并：
+    # 那两处的正文里会提到宏名，一并了就没法发现真死键。
+    sty = ROOT / "hit-sty.sty"
+    sty_src = sty.read_text(encoding="utf-8") if sty.exists() else ""
     total = 0
     for name in ("hit-thesis.cls", "hit-report.cls"):
         path = ROOT / name
@@ -84,9 +89,10 @@ def main() -> int:
             return 2
         src = path.read_text(encoding="utf-8")
         keys = declared(src)
-        dead = [k for k, kind in keys.items() if not used(k, kind, src, elsewhere)]
+        dead = [k for k, kind in keys.items()
+                if not used(k, kind, src + "\n" + sty_src, elsewhere)]
         other = ROOT / ("hit-report.cls" if name == "hit-thesis.cls" else "hit-thesis.cls")
-        osrc = other.read_text(encoding="utf-8")
+        osrc = other.read_text(encoding="utf-8") + "\n" + sty_src
         theirs = [k for k in dead if used(k, keys[k], osrc, elsewhere)]
         orphan = [k for k in dead if k not in theirs]
         print(f"{name}：常量 {len(keys)} 个，本类没取用 {len(dead)} 个"
