@@ -82,9 +82,13 @@ def listed():
 
 def probe(names):
     """装同一套宏包但不装 hithesis，看哪些名字上游已经有了"""
-    src = (ROOT / "hit-thesis.cls").read_text(encoding="utf-8")
-    pkgs = sorted({p for m in re.finditer(r"\\RequirePackage(?:\[[^\]]*\])?\{([a-zA-Z0-9,\-]+)\}", src)
-                   for p in m.group(1).split(",")})
+    # 两个类的宏包都要，条件加载的也算。花括号与方括号里可能有空格
+    # （\RequirePackage [ xindy , order=letter ] { glossaries-extra }），
+    # 正则不放行空格就会漏掉，漏掉的包会让它的命令被误判成 hithesis 新增。
+    src = "\n".join((ROOT / c).read_text(encoding="utf-8") for c in CLASSES)
+    pkgs = sorted({p.strip()
+                   for m in re.finditer(r"\\RequirePackage\s*(?:\[[^\]]*\])?\s*\{([^}]+)\}", src)
+                   for p in m.group(1).split(",") if p.strip()})
     with tempfile.TemporaryDirectory() as d:
         tex = Path(d) / "probe.tex"
         body = [r"\documentclass[a4paper,openany,UTF8,zihao=-4,scheme=plain,fontset=fandol]{ctexbook}"]
@@ -119,8 +123,8 @@ def main() -> int:
               f"要么登记进 .github/public-api.txt，要么改名带上 hit@ 前缀")
     for n in stale:
         print(f"{n} 在清单上但类里已经没有了，从清单里删掉")
-    todo = [n for n, s in reg.items() if s == "待定"]
-    print(f"公开面：登记 {len(reg)} 个，其中待定 {len(todo)} 个；"
+    todo = [n for n, s in reg.items() if s.startswith("公开-")]
+    print(f"公开面：登记 {len(reg)} 个，其中还欠文档 {len(todo)} 个；"
           f"类里实有 {len(names)} 个")
     return 1 if (missing or stale) else 0
 
