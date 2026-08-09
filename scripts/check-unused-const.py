@@ -79,7 +79,7 @@ def main() -> int:
     # 示例宏包跟类一起发，也取类里的常量（\hit@algorithm@name@zh 就只在那里用）。
     # 把它接在类文件后面一起搜，不然那两个常量会被报成死键。手册与示例不能这么并：
     # 那两处的正文里会提到宏名，一并了就没法发现真死键。
-    sty = ROOT / "hit-sty.sty"
+    sty = ROOT / "hithesis.sty"
     sty_src = sty.read_text(encoding="utf-8") if sty.exists() else ""
     total = 0
     for name in ("hit-thesis.cls", "hit-report.cls"):

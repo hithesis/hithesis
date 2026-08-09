@@ -15,7 +15,7 @@ hithesis/
 │   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
 │   ├── hit-ist.dtx             <- 索引排序样式 hithesis.ist
 │   ├── hit-dtx-style.dtx       <- 排手册用的 dtx-style.sty，不随模板发布
-│   ├── hit-sty.dtx             <- 示例宏包 hit-sty.sty，示例文档自己 \usepackage
+│   ├── hit-sty.dtx             <- 示例宏包 hithesis.sty，示例文档自己 \usepackage
 │   ├── hit-doc.dtx             <- 用户手册
 │   ├── hit-eps.dtx             <- EPS 图像数据（校徽、封面、示例插图）
 │   ├── meta/                   <- 各个类的元信息字段清单
@@ -101,11 +101,6 @@ l3build check      # 跑 testfiles/ 里的宏级测试
 l3build save 08-xxx    # 生成 testfiles/08-xxx.tlg
 l3build check          # 确认全绿
 ```
-
-`support/` 放测试夹具，`checksuppfiles` 列出的文件会在检查时拷进测试目录。现在只有
-一份 `hithesis.sty`——假冒的旧版宏包，用来验证类文件里那条重定向确实挡住了它
-（见 `testfiles/21-legacy-document.lvt`）。它是源文件不是产物，`.gitignore` 里为它
-开了例外。
 
 `l3build save` 生成的基线**必须逐行读一遍再提交**。它只是把当前行为拍下来，行为
 本来就是错的它照样存；漏写 `\makeatletter` 之类的失误也会被原样固化成基线。
@@ -228,11 +223,11 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 
 清单分五节。“重定义”那节是上游内核或宏包的命令，名字必须保持原样，改了上游就
 找不到；这一节由 `check-api.py --probe` 实测得出，装上同一套宏包但不装 hithesis，
-逐个 `\ifdefined` 探一遍。“示例宏包”那节由 `hit-sty.sty` 提供，不是类给的，用户
-不写 `\usepackage{hit-sty}` 就没有；名字照样不能改。名字在哪一节由脚本按它实际
+逐个 `\ifdefined` 探一遍。“示例宏包”那节由 `hithesis.sty` 提供，不是类给的，用户
+不写 `\usepackage{hithesis}` 就没有；名字照样不能改。名字在哪一节由脚本按它实际
 定义在哪个生成物里判定，放错节也会报。
 
-判断一样东西该进类还是进 `hit-sty.sty`，看类自己调不调。`siunitx`、`bm`、
+判断一样东西该进类还是进示例宏包 `hithesis.sty`（源文件 `src/hit-sty.dtx`），看类自己调不调。`siunitx`、`bm`、
 `mathrsfs`、`rotating`、`listings`、`algorithm2e` 这六个宏包类里一句都没用到，
 只是替文档预先装上并配好，就归示例宏包；封面要用的 `xcolor` 与 `tikz` 留在类里。
 
