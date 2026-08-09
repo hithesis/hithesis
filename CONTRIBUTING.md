@@ -160,6 +160,7 @@ src/
 | 毕业论文的任何行为 | `src/hit-thesis.dtx` |
 | 各个类的配置 | `src/config/hit-config.dtx` |
 | 元信息字段清单 | `src/meta/hit-*-meta.dtx` |
+| 改一句提示文案 | `src/utils/hit-messages.dtx` 一处，24 条全在里面 |
 | 前置后置排哪些部件 | `src/utils/hit-structure.dtx` 声明键，`src/flow/hit-*matter.dtx` 定顺序 |
 | 开题、中期报告 | `src/hit-report.dtx` |
 | 各个类共用的小工具 | `src/utils/hit-*.dtx` |
