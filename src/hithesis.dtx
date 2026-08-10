@@ -167,7 +167,7 @@
 % \documentclass[kind=interim, degree-level=doctor, campus=harbin]{hithesis}
 % \end{latex}
 % \option{kind} 不写按 \texttt{thesis} 算。\texttt{proposal} 与 \texttt{interim}
-% 转成报告类的 \option{stage}，其余选项原样转发。
+% 交给报告类，其余选项原样转发。
 %
 % \changes{v3.2a}{0000/00/00}{\option{degree-level}\texttt{=postdoc} 定死
 %   \option{kind}\texttt{=thesis}。博士后只有研究报告一种交付物，没有开题与中期，
@@ -184,8 +184,12 @@
 % 照旧能用，它们才是真正的类，派发类只是转发。
 %
 % 读 \option{kind} 得赶在 \cs{LoadClass} 之前，所以自己扫一遍
-% \cs{@classoptionslist}，不走 \pkg{l3keys}。扫到的 \option{kind} 不往下转发，
-% 两个真类都不认这个键。
+% \cs{@classoptionslist}，不走 \pkg{l3keys}。
+%
+% \changes{v3.2a}{0000/00/00}{\option{kind} 原样转给报告类，派发类不再翻译成
+%   \option{stage}}
+% 扫到的 \option{kind} 原样转给 \file{hit-report}，它认这个键；
+% \file{hit-thesis} 不认，转发时剔掉。
 %    \begin{macrocode}
 %<*dispatch>
 \NeedsTeXFormat{LaTeX2e}[2022/06/01]
@@ -219,6 +223,12 @@
   }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{0000/00/00}{\option{kind}\texttt{=mid-term} 作为
+%   \option{kind}\texttt{=interim} 的别名}
+% \option{kind}\texttt{=mid-term} 与 \option{kind}\texttt{=interim} 等价。
+% 「中期」的英文两种拼法都常见，认哪个都行，不必让用户去记我们选了哪个。
+% 这是别名不是废弃名，两个都是正式写法，写哪个都不提示。
+%
 % \changes{v3.2a}{0000/00/00}{\option{degree-level}\texttt{=postdoc} 直接定死
 %   \option{kind}\texttt{=thesis}。博士后只有研究报告一种交付物，没有开题与中期，
 %   写了别的 \option{kind} 原先会一路炸到丢掉 \cs{begin\{document\}}}
@@ -246,24 +256,17 @@
 \str_case:VnF \g__hit_kind_tl
   {
     { thesis } { }
-    { proposal }
-      {
-        \bool_gset_true:N \g__hit_kind_report_bool
-        \PassOptionsToClass { stage = proposal } { hit-report }
-      }
-    { interim }
-      {
-        \bool_gset_true:N \g__hit_kind_report_bool
-        \PassOptionsToClass { stage = interim } { hit-report }
-      }
+    { proposal } { \bool_gset_true:N \g__hit_kind_report_bool }
+    { interim }  { \bool_gset_true:N \g__hit_kind_report_bool }
+    { mid-term } { \bool_gset_true:N \g__hit_kind_report_bool }
   }
   { \msg_warning:nnV { hithesis } { unknown-kind } \g__hit_kind_tl }
 \cs_new_protected:Npn \__hit_forward_option:w #1 = #2 = #3 \q_stop #4
   {
-    \str_if_eq:eeF { \tl_trim_spaces:n {#1} } { kind }
+    \bool_if:NTF \g__hit_kind_report_bool
+      { \PassOptionsToClass {#4} { hit-report } }
       {
-        \bool_if:NTF \g__hit_kind_report_bool
-          { \PassOptionsToClass {#4} { hit-report } }
+        \str_if_eq:eeF { \tl_trim_spaces:n {#1} } { kind }
           { \PassOptionsToClass {#4} { hit-thesis } }
       }
   }
@@ -305,7 +308,7 @@
 % \cs{documentclass}\marg{hithesisbook} & \cs{documentclass}\marg{hit-thesis} \\
 % \cs{documentclass}\marg{hithesisart} & \cs{documentclass}\marg{hit-report} \\
 % \cs{documentclass}\marg{hithesisartplus} &
-%   \cs{documentclass}\oarg{degree-level=doctor,campus=shenzhen,stage=interim}\marg{hit-report} \\\bottomrule
+%   \cs{documentclass}\oarg{degree-level=doctor,campus=shenzhen,kind=interim}\marg{hit-report} \\\bottomrule
 % \end{longtable}
 %
 % \changes{v3.2a}{0000/00/00}{深圳博士中期并回报告类，\file{hithesisartplus.cls} 降为空壳}
@@ -363,11 +366,11 @@
   {%
     深圳博士中期已并入 hit-report，这个空壳只是转发。\MessageBreak
     请把 \string\documentclass 改成：\MessageBreak
-    \space\space\string\documentclass[degree-level=doctor,campus=shenzhen,stage=interim]{hit-report}\MessageBreak
+    \space\space\string\documentclass[degree-level=doctor,campus=shenzhen,kind=interim]{hit-report}\MessageBreak
     空壳将在 v4.1（2027 年主要版本）中移除，\MessageBreak
     届时不改的文档会直接编不过，请及时改%
   }
-\PassOptionsToClass{degree-level=doctor,campus=shenzhen,stage=interim}{hit-report}
+\PassOptionsToClass{degree-level=doctor,campus=shenzhen,kind=interim}{hit-report}
 \DeclareOption*{\PassOptionsToClass{\CurrentOption}{hit-report}}
 \ProcessOptions\relax
 \LoadClass{hit-report}
