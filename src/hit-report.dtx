@@ -48,15 +48,15 @@
 %    \begin{macrocode}
 \cs_new:Npn \hit@stage@name
   {
-    \bool_if:NTF \g__hit_opening_bool
-      { \hit@stage@opening } { \hit@if@option@T { midterm } { \hit@stage@midterm } }
+    \bool_if:NTF \g__hit_proposal_bool
+      { \hit@stage@proposal } { \hit@if@option@T { interim } { \hit@stage@interim } }
   }
 \hit@define@condition{weihai@or@shenzhen@master}{ ( \g__hit_weihai_bool || \g__hit_shenzhen_bool ) && \g__hit_master_bool }
-\hit@define@condition{shenzhen@master@opening}{ \g__hit_shenzhen_bool && \g__hit_master_bool && \g__hit_opening_bool }
-\hit@define@condition{harbin@master@opening@or@midterm}{ \g__hit_harbin_bool && \g__hit_master_bool
-     && ( \g__hit_opening_bool || \g__hit_midterm_bool ) }
-\hit@define@condition{harbin@master@opening}{ \g__hit_harbin_bool && \g__hit_opening_bool && \g__hit_master_bool }
-\hit@define@condition{shenzhen@doctor@midterm}{ \g__hit_shenzhen_bool && \g__hit_doctor_bool && \g__hit_midterm_bool }
+\hit@define@condition{shenzhen@master@proposal}{ \g__hit_shenzhen_bool && \g__hit_master_bool && \g__hit_proposal_bool }
+\hit@define@condition{harbin@master@proposal@or@interim}{ \g__hit_harbin_bool && \g__hit_master_bool
+     && ( \g__hit_proposal_bool || \g__hit_interim_bool ) }
+\hit@define@condition{harbin@master@proposal}{ \g__hit_harbin_bool && \g__hit_proposal_bool && \g__hit_master_bool }
+\hit@define@condition{shenzhen@doctor@interim}{ \g__hit_shenzhen_bool && \g__hit_doctor_bool && \g__hit_interim_bool }
 %    \end{macrocode}
 %
 % 处理文档类选项
@@ -116,13 +116,24 @@
 %    \begin{macrocode}
 \hit@define@choice@option{degree-type}{}{academic,professional}{academic}
 
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{报告类加 \option{lang}，封面标签有英文版。
+%   原先只有学位论文类有这个选项，报告类写了英文取值会被静默忽略}
+% 正文语言。取值与 \file{hit-thesis.cls} 相同，共用 \cs{c\_\_hit\_lang\_clist}。
+%
+% 原先报告类没有这个选项，用户写 \texttt{lang=en} 会落进 \texttt{unknown} 分支被转给
+% \pkg{ctexart}，那边认识这个名字，于是既不报错也不生效，排出来还是中文。
+%    \begin{macrocode}
+\exp_args:NnnV \hit@define@choice@option {lang} {} \c__hit_lang_clist {}
+\bool_if:NF \g__hit_en_bool { \bool_gset_true:N \g__hit_zh_bool }
 \hit@define@choice@option{campus}{}{shenzhen,weihai,harbin}{}
 \bool_lazy_or:nnF
   { \bool_if_p:N \g__hit_weihai_bool }
   { \bool_if_p:N \g__hit_shenzhen_bool }
   { \bool_gset_true:N \g__hit_harbin_bool }
 
-\hit@define@choice@option{stage}{}{opening,midterm}{}
+\hit@define@choice@option{stage}{}{proposal,interim,opening,midterm}{}
 %    \end{macrocode}
 
 % \changes{v3.1c}{2023/04/16}{增加用于打印的选项 \meta{print}.\issue[138]}
@@ -166,7 +177,26 @@
   }
 \PassOptionsToPackage{no-math}{fontspec}
 
+\cs_new_protected:Npn \__hit_stage_migrate:nn #1#2
+  {
+    \bool_if:cT { g__hit_#1_bool }
+      {
+        \msg_warning:nnnn { hithesis } { renamed-value } {#1} {#2}
+        \bool_gset_false:c { g__hit_#1_bool }
+        \bool_gset_true:c  { g__hit_#2_bool }
+      }
+  }
 \ProcessKeyOptions [~hit~/~class~]
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\option{stage} 的两个取值改名 \texttt{proposal} 与
+%   \texttt{interim}，v3.1e 的 \texttt{opening} 与 \texttt{midterm} 走废弃期}
+% 旧取值一并声明进选择项，解析完再归一化成新取值。子键的写法不行：
+% \cs{hit@define@choice@option} 生成的是一个整体的 \texttt{stage~.code:n}，
+% 它自己查取值表，\texttt{stage/opening} 这样的子键根本不会被查到。
+%    \begin{macrocode}
+\clist_map_inline:nn { { opening } { proposal } , { midterm } { interim } }
+  { \__hit_stage_migrate:nn #1 }
 
 %    \end{macrocode}
 %
@@ -188,7 +218,7 @@
     \ClassError { hit-report }
       {
         \MessageBreak Please~specify~stage~in~option:~
-        \MessageBreak stage=<opening|midterm>~
+        \MessageBreak stage=<proposal|interim>~
       }
   }
 \bool_lazy_any:nF
@@ -199,10 +229,10 @@
   }
   { \hit@report@error@type }
 \bool_lazy_or:nnF
-  { \bool_if_p:N \g__hit_opening_bool }
-  { \bool_if_p:N \g__hit_midterm_bool }
+  { \bool_if_p:N \g__hit_proposal_bool }
+  { \bool_if_p:N \g__hit_interim_bool }
   { \hit@report@error@stage }
-\hit@if@shenzhen@doctor@midterm
+\hit@if@shenzhen@doctor@interim
   {
     \bool_if:NF \g__hit_toc_given_bool { \bool_gset_false:N \g__hit_toc_bool }
     \bool_if:NF \g__hit_raggedbottom_given_bool
@@ -276,7 +306,7 @@
 %   这里只留调用与本类特有的部分}
 %    \begin{macrocode}
 \hit@setup@fonts
-\hit@if@shenzhen@doctor@midterm@TF
+\hit@if@shenzhen@doctor@interim@TF
   {
     \cs_set:Npn \normalsize
       {
@@ -371,7 +401,7 @@
     \RequirePackage { layouts }
     \RequirePackage { lineno }
   }
-\hit@if@shenzhen@doctor@midterm
+\hit@if@shenzhen@doctor@interim
   {
     \RequirePackage { tikzpagenodes }
     \RequirePackage { eso-pic }
@@ -399,7 +429,7 @@
 % 换到别的模板不用改。
 %    \begin{macrocode}
 \hit@setup@caption
-\hit@if@shenzhen@doctor@midterm { \RequirePackage { lipsum } }
+
 %    \end{macrocode}
 % \changes{v3.0.21}{2022/05/11}{删除 \pkg{xltxtra} 宏包, 来实现规范样式的上标。\issue[125]}
 % 设置深圳校区开题报告的正文行距与毕业论文模板一致
@@ -441,7 +471,7 @@
   {
     { \bool_if_p:N \g__hit_weihai_bool }
     { \bool_if_p:N \g__hit_master_bool }
-    { \bool_if_p:N \g__hit_opening_bool }
+    { \bool_if_p:N \g__hit_proposal_bool }
   }
   { \pagestyle { hit@weihai@headings@main } }
 %    \end{macrocode}
@@ -459,7 +489,7 @@
 
 %  \changes{v3.1d}{2025/03/03}{目录格式将在下文中设置}
 %    \begin{macrocode}
-%     \ifboolexpr{bool {hit@midterm}}{}{\pagestyle{hit@shenzhen@headings@front}}
+%     \ifboolexpr{bool {hit@interim}}{}{\pagestyle{hit@shenzhen@headings@front}}
 %    \end{macrocode}
 %
 % 中文封面
@@ -501,7 +531,7 @@
 %    \end{macrocode}
 %
 % ^^A ======================================================================
-% ^^A Module report-subfig: 子图兼容层（hit-report 与 hitsz-midterm-report 共用）
+% ^^A Module report-subfig: 子图兼容层（hit-report 与 hitsz-interim-report 共用）
 % ^^A ======================================================================
 %    \begin{macrocode}
 %<*report-subfig>

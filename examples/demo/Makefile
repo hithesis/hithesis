@@ -5,7 +5,7 @@ METHOD = xelatex
 # Set opts for latexmk if you use it
 LATEXMKOPTS = -xelatex
 # Basename of thesis
-THESISMAIN = thesis
+THESISMAIN = main
 PACKAGE = hithesis
 
 THESISCONTENTS=$(THESISMAIN).tex thesis/frontmatter/*.tex thesis/mainmatter/*.tex report/*/mainmatter/*.tex thesis/backmatter/*.tex $(FIGURES)

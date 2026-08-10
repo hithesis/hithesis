@@ -33,7 +33,7 @@ hithesis/
 ├── testfiles/            <- l3build 的宏级测试：*.lvt 用例与 *.tlg 基线
 ├── examples/demo/        <- 一棵示例树：开题、中期、学位论文放在同一个目录
 │   ├── hitsetup.tex      <- 三份共用的元信息
-│   ├── thesis.tex  thesis-en.tex  opening.tex  midterm.tex   <- 四个入口
+│   ├── thesis.tex  thesis-en.tex  proposal.tex  interim.tex   <- 四个入口
 │   └── front/ body/ back/ figures/
 └── .github/              <- Issue / PR 模板、CI 配置
 ```
@@ -308,7 +308,7 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 
 各个 cls 的版式代码物理隔离，由各自的 `<类>-*` 模块承载。当前是两个：`thesis-*` 在 `src/hit-thesis.dtx`，`report-*` 在 `src/hit-report.dtx`。每个类对应一套学校规范，各自演化，碰巧相似的版式不要合并，规范一独立变动就会变成维护负担。新增一个类就是新增一个 `hit-<名>.dtx` 加一组 `<名>-*` 模块。
 
-反过来，同一套规范下的分支不要单开一个类。深圳博士中期原先是 `hithesisartplus`，与 `hithesisart`（今 `hit-report`）九成代码逐字相同，差的只有封面、页眉、节标题、正文行距四处；v3.2a 并回 `report-*`，由 `campus=shenzhen,degree-level=doctor,stage=midterm` 三个选项选中，与其余十七格并列。判断标准是差异在哪一层：规范不同才分类，版式不同就加分支。
+反过来，同一套规范下的分支不要单开一个类。深圳博士中期原先是 `hithesisartplus`，与 `hithesisart`（今 `hit-report`）九成代码逐字相同，差的只有封面、页眉、节标题、正文行距四处；v3.2a 并回 `report-*`，由 `campus=shenzhen,degree-level=doctor,stage=interim` 三个选项选中，与其余十七格并列。判断标准是差异在哪一层：规范不同才分类，版式不同就加分支。
 
 底层机制是另一回事。字号、数学、表格、脚注这些各套规范要求一致的东西，共用一份放在 `src/utils/hit-*.dtx`，守卫叫 `shared-*`：
 
@@ -410,8 +410,8 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 
 **反方向也踩过：从 expl3 里搬到 `\hit@presetup` 的取值里，原有的 `~` 要去掉。**
 配置文件的 `\hit@presetup{...}` 取值是在 `\ExplSyntaxOff` 下记号化的，那里 `~` 又变回
-不断行空格。把 cls 里的 `\hit@if@option@TF{midterm}{中期~}{...}` 照抄成常量取值
-`{<stage-midterm>~报告}`，页眉就从“中期报告”变成了“中期 报告”，两个深圳硕士变体
+不断行空格。把 cls 里的 `\hit@if@option@TF{interim}{中期~}{...}` 照抄成常量取值
+`{<stage-interim>~报告}`，页眉就从“中期报告”变成了“中期 报告”，两个深圳硕士变体
 的 PDF 有差异。cls 里那个 `~` 本来是可忽略空格，随后被 xeCJK 在两个汉字之间吃掉，
 搬到配置里就吃不掉了。
 
@@ -482,7 +482,7 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 
 另有若干针对具体组合的具名函数，由 `\hit@define@condition{名}{布尔表达式}` 生成，
 名字读下来就是条件本身：`\hit@if@harbin@master@or@doctor@or@shenzhen@master`、
-`\hit@if@harbin@master@opening@or@midterm`。末尾带 `@TF` 的要给两个分支。
+`\hit@if@harbin@master@proposal@or@interim`。末尾带 `@TF` 的要给两个分支。
 
 已迁移：`thesis-geometry`、`report-geometry`、`thesis-mainmatter`、`report-chapter`、
 `report-pagestyle`、`report-toc`、`thesis-toc`、`thesis-pagestyle`、`report-floats`、`thesis-deps-c`、
@@ -527,8 +527,8 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 `#` 原样通过。
 
 判断分支末尾的空格按同一条规则数：以控制字结尾的分支，后面的空格被跳过；
-以 `}` 或普通字符结尾的分支，那个空格是真的。`\ifhit@opening {\ } \else \enspace \fi`
-的真分支是 `{\ }` 加一个空格，写成 `\hit@if@option@TF{opening}{{\ } }{\enspace}` 才对。
+以 `}` 或普通字符结尾的分支，那个空格是真的。`\ifhit@proposal {\ } \else \enspace \fi`
+的真分支是 `{\ }` 加一个空格，写成 `\hit@if@option@TF{proposal}{{\ } }{\enspace}` 才对。
 
 把 `\ifhit@X A\else B\fi` 换成 `\hit@if@option@TF{X}{A}{B}` 时，要看原写法 `\fi` 后面
 有没有空格。`\fi` 是控制字，后面的空格在记号化时就被跳过了；换成以 `}` 结尾之后

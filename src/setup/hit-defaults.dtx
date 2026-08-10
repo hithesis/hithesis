@@ -96,6 +96,52 @@
       }
     \bool_if:NT \l__hit_presetup_hit_bool {#2}
   }
+%    \end{macrocode}
+%
+% \begin{macro}{\hitusepackage}
+% \changes{v3.2a}{0000/00/00}{加 \cs{hitusepackage}，按交付物加载宏包}
+% \cs{hitusepackage}\oarg{条件}\marg{宏包表}：条件成立才加载，条件写法与
+% \cs{hitsetup} 的那个可选参数完全一样。
+% \begin{latex}
+% \hitusepackage[kind=proposal]{lipsum, siunitx={per-mode=symbol, detect-all}}
+% \end{latex}
+% 宏包表里带选项的写成 \meta{包名}\texttt{=}\marg{选项}。选项用花括号不用方括号：
+% 外层是逗号表，方括号里的逗号会被外层拆开，花括号护得住。
+%
+% \textbf{按写的顺序加载。} 宏包之间的先后常常有讲究，这里不排序、不去重，
+% 用户写什么顺序就是什么顺序。
+%
+% 一份主文件管几种交付物时，导言区是共用的，\cs{usepackage} 对谁都生效。
+% 只有某一种要的包就写进这个命令。
+%
+% 只能在导言区用。\cs{usepackage} 本身就是导言区限定，而 \cs{hitsetup} 正文里也能用，
+% 两者混在一起用户迟早写错位置，所以单开一个命令，进正文就报错说清该挪到哪。
+%    \begin{macrocode}
+\NewDocumentCommand \hitusepackage { O{} +m }
+  { \hit@if@condition:nT {#1} { \clist_map_inline:nn {#2} { \__hit_usepackage:n {##1} } } }
+\cs_new_protected:Npn \__hit_usepackage:n #1
+  {
+    \tl_if_in:nnTF {#1} { = }
+      { \__hit_usepackage_with_options:w #1 \q_stop }
+      { \exp_args:Nx \usepackage { \tl_trim_spaces:n {#1} } }
+  }
+\cs_new_protected:Npn \__hit_usepackage_with_options:w #1 = #2 \q_stop
+  {
+    \use:x
+      {
+        \exp_not:N \usepackage [ \exp_not:n {#2} ]
+          { \tl_trim_spaces:n {#1} }
+      }
+  }
+\AtBeginDocument
+  {
+    \RenewDocumentCommand \hitusepackage { O{} +m }
+      { \msg_error:nn { hithesis } { usepackage-in-body } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_presetup_one:nnn #1#2#3
   {
     \str_if_eq:nnTF {#1} { code }
@@ -392,8 +438,8 @@
   postdoc-classified-index-field-label      = {分类号},
   postdoc-secret-level-field-label          = {密级},
   postdoc-udc-field-label                      = {\hit@spread@by{0.4\ccwd}{UDC}},
-  stage-opening                                = {开题},
-  stage-midterm                                = {中期},
+  stage-proposal                                = {开题},
+  stage-interim                                = {中期},
   stage-document-type                          = {报告},
   postdoc-number-field-label                = {编号},
   postdoc-report                            = {博士后研究工作报告},
@@ -476,8 +522,8 @@
   graduate-supervisor-field-label        = {\hit@spread@to{6em}{导师}},
   graduate-student-field-label           = {\hit@spread@to{6em}{研究生}},
   graduate-student-id-field-label        = {\hit@spread@to{6em}{学号}},
-  graduate-date-field-label              = {\hit@if@option@TF{opening}{<stage-opening>}%
-{\hit@if@option@T{midterm}{<stage-midterm>}}<stage-document-type>日期},
+  graduate-date-field-label              = {\hit@if@option@TF{proposal}{<stage-proposal>}%
+{\hit@if@option@T{interim}{<stage-interim>}}<stage-document-type>日期},
   graduate-enroll-date-field-label       = {\hit@spread@to{6em}{入学时间}},
   graduate-thesis-field-label            = {\hit@spread@to{6em}{论文题目}},
   graduate-affiliation-major-field-label = {\hit@spread@to{6em}{学科专业}},
@@ -489,8 +535,8 @@
 \ExplSyntaxOn
 %    \end{macrocode}
 %
-% \cs{hit@stage@opening} 这条留在值里判断，不能提到覆盖表。\option{stage} 是报告类
-% 的选项，\file{hit-thesis.cls} 里没有 \cs{g\_\_hit\_midterm\_bool}，提到外面
+% \cs{hit@stage@proposal} 这条留在值里判断，不能提到覆盖表。\option{stage} 是报告类
+% 的选项，\file{hit-thesis.cls} 里没有 \cs{g\_\_hit\_interim\_bool}，提到外面
 % 加载期就会报 \texttt{Missing number}。留在值里则只有真的排到这一项时才求值，
 % 而 book 从不用它。
 %
@@ -681,7 +727,7 @@
 },
 } }
 \hit@presetup{ const = {
-  shenzhen-doctor-midterm-note = {
+  shenzhen-doctor-interim-note = {
 \thispagestyle{empty}
 {\begin{center}
 \songti\sanhao\textbf{\hit@spread@to{6em}{说明}}
@@ -950,11 +996,11 @@
 \hit@presetup[campus=weihai,degree-level=master]{ const = {
   report-header = {<school-zh>（<campus>）<degree-level-zh>学位论文开题报告},
 } }
-\hit@presetup[campus=shenzhen,degree-level=master,stage=opening]{ const = {
+\hit@presetup[campus=shenzhen,degree-level=master,stage=proposal]{ const = {
   report-header = {<school-zh>（<campus>）<degree-level-zh>学位论文开题报告},
 } }
-\hit@presetup[campus=shenzhen,degree-level=master,stage=midterm]{ const = {
-  report-header = {<school-zh>（<campus>）<stage-midterm>报告},
+\hit@presetup[campus=shenzhen,degree-level=master,stage=interim]{ const = {
+  report-header = {<school-zh>（<campus>）<stage-interim>报告},
 } }
 \hit@presetup[campus=shenzhen,degree-level=master]{ const = {
   report-front-header = {<school-zh>（<campus>）<degree-level-zh>学位论文开题报告},
@@ -1014,8 +1060,8 @@
 \hit@presetup{ const = {
   figure-prefix-en                              = {Fig.$\!$},
   table-prefix-en                               = {Table$\!$},
-  stage-opening                                 = {开题},
-  stage-midterm                                 = {中期},
+  stage-proposal                                 = {开题},
+  stage-interim                                 = {中期},
   stage-document-type                           = {报告},
   bachelor-degree-level                      = {本科},
   bachelor-document-type                     = {毕业设计（论文）},
@@ -1037,13 +1083,13 @@
   graduate-supervisor-field-label            = {\hit@spread@to{6em}{导师}},
   graduate-student-field-label               = {\hit@spread@to{6em}{研究生}},
   graduate-student-id-field-label            = {\hit@spread@to{6em}{学号}},
-  graduate-date-field-label                  = {\hit@stage@opening\hit@stage@document@type 日期},
+  graduate-date-field-label                  = {\hit@stage@proposal\hit@stage@document@type 日期},
   graduate-enroll-date-field-label           = {\hit@spread@to{6em}{入学时间}},
   graduate-thesis-field-label                = {\hit@spread@to{6em}{论文题目}},
   graduate-affiliation-major-field-label     = {\hit@spread@to{6em}{学科专业}},
   school-zh                                     = {哈尔滨工业大学},
   document-type                              = {学位论文},
-  thesis-midterm-check                       = {\hit@spread@to{13.375em}{博士学位论文中期检查报告}},
+  thesis-interim-check                       = {\hit@spread@to{13.375em}{博士学位论文中期检查报告}},
   school-field-label-zh                         = {授予学位单位},
   date-field-label-zh                           = {答辩日期},
   affiliation-field-label-zh                    = {所在单位},
@@ -1065,19 +1111,19 @@
 \hit@presetup[campus=harbin,degree-level=bachelor]{ const = {
   school-field-label-zh = {学校},
 } }
-\hit@presetup[stage=midterm]{ const = {
-  graduate-date-field-label = {\hit@stage@midterm\hit@stage@document@type 日期},
+\hit@presetup[stage=interim]{ const = {
+  graduate-date-field-label = {\hit@stage@interim\hit@stage@document@type 日期},
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
-\hit@presetup[campus=shenzhen,degree-level=master,stage=opening]{ const = {
+\hit@presetup[campus=shenzhen,degree-level=master,stage=proposal]{ const = {
   graduate-major-field-label = {\makebox[6\ccwd][s]{学科\,/\,专业}},
 } }
-\hit@presetup[campus=harbin,degree-level=master,stage=opening|midterm]{ const = {
+\hit@presetup[campus=harbin,degree-level=master,stage=proposal|interim]{ const = {
   graduate-affiliation-field-label = {\makebox[6\ccwd][s]{学院（部}）},
   graduate-major-field-label       = {\makebox[8\ccwd][s]{学科/专业学位类别}},
 } }
-\hit@presetup[campus=harbin,degree-level=master,stage=opening]{ const = {
+\hit@presetup[campus=harbin,degree-level=master,stage=proposal]{ const = {
   document-type = {学位},
 } }
 \ExplSyntaxOn
@@ -1126,7 +1172,7 @@
 },
 } }
 \hit@presetup{ const = {
-  shenzhen-doctor-midterm-note = { 
+  shenzhen-doctor-interim-note = { 
 \thispagestyle{empty} 
 {\begin{center} 
 \songti\sanhao\textbf{\hit@spread@to{6em}{说明}} 
