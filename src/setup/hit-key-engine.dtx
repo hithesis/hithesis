@@ -345,6 +345,38 @@
 %
 % 两者都照旧认取值里的 \texttt{<键名>} 引用。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{加 \cs{hit@after@number:nnn}，让「编号之后排什么」
+%   这批常量取空值时退回各处原有的取值}
+% \cs{hit@after@number:nnn}\marg{层级}\marg{语言}\marg{兜底}
+% 取 \option{after-}\meta{层级}\option{-number-}\meta{语言} 这个常量，取值为空就用兜底。
+%
+% 「编号之后排什么」这批常量的默认值不能写成一个数：章号之后排多宽，本部硕士与
+% 深圳本科是一个全角，其余是半个；报告类还要看开题还是中期。这些判断本来就写在
+% 各个 \cs{ctexset} 块里，一个块一份。所以常量默认留空，各块把自己原有的取值当
+% 兜底传进来，用户没设就跟以前一模一样，设了就一处覆盖全部。
+%
+% 空不空不能用 \cs{tl\_if\_empty:cTF} 判。常量是 \cs{cs\_gset:cpx} 建的，那是个
+% \cs{long} 宏；\cs{tl\_if\_empty:N} 拿 \cs{c\_empty\_tl} 比意义，而
+% \cs{c\_empty\_tl} 不是 \cs{long}，空常量会被判成非空，接着 \cs{use:c} 取到那个
+% 空宏，间距静悄悄地消失。踩过一次，症状是 45 个变体全变、页数一页不变。
+% 所以另造一个同样由 \cs{cs\_new:Npn} 建的空宏来比。
+%
+% 常量不存在时也走兜底：默认值虽然在 \file{hit-defaults.dtx} 里都设了，
+% 少一条不该让间距无声消失。
+%    \begin{macrocode}
+\cs_new:Npn \hit@after@number@empty: { }
+\cs_new:Npn \hit@after@number:nnn #1#2#3
+  {
+    \cs_if_exist:cTF { hit@after@#1@number@#2 }
+      {
+        \cs_if_eq:cNTF { hit@after@#1@number@#2 } \hit@after@number@empty:
+          {#3}
+          { \use:c { hit@after@#1@number@#2 } }
+      }
+      {#3}
+  }
 \tl_new:N \l__hit_constant_target_tl
 \prop_new:N \g__hit_constant_target_prop
 \cs_new_protected:Npn \__hit_constant_target:

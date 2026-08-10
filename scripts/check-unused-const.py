@@ -39,6 +39,11 @@ CONSTRUCTED = {
     "figure-prefix-en", "table-prefix-en",
     "listfigurename", "listtablename", "listequationname",
     "equationname", "figurename", "tablename",
+    # \hit@after@number:nnn{层级}{语言}{兜底} 现拼 hit@after@<层级>@number@<语言>
+    *(f"after-{lvl}-number-{lang}"
+      for lvl in ("chapter", "section", "subsection", "subsubsection",
+                  "figure-caption", "table-caption")
+      for lang in ("zh", "en")),
 }
 
 DECLARE = re.compile(r"\\hit@declare@constant(@as|@ctex)?\s*\{(.*?)\n  \}", re.S)
