@@ -272,6 +272,26 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 两条路都不碰 engine。常量的值里可以写 `<别的键名>` 交叉引用，例如
 `author-field-label-zh = {<degree-level-zh>研究生}`，设值时就展开。
 
+**engine 里的函数名：`define` 造出新名字，`declare` 只把已有的名字登记成键。**
+
+| 造名字 → define | 只登记 → declare |
+|---|---|
+| `\hit@define@term` 造写入器 | `\hit@declare@class@key` 只 `\keys_define:nn` |
+| `\hit@define@title`、`\hit@define@legacy@title` | `\hit@declare@info@field` |
+| `\hit@define@legacy@term`、`\hit@define@legacy@terms` 造别名 | `\hit@declare@constant`、`@as`、`@ctex` |
+| `\hit@define@condition` 造 `\hit@if@…` 一对 | |
+| `\hit@define@boolean@option` 造标志位 | |
+| `\hit@define@string@option`、`@as` 造 `\hit@<名>` | |
+| `\hit@define@choice@option` 每个取值造一个标志位 | |
+
+**一个例外要留意。** `\hit@define@string@option@as` 造出来的是文本宏（`\hit@fontset`），
+不是标志位。option-engine 造的东西一般落在 `\g__hit_<名>_bool` 上给 `\hit@if@…` 选分支，
+字符串选项落在文本宏上。它归 option-engine 是因为加载期就要用，不是因为存法。
+
+**`\hit@presetup` 那套排队回放机制住在 `hit-defaults.dtx` 顶上，不在 engine 层。**
+按分层它是机制，但 `hit-defaults.dtx` 在 `hithesis.ins` 里排在第二位、自己就调用了
+107 次 `\hit@presetup`，而 engine 排在一百多行之后。定义必须早于调用，挪不动。
+
 **名单层为什么按类分两个文件，取值层却是一个文件？** 不是没整理，是 docstrip 卡死。
 它的输入文件表全局只增，一个被两份输出共用的文件必须排在每个块的最前面，各份输出
 要求的先后才彼此相容。名单必须排在类骨架之后（它要用类骨架给的东西），所以做不成

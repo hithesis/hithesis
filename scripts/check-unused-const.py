@@ -104,6 +104,24 @@ def main() -> int:
         print(f"\n共 {total} 个常量两个类都没取用。确认是遗漏还是该删，"
               f"删的时候把为什么删写进 \\changes。")
 
+    # 上面那个“另一个类在用的就放过”有个盲区：声明在甲、只有乙在用，两边一凑看着
+    # 有人用，实际甲白声明、乙那个宏根本没定义。inline-separator 就这么躺了很久。
+    # 这里正面查一遍：每个类只能用自己声明过的常量。
+    decl = {n: declared((ROOT / n).read_text(encoding="utf-8")) for n in ("hit-thesis.cls", "hit-report.cls")}
+    crossed = []
+    for k in sorted(set().union(*(set(d) for d in decl.values()))):
+        kind = next(d[k] for d in decl.values() if k in d)
+        for n in ("hit-thesis.cls", "hit-report.cls"):
+            if k in decl[n]:
+                continue
+            if used(k, kind, (ROOT / n).read_text(encoding="utf-8") + "\n" + sty_src, elsewhere):
+                crossed.append((k, n))
+    for k, n in crossed:
+        owner = [m for m in decl if k in decl[m]]
+        print(f"{n} 用了常量 {k}，但它只声明在 {'、'.join(owner)}。"
+              f"要么在 {n} 的 keylist 里也声明，要么把取用点挪走")
+    total += len(crossed)
+
     # 语言后缀的对称性
     both = set()
     for name in ("hit-thesis.cls", "hit-report.cls"):
