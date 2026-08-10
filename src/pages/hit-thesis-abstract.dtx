@@ -59,19 +59,83 @@
   }
 %    \end{macrocode}
 %
-% 定义符号表。
+% \changes{v3.2a}{0000/00/00}{\env{denotation} 收成 \cs{item} 列表，
+%   原先自己写表格的写法移到 \env{denotation*}}
+% 符号表。
+%
+% 原先这个环境只管标题和表号，正文要用户自己摆一张表，列宽、字号、跨页都得手调。
+% 现在环境本身就是一个 \pkg{enumitem} 的 \texttt{description} 列表，一行一个符号：
+% \cs{item}\oarg{符号}\meta{说明}。第一列宽度默认 2.5cm，
+% \env{denotation} 的可选参数改它。
+%
+% 规范里允许把符号分成几张表、各有各的列，列表排不出来，所以保留
+% \env{denotation*}：标题和表号照旧，正文由用户自己写，跟 v3.1e 一模一样。
+%
+% 环境本身认不出用户想要哪一种，所以在开头探一下：正文第一个记号是 \cs{item} 就开
+% 列表，不是就当旧写法，照常编译、提示加个星号。前面的空格和空行先吃掉，不然
+% \cs{begin}\marg{denotation} 后面空一行就会被误判成旧写法。
 %    \begin{macrocode}
-\NewDocumentEnvironment { denotation } { O{2.5cm} }
+\RequirePackage{enumitem}
+\newlist { hit@denotation } { description } { 1 }
+\setlist [ hit@denotation ]
+  {
+    nosep ,
+    font = \normalfont ,
+    align = left ,
+    leftmargin = ! ,% 下面三个长度之和
+    labelindent = 0pt ,
+    labelwidth = 2.5cm ,
+    labelsep* = 0.5cm ,
+    itemindent = 0pt ,
+  }
+\bool_new:N \g__hit_denotation_list_bool
+\tl_new:N \g__hit_denotation_width_tl
+\cs_new_protected:Npn \__hit_denotation_open:
   {
     \hit@clear@page
     \hit@appendix@chapter * { \hit@denotation@heading@zh } [ \hit@denotation@heading@en ]
     \setcounter { table } { 0 }
     \cs_set:Npn \thetable { \arabic { table } }% 表编号为 1
   }
+\cs_new_protected:Npn \__hit_denotation_close:
   {
     \cs_set:Npn \thetable { \arabic { chapter } - \arabic { table } }% 表编号为 7-1
     \setcounter { table } { 0 }
   }
+\cs_new_protected:Npn \__hit_denotation_peek:
+  {
+    \peek_meaning_remove_ignore_spaces:NTF \par
+      { \__hit_denotation_peek: }
+      {
+        \peek_meaning_ignore_spaces:NTF \item
+          {
+            \bool_gset_true:N \g__hit_denotation_list_bool
+            \begin { hit@denotation } [ labelwidth = \g__hit_denotation_width_tl ]
+          }
+          {
+            \bool_gset_false:N \g__hit_denotation_list_bool
+            \msg_warning:nn { hithesis } { denotation-no-item }
+          }
+      }
+  }
+\NewDocumentEnvironment { denotation } { O{2.5cm} }
+  {
+    \tl_gset:Nn \g__hit_denotation_width_tl {#1}
+    \__hit_denotation_open:
+    \__hit_denotation_peek:
+  }
+  {
+    \bool_if:NT \g__hit_denotation_list_bool { \end { hit@denotation } }
+    \__hit_denotation_close:
+  }
+%    \end{macrocode}
+%
+% 带星号的不开列表，正文完全交给用户。可选参数收下不用，这样 v3.1e 里
+% \cs{begin}\marg{denotation}\oarg{2.5cm} 的写法加个星号就能直接跑。
+%    \begin{macrocode}
+\NewDocumentEnvironment { denotation* } { O{2.5cm} }
+  { \__hit_denotation_open: }
+  { \__hit_denotation_close: }
 %    \end{macrocode}
 %
 %    \begin{macrocode}
