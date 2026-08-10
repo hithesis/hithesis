@@ -169,6 +169,14 @@
 % \option{kind} 不写按 \texttt{thesis} 算。\texttt{opening} 与 \texttt{midterm}
 % 转成报告类的 \option{stage}，其余选项原样转发。
 %
+% \changes{v3.2a}{0000/00/00}{\option{level}\texttt{=postdoc} 定死
+%   \option{kind}\texttt{=thesis}。博士后只有研究报告一种交付物，没有开题与中期，
+%   原先写了别的 \option{kind} 会一路炸到丢掉 \cs{begin\{document\}}，共 7 个错误}
+% \option{level}\texttt{=postdoc} 是个例外。博士后不写开题与中期，报告类的
+% \option{level} 也没有这个取值，所以只要扫到它就按学位论文类派发，\option{kind}
+% 写什么都不看，不写也行。旧名 \option{type}\texttt{=postdoc} 一样管用。显式写了别的
+% \option{kind} 时在日志里说一句，不写就静默。
+%
 % \option{kind} 只能写在 \cs{documentclass} 上，挪不进导言区：\cs{LoadClass} 得在
 % 类文件里执行完，而 \cs{hitsetup} 是导言区的事，那时候基础类早装上了。
 %
@@ -187,15 +195,48 @@
 \tl_new:N \g__hit_kind_tl
 \tl_gset:Nn \g__hit_kind_tl { thesis }
 \bool_new:N \g__hit_kind_report_bool
+\bool_new:N \g__hit_kind_given_bool
+\bool_new:N \g__hit_level_postdoc_bool
 \cs_new_protected:Npn \__hit_kind_scan:w #1 = #2 = #3 \q_stop
   {
     \str_if_eq:eeT { \tl_trim_spaces:n {#1} } { kind }
-      { \tl_gset:Nx \g__hit_kind_tl { \tl_trim_spaces:n {#2} } }
+      {
+        \bool_gset_true:N \g__hit_kind_given_bool
+        \tl_gset:Nx \g__hit_kind_tl { \tl_trim_spaces:n {#2} }
+      }
+    \str_if_eq:eeT { \tl_trim_spaces:n {#1} } { level } { \__hit_level_scan:n {#2} }
+    \str_if_eq:eeT { \tl_trim_spaces:n {#1} } { type }  { \__hit_level_scan:n {#2} }
+  }
+\cs_new_protected:Npn \__hit_level_scan:n #1
+  {
+    \str_if_eq:eeT { \tl_trim_spaces:n {#1} } { postdoc }
+      { \bool_gset_true:N \g__hit_level_postdoc_bool }
   }
 \cs_if_exist:NT \@classoptionslist
   {
     \exp_args:NV \clist_map_inline:nn \@classoptionslist
       { \__hit_kind_scan:w #1 = = \q_stop }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\option{level}\texttt{=postdoc} 直接定死
+%   \option{kind}\texttt{=thesis}。博士后只有研究报告一种交付物，没有开题与中期，
+%   写了别的 \option{kind} 原先会一路炸到丢掉 \cs{begin\{document\}}}
+% 博士后不写开题与中期，所以 \option{level}\texttt{=postdoc} 一出现就按学位论文类
+% 派发，\option{kind} 写什么都不看。显式写了别的取值时在日志里说一句，不写就静默。
+%    \begin{macrocode}
+\msg_new:nnn { hithesis } { postdoc-forces-thesis }
+  {
+    level=postdoc~与~kind=#1~冲突，按~kind=thesis~处理。 \\
+    博士后只有研究报告一种交付物，没有开题与中期。
+  }
+\bool_if:NT \g__hit_level_postdoc_bool
+  {
+    \bool_lazy_and:nnT
+      { \bool_if_p:N \g__hit_kind_given_bool }
+      { ! \str_if_eq_p:Vn \g__hit_kind_tl { thesis } }
+      { \msg_warning:nnV { hithesis } { postdoc-forces-thesis } \g__hit_kind_tl }
+    \tl_gset:Nn \g__hit_kind_tl { thesis }
   }
 \msg_new:nnn { hithesis } { unknown-kind }
   {
