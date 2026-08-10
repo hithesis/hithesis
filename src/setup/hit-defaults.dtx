@@ -73,28 +73,34 @@
     \seq_set_split:Nnn \l__hit_presetup_value_seq { | } {#2}
     \seq_map_inline:Nn \l__hit_presetup_value_seq
       {
-        \bool_if:cT { g__hit_ \tl_trim_spaces:n {##1} _bool }
-          { \bool_set_true:N \l__hit_presetup_any_bool }
+        \bool_if_exist:cTF { g__hit_ \tl_trim_spaces:n {##1} _bool }
+          {
+            \bool_if:cT { g__hit_ \tl_trim_spaces:n {##1} _bool }
+              { \bool_set_true:N \l__hit_presetup_any_bool }
+          }
+          { \msg_warning:nnn { hithesis } { unknown-condition } {##1} }
       }
     \bool_if:NF \l__hit_presetup_any_bool
       { \bool_set_false:N \l__hit_presetup_all_bool }
+  }
+\cs_new_protected:Npn \hit@if@condition:nT #1#2
+  {
+    \bool_set_false:N \l__hit_presetup_hit_bool
+    \seq_set_split:Nnn \l__hit_presetup_group_seq { ; } {#1}
+    \seq_map_inline:Nn \l__hit_presetup_group_seq
+      {
+        \bool_set_true:N \l__hit_presetup_all_bool
+        \clist_map_inline:nn {##1} { \__hit_presetup_clause:w ####1 \q_stop }
+        \bool_if:NT \l__hit_presetup_all_bool
+          { \bool_set_true:N \l__hit_presetup_hit_bool }
+      }
+    \bool_if:NT \l__hit_presetup_hit_bool {#2}
   }
 \cs_new_protected:Npn \__hit_presetup_one:nnn #1#2#3
   {
     \str_if_eq:nnTF {#1} { code }
       {#3}
-      {
-        \bool_set_false:N \l__hit_presetup_hit_bool
-        \seq_set_split:Nnn \l__hit_presetup_group_seq { ; } {#2}
-        \seq_map_inline:Nn \l__hit_presetup_group_seq
-          {
-            \bool_set_true:N \l__hit_presetup_all_bool
-            \clist_map_inline:nn {##1} { \__hit_presetup_clause:w ####1 \q_stop }
-            \bool_if:NT \l__hit_presetup_all_bool
-              { \bool_set_true:N \l__hit_presetup_hit_bool }
-          }
-        \bool_if:NT \l__hit_presetup_hit_bool { \hitsetup {#3} }
-      }
+      { \hit@if@condition:nT {#2} { \hitsetup {#3} } }
   }
 \cs_new_protected:Npn \hit@apply@presetup
   { \seq_map_inline:Nn \g__hit_presetup_seq { \__hit_presetup_one:nnn ##1 } }
