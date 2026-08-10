@@ -154,7 +154,7 @@ src/
 |---|---|
 | 毕业论文的任何行为 | `src/hit-thesis.dtx` |
 | 常量的默认值（改学校规范） | `src/setup/hit-defaults.dtx` |
-| 这个类有哪些信息字段与常量 | `src/setup/hit-*-keylist.dtx` |
+| 有哪些信息字段与常量 | `src/setup/hit-keylist.dtx` |
 | 这个类有哪些类选项 | `src/hit-thesis.dtx`、`src/hit-report.dtx` 的 `*-options` 守卫 |
 | 键与选项的声明机制 | `src/setup/hit-*-engine.dtx` |
 | 改一句提示文案 | `src/utils/hit-messages.dtx` 一处，24 条全在里面 |
@@ -245,7 +245,7 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 | 层 | 文件 | 装什么 |
 |---|---|---|
 | engine 造键 | `hit-key-engine.dtx`、`hit-option-engine.dtx` | 怎么声明一个键、`\hitsetup` 入口、条件判断函数。只定义，一句执行都没有 |
-| keylist 列键 | `hit-thesis-keylist.dtx`、`hit-report-keylist.dtx` | 这个类有哪些信息字段与常量。只声明，不给值 |
+| keylist 列键 | `hit-keylist.dtx` | 有哪些信息字段与常量。三个守卫：`shared-keylist` 两个类都取，`thesis-keylist` 与 `report-keylist` 各取各的。只声明，不给值 |
 | defaults 给值 | `hit-defaults.dtx` | 常量的默认值。只给值，不声明；用户的 `\hitsetup` 晚于它执行，照样能盖掉 |
 
 改学校规范只动 defaults，加一个字段动 keylist，改键的工作方式才动 engine。
@@ -259,13 +259,14 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 
 **加一个常量**（模板给的固定词汇，比如封面多一栏标签）：
 
-1. `hit-<类>-keylist.dtx` 的 `\hit@declare@constant{…}` 列表里加键名 `foo-bar-zh`
+1. `hit-keylist.dtx` 的 `\hit@declare@constant{…}` 列表里加键名 `foo-bar-zh`。
+   两个类都要就加进 `shared-keylist` 那一份，只有一个类要就加进对应的那份
 2. `hit-defaults.dtx` 里 `\hit@presetup{ const = { foo-bar-zh = {某某} } }`
 3. 版式里写 `\hit@foo@bar@zh`。键名的 `-` 换成 `@`、前缀 `hit@`，换算是自动的
 
 **加一个用户填的字段**（题目、作者那一类）：
 
-1. `hit-<类>-keylist.dtx` 里 `\hit@define@term{foo-zh}` 造写入器
+1. `hit-keylist.dtx` 里 `\hit@define@term{foo-zh}` 造写入器
 2. 同文件的 `\hit@declare@info@field{…}` 列表里加 `foo-zh`，把 `hit/info` 族接上去
 3. 版式里写 `\hit@foo@zh`，用户写 `\hitsetup{ info = { foo-zh = {某某} } }`
 
@@ -292,15 +293,16 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 按分层它是机制，但 `hit-defaults.dtx` 在 `hithesis.ins` 里排在第二位、自己就调用了
 107 次 `\hit@presetup`，而 engine 排在一百多行之后。定义必须早于调用，挪不动。
 
-**名单层为什么按类分两个文件，取值层却是一个文件？** 不是没整理，是 docstrip 卡死。
-它的输入文件表全局只增，一个被两份输出共用的文件必须排在每个块的最前面，各份输出
-要求的先后才彼此相容。名单必须排在类骨架之后（它要用类骨架给的东西），所以做不成
-共用文件；`hit-defaults.dtx` 能是一个文件，正因为它排在每个块的第一位。实测把两份名
-单并成一个共用文件，立刻报：
+**共用文件必须排在每个块的前面。** docstrip 的输入文件表全局只增，一个被两份输出
+共用的文件，只有排在每份输出各自要求的位置之前，先后才彼此相容。排在中间会报：
 
 ```
 ! DOCSTRIP error: Incompatible order of input files specified for file `hit-report.cls'
 ```
+
+`hit-keylist.dtx` 一度按类分成两个文件，就是因为它当时排在类骨架之后。后来实测它
+根本不需要类骨架给的任何东西，提到 `*-options` 之前照样逐字节一致，于是能合成一个
+共用文件、共用那 96 个键名。加新文件时先想清楚它要排在哪，再决定能不能共用。
 
 ### 4.3 版式各写各的，底层机制共用
 
