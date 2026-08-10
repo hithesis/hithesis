@@ -18,9 +18,8 @@ hithesis/
 │   ├── hit-sty.dtx             <- 示例宏包 hithesis.sty，示例文档自己 \usepackage
 │   ├── hit-doc.dtx             <- 用户手册
 │   ├── hit-eps.dtx             <- EPS 图像数据（校徽、封面、示例插图）
-│   ├── meta/                   <- 各个类的元信息字段清单
-│   ├── config/                 <- 各个类的配置（改学校规范先看这里）
-│   ├── utils/                  <- 各个类共用的小工具，见 §4.2
+│   ├── config/                 <- 配置子系统，三层：机制、名单、取值，见 §4.3
+│   ├── utils/                  <- 各个类共用的小工具，见 §4.3
 │   ├── flow/                   <- 版心、页眉页脚、章节标题、段落、浮动体
 │   └── pages/                  <- 论文的一页一个文件
 │                                  flow/ 与 pages/ 全是单类专属，文件名带类名
@@ -137,7 +136,7 @@ src/
 ```
 
 `meta/` 与 `config/` 是一对：前者说“有哪些字段”，后者说“字段取什么值”。
-机制两边都不管，在 `utils/hit-meta.dtx`。
+机制两边都不管，在 `utils/hit-keys.dtx`。
 
 `flow/` 与 `pages/` 里的文件按类分开，`hit-thesis-cover.dtx` 是毕业论文封面，`hit-report-cover.dtx`
 是开题报告封面。不共用，是 docstrip 逼的：它给同一个输出里重复出现的输入文件改名
@@ -155,7 +154,8 @@ src/
 |---|---|
 | 毕业论文的任何行为 | `src/hit-thesis.dtx` |
 | 各个类的配置 | `src/config/hit-config.dtx` |
-| 元信息字段清单 | `src/meta/hit-*-meta.dtx` |
+| 这个类接受哪些选项与字段 | `src/config/hit-*-declare.dtx` |
+| 键与选项的声明机制 | `src/config/hit-keys.dtx`、`src/config/hit-options.dtx` |
 | 改一句提示文案 | `src/utils/hit-messages.dtx` 一处，24 条全在里面 |
 | 前置后置排哪些部件 | `src/utils/hit-structure.dtx` 声明键，`src/flow/hit-*-matter.dtx` 定顺序 |
 | 开题、中期报告 | `src/hit-report.dtx` |
@@ -237,7 +237,29 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 `mathrsfs`、`rotating`、`listings`、`algorithm2e` 这六个宏包类里一句都没用到，
 只是替文档预先装上并配好，就归示例宏包；封面要用的 `xcolor` 与 `tikz` 留在类里。
 
-### 4.2 版式各写各的，底层机制共用
+### 4.2 配置分三层
+
+`src/config/` 是配置子系统，从机制到取值分三层，各层只做一件事：
+
+| 层 | 文件 | 装什么 |
+|---|---|---|
+| 机制 | `hit-keys.dtx`、`hit-options.dtx` | 怎么声明一个键、`\hitsetup` 入口、条件判断函数。只定义，一句执行都没有 |
+| 名单 | `hit-thesis-declare.dtx`、`hit-report-declare.dtx` | 这个类接受哪些类选项、信息字段、常量。只声明，不给值 |
+| 取值 | `hit-config.dtx` | 那些常量各是什么值。只给值，不声明 |
+
+改学校规范只动取值层，加一个字段动名单层，改键的工作方式才动机制层。
+
+**名单层为什么按类分两个文件，取值层却是一个文件？** 不是没整理，是 docstrip 卡死。
+它的输入文件表全局只增，一个被两份输出共用的文件必须排在每个块的最前面，各份输出
+要求的先后才彼此相容。名单必须排在类骨架之后（它要用类骨架给的东西），所以做不成
+共用文件；`hit-config.dtx` 能是一个文件，正因为它排在每个块的第一位。实测把两份名
+单并成一个共用文件，立刻报：
+
+```
+! DOCSTRIP error: Incompatible order of input files specified for file `hit-report.cls'
+```
+
+### 4.3 版式各写各的，底层机制共用
 
 各个 cls 的版式代码物理隔离，由各自的 `<类>-*` 模块承载。当前是两个：`thesis-*` 在 `src/hit-thesis.dtx`，`report-*` 在 `src/hit-report.dtx`。每个类对应一套学校规范，各自演化，碰巧相似的版式不要合并，规范一独立变动就会变成维护负担。新增一个类就是新增一个 `hit-<名>.dtx` 加一组 `<名>-*` 模块。
 
@@ -252,7 +274,7 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 | `hit-table.dtx` | 长表格字号 |
 | `hit-footnote.dtx` | 带圈脚注号与脚注版式 |
 | `hit-list.dtx` | `enumitem` 加载、列表间距、`publist` |
-| `hit-meta.dtx` | `\hitsetup` 的键机制与旧名兼容 |
+| `hit-keys.dtx` | `\hitsetup` 的键机制与旧名兼容 |
 | `hit-hyperlink.dtx` | hyperref 配置（书签、链接边框、url 字体） |
 | `hit-title.dtx` | `title` 键的解析与三种取用 |
 | `hit-caption.dtx` | 双语题注（`\caption{中}[英]`）与 `\bicaption` 兼容 |
@@ -265,7 +287,7 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 
 例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hit-eps.dtx` 也跨类共享，但它们不走 `utils/`，因为不是拼进 cls 的模块。
 
-### 4.3 一个模块一个职责
+### 4.4 一个模块一个职责
 
 模块名要能反映它唯一的职责：
 
@@ -277,7 +299,7 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 
 加代码前先问这段代码语义上属于哪个模块，找到答案再写。找不到就考虑拆一个新的出来，见 §5。
 
-### 4.4 模块内不写 `\ProvidesPackage`
+### 4.5 模块内不写 `\ProvidesPackage`
 
 v3.2a 起模块内容直接拼进 `.cls`，不再生成独立的 `.sty`。在类文件里写 `\ProvidesPackage` 会声明一个并不存在的宏包，日志里出现的身份信息也是假的。
 
@@ -292,7 +314,7 @@ v3.2a 起模块内容直接拼进 `.cls`，不再生成独立的 `.sty`。在类
 %</thesis-footnote>
 ```
 
-### 4.5 `\changes` 历史条目
+### 4.6 `\changes` 历史条目
 
 新增模块、迁移代码、语义有明显变化，都要写 `\changes`：
 
@@ -308,7 +330,7 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 日期格式必须 `YYYY/MM/DD`。本地跑 `make changes-check` 看结果，`make changes-fix` 自动修
 补零和写错的开发版日期。
 
-### 4.6 expl3 迁移
+### 4.7 expl3 迁移
 
 底层实现正在逐模块迁到 expl3，对外接口不跟着变。
 
@@ -411,7 +433,7 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 | `\hit@glue@skip{基准}{伸缩}` | `style/glue` 决定要不要给伸缩量 |
 | `\hit@glue@font@size{字号}{行距}{伸缩}` | 同上，用于 `\fontsize` |
 
-这批定义在 `src/utils/hit-options.dtx`，各个类共用。
+这批定义在 `src/config/hit-options.dtx`，各个类共用。
 
 另有若干针对具体组合的具名函数，由 `\hit@define@condition{名}{布尔表达式}` 生成，
 名字读下来就是条件本身：`\hit@if@harbin@master@or@doctor@or@shenzhen@master`、
@@ -612,7 +634,7 @@ CI 会在推送后跑这几项：
 | `thesis` `report` | 各个类，当前是 `src/hit-thesis.dtx`、`src/hit-report.dtx` |
 | `utils` | 各个类共用的小工具 `src/utils/hit-*.dtx` |
 | `pages` | 论文的某一页 `src/pages/hit-*.dtx` |
-| `meta` | 元信息字段清单 `src/meta/hit-*-meta.dtx` |
+| `config` | 配置子系统 `src/config/hit-*.dtx` |
 | `flow` | 页面流的版式 `src/flow/hit-*.dtx` |
 | `bst` `eps` | 参考文献样式、图像数据 |
 | `manual` | 用户手册 `src/hit-doc.dtx` |
