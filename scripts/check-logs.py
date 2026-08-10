@@ -35,12 +35,16 @@ FATAL = [
 def logs():
     """变体的日志与示例目录里的日志都收。
 
-    只看 TeX 自己写的 .log。compile.log 是 latexmk 的完整输出，里面含中间轮次——
-    第一遍必然报未定义引用，后面几遍才解决，扫它会全是假警报。
-    CI 不跑全部变体，只编示例，所以两处都要认。"""
+    只看 TeX 自己写的 .log。compile.log 与退化路径写的 compile-1.log 这些是
+    latexmk/xelatex 的完整输出，里面含中间轮次：第一遍必然报未定义引用，后面几遍
+    才解决，扫它会全是假警报。
+    CI 不跑全部变体，只编示例，所以两处都要认。
+
+    一个目录里可能不止一份日志（示例目录下 thesis、opening、midterm 各一份），
+    调用方按变体名累加，不要覆盖，否则排序靠后的那份会把真正要看的那份顶掉。"""
     out = []
     for pat in ("tests/work/*/*.log", "examples/*/*.log"):
-        out += [p for p in ROOT.glob(pat) if p.name != "compile.log"]
+        out += [p for p in ROOT.glob(pat) if not p.name.startswith("compile")]
     return sorted(set(out))
 
 
@@ -72,7 +76,7 @@ def main() -> int:
     for f in files:
         hits, u = scan(f)
         variant = name_of(f)
-        under[variant] = u
+        under[variant] = under.get(variant, 0) + u
         for name, n in hits.items():
             print(f"{variant}: {name} {n} 条")
             bad += n
@@ -106,12 +110,14 @@ def update() -> int:
     lines = ["# 各变体的 Underfull 条数基线，由 scripts/check-logs.py --update 生成。",
              "# 中文按字断行，遇上 \\verb 或长西文串只能把一行拉稀，是内容特性。",
              "# 只在变多时报警；确认过版面没变差再更新这里。"]
+    under = {}
     for f in files:
         _, u = scan(f)
-        lines.append(f"{name_of(f)} {u}")
+        under[name_of(f)] = under.get(name_of(f), 0) + u
+    lines += [f"{k} {v}" for k, v in sorted(under.items())]
     BASELINE.parent.mkdir(parents=True, exist_ok=True)
     BASELINE.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"基线已更新，收录 {len(files)} 个变体")
+    print(f"基线已更新，收录 {len(under)} 个变体（{len(files)} 份日志）")
     return 0
 
 

@@ -47,6 +47,15 @@ rm -rf "$WORK"
 mkdir -p "$WORK"
 cp -r "$SRC_DIR"/* "$WORK"/
 
+# 源目录里可能留着上一次手工编译的产物（examples/demo 下跑过 make thesis 就会有
+# thesis.log 这些）。拷进来的话，scripts/check-logs.py 扫 tests/work/*/*.log 会把
+# 它们当成本变体编出来的，报一堆跟本次改动无关的 Underfull。这里清掉。
+find "$WORK" -maxdepth 1 -type f \
+  \( -name '*.log' -o -name '*.aux' -o -name '*.pdf' -o -name '*.toc' -o -name '*.lof' \
+     -o -name '*.lot' -o -name '*.out' -o -name '*.bbl' -o -name '*.blg' -o -name '*.fls' \
+     -o -name '*.fdb_latexmk' -o -name '*.xdv' -o -name '*.idx' -o -name '*.ind' \
+     -o -name '*.ilg' -o -name '*.toe' \) -delete
+
 # Rewrite the first \documentclass line in $ENTRY
 python3 - "$WORK/$ENTRY" "$OPTIONS" "$CLS" <<'PYEOF'
 import sys, re
