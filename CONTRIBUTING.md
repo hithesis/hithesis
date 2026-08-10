@@ -250,10 +250,10 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 
 改学校规范只动 defaults，加一个字段动 keylist，改键的工作方式才动 engine。
 
-**类选项不在这三层里，在各自的类文件。** `level`、`campus`、`fontset` 这些写在
+**类选项不在这三层里，在各自的类文件。** `degree`、`campus`、`fontset` 这些写在
 `\documentclass[…]` 里的东西，声明在 `src/hit-thesis.dtx` 与 `src/hit-report.dtx` 的
 `*-options` 守卫，紧挨着 `\LoadClass`。它们不是清单：那一段除了声明，还跑
-`\ProcessKeyOptions`、`\PassOptionsToPackage`，以及“没给 level 就置 bachelor”这类
+`\ProcessKeyOptions`、`\PassOptionsToPackage`，以及“没给 degree 就置 bachelor”这类
 兜底逻辑，是类加载序列的一部分，必须在 `\LoadClass` 之前执行完。放进 keylist 试过，
 那一层“只声明不执行”的规矩立刻就破了。
 
@@ -308,7 +308,7 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 
 各个 cls 的版式代码物理隔离，由各自的 `<类>-*` 模块承载。当前是两个：`thesis-*` 在 `src/hit-thesis.dtx`，`report-*` 在 `src/hit-report.dtx`。每个类对应一套学校规范，各自演化，碰巧相似的版式不要合并，规范一独立变动就会变成维护负担。新增一个类就是新增一个 `hit-<名>.dtx` 加一组 `<名>-*` 模块。
 
-反过来，同一套规范下的分支不要单开一个类。深圳博士中期原先是 `hithesisartplus`，与 `hithesisart`（今 `hit-report`）九成代码逐字相同，差的只有封面、页眉、节标题、正文行距四处；v3.2a 并回 `report-*`，由 `campus=shenzhen,level=doctor,stage=midterm` 三个选项选中，与其余十七格并列。判断标准是差异在哪一层：规范不同才分类，版式不同就加分支。
+反过来，同一套规范下的分支不要单开一个类。深圳博士中期原先是 `hithesisartplus`，与 `hithesisart`（今 `hit-report`）九成代码逐字相同，差的只有封面、页眉、节标题、正文行距四处；v3.2a 并回 `report-*`，由 `campus=shenzhen,degree=doctor,stage=midterm` 三个选项选中，与其余十七格并列。判断标准是差异在哪一层：规范不同才分类，版式不同就加分支。
 
 底层机制是另一回事。字号、数学、表格、脚注这些各套规范要求一致的东西，共用一份放在 `src/utils/hit-*.dtx`，守卫叫 `shared-*`：
 
