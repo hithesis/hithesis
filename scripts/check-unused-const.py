@@ -120,7 +120,7 @@ def main() -> int:
     crossed = []
     for k in sorted(set().union(*(set(d) for d in decl.values()))):
         # CONSTRUCTED 的名字是 \use:c 现拼的，正则在哪个类里都查不到，used() 对它们
-        # 一律返回真。拿这个结果做跨类判断只会得到「每个类都在用」，全是误报，跳过。
+        # 一律返回真。拿这个结果做跨类判断只会得到“每个类都在用”，全是误报，跳过。
         if k in CONSTRUCTED:
             continue
         kind = next(d[k] for d in decl.values() if k in d)
