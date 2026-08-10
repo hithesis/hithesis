@@ -39,6 +39,10 @@ CONSTRUCTED = {
     "figure-prefix-en", "table-prefix-en",
     "listfigurename", "listtablename", "listequationname",
     "equationname", "figurename", "tablename",
+    # \hit@student@type@text:n{语言} 现拼 hit@student@type@<学术|专业>@<语言>
+    *(f"student-type-{kind}-{lang}"
+      for kind in ("academic", "professional")
+      for lang in ("zh", "en")),
     # \hit@after@number:nnn{层级}{语言}{兜底} 现拼 hit@after@<层级>@number@<语言>
     *(f"after-{lvl}-number-{lang}"
       for lvl in ("chapter", "section", "subsection", "subsubsection",
@@ -115,6 +119,10 @@ def main() -> int:
     decl = {n: declared((ROOT / n).read_text(encoding="utf-8")) for n in ("hit-thesis.cls", "hit-report.cls")}
     crossed = []
     for k in sorted(set().union(*(set(d) for d in decl.values()))):
+        # CONSTRUCTED 的名字是 \use:c 现拼的，正则在哪个类里都查不到，used() 对它们
+        # 一律返回真。拿这个结果做跨类判断只会得到「每个类都在用」，全是误报，跳过。
+        if k in CONSTRUCTED:
+            continue
         kind = next(d[k] for d in decl.values() if k in d)
         for n in ("hit-thesis.cls", "hit-report.cls"):
             if k in decl[n]:

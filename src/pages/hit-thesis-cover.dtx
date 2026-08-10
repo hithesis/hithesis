@@ -16,6 +16,30 @@
   { \begin { CJKfilltwosides } [b] {#1} #2 \end { CJKfilltwosides } }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{0000/00/00}{封面上的学生类别按 \option{degree-type} 取
+%   \option{student-type-academic} 或 \option{student-type-professional}，
+%   \option{student-type} 降为覆盖用}
+% 封面上那行学生类别排什么。学术与专业各有一条文本，按 \option{degree-type} 选；
+% 用户在 \option{student-type} 里写了东西就以他写的为准。
+%
+% 判空要跟一个建法完全相同的空宏比，不能用 \cs{tl\_if\_empty:NTF}。元信息字段是
+% \cs{cs\_gset\_nopar:cpn} 建的，不带 \cs{long}，而 \cs{c\_empty\_tl} 的
+% \cs{long} 与否不由这边决定，比意义会错。同样的坑在 \cs{hit@after@number:nnn}
+% 那里踩过一次，症状是本该走默认值的地方静悄悄地什么都不排。
+%    \begin{macrocode}
+\cs_gset_nopar:cpn { hit@student@type@unset } { }
+\cs_new:Npn \hit@student@type@text:n #1
+  {
+    \cs_if_eq:cNTF { hit@student@type@#1 } \hit@student@type@unset
+      {
+        \bool_if:NTF \g__hit_professional_bool
+          { \use:c { hit@student@type@professional@#1 } }
+          { \use:c { hit@student@type@academic@#1 } }
+      }
+      { \use:c { hit@student@type@#1 } }
+  }
+%    \end{macrocode}
+%
 % \begin{macro}{\hit@cover@row}
 % \changes{v3.2a}{0000/00/00}{封面表格里“字段名加下划线填空”的行型抽成
 %   \cs{hit@cover@row}，格宽与对齐做成两个可设的量}
@@ -416,7 +440,7 @@
  \begin{center}\xiaoer[1]\songti\bfseries
  \hit@if@show@student@type
  {~
- \hit@brace@left@zh\hit@student@type@zh\hit@brace@right@zh
+ \hit@brace@left@zh\hit@student@type@text:n{zh}\hit@brace@right@zh
  }
  \end{center}~
  \hit@cover@vertical@space{\hit@cover@type@padding}~
@@ -648,7 +672,7 @@
  }
  \end{center}~
  \hit@if@option@TF{fulltime}{}%
- {\begin{center}\hit@brace@left@en\hit@student@type@en\hit@brace@right@en\end{center}}%
+ {\begin{center}\hit@brace@left@en\hit@student@type@text:n{en}\hit@brace@right@en\end{center}}%
  }~%与中文保持一致，删除in {\hit@discipline@en}
  \parbox[t][7cm][t]{\textwidth}{%
 %    \end{macrocode}
