@@ -920,14 +920,48 @@
 \cs_set:Npn \hit@make@starred@tag #1
   { \cs_gset:Npn \df@tag { \hit@make@tag {#1} \cs_set:Npn \@currentlabel {#1} } }
 \cs_set:Npn \hit@make@tag #1
-  { \maketag@@@ { ( \ignorespaces #1 \unskip \@@italiccorr ) } }
+  {
+    \maketag@@@
+      { \hit@equation@paren@left \ignorespaces #1 \unskip \@@italiccorr
+        \hit@equation@paren@right }
+  }
 \cs_set:Npn \tagform@ #1
-  { \maketag@@@ { ( \ignorespaces #1 \unskip \@@italiccorr ) \equcaption {#1} } }
+  {
+    \maketag@@@
+      { \hit@equation@paren@left \ignorespaces #1 \unskip \@@italiccorr
+        \hit@equation@paren@right \equcaption {#1} }
+  }
 %    \end{macrocode}
 %
 % 修改 \cs{tagform} 会影响 \cs{eqref}。
 %    \begin{macrocode}
-\RenewDocumentCommand \eqref { m } { \textup { ( \ref {#1} ) } }
+\RenewDocumentCommand \eqref { m }
+  { \textup { \hit@equation@paren@left \ref {#1} \hit@equation@paren@right } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{公式编号两边的括号默认改成全角，
+%   \option{math/numbering-paren-style} 可以选回半角}
+% 公式编号两边的括号。中文论文默认全角，取 \texttt{half} 换半角。
+% 英文论文（\option{language} 取 \texttt{english}）不受这个键影响，一律半角，
+% 所以判断是两个条件相与，而不是只看键。
+%
+% 判断放在这两个宏里、而不是在设键时就把括号定死，是因为 \cs{hitsetup} 在导言区
+% 才调用，那时 \cs{tagform@} 早就定义完了。宏体里现取现判，键写在哪儿都跟得上。
+%
+% 挑括号那一步可展开，两个包装宏 protected。全角括号在 \pkg{xeCJK} 下是活动字符，
+% 包装宏留在 protected 里，排版时才展开到它。
+%    \begin{macrocode}
+\bool_new:N \g__hit_equation_paren_full_bool
+\bool_gset_true:N \g__hit_equation_paren_full_bool
+\cs_new:Npn \__hit_equation_paren:nn #1#2
+  {
+    \bool_lazy_and:nnTF
+      { ! \bool_if_p:N \g__hit_en_bool }
+      { \bool_if_p:N \g__hit_equation_paren_full_bool }
+      {#1} {#2}
+  }
+\cs_new_protected:Npn \hit@equation@paren@left  { \__hit_equation_paren:nn { （ } { ( } }
+\cs_new_protected:Npn \hit@equation@paren@right { \__hit_equation_paren:nn { ） } { ) } }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{ntheorem 全局样式（\cs{renewtheoremstyle}/\cs{theorembodyfont}/\cs{theoremheaderfont}/\cs{theoremsymbol}/\cs{theoremXXskipamount}）与 \cs{arraycolsep} 从 book-floats 迁入 book-math（归位至数学/定理职责）}
