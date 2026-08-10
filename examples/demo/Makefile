@@ -8,7 +8,7 @@ LATEXMKOPTS = -xelatex
 THESISMAIN = thesis
 PACKAGE = hithesis
 
-THESISCONTENTS=$(THESISMAIN).tex front/*.tex body/*.tex back/*.tex $(FIGURES)
+THESISCONTENTS=$(THESISMAIN).tex frontmatter/*.tex mainmatter/thesis/*.tex mainmatter/report/*/*.tex backmatter/*.tex $(FIGURES)
 # NOTE: update this to reflect your local file types.
 FIGURES=$(wildcard figures/*.eps figures/*.pdf)
 BIBFILE=*.bib
