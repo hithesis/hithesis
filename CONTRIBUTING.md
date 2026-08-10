@@ -154,7 +154,8 @@ src/
 |---|---|
 | 毕业论文的任何行为 | `src/hit-thesis.dtx` |
 | 常量的默认值（改学校规范） | `src/setup/hit-defaults.dtx` |
-| 这个类接受哪些选项与字段 | `src/setup/hit-*-keylist.dtx` |
+| 这个类有哪些信息字段与常量 | `src/setup/hit-*-keylist.dtx` |
+| 这个类有哪些类选项 | `src/hit-thesis.dtx`、`src/hit-report.dtx` 的 `*-options` 守卫 |
 | 键与选项的声明机制 | `src/setup/hit-*-engine.dtx` |
 | 改一句提示文案 | `src/utils/hit-messages.dtx` 一处，24 条全在里面 |
 | 前置后置排哪些部件 | `src/utils/hit-structure.dtx` 声明键，`src/flow/hit-*-matter.dtx` 定顺序 |
@@ -244,10 +245,17 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 | 层 | 文件 | 装什么 |
 |---|---|---|
 | engine 造键 | `hit-key-engine.dtx`、`hit-option-engine.dtx` | 怎么声明一个键、`\hitsetup` 入口、条件判断函数。只定义，一句执行都没有 |
-| keylist 列键 | `hit-thesis-keylist.dtx`、`hit-report-keylist.dtx` | 这个类接受哪些类选项、信息字段、常量。只声明，不给值 |
+| keylist 列键 | `hit-thesis-keylist.dtx`、`hit-report-keylist.dtx` | 这个类有哪些信息字段与常量。只声明，不给值 |
 | defaults 给值 | `hit-defaults.dtx` | 常量的默认值。只给值，不声明；用户的 `\hitsetup` 晚于它执行，照样能盖掉 |
 
 改学校规范只动 defaults，加一个字段动 keylist，改键的工作方式才动 engine。
+
+**类选项不在这三层里，在各自的类文件。** `level`、`campus`、`fontset` 这些写在
+`\documentclass[…]` 里的东西，声明在 `src/hit-thesis.dtx` 与 `src/hit-report.dtx` 的
+`*-options` 守卫，紧挨着 `\LoadClass`。它们不是清单：那一段除了声明，还跑
+`\ProcessKeyOptions`、`\PassOptionsToPackage`，以及“没给 level 就置 bachelor”这类
+兜底逻辑，是类加载序列的一部分，必须在 `\LoadClass` 之前执行完。放进 keylist 试过，
+那一层“只声明不执行”的规矩立刻就破了。
 
 **加一个常量**（模板给的固定词汇，比如封面多一栏标签）：
 
