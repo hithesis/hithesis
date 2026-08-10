@@ -136,7 +136,7 @@ src/
 ```
 
 `meta/` 与 `config/` 是一对：前者说“有哪些字段”，后者说“字段取什么值”。
-机制两边都不管，在 `utils/hit-keys.dtx`。
+机制两边都不管，在 `utils/hit-key-engine.dtx`。
 
 `flow/` 与 `pages/` 里的文件按类分开，`hit-thesis-cover.dtx` 是毕业论文封面，`hit-report-cover.dtx`
 是开题报告封面。不共用，是 docstrip 逼的：它给同一个输出里重复出现的输入文件改名
@@ -153,9 +153,9 @@ src/
 | 要改什么 | 打开哪个 |
 |---|---|
 | 毕业论文的任何行为 | `src/hit-thesis.dtx` |
-| 各个类的配置 | `src/config/hit-config.dtx` |
-| 这个类接受哪些选项与字段 | `src/config/hit-*-declare.dtx` |
-| 键与选项的声明机制 | `src/config/hit-keys.dtx`、`src/config/hit-options.dtx` |
+| 常量的默认值（改学校规范） | `src/setup/hit-defaults.dtx` |
+| 这个类接受哪些选项与字段 | `src/setup/hit-*-keylist.dtx` |
+| 键与选项的声明机制 | `src/setup/hit-*-engine.dtx` |
 | 改一句提示文案 | `src/utils/hit-messages.dtx` 一处，24 条全在里面 |
 | 前置后置排哪些部件 | `src/utils/hit-structure.dtx` 声明键，`src/flow/hit-*-matter.dtx` 定顺序 |
 | 开题、中期报告 | `src/hit-report.dtx` |
@@ -237,22 +237,37 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 `mathrsfs`、`rotating`、`listings`、`algorithm2e` 这六个宏包类里一句都没用到，
 只是替文档预先装上并配好，就归示例宏包；封面要用的 `xcolor` 与 `tikz` 留在类里。
 
-### 4.2 配置分三层
+### 4.2 设置分三层：engine / keylist / defaults
 
-`src/config/` 是配置子系统，从机制到取值分三层，各层只做一件事：
+`src/setup/` 是设置子系统，从造键到给值分三层，各层只做一件事：
 
 | 层 | 文件 | 装什么 |
 |---|---|---|
-| 机制 | `hit-keys.dtx`、`hit-options.dtx` | 怎么声明一个键、`\hitsetup` 入口、条件判断函数。只定义，一句执行都没有 |
-| 名单 | `hit-thesis-declare.dtx`、`hit-report-declare.dtx` | 这个类接受哪些类选项、信息字段、常量。只声明，不给值 |
-| 取值 | `hit-config.dtx` | 那些常量各是什么值。只给值，不声明 |
+| engine 造键 | `hit-key-engine.dtx`、`hit-option-engine.dtx` | 怎么声明一个键、`\hitsetup` 入口、条件判断函数。只定义，一句执行都没有 |
+| keylist 列键 | `hit-thesis-keylist.dtx`、`hit-report-keylist.dtx` | 这个类接受哪些类选项、信息字段、常量。只声明，不给值 |
+| defaults 给值 | `hit-defaults.dtx` | 常量的默认值。只给值，不声明；用户的 `\hitsetup` 晚于它执行，照样能盖掉 |
 
-改学校规范只动取值层，加一个字段动名单层，改键的工作方式才动机制层。
+改学校规范只动 defaults，加一个字段动 keylist，改键的工作方式才动 engine。
+
+**加一个常量**（模板给的固定词汇，比如封面多一栏标签）：
+
+1. `hit-<类>-keylist.dtx` 的 `\hit@declare@constant{…}` 列表里加键名 `foo-bar-zh`
+2. `hit-defaults.dtx` 里 `\hit@presetup{ const = { foo-bar-zh = {某某} } }`
+3. 版式里写 `\hit@foo@bar@zh`。键名的 `-` 换成 `@`、前缀 `hit@`，换算是自动的
+
+**加一个用户填的字段**（题目、作者那一类）：
+
+1. `hit-<类>-keylist.dtx` 里 `\hit@define@term{foo-zh}` 造写入器
+2. 同文件的 `\hit@declare@info@field{…}` 列表里加 `foo-zh`，把 `hit/info` 族接上去
+3. 版式里写 `\hit@foo@zh`，用户写 `\hitsetup{ info = { foo-zh = {某某} } }`
+
+两条路都不碰 engine。常量的值里可以写 `<别的键名>` 交叉引用，例如
+`author-field-label-zh = {<degree-level-zh>研究生}`，设值时就展开。
 
 **名单层为什么按类分两个文件，取值层却是一个文件？** 不是没整理，是 docstrip 卡死。
 它的输入文件表全局只增，一个被两份输出共用的文件必须排在每个块的最前面，各份输出
 要求的先后才彼此相容。名单必须排在类骨架之后（它要用类骨架给的东西），所以做不成
-共用文件；`hit-config.dtx` 能是一个文件，正因为它排在每个块的第一位。实测把两份名
+共用文件；`hit-defaults.dtx` 能是一个文件，正因为它排在每个块的第一位。实测把两份名
 单并成一个共用文件，立刻报：
 
 ```
@@ -274,12 +289,12 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 | `hit-table.dtx` | 长表格字号 |
 | `hit-footnote.dtx` | 带圈脚注号与脚注版式 |
 | `hit-list.dtx` | `enumitem` 加载、列表间距、`publist` |
-| `hit-keys.dtx` | `\hitsetup` 的键机制与旧名兼容 |
+| `hit-key-engine.dtx` | `\hitsetup` 的键机制与旧名兼容 |
 | `hit-hyperlink.dtx` | hyperref 配置（书签、链接边框、url 字体） |
 | `hit-title.dtx` | `title` 键的解析与三种取用 |
 | `hit-caption.dtx` | 双语题注（`\caption{中}[英]`）与 `\bicaption` 兼容 |
 | `hit-subfigure.dtx` | `\subfigure` 兼容层，整个文件到 v4.1 可删 |
-| `hit-options.dtx` | 选项声明助手与读标志位的判断函数 |
+| `hit-option-engine.dtx` | 选项声明助手与读标志位的判断函数 |
 
 判断标准是“各套规范会不会分开改”。会分开改的（封面、页眉、章节标题、目录）留在各自的类文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `utils/`。
 
@@ -433,7 +448,7 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 | `\hit@glue@skip{基准}{伸缩}` | `style/glue` 决定要不要给伸缩量 |
 | `\hit@glue@font@size{字号}{行距}{伸缩}` | 同上，用于 `\fontsize` |
 
-这批定义在 `src/config/hit-options.dtx`，各个类共用。
+这批定义在 `src/setup/hit-option-engine.dtx`，各个类共用。
 
 另有若干针对具体组合的具名函数，由 `\hit@define@condition{名}{布尔表达式}` 生成，
 名字读下来就是条件本身：`\hit@if@harbin@master@or@doctor@or@shenzhen@master`、
@@ -443,7 +458,7 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 `report-pagestyle`、`report-toc`、`thesis-toc`、`thesis-pagestyle`、`report-floats`、`thesis-deps-c`、
 `thesis-glossary`、`report-deps-a`、`thesis-deps-a`、`report-options` 与
 `thesis-options`、`report-options`、
-`thesis-meta`、`report-meta`、`thesis-floats`、`thesis-hyperlink`、
+`thesis-keylist`、`report-keylist`、`thesis-floats`、`thesis-hyperlink`、
 `thesis-frontmatter`、`report-frontmatter`、`thesis-chapter`、`thesis-appendix`、`thesis-bib`、
 `report-bib`、`thesis-footnote`、`report-deps-c`。
 
@@ -634,7 +649,7 @@ CI 会在推送后跑这几项：
 | `thesis` `report` | 各个类，当前是 `src/hit-thesis.dtx`、`src/hit-report.dtx` |
 | `utils` | 各个类共用的小工具 `src/utils/hit-*.dtx` |
 | `pages` | 论文的某一页 `src/pages/hit-*.dtx` |
-| `config` | 配置子系统 `src/config/hit-*.dtx` |
+| `setup` | 设置子系统 `src/setup/hit-*.dtx` |
 | `flow` | 页面流的版式 `src/flow/hit-*.dtx` |
 | `bst` `eps` | 参考文献样式、图像数据 |
 | `manual` | 用户手册 `src/hit-doc.dtx` |
