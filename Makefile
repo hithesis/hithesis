@@ -23,7 +23,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck logcheck logcheck-update version-changes \
+.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck eps2pdf logcheck logcheck-update version-changes \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
 all: doc
@@ -160,6 +160,22 @@ inscheck:
 	@git diff --exit-code -- $(PACKAGE).ins \
 	  || { echo "hithesis.ins 与 src/hithesis.dtx 的 install 守卫不同步，把上面的改动提交进去"; exit 1; }
 	@echo "hithesis.ins 与源同步"
+
+# 六份图像转成 PDF 提交进仓库。XeLaTeX 不认 EPS，是把文件丢给 xdvipdfmx 调
+# ghostscript 转，也就是每个用户都得装 gs 才编得出封面。事先转好随包发，
+# gs 就只有维护者跑这条时要。
+#
+# EPS 留在 hit-eps.dtx 里当可读、可 diff 的源；改图动那边，再跑一次这个。
+# 哈希记进 tools/eps.sha256，make productcheck 靠它发现“改了 EPS 忘了重转”。
+EPSSOURCES = $(shell python3 scripts/products.py --eps)
+
+eps2pdf: cls
+	@mkdir -p assets
+	@for f in $(EPSSOURCES); do \
+	  epstopdf --outfile=assets/$${f%.eps}.pdf $$f || exit 1; \
+	done
+	@shasum -a 256 $(EPSSOURCES) > tools/eps.sha256
+	@echo "assets/ 里 $(words $(EPSSOURCES)) 份 PDF 已更新，哈希记进 tools/eps.sha256"
 
 # 产物清单交叉校验：install 守卫、tools/distfiles.txt、build.lua 的 installfiles、
 # 安装横幅，四份两两对上。加一个产物只改 install 守卫，剩下三份漏了这里会说。

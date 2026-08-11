@@ -22,11 +22,15 @@ module = "hithesis"
 --
 -- unpackexe 用 xetex 而不是 tex：docstrip 逐字节搬运，plain tex 会把 dtx 里的
 -- 中文写成 ^^e5 这种转义。
-sourcefiles = {"src/*.dtx", "src/*/*.dtx", "hithesis.ins"}
+sourcefiles = {"src/*.dtx", "src/*/*.dtx", "hithesis.ins", "assets/*.pdf"}
 unpackfiles = {"hithesis.dtx"}
 
 -- 装进 TEXMF 的东西。examples 里那几份副本由下面的 distribute 目标分发，
 -- 不属于安装内容。
+--
+-- 图像装 PDF 不装 EPS：XeLaTeX 不认 EPS，要靠 ghostscript 转，装 PDF 用户就
+-- 不必有 gs。这几份 PDF 由 make eps2pdf 从 hit-eps.dtx 解出的 EPS 转来，提交
+-- 进 assets/，经 sourcefiles 进 build/unpacked 供这里取。
 --
 -- 这里不用 *.sty 通配。dtx-style.sty 只在排手册时用，被通配捎进 TEXMF 会污染
 -- 用户机器，而且 dtx-style 这个名字相当通用，别的包也叫这个就撞了。要装的
@@ -39,7 +43,8 @@ installfiles = {
   "hithesisbook.cls", "hithesisart.cls", "hithesisartplus.cls",
   "hithesis.sty",
   "hithesis.ist", "hithesis.bst", "hitszthesis.bst",
-  "*.eps",
+  "hitlogo.pdf", "bthesistitle.pdf", "shenzhenbthesistitle.pdf",
+  "zfb.pdf", "hrb-bachelor-bottommark.pdf", "golfer.pdf",
 }
 
 typesetfiles = {"hithesis.dtx"}
@@ -89,6 +94,13 @@ local function srcdir(f)
   if fileexists(maindir .. "/" .. f) then return maindir end
   if fileexists(unpackdir .. "/" .. f) then return unpackdir end
   return nil
+end
+
+-- 分发清单里 assets/ 下那几项带着目录，cp 时要把目录与文件名拆开
+local function split(f)
+  local dir, name = f:match("^(.*)/([^/]+)$")
+  if dir then return dir, name end
+  return nil, f
 end
 
 local function distribute()

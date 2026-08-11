@@ -56,6 +56,14 @@ find "$WORK" -maxdepth 1 -type f \
      -o -name '*.fdb_latexmk' -o -name '*.xdv' -o -name '*.idx' -o -name '*.ind' \
      -o -name '*.ilg' -o -name '*.toe' \) -delete
 
+# 图像资源现在也是 PDF（原先是 EPS），上面那条 -name '*.pdf' 会连它们一起删。
+# 按分发清单补回来。figures/ 下那份在 maxdepth 1 之外，动不着。
+for f in $(python3 "$ROOT/scripts/products.py" --dist); do
+  case "$f" in
+    *.pdf) cp "$ROOT/$f" "$WORK"/ ;;
+  esac
+done
+
 # Rewrite the first \documentclass line in $ENTRY
 python3 - "$WORK/$ENTRY" "$OPTIONS" "$CLS" <<'PYEOF'
 import sys, re
