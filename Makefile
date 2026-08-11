@@ -23,7 +23,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck logcheck logcheck-update version-changes \
+.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck logcheck logcheck-update version-changes \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
 all: doc
@@ -49,19 +49,15 @@ $(TARGETS): $(SOURCES)
 # .ins 只生成到根目录，示例目录里的那份由这里分发。
 # 这样 docstrip 的输出不依赖调用时的当前目录，l3build 的 unpack 才能直接用。
 #
-# build.lua 里的 distribute 目标有一份等价实现，给不装 make 的平台用（CI 的
-# macOS/Windows 任务走那条）。改动下面的清单时两边都要改。
-# hithesis.sty 是示例宏包，示例文档自己 \usepackage，一并分发到示例目录。
-# 示例只剩 examples/demo 一棵树，学位论文与开题中期的文件都往那里分发。
-BOOKFILES = hit-thesis.cls $(PACKAGE).cls $(PACKAGE)book.cls $(PACKAGE).sty $(PACKAGE).bst hitszthesis.bst \
-            hitlogo.eps bthesistitle.eps shenzhenbthesistitle.eps zfb.eps \
-            hrb-bachelor-bottommark.eps
-ARTFILES  = hit-report.cls $(PACKAGE).cls $(PACKAGE)art.cls $(PACKAGE).sty $(PACKAGE).bst hitszthesis.bst \
-            hitlogo.eps bthesistitle.eps zfb.eps
+# 文件清单读 tools/distfiles.txt，build.lua 的 distribute 目标读的是同一份。
+# 没让 Makefile 直接转调那边，是因为 l3build 不在 scheme-minimal 里，那样会把
+# 它变成 make 的硬依赖。清单与 install 守卫对不对得上由 make productcheck 把关。
+DISTFILES = $(shell python3 scripts/products.py --dist)
+FIGFILES  = $(shell python3 scripts/products.py --figures)
 
 distribute:
-	@cp $(BOOKFILES) $(ARTFILES) hrb-bachelor-bottommark.eps $(PACKAGE).ist $(PACKAGE)artplus.cls examples/demo/
-	@mkdir -p examples/demo/figures && cp golfer.eps examples/demo/figures/
+	@cp $(DISTFILES) examples/demo/
+	@mkdir -p examples/demo/figures && cp $(FIGFILES) examples/demo/figures/
 
 doc: $(PACKAGE).pdf
 
@@ -164,6 +160,11 @@ inscheck:
 	@git diff --exit-code -- $(PACKAGE).ins \
 	  || { echo "hithesis.ins 与 src/hithesis.dtx 的 install 守卫不同步，把上面的改动提交进去"; exit 1; }
 	@echo "hithesis.ins 与源同步"
+
+# 产物清单交叉校验：install 守卫、tools/distfiles.txt、build.lua 的 installfiles、
+# 安装横幅，四份两两对上。加一个产物只改 install 守卫，剩下三份漏了这里会说。
+productcheck:
+	@python3 scripts/products.py --check
 
 # 常量键有没有声明了却没人取用的。要先 make cls
 apilint:

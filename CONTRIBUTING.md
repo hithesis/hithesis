@@ -595,6 +595,11 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
    %</thesis-footnote>
    ```
 
+加一个**产物**（不是模块）时，权威清单只有 `src/hithesis.dtx` 的 `install` 守卫，
+另外三份从它派生：`tools/distfiles.txt`（拷进示例目录的）、`build.lua` 的
+`installfiles`（装进 TEXMF 的）、install 守卫末尾的 `\Msg` 安装横幅。
+改完跑 `make productcheck`，四份对不上会逐条说是哪一份漏了。
+
 2. 在 `src/hithesis.dtx` 的 `install` 守卫里，对应的 `\file{...cls}` 中插一条 `\from`：
 
    ```
@@ -668,7 +673,7 @@ CI 会在推送后跑这几项：
 | `style` | 只动排版格式与注释，不改行为 |
 | `refactor` | 重构，行为不变 |
 | `test` | 变体定义、`testfiles/`、比对脚本 |
-| `build` | `Makefile`、`build.lua`、`src/hithesis.dtx` 的 install 守卫、打包脚本 |
+| `build` | `Makefile`、`build.lua`、`src/hithesis.dtx` 的 install 守卫、`tools/distfiles.txt`、打包脚本 |
 | `ci` | `.github/workflows/` |
 | `chore` | 版本号、依赖清单等杂项 |
 | `revert` | 回滚 |

@@ -59,26 +59,32 @@ typesetopts = "-interaction=nonstopmode"
 unpackopts  = "-interaction=nonstopmode"
 
 
--- 把生成物拷进四个示例目录，与用户解压发布包后的目录结构一致。装进 TEXMFHOME
+-- 把生成物拷进示例目录，与用户解压发布包后的目录结构一致。装进 TEXMFHOME
 -- 不能替代：.cls 能被找到，但 .eps 用 kpathsea 的图形检索格式、.bst 用
 -- BSTINPUTS，都不在 tex/latex 路径下。
 --
 -- 用 Lua 而不是 shell，是为了 macOS/Windows 上不装 make 也能跑。Makefile 里的
--- distribute 目标是等价实现，两边的文件清单要一起改。没让 Makefile 直接转调
--- 这里，是因为 l3build 不在 scheme-minimal 里，那样会把它变成 make 的硬依赖。
--- hithesis.sty 是示例宏包，示例文档自己 \usepackage，一并分发。
-local BOOKFILES = {
-  "hit-thesis.cls", "hithesis.cls", "hithesisbook.cls", "hithesis.sty", "hithesis.bst", "hitszthesis.bst",
-  "hitlogo.eps", "bthesistitle.eps", "shenzhenbthesistitle.eps", "zfb.eps",
-  "hrb-bachelor-bottommark.eps",
-}
-local ARTFILES = {
-  "hit-report.cls", "hithesis.cls", "hithesisart.cls", "hithesis.sty", "hithesis.bst", "hitszthesis.bst",
-  "hitlogo.eps", "bthesistitle.eps", "zfb.eps",
-}
+-- distribute 目标是等价实现，但两边读的是同一份 tools/distfiles.txt，不会各自
+-- 漂移。没让 Makefile 直接转调这里，是因为 l3build 不在 scheme-minimal 里，
+-- 那样会把它变成 make 的硬依赖。
+local function readlist()
+  local plain, subdir = {}, {}
+  for line in io.lines(maindir .. "/tools/distfiles.txt") do
+    line = line:gsub("#.*", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if line ~= "" and line:sub(1, 1) ~= "!" then
+      local name, dest = line:match("^(%S+)%s*%->%s*(%S+)$")
+      if name then
+        subdir[#subdir + 1] = {name, dest}
+      else
+        plain[#plain + 1] = line
+      end
+    end
+  end
+  return plain, subdir
+end
 
--- 生成物可能在两个地方：make cls（跑 latex hithesis.ins）写在根目录，
--- l3build unpack 写在 build/unpacked。两种都要能用。
+-- 生成物可能在两个地方：make cls 写在根目录，l3build unpack 写在 build/unpacked。
+-- 两种都要能用。
 local function srcdir(f)
   if fileexists(maindir .. "/" .. f) then return maindir end
   if fileexists(unpackdir .. "/" .. f) then return unpackdir end
@@ -86,38 +92,34 @@ local function srcdir(f)
 end
 
 local function distribute()
-  local function one(f, dest)
+  local plain, subdir = readlist()
+  local dest = "examples/demo"
+
+  local function one(f, to)
     local from = srcdir(f)
     if not from then
       print("distribute: 找不到 " .. f .. "，先跑 l3build unpack 或 make cls")
       return 1
     end
-    cp(f, from, dest)
+    cp(f, from, to)
     return 0
   end
 
-  local function put(files, dest)
-    mkdir(dest)
-    for _, f in ipairs(files) do
-      if one(f, dest) ~= 0 then return 1 end
-    end
-    -- 示例正文里的插图按 figures/golfer 引用，得放进子目录
-    mkdir(dest .. "/figures")
-    return one("golfer.eps", dest .. "/figures")
+  mkdir(dest)
+  for _, f in ipairs(plain) do
+    if one(f, dest) ~= 0 then return 1 end
   end
-
-  if put(BOOKFILES, "examples/demo") ~= 0 then return 1 end
-  if put(ARTFILES, "examples/demo") ~= 0 then return 1 end
-  if one("hithesis.ist", "examples/demo") ~= 0 then return 1 end
-  if one("hrb-bachelor-bottommark.eps", "examples/demo") ~= 0 then return 1 end
-  if one("hithesisartplus.cls", "examples/demo") ~= 0 then return 1 end
+  for _, entry in ipairs(subdir) do
+    mkdir(dest .. "/" .. entry[2])
+    if one(entry[1], dest .. "/" .. entry[2]) ~= 0 then return 1 end
+  end
   return 0
 end
 
 target_list = target_list or {}
 target_list.distribute = {
   func = distribute,
-  desc = "把生成物拷进四个示例目录",
+  desc = "把生成物拷进示例目录",
 }
 
 -- 手册的排版必须在主目录里跑，不能用 l3build 默认的 build/doc：
