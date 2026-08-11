@@ -23,7 +23,8 @@ hithesis/
 │   ├── flow/                   <- 版心、页眉页脚、章节标题、段落、浮动体
 │   └── pages/                  <- 论文的一页一个文件
 │                                  flow/ 与 pages/ 全是单类专属，文件名带类名
-├── hithesis.ins          <- docstrip 驱动文件，留在根目录：它的输出路径都相对于此
+├── hithesis.ins          <- docstrip 驱动文件，src/hithesis.dtx 的 install 守卫的产物。
+│                            提交进仓库随包发出去，开发时不改它、也不用它解压
 ├── build.lua             <- l3build 配置：unpack / distribute / doc / check / ctan
 ├── Makefile              <- 构建与测试入口
 ├── latexmkrc             <- latexmk 配置
@@ -174,7 +175,7 @@ src/
 `flow/` 与 `pages/` 里一个共用的都没有，全部带类名前缀；`utils/` 里全部共用，
 一个前缀都不带，守卫也统一叫 `shared-*`。看文件名就知道改它会影响谁。
 
-**52 个 dtx 的文件名必须全局唯一。** `src/` 下按职责分了目录，但 `hithesis.ins`
+**52 个 dtx 的文件名必须全局唯一。** `src/` 下按职责分了目录，但解压规则
 里按裸文件名引用，`l3build ctan` 打包和 TDS 的 `source/latex/hithesis/` 也都是平
 的。两个目录下同名的文件，打包后会互相覆盖。这也是类名前缀只能写进文件名、不能
 改成 `flow/thesis/` 与 `flow/report/` 两个子目录的原因——拍平之后就撞了。
@@ -290,7 +291,7 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 字符串选项落在文本宏上。它归 option-engine 是因为加载期就要用，不是因为存法。
 
 **`\hit@presetup` 那套排队回放机制住在 `hit-defaults.dtx` 顶上，不在 engine 层。**
-按分层它是机制，但 `hit-defaults.dtx` 在 `hithesis.ins` 里排在第二位、自己就调用了
+按分层它是机制，但 `hit-defaults.dtx` 在解压清单里排在第二位、自己就调用了
 107 次 `\hit@presetup`，而 engine 排在一百多行之后。定义必须早于调用，挪不动。
 
 **共用文件必须排在每个块的前面。** docstrip 的输入文件表全局只增，一个被两份输出
@@ -594,7 +595,7 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
    %</thesis-footnote>
    ```
 
-2. 在 `hithesis.ins` 的对应 `\file{...book.cls}` 里插一条 `\from`：
+2. 在 `src/hithesis.dtx` 的 `install` 守卫里，对应的 `\file{...cls}` 中插一条 `\from`：
 
    ```
    \from{hit-thesis.dtx}{thesis-footnote}
@@ -667,7 +668,7 @@ CI 会在推送后跑这几项：
 | `style` | 只动排版格式与注释，不改行为 |
 | `refactor` | 重构，行为不变 |
 | `test` | 变体定义、`testfiles/`、比对脚本 |
-| `build` | `Makefile`、`build.lua`、`hithesis.ins`、打包脚本 |
+| `build` | `Makefile`、`build.lua`、`src/hithesis.dtx` 的 install 守卫、打包脚本 |
 | `ci` | `.github/workflows/` |
 | `chore` | 版本号、依赖清单等杂项 |
 | `revert` | 回滚 |

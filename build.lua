@@ -3,7 +3,7 @@
 -- l3build 随 TeX Live 发行，装了 TeX 就有，不依赖 make / bash / python，
 -- 三个平台都能原生跑。常用命令：
 --
---   l3build unpack     跑 docstrip 生成 cls/bst/ist/eps
+--   l3build unpack     跑 docstrip 生成 cls/bst/ist/eps（自解压 dtx，不走 .ins）
 --   l3build distribute 把生成物拷进四个示例目录，等价于 make distribute
 --   l3build doc        编译用户手册 hithesis.pdf
 --   l3build install    装进本地 TEXMFHOME
@@ -14,12 +14,16 @@
 
 module = "hithesis"
 
--- 源文件都在 src/，hithesis.ins 留在根目录：它的输出路径相对于调用目录，
--- 跟着搬会全部指错。
--- src/ 下按职责分目录，hithesis.ins 里按裸文件名引用（l3build 拷贝时
--- 会把目录拍平），所以这里要单独列一条，否则 unpack 找不到它们。
+-- 源文件都在 src/。解压规则写在 src/hithesis.dtx 的 install 守卫里，跑
+-- xetex src/hithesis.dtx 就地解压，hithesis.ins 是它顺带生成的产物之一。
+--
+-- .ins 仍然列进 sourcefiles：CTAN 把“生成的 .ins”列为要随包保留的例外，
+-- 拿到源码包的人跑 latex hithesis.ins 结果与自解压一致。开发时不走它。
+--
+-- unpackexe 用 xetex 而不是 tex：docstrip 逐字节搬运，plain tex 会把 dtx 里的
+-- 中文写成 ^^e5 这种转义。
 sourcefiles = {"src/*.dtx", "src/*/*.dtx", "hithesis.ins"}
-unpackfiles = {"hithesis.ins"}
+unpackfiles = {"hithesis.dtx"}
 
 -- 装进 TEXMF 的东西。examples 里那几份副本由下面的 distribute 目标分发，
 -- 不属于安装内容。
@@ -40,7 +44,7 @@ installfiles = {
 
 typesetfiles = {"hithesis.dtx"}
 typesetexe   = "xelatex"
-unpackexe    = "latex"
+unpackexe    = "xetex"
 
 checkengines = {"xetex"}
 stdengine    = "xetex"

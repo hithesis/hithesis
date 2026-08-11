@@ -8,7 +8,7 @@ VERSION = `grep -m 1 -o "v[0-9]\+\.[0-9]\+\.[0-9]\+" src/$(PACKAGE).dtx`
 
 # 所有 dtx 都要列进来。只列 src/hithesis.dtx 的话，改 book/art/bst 等文件
 # make 会认为目标是最新的，直接跳过生成，拿旧产物继续跑测试。
-SOURCES = $(PACKAGE).ins $(wildcard src/*.dtx) $(wildcard src/*/*.dtx)
+SOURCES = $(wildcard src/*.dtx) $(wildcard src/*/*.dtx)
 TARGETS = dtx-style.sty
 
 RELEASE_NOTES = RELEASE_NOTES.md
@@ -23,7 +23,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint logcheck logcheck-update version-changes \
+.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck logcheck logcheck-update version-changes \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
 all: doc
@@ -32,11 +32,18 @@ all: doc
 
 cls: $(TARGETS)
 
+# 解压走自解压的 dtx，不走 .ins：解压规则写在 src/hithesis.dtx 的 install 守卫里，
+# hithesis.ins 是它的产物之一（提交进仓库，随 CTAN 包发出去，供拿到源码包的人用）。
+#
+# 必须用 xetex：docstrip 逐字节搬运，plain tex 会把 dtx 里的中文写成 ^^e5 这种
+# 转义，生成的 cls 排出来是乱码。原先跑 latex hithesis.ins 没事，是因为 LaTeX
+# 格式已经把高位字节设成可打印。
+#
 # nonstopmode：docstrip 出错时直接失败，不要挂在交互提示上等输入
-# TEXINPUTS 指到 src/：这样 .ins 与 driver 里写不带目录的文件名即可，
+# TEXINPUTS 指到 src/：这样 install 守卫里写不带目录的文件名即可，
 # make（在根目录跑）和 l3build（把源码拍平到 build/unpacked）都能找到。
 $(TARGETS): $(SOURCES)
-	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages: latex -interaction=nonstopmode $(PACKAGE).ins
+	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages: xetex -interaction=nonstopmode src/$(PACKAGE).dtx
 	$(MAKE) --no-print-directory distribute
 
 # .ins 只生成到根目录，示例目录里的那份由这里分发。
@@ -148,6 +155,15 @@ changes-fix:
 # 而那要跑一分多钟；这个几秒钟出结果，提交前先挡一道。
 doclint:
 	@python3 scripts/check-dtx-doc.py
+
+# hithesis.ins 是 src/hithesis.dtx 的 install 守卫的产物，提交进仓库随包发出去。
+# CTAN 劝阻生成物的理由是“容易忘记跟着源更新”，这道检查就是防这个：
+# 先 make cls 重新生成，再看有没有未提交的改动。
+inscheck:
+	@$(MAKE) --no-print-directory cls >/dev/null
+	@git diff --exit-code -- $(PACKAGE).ins \
+	  || { echo "hithesis.ins 与 src/hithesis.dtx 的 install 守卫不同步，把上面的改动提交进去"; exit 1; }
+	@echo "hithesis.ins 与源同步"
 
 # 常量键有没有声明了却没人取用的。要先 make cls
 apilint:
