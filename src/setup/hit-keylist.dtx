@@ -309,14 +309,14 @@
 %
 % \changes{v3.2a}{0000/00/00}{参考文献的五个选项迁入 \texttt{hit/bib} 族，
 %   改用连字符命名。旧名转回 \texttt{hit/class} 族处理，行为不变}
-% \changes{v3.2a}{0000/00/00}{目录的三个选项并进 \texttt{hit/style} 族，不单开
-%   \texttt{hit/toc}。目录也是排版，为它单立一族只是按名字分类，用户要记的族凭空多一个}
+% \changes{v3.2a}{0000/00/00}{目录的三个选项迁入 \texttt{hit/toc} 族，改用连字符命名}
 % \changes{v3.2a}{0000/00/00}{排版开关迁入 \texttt{hit/style} 族并改用连字符命名}
-% 两个族的键。排版开关都是普通布尔，用 \cs{\_\_hit\_style\_pair:nn} 成对声明，
+% 三个族的键。排版开关都是普通布尔，用 \cs{\_\_hit\_style\_pair:nn} 成对声明，
 % 新名设的是旧标志位本身，所以两套名字天然一致。
-% \option{toc-english} 用三态取值，\texttt{auto} 是博士排、其余不排；
-% \option{toc-depth} 取整数，目录排到第几级，规范里用得到的是 \texttt{3} 与 \texttt{4}。
-% 参考文献的五个键此前分散在
+% 目录三个键：\option{english} 用三态取值，\texttt{auto} 是博士排、其余不排；
+% \option{depth} 取整数，目录排到第几级，规范里用得到的是 \texttt{3} 与 \texttt{4}；
+% \option{latin-sans} 是普通布尔，跟 \option{style}/\option{heading-latin-sans} 是一对，
+% 一个管目录里的西文一个管章节标题里的。参考文献的五个键此前分散在
 % \file{book} 与 \file{art} 两个模块、命名也不统一（\texttt{citetwo} 看不出是
 % 控制什么的），新旧两套名字设的是同一批内部变量，所以可以混用。
 %    \begin{macrocode}
@@ -331,8 +331,6 @@
     ziju .value_required:n = true ,
     headrule .code:n = { \__hit_tristate_set:Nn \g__hit_head_rule_tl {#1} } ,
     pagenumberline .meta:nn = { hit / style / pagenumberline } {#1} ,
-    toc-english .code:n = { \__hit_tristate_set:Nn \g__hit_toc_english_tl {#1} } ,
-    toc-depth   .code:n = { \int_gset:Nn \g__hit_toc_depth_int {#1} } ,
   }
 \keys_define:nn { hit / style / pagenumberline }
   {
@@ -344,7 +342,6 @@
     { chapter-bold } { chapterbold } ,
     { chapter-hang } { chapterhang } ,
     { heading-latin-sans } { heading_latin_sans } ,
-    { toc-latin-sans } { toc_latin_sans } ,
     { caption-center-last } { capcenterlast } ,
     { subcaption-center-last } { subcapcenterlast } ,
     { abstract-upper } { absupper } ,
@@ -355,6 +352,12 @@
     { ragged-bottom } { raggedbottom } ,
   }
   { \__hit_style_pair:nn #1 }
+\keys_define:nn { hit / toc }
+  {
+    english .code:n = { \__hit_tristate_set:Nn \g__hit_toc_english_tl {#1} } ,
+    depth   .code:n = { \int_gset:Nn \g__hit_toc_depth_int {#1} } ,
+  }
+\__hit_boolean_key:nnn { toc } { latin-sans } { toc_latin_sans }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{加 \texttt{hit/math} 族与
@@ -417,9 +420,9 @@
   }
 \prop_gset_from_keyval:Nn \g__hit_renamed_option_prop
   {
-    arialtoc         = { style = { toc-latin-sans = ... } } ,
-    tocfour          = { style = { toc-depth = 4 } } ,
-    engtoc           = { style = { toc-english = ... } } ,
+    arialtoc         = { toc = { latin-sans = ... } } ,
+    tocfour          = { toc = { depth = 4 } } ,
+    engtoc           = { toc = { english = ... } } ,
     arialtitle       = { style = { heading-latin-sans = ... } } ,
     chapterbold      = { style = { chapter-bold = ... } } ,
     chapterhang      = { style = { chapter-hang = ... } } ,
@@ -514,6 +517,7 @@
   {
     info  .meta:nn = { hit / info  } {#1} ,
     style .meta:nn = { hit / style } {#1} ,
+    toc   .meta:nn = { hit / toc   } {#1} ,
     bib   .meta:nn = { hit / bib   } {#1} ,
     const .meta:nn = { hit / const } {#1} ,
     math  .meta:nn = { hit / math  } {#1} ,
@@ -664,9 +668,12 @@
     theorem-star .code:n = { \hit@theorem@declare@star@list {#1} } ,
     toc .code:n =
       {
-        \str_if_eq:nnTF {#1} { false }
-          { \bool_gset_false:N \g__hit_toc_bool }
-          { \bool_gset_true:N \g__hit_toc_bool }
+        \str_case:nnF {#1}
+          {
+            { true }  { \bool_gset_true:N \g__hit_toc_bool }
+            { false } { \bool_gset_false:N \g__hit_toc_bool }
+          }
+          { \keys_set:nn { hit / toc } {#1} }
       } ,
     toc .default:n = true ,
     unknown .code:n = { \__hit_legacy_key:n {#1} } ,
