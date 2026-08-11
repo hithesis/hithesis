@@ -169,10 +169,15 @@ inscheck:
 # 哈希记进 tools/eps.sha256，make productcheck 靠它发现“改了 EPS 忘了重转”。
 EPSSOURCES = $(shell python3 scripts/products.py --eps)
 
+# 三个 gs 选项是为了可复现：不加的话 ghostscript 会把当前时间写进 PDF 的
+# XMP 元数据、再塞一个随机 /ID，每跑一次都产出新字节，assets/ 平白多一堆 diff。
+# SOURCE_DATE_EPOCH 在这条路上不管用，epstopdf 只是转调 gs，那个环境变量到不了。
 eps2pdf: cls
 	@mkdir -p assets
 	@for f in $(EPSSOURCES); do \
-	  epstopdf --outfile=assets/$${f%.eps}.pdf $$f || exit 1; \
+	  epstopdf --gsopt=-dOmitInfoDate=true --gsopt=-dOmitID=true \
+	           --gsopt=-dOmitXMP=true \
+	           --outfile=assets/$${f%.eps}.pdf $$f || exit 1; \
 	done
 	@shasum -a 256 $(EPSSOURCES) > tools/eps.sha256
 	@echo "assets/ 里 $(words $(EPSSOURCES)) 份 PDF 已更新，哈希记进 tools/eps.sha256"
