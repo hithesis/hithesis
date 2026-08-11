@@ -61,12 +61,16 @@
 % ^^A ======================================================================
 % ^^A Module thesis-toc: 目录格式（hit-thesis）
 % ^^A ======================================================================
+% \changes{v3.2a}{0000/00/00}{\cs{tocdepth} 改在 \cs{AtBeginDocument} 设，
+%   \option{style}/\option{toc-depth} 写在导言区才来得及生效}
+% \option{toc-depth} 数的是级数，\cs{tocdepth} 数的是比章低几级，两者差一。
+% 这一句原先跟着类文件走，那时候导言区的 \cs{hitsetup} 还没执行，写了不起作用；
+% 挪到 \cs{AtBeginDocument} 才赶得上，又仍旧早于第一条 \cs{addcontentsline}。
 %    \begin{macrocode}
 %<*thesis-toc>
 \setcounter { secnumdepth } { 3 }
-\setcounter { tocdepth } { 2 }
-\__hit_tristate_if:NnT \g__hit_toc_four_tl { \c_false_bool }
-  { \setcounter { tocdepth } { 3 } }
+\AtBeginDocument
+  { \setcounter { tocdepth } { \int_eval:n { \g__hit_toc_depth_int - 1 } } }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{book-toc 的加载期条件与 \cs{tableofcontents} 的
@@ -116,9 +120,14 @@
 %
 % 添加英文toc控制
 % \changes{v3.0.0}{2020/05/21}{添加英文toc控制}
-% 按照我工要求的目录格式。
+% \changes{v3.2a}{0000/00/00}{\cs{hit@toc@font} 改成排版时读标志位，
+%   \option{style}/\option{toc-latin-sans} 写在导言区才来得及生效}
+% 按照我工要求的目录格式。\cs{hit@toc@font} 在排版时才读标志位，
+% 跟章节标题那边的 \cs{hit@title@font} 一样；原先在类文件里一次判定，
+% 导言区改这个开关是不起作用的。
 %    \begin{macrocode}
-\bool_if:NT \g__hit_arialtoc_bool { \cs_set:Npn \hit@toc@font { \sffamily } }
+\cs_set:Npn \hit@toc@font
+  { \bool_if:NT \g__hit_toc_latin_sans_bool { \sffamily } }
 \cs_set:Npn \@pnumwidth { 4em }% 规定中的提前悬挂
 \cs_set:Npn \@tocrmarg { \@pnumwidth }
 \cs_set:Npn \@dotsep { 1 }
@@ -135,7 +144,7 @@
 %   \pkg{etoolbox} 打补丁。补丁命令会把宏体 detokenize 后按当前 catcode 重扫，
 %   在 expl3 里会吃掉宏体内的字面空格，只能退出 expl3 才敢用}
 % 与内核原版比只有两处不同：条目文字外面套一层 \cs{hit@toc@font}，用
-% \cs{use:c} 取，它可能还没定义，取不到时是 \cs{relax}；页码盒子从
+% \cs{use:c} 取；页码盒子从
 % 定宽的 \cs{hb@xt@}\cs{@pnumwidth} 改成自然宽度的 \cs{hbox}，双语目录里页码
 % 才不会被挤掉。
 %    \begin{macrocode}
@@ -170,8 +179,8 @@
 % \changes{v3.0.0}{2020/05/21}{博后和英文版需要加粗}
 % \changes{v3.2a}{0000/00/00}{目录里章条目的排版迁到 expl3，字体那串判断抽成
 %   \cs{hit@toc@chapter@line@font}}
-% 目录里章条目的字体。本科用 \cs{rmfamily}，其余取 \cs{hit@toc@font}（只有
-% \option{toc/sans-font} 打开时才有定义，否则取到 \cs{relax}）。之后按博后、
+% 目录里章条目的字体。本科用 \cs{rmfamily}，其余取 \cs{hit@toc@font}（
+% \option{style}/\option{toc-latin-sans} 关着的时候它展开成空）。之后按博后、
 % 本科加粗、英文版依次叠加粗体。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@toc@chapter@line@font

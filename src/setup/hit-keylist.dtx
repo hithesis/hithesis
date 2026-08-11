@@ -300,13 +300,14 @@
 %
 % \changes{v3.2a}{0000/00/00}{参考文献的五个选项迁入 \texttt{hit/bib} 族，
 %   改用连字符命名。旧名转回 \texttt{hit/class} 族处理，行为不变}
-% \changes{v3.2a}{0000/00/00}{目录的四个选项迁入 \texttt{hit/toc} 族，改用连字符
-%   命名，其中三个改为三态取值}
+% \changes{v3.2a}{0000/00/00}{目录的三个选项并进 \texttt{hit/style} 族，不单开
+%   \texttt{hit/toc}。目录也是排版，为它单立一族只是按名字分类，用户要记的族凭空多一个}
 % \changes{v3.2a}{0000/00/00}{排版开关迁入 \texttt{hit/style} 族并改用连字符命名}
-% 三个族的键。排版开关都是普通布尔，用 \cs{\_\_hit\_style\_pair:nn} 成对声明，
-% 新名设的是旧标志位本身，所以两套名字天然一致。目录的前三个键用三态取值，
-% \texttt{auto} 的含义分别是：\option{english} 博士排、其余不排；\option{blank}
-% 英文版不插、其余插；\option{four} 一律不开。参考文献的五个键此前分散在
+% 两个族的键。排版开关都是普通布尔，用 \cs{\_\_hit\_style\_pair:nn} 成对声明，
+% 新名设的是旧标志位本身，所以两套名字天然一致。
+% \option{toc-english} 用三态取值，\texttt{auto} 是博士排、其余不排；
+% \option{toc-depth} 取整数，目录排到第几级，规范里用得到的是 \texttt{3} 与 \texttt{4}。
+% 参考文献的五个键此前分散在
 % \file{book} 与 \file{art} 两个模块、命名也不统一（\texttt{citetwo} 看不出是
 % 控制什么的），新旧两套名字设的是同一批内部变量，所以可以混用。
 %    \begin{macrocode}
@@ -321,6 +322,8 @@
     ziju .value_required:n = true ,
     headrule .code:n = { \__hit_tristate_set:Nn \g__hit_head_rule_tl {#1} } ,
     pagenumberline .meta:nn = { hit / style / pagenumberline } {#1} ,
+    toc-english .code:n = { \__hit_tristate_set:Nn \g__hit_toc_english_tl {#1} } ,
+    toc-depth   .code:n = { \int_gset:Nn \g__hit_toc_depth_int {#1} } ,
   }
 \keys_define:nn { hit / style / pagenumberline }
   {
@@ -331,7 +334,8 @@
   {
     { chapter-bold } { chapterbold } ,
     { chapter-hang } { chapterhang } ,
-    { sans-title } { arialtitle } ,
+    { heading-latin-sans } { heading_latin_sans } ,
+    { toc-latin-sans } { toc_latin_sans } ,
     { caption-center-last } { capcenterlast } ,
     { subcaption-center-last } { subcapcenterlast } ,
     { abstract-upper } { absupper } ,
@@ -342,19 +346,6 @@
     { ragged-bottom } { raggedbottom } ,
   }
   { \__hit_style_pair:nn #1 }
-%    \end{macrocode}
-%
-%    \begin{macrocode}
-\keys_define:nn { hit / toc }
-  {
-    english .code:n = { \__hit_tristate_set:Nn \g__hit_toc_english_tl {#1} } ,
-    blank   .code:n = { \__hit_tristate_set:Nn \g__hit_toc_blank_tl   {#1} } ,
-    four    .code:n = { \__hit_tristate_set:Nn \g__hit_toc_four_tl    {#1} } ,
-    sans-font .choice: ,
-    sans-font / true  .code:n = { \bool_gset_true:N \g__hit_arialtoc_bool } ,
-    sans-font / false .code:n = { \bool_gset_false:N \g__hit_arialtoc_bool } ,
-    sans-font .default:n = true ,
-  }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{加 \texttt{hit/math} 族与
@@ -405,14 +396,22 @@
 % 兼容期的处理。旧名一律照常生效，只在日志里给一条提示。三类提示分开：
 % 改过名的选项逐个报，元信息字段的扁平写法合并成一条报，
 % \cs{documentclass} 里传排版类选项单独报。
+%
+% \changes{v3.2a}{0000/00/00}{\option{tocblank} 废弃：仍然认这个键，但不再起作用}
+% 另有一张废弃表，记的是没有新名可改的选项。这类键照旧认，只是什么也不做，
+% 提示里说清为什么。\option{tocblank} 插的那个空行规范里没有，所以整条去掉，
+% 行为等同于原先的 \option{tocblank}\texttt{=false}。
 %    \begin{macrocode}
+\prop_gset_from_keyval:Nn \g__hit_removed_option_prop
+  {
+    tocblank = { 目录里第一章之前不再插空行，规范里没有这一条 } ,
+  }
 \prop_gset_from_keyval:Nn \g__hit_renamed_option_prop
   {
-    arialtoc         = { toc = { sans-font = ... } } ,
-    tocfour          = { toc = { four = ... } } ,
-    tocblank         = { toc = { blank = ... } } ,
-    engtoc           = { toc = { english = ... } } ,
-    arialtitle       = { style = { sans-title = ... } } ,
+    arialtoc         = { style = { toc-latin-sans = ... } } ,
+    tocfour          = { style = { toc-depth = 4 } } ,
+    engtoc           = { style = { toc-english = ... } } ,
+    arialtitle       = { style = { heading-latin-sans = ... } } ,
     chapterbold      = { style = { chapter-bold = ... } } ,
     chapterhang      = { style = { chapter-hang = ... } } ,
     capcenterlast    = { style = { caption-center-last = ... } } ,
@@ -506,7 +505,6 @@
   {
     info  .meta:nn = { hit / info  } {#1} ,
     style .meta:nn = { hit / style } {#1} ,
-    toc   .meta:nn = { hit / toc   } {#1} ,
     bib   .meta:nn = { hit / bib   } {#1} ,
     const .meta:nn = { hit / const } {#1} ,
     math  .meta:nn = { hit / math  } {#1} ,
@@ -657,12 +655,9 @@
     theorem-star .code:n = { \hit@theorem@declare@star@list {#1} } ,
     toc .code:n =
       {
-        \str_case:nnF {#1}
-          {
-            { true }  { \bool_gset_true:N \g__hit_toc_bool }
-            { false } { \bool_gset_false:N \g__hit_toc_bool }
-          }
-          { \keys_set:nn { hit / toc } {#1} }
+        \str_if_eq:nnTF {#1} { false }
+          { \bool_gset_false:N \g__hit_toc_bool }
+          { \bool_gset_true:N \g__hit_toc_bool }
       } ,
     toc .default:n = true ,
     unknown .code:n = { \__hit_legacy_key:n {#1} } ,
