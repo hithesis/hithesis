@@ -84,21 +84,44 @@
 %    \end{macrocode}
 %
 %    \begin{macrocode}
-\clist_map_inline:nn { raggedbottom , toc }
+\hit@define@boolean@option { raggedbottom } { true }
+\bool_new:N \g__hit_raggedbottom_given_bool
+\keys_define:nn { hit / class }
   {
-    \hit@define@boolean@option {#1} { true }
-    \bool_new:c { g__hit_#1_given_bool }
-    \keys_define:nn { hit / class }
+    raggedbottom .code:n =
       {
-        #1 .code:n =
-          {
-            \bool_gset_true:c { g__hit_#1_given_bool }
-            \str_if_eq:nnTF {##1} { false }
-              { \bool_gset_false:c { g__hit_#1_bool } }
-              { \bool_gset_true:c { g__hit_#1_bool } }
-          } ,
-        #1 .default:n = { true } ,
-      }
+        \bool_gset_true:N \g__hit_raggedbottom_given_bool
+        \str_if_eq:nnTF {#1} { false }
+          { \bool_gset_false:N \g__hit_raggedbottom_bool }
+          { \bool_gset_true:N \g__hit_raggedbottom_bool }
+      } ,
+    raggedbottom .default:n = { true } ,
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\option{toc} 改成写 \option{structure} 的
+%   \option{contents}，两条排目录的路合成一条}
+% \option{toc} 排不排目录。它与 \option{structure}~=~\{~\option{frontmatter}~=~
+% \{~\option{contents}~\}~\} 说的是同一件事，原先各走各的，两个都写会排两遍目录。
+% 现在只有 \option{contents} 一个开关，\option{toc} 是它的别名，写哪个都行。
+%
+% 目录是在 \cs{makecover} 里排的，包在 \env{titlepage} 之内，跟封面一起算不编号的
+% 前置页；挪到骨架宏里页码与页眉都会变，所以由 \cs{makecover} 去读那个键。
+%
+% 报告不写就有目录，所以 \option{contents} 在这里先置 \texttt{true}，
+% 用户之后设的照常覆盖。\cs{g\_\_hit\_toc\_given\_bool} 记的是用户显式写过没有，
+% 深圳博士中期靠它决定默认关不关。
+%    \begin{macrocode}
+\bool_new:N \g__hit_toc_given_bool
+\tl_gset:cn { g__hit_structure_contents_tl } { true }
+\keys_define:nn { hit / class }
+  {
+    toc .code:n =
+      {
+        \bool_gset_true:N \g__hit_toc_given_bool
+        \tl_gset:cn { g__hit_structure_contents_tl } {#1}
+      } ,
+    toc .default:n = { true } ,
   }
 \clist_map_inline:nn { debug , glue , print , newtxmath }
   { \hit@define@boolean@option {#1} { false } }
@@ -262,7 +285,8 @@
   { \hit@report@error@stage }
 \hit@if@shenzhen@doctor@interim
   {
-    \bool_if:NF \g__hit_toc_given_bool { \bool_gset_false:N \g__hit_toc_bool }
+    \bool_if:NF \g__hit_toc_given_bool
+      { \tl_gset:cn { g__hit_structure_contents_tl } { false } }
     \bool_if:NF \g__hit_raggedbottom_given_bool
       { \bool_gset_false:N \g__hit_raggedbottom_bool }
   }
