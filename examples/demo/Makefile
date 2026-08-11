@@ -11,7 +11,7 @@ PACKAGE = hithesis
 THESISCONTENTS=$(THESISMAIN).tex thesis/frontmatter/*.tex thesis/mainmatter/*.tex report/*/mainmatter/*.tex thesis/backmatter/*.tex $(FIGURES)
 # NOTE: update this to reflect your local file types.
 FIGURES=$(wildcard figures/*.eps figures/*.pdf)
-BIBFILE=*.bib
+BIBFILE=$(wildcard thesis/backmatter/*.bib)
 CLSFILES=hit-thesis.cls hit-report.cls $(PACKAGE).cls $(PACKAGE).ist *.bst
 
 # make deletion work on Windows
