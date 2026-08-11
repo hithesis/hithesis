@@ -133,6 +133,37 @@
   }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{0000/00/00}{\texttt{hit/toc} 族挪到共享层，报告类也能用}
+% \texttt{toc} 族。三个键两个类都有，所以声明在共享层：报告一样有目录，一样要
+% 排到第几级、西文用不用无衬线体。
+%
+% 变量在这里声明，早于两个类各自的 \cs{ProcessKeyOptions}，所以旧名的类选项
+% 处理器直接写它们就行。取值的含义两个类一致，怎么落到版面上各自决定——
+% \option{depth} 数的是级数，学位论文有章、报告没有，所以两边换算到
+% \cs{tocdepth} 差一。
+%
+% \option{english} 只有学位论文类做得了事，报告一份文档只排一份目录，
+% 语言跟着类选项 \option{lang} 走。报告类在自己那半把这个键改成一条提示。
+%    \begin{macrocode}
+\tl_new:N \g__hit_toc_english_tl  \tl_gset:Nn \g__hit_toc_english_tl { auto }
+\int_new:N \g__hit_toc_depth_int  \int_gset:Nn \g__hit_toc_depth_int { 3 }
+\bool_new:N \g__hit_toc_latin_sans_bool
+\keys_define:nn { hit / toc }
+  {
+    english .code:n = { \__hit_tristate_set:Nn \g__hit_toc_english_tl {#1} } ,
+    depth   .code:n = { \int_gset:Nn \g__hit_toc_depth_int {#1} } ,
+  }
+\__hit_boolean_key:nnn { toc } { latin-sans } { toc_latin_sans }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\cs{hit@toc@font} 挪到共享层，两个类同一份}
+% 目录条目里的西文字体。开关关着时它展开成空，所以可以无条件套在字体那一串
+% 前面，不必在每个用到的地方再判断一次。排版时才读标志位，导言区改得动。
+%    \begin{macrocode}
+\cs_new:Npn \hit@toc@font
+  { \bool_if:NT \g__hit_toc_latin_sans_bool { \sffamily } }
+%    \end{macrocode}
+%
 %    \begin{macrocode}
 %</shared-keylist>
 %    \end{macrocode}
@@ -309,14 +340,11 @@
 %
 % \changes{v3.2a}{0000/00/00}{参考文献的五个选项迁入 \texttt{hit/bib} 族，
 %   改用连字符命名。旧名转回 \texttt{hit/class} 族处理，行为不变}
-% \changes{v3.2a}{0000/00/00}{目录的三个选项迁入 \texttt{hit/toc} 族，改用连字符命名}
 % \changes{v3.2a}{0000/00/00}{排版开关迁入 \texttt{hit/style} 族并改用连字符命名}
-% 三个族的键。排版开关都是普通布尔，用 \cs{\_\_hit\_style\_pair:nn} 成对声明，
+% 两个族的键。排版开关都是普通布尔，用 \cs{\_\_hit\_style\_pair:nn} 成对声明，
 % 新名设的是旧标志位本身，所以两套名字天然一致。
-% 目录三个键：\option{english} 用三态取值，\texttt{auto} 是博士排、其余不排；
-% \option{depth} 取整数，目录排到第几级，规范里用得到的是 \texttt{3} 与 \texttt{4}；
-% \option{latin-sans} 是普通布尔，跟 \option{style}/\option{heading-latin-sans} 是一对，
-% 一个管目录里的西文一个管章节标题里的。参考文献的五个键此前分散在
+% \option{heading-latin-sans} 跟共享层的 \option{toc}/\option{latin-sans} 是一对，
+% 一个管章节标题里的西文一个管目录里的。参考文献的五个键此前分散在
 % \file{book} 与 \file{art} 两个模块、命名也不统一（\texttt{citetwo} 看不出是
 % 控制什么的），新旧两套名字设的是同一批内部变量，所以可以混用。
 %    \begin{macrocode}
@@ -352,12 +380,6 @@
     { ragged-bottom } { raggedbottom } ,
   }
   { \__hit_style_pair:nn #1 }
-\keys_define:nn { hit / toc }
-  {
-    english .code:n = { \__hit_tristate_set:Nn \g__hit_toc_english_tl {#1} } ,
-    depth   .code:n = { \int_gset:Nn \g__hit_toc_depth_int {#1} } ,
-  }
-\__hit_boolean_key:nnn { toc } { latin-sans } { toc_latin_sans }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{加 \texttt{hit/math} 族与
@@ -610,6 +632,15 @@
     ragged-bottom / false .code:n = { \bool_gset_false:N \g__hit_raggedbottom_bool } ,
     ragged-bottom .default:n = true ,
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{报告类把 \option{toc}/\option{english} 改成一条提示}
+% 共享层的 \option{toc} 族三个键，报告类只做得了两个。一份报告只排一份目录，
+% 语言跟着类选项 \option{lang} 走，没有「中文目录后面再跟一份英文的」这回事。
+% 这里把 \option{english} 覆盖成一条提示，比让它静静地不起作用强。
+%    \begin{macrocode}
+\keys_define:nn { hit / toc }
+  { english .code:n = { \msg_warning:nn { hithesis } { no-toc-english } } }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{加旧名到新名的映射表与废弃警告}
