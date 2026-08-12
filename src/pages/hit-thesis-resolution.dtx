@@ -14,8 +14,14 @@
 % 数据走 \cs{hitsetup} 的 \texttt{defense} 族，一个人一条记录。表头文案走
 % \texttt{const} 族，中英各一份，英文论文自动出英文表。
 %
-% \pkg{tabularray} 只有这一处用，按「单模块调就自己装」的规矩在本文件加载。
-% 往后要是别的表格也改用它，再挪进 deps。
+% \pkg{tabularray} 与 \pkg{tcolorbox} 都只有这一处用，按「单模块调就自己装」的
+% 规矩在本文件加载。往后要是别的地方也用上，再挪进 deps。
+%
+% \changes{v3.2a}{0000/00/00}{决议区改用 \pkg{tcolorbox}，能跨页；上面两块名单
+%   仍是 \pkg{tabularray}}
+% \textbf{为什么决议区不能也用 \pkg{tabularray}。} 它只在行与行之间断页，
+% 一行内部断不了。决议区是一个格子、里面是连续的正文，所以跨不了页。
+% 换成 \pkg{tcolorbox} 之后只借它画框线，跨页由 \cs{vsplit} 自己切。
 %
 % 不按学位条件加载。这一页默认只有博士排（\option{resolution} 取 \texttt{auto}），
 % 但本硕写 \texttt{true} 也能要，而那是导言区的事，类加载时还不知道；
@@ -23,6 +29,8 @@
 %    \begin{macrocode}
 %<*thesis-resolution>
 \RequirePackage { tabularray }
+\RequirePackage { tcolorbox }
+\tcbuselibrary { skins }
 %    \end{macrocode}
 %
 % \subsection{版式尺寸}
@@ -69,8 +77,8 @@
 \dim_const:Nn \c__hit_res_fudge_dim  { 2.64pt }
 %    \end{macrocode}
 %
-% \pkg{tabularray} 每个格子上下各留一点内边距，实测两边合计 6\,pt。决议那一格的
-% \cs{parbox} 要比行高矮这么多，否则会把行撑高。
+% 框里上下留的余地，合计 6\,pt。决议框的内边距与底线加起来 5.44\,pt，取整到 6：
+% 切下来的那段比框的净高矮一点没关系，框的高度是钉死的；反过来切多了就会溢出。
 %    \begin{macrocode}
 \dim_const:Nn \c__hit_res_pad_dim    { 6pt }
 %    \end{macrocode}
@@ -279,8 +287,7 @@
 % 六列，行高钉死，横竖线宽照原表。表头两行与三块数据行接在一起，最后一行是决议区，
 % 六列合并成一格，标签与正文都在这一格里——原表在标签下面并没有横线。
 %    \begin{macrocode}
-\bool_new:N \l__hit_res_probe_bool
-\cs_new_protected:Npn \__hit_res_build:n #1
+\cs_new_protected:Nn \__hit_res_build:
   {
     \tl_clear:N \l__hit_res_tbl_tl
     \__hit_res_putx:n
@@ -297,11 +304,6 @@
                 Q [ c , wd = \dim_use:N \g__hit_res_cf_dim ]
               } ,
             rows = { ht = \dim_use:N \g__hit_res_row_dim } ,
-            \bool_if:NF \l__hit_res_probe_bool
-              {
-                row { \int_eval:n { \g__hit_res_lines_int + 1 } } =
-                  { ht = \dim_eval:n { #1 - \c__hit_res_hrule_dim } } ,
-              }
             cells = { m , font = \wuhao } ,
             colsep = \dim_use:N \c__hit_res_colsep_dim , rowsep = 0pt ,
             hlines = { \dim_use:N \c__hit_res_hrule_dim } ,
@@ -363,64 +365,223 @@
 % 既不把行撑高，又能让正文顶着格子上沿排——\cs{SetCell} 里写 \texttt{t} 在
 % 钉了 \texttt{ht} 的行上不起作用，实测正文会掉到格子正中。
 %    \begin{macrocode}
-    \bool_if:NF \l__hit_res_probe_bool
-      {
-      \__hit_res_putx:n
-        {
-          \exp_not:N \SetCell [ c = 6 ] { l , t }
-            {
-              \exp_not:N \parbox [ t ]
-                [ \dim_eval:n
-                    { #1 - \c__hit_res_hrule_dim - \c__hit_res_pad_dim }
-                ] [ t ]
-                { \dim_use:N \g__hit_res_conclw_dim }
-                {
-                  \exp_not:N \hit@res@conclusion
-                    { \exp_not:o { \hit@resolution@conclusion@label } }
-                    { \exp_not:V \g__hit_defense_conclusion_tl }
-                }
-            }
-            & & & & & \\
-        }
-      }
     \__hit_res_put:n { \end { tblr } }
   }
 %    \end{macrocode}
 %
-% \textbf{排两趟。} 决议区该有多高，等于「整表总高减去上面各行实际占的高度」。
-% 「实际」是关键：某一格的字长了折成两行，那一行就比钉死的行高高一截，
-% 按行数乘行高算出来的余量就偏大，决议区跟着涨，整表超出原来的高度。
+% \subsection{决议区}
 %
-% 所以先排一趟，那一趟整个决议行都不排，装进盒子量出上面各行到底占了多少，
-% 再拿总高减去它、再减一道横线，得出决议区的高度，第二趟才真排出来。
-% 第一趟的盒子随即丢掉。
+% 一个 \pkg{tcolorbox}。宽度与上面那张表齐平，线宽照原表，四角不倒圆。
+% 顶边默认不画线：上表的最后一道横线就是它的顶线，两边各画各的会出现双线。
+% 续页那几个框自己把顶线补上，四条边都有，与第一页最外侧那圈一样粗。
 %
-% 试排时必须把决议行整行去掉，不能只把高度设成零：\pkg{tabularray} 不会让一行
-% 矮过里面的内容，标签那一行的高度仍在，量出来就多了一行，决议区跟着少 24pt。
+% 不开 \texttt{breakable}：跨页由 \cs{vsplit} 自己切，见后文。
+%    \begin{macrocode}
+\tcbset
+  {
+    hit@resolution/.style =
+      {
+        enhanced , sharp~corners , colback = white ,
+        boxrule = \c__hit_res_vrule_dim ,
+        toprule = 0pt ,
+        bottomrule = \c__hit_res_hrule_dim ,
+        leftrule = \c__hit_res_vrule_dim , rightrule = \c__hit_res_vrule_dim ,
+        left = \c__hit_res_colsep_dim , right = \c__hit_res_colsep_dim ,
+        top = 2pt , bottom = 2pt ,
+        boxsep = 0pt , before~skip = 0pt , after~skip = 0pt ,
+      } ,
+  }
+%    \end{macrocode}
+%
+% 正文的排法：标签顶格，正文每段首行空两字。\cs{parindent} 在盒子里是零，
+% 所以两处都要自己设，设在 \cs{par} 之后正文之前，正文里再分段也照样空两字。
+%
+% 头三行是把 \cs{centering} 撤掉。整页套在 \env{center} 里居中，这三个胶
+% 会一路传到装决议正文的那个 \cs{vbox} 里，标签跑到中间，跨页时末行也跟着居中。
+%    \begin{macrocode}
+\cs_new_protected:Nn \__hit_res_conclusion_body:
+  {
+    \skip_zero:N \leftskip
+    \skip_zero:N \rightskip
+    \skip_set:Nn \parfillskip { 0pt~plus~1fil }
+    \wuhao
+    \dim_set:Nn \parindent { \c_zero_dim }
+    \hit@resolution@conclusion@label
+    \par
+    \dim_set:Nn \parindent { 2em }
+    \g__hit_defense_conclusion_tl
+  }
+%    \end{macrocode}
+%
+% \subsection{排两趟}
+%
+% 决议区该有多高，等于「整表总高减去上面那张表实际占的高度」。「实际」是关键：
+% 某一格的字长了折成两行，那一行就比钉死的行高高一截，按行数乘行高算出来的
+% 余量就偏大。所以先把上表装进盒子量一遍，再拿总高一减。
+%
+% \changes{v3.2a}{0000/00/00}{余量不够排一行时，把余量摊进上表各行，
+%   决议整块挪到下一页，第一页照旧在原来的位置收底}
+% 余量不够排一行字时，第一页留个矮条既不好看也没用。这时把余量平摊进上表的每
+% 一行，让上表自己长到原来那张图的高度，底边照旧落在同一处，决议整块挪到下一页。
+% 摊了之后行高就不再等于纸质表的 21.72\,pt，这是保底部对齐必然的代价。
 %    \begin{macrocode}
 \box_new:N \l__hit_res_probe_box
+\int_new:N \l__hit_res_iter_int
+\dim_new:N \l__hit_res_rest_dim
+\dim_new:N \g__hit_res_boxw_dim
 \cs_new_protected:Nn \__hit_resolution_sheet:
   {
+    \bool_set_true:N \l__hit_res_first_bool
     \__hit_resolution_calc:
     \__hit_resolution_count:
-    \bool_set_true:N \l__hit_res_probe_bool
-    \__hit_res_build:n { \c_zero_dim }
+    \__hit_res_build:
     \hbox_set:Nn \l__hit_res_probe_box { \tl_use:N \l__hit_res_tbl_tl }
-    \bool_set_false:N \l__hit_res_probe_bool
-    \dim_gset:Nn \g__hit_res_concl_dim
+%    \end{macrocode}
+%
+% 决议框的宽度直接取上表量出来的实际宽度，不另算一遍。算的那条路要把格距、竖线宽、
+% \pkg{tcolorbox} 自己的框线摊清楚，差一道线两边就错开，接缝处露出台阶。
+%    \begin{macrocode}
+    \dim_gset:Nn \g__hit_res_boxw_dim { \box_wd:N \l__hit_res_probe_box }
+    \dim_set:Nn \l__hit_res_rest_dim
       {
         \g__hit_res_total_dim
         - \box_ht:N \l__hit_res_probe_box
         - \box_dp:N \l__hit_res_probe_box
         + \c__hit_res_fudge_dim
       }
+%    \end{macrocode}
+%
+% 余量不到三行字就摊进上表重排。三行是「标签一行、正文至少两行」的下限。
+%
+% 摊一次不到位：把余量除以行数加到行高上，\pkg{tabularray} 排出来的行距并不等于
+% 「行高加一道横线」，二十来行累下来能差三四个点。所以摊完再量一遍，
+% 拿剩下的差再摊，量到差不足 0.1\,pt 为止，最多五轮。
+%    \begin{macrocode}
+    \dim_compare:nNnT { \l__hit_res_rest_dim } < { 3 \baselineskip }
+      {
+        \int_zero:N \l__hit_res_iter_int
+        \bool_do_until:nn
+          {
+            \dim_compare_p:nNn { \dim_abs:n { \l__hit_res_rest_dim } } < { 0.1pt }
+            || \int_compare_p:nNn { \l__hit_res_iter_int } > { 4 }
+          }
+          {
+            \int_incr:N \l__hit_res_iter_int
+            \dim_gadd:Nn \g__hit_res_row_dim
+              {
+                \l__hit_res_rest_dim
+                / \int_max:nn { \g__hit_res_lines_int } { 1 }
+              }
+            \__hit_res_build:
+            \hbox_set:Nn \l__hit_res_probe_box { \tl_use:N \l__hit_res_tbl_tl }
+            \dim_set:Nn \l__hit_res_rest_dim
+              {
+                \g__hit_res_total_dim
+                - \box_ht:N \l__hit_res_probe_box
+                - \box_dp:N \l__hit_res_probe_box
+                + \c__hit_res_fudge_dim
+              }
+          }
+        \dim_set:Nn \l__hit_res_rest_dim { \c_zero_dim }
+      }
     \box_set_eq:NN \l__hit_res_probe_box \c_empty_box
-    \dim_compare:nNnT { \g__hit_res_concl_dim } < { 4 \baselineskip }
-      { \dim_gset:Nn \g__hit_res_concl_dim { 4 \baselineskip } }
-    \__hit_res_build:n { \g__hit_res_concl_dim }
+%    \end{macrocode}
+%
+% 上表与决议框之间不能有一点空隙，否则接缝处会露出一道白线。
+% \cs{nointerlineskip} 去掉两者之间的行距。
+%    \begin{macrocode}
     \begin { center }
       \tl_use:N \l__hit_res_tbl_tl
+      \par \nointerlineskip
+      \dim_compare:nNnT { \l__hit_res_rest_dim } = { \c_zero_dim }
+        { \newpage \bool_set_false:N \l__hit_res_first_bool }
+      \__hit_res_conclusion_flow:
     \end { center }
+  }
+%    \end{macrocode}
+%
+% \subsection{决议正文放哪一页}
+%
+% \changes{v3.2a}{0000/00/00}{决议正文写不下时跨页续排，续页四边都有框线}
+% 决议正文先整段排进一个盒子，再按每页的可用高度一段一段切下来。
+%
+% 切分自己做，不用 \pkg{tcolorbox} 的 \texttt{breakable}。那条路两头都够不着：
+% 钉了 \texttt{height} 写多了只会让字溢出框外、框线还停在原处；
+% \texttt{break at} 给的是这一段的高度上限，写少了盒子就照自然高度收，
+% 底边够不到原表该收底的地方。
+% \cs{vsplit} 两头都管得住：切下来的那段高度是我们给的，剩下的留在盒子里下一页接着切。
+%    \begin{macrocode}
+\box_new:N \l__hit_res_body_box
+\box_new:N \l__hit_res_part_box
+\bool_new:N \l__hit_res_first_bool
+\cs_new_protected:Nn \__hit_res_conclusion_flow:
+  {
+    \vbox_set:Nn \l__hit_res_body_box
+      {
+        \dim_set:Nn \hsize
+          {
+            \g__hit_res_boxw_dim
+            - \c__hit_res_colsep_dim * 2 - \c__hit_res_vrule_dim * 2
+          }
+        \__hit_res_conclusion_body:
+      }
+    \skip_zero:N \splittopskip
+    \bool_if:NTF \l__hit_res_first_bool
+      { \__hit_res_conclusion_page:n { \l__hit_res_rest_dim } }
+      { \__hit_res_conclusion_page:n { \textheight } }
+  }
+%    \end{macrocode}
+%
+% 一页装得下就一页排完，装不下就切一段、换页、拿版心高度再来一轮。
+% 首页要钉高度，底边才落在原表收底的地方；续页最后那一段随内容长短，
+% 不必拉到版心底部。
+%    \begin{macrocode}
+\cs_new_protected:Nn \__hit_res_conclusion_page:n
+  {
+    \dim_compare:nNnTF
+      { \box_ht:N \l__hit_res_body_box + \box_dp:N \l__hit_res_body_box }
+      > { #1 - \c__hit_res_pad_dim }
+      {
+        \vbox_set_split_to_ht:NNn
+          \l__hit_res_part_box \l__hit_res_body_box
+          { #1 - \c__hit_res_pad_dim }
+        \__hit_res_conclusion_tcb:nn
+          { height = \dim_eval:n {#1} } { \box_use:N \l__hit_res_part_box }
+        \newpage
+        \bool_set_false:N \l__hit_res_first_bool
+        \__hit_res_conclusion_page:n { \textheight }
+      }
+      {
+        \bool_if:NTF \l__hit_res_first_bool
+          {
+            \__hit_res_conclusion_tcb:nn
+              { height = \dim_eval:n {#1} } { \box_use:N \l__hit_res_body_box }
+          }
+          { \__hit_res_conclusion_tcb:nn { } { \box_use:N \l__hit_res_body_box } }
+      }
+  }
+%    \end{macrocode}
+%
+% 首页的顶线由上表最后一道横线充当，本框不画；续页上面没有表接着，得自己画。
+%    \begin{macrocode}
+\cs_new_protected:Nn \__hit_res_conclusion_tcb:nn
+  {
+    \bool_if:NTF \l__hit_res_first_bool
+      {
+        \begin { tcolorbox }
+          [ hit@resolution , width = \dim_use:N \g__hit_res_boxw_dim , #1 ]
+          #2
+        \end { tcolorbox }
+      }
+      {
+        \begin { tcolorbox }
+          [
+            hit@resolution , width = \dim_use:N \g__hit_res_boxw_dim ,
+            toprule = \c__hit_res_hrule_dim , #1
+          ]
+          #2
+        \end { tcolorbox }
+      }
   }
 %    \end{macrocode}
 %
