@@ -12,9 +12,16 @@
 % ^^A ======================================================================
 % ^^A Module dtx-style: dtx 自身排版样式
 % ^^A ======================================================================
+% \changes{v3.2a}{0000/00/00}{加 \option{vertical} 选项，手册前面多一张竖排标题叶。
+%   正文仍是横排，理由见本文件末尾那一节}
+% 一个选项：\option{vertical}。带上它，手册最前面多一张仿武英殿版式的竖排标题叶，
+% 正文照旧横排。不带就是原样。跑 \texttt{make doc-vertical} 出竖排那版。
 %    \begin{macrocode}
 %<*dtx-style>
 \ProvidesPackage{dtx-style}
+\newif\ifhit@doc@vertical
+\DeclareOption{vertical}{\hit@doc@verticaltrue}
+\ProcessOptions\relax
 \RequirePackage{hypdoc}
 %    \end{macrocode}
 %
@@ -143,6 +150,7 @@
 % 一个道理，自己要用的就自己装。
 %    \begin{macrocode}
 \RequirePackage{graphicx}
+\RequirePackage{ruby}
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{手册的数学字体钉成 XITS，与文档类 \option{math-font}
@@ -362,9 +370,14 @@
 % \cs{hitgh}\marg{账号} 排一个指向 GitHub 主页的昵称，\cs{hitmail}\marg{地址}
 % 排一个邮件链接。
 %
-% \cs{hitauthor}\marg{姓名}\marg{邮箱}\marg{GitHub 账号} 排封面上的一位作者，
-% 脚注给出「昵称（邮箱）」。邮箱一栏收的是排好的内容，多个邮箱就写多个
+% \cs{hitauthor}\oarg{称号}\marg{姓名}\marg{邮箱}\marg{GitHub 账号} 排封面上的
+% 一位作者，脚注给出「昵称（邮箱）」。邮箱一栏收的是排好的内容，多个邮箱就写多个
 % \cs{hitmail}。
+%
+% \changes{v3.2a}{0000/00/00}{\cs{hitauthor}}
+% \changes{v3.2a}{0000/00/00}{\cs{hitauthor} 加可选的称号，用 \pkg{ruby} 排在名字
+%   头上。三位主要维护者各标一代}
+% 可选参数是称号，用 \pkg{ruby} 排在名字头上，读作「注音」那个位置。没写就只排名字。
 %
 % \cs{hitref}\marg{账号} 在正文里排一个跳回封面的昵称。落点是封面整页而不是脚注
 % 那一行：\pkg{hypdoc} 与 \pkg{hyperref} 在 \cs{maketitle} 的时机放不了锚点，
@@ -374,7 +387,12 @@
 \newcommand*\hitgh[1]{\href{https://github.com/#1}{\texttt{@#1}}}
 \newcommand*\hitmail[1]{\href{mailto:#1}{\texttt{#1}}}
 \newcommand*\hitref[1]{\hyperlink{page.1}{\texttt{@#1}}}
-\newcommand*\hitauthor[3]{#1\thanks{\hitgh{#3}（#2）}}
+\NewDocumentCommand\hitauthor{o m m m}
+  {%
+    \IfNoValueTF{#1}{#2}{\ruby{#2}{\hit@rank@font #1}}%
+    \thanks{\hitgh{#4}（#3）}%
+  }
+\newcommand*\hit@rank@font{\normalfont\sffamily\color{hit@option}}
 \newcommand{\note}[2][Note]{{%
   \color{magenta}{\bfseries #1}\emph{#2}}}
 %    \end{macrocode}
@@ -395,6 +413,213 @@
 \def\hitszthesis{\href{https://github.com/YangLaTeX/hitszthesis}{\textsc{Hitsz}\-\textsc{Thesis}}{}}
 %    \end{macrocode}
 % \end{macro}
+%
+% \subsection{竖排标题叶}
+%
+% \changes{v3.2a}{0000/00/00}{加竖排标题叶，仿清武英殿本版式。\option{vertical}
+%   选项打开，正文仍是横排}
+% \DescribeMacro{\hitverticaltitle}
+% \cs{hitverticaltitle}\marg{书名}\marg{作者}\marg{制作者} 排一张仿清武英殿本
+% （内府本）版式的竖排标题叶。三栏都竖排：书名居中，作者靠右顶格，制作者靠左沉底。
+%
+% \textbf{只有标题叶竖排，正文照旧横排。} 这不是偷懒：本手册有 639 段
+% \env{macrocode}、89 个代码环境、83 处旁注、25 张 \env{longtable}，外加两栏排的
+% 索引与修改记录。这些全是拉丁代码与横排专属的机制，竖排排不出来，排出来也读不了。
+% 竖排能落地的是标题叶，那也正是古籍版式最认得出来的一块。
+%
+% 尺寸照《明史》武英殿本，依清光绪三十四年营造尺库平制，一尺合 32\,cm：
+% \begin{itemize}
+% \item 字高三分 9.6\,mm，行距四分五厘 14.4\,mm
+% \item 单面十行，每行二十一字，于是内框 144\,mm 宽、201.6\,mm 高
+% \item 内框与界栏线宽一厘 0.32\,mm，外框六厘 1.92\,mm，内外框净间距六厘 1.92\,mm
+% \item 天头地脚二比一
+% \end{itemize}
+% 内框加上内外框间距与外框线宽是 151.7\,mm $\times$ 209.3\,mm，A4 纸恰好装得下，
+% 所以尺寸不缩放，直接按原大排。
+%
+% \textbf{expl3 的 \texttt{dimexpr} 里乘法必须维度在前。}
+% \verb|\dim_eval:n{2 * \l_tmpa_dim}| 与 \verb|\dim_eval:n{\l_tmpa_int * \l_tmpa_dim}|
+% 都报 Illegal unit of measure，\verb|\dim_eval:n{\l_tmpa_dim * 2}| 才行；
+% 紧挨着写的小数系数 \verb|5.5\l_tmpa_dim| 也行。下面的算式都照这条写。
+%
+% 另外 \cs{put} 与 \cs{rule} 不在 expl3 的展开语境里，维度表达式直接喂进去会被当成
+% 字面记号，所以每个坐标都先 \cs{dim\_set:Nn} 进临时变量，再用 \cs{dim\_use:N} 取。
+%    \begin{macrocode}
+\RequirePackage{eso-pic}
+%    \end{macrocode}
+%
+% 版式尺寸。改这几个就能换成别的开本。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\dim_new:N \g_hitvt_char_dim       \dim_gset:Nn \g_hitvt_char_dim       { 9.6mm }
+\dim_new:N \g_hitvt_line_dim       \dim_gset:Nn \g_hitvt_line_dim       { 14.4mm }
+\int_new:N \g_hitvt_lines_int      \int_gset:Nn \g_hitvt_lines_int      { 10 }
+\int_new:N \g_hitvt_chars_int      \int_gset:Nn \g_hitvt_chars_int      { 21 }
+\dim_new:N \g_hitvt_grid_rule_dim  \dim_gset:Nn \g_hitvt_grid_rule_dim  { 0.32mm }
+\dim_new:N \g_hitvt_frame_rule_dim \dim_gset:Nn \g_hitvt_frame_rule_dim { 1.92mm }
+\dim_new:N \g_hitvt_frame_sep_dim  \dim_gset:Nn \g_hitvt_frame_sep_dim  { 1.92mm }
+\int_new:N \g_hitvt_ratio_int      \int_gset:Nn \g_hitvt_ratio_int      { 2 }
+\dim_new:N \g_hitvt_title_size_dim \dim_gset:Nn \g_hitvt_title_size_dim { 14mm }
+%    \end{macrocode}
+%
+% 由上面几个算出来的：内框宽高与它左下角在纸上的坐标。
+%    \begin{macrocode}
+\dim_new:N \l_hitvt_gw_dim   \dim_new:N \l_hitvt_gh_dim
+\dim_new:N \l_hitvt_gx_dim   \dim_new:N \l_hitvt_gy_dim
+\dim_new:N \l_hitvt_xa_dim   \dim_new:N \l_hitvt_ya_dim
+\dim_new:N \l_hitvt_wa_dim   \dim_new:N \l_hitvt_ta_dim
+\dim_new:N \l_hitvt_size_dim \dim_new:N \l_hitvt_len_dim
+\dim_new:N \l_hitvt_top_dim
+\int_new:N \l_hitvt_i_int   \int_new:N \l_hitvt_n_int
+\cs_new_protected:Nn \hitvt_calc:
+  {
+    \dim_set:Nn \l_hitvt_gw_dim { \g_hitvt_line_dim * \g_hitvt_lines_int }
+    \dim_set:Nn \l_hitvt_gh_dim { \g_hitvt_char_dim * \g_hitvt_chars_int }
+    \dim_set:Nn \l_hitvt_gx_dim { ( \paperwidth - \l_hitvt_gw_dim ) / 2 }
+    \dim_set:Nn \l_hitvt_gy_dim
+      {
+        ( \paperheight - \l_hitvt_gh_dim
+          - \g_hitvt_frame_sep_dim * 2 - \g_hitvt_frame_rule_dim * 2 )
+        / ( \g_hitvt_ratio_int + 1 )
+        + \g_hitvt_frame_sep_dim + \g_hitvt_frame_rule_dim
+      }
+  }
+%    \end{macrocode}
+%
+% 横线与竖线，都是一个 \cs{rule}。左下角 \marg{x}\marg{y}，长 \marg{长}，粗 \marg{粗}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hitvt_hline:nnnn #1#2#3#4
+  {
+    \dim_set:Nn \l_hitvt_xa_dim {#1}  \dim_set:Nn \l_hitvt_ya_dim {#2}
+    \dim_set:Nn \l_hitvt_wa_dim {#3}  \dim_set:Nn \l_hitvt_ta_dim {#4}
+    \put ( \dim_to_decimal_in_unit:nn { \l_hitvt_xa_dim } { 1mm } ,
+           \dim_to_decimal_in_unit:nn { \l_hitvt_ya_dim } { 1mm } )
+      { \rule [ \c_zero_dim ] { \dim_use:N \l_hitvt_wa_dim }
+                              { \dim_use:N \l_hitvt_ta_dim } }
+  }
+\cs_new_protected:Npn \hitvt_vline:nnnn #1#2#3#4
+  {
+    \dim_set:Nn \l_hitvt_xa_dim {#1}  \dim_set:Nn \l_hitvt_ya_dim {#2}
+    \dim_set:Nn \l_hitvt_wa_dim {#3}  \dim_set:Nn \l_hitvt_ta_dim {#4}
+    \put ( \dim_to_decimal_in_unit:nn { \l_hitvt_xa_dim } { 1mm } ,
+           \dim_to_decimal_in_unit:nn { \l_hitvt_ya_dim } { 1mm } )
+      { \rule [ \c_zero_dim ] { \dim_use:N \l_hitvt_ta_dim }
+                              { \dim_use:N \l_hitvt_wa_dim } }
+  }
+%    \end{macrocode}
+%
+% 一个框：内沿左下角 \marg{x}\marg{y}，内沿 \marg{宽}\marg{高}，线宽 \marg{粗}
+% 画在内沿之外。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hitvt_rect:nnnnn #1#2#3#4#5
+  {
+    \hitvt_hline:nnnn { #1 - #5 } { #2 - #5 } { #3 + #5 * 2 } {#5}
+    \hitvt_hline:nnnn { #1 - #5 } { #2 + #4 } { #3 + #5 * 2 } {#5}
+    \hitvt_vline:nnnn { #1 - #5 } { #2 } { #4 } {#5}
+    \hitvt_vline:nnnn { #1 + #3 } { #2 } { #4 } {#5}
+  }
+%    \end{macrocode}
+%
+% 竖排一列：列中心 \marg{x}，\marg{字号}，\marg{竖直对齐}（\texttt{t} 顶格、
+% \texttt{b} 沉底、其余居中），\marg{文本}。顶端由对齐方式按字数算出来，不会跑出框。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hitvt_column:nnnn #1#2#3#4
+  {
+    \dim_set:Nn \l_hitvt_size_dim {#2}
+    \int_set:Nn \l_hitvt_n_int { \tl_count:n {#4} }
+%    \end{macrocode}
+%
+% 一列排不下就把字号缩到刚好排下。规范是每行二十一字，作者多了就会超，
+% 与其溢出框外不如缩一号。
+%    \begin{macrocode}
+    \dim_compare:nNnT
+      { \l_hitvt_size_dim * \l_hitvt_n_int }
+      > { \l_hitvt_gh_dim - \g_hitvt_char_dim }
+      {
+        \dim_set:Nn \l_hitvt_size_dim
+          { ( \l_hitvt_gh_dim - \g_hitvt_char_dim ) / \l_hitvt_n_int }
+      }
+    \dim_set:Nn \l_hitvt_len_dim { \l_hitvt_size_dim * \l_hitvt_n_int }
+    \str_case:nnF {#3}
+      {
+        { t } { \dim_set:Nn \l_hitvt_top_dim
+                  { \l_hitvt_gy_dim + \l_hitvt_gh_dim - \g_hitvt_char_dim } }
+        { b } { \dim_set:Nn \l_hitvt_top_dim
+                  { \l_hitvt_gy_dim + \l_hitvt_len_dim + \g_hitvt_char_dim } }
+      }
+      {
+        \dim_set:Nn \l_hitvt_top_dim
+          { \l_hitvt_gy_dim + \l_hitvt_gh_dim
+            - ( \l_hitvt_gh_dim - \l_hitvt_len_dim ) / 2 }
+      }
+    \int_zero:N \l_hitvt_i_int
+    \tl_map_inline:nn {#4}
+      {
+        \dim_set:Nn \l_hitvt_xa_dim {#1}
+        \dim_set:Nn \l_hitvt_ya_dim
+          { \l_hitvt_top_dim - \l_hitvt_size_dim * \l_hitvt_i_int
+            - \l_hitvt_size_dim }
+        \put ( \dim_to_decimal_in_unit:nn { \l_hitvt_xa_dim } { 1mm } ,
+               \dim_to_decimal_in_unit:nn { \l_hitvt_ya_dim } { 1mm } )
+          {
+            \makebox [ 0pt ] [ c ]
+              {
+                \fontsize { \dim_use:N \l_hitvt_size_dim }
+                          { \dim_use:N \l_hitvt_size_dim } \selectfont
+                ##1
+              }
+          }
+        \int_incr:N \l_hitvt_i_int
+      }
+  }
+%    \end{macrocode}
+%
+% 把上面几件拼起来：外框、内框、九道界栏、三列字。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hitvt_draw:nnn #1#2#3
+  {
+    \hitvt_calc:
+    \setlength \unitlength { 1mm }
+    \hitvt_rect:nnnnn
+      { \l_hitvt_gx_dim - \g_hitvt_frame_sep_dim }
+      { \l_hitvt_gy_dim - \g_hitvt_frame_sep_dim }
+      { \l_hitvt_gw_dim + \g_hitvt_frame_sep_dim * 2 }
+      { \l_hitvt_gh_dim + \g_hitvt_frame_sep_dim * 2 }
+      { \g_hitvt_frame_rule_dim }
+    \hitvt_rect:nnnnn
+      { \l_hitvt_gx_dim } { \l_hitvt_gy_dim }
+      { \l_hitvt_gw_dim } { \l_hitvt_gh_dim }
+      { \g_hitvt_grid_rule_dim }
+    \int_step_inline:nnn { 1 } { \g_hitvt_lines_int - 1 }
+      {
+        \hitvt_vline:nnnn
+          { \l_hitvt_gx_dim + \g_hitvt_line_dim * ##1 }
+          { \l_hitvt_gy_dim } { \l_hitvt_gh_dim } { \g_hitvt_grid_rule_dim }
+      }
+    \hitvt_column:nnnn
+      { \l_hitvt_gx_dim + 5.5 \g_hitvt_line_dim }
+      { \g_hitvt_title_size_dim } { c } {#1}
+    \hitvt_column:nnnn
+      { \l_hitvt_gx_dim + 9.5 \g_hitvt_line_dim }
+      { \g_hitvt_char_dim } { t } {#2}
+    \hitvt_column:nnnn
+      { \l_hitvt_gx_dim + 0.5 \g_hitvt_line_dim }
+      { \g_hitvt_char_dim } { b } {#3}
+  }
+\cs_new_eq:NN \hitvt@draw \hitvt_draw:nnn
+\ExplSyntaxOff
+%    \end{macrocode}
+%
+% \cs{hitverticaltitle} 无条件排一张；\cs{hitverticaltitlepage} 只在
+% \option{vertical} 选项打开时排，手册正文里写的是后者。
+%    \begin{macrocode}
+\NewDocumentCommand\hitverticaltitle{m m m}{%
+  \clearpage\thispagestyle{empty}%
+  \AddToShipoutPicture*{\hitvt@draw{#1}{#2}{#3}}%
+  \null\clearpage}
+\NewDocumentCommand\hitverticaltitlepage{m m m}{%
+  \ifhit@doc@vertical\hitverticaltitle{#1}{#2}{#3}\fi}
+%    \end{macrocode}
 %    \begin{macrocode}
 %</dtx-style>
 %    \end{macrocode}

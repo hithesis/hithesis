@@ -23,7 +23,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck mapcheck mapfix depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls doc doc-vertical viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck mapcheck mapfix depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
 all: doc
@@ -60,6 +60,22 @@ distribute:
 	@mkdir -p examples/demo/figures && cp $(FIGFILES) examples/demo/figures/
 
 doc: $(PACKAGE).pdf
+
+# 手册的竖排版：最前面多一张仿武英殿版式的竖排标题叶，正文照旧横排。
+# 靠命令行先 \def 一个开关，驱动块见到它就给 dtx-style 传 vertical 选项。
+# 输出另存 hithesis-vertical.pdf，不覆盖横排那份。
+doc-vertical: cls
+	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/manual: \
+	  $(METHOD) -interaction=nonstopmode -jobname=$(PACKAGE)-vertical \
+	  "\def\hitdocvertical{}\input{src/$(PACKAGE).dtx}"
+	makeindex -s gind.ist -o $(PACKAGE)-vertical.ind $(PACKAGE)-vertical.idx
+	makeindex -s gglo.ist -o $(PACKAGE)-vertical.gls $(PACKAGE)-vertical.glo
+	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/manual: \
+	  $(METHOD) -interaction=nonstopmode -jobname=$(PACKAGE)-vertical \
+	  "\def\hitdocvertical{}\input{src/$(PACKAGE).dtx}"
+	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/manual: \
+	  $(METHOD) -interaction=nonstopmode -jobname=$(PACKAGE)-vertical \
+	  "\def\hitdocvertical{}\input{src/$(PACKAGE).dtx}"
 
 viewdoc: doc
 	$(OPEN) $(PACKAGE).pdf
@@ -126,6 +142,7 @@ clean: auxclean
 	-$(RM) *.bst *.ist *.cls *.cfg *.sty
 	-$(RM) *.eps
 	-$(RM) $(PACKAGE).pdf
+	-$(RM) $(PACKAGE)-vertical.*
 	-$(RM) $(RELEASE_NOTES)
 
 distclean: clean
