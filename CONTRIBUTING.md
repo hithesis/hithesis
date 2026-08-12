@@ -16,7 +16,7 @@ hithesis/
 │   ├── hit-ist.dtx             <- 索引排序样式 hithesis.ist
 │   ├── hit-dtx-style.dtx       <- 排手册用的 dtx-style.sty，不随模板发布
 │   ├── hit-sty.dtx             <- 示例宏包 hithesis.sty，示例文档自己 \usepackage
-│   ├── doc/                    <- 用户手册 hit-doc.dtx，纯文档，不产出任何文件
+│   ├── manual/                 <- 用户手册 hit-manual.dtx，纯文档，不产出任何文件
 │   ├── assets/                 <- EPS 图像数据 hit-eps.dtx，纯数据，不含代码
 │   ├── setup/                  <- 设置子系统：选项、键、常量，见 §4.3
 │   ├── utils/                  <- 各个类共用的小工具，守卫叫 shared-*，见 §4.3
@@ -128,19 +128,27 @@ cd examples/demo && make report     # 开题、中期报告
 
 ## 3. dtx 导航
 
-`src/` 按职责分五个目录：
+`src/` 按职责分六个目录：
 
 ```
 src/
-  meta/     每个类有哪些元信息字段、字段叫什么、旧名是什么
-  config/   这些字段与固定词汇取什么值，只有取值，不造轮子
+  setup/    选项、键、常量：有哪些字段、字段取什么值、怎么声明
   utils/    小工具，两个类共用
-  flow/     页面流：版心、页眉页脚、章节标题、段落、浮动体
+  flow/     单类专属的排版配置：版心、页眉页脚、章节标题、段落、浮动体、
+            字体、数学、脚注、超链接、第三方依赖
   pages/    论文的一页一个文件：封面、摘要、目录、声明、致谢、成果、决议、附录、参考文献
+  manual/   用户手册的正文，纯文档，不产出任何文件
+  assets/   EPS 图像数据，纯数据，不含代码
 ```
 
-`meta/` 与 `config/` 是一对：前者说“有哪些字段”，后者说“字段取什么值”。
-机制两边都不管，在 `utils/hit-key-engine.dtx`。
+`setup/` 里三层分工：`hit-keylist.dtx` 说“有哪些字段”，`hit-defaults.dtx` 说
+“字段取什么值”，`hit-key-engine.dtx` 与 `hit-option-engine.dtx` 是造这两者的机制。
+详见 §4.2。
+
+手册目录叫 `manual/` 不叫 `doc/`：`src/` 下每个 dtx 都产出文档，注释都由
+`\DocInput` 织进 `hithesis.pdf`，`doc/` 这个名字占不住；而且 `doc` 在 LaTeX 里
+已经指 `doc` 宏包那套排手册的机器，那套在本仓库是 `src/hit-dtx-style.dtx`。
+`manual/` 说的是用户手册这一份具体产物。
 
 `flow/` 与 `pages/` 里的文件按类分开，`hit-thesis-cover.dtx` 是毕业论文封面，`hit-report-cover.dtx`
 是开题报告封面。不共用，是 docstrip 逼的：它给同一个输出里重复出现的输入文件改名
@@ -172,7 +180,7 @@ src/
 | 索引排序样式 | `src/hit-ist.dtx` |
 | 排手册用的样式 | `src/hit-dtx-style.dtx` |
 | 示例文档自己要用的东西 | `src/hit-sty.dtx` |
-| 用户手册文字 | `src/hit-doc.dtx` |
+| 用户手册文字 | `src/manual/hit-manual.dtx` |
 | 类的公共文件头、派发类、旧类名空壳 | `src/hithesis.dtx` |
 
 **文件名的规矩：`hit-<类>-<职责>.dtx` 是单类专属，`hit-<职责>.dtx` 是共用。**
@@ -726,7 +734,7 @@ CI 会在推送后跑这几项：
 | `setup` | 设置子系统 `src/setup/hit-*.dtx` |
 | `flow` | 页面流的版式 `src/flow/hit-*.dtx` |
 | `bst` `eps` | 参考文献样式、图像数据 |
-| `manual` | 用户手册 `src/hit-doc.dtx` |
+| `manual` | 用户手册 `src/manual/hit-manual.dtx` |
 | `readme` `contributing` | 对应的 md 文件 |
 | `tests` `scripts` | `tests/`、`testfiles/`、`tools/`、`scripts/` |
 | `deps` | 依赖清单 `.github/tl_packages` |
