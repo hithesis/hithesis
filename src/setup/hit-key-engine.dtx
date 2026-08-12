@@ -126,6 +126,31 @@
 %    \end{macrocode}
 % \end{macro}
 %
+% \begin{macro}{\hit@keys@set:nn}
+% \changes{v3.2a}{0000/00/00}{加 \cs{hit@keys@set:nn}，把键之间的空行剥掉再喂给
+%   \cs{keys\_set:nn}；凡是接用户写的键值表的地方都改走它}
+% \textbf{键之间夹了空行也得认。} 名单一条条写下来，中间空一行分组是很自然的写法，
+% 但空行在键值表里是一个 \cs{par}，下一个键的名字就成了 \verb|\par secretary|，
+% 对不上任何键。轻则丢一条记录只在日志里留行警告，重则被当成老写法去查。
+%
+% 所以喂给 \cs{keys\_set:nn} 之前先把顶层的 \cs{par} 剥掉。
+% \cs{tl\_replace\_all:Nnn} 不进花括号，所以剥的只是键与键之间那些，
+% 值里面的分段留得住——决议正文的空行是内容，不能动。
+%
+% 每一层都要剥。\cs{hitsetup} 那一层剥了，\texttt{defense~=~\{~\ldots~\}} 里面
+% 是一个花括号组，没被碰到，所以子族转发时得再剥一次。凡是接用户写的键值表的
+% 地方一律走这个函数，各层就都通了。
+%    \begin{macrocode}
+\tl_new:N \l__hit_keys_list_tl
+\cs_new_protected:Npn \hit@keys@set:nn #1#2
+  {
+    \tl_set:Nn \l__hit_keys_list_tl {#2}
+    \tl_replace_all:Nnn \l__hit_keys_list_tl { \par } { }
+    \exp_args:NnV \keys_set:nn {#1} \l__hit_keys_list_tl
+  }
+%    \end{macrocode}
+% \end{macro}
+%
 % 子族的兜底。键名先自己展开，靠 \cs{keys\_set:nn} 去展开 \cs{l\_keys\_key\_str} 不
 % 可靠：载入的宏包集合一变就可能失效，换定理实现时踩过。
 %    \begin{macrocode}
@@ -187,7 +212,7 @@
     \keys_define:nn { hit / #1 / #2 }
       { unknown .code:n = { \__hit_language_unknown:nnn {#1} {#2} {##1} } }
     \keys_define:nn { hit / #1 }
-      { #2 .code:n = { \keys_set:nn { hit / #1 / #2 } {##1} } }
+      { #2 .code:n = { \hit@keys@set:nn { hit / #1 / #2 } {##1} } }
   }
 \clist_map_inline:nn { info , const }
   {
@@ -443,7 +468,7 @@
 %    \end{macrocode}
 %
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@set@constant #1 { \keys_set:nn { hit / const } {#1} }
+\cs_new_protected:Npn \hit@set@constant #1 { \hit@keys@set:nn { hit / const } {#1} }
 %    \end{macrocode}
 % \end{macro}
 %
