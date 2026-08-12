@@ -83,7 +83,7 @@ def used(key: str, kind: str, cls: str, elsewhere: str) -> bool:
 def main() -> int:
     elsewhere = "\n".join(
         p.read_text(encoding="utf-8")
-        for p in [ROOT / "src" / "hit-doc.dtx", *sorted((ROOT / "examples").rglob("*.tex"))]
+        for p in [ROOT / "src" / "doc" / "hit-doc.dtx", *sorted((ROOT / "examples").rglob("*.tex"))]
     )
     # 示例宏包跟类一起发，也取类里的常量（\hit@algorithm@name@zh 就只在那里用）。
     # 把它接在类文件后面一起搜，不然那两个常量会被报成死键。手册与示例不能这么并：

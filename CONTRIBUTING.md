@@ -10,17 +10,18 @@
 hithesis/
 ├── src/
 │   ├── hithesis.dtx            <- 入口：driver、共用文件头、派发类 hithesis.cls、旧类名空壳
-│   ├── hit-thesis.dtx          <- 学位论文类 hit-thesis
-│   ├── hit-report.dtx          <- 开题中期类 hit-report（含深圳博士中期）
+│   ├── hit-thesis.dtx          <- 学位论文类 hit-thesis 的骨架：LoadClass 与前后钩子
+│   ├── hit-report.dtx          <- 开题中期类 hit-report 的骨架，同上
 │   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
 │   ├── hit-ist.dtx             <- 索引排序样式 hithesis.ist
 │   ├── hit-dtx-style.dtx       <- 排手册用的 dtx-style.sty，不随模板发布
 │   ├── hit-sty.dtx             <- 示例宏包 hithesis.sty，示例文档自己 \usepackage
-│   ├── hit-doc.dtx             <- 用户手册
-│   ├── hit-eps.dtx             <- EPS 图像数据（校徽、封面、示例插图）
-│   ├── config/                 <- 配置子系统，三层：机制、名单、取值，见 §4.3
-│   ├── utils/                  <- 各个类共用的小工具，见 §4.3
-│   ├── flow/                   <- 版心、页眉页脚、章节标题、段落、浮动体
+│   ├── doc/                    <- 用户手册 hit-doc.dtx，纯文档，不产出任何文件
+│   ├── assets/                 <- EPS 图像数据 hit-eps.dtx，纯数据，不含代码
+│   ├── setup/                  <- 设置子系统：选项、键、常量，见 §4.3
+│   ├── utils/                  <- 各个类共用的小工具，守卫叫 shared-*，见 §4.3
+│   ├── flow/                   <- 单类专属的排版配置：版心、页眉页脚、章节标题、
+│   │                              段落、浮动体、字体、数学、脚注、超链接、第三方依赖
 │   └── pages/                  <- 论文的一页一个文件
 │                                  flow/ 与 pages/ 全是单类专属，文件名带类名
 ├── hithesis.ins          <- docstrip 驱动文件，src/hithesis.dtx 的 install 守卫的产物。

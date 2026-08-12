@@ -43,7 +43,7 @@ cls: $(TARGETS)
 # TEXINPUTS 指到 src/：这样 install 守卫里写不带目录的文件名即可，
 # make（在根目录跑）和 l3build（把源码拍平到 build/unpacked）都能找到。
 $(TARGETS): $(SOURCES)
-	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages: xetex -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/doc: xetex -interaction=nonstopmode src/$(PACKAGE).dtx
 	$(MAKE) --no-print-directory distribute
 
 # .ins 只生成到根目录，示例目录里的那份由这里分发。
@@ -67,18 +67,18 @@ viewdoc: doc
 ifeq ($(METHOD),latexmk)
 
 $(PACKAGE).pdf: $(TARGETS)
-	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages: $(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/doc: $(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
 
 else ifeq ($(METHOD),xelatex)
 
 # nonstopmode：手册里写错宏名之类的错误会让 xelatex 停在交互提示上等输入，
 # 无人看管时会一直挂着。cls 目标早就加了，doc 漏了。
 $(PACKAGE).pdf: $(TARGETS)
-	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/doc: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 	makeindex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
 	makeindex -s gglo.ist -o $(PACKAGE).gls $(PACKAGE).glo
-	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
-	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/doc: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/doc: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 
 else
 $(error Unknown METHOD: $(METHOD))
