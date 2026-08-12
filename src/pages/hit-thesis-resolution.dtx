@@ -62,11 +62,11 @@
 \dim_const:Nn \c__hit_res_vrule_dim  { 0.48pt }
 %    \end{macrocode}
 %
-% 最后这一点是量出来补的。\pkg{tabularray} 每一行在 \texttt{ht} 之外还带一点内边距，
-% 十三行累下来整表比原表矮 1.65\,pt，补回决议区那一格。换 \pkg{tabularray} 版本时
-% 拿空表跟 v3.1e 那张图按 300\,dpi 逐条量框线复核，差值不该超过半个点。
+% 最后这一点是量出来补的：试排那趟的表自带上下两道横线，与真排时决议行接上去的
+% 那道对不上，差 2.64\,pt。换 \pkg{tabularray} 版本时拿空表跟 v3.1e 那张图按
+% 300\,dpi 逐条量框线复核，差值不该超过半个点。
 %    \begin{macrocode}
-\dim_const:Nn \c__hit_res_fudge_dim  { 1.65pt }
+\dim_const:Nn \c__hit_res_fudge_dim  { 2.64pt }
 %    \end{macrocode}
 %
 % \pkg{tabularray} 每个格子上下各留一点内边距，实测两边合计 6\,pt。决议那一格的
@@ -142,23 +142,14 @@
       { \int_max:nn { \seq_count:N \g__hit_defense_secretary_seq } { 1 } }
 %    \end{macrocode}
 %
-% 决议区吃掉整表剩下的高度：两个表头加各块的人数行占多少，它就少多少，
-% 整表总高不变，仍是原来那张图的高度。人填得多到装不下时给个下限。
+% 上面各块一共占几行。决议区的高度不在这里算——它要按实际排出来的高度倒推，
+% 见下面「排两趟」那一段。
 %    \begin{macrocode}
     \int_gset:Nn \g__hit_res_lines_int
       {
         2 + \g__hit_res_rev_int + \g__hit_res_chair_int
         + \g__hit_res_mem_int + \g__hit_res_sec_int
       }
-    \dim_gset:Nn \g__hit_res_concl_dim
-      {
-        \g__hit_res_total_dim
-        - ( \g__hit_res_row_dim + \c__hit_res_hrule_dim )
-          * \g__hit_res_lines_int
-        - \c__hit_res_hrule_dim + \c__hit_res_fudge_dim
-      }
-    \dim_compare:nNnT { \g__hit_res_concl_dim } < { 4 \baselineskip }
-      { \dim_gset:Nn \g__hit_res_concl_dim { 4 \baselineskip } }
   }
 %    \end{macrocode}
 %
@@ -288,10 +279,9 @@
 % 六列，行高钉死，横竖线宽照原表。表头两行与三块数据行接在一起，最后一行是决议区，
 % 六列合并成一格，标签与正文都在这一格里——原表在标签下面并没有横线。
 %    \begin{macrocode}
-\cs_new_protected:Nn \__hit_resolution_sheet:
+\bool_new:N \l__hit_res_probe_bool
+\cs_new_protected:Npn \__hit_res_build:n #1
   {
-    \__hit_resolution_calc:
-    \__hit_resolution_count:
     \tl_clear:N \l__hit_res_tbl_tl
     \__hit_res_putx:n
       {
@@ -307,9 +297,11 @@
                 Q [ c , wd = \dim_use:N \g__hit_res_cf_dim ]
               } ,
             rows = { ht = \dim_use:N \g__hit_res_row_dim } ,
-            row { \int_eval:n { \g__hit_res_lines_int + 1 } } =
-              { ht = \dim_eval:n
-                       { \g__hit_res_concl_dim - \c__hit_res_hrule_dim } } ,
+            \bool_if:NF \l__hit_res_probe_bool
+              {
+                row { \int_eval:n { \g__hit_res_lines_int + 1 } } =
+                  { ht = \dim_eval:n { #1 - \c__hit_res_hrule_dim } } ,
+              }
             cells = { m , font = \wuhao } ,
             colsep = \dim_use:N \c__hit_res_colsep_dim , rowsep = 0pt ,
             hlines = { \dim_use:N \c__hit_res_hrule_dim } ,
@@ -371,27 +363,61 @@
 % 既不把行撑高，又能让正文顶着格子上沿排——\cs{SetCell} 里写 \texttt{t} 在
 % 钉了 \texttt{ht} 的行上不起作用，实测正文会掉到格子正中。
 %    \begin{macrocode}
-    \__hit_res_putx:n
+    \bool_if:NF \l__hit_res_probe_bool
       {
-        \exp_not:N \SetCell [ c = 6 ] { l , t }
-          {
-            \exp_not:N \parbox [ t ]
-              [ \dim_eval:n
-                  {
-                    \g__hit_res_concl_dim - \c__hit_res_hrule_dim
-                    - \c__hit_res_pad_dim
-                  }
-              ] [ t ]
-              { \dim_use:N \g__hit_res_conclw_dim }
-              {
-                \exp_not:N \hit@res@conclusion
-                  { \exp_not:o { \hit@resolution@conclusion@label } }
-                  { \exp_not:V \g__hit_defense_conclusion_tl }
-              }
-          }
-          & & & & & \\
+      \__hit_res_putx:n
+        {
+          \exp_not:N \SetCell [ c = 6 ] { l , t }
+            {
+              \exp_not:N \parbox [ t ]
+                [ \dim_eval:n
+                    { #1 - \c__hit_res_hrule_dim - \c__hit_res_pad_dim }
+                ] [ t ]
+                { \dim_use:N \g__hit_res_conclw_dim }
+                {
+                  \exp_not:N \hit@res@conclusion
+                    { \exp_not:o { \hit@resolution@conclusion@label } }
+                    { \exp_not:V \g__hit_defense_conclusion_tl }
+                }
+            }
+            & & & & & \\
+        }
       }
     \__hit_res_put:n { \end { tblr } }
+  }
+%    \end{macrocode}
+%
+% \textbf{排两趟。} 决议区该有多高，等于「整表总高减去上面各行实际占的高度」。
+% 「实际」是关键：某一格的字长了折成两行，那一行就比钉死的行高高一截，
+% 按行数乘行高算出来的余量就偏大，决议区跟着涨，整表超出原来的高度。
+%
+% 所以先排一趟，那一趟整个决议行都不排，装进盒子量出上面各行到底占了多少，
+% 再拿总高减去它、再减一道横线，得出决议区的高度，第二趟才真排出来。
+% 第一趟的盒子随即丢掉。
+%
+% 试排时必须把决议行整行去掉，不能只把高度设成零：\pkg{tabularray} 不会让一行
+% 矮过里面的内容，标签那一行的高度仍在，量出来就多了一行，决议区跟着少 24pt。
+%    \begin{macrocode}
+\box_new:N \l__hit_res_probe_box
+\cs_new_protected:Nn \__hit_resolution_sheet:
+  {
+    \__hit_resolution_calc:
+    \__hit_resolution_count:
+    \bool_set_true:N \l__hit_res_probe_bool
+    \__hit_res_build:n { \c_zero_dim }
+    \hbox_set:Nn \l__hit_res_probe_box { \tl_use:N \l__hit_res_tbl_tl }
+    \bool_set_false:N \l__hit_res_probe_bool
+    \dim_gset:Nn \g__hit_res_concl_dim
+      {
+        \g__hit_res_total_dim
+        - \box_ht:N \l__hit_res_probe_box
+        - \box_dp:N \l__hit_res_probe_box
+        + \c__hit_res_fudge_dim
+      }
+    \box_set_eq:NN \l__hit_res_probe_box \c_empty_box
+    \dim_compare:nNnT { \g__hit_res_concl_dim } < { 4 \baselineskip }
+      { \dim_gset:Nn \g__hit_res_concl_dim { 4 \baselineskip } }
+    \__hit_res_build:n { \g__hit_res_concl_dim }
     \begin { center }
       \tl_use:N \l__hit_res_tbl_tl
     \end { center }
