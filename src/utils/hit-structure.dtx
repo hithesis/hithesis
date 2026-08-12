@@ -27,7 +27,7 @@
 % \hitbackmatter
 % \end{document}
 % \end{latex}
-% 没声明的部件不排。\option{resolution}、\option{authorization}、\option{contents}
+% 没声明的部件不排。\option{defense}、\option{authorization}、\option{contents}
 % 这几样由类自己排，取 \texttt{true} 打开、\texttt{false} 关掉。
 %
 % 原先逐个 \cs{include} 的写法照旧有效，两种可以混着用。
@@ -41,7 +41,7 @@
 \clist_const:Nn \c__hit_structure_part_clist
   {
     cover , abstract , denotation , contents , mainmatter , bibliography ,
-    appendix , publications , resolution , index , authorization ,
+    appendix , publications , defense , index , authorization ,
     acknowledgements , resume ,
   }
 \clist_map_inline:Nn \c__hit_structure_part_clist
@@ -130,13 +130,13 @@
 \__hit_structure_declare:nnn { bibliography }     { back }  { back }
 \__hit_structure_declare:nnn { appendix }         { back }  { back }
 \__hit_structure_declare:nnn { publications }     { back }  { back }
-\__hit_structure_declare:nnn { resolution }       { back }  { back }
+\__hit_structure_declare:nnn { defense }          { back }  { back }
 \__hit_structure_declare:nnn { index }            { back }  { back }
 \__hit_structure_declare:nnn { authorization }    { back }  { back }
 \__hit_structure_declare:nnn { resume }           { back }  { back }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{0000/00/00}{\option{resolution} 与 \option{authorization} 加带
+% \changes{v3.2a}{0000/00/00}{\option{defense} 与 \option{authorization} 加带
 %   星号的同名键，取代 \cs{resolution*} 那个可选参数。这两块的三种排法就都在
 %   \option{struct} 里了：\texttt{auto}/\texttt{true}/\texttt{false} 是排出来，
 %   给文件名是贴那个 PDF，带星号的给文件名是贴 PDF 并排页码}
@@ -147,25 +147,25 @@
 % \toprule
 % 写法 & 结果 \\\midrule
 % \endfirsthead
-% \option{resolution} = \texttt{auto} & 只有博士排，排版式表格 \\
-% \option{resolution} = \texttt{true} & 都排，排版式表格 \\
-% \option{resolution} = \texttt{false} & 不排 \\
-% \option{resolution} = \meta{文件} & 贴这个 PDF，不排页码 \\
-% \option{resolution*} = \meta{文件} & 贴这个 PDF，排页码 \\\bottomrule
+% \option{defense} = \texttt{auto} & 只有博士排，排版式表格 \\
+% \option{defense} = \texttt{true} & 都排，排版式表格 \\
+% \option{defense} = \texttt{false} & 不排 \\
+% \option{defense} = \meta{文件} & 贴这个 PDF，不排页码 \\
+% \option{defense*} = \meta{文件} & 贴这个 PDF，排页码 \\\bottomrule
 % \end{longtable}
 % \option{authorization} 一样，只是没有 \texttt{auto} 那一档。
 %
 % 带星号那个键存进同一个变量，另外把星号标志位置上，所以两个键写哪个都只有
 % 一份取值，后写的覆盖先写的，与别的部件一个规矩。
 %    \begin{macrocode}
-\bool_new:N \g__hit_structure_resolution_star_bool
+\bool_new:N \g__hit_structure_defense_star_bool
 \bool_new:N \g__hit_structure_authorization_star_bool
 \keys_define:nn { hit / struct / back }
   {
-    resolution * .code:n =
+    defense * .code:n =
       {
-        \bool_gset_true:N \g__hit_structure_resolution_star_bool
-        \__hit_structure_place:nnn { resolution } { back } {#1}
+        \bool_gset_true:N \g__hit_structure_defense_star_bool
+        \__hit_structure_place:nnn { defense } { back } {#1}
       } ,
     authorization * .code:n =
       {
@@ -221,28 +221,30 @@
 % 答辩决议与授权书这两块的取值有两种意思：\texttt{auto}/\texttt{true}/\texttt{false}
 % 说的是排不排，别的都当文件名，贴那个 PDF。带星号的键还要排页码。
 %
-% \meta{部件名}\marg{排出来的代码}：值不是那三个词就走 \cs{includepdf} 那条路，
+% \meta{部件名}\marg{命令名}\marg{排出来的代码}：值不是那三个词就走 \cs{includepdf}
+% 那条路。部件名与命令名分开传：答辩决议那一块的键叫 \option{defense}，
+% 贴扫描件走的却是 v3.1e 就有的 \cs{resolution}，两个名字对不上。
 % 星号看的是同名的星号标志位。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@structure@scanned:nn #1#2
+\cs_new_protected:Npn \hit@structure@scanned:nnn #1#2#3
   {
     \hit@structure@part:nn {#1}
       {
-        \exp_args:Nv \__hit_structure_scanned_aux:nnn
-          { g__hit_structure_#1_tl } {#1} {#2}
+        \exp_args:Nv \__hit_structure_scanned_aux:nnnn
+          { g__hit_structure_#1_tl } {#1} {#2} {#3}
       }
   }
-\cs_new_protected:Npn \__hit_structure_scanned_aux:nnn #1#2#3
+\cs_new_protected:Npn \__hit_structure_scanned_aux:nnnn #1#2#3#4
   {
     \str_case:nnF {#1}
       {
-        { auto } {#3}
-        { true } {#3}
+        { auto } {#4}
+        { true } {#4}
       }
       {
         \bool_if:cTF { g__hit_structure_#2_star_bool }
-          { \use:c {#2} * [#1] }
-          { \use:c {#2} [#1] }
+          { \use:c {#3} * [#1] }
+          { \use:c {#3} [#1] }
       }
   }
 %    \end{macrocode}
@@ -260,7 +262,7 @@
 % \changes{v3.2a}{0000/00/00}{取文件名的部件写了 \texttt{auto} 时给一句明白话，
 %   不再让它当文件名去找 \file{auto.tex}}
 % \textbf{\texttt{auto} 在哪儿都是安全值。} 开关型的部件（\option{contents}、
-% \option{resolution}、\option{authorization}）写 \texttt{auto} 是「让模板决定
+% \option{defense}、\option{authorization}）写 \texttt{auto} 是「让模板决定
 % 排不排」；取文件名的部件写 \texttt{auto} 没有意义，那就说一句、这一块不排，
 % 而不是拿 \texttt{auto} 当文件名去找 \file{auto.tex}——那个报错跟用户写的东西
 % 对不上，看半天看不出问题在哪。
