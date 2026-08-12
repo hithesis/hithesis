@@ -69,6 +69,8 @@ make changes-check # 校验 \changes 的日期约定
 make constlint     # 常量键有没有声明了却没人取用的（先 make cls）
 make logcheck      # 扫编译日志里那几类「编得过但有毛病」（先把变体编出来）
 make changes-fix   # 自动修正能修的部分
+make depscheck     # 每个 \RequirePackage 都在 tools/deps-policy.txt 里交代了归属
+make depslist      # 按当前代码打印一份策略表骨架，加包时拿它起草
 ```
 
 测试相关：
@@ -346,6 +348,24 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 - × `thesis-floats` 兼管列表、定理、段落、引用
 
 加代码前先问这段代码语义上属于哪个模块，找到答案再写。找不到就考虑拆一个新的出来，见 §5。
+
+### 4.4b 第三方宏包放哪儿
+
+`\RequirePackage` 按三条分家：
+
+| 情况 | 放哪儿 |
+|---|---|
+| 类自己一处都不调，纯粹替用户预装 | `src/hit-sty.dtx`（出 `hithesis.sty`） |
+| 类自己调，两个以上模块调 | `src/flow/hit-*-deps.dtx` |
+| 类自己调，只有一个模块调 | 那个模块里自己 `\RequirePackage` |
+
+每个包归哪儿、为什么，一行不落地写在 `tools/deps-policy.txt`。加了新包不写进去，`make depscheck` 会点名，CI 也会拦。起草新条目跑 `make depslist`。
+
+一个包在多处加载得每处都是有意为之，把理由写进策略表那一条。纯粹的重复加载（后一次被 LaTeX 直接跳过）该删掉。
+
+判断“谁在调”只能靠人读代码，脚本不猜。扒宏包提供了哪些宏这条路走不通：`\includegraphics` 定义在 `graphics.sty` 而不是 `graphicx.sty`，`subcaption` 的环境由 `caption` 的机制造出来，`hyperref` 重定义了 `\label` 与 `\ref`。据这种名单下结论会把能编的类改坏——`environ` 就差点被误删，它的消费者是摘要环境里的 `\Collect@Body`，不是常见的 `\NewEnviron`。
+
+拿不准就删掉试编。45 变体逐字节比对是唯一靠得住的判据，见 §6。
 
 ### 4.5 模块内不写 `\ProvidesPackage`
 

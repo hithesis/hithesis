@@ -23,7 +23,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck mapcheck mapfix eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck mapcheck mapfix depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
 all: doc
@@ -196,6 +196,15 @@ mapfix:
 # 安装横幅，四份两两对上。加一个产物只改 install 守卫，剩下三份漏了这里会说。
 productcheck:
 	@python3 scripts/products.py --check
+
+# 宏包归属：每个 \RequirePackage 都得在 tools/deps-policy.txt 里交代放哪儿、为什么。
+# 三条规矩是“类不调的进 sty，多模块调的进 deps，单模块调的自己装”。
+depscheck:
+	@python3 scripts/check-deps.py
+
+# 按当前代码打印一份策略表骨架，加包时拿它起草
+depslist:
+	@python3 scripts/check-deps.py --list
 
 # 常量键有没有声明了却没人取用的。要先 make cls
 apilint:
