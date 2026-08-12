@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """检查 dtx 注释里的文档宏用法。
 
-注释里写错宏名不影响 .cls 的生成，只在 make doc 时才暴露，而 make doc 要跑一分多钟。
+注释里写错宏名不影响 .cls 的生成，只在 make manual 时才暴露，而 make manual 要跑一分多钟。
 这个脚本几秒钟出结果，用来在提交前先挡一道。
 
 两类检查：
@@ -62,7 +62,7 @@ def check_structure(path: Path):
     """核对 macrocode 的开合。
 
     docstrip 只认守卫，不看 macrocode，所以这类错误不会让 make cls 失败，
-    只在 make doc 时炸：代码行落到 macrocode 外面，_ 变成数学下标；
+    只在 make manual 时炸：代码行落到 macrocode 外面，_ 变成数学下标；
     \\end{macro} 落到 macrocode 里面，环境关不上。两种都在这里拦。
     """
     errors = []
@@ -122,7 +122,7 @@ def main() -> int:
         BASELINE.parent.mkdir(parents=True, exist_ok=True)
         BASELINE.write_text(
             "# dtx 注释里用到的命令清单，由 scripts/check-dtx-doc.py --update 生成。\n"
-            "# 新增命令时脚本会提示，确认 make doc 能过之后再更新本文件。\n"
+            "# 新增命令时脚本会提示，确认 make manual 能过之后再更新本文件。\n"
             + "\n".join(sorted(used)) + "\n", encoding="utf-8")
         print(f"基线已更新，收录 {len(used)} 个命令")
         return 0
@@ -139,7 +139,7 @@ def main() -> int:
     if new:
         print(f"\n注释里出现了 {len(new)} 个基线里没有的命令：")
         print("  " + "  ".join("\\" + n for n in new))
-        print("跑一遍 make doc 确认能编过，然后 scripts/check-dtx-doc.py --update 收进基线。")
+        print("跑一遍 make manual 确认能编过，然后 scripts/check-dtx-doc.py --update 收进基线。")
 
     if errors:
         print(f"\n共 {len(errors)} 处硬错误。")

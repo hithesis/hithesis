@@ -76,8 +76,8 @@ python3 scripts/regression_test.py --against dev    # 指定分支
 手册（`hithesis.pdf`）不在上面这套里，它有单独一条：
 
 ```sh
-make doc-baseline   # 动手改之前存一份
-make doc-check      # 改完重编，与基线逐页比
+make manual-baseline   # 动手改之前存一份
+make manual-check      # 改完重编，与基线逐页比
 ```
 
 参照的是改动前的自己，所以只能在本地跑，CI 取不到“改动前”的状态。要注意手册会把源码

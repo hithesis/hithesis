@@ -23,10 +23,11 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck mapcheck mapfix depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck mapcheck mapfix depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+        manual-baseline manual-check doc-baseline doc-check \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
-all: doc
+all: manual
 
 
 
@@ -59,10 +60,23 @@ distribute:
 	@cp $(DISTFILES) examples/demo/
 	@mkdir -p examples/demo/figures && cp $(FIGFILES) examples/demo/figures/
 
-doc: $(PACKAGE).pdf
+manual: $(PACKAGE).pdf
 
-viewdoc: doc
+viewmanual: manual
 	$(OPEN) $(PACKAGE).pdf
+
+# 手册的源文件在 v3.2a 从 src/doc/hit-doc.dtx 改名 src/manual/hit-manual.dtx，
+# 目标名跟着改成 manual。旧名留着当别名，先提示再转发，兼容期到 v4.1。
+# README 里给用户的 docker 用法示例写的是旧名，直接删会让那条命令不通。
+DEPRECATED_TARGET = @printf '\033[33m[hithesis]\033[0m make %s 已改名 make %s，旧名将在 v4.1 移除。\n'
+
+doc:
+	$(DEPRECATED_TARGET) doc manual
+	@$(MAKE) --no-print-directory manual
+
+viewdoc:
+	$(DEPRECATED_TARGET) viewdoc viewmanual
+	@$(MAKE) --no-print-directory viewmanual
 
 ifeq ($(METHOD),latexmk)
 
@@ -72,7 +86,7 @@ $(PACKAGE).pdf: $(TARGETS)
 else ifeq ($(METHOD),xelatex)
 
 # nonstopmode：手册里写错宏名之类的错误会让 xelatex 停在交互提示上等输入，
-# 无人看管时会一直挂着。cls 目标早就加了，doc 漏了。
+# 无人看管时会一直挂着。cls 目标早就加了，manual 漏了。
 $(PACKAGE).pdf: $(TARGETS)
 	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 	makeindex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
@@ -108,12 +122,20 @@ regression-test:
 tl-packages:
 	NPROC=$(NPROC) bash scripts/gen-tl-packages.sh
 
-# 改动前存一份手册基线，改完用 doc-check 比
-doc-baseline:
+# 改动前存一份手册基线，改完用 manual-check 比
+manual-baseline:
 	bash tools/doc-snapshot.sh save
 
-doc-check:
+manual-check:
 	bash tools/doc-snapshot.sh check
+
+doc-baseline:
+	$(DEPRECATED_TARGET) doc-baseline manual-baseline
+	@$(MAKE) --no-print-directory manual-baseline
+
+doc-check:
+	$(DEPRECATED_TARGET) doc-check manual-check
+	@$(MAKE) --no-print-directory manual-check
 
 testclean:
 	-rm -rf tests/work tests/current tests/diff tests/doc-current tests/doc-diff
@@ -147,7 +169,7 @@ changes-check:
 changes-fix:
 	@python3 scripts/changes.py --fix
 
-# dtx 注释里的文档宏检查。写错宏名不影响 cls 生成，只有 make doc 会报，
+# dtx 注释里的文档宏检查。写错宏名不影响 cls 生成，只有 make manual 会报，
 # 而那要跑一分多钟；这个几秒钟出结果，提交前先挡一道。
 doclint:
 	@python3 scripts/check-dtx-doc.py

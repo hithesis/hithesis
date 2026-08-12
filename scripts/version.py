@@ -11,7 +11,7 @@
    版本号在框内找，不认具体是哪一行——那个位置改过几回。横幅是等宽画，左边距是手工
    对齐过的（两行文字起点在同一列），所以只按原宽度补回右边的空白，不重新居中，
    否则右边的图形会错位。手册用 ``\\lstinputlisting`` 把示例源码贴进正文，这一处
-   同时就是手册里的展示，示例改完跑 ``make doc`` 即可。
+   同时就是手册里的展示，示例改完跑 ``make manual`` 即可。
 
 ``\\changes`` 条目里的版本号与正文里“v3.2a 起……”这类叙述不在同步范围内：前者
 是历史记录，后者说的是某项改动发生在哪一版，都不该跟着走。
@@ -180,7 +180,7 @@ def main() -> int:
             return 2
         print(f"版本号统一为 {args.set}" + (f"，日期 {args.date}" if args.date else ""))
         n = set_version(args.set, args.date)
-        print(f"共改动 {n} 处。手册里的展示由 \\lstinputlisting 引自示例，跑 make doc 即可跟上。")
+        print(f"共改动 {n} 处。手册里的展示由 \\lstinputlisting 引自示例，跑 make manual 即可跟上。")
         return 0
 
     found = collect()

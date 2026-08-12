@@ -246,7 +246,7 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
   或者在根目录编译文档
 
-      docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make doc
+      docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make manual
 
   或者直接在 examples/demo 下执行
 
@@ -342,7 +342,7 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
    - 半自动精确射击（编译敲一次）
 
-         make doc
+         make manual
 
 ### 打印版、电子版
 

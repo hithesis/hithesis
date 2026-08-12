@@ -61,7 +61,7 @@ hithesis/
 
 ```shell
 make cls          # 生成 cls/bst/ist/eps，并分发到四个示例目录
-make doc          # 编译用户手册 hithesis.pdf
+make manual       # 编译用户手册 hithesis.pdf
 make distribute   # 只做分发（cls 已经生成过时用）
 make clean        # 清理生成产物
 make changes       # 从 \changes 生成 RELEASE_NOTES.md
@@ -79,8 +79,8 @@ make depslist      # 按当前代码打印一份策略表骨架，加包时拿�
 make baseline        # 45 个变体全编一遍，渲染结果存成本地基线
 make smoke           # 重编并与本地基线逐页比
 make regression-test # 与参照版本逐页比，发版前跑
-make doc-baseline    # 改动前存一份手册 PDF
-make doc-check       # 改完与之比对
+make manual-baseline # 改动前存一份手册 PDF
+make manual-check    # 改完与之比对
 ```
 
 l3build 这条随 TeX Live 发行，不依赖 make / bash，三平台原生：
@@ -598,7 +598,7 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 
 迁移一个模块的验收三步，缺一不可：
 
-1. `make doc` 要过。手册会把 dtx 的注释排印出来，注释里写错宏名不会影响 `.cls`
+1. `make manual` 要过。手册会把 dtx 的注释排印出来，注释里写错宏名不会影响 `.cls`
    的生成，只在这一步暴露。已经踩过：`\opt{}` 本项目没有（应为 `\option{}`），
    `\cs{}` 的参数里 `_` 会被当成数学下标（要写 `\_`）。
 2. `l3build check` 全过。
@@ -670,19 +670,19 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 
 ```shell
 make baseline      # 45 个变体
-make doc-baseline  # 手册
+make manual-baseline  # 手册
 ```
 
 改完之后：
 
 ```shell
 make smoke      # 45 个变体与基线逐页比
-make doc-check  # 手册与基线逐页比
+make manual-check  # 手册与基线逐页比
 ```
 
 纯重构（只挪代码、不改行为）的验收标准是零差异。有意的样式调整则要逐页确认差异是否符合预期，`tests/diff/` 下有标红的差异图。
 
-手册有一点要注意：它会把源码连同行号一起排印，所以改代码必然让行号位移、索引重排。只有纯文档类改动才该期望 `make doc-check` 零差异。
+手册有一点要注意：它会把源码连同行号一起排印，所以改代码必然让行号位移、索引重排。只有纯文档类改动才该期望 `make manual-check` 零差异。
 
 CI 会在推送后跑这几项：
 
@@ -822,7 +822,7 @@ git push -u origin feature/my-topic
 
 ### 9.2b 版本号
 
-版本号散在三处：`src/hithesis.dtx` 的 `\ProvidesFile`（唯一的源，Makefile 取它命名发布包，手册封面的 `\date{v\fileversion (\filedate)}` 也读它）、同一文件里五条 `\ProvidesExplClass` / `\ProvidesExplFile`、以及四个示例开头 ASCII 横幅里的 `hithesis vX.Y`。手册里那四处展示是 `\lstinputlisting` 把示例源码贴进来的，改完示例跑一次 `make doc` 就跟上了。
+版本号散在三处：`src/hithesis.dtx` 的 `\ProvidesFile`（唯一的源，Makefile 取它命名发布包，手册封面的 `\date{v\fileversion (\filedate)}` 也读它）、同一文件里五条 `\ProvidesExplClass` / `\ProvidesExplFile`、以及四个示例开头 ASCII 横幅里的 `hithesis vX.Y`。手册里那四处展示是 `\lstinputlisting` 把示例源码贴进来的，改完示例跑一次 `make manual` 就跟上了。
 
 一处改全部同步：
 
@@ -852,8 +852,8 @@ make version-set VERSION=3.2b DATE=2026/08/07
 | 新加的 dtx 排在共用文件之后 | `Incompatible order of input files` | docstrip 给同一个 `\file` 里重复出现的输入文件按出现次序各记一条，全局只有一张追加式的文件表。两个 cls 各自大量引用同一个 dtx、之后又共用另一个 dtx，就排不出一致的先后。`reportcfg` 因此留在 `hit-report.dtx` 里没有单独成文件 |
 | 模块内残留 `\ProvidesPackage` | 日志里出现不存在的宏包 | 模块拼进 cls，不该有包身份声明 |
 | 守卫缺失 | 代码漏进别的文件 | 每个 `%<*X>` 都要有配对的 `%</X>` |
-| `\changes` 文本里写了 `=` | `make doc` 报 `Extra }`，修改记录那条目被拦腰截断 | `gglo.ist` 把 `=` 当 makeindex 的 actual 分隔符。改成 `\option{font} 取 \texttt{auto}` 这种写法，别写 `font=auto` |
-| 给 expl3 内部名套 `\begin{macro}` | `make doc` 报 `Missing $ inserted` | 名字里的 `_` 在文档模式下是下标。`\__hit_...` 这类只写普通说明，不套 `macro` 环境 |
+| `\changes` 文本里写了 `=` | `make manual` 报 `Extra }`，修改记录那条目被拦腰截断 | `gglo.ist` 把 `=` 当 makeindex 的 actual 分隔符。改成 `\option{font} 取 \texttt{auto}` 这种写法，别写 `font=auto` |
+| 给 expl3 内部名套 `\begin{macro}` | `make manual` 报 `Missing $ inserted` | 名字里的 `_` 在文档模式下是下标。`\__hit_...` 这类只写普通说明，不套 `macro` 环境 |
 | `\changes` 漏写 | 看不到历史脉络 | 迁移、重命名、删除都要写 |
 | 在 expl3 里走裸 `\input` 加载文件 | 被读进来的文件按 expl3 的 catcode 解析，带字面空格的键名散架。`\usetikzlibrary{calc}` 会报 `/tikz/cs/point/.storein` 未知 | `\RequirePackage` 没问题（LaTeX 加载宏包时会恢复 catcode），但 `\usetikzlibrary` 这类自己 `\input` 的要用 `\ExplSyntaxOff` 圈起来 |
 | 在 expl3 里用 `\patchcmd`/`\pretocmd`/`\apptocmd` | 目标宏的排版悄悄错位。etoolbox 会把宏体 detokenize 后按当前 catcode 重扫，体内的字面空格被吃掉。踩过一次：`\pretocmd{\@makefntext}` 让脚注整块上移 4.2pt，正文一个字没动、页数没变，`pdftotext` 比对看不出来 | 用 `\ExplSyntaxOff` 圈起来。fduthesis、bithesis、sjtuthesis 一处 etoolbox 补丁都不用，长远看这些补丁值得换掉 |
