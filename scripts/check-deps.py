@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -36,6 +37,34 @@ OUTPUTS = ["hit-thesis.cls", "hit-report.cls"]
 DEPS = {"flow/hit-thesis-deps.dtx", "flow/hit-report-deps.dtx"}
 
 REQ = re.compile(r"\\RequirePackage\s*(?:\[[^\]]*\])?\s*\{\s*([a-zA-Z0-9\-&]+)\s*\}")
+
+# 归了 sty 的包，类里一处都不该引用。这条反向检查扒出宏包新造了哪些名字，
+# 再回头扫类的代码。
+#
+# 只认 \new... 这一族：它们在名字已存在时会报错，所以出现即意味着这个名字是本包
+# 造的。\def 与 \renewcommand 不认，那两个改的往往是别人的东西——listings 里就有
+# 一句 \def\vskip{...}，认了它会说“listings 归了 sty 可类里在用 \vskip”。
+DEF_NEW = re.compile(
+    r"\\newcommand\s*\*?\s*\{?(\\[a-zA-Z@_:]+)"
+    r"|\\(?:New|Provide)DocumentCommand\s*\{?\s*(\\[a-zA-Z@_:]+)"
+    r"|\\new(?:length|dimen|skip|count|toks|savebox)\s*\{?(\\[a-zA-Z@_:]+)"
+    r"|\\newenvironment\s*\*?\s*\{\s*([a-zA-Z@*]+)\s*\}"
+    r"|\\(?:New|Provide)DocumentEnvironment\s*\{\s*([a-zA-Z@*]+)\s*\}"
+)
+
+# 排除用的这条要宽：内核与基类里 \@makecaption 这类是 \def 定义的，
+# 认不出来就会把类里正常的重定义当成宏包泄漏报出去
+DEF_ANY = re.compile(
+    DEF_NEW.pattern
+    + r"|\\(?:re)?newcommand\s*\*?\s*\{?(\\[a-zA-Z@_:]+)"
+      r"|\\DeclareRobustCommand\s*\*?\s*\{?(\\[a-zA-Z@_:]+)"
+      r"|\\(?:long\s*)?\\?def\s*(\\[a-zA-Z@_:]+)"
+      r"|\\renewenvironment\s*\*?\s*\{\s*([a-zA-Z@*]+)\s*\}"
+)
+
+# 内核与基类早就有的名字，谁重定义都不算它提供
+BASE_SOURCES = ["latex.ltx", "book.cls", "article.cls", "ctexbook.cls", "ctexart.cls",
+                "ctex.sty", "ctexhook.sty", "xeCJK.sty"]
 
 
 def install_map() -> dict[str, list[tuple[str, str]]]:
@@ -113,6 +142,56 @@ def policy() -> dict[str, tuple[set[str], str]]:
     return out
 
 
+def names_in(path: Path, rx: re.Pattern) -> set[str]:
+    """一个 sty/cls 定义了哪些宏名与环境名，环境名也按宏名存。"""
+    out = set()
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.split("%")[0]
+        for m in rx.finditer(line):
+            g = next(x for x in m.groups() if x)
+            out.add(g if g.startswith("\\") else "\\" + g)
+    # expl3 的内部名不算对外接口，长度太短的重名风险太大
+    return {n for n in out if len(n) > 3 and "_" not in n and ":" not in n}
+
+
+_base: set[str] | None = None
+
+
+def base_names() -> set[str]:
+    global _base
+    if _base is None:
+        _base = set()
+        for f in BASE_SOURCES:
+            r = subprocess.run(["kpsewhich", f], capture_output=True, text=True)
+            if r.stdout.strip():
+                _base |= names_in(Path(r.stdout.strip()), DEF_ANY)
+    return _base
+
+
+def sty_leaks() -> list[str]:
+    """归了 sty 的包，类里却在用它提供的东西。"""
+    sty_pkgs = sorted(p for p, (spots, _w) in policy().items() if spots == {"sty"})
+    blocks = [(p, g) for seq in install_map().values() for p, g in seq]
+    code = {p: guard_code(p, g) for p, g in blocks}
+    out = []
+    for pkg in sty_pkgs:
+        r = subprocess.run(["kpsewhich", pkg + ".sty"], capture_output=True, text=True)
+        if not r.stdout.strip():
+            continue
+        for name in sorted(names_in(Path(r.stdout.strip()), DEF_NEW) - base_names()):
+            # expl3 下写成 \begin { name }，中间有空格，两种都要认
+            pat = re.compile(re.escape(name) + r"(?![a-zA-Z@])"
+                             r"|\\begin\s*\{\s*" + re.escape(name[1:]) + r"\s*\}")
+            for path, text in code.items():
+                if "deps" in path:
+                    continue
+                if pat.search(text):
+                    out.append("%s 归了 sty，可 %s 里在用它的 %s。"
+                               "类要用就得由类加载" % (pkg, path, name))
+                    break
+    return out
+
+
 def check() -> int:
     got, want = actual(), policy()
     problems = []
@@ -137,6 +216,8 @@ def check() -> int:
 
     for pkg in sty_duplicates():
         problems.append("%s 在 src/hit-sty.dtx 里装了不止一次" % pkg)
+
+    problems += sty_leaks()
 
     if problems:
         print("宏包归属对不上：\n")
