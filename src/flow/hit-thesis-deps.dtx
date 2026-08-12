@@ -20,10 +20,14 @@
 %
 % \changes{v3.2a}{0000/00/00}{三段 \texttt{*-deps-a/b/c} 合成一段。
 %   \texttt{deps-b} 里一行代码都没有，是当年把 \pkg{geometry} 拆出去时留下的空壳}
+% \changes{v3.2a}{0000/00/00}{改掉这里写错的顺序理由。原先写「\pkg{geometry} 必须
+%   早于本文件里的 \pkg{fancyhdr}」，可 \pkg{fancyhdr} 由排在更前面的
+%   \file{hit-thesis-pagestyle.dtx} 加载，本文件那句是重复加载，已删}
 % 装配序列上它夹在 \file{hit-thesis-geometry.dtx} 与 \file{hit-thesis-hyperlink.dtx}
-% 之间：\pkg{geometry} 必须早于本文件里的 \pkg{fancyhdr}，后者加载时按
-% \cs{textwidth} 算页眉宽度；\pkg{hyperref} 要落到所有包之后。这两条之外，
-% 本文件里的包彼此没有先后要求。
+% 之间。真正的硬约束只有一条：\pkg{hyperref} 要落到所有包之后，所以
+% \file{hit-thesis-hyperlink.dtx} 排在本文件后面。\pkg{geometry} 提前是为了让版心
+% 在任何按 \cs{textwidth} 算尺寸的包之前定下来，这条是稳妥起见，不是必须。
+% 本文件内部各个包彼此没有先后要求。
 %
 % ^^A ======================================================================
 % ^^A Module thesis-deps: 第三方宏包集中加载与基础配置（含 hyperlink/geometry 内联）（hit-thesis）
@@ -34,15 +38,16 @@
 % \label{sec:loadpackage}
 %
 % 引用的宏包和相应的定义。
+%
+% \changes{v3.2a}{0000/00/00}{删掉这里的 \pkg{etoolbox}。
+%   \file{src/setup/hit-keylist.dtx} 早就装过一次，这句是重复加载}
 %    \begin{macrocode}
 %<*thesis-deps>
-\RequirePackage{etoolbox}
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{book-deps-a 的引擎检查改用 \cs{sys\_if\_engine\_xetex:F}，
 %   与 art-deps-a 保持一致。报错文本里的空格写成 \texttt{\~{}}}
 %    \begin{macrocode}
-\RequirePackage{xparse}
 %    \end{macrocode}
 %
 % \changes{v3.2a}{0000/00/00}{数学部分抽到 \file{src/utils/hit-math.dtx}}
@@ -80,6 +85,12 @@
 %    \end{macrocode}
 %
 % 更好的列表环境。
+%
+% \pkg{environ} 的唯一消费者是 \file{src/setup/hit-keylist.dtx} 里
+% \env{abstract-zh}、\env{abstract-en} 两个环境用的 \cs{Collect@Body}。按「只有一个
+% 模块调就在那个模块里 \cs{RequirePackage}」的规矩本该搬过去，但 keylist 在装配
+% 序列上排在 \cs{LoadClass} 之前，那里加载宏包会抢在 \pkg{ctexbook} 前头。所以留在
+% 这儿，\file{scripts/check-deps.py} 的豁免表里记了同样的理由。
 %    \begin{macrocode}
 \hit@setup@list@packages
 \RequirePackage{environ}
@@ -97,11 +108,9 @@
 %   统一由 \cs{quan} 排：先取当前宋体的真字符（\texttt{①}–\texttt{⑩}），超出字体
 %   可用范围才画圈。\pkg{pifont} 那套 Dingbats 字形与正文中文字体不搭}
 %
-% 利用 \pkg{xeCJKfntef} 实现汉字的下划线和盒子内两段对齐，并可以避免
-% \cs{makebox}\oarg{width}\oarg{s} 可能产生的 underful boxes。
-%    \begin{macrocode}
-\RequirePackage{xeCJKfntef}
-%    \end{macrocode}
+% \changes{v3.2a}{0000/00/00}{\pkg{xeCJKfntef} 挪进 \file{src/hit-sty.dtx}。
+%   类的封面排下划线走的是 \cs{underline}\marg{\cs{makebox}\oarg{宽度}\marg{文字}}，
+%   \cs{CJKunderline} 那一族类里一处都不调}
 %
 % 表格控制
 %    \begin{macrocode}
@@ -154,27 +163,30 @@
   }
 %    \end{macrocode}
 %
-% 利用 \pkg{fancyhdr} 设置页眉页脚。
-%    \begin{macrocode}
-\RequirePackage{fancyhdr}
-%    \end{macrocode}
+% \changes{v3.2a}{0000/00/00}{删掉这里的 \pkg{fancyhdr}。
+%   \file{src/flow/hit-thesis-pagestyle.dtx} 在装配序列上排在前面，早就装过了}
+% 页眉页脚由 \file{src/flow/hit-thesis-pagestyle.dtx} 加载 \pkg{fancyhdr} 并设置。
 %
 % 其他包，表格、数学符号包
 % \changes{v1.0.06}{2017/10/25}{此处添加子图最后一行图题是否居中选项}
 %    \begin{macrocode}
 \RequirePackage{tabularx}
 \RequirePackage{xltabular}
-\RequirePackage{varwidth}
 %    \end{macrocode}
 %
-% 此处changepage环境用来控制索引页面的左右边距，规范中给出的示例的边距要大于正文。
-% \changes{v1.0.10}{2018/02/19}{修改了索引的间距，使其更符合规范中的示例}
+% \changes{v3.2a}{0000/00/00}{删掉 \pkg{varwidth}。仓库里它唯一一次出现是建仓那个
+%   提交里章标题缩进盒子的注释行，从没真正用过}
+%
+% \changes{v3.2a}{0000/00/00}{\pkg{changepage} 与 \pkg{multicol} 挪进
+%   \file{src/pages/hit-thesis-backmatter.dtx}，只有索引那一页调它们}
+% \changes{v3.2a}{0000/00/00}{\pkg{placeins} 与 \pkg{multirow} 挪进
+%   \file{src/hit-sty.dtx}。\cs{FloatBarrier} 与 \cs{multirow} 类里一处都不调，
+%   是替用户预装的}
+%
+% \pkg{flafter} 没有对外的宏，装上就重定义内核的 \cs{@addtocurcol}，让浮动体不会
+% 出现在引用它的正文之前。扒不出消费者，但类的排版结果依赖它，留在这儿。
 %    \begin{macrocode}
-\RequirePackage{changepage}
-\RequirePackage{multicol}
-\RequirePackage[below]{placeins}%允许上一个section的浮动图形出现在下一个section的开始部分,还提供\FloatBarrier命令,使所有未处理的浮动图形立即被处理
-\RequirePackage{flafter}       % 使得所有浮动体不能被放置在其浮动环境之前，以免浮动体在引述它的文本之前出现.
-\RequirePackage{multirow}       %使用Multirow宏包，使得表格可以合并多个row格
+\RequirePackage{flafter}
 \RequirePackage{subcaption}%支持子图，必须在 ccaption 之前
 \RequirePackage{ccaption} %支持双语标题
 %    \end{macrocode}
