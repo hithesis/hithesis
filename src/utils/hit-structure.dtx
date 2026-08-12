@@ -134,6 +134,48 @@
 \__hit_structure_declare:nnn { index }            { back }  { back }
 \__hit_structure_declare:nnn { authorization }    { back }  { back }
 \__hit_structure_declare:nnn { resume }           { back }  { back }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\option{resolution} 与 \option{authorization} 加带
+%   星号的同名键，取代 \cs{resolution*} 那个可选参数。这两块的三种排法就都在
+%   \option{struct} 里了：\texttt{auto}/\texttt{true}/\texttt{false} 是排出来，
+%   给文件名是贴那个 PDF，带星号的给文件名是贴 PDF 并排页码}
+% 答辩决议与授权书各多一个带星号的键。这两块与别的部件不同，除了「排不排」还有
+% 「贴一份扫描件」这条路，扫描件又分排不排页码，原先靠 \cs{resolution*}\oarg{文件}
+% 表达。现在统一进 \option{struct}：
+% \begin{longtable}{ll}
+% \toprule
+% 写法 & 结果 \\\midrule
+% \endfirsthead
+% \option{resolution} = \texttt{auto} & 只有博士排，排版式表格 \\
+% \option{resolution} = \texttt{true} & 都排，排版式表格 \\
+% \option{resolution} = \texttt{false} & 不排 \\
+% \option{resolution} = \meta{文件} & 贴这个 PDF，不排页码 \\
+% \option{resolution*} = \meta{文件} & 贴这个 PDF，排页码 \\\bottomrule
+% \end{longtable}
+% \option{authorization} 一样，只是没有 \texttt{auto} 那一档。
+%
+% 带星号那个键存进同一个变量，另外把星号标志位置上，所以两个键写哪个都只有
+% 一份取值，后写的覆盖先写的，与别的部件一个规矩。
+%    \begin{macrocode}
+\bool_new:N \g__hit_structure_resolution_star_bool
+\bool_new:N \g__hit_structure_authorization_star_bool
+\keys_define:nn { hit / struct / back }
+  {
+    resolution * .code:n =
+      {
+        \bool_gset_true:N \g__hit_structure_resolution_star_bool
+        \__hit_structure_place:nnn { resolution } { back } {#1}
+      } ,
+    authorization * .code:n =
+      {
+        \bool_gset_true:N \g__hit_structure_authorization_star_bool
+        \__hit_structure_place:nnn { authorization } { back } {#1}
+      } ,
+  }
+%    \end{macrocode}
+%    \begin{macrocode}
+
 \__hit_structure_declare:nnn { acknowledgements } { back }  { front , back }
 \keys_define:nn { hit / struct }
   {
@@ -171,6 +213,39 @@
 % \begin{macro}{\hit@structure@part:nn}
 % \cs{hit@structure@part:nn}\marg{部件}\marg{动作}：这个部件设了值而且不是
 % \texttt{false} 才做那个动作。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{加 \cs{hit@structure@scanned:nnn}，把「排出来还是
+%   贴扫描件」这个分岔收在一处}
+% 答辩决议与授权书这两块的取值有两种意思：\texttt{auto}/\texttt{true}/\texttt{false}
+% 说的是排不排，别的都当文件名，贴那个 PDF。带星号的键还要排页码。
+%
+% \meta{部件名}\marg{排出来的代码}：值不是那三个词就走 \cs{includepdf} 那条路，
+% 星号看的是同名的星号标志位。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@structure@scanned:nn #1#2
+  {
+    \hit@structure@part:nn {#1}
+      {
+        \exp_args:Nv \__hit_structure_scanned_aux:nnn
+          { g__hit_structure_#1_tl } {#1} {#2}
+      }
+  }
+\cs_new_protected:Npn \__hit_structure_scanned_aux:nnn #1#2#3
+  {
+    \str_case:nnF {#1}
+      {
+        { auto } {#3}
+        { true } {#3}
+      }
+      {
+        \bool_if:cTF { g__hit_structure_#2_star_bool }
+          { \use:c {#2} * [#1] }
+          { \use:c {#2} [#1] }
+      }
+  }
+%    \end{macrocode}
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@structure@part:nn #1#2
   {
