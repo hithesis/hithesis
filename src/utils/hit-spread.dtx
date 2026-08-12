@@ -77,23 +77,27 @@
 % 「5 个字 + 4 段 0.5\cs{ccwd}」，\texttt{合作导师} 写成「4 个字 + 3 段 \cs{ccwd}」，
 % 字算的是字宽、间距算的是 \cs{ccwd}，两条式子把同一个差额放大成不同的量，
 % 一个 99.94bp、一个 100.72bp，值那一列对不齐。
+%
+% \changes{v3.2a}{0000/00/00}{分散对齐的三套实现并成一套，底层统一走
+%   \pkg{xeCJKfntef} 的 \env{CJKfilltwosides}}
+% \textbf{底层是 \env{CJKfilltwosides}。} 原先这里自己写了一遍：\cs{hbox\_to\_wd:nn}
+% 套 \cs{tl\_map\_inline:Nn}，每两个记号之间塞一个 \cs{hfill}。那个写法在纯汉字上
+% 与现在等价（45 变体逐字节相同），碰上标点就不对：\texttt{学院（部} 会被排成
+% 「学\ 院\ （\ 部」，左括号后面多出一格。\env{CJKfilltwosides} 撑开的是 xeCJK 的
+% \cs{CJKglue}，标点前后本来就没有这段胶，所以不会。
+%
+% 同一个道理，封面上原先还有第三套写法 \cs{makebox}\oarg{宽度}\oarg{s}，也并到
+% 这里了。它撑开的同样是 \cs{CJKglue}，结果一致，只是内容撑不满时会报
+% underfull box。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@spread@to:nn #1#2
-  {
-    \tl_set:No \l__hit_spread_tl {#2}
-    \hbox_to_wd:nn {#1}
-      {
-        \bool_set_true:N \l__hit_spread_first_bool
-        \tl_map_inline:Nn \l__hit_spread_tl
-          {
-            \bool_if:NTF \l__hit_spread_first_bool
-              { \bool_set_false:N \l__hit_spread_first_bool }
-              { \hfill }
-            ##1
-          }
-      }
-  }
+  { \begin { CJKfilltwosides } [b] {#1} #2 \end { CJKfilltwosides } }
 %    \end{macrocode}
+%
+% \env{CJKfilltwosides} 是个 \env{minipage}，内容比给的宽度宽就折行。要的是「压进
+% 这个宽度、不折行」的话它做不到，那种情况仍写 \cs{makebox}\oarg{宽度}\oarg{s}。
+% \file{src/setup/hit-defaults.dtx} 里 \option{graduate-major-field-label} 的
+% \texttt{学科/专业学位类别} 是唯一一处：九个字压进八个字宽。
 %
 % \changes{v3.2a}{0000/00/00}{两个宏各加一个不带冒号的名字，给 expl3 之外的取值用}
 % 配置层的取值是在 \pkg{expl3} 之外记号化的（见 CONTRIBUTING §4.7），那里 \texttt{:}
