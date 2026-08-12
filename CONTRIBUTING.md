@@ -62,7 +62,6 @@ hithesis/
 ```shell
 make cls          # 生成 cls/bst/ist/eps，并分发到四个示例目录
 make doc          # 编译用户手册 hithesis.pdf
-make doc-vertical # 手册的竖排版：前面多一张仿武英殿版式的标题叶，正文照旧横排
 make distribute   # 只做分发（cls 已经生成过时用）
 make clean        # 清理生成产物
 make changes       # 从 \changes 生成 RELEASE_NOTES.md
