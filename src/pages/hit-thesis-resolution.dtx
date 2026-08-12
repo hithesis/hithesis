@@ -774,17 +774,24 @@
   }
 %    \end{macrocode}
 %
-% \begin{macro}{\resolution}
+% \begin{macro}{\hit@resolution@place}
 % \changes{v3.2a}{0000/00/00}{\cs{resolution} 迁到 expl3}
-% \cs{resolution} 三种用法：给 PDF 就贴那个 PDF，带星号连页码一起排；不给就按
+% 三种用法：给 PDF 就贴那个 PDF，带星号连页码一起排；不给就按
 % \texttt{defense} 族的数据排出来，没数据就是一张空表。
 %
 % \changes{v3.2a}{0000/00/00}{不给文件时改成排版式表格，不再贴
 %   \file{figures/empty-resolution.pdf}。那张图随之删掉}
-% 学位这一层的判断挪到了 \cs{struct} 的 \option{resolution} 键上（\texttt{auto}
+% 学位这一层的判断挪到了 \option{struct} 的 \option{defense} 键上（\texttt{auto}
 % 只有博士排，\texttt{true} 谁都排），所以这里不再自己查 \option{doctor}。
+%
+% \changes{v3.2a}{0000/00/00}{排版的活挪进 \cs{hit@resolution@place}，
+%   \cs{resolution} 只剩一层带废弃提示的转发}
+% \textbf{为什么要拆成两个。} \cs{resolution} 是 v3.1e 的写法，v3.2a 起由
+% \option{struct} 的 \option{defense} 键接管，用户再调它要给一句废弃提示。
+% 但类自己排这一页走的也是同一段代码，提示不能跟着响。所以排版的活留在这个
+% 内部命令里，\cs{resolution} 只负责提示再转发过来。
 %    \begin{macrocode}
-\NewDocumentCommand \resolution { s o }
+\NewDocumentCommand \hit@resolution@place { s o }
   {
     \hit@clear@page
     \IfNoValueTF {#2}
@@ -812,6 +819,30 @@
               [ fitpaper=true , pages=- ,
                 pagecommand={\thispagestyle{empty}} ] {#2}
           }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\resolution}
+% \changes{v3.2a}{0000/00/00}{\cs{resolution} 与 \cs{resolution*} 列为旧写法，
+%   调用时提示改用 \option{struct} 的 \option{defense} 键}
+% 旧写法，转发到上面那个。提示一份文档只报一次。
+%    \begin{macrocode}
+\NewDocumentCommand \resolution { s o }
+  {
+    \hit@warn@renamed@command { resolution }
+      { struct/backmatter/defense }
+    \IfBooleanTF {#1}
+      {
+        \IfNoValueTF {#2}
+          { \hit@resolution@place * }
+          { \hit@resolution@place * [{#2}] }
+      }
+      {
+        \IfNoValueTF {#2}
+          { \hit@resolution@place }
+          { \hit@resolution@place [{#2}] }
       }
   }
 %    \end{macrocode}
