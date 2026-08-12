@@ -154,17 +154,18 @@ src/
 
 | 要改什么 | 打开哪个 |
 |---|---|
-| 毕业论文的任何行为 | `src/hit-thesis.dtx` |
+| 不知道该改哪 | `src/hit-thesis.dtx`、`src/hit-report.dtx` 开头的装配表：这个类由哪些文件按什么顺序拼出来，一目了然 |
 | 常量的默认值（改学校规范） | `src/setup/hit-defaults.dtx` |
 | 有哪些信息字段与常量 | `src/setup/hit-keylist.dtx` |
-| 这个类有哪些类选项 | `src/hit-thesis.dtx`、`src/hit-report.dtx` 的 `*-options` 守卫 |
+| 这个类有哪些类选项 | `src/setup/hit-thesis-options.dtx`、`src/setup/hit-report-options.dtx` |
 | 键与选项的声明机制 | `src/setup/hit-*-engine.dtx` |
 | 改一句提示文案 | `src/utils/hit-messages.dtx` 一处，24 条全在里面 |
 | 前置后置排哪些部件 | `src/utils/hit-structure.dtx` 声明键，`src/flow/hit-*-matter.dtx` 定顺序 |
-| 开题、中期报告 | `src/hit-report.dtx` |
+| 第三方宏包加载与先后 | `src/flow/hit-thesis-deps.dtx`、`src/flow/hit-report-deps.dtx` |
+| 哪个类装哪个基础类 | `src/hit-thesis.dtx`、`src/hit-report.dtx`，各只有一句 `\LoadClass` |
 | 各个类共用的小工具 | `src/utils/hit-*.dtx` |
 | 论文的某一页 | `src/pages/hit-thesis-*.dtx`、`src/pages/hit-report-*.dtx` |
-| 版心、页眉、标题、浮动体 | `src/flow/hit-thesis-*.dtx`、`src/flow/hit-report-*.dtx` |
+| 版心、页眉、标题、浮动体、字体、数学、脚注 | `src/flow/hit-thesis-*.dtx`、`src/flow/hit-report-*.dtx` |
 | 参考文献样式 | `src/hit-bst.dtx` |
 | 索引排序样式 | `src/hit-ist.dtx` |
 | 排手册用的样式 | `src/hit-dtx-style.dtx` |

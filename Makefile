@@ -23,7 +23,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck mapcheck eps2pdf logcheck logcheck-update version-changes \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
 all: doc
@@ -181,6 +181,12 @@ eps2pdf: cls
 	done
 	@shasum -a 256 $(EPSSOURCES) > tools/eps.sha256
 	@echo "assets/ 里 $(words $(EPSSOURCES)) 份 PDF 已更新，哈希记进 tools/eps.sha256"
+
+# 两个类骨架开头的装配表与 install 守卫比对。装配表是给开发者用的路标：
+# 想知道“章节标题在哪处理”，打开叫 hit-thesis 的那个文件就看得到。
+# 它是副本，会陈旧，所以机器盯着。
+mapcheck:
+	@python3 scripts/check-map.py
 
 # 产物清单交叉校验：install 守卫、tools/distfiles.txt、build.lua 的 installfiles、
 # 安装横幅，四份两两对上。加一个产物只改 install 守卫，剩下三份漏了这里会说。
