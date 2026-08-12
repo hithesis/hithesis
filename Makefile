@@ -23,7 +23,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck mapcheck eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck mapcheck mapfix eps2pdf logcheck logcheck-update version-changes \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
 all: doc
@@ -187,6 +187,10 @@ eps2pdf: cls
 # 它是副本，会陈旧，所以机器盯着。
 mapcheck:
 	@python3 scripts/check-map.py
+
+# install 守卫改完跑这个，两张装配表按它重新生成
+mapfix:
+	@python3 scripts/check-map.py --fix
 
 # 产物清单交叉校验：install 守卫、tools/distfiles.txt、build.lua 的 installfiles、
 # 安装横幅，四份两两对上。加一个产物只改 install 守卫，剩下三份漏了这里会说。

@@ -154,7 +154,7 @@ src/
 
 | 要改什么 | 打开哪个 |
 |---|---|
-| 不知道该改哪 | `src/hit-thesis.dtx`、`src/hit-report.dtx` 开头的装配表：这个类由哪些文件按什么顺序拼出来，一目了然 |
+| 不知道该改哪 | `src/hit-thesis.dtx`、`src/hit-report.dtx` 开头的装配表：这个类由哪些文件按什么顺序拼出来，一目了然。表是 `install` 守卫的产物，改完那边跑 `make mapfix` |
 | 常量的默认值（改学校规范） | `src/setup/hit-defaults.dtx` |
 | 有哪些信息字段与常量 | `src/setup/hit-keylist.dtx` |
 | 这个类有哪些类选项 | `src/setup/hit-thesis-options.dtx`、`src/setup/hit-report-options.dtx` |
