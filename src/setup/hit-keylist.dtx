@@ -358,6 +358,10 @@
     postdoc-research-start-date-field-label , postdoc-report-submit-date-field-label ,
     postdoc-co-supervisor-field-label , publication-heading-zh , publication-heading-en ,
     resolution-heading-zh , resolution-heading-en , resume-heading-zh , resume-heading-en ,
+    resolution-reviewer-label , resolution-name-label , resolution-title-label ,
+    resolution-affiliation-label , resolution-discipline-label , resolution-role-label ,
+    resolution-committee-label , resolution-chair-label , resolution-member-label ,
+    resolution-secretary-label , resolution-conclusion-label ,
     bachelor-second-authorization-text , bachelor-thesis-field-label , title-separator-en
   }
 %    \end{macrocode}
@@ -559,6 +563,73 @@
           { manual-sides } { }
       }
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{加 \texttt{defense} 族：评阅人与答辩委员会名单、
+%   答辩决议正文。原先答辩决议那一页只能贴扫描件，现在可以直接填}
+% \texttt{defense} 族收答辩决议那一页要的数据。一个人一条记录，字段具名：
+% \begin{latex}
+% \hitsetup{ defense = {
+%   reviewer = {name=张三, title=教授（博导）, affiliation=哈尔滨工业大学,
+%               discipline=控制科学与工程},
+%   reviewer = {name=李四, …},
+%   chair     = {…},
+%   member    = {…},
+%   secretary = {…},
+%   conclusion = {答辩委员会经过讨论，一致同意通过答辩，建议授予工学博士学位。},
+% } }
+% \end{latex}
+%
+% \textbf{同一个键写多遍是累加，不是覆盖。} \option{reviewer} 与 \option{member}
+% 靠这个收任意条。\pkg{l3keys} 按书写顺序逐条执行，键的代码是「往队列右边追加」，
+% 写几遍就是几个人，顺序也就是写的顺序。
+%
+% 四个名单各一个队列，与纸质表的分块一一对应。每一项存的是那个人的整串键值，
+% 排版时再解开，所以少写一个字段只是那一格空着，不会像并列列表那样把后面全顶错位。
+%    \begin{macrocode}
+\seq_new:N \g__hit_defense_reviewer_seq
+\seq_new:N \g__hit_defense_chair_seq
+\seq_new:N \g__hit_defense_member_seq
+\seq_new:N \g__hit_defense_secretary_seq
+\tl_new:N  \g__hit_defense_conclusion_tl
+\keys_define:nn { hit / defense }
+  {
+    reviewer   .code:n = { \seq_gput_right:Nn \g__hit_defense_reviewer_seq  {#1} } ,
+    chair      .code:n = { \seq_gput_right:Nn \g__hit_defense_chair_seq     {#1} } ,
+    member     .code:n = { \seq_gput_right:Nn \g__hit_defense_member_seq    {#1} } ,
+    secretary  .code:n = { \seq_gput_right:Nn \g__hit_defense_secretary_seq {#1} } ,
+    conclusion .code:n = { \tl_gset:Nn \g__hit_defense_conclusion_tl {#1} } ,
+    unknown .code:n =
+      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
+  }
+%    \end{macrocode}
+%
+% 一条记录里的四个字段。排版时把一项喂进这个族，四个变量就有了值；
+% 每次解开之前先清空，免得上一个人的值漏到下一个人身上。
+%    \begin{macrocode}
+\tl_new:N \l__hit_defense_name_tl
+\tl_new:N \l__hit_defense_title_tl
+\tl_new:N \l__hit_defense_affiliation_tl
+\tl_new:N \l__hit_defense_discipline_tl
+\keys_define:nn { hit / defense / person }
+  {
+    name        .tl_set:N = \l__hit_defense_name_tl ,
+    title       .tl_set:N = \l__hit_defense_title_tl ,
+    affiliation .tl_set:N = \l__hit_defense_affiliation_tl ,
+    discipline  .tl_set:N = \l__hit_defense_discipline_tl ,
+    unknown .code:n =
+      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
+  }
+\cs_new_protected:Npn \hit@defense@unpack:n #1
+  {
+    \tl_clear:N \l__hit_defense_name_tl
+    \tl_clear:N \l__hit_defense_title_tl
+    \tl_clear:N \l__hit_defense_affiliation_tl
+    \tl_clear:N \l__hit_defense_discipline_tl
+    \keys_set:nn { hit / defense / person } {#1}
+  }
+%    \end{macrocode}
+%    \begin{macrocode}
 \__hit_check_class_options:
 \keys_define:nn { hit }
   {
@@ -570,6 +641,7 @@
     math  .meta:nn = { hit / math  } {#1} ,
     struct .code:n =
       { \__hit_structure_reset_written: \keys_set:nn { hit / struct } {#1} } ,
+    defense .meta:nn = { hit / defense } {#1} ,
     thm .code:n = { \hit@theorem@style {#1} } ,
     unknown .code:n = { \__hit_legacy_key:n {#1} } ,
   }
