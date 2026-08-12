@@ -1,0 +1,57 @@
+% 日期字段收 ISO 数字，各处按自己的语言与精度排。
+%
+% 四件事：补零与不补零都认；精度只嫌少不嫌多；写得不够细报一句；
+% 非 ISO 原样排另报一句。
+%
+% 断言打的是排版结果，所以要装进盒子再量——取值是个 protected 宏，
+% \typeout 打出来只是宏名。这里改用 \typeout 打不出，换成把结果写进文件流。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master,campus=harbin]{hit-thesis}
+\begin{document}
+\START
+\makeatletter
+\ExplSyntaxOn
+\tl_new:N \l_shown_tl
+\cs_new_protected:Npn \SHOW #1#2
+  {
+    \hbox_set:Nn \l_tmpa_box { #2 }
+    \iow_term:x { #1 ~ 宽度 = \dim_use:N \box_wd:N \l_tmpa_box }
+  }
+
+% 中文硕士要年月：补零的、不补零的、多写了日的，排出来该一样宽
+\TEST{zh master keeps year and month}{
+  \hitsetup{ info = { date-zh = {2026-07} } }
+  \SHOW { a } \hit@date@zh
+  \hitsetup{ info = { date-zh = {2026-7} } }
+  \SHOW { b } \hit@date@zh
+  \hitsetup{ info = { date-zh = {2026-07-07} } }
+  \SHOW { c } \hit@date@zh
+}
+
+% 英文要年月
+\TEST{en keeps year and month}{
+  \hitsetup{ info = { date-en = {2026-07-07} } }
+  \SHOW { en } \hit@date@en
+}
+
+% 只写到年，而这一处要年月：排出来只有年，另报一句
+\TEST{year only warns}{
+  \hitsetup{ info = { date-zh = {2026} } }
+  \SHOW { yearonly } \hit@date@zh
+}
+
+% 非 ISO：原样排，另报一句
+\TEST{non iso prints verbatim}{
+  \hitsetup{ info = { date-zh = {二〇二六年六月} } }
+  \SHOW { verbatim } \hit@date@zh
+}
+
+% 同一个字段只报一次
+\TEST{warned once per field}{
+  \hitsetup{ info = { date-zh = {超新星纪元} } }
+  \SHOW { again } \hit@date@zh
+}
+\ExplSyntaxOff
+\makeatother
+\END
+\end{document}
