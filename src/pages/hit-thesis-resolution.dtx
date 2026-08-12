@@ -25,77 +25,173 @@
 \RequirePackage { tabularray }
 %    \end{macrocode}
 %
-% 表格的三种宽度：四个数据列的宽度、左侧标签列的宽度、委员会表那道竖排标签列的宽度。
-% 学校改表格比例就改这三行。
+% \subsection{版式尺寸}
+%
+% \changes{v3.2a}{0000/00/00}{表格尺寸照原来那张扫描空表逐项量出来，
+%   行高、列宽、决议区高度、线宽都对齐，换成排版之后版面不动}
+% 下面这些数是把 v3.1e 那张 \file{empty-resolution.pdf} 按 300\,dpi 渲染出来，
+% 逐条量框线位置得到的。那张图是 437 $\times$ 579\,pt 的一页，贴进论文时按
+% \cs{includegraphics}\oarg{width=\cs{textwidth}} 缩放，所以这里一律写成
+% 「原尺寸 $\times$ \cs{linewidth} $\div$ 437」，缩放比例跟着版心走，与原来一致。
+%
+% \begin{longtable}{ll}
+% \toprule
+% 量出来的 & 值（437\,pt 页宽下） \\\midrule
+% \endfirsthead
+% 行高 & 21.72\,pt，十三行等高 \\
+% 列宽 & 33.60、42.72、56.64、106.32、92.16、104.40\,pt，合计 435.84 \\
+% 决议区高 & 293.76\,pt \\
+% 横线 & 0.72\,pt \\
+% 竖线 & 0.48\,pt \\\bottomrule
+% \end{longtable}
+%
+% \textbf{三块是一张表，不是三张。} 原表的横线是共用的：评阅人那块的底线就是
+% 委员会那块的顶线，委员会的底线就是决议区的顶线。拆成三张表各画各的框，
+% 接缝处会出现两道线，总高也就多出几个线宽，对不上原来的版面。所以整页排成
+% 一张六列的 \env{tblr}，靠 \cs{SetCell} 合并出三块不同的列结构。
 %    \begin{macrocode}
-\dim_new:N \g__hit_resolution_label_dim
-\dim_new:N \g__hit_resolution_role_dim
-\dim_new:N \g__hit_resolution_name_dim
-\dim_new:N \g__hit_resolution_title_dim
-\dim_new:N \g__hit_resolution_unit_dim
-\dim_new:N \g__hit_resolution_wide_dim
+\dim_new:N \g__hit_res_row_dim
+\dim_new:N \g__hit_res_ca_dim   \dim_new:N \g__hit_res_cb_dim
+\dim_new:N \g__hit_res_cab_dim  \dim_new:N \g__hit_res_cc_dim
+\dim_new:N \g__hit_res_cd_dim   \dim_new:N \g__hit_res_ce_dim
+\dim_new:N \g__hit_res_cf_dim   \dim_new:N \g__hit_res_total_dim
+\dim_new:N \g__hit_res_concl_dim
+\dim_new:N \g__hit_res_conclw_dim
+\dim_const:Nn \c__hit_res_colsep_dim { 3pt }
+\dim_const:Nn \c__hit_res_hrule_dim  { 0.72pt }
+\dim_const:Nn \c__hit_res_vrule_dim  { 0.48pt }
+%    \end{macrocode}
+%
+% 最后这一点是量出来补的。\pkg{tabularray} 每一行在 \texttt{ht} 之外还带一点内边距，
+% 十三行累下来整表比原表矮 1.65\,pt，补回决议区那一格。换 \pkg{tabularray} 版本时
+% 拿空表跟 v3.1e 那张图按 300\,dpi 逐条量框线复核，差值不该超过半个点。
+%    \begin{macrocode}
+\dim_const:Nn \c__hit_res_fudge_dim  { 1.65pt }
+%    \end{macrocode}
+%
+% \pkg{tabularray} 每个格子上下各留一点内边距，实测两边合计 6\,pt。决议那一格的
+% \cs{parbox} 要比行高矮这么多，否则会把行撑高。
+%    \begin{macrocode}
+\dim_const:Nn \c__hit_res_pad_dim    { 6pt }
+%    \end{macrocode}
+%
+% 缩放的基准页宽。原图标称 437\,pt，但贴进论文时按 \cs{includegraphics} 缩放，
+% 实测下来等效基准是 438.5\,pt——差的那一点来自图的边界框与标称页宽不完全一致。
+% 拿这个数排出来，表格总高与 v3.1e 贴图那版对得上。
+%    \begin{macrocode}
+\fp_const:Nn \c__hit_res_page_fp { 438.5 }
+%    \end{macrocode}
+%
+% 列宽要减掉两倍格距再减半道竖线，才是 \pkg{tabularray} 的 \texttt{wd}：那个键
+% 给的是格子里文字的宽度，格距在它之外另加，竖线画在边界中心上，每列各吃半道。实测 \texttt{wd=100pt} 配
+% 默认 6\,pt 格距，整列宽 112.8\,pt。这里把格距收到 3\,pt，留给文字的地方多一点。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% 按比例缩放走浮点。写成 \texttt{576.72\cs{linewidth}/437} 会先乘后除，
+% 576.72 $\times$ 426.79 早就越过 \cs{maxdimen}（约 16384\,pt），报 Dimension too large。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_res_scale:Nn #1#2
+  {
+    \dim_gset:Nn #1
+      { \fp_to_dim:n { \dim_to_fp:n { \linewidth } * #2 / \c__hit_res_page_fp } }
+  }
+\cs_new_protected:Npn \__hit_res_col:Nn #1#2
+  {
+    \__hit_res_scale:Nn #1 {#2}
+    \dim_gsub:Nn #1 { \c__hit_res_colsep_dim * 2 + \c__hit_res_vrule_dim / 2 }
+  }
 \cs_new_protected:Nn \__hit_resolution_calc:
   {
+    \__hit_res_scale:Nn \g__hit_res_row_dim   { 21.72 }
+    \__hit_res_scale:Nn \g__hit_res_total_dim { 576.72 }
 %    \end{macrocode}
 %
-% \textbf{先切到五号再量 \texttt{em}。} 表里的字是五号，正文是小四；在正文字号下
-% 写 \texttt{4.6em} 量出来的是小四的 4.6 个字宽，比要的宽一截。分组里的局部赋值
-% 出了组就没了，所以这几个是全局变量。
+% \pkg{tabularray} 的 \texttt{ht} 给的是格子的高度，横线画在它之外。原表量出来的
+% 21.72\,pt 是两道横线中心之间的距离，所以要减掉一道线宽才是 \texttt{ht}。
 %    \begin{macrocode}
-    \group_begin:
-      \wuhao
-      \dim_gset:Nn \g__hit_resolution_label_dim { 5em }
-      \dim_gset:Nn \g__hit_resolution_role_dim  { 2.1em }
-      \dim_gset:Nn \g__hit_resolution_name_dim  { 3.05em }
-      \dim_gset:Nn \g__hit_resolution_title_dim { 8.2em }
-%    \end{macrocode}
-%
-% 两个单位列分掉剩下的。\pkg{tabularray} 的 \texttt{wd} 是格子里文字的宽度，
-% 格距在它之外另加，所以要扣掉六列的十二段格距和七道竖线。实测过：
-% \texttt{wd=100pt} 的一列整体宽 112.8pt。
-%
-% 「哈尔滨工业大学」与「控制科学与工程」各七个字，五号下 73.8pt；
-% 「职称（是否博导）」八个字，84.3pt。上面几个定值是压着这两条给的，
-% 版心 426.8pt 下单位列还剩 6pt 左右富余。改这几个数要拿
-% \texttt{fontset=windows} 和 \texttt{fandol} 各编一遍看有没有折行。
-%    \begin{macrocode}
-      \dim_gset:Nn \g__hit_resolution_unit_dim
-        {
-          ( \linewidth - \g__hit_resolution_label_dim
-            - \g__hit_resolution_role_dim - \g__hit_resolution_name_dim
-            - \g__hit_resolution_title_dim - 12\tabcolsep - 3pt ) / 2
-        }
-      \dim_gset:Nn \g__hit_resolution_wide_dim  { \linewidth - 2\tabcolsep }
-    \group_end:
+    \dim_gsub:Nn \g__hit_res_row_dim { \c__hit_res_hrule_dim }
+    \__hit_res_col:Nn \g__hit_res_ca_dim  { 33.60 }
+    \__hit_res_col:Nn \g__hit_res_cb_dim  { 42.72 }
+    \__hit_res_col:Nn \g__hit_res_cab_dim { 76.32 }
+    \__hit_res_col:Nn \g__hit_res_cc_dim  { 56.64 }
+    \__hit_res_col:Nn \g__hit_res_cd_dim  { 106.32 }
+    \__hit_res_col:Nn \g__hit_res_ce_dim  { 92.16 }
+    \__hit_res_col:Nn \g__hit_res_cf_dim  { 104.40 }
+    \__hit_res_col:Nn \g__hit_res_conclw_dim { 435.84 }
   }
 %    \end{macrocode}
 %
-% \textbf{整张表先拼成记号表，再一次放出来。} \pkg{tabularray} 拆表格是扫未展开的
-% 记号：\texttt{\&} 与 \verb|\\| 得当场就在，藏在宏里它看不见，会在
-% 「build the whole table」那步报 Missing number。所以行不是直接排出来的，
-% 是先攒进一个记号表，连 \cs{begin}\marg{tblr} 与 \cs{end}\marg{tblr} 一起攒，
-% 最后 \cs{tl\_use:N} 一次倒进输入流。
+% \subsection{行数}
+%
+% 每一块的行数取「填了几个人」与「纸质表上有几行」里大的那个：填了就按人数排，
+% 一条不填排出来仍是与纸质表一样的空表。
 %    \begin{macrocode}
-\tl_new:N \l__hit_resolution_tbl_tl
-\int_new:N \l__hit_resolution_rows_int
-\cs_new_protected:Npn \__hit_resolution_put:n #1
-  { \tl_put_right:Nn \l__hit_resolution_tbl_tl {#1} }
-\cs_new_protected:Npn \__hit_resolution_putx:n #1
-  { \tl_put_right:Nx \l__hit_resolution_tbl_tl {#1} }
+\int_new:N \g__hit_res_rev_int    \int_new:N \g__hit_res_chair_int
+\int_new:N \g__hit_res_mem_int    \int_new:N \g__hit_res_sec_int
+\int_new:N \g__hit_res_lines_int
+\cs_new_protected:Nn \__hit_resolution_count:
+  {
+    \int_gset:Nn \g__hit_res_rev_int
+      { \int_max:nn { \seq_count:N \g__hit_defense_reviewer_seq } { 3 } }
+    \int_gset:Nn \g__hit_res_chair_int
+      { \int_max:nn { \seq_count:N \g__hit_defense_chair_seq } { 1 } }
+    \int_gset:Nn \g__hit_res_mem_int
+      { \int_max:nn { \seq_count:N \g__hit_defense_member_seq } { 6 } }
+    \int_gset:Nn \g__hit_res_sec_int
+      { \int_max:nn { \seq_count:N \g__hit_defense_secretary_seq } { 1 } }
+%    \end{macrocode}
+%
+% 决议区吃掉整表剩下的高度：两个表头加各块的人数行占多少，它就少多少，
+% 整表总高不变，仍是原来那张图的高度。人填得多到装不下时给个下限。
+%    \begin{macrocode}
+    \int_gset:Nn \g__hit_res_lines_int
+      {
+        2 + \g__hit_res_rev_int + \g__hit_res_chair_int
+        + \g__hit_res_mem_int + \g__hit_res_sec_int
+      }
+    \dim_gset:Nn \g__hit_res_concl_dim
+      {
+        \g__hit_res_total_dim
+        - ( \g__hit_res_row_dim + \c__hit_res_hrule_dim )
+          * \g__hit_res_lines_int
+        - \c__hit_res_hrule_dim + \c__hit_res_fudge_dim
+      }
+    \dim_compare:nNnT { \g__hit_res_concl_dim } < { 4 \baselineskip }
+      { \dim_gset:Nn \g__hit_res_concl_dim { 4 \baselineskip } }
+  }
+%    \end{macrocode}
+%
+% \subsection{攒表}
+%
+% \textbf{整张表先拼成记号表，再一次放出来。} \pkg{tabularray} 拆表格扫的是未展开
+% 的记号：\texttt{\&} 与 \verb|\\| 得当场就在，藏在宏里它看不见，会在
+% 「build the whole table」那步报 Missing number。
+%    \begin{macrocode}
+\tl_new:N \l__hit_res_tbl_tl
+\cs_new_protected:Npn \__hit_res_put:n #1
+  { \tl_put_right:Nn \l__hit_res_tbl_tl {#1} }
+\cs_new_protected:Npn \__hit_res_putx:n #1
+  { \tl_put_right:Nx \l__hit_res_tbl_tl {#1} }
 %    \end{macrocode}
 %
 % 一条记录的四格。
 %
+% \textbf{一格里的字比列宽长就会折行，那一行也就比原表高一截。} 行高是照原表钉死
+% 的，但内容顶不住时 \pkg{tabularray} 仍会把行撑开——这与纸质表一致：格子就那么大，
+% 写不下只能挤。常见的单位名与学科名七个字以内，五号下都排得进一行；碰上
+% 「中国科学院沈阳自动化研究所」这种十三个字的，填表时自己写简称。
+%
+%
 % \textbf{取记录不能用 \texttt{e} 型展开。} \pkg{xeCJK} 把汉字设成了活动符，
 % \cs{exp\_args:Ne} 会把它们一并展开，取出来的名字是空的。所以用
-% \cs{seq\_map\_inline:Nn} 遍历，记录原样进参数，一次展开都不做。
-%
-% 字段值往记号表里放时用 \cs{exp\_not:V} 挡住，同样的道理。
+% \cs{seq\_map\_inline:Nn} 遍历，记录原样进参数；字段值往记号表里放时用
+% \cs{exp\_not:V} 挡住，同样的道理。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_resolution_cells:n #1
+\cs_new_protected:Npn \__hit_res_cells:n #1
   {
     \hit@defense@unpack:n {#1}
-    \__hit_resolution_putx:n
+    \__hit_res_putx:n
       {
         \exp_not:V \l__hit_defense_name_tl &
         \exp_not:V \l__hit_defense_title_tl &
@@ -103,213 +199,184 @@
         \exp_not:V \l__hit_defense_discipline_tl
       }
   }
+\cs_new_protected:Npn \__hit_res_empty_cells:
+  { \__hit_res_put:n { & & & } }
 %    \end{macrocode}
 %
-% 评阅人表的数据行：一列空格子加四格，不足的补空行。
+% 评阅人那几行：左边两列都由表头那行的 \cs{SetCell} 跨下来（它是
+% \texttt{c=2}），要写成两个空格子占位。少写一个，\pkg{tabularray} 会把姓名
+% 当成被跨掉的那一格丢掉，整行往左错一列。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_resolution_body:Nn #1#2
+\int_new:N \l__hit_res_i_int
+\cs_new_protected:Nn \__hit_res_reviewer_rows:
   {
-    \int_zero:N \l__hit_resolution_rows_int
-    \seq_map_inline:Nn #1
+    \int_zero:N \l__hit_res_i_int
+    \seq_map_inline:Nn \g__hit_defense_reviewer_seq
       {
-        \int_incr:N \l__hit_resolution_rows_int
-        \__hit_resolution_put:n { & }
-        \__hit_resolution_cells:n {##1}
-        \__hit_resolution_put:n { \\ }
+        \int_incr:N \l__hit_res_i_int
+        \__hit_res_put:n { & & } \__hit_res_cells:n {##1}
+        \__hit_res_put:n { \\ }
       }
     \int_step_inline:nn
-      { \int_max:nn { #2 - \l__hit_resolution_rows_int } { 0 } }
-      { \__hit_resolution_put:n { & & & & \\ } }
-  }
-%    \end{macrocode}
-%
-% 委员会表的一块：第一行放角色标签并跨这一块的行数，其余行两列都空着。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_resolution_block:Nnn #1#2#3
-  {
-    \int_set:Nn \l__hit_resolution_rows_int
-      { \int_max:nn { \seq_count:N #1 } {#2} }
-    \int_zero:N \l_tmpb_int
-    \seq_map_inline:Nn #1
+      { \g__hit_res_rev_int - \l__hit_res_i_int }
       {
-        \int_incr:N \l_tmpb_int
-        \__hit_resolution_put:n { & }
-        \__hit_resolution_role:n {#3}
-        \__hit_resolution_put:n { & }
-        \__hit_resolution_cells:n {##1}
-        \__hit_resolution_put:n { \\ }
-      }
-    \int_step_inline:nn
-      { \int_max:nn { \l__hit_resolution_rows_int - \l_tmpb_int } { 0 } }
-      {
-        \__hit_resolution_put:n { & }
-        \int_incr:N \l_tmpb_int
-        \__hit_resolution_role:n {#3}
-        \__hit_resolution_put:n { & & & & \\ }
+        \__hit_res_put:n { & & } \__hit_res_empty_cells:
+        \__hit_res_put:n { \\ }
       }
   }
 %    \end{macrocode}
 %
-% 角色标签只放在这一块的第一行，并跨这一块的全部行数。
+% 委员会的一块：第一行放角色标签并跨这一块的行数，其余行两列都空着。
+% 最外一列由委员会表头那行的 \cs{SetCell} 跨下来，也写成空格子。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_resolution_role:n #1
+\cs_new_protected:Npn \__hit_res_committee_rows:Nnn #1#2#3
   {
-    \int_compare:nNnT { \l_tmpb_int } = { 1 }
+    \int_zero:N \l__hit_res_i_int
+    \seq_map_inline:Nn #1
       {
-        \__hit_resolution_putx:n
+        \int_incr:N \l__hit_res_i_int
+        \__hit_res_put:n { & }
+        \__hit_res_role:nn { \l__hit_res_i_int } {#3}
+        \__hit_res_put:n { & }
+        \__hit_res_cells:n {##1}
+        \__hit_res_put:n { \\ }
+      }
+    \int_step_inline:nn { #2 - \l__hit_res_i_int }
+      {
+        \int_incr:N \l__hit_res_i_int
+        \__hit_res_put:n { & }
+        \__hit_res_role:nn { \l__hit_res_i_int } {#3}
+        \__hit_res_put:n { & }
+        \__hit_res_empty_cells:
+        \__hit_res_put:n { \\ }
+      }
+  }
+\cs_new_protected:Npn \__hit_res_role:nn #1#2
+  {
+    \int_compare:nNnT {#1} = { 1 }
+      {
+        \__hit_res_putx:n
           {
-            \exp_not:N \SetCell
-              [ r = \int_use:N \l__hit_resolution_rows_int ] { c }
-              { \exp_not:n {#1} }
+            \exp_not:N \SetCell [ r = \int_use:N \l__hit_res_span_int ] { c }
+              { \exp_not:n {#2} }
           }
       }
   }
+\int_new:N \l__hit_res_span_int
 %    \end{macrocode}
 %
-% 评阅人表。左侧一格跨表头加所有数据行。
+% \subsection{整张表}
+%
+% 六列，行高钉死，横竖线宽照原表。表头两行与三块数据行接在一起，最后一行是决议区，
+% 六列合并成一格，标签与正文都在这一格里——原表在标签下面并没有横线。
 %    \begin{macrocode}
-\cs_new_protected:Nn \__hit_resolution_reviewers:
+\cs_new_protected:Nn \__hit_resolution_sheet:
   {
-    \int_set:Nn \l_tmpa_int
-      { \int_max:nn { \seq_count:N \g__hit_defense_reviewer_seq } { 3 } + 1 }
-    \tl_clear:N \l__hit_resolution_tbl_tl
-    \__hit_resolution_putx:n
+    \__hit_resolution_calc:
+    \__hit_resolution_count:
+    \tl_clear:N \l__hit_res_tbl_tl
+    \__hit_res_putx:n
       {
         \exp_not:N \begin { tblr }
           {
             colspec =
               {
-                Q [ c , wd = \dim_use:N \g__hit_resolution_label_dim ]
-                Q [ c , wd = \dim_use:N \g__hit_resolution_name_dim ]
-                Q [ c , wd = \dim_use:N \g__hit_resolution_title_dim ]
-                *{2}{ Q [ c , wd = \dim_use:N \g__hit_resolution_unit_dim ] }
+                Q [ c , wd = \dim_use:N \g__hit_res_ca_dim ]
+                Q [ c , wd = \dim_use:N \g__hit_res_cb_dim ]
+                Q [ c , wd = \dim_use:N \g__hit_res_cc_dim ]
+                Q [ c , wd = \dim_use:N \g__hit_res_cd_dim ]
+                Q [ c , wd = \dim_use:N \g__hit_res_ce_dim ]
+                Q [ c , wd = \dim_use:N \g__hit_res_cf_dim ]
               } ,
-            cells = { m , font = \wuhao } , hlines , vlines , rowsep = 2pt ,
+            rows = { ht = \dim_use:N \g__hit_res_row_dim } ,
+            row { \int_eval:n { \g__hit_res_lines_int + 1 } } =
+              { ht = \dim_eval:n
+                       { \g__hit_res_concl_dim - \c__hit_res_hrule_dim } } ,
+            cells = { m , font = \wuhao } ,
+            colsep = \dim_use:N \c__hit_res_colsep_dim , rowsep = 0pt ,
+            hlines = { \dim_use:N \c__hit_res_hrule_dim } ,
+            vlines = { \dim_use:N \c__hit_res_vrule_dim } ,
           }
-        \exp_not:N \SetCell [ r = \int_use:N \l_tmpa_int ] { c }
+%    \end{macrocode}
+%
+% 评阅人那一格跨表头加数据行，并横跨最左两列——那一块没有「职务」这一列。
+%    \begin{macrocode}
+        \exp_not:N \SetCell
+          [ r = \int_eval:n { \g__hit_res_rev_int + 1 } , c = 2 ] { c }
           { \exp_not:o { \hit@resolution@reviewer@label } }
-          & \exp_not:o { \hit@resolution@name@label }
+          & & \exp_not:o { \hit@resolution@name@label }
           & \exp_not:o { \hit@resolution@title@label }
           & \exp_not:o { \hit@resolution@affiliation@label }
           & \exp_not:o { \hit@resolution@discipline@label } \\
       }
-    \__hit_resolution_body:Nn \g__hit_defense_reviewer_seq { 3 }
-    \__hit_resolution_put:n { \end { tblr } }
-    \tl_use:N \l__hit_resolution_tbl_tl
-  }
+    \__hit_res_reviewer_rows:
 %    \end{macrocode}
 %
-% 答辩委员会表。最左一列是「答辩委员会成员」，跨表头与全部数据行；
-% 第二列分主席、委员、秘书三块，各自跨自己那几行。
+% 委员会表头。最左一格跨表头与三块数据行。
 %    \begin{macrocode}
-\int_new:N \l__hit_resolution_total_int
-\cs_new_protected:Nn \__hit_resolution_committee:
-  {
-    \int_set:Nn \l__hit_resolution_total_int
+    \__hit_res_putx:n
       {
-        \int_max:nn { \seq_count:N \g__hit_defense_chair_seq } { 1 }
-        + \int_max:nn { \seq_count:N \g__hit_defense_member_seq } { 6 }
-        + \int_max:nn { \seq_count:N \g__hit_defense_secretary_seq } { 1 }
-        + 1
-      }
-    \tl_clear:N \l__hit_resolution_tbl_tl
-    \__hit_resolution_putx:n
-      {
-        \exp_not:N \begin { tblr }
-          {
-            colspec =
-              {
-                Q [ c , wd = \dim_use:N \g__hit_resolution_label_dim ]
-                Q [ c , wd = \dim_use:N \g__hit_resolution_role_dim ]
-                Q [ c , wd = \dim_use:N \g__hit_resolution_name_dim ]
-                Q [ c , wd = \dim_use:N \g__hit_resolution_title_dim ]
-                *{2}{ Q [ c , wd = \dim_use:N \g__hit_resolution_unit_dim ] }
-              } ,
-            cells = { m , font = \wuhao } , hlines , vlines , rowsep = 2pt ,
-          }
         \exp_not:N \SetCell
-          [ r = \int_use:N \l__hit_resolution_total_int ] { c }
-          { \exp_not:o { \hit@resolution@committee@label } }
+          [ r =
+              \int_eval:n
+                {
+                  1 + \g__hit_res_chair_int + \g__hit_res_mem_int
+                  + \g__hit_res_sec_int
+                }
+          ] { c } { \exp_not:o { \hit@resolution@committee@label } }
           & \exp_not:o { \hit@resolution@role@label }
           & \exp_not:o { \hit@resolution@name@label }
           & \exp_not:o { \hit@resolution@title@label }
           & \exp_not:o { \hit@resolution@affiliation@label }
           & \exp_not:o { \hit@resolution@discipline@label } \\
       }
-    \__hit_resolution_block:Nnn \g__hit_defense_chair_seq { 1 }
-      { \hit@resolution@chair@label }
-    \__hit_resolution_block:Nnn \g__hit_defense_member_seq { 6 }
-      { \hit@resolution@member@label }
-    \__hit_resolution_block:Nnn \g__hit_defense_secretary_seq { 1 }
-      { \hit@resolution@secretary@label }
-    \__hit_resolution_put:n { \end { tblr } }
-    \tl_use:N \l__hit_resolution_tbl_tl
-  }
+    \int_set_eq:NN \l__hit_res_span_int \g__hit_res_chair_int
+    \__hit_res_committee_rows:Nnn \g__hit_defense_chair_seq
+      { \g__hit_res_chair_int } { \hit@resolution@chair@label }
+    \int_set_eq:NN \l__hit_res_span_int \g__hit_res_mem_int
+    \__hit_res_committee_rows:Nnn \g__hit_defense_member_seq
+      { \g__hit_res_mem_int } { \hit@resolution@member@label }
+    \int_set_eq:NN \l__hit_res_span_int \g__hit_res_sec_int
+    \__hit_res_committee_rows:Nnn \g__hit_defense_secretary_seq
+      { \g__hit_res_sec_int } { \hit@resolution@secretary@label }
 %    \end{macrocode}
 %
-% 决议正文那一框。
+% 决议区：六列合成一格，左对齐、顶对齐，标签一行、正文接着排。
 %
-% \textbf{它吃掉整页剩下的高度。} 上面两张表有几个人就多高，剩多少这里就占多少，
-% 整页正好排满、不跨页——纸质表就是这样，签字要在同一页上。
+% 高度走这一行的 \texttt{ht}，宽度靠一个不给高度的 \cs{parbox}。
 %
-% 余量按 \cs{pagegoal} 减 \cs{pagetotal} 算，也就是「这一页还剩多少」。不按
-% \cs{textheight} 减两张表的高度算，是因为章标题、目录钩子这些也占地方，
-% 按后者算会少扣一截，决议框被挤到下一页去。
-%
-% \cs{pagegoal} 在这一页还没有任何东西时是 \cs{maxdimen}，那时退回
-% \cs{textheight} 减 \cs{pagetotal}。最后再留一点给框线与表头那一行。
+% 两件事各归各管。合并出来的格子没有固定宽度，正文一长就把整张表撑宽，
+% 第六列会被挤出版心，所以要 \cs{parbox} 定宽让它折行。而 \cs{parbox} 一旦
+% 给了高度就会连高度一起管：实测 \pkg{tabularray} 在一个格子上另加约 3.6\,pt
+% 内边距，那样排出来比原表高五个点；走 \texttt{ht} 只差 0.15\,pt。
+% \cs{parbox} 的高度比这一行的 \texttt{ht} 矮 6\,pt，正好让开格子的内边距，
+% 既不把行撑高，又能让正文顶着格子上沿排——\cs{SetCell} 里写 \texttt{t} 在
+% 钉了 \texttt{ht} 的行上不起作用，实测正文会掉到格子正中。
 %    \begin{macrocode}
-\dim_new:N \l__hit_resolution_rest_dim
-\dim_new:N \l__hit_resolution_over_dim
-\box_new:N \l__hit_resolution_probe_box
-\cs_new_protected:Npn \__hit_resolution_frame:n #1
-  {
-    \begin { tblr }
+    \__hit_res_putx:n
       {
-        colspec = { Q [ l , wd = \dim_use:N \g__hit_resolution_wide_dim ] } ,
-        hlines , vlines , rowsep = 2pt ,
+        \exp_not:N \SetCell [ c = 6 ] { l , t }
+          {
+            \exp_not:N \parbox [ t ]
+              [ \dim_eval:n
+                  {
+                    \g__hit_res_concl_dim - \c__hit_res_hrule_dim
+                    - \c__hit_res_pad_dim
+                  }
+              ] [ t ]
+              { \dim_use:N \g__hit_res_conclw_dim }
+              {
+                \exp_not:o { \hit@resolution@conclusion@label }
+                \exp_not:N \par
+                \exp_not:V \g__hit_defense_conclusion_tl
+              }
+          }
+          & & & & & \\
       }
-      \hit@resolution@conclusion@label \\
-      \parbox [ t ] [ #1 ] [ t ] { \linewidth }
-        { \g__hit_defense_conclusion_tl } \\
-    \end { tblr }
-  }
-\cs_new_protected:Nn \__hit_resolution_conclusion:
-  {
-    \dim_compare:nNnTF { \pagegoal } > { 0.5 \maxdimen }
-      { \dim_set:Nn \l__hit_resolution_rest_dim { \textheight - \pagetotal } }
-      { \dim_set:Nn \l__hit_resolution_rest_dim { \pagegoal - \pagetotal } }
-%    \end{macrocode}
-%
-% 表头那一行、三道框线、行距，加起来占多少不好估，估少了框就被挤到下一页去。
-% 所以先拿零高度的 \cs{parbox} 试排一次，量出这些的净高度，再从余量里减掉。
-% 一次就准，因为框高与 \cs{parbox} 的高度是一比一的。
-%    \begin{macrocode}
-    \hbox_set:Nn \l__hit_resolution_probe_box
-      { \__hit_resolution_frame:n { \c_zero_dim } }
-    \dim_set:Nn \l__hit_resolution_over_dim
-      {
-        \box_ht:N \l__hit_resolution_probe_box
-        + \box_dp:N \l__hit_resolution_probe_box
-      }
-    \dim_sub:Nn \l__hit_resolution_rest_dim { \l__hit_resolution_over_dim }
-    \dim_compare:nNnT { \l__hit_resolution_rest_dim } < { 4 \baselineskip }
-      { \dim_set:Nn \l__hit_resolution_rest_dim { 4 \baselineskip } }
-    \__hit_resolution_frame:n { \dim_use:N \l__hit_resolution_rest_dim }
-  }
-%    \end{macrocode}
-%
-% 整页：两张表，再一个把剩余高度吃满的决议框。
-%    \begin{macrocode}
-\cs_new_protected:Nn \__hit_resolution_sheet:
-  {
-    \__hit_resolution_calc:
-    \noindent \__hit_resolution_reviewers:
-    \par \skip_vertical:n { \baselineskip }
-    \noindent \__hit_resolution_committee:
-    \par \skip_vertical:n { \baselineskip }
-    \noindent \__hit_resolution_conclusion:
-    \par
+    \__hit_res_put:n { \end { tblr } }
+    \begin { center }
+      \tl_use:N \l__hit_res_tbl_tl
+    \end { center }
   }
 %    \end{macrocode}
 %
