@@ -387,23 +387,33 @@
   }
 %    \end{macrocode}
 %
-% 竖排时字距按「字与字之间、以及上下两端各留等量的空」算：
-% $N$ 个字、$N+1$ 份空，摊满整格。
+% \textbf{两个字的摊开，多字的贴着排。} 原表这两种都有：「委员」两个字摊得很开，
+% 「答辩委员会成员」七个字贴着排、整摞居中。照原表分开处理。
 %
-% 摊出来的字距有上限，1.8 倍行距。原表「委员」那一块默认六行，两个字的
-% 间距从 PDF 的字框量出来是 39.12\,pt，而行距是 21.72\,pt，正好 1.8 倍；
+% 两个字摊开时的字距按「字与字之间、以及上下两端各留等量的空」算：
+% $N$ 个字、$N+1$ 份空，摊满整格。上限 1.8 倍行距——原表「委员」那一块默认六行，
+% 两个字的间距从 PDF 的字框量出来是 39.12\,pt，行距 21.72\,pt，正好 1.8 倍；
 % 不设限会摊到 49\,pt，比纸质表松一截。到了上限就不再撑，整摞居中，格子再高也一样。
 %
-% \textbf{与原表的出入。} 原表的「答辩委员会成员」是七个字贴着排、整摞居中，
-% 字距 12.48\,pt，跟字号（小四，12\,bp）差不多，根本没摊开；同一张表上的「委员」
-% 却摊得很开。两个标签两种排法，一条规则推不出来。这里一律按摊开处理，
-% 所以「答辩委员会成员」的字距是 26 点上下，比原表松。
-%
-% 盒子里要把行距再设一遍。表格里的 \cs{parbox} 会走 \cs{@arrayparboxrestore}，
-% 那里面的 \cs{normalbaselines} 把 \cs{baselineskip} 打回字号的默认值，
-% 而字距是拿格子的行距算的，不设一遍就对不上。
+% 多字贴着排的字距取 1.04 个 \cs{ccwd}。原表量出来是 12.48\,pt，
+% 小四下 \cs{ccwd} 是 12\,pt，商就是这个数。走 \cs{ccwd} 而不是写死，
+% 换字号字距也跟着走。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_res_vstack:n #1
+  {
+    \int_compare:nNnTF { \seq_count:N \l__hit_res_label_seq } > { 2 }
+      { \dim_set:Nn \l__hit_res_gap_dim { \ccwd * 104 / 100 - \baselineskip } }
+      { \__hit_res_gap_spread: }
+    \parbox [ c ] [ \dim_use:N \l__hit_res_cell_dim ] [ c ]
+      { \linewidth }
+      {
+        \__hit_res_cell:
+        \centering
+        \seq_use:Nn \l__hit_res_label_seq
+          { \par \vspace { \dim_use:N \l__hit_res_gap_dim } }
+      }
+  }
+\cs_new_protected:Nn \__hit_res_gap_spread:
   {
     \dim_set:Nn \l__hit_res_gap_dim
       {
@@ -421,16 +431,12 @@
             - \baselineskip
           }
       }
-    \parbox [ c ] [ \dim_use:N \l__hit_res_cell_dim ] [ c ]
-      { \linewidth }
-      {
-        \__hit_res_cell:
-        \centering
-        \seq_use:Nn \l__hit_res_label_seq
-          { \par \vspace { \dim_use:N \l__hit_res_gap_dim } }
-      }
   }
 %    \end{macrocode}
+%
+% 盒子里要把行距再设一遍。表格里的 \cs{parbox} 会走 \cs{@arrayparboxrestore}，
+% 那里面的 \cs{normalbaselines} 把 \cs{baselineskip} 打回字号的默认值，
+% 而字距是拿格子的行距算的，不设一遍就对不上。
 %
 % 决议区那一格的排法：标签顶格，正文每段首行空两字。
 %
