@@ -65,7 +65,7 @@
 \dim_new:N \g__hit_res_cf_dim   \dim_new:N \g__hit_res_total_dim
 \dim_new:N \g__hit_res_concl_dim
 \dim_new:N \g__hit_res_conclw_dim
-\dim_const:Nn \c__hit_res_colsep_dim { 3pt }
+\dim_const:Nn \c__hit_res_colsep_dim { 1pt }
 \dim_const:Nn \c__hit_res_hrule_dim  { 0.72pt }
 \dim_const:Nn \c__hit_res_vrule_dim  { 0.48pt }
 %    \end{macrocode}
@@ -83,6 +83,35 @@
 \dim_const:Nn \c__hit_res_pad_dim    { 6pt }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{0000/00/00}{表格与决议正文改成小四，行距 19.55\,bp，段间距 0；
+%   表头与各块标签加粗}
+% \textbf{字号与行距。} 原表是中易宋体小四（12\,bp），文档网格每页 33 行，
+% 行距 19.55\,bp——字身高约 10.91\,bp，行与行之间的白 8.64\,bp，加起来正是这个数。
+% 段间距是 0，段与段之间不另加空。表头与各块的标签加粗。
+%    \begin{macrocode}
+\dim_const:Nn \c__hit_res_lead_dim { 19.55bp }
+\cs_new_protected:Nn \__hit_res_text:
+  {
+    \xiaosi
+    \dim_set:Nn \baselineskip { \c__hit_res_lead_dim }
+    \skip_zero:N \parskip
+  }
+%    \end{macrocode}
+%
+% 格子里的字要紧排。\pkg{xeCJK} 的 \cs{CJKglue} 在正文里撑开汉字之间的空隙好让
+% 整行对齐，表格里却不该有：「哈尔滨工业大学」七个字本身 84.32\,pt，
+% 带上这段胶要 88.35\,pt，「工作单位」那一列 87.46\,pt 就放不下，白折一行。
+% 纸质表也是紧排的。决议正文那一段不动，那里要靠这段胶对齐。
+%    \begin{macrocode}
+\cs_new_protected:Nn \__hit_res_cell:
+  {
+    \__hit_res_text:
+    \cs_set_eq:NN \CJKglue \prg_do_nothing:
+  }
+\cs_new_protected:Nn \__hit_res_head:
+  { \__hit_res_cell: \bfseries }
+%    \end{macrocode}
+%
 % 缩放的基准页宽。原图标称 437\,pt，但贴进论文时按 \cs{includegraphics} 缩放，
 % 实测下来等效基准是 438.5\,pt——差的那一点来自图的边界框与标称页宽不完全一致。
 % 拿这个数排出来，表格总高与 v3.1e 贴图那版对得上。
@@ -92,7 +121,13 @@
 %
 % 列宽要减掉两倍格距再减半道竖线，才是 \pkg{tabularray} 的 \texttt{wd}：那个键
 % 给的是格子里文字的宽度，格距在它之外另加，竖线画在边界中心上，每列各吃半道。实测 \texttt{wd=100pt} 配
-% 默认 6\,pt 格距，整列宽 112.8\,pt。这里把格距收到 3\,pt，留给文字的地方多一点。
+% 默认 6\,pt 格距，整列宽 112.8\,pt。这里把格距收到 1\,pt，留给文字的地方多一点。
+%
+% \textbf{格距之外 \pkg{tabularray} 还各留 1\,pt。} 格子里量出来的 \cs{linewidth}
+% 比 \texttt{wd} 少 2\,pt，六列都一样。所以「工作单位」那一列：列宽 89.70\,pt，
+% 减两倍格距与半道竖线得 \texttt{wd}\,=\,87.46，再减这 2\,pt，剩 85.46\,pt。
+% 小四七个字要 84.32\,pt，「哈尔滨工业大学」排得下；八个字要折，与纸质表一样。
+% 格距按 3\,pt 算只剩 81.46\,pt，七个字就折了。
 %    \begin{macrocode}
 %    \end{macrocode}
 %
@@ -134,20 +169,68 @@
 %
 % 每一块的行数取「填了几个人」与「纸质表上有几行」里大的那个：填了就按人数排，
 % 一条不填排出来仍是与纸质表一样的空表。
+%
+% \changes{v3.2a}{0000/00/00}{某一块人数超了先向还有空行的块借，借得到就不动
+%   总行数，借不够才去挤决议区}
+% \textbf{某一块超了先借，借不到才占决议区的地方。} 纸质表四块的行数是 2、1、6、1，
+% 评阅人写三个就多出一行。多出来的先看别的块有没有空着的行：委员只填了四个，
+% 六行里空两行，就把这两行匀出去。四块轮着来，一轮各拿一行，拿到够为止；
+% 全借完还不够，才把总行数加上去，决议区相应变矮。
 %    \begin{macrocode}
 \int_new:N \g__hit_res_rev_int    \int_new:N \g__hit_res_chair_int
 \int_new:N \g__hit_res_mem_int    \int_new:N \g__hit_res_sec_int
 \int_new:N \g__hit_res_lines_int
+\int_new:N \l__hit_res_need_int
+\bool_new:N \l__hit_res_moved_bool
+\cs_new_protected:Npn \__hit_res_borrow_one:NN #1#2
+  {
+    \bool_lazy_and:nnT
+      { \int_compare_p:nNn { \l__hit_res_need_int } > { 0 } }
+      { \int_compare_p:nNn { #1 } > { \seq_count:N #2 } }
+      {
+        \int_gdecr:N #1
+        \int_decr:N \l__hit_res_need_int
+        \bool_set_true:N \l__hit_res_moved_bool
+      }
+  }
+\cs_new_protected:Nn \__hit_res_borrow:
+  {
+    \int_set:Nn \l__hit_res_need_int
+      {
+        \int_max:nn { \seq_count:N \g__hit_defense_reviewer_seq  - 2 } { 0 }
+        + \int_max:nn { \seq_count:N \g__hit_defense_chair_seq     - 1 } { 0 }
+        + \int_max:nn { \seq_count:N \g__hit_defense_member_seq    - 6 } { 0 }
+        + \int_max:nn { \seq_count:N \g__hit_defense_secretary_seq - 1 } { 0 }
+      }
+    \bool_set_true:N \l__hit_res_moved_bool
+    \bool_do_while:nn
+      {
+        \l__hit_res_moved_bool
+        && \int_compare_p:nNn { \l__hit_res_need_int } > { 0 }
+      }
+      {
+        \bool_set_false:N \l__hit_res_moved_bool
+        \__hit_res_borrow_one:NN \g__hit_res_rev_int
+          \g__hit_defense_reviewer_seq
+        \__hit_res_borrow_one:NN \g__hit_res_chair_int
+          \g__hit_defense_chair_seq
+        \__hit_res_borrow_one:NN \g__hit_res_mem_int
+          \g__hit_defense_member_seq
+        \__hit_res_borrow_one:NN \g__hit_res_sec_int
+          \g__hit_defense_secretary_seq
+      }
+  }
 \cs_new_protected:Nn \__hit_resolution_count:
   {
     \int_gset:Nn \g__hit_res_rev_int
-      { \int_max:nn { \seq_count:N \g__hit_defense_reviewer_seq } { 3 } }
+      { \int_max:nn { \seq_count:N \g__hit_defense_reviewer_seq } { 2 } }
     \int_gset:Nn \g__hit_res_chair_int
       { \int_max:nn { \seq_count:N \g__hit_defense_chair_seq } { 1 } }
     \int_gset:Nn \g__hit_res_mem_int
       { \int_max:nn { \seq_count:N \g__hit_defense_member_seq } { 6 } }
     \int_gset:Nn \g__hit_res_sec_int
       { \int_max:nn { \seq_count:N \g__hit_defense_secretary_seq } { 1 } }
+    \__hit_res_borrow:
 %    \end{macrocode}
 %
 % 上面各块一共占几行。决议区的高度不在这里算——它要按实际排出来的高度倒推，
@@ -178,8 +261,9 @@
 %
 % \textbf{一格里的字比列宽长就会折行，那一行也就比原表高一截。} 行高是照原表钉死
 % 的，但内容顶不住时 \pkg{tabularray} 仍会把行撑开——这与纸质表一致：格子就那么大，
-% 写不下只能挤。常见的单位名与学科名七个字以内，五号下都排得进一行；碰上
+% 写不下只能挤。常见的单位名与学科名七个字以内，都排得进一行；碰上
 % 「中国科学院沈阳自动化研究所」这种十三个字的，填表时自己写简称。
+% 小四下「工作单位」那一列放得下七个字，「职称（是否博导）」放得下八个。
 %
 %
 % \textbf{取记录不能用 \texttt{e} 型展开。} \pkg{xeCJK} 把汉字设成了活动符，
@@ -257,11 +341,95 @@
         \__hit_res_putx:n
           {
             \exp_not:N \SetCell [ r = \int_use:N \l__hit_res_span_int ] { c }
-              { \exp_not:n {#2} }
+              {
+                \exp_not:N \__hit_res_head:
+                \exp_not:N \__hit_res_label:nn
+                  { \int_use:N \l__hit_res_span_int } { \exp_not:o {#2} }
+              }
           }
       }
   }
 \int_new:N \l__hit_res_span_int
+%    \end{macrocode}
+%
+% \subsection{竖排还是横排}
+%
+% \changes{v3.2a}{0000/00/00}{竖排标签按格子高度自动决定竖排还是横排，
+%   竖排时把字撑开填满格子}
+% 「委员」「答辩委员会成员」这类标签在常量里写成 \verb|委\\员|，一个 \verb|\\|
+% 分一个字。原先直接扔进格子，格子高就是一摞挤在中间，格子矮就把行撑高。
+%
+% 现在按格子高度决定：一摞排不下就横过来连成一行，排得下就竖排。所以「委员」
+% 那一块被上面几块挤到只剩一行时自己横排，行数上去了自然变成竖排。
+%
+% 判据是「一摞的自然高度是不是超过格子」。自然高度按每字一个 \cs{baselineskip} 算。
+%    \begin{macrocode}
+\seq_new:N \l__hit_res_label_seq
+\dim_new:N \l__hit_res_cell_dim
+\dim_new:N \l__hit_res_gap_dim
+\cs_new_protected:Npn \__hit_res_label:nn #1#2
+  {
+    \seq_set_split:Nnn \l__hit_res_label_seq { \\ } {#2}
+    \int_compare:nNnTF { \seq_count:N \l__hit_res_label_seq } < { 2 }
+      {#2}
+      {
+        \dim_set:Nn \l__hit_res_cell_dim
+          {
+            \g__hit_res_row_dim * #1
+            + \c__hit_res_hrule_dim * \int_eval:n { #1 - 1 }
+          }
+        \dim_compare:nNnTF
+          { \baselineskip * \seq_count:N \l__hit_res_label_seq }
+          > { \l__hit_res_cell_dim }
+          { \seq_use:Nn \l__hit_res_label_seq { } }
+          { \__hit_res_vstack:n {#1} }
+      }
+  }
+%    \end{macrocode}
+%
+% 竖排时字距按「字与字之间、以及上下两端各留等量的空」算：
+% $N$ 个字、$N+1$ 份空，摊满整格。
+%
+% 摊出来的字距有上限，1.8 倍行距。原表「委员」那一块默认六行，两个字的
+% 间距从 PDF 的字框量出来是 39.12\,pt，而行距是 21.72\,pt，正好 1.8 倍；
+% 不设限会摊到 49\,pt，比纸质表松一截。到了上限就不再撑，整摞居中，格子再高也一样。
+%
+% \textbf{与原表的出入。} 原表的「答辩委员会成员」是七个字贴着排、整摞居中，
+% 字距 12.48\,pt，跟字号（小四，12\,bp）差不多，根本没摊开；同一张表上的「委员」
+% 却摊得很开。两个标签两种排法，一条规则推不出来。这里一律按摊开处理，
+% 所以「答辩委员会成员」的字距是 26 点上下，比原表松。
+%
+% 盒子里要把行距再设一遍。表格里的 \cs{parbox} 会走 \cs{@arrayparboxrestore}，
+% 那里面的 \cs{normalbaselines} 把 \cs{baselineskip} 打回字号的默认值，
+% 而字距是拿格子的行距算的，不设一遍就对不上。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_res_vstack:n #1
+  {
+    \dim_set:Nn \l__hit_res_gap_dim
+      {
+        (
+          \l__hit_res_cell_dim
+          - \baselineskip * \seq_count:N \l__hit_res_label_seq
+        )
+        / \int_eval:n { \seq_count:N \l__hit_res_label_seq + 1 }
+      }
+    \dim_set:Nn \l__hit_res_gap_dim
+      {
+        \dim_min:nn { \l__hit_res_gap_dim }
+          {
+            ( \g__hit_res_row_dim + \c__hit_res_hrule_dim ) * 18 / 10
+            - \baselineskip
+          }
+      }
+    \parbox [ c ] [ \dim_use:N \l__hit_res_cell_dim ] [ c ]
+      { \linewidth }
+      {
+        \__hit_res_cell:
+        \centering
+        \seq_use:Nn \l__hit_res_label_seq
+          { \par \vspace { \dim_use:N \l__hit_res_gap_dim } }
+      }
+  }
 %    \end{macrocode}
 %
 % 决议区那一格的排法：标签顶格，正文每段首行空两字。
@@ -304,7 +472,7 @@
                 Q [ c , wd = \dim_use:N \g__hit_res_cf_dim ]
               } ,
             rows = { ht = \dim_use:N \g__hit_res_row_dim } ,
-            cells = { m , font = \wuhao } ,
+            cells = { m , font = \__hit_res_cell: } ,
             colsep = \dim_use:N \c__hit_res_colsep_dim , rowsep = 0pt ,
             hlines = { \dim_use:N \c__hit_res_hrule_dim } ,
             vlines = { \dim_use:N \c__hit_res_vrule_dim } ,
@@ -315,11 +483,11 @@
 %    \begin{macrocode}
         \exp_not:N \SetCell
           [ r = \int_eval:n { \g__hit_res_rev_int + 1 } , c = 2 ] { c }
-          { \exp_not:o { \hit@resolution@reviewer@label } }
-          & & \exp_not:o { \hit@resolution@name@label }
-          & \exp_not:o { \hit@resolution@title@label }
-          & \exp_not:o { \hit@resolution@affiliation@label }
-          & \exp_not:o { \hit@resolution@discipline@label } \\
+          { \exp_not:N \__hit_res_head: \exp_not:o { \hit@resolution@reviewer@label } }
+          & & \exp_not:N \__hit_res_head: \exp_not:o { \hit@resolution@name@label }
+          & \exp_not:N \__hit_res_head: \exp_not:o { \hit@resolution@title@label }
+          & \exp_not:N \__hit_res_head: \exp_not:o { \hit@resolution@affiliation@label }
+          & \exp_not:N \__hit_res_head: \exp_not:o { \hit@resolution@discipline@label } \\
       }
     \__hit_res_reviewer_rows:
 %    \end{macrocode}
@@ -335,12 +503,23 @@
                   1 + \g__hit_res_chair_int + \g__hit_res_mem_int
                   + \g__hit_res_sec_int
                 }
-          ] { c } { \exp_not:o { \hit@resolution@committee@label } }
-          & \exp_not:o { \hit@resolution@role@label }
-          & \exp_not:o { \hit@resolution@name@label }
-          & \exp_not:o { \hit@resolution@title@label }
-          & \exp_not:o { \hit@resolution@affiliation@label }
-          & \exp_not:o { \hit@resolution@discipline@label } \\
+          ] { c }
+          {
+            \exp_not:N \__hit_res_label:nn
+              {
+                \int_eval:n
+                  {
+                    1 + \g__hit_res_chair_int + \g__hit_res_mem_int
+                    + \g__hit_res_sec_int
+                  }
+              }
+              { \exp_not:N \__hit_res_head: \exp_not:o { \hit@resolution@committee@label } }
+          }
+          & \exp_not:N \__hit_res_head: \exp_not:o { \hit@resolution@role@label }
+          & \exp_not:N \__hit_res_head: \exp_not:o { \hit@resolution@name@label }
+          & \exp_not:N \__hit_res_head: \exp_not:o { \hit@resolution@title@label }
+          & \exp_not:N \__hit_res_head: \exp_not:o { \hit@resolution@affiliation@label }
+          & \exp_not:N \__hit_res_head: \exp_not:o { \hit@resolution@discipline@label } \\
       }
     \int_set_eq:NN \l__hit_res_span_int \g__hit_res_chair_int
     \__hit_res_committee_rows:Nnn \g__hit_defense_chair_seq
@@ -372,6 +551,10 @@
 % \subsection{决议区}
 %
 % 一个 \pkg{tcolorbox}。宽度与上面那张表齐平，线宽照原表，四角不倒圆。
+%
+% \changes{v3.2a}{0000/00/00}{决议框的框线改成纯黑，与上表的线一致}
+% \texttt{colframe} 一定要自己写。\pkg{tcolorbox} 默认是
+% \texttt{black!75!white}，渲染出来 RGB (64,\,64,\,64)，与上表纯黑的线并排一看就浅一截。
 % 顶边默认不画线：上表的最后一道横线就是它的顶线，两边各画各的会出现双线。
 % 续页那几个框自己把顶线补上，四条边都有，与第一页最外侧那圈一样粗。
 %
@@ -381,7 +564,7 @@
   {
     hit@resolution/.style =
       {
-        enhanced , sharp~corners , colback = white ,
+        enhanced , sharp~corners , colback = white , colframe = black ,
         boxrule = \c__hit_res_vrule_dim ,
         toprule = 0pt ,
         bottomrule = \c__hit_res_hrule_dim ,
@@ -404,9 +587,9 @@
     \skip_zero:N \leftskip
     \skip_zero:N \rightskip
     \skip_set:Nn \parfillskip { 0pt~plus~1fil }
-    \wuhao
+    \__hit_res_text:
     \dim_set:Nn \parindent { \c_zero_dim }
-    \hit@resolution@conclusion@label
+    { \bfseries \hit@resolution@conclusion@label }
     \par
     \dim_set:Nn \parindent { 2em }
     \g__hit_defense_conclusion_tl

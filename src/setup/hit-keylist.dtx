@@ -599,8 +599,32 @@
     member     .code:n = { \seq_gput_right:Nn \g__hit_defense_member_seq    {#1} } ,
     secretary  .code:n = { \seq_gput_right:Nn \g__hit_defense_secretary_seq {#1} } ,
     conclusion .code:n = { \tl_gset:Nn \g__hit_defense_conclusion_tl {#1} } ,
-    unknown .code:n =
-      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
+    unknown .code:n = { \__hit_defense_retry:nn { hit / defense } {#1} } ,
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{\texttt{defense} 族容得下键之间的空行}
+% \textbf{键之间夹了空行也得认。} 名单一条条写下来，中间空一行分组是很自然的，
+% 但空行在键值表里是一个 \cs{par}，下一个键的名字就成了 \verb|\par secretary|，
+% 对不上任何键，那条记录整条丢掉，只在日志里留一行警告——填了两个秘书只出来一个
+% 就是这么来的。
+%
+% 所以不认识的键先把开头的 \cs{par} 剥掉再试一遍，剥不动才真的报警告。
+% 剥的是键名不是值：决议正文里的空行要留着分段，那是内容。
+%    \begin{macrocode}
+\str_new:N \l__hit_defense_key_str
+\tl_new:N \l__hit_defense_retry_tl
+\cs_new_protected:Npn \__hit_defense_retry:nn #1#2
+  {
+    \str_set_eq:NN \l__hit_defense_key_str \l_keys_key_str
+    \str_remove_all:Nn \l__hit_defense_key_str { \par }
+    \str_if_eq:NNTF \l__hit_defense_key_str \l_keys_key_str
+      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str }
+      {
+        \tl_set:Nx \l__hit_defense_retry_tl { \l__hit_defense_key_str }
+        \tl_put_right:Nn \l__hit_defense_retry_tl { = {#2} }
+        \exp_args:NnV \keys_set:nn {#1} \l__hit_defense_retry_tl
+      }
   }
 %    \end{macrocode}
 %
@@ -618,7 +642,7 @@
     affiliation .tl_set:N = \l__hit_defense_affiliation_tl ,
     discipline  .tl_set:N = \l__hit_defense_discipline_tl ,
     unknown .code:n =
-      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
+      { \__hit_defense_retry:nn { hit / defense / person } {#1} } ,
   }
 \cs_new_protected:Npn \hit@defense@unpack:n #1
   {
