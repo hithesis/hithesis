@@ -446,10 +446,23 @@
 % 把收下来的键算成排版参数。规则是从 Word 里量出来的，四轮对照文档、三十组、
 % 一百六十多条基线，量法与来路记在 \file{src/utils/hit-msword.dtx}。
 %
-% \emph{字体常数。} 自然行高与上升部都与字号成正比，系数只跟字体有关：
-% 中易那一系（宋、黑、楷、仿、隶）自然行高是字号的 1.297 倍，上升部 1.0156 倍；
-% 华文新魏是 1.35，Times~New~Roman 是 1.15。苹方是 1.82，差了四成，所以这个系数
-% 必须按字体查，不能当通用常数。
+% \emph{字体常数。} 自然行高与字号成正比，系数只跟字体有关：中易那一系
+% （宋、黑、楷、仿、隶）是字号的 1.296875 倍，华文新魏是 1.35，
+% Times~New~Roman 是 1.15。苹方是 1.82，差了四成，所以这个系数必须按字体查，
+% 不能当通用常数。1.296875 是 $332/256$，中易宋体的 \texttt{unitsPerEm} 正好
+% 是 256。这个数是拿一份逐项写死设置的 \texttt{docx} 标定出来的：九个字号各排
+% 一页、每页十几到三十几行，回归出来的行距全部落在
+% $1.25 \times 1.296875 \times 字号$ 上，最大偏差 0.008\,bp。
+%
+% \emph{上升部不是纯比例。} 是 $1.008 \times 字号 + 0.082$\,bp。同一份标定文档
+% 里换了十八个字号（9 到 60\,bp）量首行基线，每个读数有正负 0.12\,bp 的量化
+% 窗口（Word 输出坐标是 $1/300$ 英寸的整数倍），在这十八个约束下扫参数平面，
+% 「上升部 = 系数乘字号」这个模型无解——小五要求系数不超过 1.0067，小四要求
+% 不低于 1.0155。加上那个常数项就只剩唯一解，其中五个字号正好卡在窗口边界。
+%
+% 那 0.082\,bp 与「版心顶下移 0.082」在数学上不可分：段间距的算式里前后两段的
+% 常数项相消，它只在每页第一条基线上露面。这里记成上升部的一部分，是因为页首
+% 那一段落在哪由 \cs{topskip} 定，写在这里改一处就够。
 %
 % 模板一律按中易排，不问实际加载的是哪一个宋体，这样各 \option{fontset} 之间
 % 版面一致。
@@ -476,14 +489,22 @@
 % \emph{段前段后。} 「行」这个单位恒指网格行距，与该段自己的行距无关，也与这一段
 % 对不对齐网格无关；磅数原样加，不吸到网格。相邻两段取段后与段前的较大者，
 % 不相加。页首的段前与页尾的段后由 \hologo{TeX} 自己在分页处丢弃，与 Word 一致。
+%
+% 折成长度以后要向下取整到整缇。Word 的 \texttt{w:beforeLines} 是百分之一行，
+% 存盘时它把「系数乘网格行距」截断成整缇写进 \texttt{w:before}：网格行距 391 缇
+% 时，1 行是 391，0.8 行 312.8 截成 312，0.5 行 195.5 截成 195。范例的
+% \texttt{docx} 里章标题写的正是
+% \texttt{before="391" after="312"}，节条标题是 195，与这条规则一致；标定文档里
+% 把同一种间距重复二十遍回归，也是这三个数。
 %    \begin{macrocode}
 \prop_const_from_keyval:Nn \c__hit_format_natural_prop
   {
-    songti = 1.297 , heiti = 1.297 , kaishu = 1.297 , fangsong = 1.297 ,
-    lishu = 1.297 , xinwei = 1.35 , none = 1.15 ,
+    songti = 1.296875 , heiti = 1.296875 , kaishu = 1.296875 ,
+    fangsong = 1.296875 , lishu = 1.296875 , xinwei = 1.35 , none = 1.15 ,
   }
-\tl_const:Nn \c__hit_format_natural_tl { 1.297 }
-\tl_const:Nn \c__hit_format_ascent_tl { 1.0156 }
+\tl_const:Nn \c__hit_format_natural_tl { 1.296875 }
+\tl_const:Nn \c__hit_format_ascent_tl { 1.008 }
+\dim_const:Nn \c__hit_format_ascent_dim { 0.082bp }
 \tl_const:Nn \c__hit_format_exact_tl { 0.8 }
 %    \end{macrocode}
 %
@@ -531,7 +552,21 @@
     \str_case:VnF \l__hit_format_unit_tl
       {
         { line }
-          { \dim_set:Nn #3 { \l__hit_format_value_tl \g_hit_msword_lead_dim } }
+          {
+            \dim_set:Nn #3
+              {
+                \fp_to_dim:n
+                  {
+                    floor
+                      (
+                        \dim_to_fp:n
+                          { \l__hit_format_value_tl \g_hit_msword_lead_dim }
+                        / \dim_to_fp:n { 0.05bp } + 0.0001
+                      )
+                    * \dim_to_fp:n { 0.05bp }
+                  }
+              }
+          }
         { chars }
           { \dim_set:Nn #3 { \l__hit_format_value_tl \g_hit_msword_char_dim } }
       }
@@ -654,7 +689,8 @@
 \cs_new_protected:Npn \__hit_format_first:
   {
     \dim_set:Nn \l_hit_format_first_dim
-      { \c__hit_format_ascent_tl \l_hit_format_size_dim }
+      { \c__hit_format_ascent_tl \l_hit_format_size_dim
+        + \c__hit_format_ascent_dim }
     \bool_if:NT \l_hit_format_snap_bool
       {
         \dim_add:Nn \l_hit_format_first_dim
@@ -745,7 +781,8 @@
     \dim_set:Nn \l__hit_format_box_dim
       { \dim_max:nn { \baselineskip } { \l__hit_format_nat_dim } }
     \dim_set:Nn \l__hit_format_asc_dim
-      { \c__hit_format_ascent_tl \l__hit_format_strut_dim }
+      { \c__hit_format_ascent_tl \l__hit_format_strut_dim
+        + \c__hit_format_ascent_dim }
     \bool_if:NT \l_hit_format_line_snap_bool
       {
         \dim_add:Nn \l__hit_format_asc_dim
