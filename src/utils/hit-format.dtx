@@ -701,26 +701,60 @@
 % 三项里有两项是字形量出来的，比 Word 的窄。页首那一行也一样，
 % \cs{topskip} 拦不住比它高的行。
 %
-% 撑杆的高是上升部 $1.0156$ 倍字号，深是行距减上升部，两个都按当时的字号与
-% \cs{baselineskip} 现算，所以同一根撑杆在正文、标题、题注上都是对的。这个式子
-% 说的是「基线顶对齐、多出来的行距全在基线之下」，也就是 Word 里不对齐网格的
-% 那一路；对齐到网格时行盒居中，撑杆撑不出来。
+% \changes{v3.2a}{2026/08/14}{撑杆认对齐网格：行盒高取 \cs{baselineskip} 与自然
+%   行高的较大者，基线落点按对齐与否分两支}
+% 撑杆按当时的字号与 \cs{baselineskip} 现算，一根走遍正文、标题、页眉：
+% \begin{itemize}
+% \item 自然行高 $H = 1.297$ 倍字号，上升部 $A = 1.0156$ 倍字号；
+% \item 行盒高 $L$ 取 \cs{baselineskip} 与 $H$ 的较大者。取大这一步是为页眉设的：
+%   页眉那一行的 \cs{baselineskip} 是零，光看它撑出来的盒子没有深度，
+%   页眉横线会整块上移 2\,bp；
+% \item 基线在盒里的落点，不对齐网格时是 $A$（顶对齐），对齐时是
+%   $(L-H)/2+A$（居中）。这一支由 \cs{l\_hit\_format\_line\_snap\_bool} 决定，
+%   正文的取值由 \cs{hit@format@apply@body:} 全局设好，标题在自己的
+%   \option{format} 里临时改，出了标题那个组就复原。
+% \end{itemize}
+%
+% 改这个标志位的是两个不带参数的命令 \cs{hit@format@snap@true:} 与
+% \cs{hit@format@snap@false:}，不是一个收真假值的命令。收值那种写法要在标题
+% 排版的当口解析一个布尔表达式，而那时候 \pkg{expl3} 的 catcode 已经关了，
+% 解析器读不出 \cs{\_\_bool\_f\_0:} 这类内部名字，报 \texttt{Missing number}。
+%
+% 自然行高一律按中易那一系的 1.297 算，不查 \option{font-zh}。纯西文的段落
+% 因此会比 Word 宽一点点，英文摘要与英文目录受影响，先记着。
 %
 % 字号要先落进一个长度再乘系数。\cs{f@size} 是个数字串不是长度寄存器，
 % \texttt{1.0156\cs{f@size}pt} 在 \cs{dimexpr} 里读成两个数并排，报
 % \texttt{Illegal unit of measure}。
 %    \begin{macrocode}
+\bool_new:N \l_hit_format_line_snap_bool
 \dim_new:N \l__hit_format_strut_dim
+\dim_new:N \l__hit_format_nat_dim
+\dim_new:N \l__hit_format_box_dim
+\dim_new:N \l__hit_format_asc_dim
+\cs_new_protected:Npn \hit@format@snap@true:
+  { \bool_set_true:N \l_hit_format_line_snap_bool }
+\cs_new_protected:Npn \hit@format@snap@false:
+  { \bool_set_false:N \l_hit_format_line_snap_bool }
 \cs_new_protected:Npn \hit@format@strut:
   {
     \leavevmode
     \dim_set:Nn \l__hit_format_strut_dim { \f@size pt }
-    \dim_set:Nn \l__hit_format_strut_dim
+    \dim_set:Nn \l__hit_format_nat_dim
+      { \c__hit_format_natural_tl \l__hit_format_strut_dim }
+    \dim_set:Nn \l__hit_format_box_dim
+      { \dim_max:nn { \baselineskip } { \l__hit_format_nat_dim } }
+    \dim_set:Nn \l__hit_format_asc_dim
       { \c__hit_format_ascent_tl \l__hit_format_strut_dim }
+    \bool_if:NT \l_hit_format_line_snap_bool
+      {
+        \dim_add:Nn \l__hit_format_asc_dim
+          { 0.5 \l__hit_format_box_dim - 0.5 \l__hit_format_nat_dim }
+      }
     \vrule ~ width ~ \c_zero_dim
-      ~ height ~ \l__hit_format_strut_dim
-      ~ depth ~ \dim_max:nn { \c_zero_dim }
-          { \baselineskip - \l__hit_format_strut_dim }
+      ~ height ~ \l__hit_format_asc_dim
+      ~ depth ~ \dim_eval:n
+          { \l__hit_format_box_dim - \l__hit_format_asc_dim }
     \scan_stop:
   }
 %    \end{macrocode}
@@ -754,7 +788,15 @@
     \str_if_eq:VnT \l__hit_format_value_tl { true }
       { \tl_put_right:Nn \l__hit_format_out_tl { \bfseries } }
     \__hit_format_pick:nnN {#1} { alignment } \c__hit_format_align_prop
-    \tl_put_right:Nn \l__hit_format_out_tl { \hit@format@strut: }
+    \tl_put_right:Nx \l__hit_format_out_tl
+      {
+        \exp_not:c
+          {
+            hit@format@snap@
+            \bool_if:NTF \l_hit_format_snap_bool { true } { false } :
+          }
+        \exp_not:N \hit@format@strut:
+      }
   }
 \cs_new_protected:Npn \__hit_format_pick:nnN #1#2#3
   {
@@ -843,6 +885,11 @@
 % 撑杆挂在段落的首尾两个钩子上，段间的接缝就都按 Word 的行盒算。首尾各挂一根：
 % 首行那根定这一段的高，末行那根定这一段的深，只挂一根管不到另一头。标题那边
 % 另有一根写在 \option{format} 里，两根重了也没事，行盒取的是最大值。
+%
+% 页眉还要单接一次。\pkg{fancyhdr} 把页眉排在 \cs{parbox} 里，
+% \cs{@parboxrestore} 清掉了 \cs{everypar}，段落钩子发不到那里，所以
+% \file{src/flow/hit-thesis-pagestyle.dtx} 在页眉的字体命令里留了一个空位，
+% 这里把它换成真的撑杆。报告类没有这个空位，所以先看在不在。
 %    \begin{macrocode}
 \dim_new:N \g_hit_body_size_dim
 \dim_new:N \g_hit_body_lead_dim
@@ -857,6 +904,7 @@
         \dim_gset_eq:NN \g_hit_body_lead_dim \l_hit_format_lead_dim
         \dim_gset_eq:NN \g_hit_body_first_dim \l_hit_format_first_dim
         \dim_gset_eq:NN \g_hit_body_indent_dim \l_hit_format_indent_dim
+        \bool_set_eq:NN \l_hit_format_line_snap_bool \l_hit_format_snap_bool
         \dim_set_eq:NN \topskip \g_hit_body_first_dim
         \normalsize
         \ctexset { autoindent = false }
@@ -871,6 +919,8 @@
           }
         \AddToHook { para / begin } { \hit@format@strut: }
         \AddToHook { para / end }   { \hit@format@strut: }
+        \cs_if_exist:NT \hit@head@strut:
+          { \cs_set_eq:NN \hit@head@strut: \hit@format@strut: }
       }
   }
 %    \end{macrocode}
