@@ -78,10 +78,17 @@
 % \cs{headheight}，不给等于零，那样会把类自己的页眉高度抹掉；\option{foot-baseline} 的
 % 默认值是零，也就是页脚基线正好落在页脚线上。
 %
-% 算完当场调用 \cs{geometry}，另外把三个量放进全局长度供调用方取用：
+% \emph{七、一行只排整数个字，余量留在右边。} 字符网格是一排死格子，一行装得下
+% 几个字就是几个，装不满的余量原样留在右边不摊开。范例版心宽 425.18\,bp、字距
+% 12.4544\,bp，装 34 个字占 423.45\,bp，右边留 1.73\,bp 空着。两端对齐是对齐到
+% 这 34 个格子的右边界，不是对齐到版心右边界——范例里首行缩进两格的那一行只有
+% 31 个字，被拉开填满剩下的 32 格，末字落点与满行的 34 字行分毫不差。
+%
+% 算完当场调用 \cs{geometry}，另外把四个量放进全局长度供调用方取用：
 % \cs{g\_hit\_msword\_lead\_dim}（网格行距）、\cs{g\_hit\_msword\_char\_dim}（网格字距）、
-% \cs{g\_hit\_msword\_glue\_dim}（\cs{CJKglue}，字距减字号）。前两个是
-% \file{src/utils/hit-format.dtx} 里「一行」「一字」这两个单位的取值来源。
+% \cs{g\_hit\_msword\_glue\_dim}（\cs{CJKglue}，字距减字号）、
+% \cs{g\_hit\_msword\_slack\_dim}（第七条那点余量，交给 \cs{rightskip}）。
+% 前两个是 \file{src/utils/hit-format.dtx} 里「一行」「一字」这两个单位的取值来源。
 %
 % ^^A ======================================================================
 % ^^A Module shared-msword: Word 页面设置换算（各个类共用）
@@ -107,6 +114,7 @@
 \dim_new:N \g_hit_msword_lead_dim
 \dim_new:N \g_hit_msword_char_dim
 \dim_new:N \g_hit_msword_glue_dim
+\dim_new:N \g_hit_msword_slack_dim
 %    \end{macrocode}
 %
 %    \begin{macrocode}
@@ -125,8 +133,10 @@
 \dim_new:N \l__hit_msword_char_dim
 \dim_new:N \l__hit_msword_text_width_dim
 \dim_new:N \l__hit_msword_text_height_dim
+\dim_new:N \l__hit_msword_slack_dim
 \int_new:N \l__hit_msword_lines_int
 \int_new:N \l__hit_msword_chars_int
+\int_new:N \l__hit_msword_cells_int
 \tl_new:N \g__hit_msword_geometry_tl
 %    \end{macrocode}
 %
@@ -215,6 +225,35 @@
       \dim_gset_eq:NN \g_hit_msword_char_dim \l__hit_msword_char_dim
       \dim_gset:Nn \g_hit_msword_glue_dim
         { \l__hit_msword_char_dim - \l__hit_msword_size_dim }
+%    \end{macrocode}
+%
+% 第七条那点余量。整行放得下 $n$ 个字，$n$ 个字连着排占 $n$ 个字号加 $n-1$ 段
+% 字距胶，版心宽减掉它就是余量。字距没给就没有网格，余量是零。
+%    \begin{macrocode}
+      \dim_zero:N \l__hit_msword_slack_dim
+      \dim_compare:nNnF { \l__hit_msword_char_dim } = { 0pt }
+        {
+          \int_set:Nn \l__hit_msword_cells_int
+            {
+              \fp_to_int:n
+                {
+                  floor
+                    (
+                      \dim_to_decimal:n { \l__hit_msword_text_width_dim }
+                      / \dim_to_decimal:n { \l__hit_msword_char_dim }
+                    )
+                }
+            }
+          \dim_set:Nn \l__hit_msword_slack_dim
+            {
+              \l__hit_msword_text_width_dim
+              - \l__hit_msword_cells_int \l__hit_msword_size_dim
+            }
+          \int_decr:N \l__hit_msword_cells_int
+          \dim_sub:Nn \l__hit_msword_slack_dim
+            { \l__hit_msword_cells_int \g_hit_msword_glue_dim }
+        }
+      \dim_gset_eq:NN \g_hit_msword_slack_dim \l__hit_msword_slack_dim
       \tl_gset:Nx \g__hit_msword_geometry_tl
         {
           paperwidth = \dim_use:N \l__hit_msword_paper_width_dim ,

@@ -878,9 +878,17 @@
 % \cs{topskip} 与首行盒高度的较大者，所以行里有比正文高的东西时首行会往下走，
 % 这一条 Word 也一样。
 %
+% \changes{v3.2a}{2026/08/14}{\cs{rightskip} 收下字符网格的余量，行宽按整数个字算}
 % \cs{CJKglue} 是汉字之间的空隙，取值是网格字距减字号，由
-% \file{src/utils/hit-msword.dtx} 算好。原样保留 \pkg{xeCJK} 的伸缩量：Word 的
-% 字距是自然宽度，两端对齐时照样还要再拉开，两边是一回事。
+% \file{src/utils/hit-msword.dtx} 算好。伸缩量照 \pkg{xeCJK} 原样保留：Word 的
+% 字距是自然宽度，两端对齐时照样要再拉开。
+%
+% \cs{rightskip} 收下字符网格的那点余量。Word 的两端对齐是对齐到\emph{整数个格}
+% 的右边界，不是对齐到版心右边界：范例版心宽 425.18\,bp、字距 12.4544\,bp，
+% 一行 34 个格占 423.45\,bp，右边空着 1.73\,bp 不管。这一段不扣掉的话，
+% \hologo{TeX} 会把 34 个字拉满整个版心，每个字缝多 0.066\,bp，末字右移 2.25\,bp。
+% 扣掉之后连拉开的行也对得上——范例里首行缩进两格、只有 31 个字的那一行，
+% 被拉开填满剩下的 32 格，末字落点与满行分毫不差。
 %
 % 撑杆挂在段落的首尾两个钩子上，段间的接缝就都按 Word 的行盒算。首尾各挂一根：
 % 首行那根定这一段的高，末行那根定这一段的深，只挂一根管不到另一头。标题那边
@@ -909,13 +917,15 @@
         \normalsize
         \ctexset { autoindent = false }
         \dim_set_eq:NN \parindent \g_hit_body_indent_dim
-        \dim_compare:nNnF { \g_hit_msword_glue_dim } = { 0pt }
+        \dim_compare:nNnF { \g_hit_msword_char_dim } = { 0pt }
           {
             \cs_set:Npx \CJKglue
               {
                 \exp_not:N \hskip \dim_use:N \g_hit_msword_glue_dim
                 \exp_not:N \@plus 0.08 \exp_not:N \baselineskip
               }
+            \bool_if:NT \l_hit_format_snap_bool
+              { \skip_set_eq:NN \rightskip \g_hit_msword_slack_dim }
           }
         \AddToHook { para / begin } { \hit@format@strut: }
         \AddToHook { para / end }   { \hit@format@strut: }
