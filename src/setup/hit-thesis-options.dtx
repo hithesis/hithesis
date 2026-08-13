@@ -186,17 +186,53 @@
 % \changes{v2.0.0}{2018/06/14}{此处添加geometry选项}
 % \changes{v3.2a}{2026/08/14}{\option{newgeometry} 改名 \option{layout}，
 %   旧名走废弃期。标志位仍叫 \texttt{newgeometry\_}，排版那边一处没动}
-% 这个选项选的是整套版面，名字叫 \option{layout}。它必须写在 \cs{documentclass}
-% 的可选参数里：版心决定整份文档怎么分页，\pkg{geometry} 要在基础类前后就定下来，
-% 挪进 \cs{hitsetup} 太晚。
+% \changes{v3.2a}{2026/08/14}{\option{layout} 改成 \option{old-layout}，本科与硕博
+%   分开；\option{newgeometry} 的 \texttt{no} 取值删除}
+% 版面按新规范排是默认，旧版面靠 \option{old-layout} 显式要回来。它必须写在
+% \cs{documentclass} 的可选参数里：版心决定整份文档怎么分页，\pkg{geometry} 要在
+% 基础类前后就定下来，挪进 \cs{hitsetup} 太晚。
+% \begin{latex}
+% \documentclass[old-layout={bachelor=true}]{hit-thesis}
+% \documentclass[old-layout={graduate=two}]{hit-thesis}
+% \end{latex}
 %
-% 旧名 \option{newgeometry} 照旧认，读到时提示改用新名。标志位没跟着改名，
-% 排版那边读的仍是 \cs{g\_\_hit\_newgeometry\_two\_bool} 这一族，
-% 所以这一改只动用户接口。
+% 本科与硕博分成两个键。原先 \option{newgeometry} 的 \texttt{one}/\texttt{two} 管的
+% 只是硕博那一套，本科另有自己的旧版面（深圳本科可能还要用一阵），所以
+% \option{bachelor} 是个真假开关，\option{graduate} 才收 \texttt{one}/\texttt{two}。
+% 博士后不在 \option{graduate} 里：它有自己一套参数，直接上新版面，不留旧的。
+%
+% \texttt{no} 那个取值删掉了，对应的版心分支一并删。它是 PlutoThesis 时代留下的，
+% 与现行规范差得太远。
+%
+% 标志位没跟着改名，排版那边读的仍是 \cs{g\_\_hit\_newgeometry\_two\_bool} 这一族。
 %    \begin{macrocode}
-\hit@define@choice@option{layout}{newgeometry_}{one,two,no}{}
+\hit@define@boolean@option@as{old-layout-bachelor}{old_layout_bachelor}{false}
+\hit@define@choice@option{old-layout-graduate}{newgeometry_}{one,two}{}
 \keys_define:nn { hit / class }
-  { newgeometry .code:n = { \keys_set:nn { hit / class } { layout = #1 } } }
+  {
+    old-layout .code:n = { \keys_set:nn { hit / old-layout } {#1} } ,
+    newgeometry .code:n = { \__hit_legacy_newgeometry:n {#1} } ,
+  }
+\keys_define:nn { hit / old-layout }
+  {
+    bachelor .code:n =
+      { \keys_set:nn { hit / class } { old-layout-bachelor = #1 } } ,
+    bachelor .default:n = { true } ,
+    graduate .code:n =
+      { \keys_set:nn { hit / class } { old-layout-graduate = #1 } } ,
+  }
+%    \end{macrocode}
+%
+% v3.1e 的 \option{newgeometry} 管的是所有学位，所以旧文档写它时两边都要开，
+% 这样版面一字不变。\texttt{no} 已经没有对应的新写法，报一句然后当 \texttt{two} 走。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_legacy_newgeometry:n #1
+  {
+    \str_if_eq:nnTF {#1} { no }
+      { \msg_warning:nnn { hithesis } { removed-option } { newgeometry=no } }
+      { \keys_set:nn { hit / class } { old-layout-graduate = #1 } }
+    \keys_set:nn { hit / class } { old-layout-bachelor = true }
+  }
 %    \end{macrocode}
 %
 % 设置字距选项，因为word和规范不一致
@@ -537,12 +573,9 @@
 % 重新设置geometry的默认选项
 % \changes{v3.0.13}{2020/11/10}{重新设置geometry的默认选项}
 %    \begin{macrocode}
-\bool_lazy_any:nF
-  {
-    { \bool_if_p:N \g__hit_newgeometry_one_bool }
-    { \bool_if_p:N \g__hit_newgeometry_two_bool }
-    { \bool_if_p:N \g__hit_newgeometry_no_bool }
-  }
+\bool_lazy_or:nnF
+  { \bool_if_p:N \g__hit_newgeometry_one_bool }
+  { \bool_if_p:N \g__hit_newgeometry_two_bool }
   { \bool_gset_true:N \g__hit_newgeometry_two_bool }
 %    \end{macrocode}
 %
