@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import pathlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,7 +36,12 @@ HASHES = ROOT / "tools" / "eps.sha256"
 
 
 def parse_list() -> tuple[list[str], list[tuple[str, str]], dict[str, str]]:
-    """读 tools/distfiles.txt，返回（平铺分发的、带子目录的、排除的）。"""
+    """读 tools/distfiles.txt，返回（平铺分发的、带子目录的、排除的）。
+
+    行首 ``@`` 表示“只随示例发，不装进 tex 树”：示例与手册用的图属于这一类，
+    它们不是模板资源，不该出现在用户装完模板的 tex/latex/hithesis/ 里。
+    这类文件照样拷进示例目录，只是不参与 build.lua 的 installfiles 那道核对。
+    """
     plain: list[str] = []
     subdir: list[tuple[str, str]] = []
     skipped: dict[str, str] = {}
@@ -46,12 +52,24 @@ def parse_list() -> tuple[list[str], list[tuple[str, str]], dict[str, str]]:
         if line.startswith("!"):
             name, _, why = line[1:].partition(" ")
             skipped[name] = why.strip()
-        elif "->" in line:
+            continue
+        line = line.removeprefix("@")
+        if "->" in line:
             name, _, dest = line.partition("->")
             subdir.append((name.strip(), dest.strip()))
         else:
             plain.append(line)
     return plain, subdir, skipped
+
+
+def example_only() -> set[str]:
+    """只随示例发、不装进 tex 树的那批，行首写 @。"""
+    names = set()
+    for raw in LIST.read_text(encoding="utf-8").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if line.startswith("@"):
+            names.add(pathlib.Path(line[1:].partition("->")[0].strip()).name)
+    return names
 
 
 def generated() -> list[str]:
@@ -141,12 +159,21 @@ def check() -> int:
             problems.append(f"tools/distfiles.txt 排除了 {f}，但它根本不是生成物")
 
     inst = install_files()
+    exonly = example_only()
     for f in (Path(x).name for x in dist):
+        if f in exonly:
+            if matches(f, inst):
+                problems.append(
+                    f"{f} 在 tools/distfiles.txt 里标了只随示例发，"
+                    f"却又列进了 build.lua 的 installfiles")
+            continue
         if not matches(f, inst):
             problems.append(f"{f} 要分发到示例目录，却不在 build.lua 的 installfiles 里")
 
     banner = banner_files()
     for f in (Path(x).name for x in dist):
+        if f in exonly:
+            continue
         if f not in banner:
             problems.append(
                 f"{f} 要分发，却不在 install 守卫末尾的 \\Msg 横幅里；"

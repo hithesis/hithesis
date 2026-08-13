@@ -646,6 +646,13 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 `installfiles`（装进 TEXMF 的）、install 守卫末尾的 `\Msg` 安装横幅。
 改完跑 `make productcheck`，四份对不上会逐条说是哪一份漏了。
 
+图片分两类。**模板资源**（封面上的校徽、题名、落款）要装进 `tex/latex/hithesis/`，
+四份清单都要有。**示例与手册的内容**（`zfb.pdf` 打赏二维码、`golfer.pdf` 插图样例）
+只随示例目录发，在 `tools/distfiles.txt` 里行首写 `@`，不进 `installfiles` 也不进
+安装横幅——用户装完模板，`tex/latex/hithesis/` 里躺着一张二维码说不过去。
+thuthesis 与 fduthesis 都是这么分的：`tex/` 下只有校徽校名，示例在 `doc/` 下，
+一张图都不带。
+
 2. 在 `src/hithesis.dtx` 的 `install` 守卫里，对应的 `\file{...cls}` 中插一条 `\from`：
 
    ```
