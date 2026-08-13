@@ -75,20 +75,27 @@
 %
 % \subsection{目标}
 %
-% 目标名就是被排的那个元素：\option{chapter}、\option{section}、\option{subsection}、
-% \option{subsubsection}、\option{caption-figure}、\option{caption-table}、
-% \option{caption-sub}、\option{abstract-heading}，以及四级目录条目
-% \option{toc-chapter} 到 \option{toc-subsubsection}。
+% 目标名就是被排的那个元素：\option{body}、\option{chapter}、\option{section}、
+% \option{subsection}、\option{subsubsection}、\option{caption-figure}、
+% \option{caption-table}、\option{caption-sub}、\option{abstract-heading}，
+% 以及四级目录条目 \option{toc-chapter} 到 \option{toc-subsubsection}。
+%
+% \changes{v3.2a}{2026/08/14}{加 \option{body} 目标，正文的字号、行距、首行缩进
+%   与首行基线落点都从它算}
+% \option{body} 是正文，也就是 Word 里的「正文」样式。它管的东西比别的目标多一层：
+% 除了字号行距，\cs{parindent} 与 \cs{topskip} 也从它算，见下面「接到正文上」一节。
 %
 % 另有两个伞：\option{heading} 一次写四级标题，\option{caption} 一次写图题表题。
 % 伞展开成逐个写一遍，所以伞后面再单设某一个仍然管用。
 %
 % \subsection{这一轮做到哪}
 %
-% 换算这一层已经齐了，见下面的「换算」小节：\cs{hit@format@compute:n} 把键值算成
-% \cs{baselineskip}、基线落点与段前段后。还没做的是把它接到 \cs{ctexset} 与
-% \cs{captionsetup} 上，那要先把现有五份标题配置里的手算值反推回 Word 设置，
-% 一份一份改写。
+% \changes{v3.2a}{2026/08/14}{\option{body} 与四级标题都接上了，剩下题注与目录}
+% 换算齐了，见下面的「换算」小节：\cs{hit@format@compute:n} 把键值算成
+% \cs{baselineskip}、基线落点、段前段后与缩进。接出去的有两处：四级标题走
+% \cs{ctexset}（见「接到标题上」），正文走 \cs{normalsize} 那一批长度
+% （见「接到正文上」）。题注与目录条目那六个目标只存不用，得先把
+% \pkg{caption} 与 \pkg{titletoc} 那边的手算值反推回 Word 设置才好接。
 %
 % 原先散在类选项里的六个开关已经接上。它们本来就只有真假两态，不需要换算：
 % \begin{center}
@@ -123,6 +130,7 @@
 %    \begin{macrocode}
 \clist_const:Nn \c__hit_format_target_clist
   {
+    body ,
     chapter , section , subsection , subsubsection ,
     caption-figure , caption-table , caption-sub , abstract-heading ,
     toc-chapter , toc-section , toc-subsection , toc-subsubsection
@@ -479,7 +487,12 @@
 \tl_const:Nn \c__hit_format_exact_tl { 0.8 }
 %    \end{macrocode}
 %
-% 算出来的七个量。调用方读这几个，不直接碰存储。
+% \emph{缩进。} \option{indent-special} 的三种模式折成一个带正负号的量：
+% \texttt{first-line} 为正、\texttt{hanging} 为负、\texttt{none} 为零，正好是
+% \hologo{LaTeX} 里 \cs{parindent} 与 \cs{hangindent} 的符号约定。
+% 「一字」这个单位指网格字距，与该段自己的字号无关，与「一行」指网格行距同理。
+%
+% 算出来的八个量。调用方读这几个，不直接碰存储。
 %    \begin{macrocode}
 \dim_new:N \l_hit_format_size_dim
 \dim_new:N \l_hit_format_natural_dim
@@ -487,6 +500,7 @@
 \dim_new:N \l_hit_format_first_dim
 \dim_new:N \l_hit_format_before_dim
 \dim_new:N \l_hit_format_after_dim
+\dim_new:N \l_hit_format_indent_dim
 \bool_new:N \l_hit_format_snap_bool
 %    \end{macrocode}
 %
@@ -508,15 +522,37 @@
 %    \end{macrocode}
 %
 % 带单位的键：\meta{值}加\meta{单位}两条。\texttt{line} 折成网格行距的倍数，
-% 其余当长度。
+% \texttt{chars} 折成网格字距的倍数，其余当长度。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_amount_get:nnN #1#2#3
   {
     \__hit_format_read:nnnN {#1} {#2} { 0pt } \l__hit_format_value_tl
     \__hit_format_read:nnnN {#1} { #2 -unit } { length } \l__hit_format_unit_tl
-    \str_if_eq:VnTF \l__hit_format_unit_tl { line }
-      { \dim_set:Nn #3 { \l__hit_format_value_tl \g_hit_msword_lead_dim } }
+    \str_case:VnF \l__hit_format_unit_tl
+      {
+        { line }
+          { \dim_set:Nn #3 { \l__hit_format_value_tl \g_hit_msword_lead_dim } }
+        { chars }
+          { \dim_set:Nn #3 { \l__hit_format_value_tl \g_hit_msword_char_dim } }
+      }
       { \dim_set:Nn #3 { \l__hit_format_value_tl } }
+  }
+%    \end{macrocode}
+%
+% 首行缩进与悬挂缩进是同一个量的两个方向，算完折成一个带符号的长度。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_indent:n #1
+  {
+    \__hit_format_read:nnnN {#1} { indent-special-mode } { none }
+      \l__hit_format_coef_tl
+    \str_if_eq:VnTF \l__hit_format_coef_tl { none }
+      { \dim_zero:N \l_hit_format_indent_dim }
+      {
+        \__hit_format_amount_get:nnN {#1} { indent-special }
+          \l_hit_format_indent_dim
+        \str_if_eq:VnT \l__hit_format_coef_tl { hanging }
+          { \dim_set:Nn \l_hit_format_indent_dim { - \l_hit_format_indent_dim } }
+      }
   }
 %    \end{macrocode}
 %
@@ -549,6 +585,7 @@
     \__hit_format_lead:
     \__hit_format_amount_get:nnN {#1} { space-before } \l_hit_format_before_dim
     \__hit_format_amount_get:nnN {#1} { space-after } \l_hit_format_after_dim
+    \__hit_format_indent:n {#1}
   }
 %    \end{macrocode}
 %
@@ -652,6 +689,42 @@
   { serif = \rmfamily , sans = \sffamily , mono = \ttfamily }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/08/14}{加 \cs{hit@format@strut:}，把每一行的行盒撑成
+%   Word 的高度}
+% \cs{hit@format@strut:} 是一根零宽的撑杆，把它所在那一行的行盒撑成 Word 的尺寸。
+%
+% Word 的行盒高度由字体的上升部与下降部定，与这一行实际写了什么字无关；
+% \hologo{TeX} 的行高是这一行各个字形外框的最大值。汉字的字形外框比字体的上升部
+% 矮一截，小二黑体差 3.4\,bp，小四宋体差 2.3\,bp。段内看不出来——段内的行距由
+% \cs{baselineskip} 定死——差别全落在段与段的接缝上：
+% \hologo{TeX} 那里两段之间是「上段末行的深度加间距加下段首行的高度」，
+% 三项里有两项是字形量出来的，比 Word 的窄。页首那一行也一样，
+% \cs{topskip} 拦不住比它高的行。
+%
+% 撑杆的高是上升部 $1.0156$ 倍字号，深是行距减上升部，两个都按当时的字号与
+% \cs{baselineskip} 现算，所以同一根撑杆在正文、标题、题注上都是对的。这个式子
+% 说的是「基线顶对齐、多出来的行距全在基线之下」，也就是 Word 里不对齐网格的
+% 那一路；对齐到网格时行盒居中，撑杆撑不出来。
+%
+% 字号要先落进一个长度再乘系数。\cs{f@size} 是个数字串不是长度寄存器，
+% \texttt{1.0156\cs{f@size}pt} 在 \cs{dimexpr} 里读成两个数并排，报
+% \texttt{Illegal unit of measure}。
+%    \begin{macrocode}
+\dim_new:N \l__hit_format_strut_dim
+\cs_new_protected:Npn \hit@format@strut:
+  {
+    \leavevmode
+    \dim_set:Nn \l__hit_format_strut_dim { \f@size pt }
+    \dim_set:Nn \l__hit_format_strut_dim
+      { \c__hit_format_ascent_tl \l__hit_format_strut_dim }
+    \vrule ~ width ~ \c_zero_dim
+      ~ height ~ \l__hit_format_strut_dim
+      ~ depth ~ \dim_max:nn { \c_zero_dim }
+          { \baselineskip - \l__hit_format_strut_dim }
+    \scan_stop:
+  }
+%    \end{macrocode}
+%
 % 把字体、字号、行距、加粗、对齐拼成一串排版命令。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_build:n #1
@@ -681,6 +754,7 @@
     \str_if_eq:VnT \l__hit_format_value_tl { true }
       { \tl_put_right:Nn \l__hit_format_out_tl { \bfseries } }
     \__hit_format_pick:nnN {#1} { alignment } \c__hit_format_align_prop
+    \tl_put_right:Nn \l__hit_format_out_tl { \hit@format@strut: }
   }
 \cs_new_protected:Npn \__hit_format_pick:nnN #1#2#3
   {
@@ -725,6 +799,80 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@apply@headings:n #1
   { \clist_map_inline:nn {#1} { \hit@format@apply@heading:n {##1} } }
+%    \end{macrocode}
+%
+% \subsection{接到正文上}
+%
+% \changes{v3.2a}{2026/08/14}{加 \cs{hit@format@apply@body:}，正文的字号、行距、
+%   首行缩进、首行基线落点与汉字间距都由 \option{body} 目标算出来}
+% 正文不归 \pkg{ctex} 管，四个量各有各的去处：
+% \begin{center}
+% \begin{tabular}{lll}
+% \toprule
+% 量 & 存在哪 & 谁读它 \\\midrule
+% 字号 & \cs{g\_hit\_body\_size\_dim} & \cs{normalsize} \\
+% 行距 & \cs{g\_hit\_body\_lead\_dim} & \cs{normalsize} \\
+% 首行基线落点 & \cs{g\_hit\_body\_first\_dim} & \cs{topskip} \\
+% 首行缩进 & \cs{g\_hit\_body\_indent\_dim} & \cs{parindent} \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+%
+% 四个都是全局长度而不是直接写死的数：\cs{normalsize} 每次执行都重读，所以
+% \cs{hitsetup} 写在导言区哪里都来得及，写进正文也能改。默认值由各个类在
+% \file{src/flow/hit-*-fonts.dtx} 里给，没写 \option{body} 就一直是那一份。
+%
+% 改完长度要再调一次 \cs{normalsize}。\hologo{LaTeX} 选定正文字体是在类加载完那一刻，
+% 早于 \cs{AfterPreamble}，只改长度不重选的话这一页排出来的还是旧行距。
+%
+% \cs{parindent} 要排在 \cs{normalsize} 之后设，还要顺手关掉 \pkg{ctex} 的
+% \option{autoindent}。\option{autoindent} 是「首行缩进跟着字号走，恒为两个汉字宽」，
+% 每次换字号都重设一遍 \cs{parindent}，写在前面会被 \cs{normalsize} 抹掉。
+% 关掉它也是照 Word：Word 那边「首行缩进 2 字符」在存盘时就折算成了绝对长度
+% （范例里是 507 缇），换字号不跟着变。
+%
+% \cs{topskip} 是版心顶到首行基线的距离，跟 Word 的算法对得上：Word 那边这个距离
+% 就等于首行基线在自己行盒里的落点，见前面的换算一节。\hologo{TeX} 取的是
+% \cs{topskip} 与首行盒高度的较大者，所以行里有比正文高的东西时首行会往下走，
+% 这一条 Word 也一样。
+%
+% \cs{CJKglue} 是汉字之间的空隙，取值是网格字距减字号，由
+% \file{src/utils/hit-msword.dtx} 算好。原样保留 \pkg{xeCJK} 的伸缩量：Word 的
+% 字距是自然宽度，两端对齐时照样还要再拉开，两边是一回事。
+%
+% 撑杆挂在段落的首尾两个钩子上，段间的接缝就都按 Word 的行盒算。首尾各挂一根：
+% 首行那根定这一段的高，末行那根定这一段的深，只挂一根管不到另一头。标题那边
+% 另有一根写在 \option{format} 里，两根重了也没事，行盒取的是最大值。
+%    \begin{macrocode}
+\dim_new:N \g_hit_body_size_dim
+\dim_new:N \g_hit_body_lead_dim
+\dim_new:N \g_hit_body_first_dim
+\dim_new:N \g_hit_body_indent_dim
+\cs_new_protected:Npn \hit@format@apply@body:
+  {
+    \prop_if_empty:cF { g__hit_format_body_prop }
+      {
+        \hit@format@compute:n { body }
+        \dim_gset_eq:NN \g_hit_body_size_dim \l_hit_format_size_dim
+        \dim_gset_eq:NN \g_hit_body_lead_dim \l_hit_format_lead_dim
+        \dim_gset_eq:NN \g_hit_body_first_dim \l_hit_format_first_dim
+        \dim_gset_eq:NN \g_hit_body_indent_dim \l_hit_format_indent_dim
+        \dim_set_eq:NN \topskip \g_hit_body_first_dim
+        \normalsize
+        \ctexset { autoindent = false }
+        \dim_set_eq:NN \parindent \g_hit_body_indent_dim
+        \dim_compare:nNnF { \g_hit_msword_glue_dim } = { 0pt }
+          {
+            \cs_set:Npx \CJKglue
+              {
+                \exp_not:N \hskip \dim_use:N \g_hit_msword_glue_dim
+                \exp_not:N \@plus 0.08 \exp_not:N \baselineskip
+              }
+          }
+        \AddToHook { para / begin } { \hit@format@strut: }
+        \AddToHook { para / end }   { \hit@format@strut: }
+      }
+  }
 %    \end{macrocode}
 %
 %    \begin{macrocode}

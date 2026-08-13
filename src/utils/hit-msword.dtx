@@ -50,10 +50,9 @@
 % \emph{三、多倍行距是网格行距的倍数。} 与字体的单倍行距无关。1.25、1.5、2 倍三份对照
 % 文档都对得上。
 %
-% \emph{四、首行基线在版心顶下方「半个行距加 4.4035\,bp」处。}
-% 半个行距这个系数是量准的：以范例为锚点，按这条式子预测另外六份对照文档的基线，
-% 六份全中（行距 21.6、24.1、24.4375、25、29.325、39.1\,bp）。常数 4.4035\,bp 是七份样本
-% 的区间拟合，误差 0.03\,bp 以内。这个常数按字号成正比缩放，不过只在小四上验过。
+% \emph{四、版心顶到首行基线的距离等于首行基线在自己行盒里的落点。} 落点怎么算见
+% \file{src/utils/hit-format.dtx} 的「换算」一节，对齐网格与否走两条式子。本模块
+% 不管这件事：它只知道页面设置，不知道正文段落是什么字号、多少行距。
 %
 % Word 把每条基线四舍五入到三百分之一英寸（0.24\,bp）再落笔，累加本身是精确的。所以
 % 范例里相邻行距是 19.44 与 19.68 交替，平均下来才是 19.55。这层取整是 Word 内部的，
@@ -80,21 +79,15 @@
 % 默认值是零，也就是页脚基线正好落在页脚线上。
 %
 % 算完当场调用 \cs{geometry}，另外把三个量放进全局长度供调用方取用：
-% \cs{g\_hit\_msword\_lead\_dim}（行距）、\cs{g\_hit\_msword\_topskip\_dim}（首行基线
-% 距版心顶）、\cs{g\_hit\_msword\_glue\_dim}（\cs{CJKglue}）。
+% \cs{g\_hit\_msword\_lead\_dim}（网格行距）、\cs{g\_hit\_msword\_char\_dim}（网格字距）、
+% \cs{g\_hit\_msword\_glue\_dim}（\cs{CJKglue}，字距减字号）。前两个是
+% \file{src/utils/hit-format.dtx} 里「一行」「一字」这两个单位的取值来源。
 %
 % ^^A ======================================================================
 % ^^A Module shared-msword: Word 页面设置换算（各个类共用）
 % ^^A ======================================================================
 %    \begin{macrocode}
 %<*shared-msword>
-%    \end{macrocode}
-%
-% 首行常数与它的参照字号。两个写成常量是为了让来路可查：4.4035\,bp 是在小四上量的，
-% 换字号要按比例缩放，所以参照字号必须跟着一起摆出来。
-%    \begin{macrocode}
-\dim_const:Nn \c__hit_msword_first_dim { 4.4035bp }
-\dim_const:Nn \c__hit_msword_probe_dim { 12bp }
 %    \end{macrocode}
 %
 % 缇是 Word 的内部长度单位，第二条规则的取整在这个单位上做。一缇是 $1/20$\,\texttt{bp}，
@@ -112,7 +105,7 @@
 % 输出的三个量。
 %    \begin{macrocode}
 \dim_new:N \g_hit_msword_lead_dim
-\dim_new:N \g_hit_msword_topskip_dim
+\dim_new:N \g_hit_msword_char_dim
 \dim_new:N \g_hit_msword_glue_dim
 %    \end{macrocode}
 %
@@ -219,13 +212,7 @@
       \dim_compare:nNnT { \l__hit_msword_lead_dim } = { 0pt }
         { \msg_error:nn { hithesis } { msword-no-pitch } }
       \dim_gset_eq:NN \g_hit_msword_lead_dim \l__hit_msword_lead_dim
-      \dim_gset:Nn \g_hit_msword_topskip_dim
-        {
-          0.5 \l__hit_msword_lead_dim
-          + \dim_to_decimal_in_unit:nn
-              { \l__hit_msword_size_dim } { \c__hit_msword_probe_dim }
-            \c__hit_msword_first_dim
-        }
+      \dim_gset_eq:NN \g_hit_msword_char_dim \l__hit_msword_char_dim
       \dim_gset:Nn \g_hit_msword_glue_dim
         { \l__hit_msword_char_dim - \l__hit_msword_size_dim }
       \tl_gset:Nx \g__hit_msword_geometry_tl

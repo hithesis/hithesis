@@ -197,6 +197,58 @@
   }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/08/14}{\texttt{layout} 族收下 Word「页面设置」与「文档网格」
+%   两个对话框上的键，转给 \cs{hit@msword@layout:n}}
+% 其余的键就是 Word 那两个对话框上的格子，一格一个键，换算规则见
+% \file{src/utils/hit-msword.dtx}：
+% \begin{latex}
+% \hitsetup{ layout = {
+%   margin-top = 107.75bp , margin-bottom = 85.05bp ,
+%   margin-left = 85.05bp , margin-right = 85.05bp ,
+%   header = 85.05bp , footer = 65.2bp ,
+%   line-pitch = 19.55bp , char-pitch = 12.675bp , size = 12bp ,
+% } }
+% \end{latex}
+%
+% 这些键不当场生效，先攒进一张表，一次 \cs{hitsetup} 里的都收齐了再交给
+% \cs{hit@msword@layout:n} 重算一遍。版心的每个数都要另外几个数才算得出来——
+% 版心高要上下边距，页眉位置要上边距减页眉距边界——一格一格地即算即用会拿
+% 半张表去算，还会因为暂时没有行距而误报。
+%
+% 表是全局只增的，所以分几次写等同于一次写全，后写的盖先写的。
+%
+% \option{head} 与 \option{foot-baseline} 是把类自己的页眉页脚接到 Word 位置上的
+% 两个键，不在 Word 的对话框里，来路见 \file{src/utils/hit-msword.dtx}。
+%    \begin{macrocode}
+\tl_new:N \g__hit_layout_msword_tl
+\bool_new:N \l__hit_layout_dirty_bool
+\cs_new_protected:Npn \__hit_layout_msword:nn #1#2
+  {
+    \tl_gput_right:Nx \g__hit_layout_msword_tl { #1 = \exp_not:n {#2} , }
+    \bool_set_true:N \l__hit_layout_dirty_bool
+  }
+\clist_map_inline:nn
+  {
+    paper-width , paper-height , margin-top , margin-bottom ,
+    margin-left , margin-right , header , footer , head , foot-baseline ,
+    size , line-pitch , char-pitch , lines-per-page , chars-per-line
+  }
+  {
+    \keys_define:nn { hit / layout }
+      {
+        #1 .code:n = { \__hit_layout_msword:nn {#1} {##1} } ,
+        #1 .value_required:n = true ,
+      }
+  }
+\cs_new_protected:Npn \hit@layout@set:n #1
+  {
+    \bool_set_false:N \l__hit_layout_dirty_bool
+    \hit@keys@set:nn { hit / layout } {#1}
+    \bool_if:NT \l__hit_layout_dirty_bool
+      { \exp_args:NV \hit@msword@layout:n \g__hit_layout_msword_tl }
+  }
+%    \end{macrocode}
+%
 % \changes{v3.2a}{2026/08/12}{\pkg{etoolbox} 从 thesis-keylist 挪进 shared-keylist，
 %   两个类共用一次加载。原先两个参考文献模块各装一次，那两次一个宏都没用上}
 % \pkg{etoolbox} 在这里装。下面 \cs{AfterPreamble} 与 \cs{ifdefempty} 要它，
@@ -646,7 +698,7 @@
   {
     info  .code:n = { \hit@keys@set:nn { hit / info } {#1} } ,
     style .code:n = { \hit@keys@set:nn { hit / style } {#1} } ,
-    layout .code:n = { \hit@keys@set:nn { hit / layout } {#1} } ,
+    layout .code:n = { \hit@layout@set:n {#1} } ,
     format .code:n = { \hit@keys@set:nn { hit / format } {#1} } ,
     toc   .code:n = { \hit@keys@set:nn { hit / toc } {#1} } ,
     bib   .code:n = { \hit@keys@set:nn { hit / bib } {#1} } ,
@@ -808,7 +860,7 @@
   {
     info  .code:n = { \hit@keys@set:nn { hit / info } {#1} } ,
     style .code:n = { \hit@keys@set:nn { hit / style } {#1} } ,
-    layout .code:n = { \hit@keys@set:nn { hit / layout } {#1} } ,
+    layout .code:n = { \hit@layout@set:n {#1} } ,
     format .code:n = { \hit@keys@set:nn { hit / format } {#1} } ,
     bib   .code:n = { \hit@keys@set:nn { hit / bib } {#1} } ,
     const .code:n = { \hit@keys@set:nn { hit / const } {#1} } ,
