@@ -628,6 +628,105 @@
   }
 %    \end{macrocode}
 %
+% \subsection{接到标题上}
+%
+% \changes{v3.2a}{2026/08/13}{加 \cs{hit@format@apply@heading:n}，把算出来的量
+%   发给 \cs{ctexset}}
+% 四级标题由 \pkg{ctex} 排，所以算完之后发一条 \cs{ctexset} 过去。字体字号行距用
+% \texttt{format+=} 追加，不覆盖：各个类原有的 \texttt{format} 里还有居中、
+% 编号后的间距这些东西，整条换掉会连它们一起丢。
+%
+% 只发用户真写过的键。一个目标一条键都没设过就整条不发，所以没人写
+% \texttt{format} 时生成物与从前逐字节相同。
+%
+% 时机是 \cs{AfterPreamble}：\cs{hitsetup} 可以写在导言区任何位置，早于它发就读不到。
+%    \begin{macrocode}
+\tl_new:N \l__hit_format_out_tl
+\tl_new:N \l__hit_format_keys_tl
+\prop_const_from_keyval:Nn \c__hit_format_align_prop
+  {
+    left = \raggedright , centered = \centering ,
+    right = \raggedleft , last-line-centered = \centering ,
+  }
+\prop_const_from_keyval:Nn \c__hit_format_latin_prop
+  { serif = \rmfamily , sans = \sffamily , mono = \ttfamily }
+%    \end{macrocode}
+%
+% 把字体、字号、行距、加粗、对齐拼成一串排版命令。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_build:n #1
+  {
+    \tl_clear:N \l__hit_format_out_tl
+    \__hit_format_read:nnnN {#1} { font-zh } { } \l__hit_format_value_tl
+    \bool_lazy_and:nnT
+      { ! \tl_if_empty_p:N \l__hit_format_value_tl }
+      { ! \str_if_eq_p:Vn \l__hit_format_value_tl { none } }
+      {
+        \tl_put_right:Nx \l__hit_format_out_tl
+          { \exp_not:c { \l__hit_format_value_tl } }
+      }
+    \__hit_format_pick:nnN {#1} { font-en } \c__hit_format_latin_prop
+    \__hit_format_read:nnnN {#1} { size } { } \l__hit_format_value_tl
+    \tl_if_empty:NF \l__hit_format_value_tl
+      {
+        \tl_put_right:Nx \l__hit_format_out_tl
+          {
+            \exp_not:N \fontsize
+              { \dim_use:N \l_hit_format_size_dim }
+              { \dim_use:N \l_hit_format_lead_dim }
+            \exp_not:N \selectfont
+          }
+      }
+    \__hit_format_read:nnnN {#1} { bold } { false } \l__hit_format_value_tl
+    \str_if_eq:VnT \l__hit_format_value_tl { true }
+      { \tl_put_right:Nn \l__hit_format_out_tl { \bfseries } }
+    \__hit_format_pick:nnN {#1} { alignment } \c__hit_format_align_prop
+  }
+\cs_new_protected:Npn \__hit_format_pick:nnN #1#2#3
+  {
+    \__hit_format_read:nnnN {#1} {#2} { } \l__hit_format_value_tl
+    \prop_get:NVNT #3 \l__hit_format_value_tl \l__hit_format_coef_tl
+      { \tl_put_right:NV \l__hit_format_out_tl \l__hit_format_coef_tl }
+  }
+\cs_generate_variant:Nn \prop_get:NnNT { NVNT }
+%    \end{macrocode}
+%
+% 发给 \pkg{ctex}。段前段后只在用户设过时才发，没设过就让各个类原有的取值留着。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@apply@heading:n #1
+  {
+    \prop_if_empty:cF { g__hit_format_#1_prop }
+      {
+        \hit@format@compute:n {#1}
+        \__hit_format_build:n {#1}
+        \tl_set:Nx \l__hit_format_keys_tl
+          { format ~ += { \exp_not:V \l__hit_format_out_tl } , }
+        \prop_if_in:cnT { g__hit_format_#1_prop } { space-before }
+          {
+            \tl_put_right:Nx \l__hit_format_keys_tl
+              { beforeskip = { \dim_use:N \l_hit_format_before_dim } , }
+          }
+        \prop_if_in:cnT { g__hit_format_#1_prop } { space-after }
+          {
+            \tl_put_right:Nx \l__hit_format_keys_tl
+              { afterskip = { \dim_use:N \l_hit_format_after_dim } , }
+          }
+        \use:x
+          {
+            \exp_not:N \ctexset
+              { #1 = { \exp_not:V \l__hit_format_keys_tl } }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 四级各发一次。报告类是 \pkg{ctexart}，没有 \texttt{chapter}，发过去会报不认识的键，
+% 所以按类的实有层级发。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@apply@headings:n #1
+  { \clist_map_inline:nn {#1} { \hit@format@apply@heading:n {##1} } }
+%    \end{macrocode}
+%
 %    \begin{macrocode}
 %</shared-format>
 %    \end{macrocode}
