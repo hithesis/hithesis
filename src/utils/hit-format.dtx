@@ -349,17 +349,29 @@
 % 兼容桥：六条已经能接上排版的属性写回原来的标志位。整个目标设完再过一遍，
 % 因为 \option{alignment} 那两条要看最终值，中途改来改去不必每次都写。
 %
+% 六个标志位都只有学位论文类有。报告类是 \pkg{ctexart}，没有章，也没有子图题与
+% 摘要标题那两处开关，所以写回之前先看标志位在不在，不在就什么也不做，
+% 免得凭空造出一个没人读的布尔。
+%
 % \option{font-en} 与 \option{all-caps} 的标志位是全局的，所以只在伞上认。伞展开成
 % 四个层级，四次都写同一个标志位，结果一样。
 %    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_flag_set:nn #1#2
+  {
+    \bool_if_exist:cT { g__hit_#1_bool }
+      {
+        \bool_if:nTF {#2}
+          { \bool_gset_true:c  { g__hit_#1_bool } }
+          { \bool_gset_false:c { g__hit_#1_bool } }
+      }
+  }
 \cs_new_protected:Npn \__hit_format_flag:nn #1#2
   {
     \prop_get:cnNT { g__hit_format_ \l__hit_format_target_str _prop }
       {#2} \l__hit_format_head_tl
       {
-        \str_if_eq:VnTF \l__hit_format_head_tl { true }
-          { \bool_gset_true:c  { g__hit_#1_bool } }
-          { \bool_gset_false:c { g__hit_#1_bool } }
+        \__hit_format_flag_set:nn {#1}
+          { \str_if_eq_p:Vn \l__hit_format_head_tl { true } }
       }
   }
 \cs_new_protected:Npn \__hit_format_flag_eq:nnn #1#2#3
@@ -367,9 +379,8 @@
     \prop_get:cnNT { g__hit_format_ \l__hit_format_target_str _prop }
       {#2} \l__hit_format_head_tl
       {
-        \str_if_eq:VnTF \l__hit_format_head_tl {#3}
-          { \bool_gset_true:c  { g__hit_#1_bool } }
-          { \bool_gset_false:c { g__hit_#1_bool } }
+        \__hit_format_flag_set:nn {#1}
+          { \str_if_eq_p:Vn \l__hit_format_head_tl {#3} }
       }
   }
 \cs_new_protected:Npn \__hit_format_legacy:n #1
