@@ -1,0 +1,426 @@
+% \iffalse meta-comment
+%
+% hit-format.dtx 是照 Word 的字体与段落对话框描述一个元素怎么排
+%
+% \fi
+%
+% \section{元素格式（format）}
+%
+% \changes{v3.2a}{2026/08/13}{加 \texttt{hit/format} 族，按 Word 的字体与段落
+%   对话框描述章节标题、图题表题、目录条目的排法}
+% 规范里说的是 Word 的话：「章标题小二黑体居中，段前段后各一行，多倍行距 1.5」。
+% 这些话现在落在代码里是这个样子：
+% \begin{latex}
+% chapter={ beforeskip={28.34646bp}, afterskip={28.74646bp}, ... }
+% %          ^ 注释写着「一个空行 1.57481 × 18」
+% \end{latex}
+% 那个 \texttt{1.57481 × 18} 是有人拿 Word 的设置手算了一遍留下的。校区与学位之间
+% 标题格式差别很大，这样的手算散在五份 \cs{ctexset} 里，改一处要连带重算三四个数。
+%
+% \texttt{format} 族收 Word 对话框上的原话，换算交给代码：
+% \begin{latex}
+% \hitpresetup[campus=harbin,degree-level=bachelor]
+%   {
+%     format =
+%       {
+%         chapter = { font-zh = heiti , size = xiaoer , bold = true ,
+%                     alignment = centered , line-spacing = 1.5 ,
+%                     space-before = 1 line , space-after = 1 line } ,
+%         caption = { size = wuhao , alignment = centered } ,
+%       }
+%   }
+% \end{latex}
+%
+% \subsection{键}
+%
+% 键名与取值尽量照抄 Word 英文界面的原词，这样对着对话框逐格抄不用翻译。
+% 只有 \option{line-spacing} 的取值做了归并：Word 下拉框里的单倍、1.5 倍、2 倍、
+% 多倍是同一个机制的四个预设，这里合成「一个数就是倍数」，
+% 只有固定值与最小值是另外两种模式。
+%
+% 读起来是名词的键跟一个值，读起来是形容词或动词短语的键只收真假。
+%
+% \begin{center}
+% \begin{tabular}{lll}
+% \toprule
+% 键 & Word 界面 & 取值 \\\midrule
+% \option{font-zh} & Chinese text font & \texttt{songti} \texttt{heiti} \texttt{kaishu} \texttt{fangsong} \\
+% \option{font-en} & Latin text font & \texttt{serif} \texttt{sans} \texttt{mono} \\
+% \option{size} & Size & \texttt{sanhao}，或 \texttt{16bp} \\
+% \option{alignment} & Alignment & \texttt{left} \texttt{centered} \texttt{right} \texttt{justified} \\
+%  & & \texttt{distributed} \texttt{last-line-centered} \\
+% \option{indent-left} & Indentation: Left & \texttt{2 chars}，或 \texttt{12bp} \\
+% \option{indent-right} & Indentation: Right & 同上 \\
+% \option{indent-special} & Indentation: Special + By & \texttt{none}、\texttt{first-line 2 chars}、\texttt{hanging 4 chars} \\
+% \option{line-spacing} & Line spacing + At & \texttt{single} \texttt{double} \texttt{1.5} \\
+%  & & \texttt{exactly 25bp} \texttt{at-least 25bp} \\
+% \option{space-before} & Spacing: Before & \texttt{1 line}，或 \texttt{12bp} \\
+% \option{space-after} & Spacing: After & 同上 \\
+% \option{bold} & Font style: Bold & 真假 \\
+% \option{all-caps} & Effects: All caps & 真假 \\
+% \option{snap-to-grid} & Snap to grid when document grid is defined & 真假 \\
+% \option{keep-with-next} & Keep with next & 真假 \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+%
+% \option{alignment} 的 \texttt{last-line-centered}（末行居中）是模板的扩展，Word 里
+% 没有这一项，别去对话框里找。词形跟着 Word 那几个走：那几个都是过去分词，
+% 描述「排成什么样」这个状态。
+%
+% \texttt{1 line}、\texttt{hanging 4 chars}、\texttt{exactly 25bp} 这几种写法里的空格
+% 是有意义的，解析器按空格切词。用户文档里照写就行；写在类源码里要把空格改成
+% \pkg{expl3} 的空格记号，那里在 \cs{ExplSyntaxOn} 之内，字面空格会被吃掉，
+% 规矩见 CONTRIBUTING §4.6。
+%
+% \subsection{目标}
+%
+% 目标名就是被排的那个元素：\option{chapter}、\option{section}、\option{subsection}、
+% \option{subsubsection}、\option{caption-figure}、\option{caption-table}、
+% \option{caption-sub}、\option{abstract-heading}，以及四级目录条目
+% \option{toc-chapter} 到 \option{toc-subsubsection}。
+%
+% 另有两个伞：\option{heading} 一次写四级标题，\option{caption} 一次写图题表题。
+% 伞展开成逐个写一遍，所以伞后面再单设某一个仍然管用。
+%
+% \subsection{这一轮做到哪}
+%
+% \option{line-spacing} 与 \option{space-before} 这些要换算成 \cs{baselineskip} 与
+% \cs{beforeskip}，换算规则依赖几组还没做的 Word 对照实验（一行占几个网格格、
+% 「一行」等于多少），所以本轮只把取值收下来存住，不接排版。
+%
+% 已经接上的是原先散在类选项里的六个开关。它们本来就只有真假两态，不需要换算：
+% \begin{center}
+% \begin{tabular}{ll}
+% \toprule
+% 新写法 & 原先的标志位 \\\midrule
+% \option{chapter} = \{ \option{bold} \} & \option{chapterbold} \\
+% \option{chapter} = \{ \option{indent-special} = \texttt{hanging} \} & \option{chapterhang} \\
+% \option{caption-figure} = \{ \option{alignment} = \texttt{last-line-centered} \} & \option{capcenterlast} \\
+% \option{caption-sub} = \{ \option{alignment} = \texttt{last-line-centered} \} & \option{subcapcenterlast} \\
+% \option{abstract-heading} = \{ \option{all-caps} \} & \option{absupper} \\
+% \option{heading} = \{ \option{font-en} = \texttt{sans} \} & \option{arialtitle} \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+%
+% 这六条写的是同一个标志位，排版那边一个字没动，所以生成物不变。
+%
+% 最后两条只认伞：\option{font-en} 只在 \option{heading} 上生效，\option{all-caps}
+% 只在 \option{abstract-heading} 上生效。标志位本身是全局的，写在单个层级上会
+% 越界影响另外三级，与其装作能分级不如先不认。
+%
+% ^^A ======================================================================
+% ^^A Module shared-format: 元素格式（各个类共用）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*shared-format>
+%    \end{macrocode}
+%
+% 目标清单与每个目标的存储。取值存进 \cs{g\_\_hit\_format\_}\meta{目标}\cs{\_prop}，
+% 带单位的键存两条：值一条、单位一条。
+%    \begin{macrocode}
+\clist_const:Nn \c__hit_format_target_clist
+  {
+    chapter , section , subsection , subsubsection ,
+    caption-figure , caption-table , caption-sub , abstract-heading ,
+    toc-chapter , toc-section , toc-subsection , toc-subsubsection
+  }
+\clist_map_inline:Nn \c__hit_format_target_clist
+  { \prop_new:c { g__hit_format_#1_prop } }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\str_new:N \l__hit_format_target_str
+\seq_new:N \l__hit_format_word_seq
+\int_new:N \l__hit_format_count_int
+\tl_new:N \l__hit_format_head_tl
+\tl_new:N \l__hit_format_tail_tl
+\tl_new:N \l__hit_format_rest_tl
+%    \end{macrocode}
+%
+% \cs{\_\_hit\_format\_put:nn}\marg{键}\marg{值} 写进当前目标的存储。
+%
+% 值当场展开再存。解析器交过来的是 \cs{dim\_eval:n} 与 \cs{fp\_to\_decimal:n} 这种
+% 还没算的式子，里面读着 \cs{l\_\_hit\_format\_head\_tl} 这些临时变量；原样存下去，
+% 等到取用时才算，那几个临时变量早被下一条键覆盖了。
+%    \begin{macrocode}
+\cs_generate_variant:Nn \prop_gput:Nnn { cnx }
+\cs_new_protected:Npn \__hit_format_put:nn #1#2
+  {
+    \prop_gput:cnx
+      { g__hit_format_ \l__hit_format_target_str _prop } {#1} {#2}
+  }
+%    \end{macrocode}
+%
+% 把取值按空格切开，留下四样东西：词数、头一个词、末一个词、头一个词之后的全部。
+% 带单位的写法有两种词序，\texttt{2 chars} 是数在前，\texttt{exactly 25bp} 是词在前，
+% 各个解析器按自己的词序挑用。\texttt{hanging 4 chars} 是三个词，模式在头上，
+% 数量在「其余」里，那一段再交给收数量的解析器切一次。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_split:n #1
+  {
+    \seq_set_split:Nnn \l__hit_format_word_seq { ~ } { #1 }
+    \seq_remove_all:Nn \l__hit_format_word_seq { }
+    \int_set:Nn \l__hit_format_count_int
+      { \seq_count:N \l__hit_format_word_seq }
+    \seq_get_left:NN  \l__hit_format_word_seq \l__hit_format_head_tl
+    \seq_get_right:NN \l__hit_format_word_seq \l__hit_format_tail_tl
+    \seq_pop_left:NN  \l__hit_format_word_seq \l__hit_format_rest_tl
+    \tl_set:Nx \l__hit_format_rest_tl
+      { \seq_use:Nn \l__hit_format_word_seq { ~ } }
+  }
+%    \end{macrocode}
+%
+% 取值只有一个词时没有单位，整段当长度看。
+%    \begin{macrocode}
+\prg_new_conditional:Npnn \__hit_format_one_word: { TF }
+  {
+    \int_compare:nNnTF { \l__hit_format_count_int } = { 1 }
+      { \prg_return_true: } { \prg_return_false: }
+  }
+%    \end{macrocode}
+%
+% 取值不在名单里就报一句，键名与取值都印出来。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_enum:nnn #1#2#3
+  {
+    \clist_if_in:nnTF {#2} {#3}
+      { \__hit_format_put:nn {#1} {#3} }
+      { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {#3} }
+  }
+\cs_new_protected:Npn \__hit_format_bool:nn #1#2
+  { \__hit_format_enum:nnn {#1} { true , false } {#2} }
+%    \end{macrocode}
+%
+% \option{size} 收字号名或长度。名字查 \file{src/utils/hit-fonts.dtx} 存下的常量，
+% 那张表是字号命令自己那份，不会走样。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_size:n #1
+  {
+    \dim_if_exist:cTF { c__hit_font_size_#1_dim }
+      {
+        \__hit_format_put:nn { size }
+          { \dim_use:c { c__hit_font_size_#1_dim } }
+      }
+      { \__hit_format_put:nn { size } { \dim_eval:n {#1} } }
+  }
+%    \end{macrocode}
+%
+% \option{line-spacing}。\texttt{single} 与 \texttt{double} 是 Word 下拉框里的词，
+% 折成倍数 1 与 2；光秃秃一个数也是倍数；\texttt{exactly} 与 \texttt{at-least} 是
+% 另外两种模式，后面跟长度。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_line_spacing:n #1
+  {
+    \__hit_format_split:n {#1}
+    \str_case:VnF \l__hit_format_head_tl
+      {
+        { single } { \__hit_format_spacing_put:nn { multiple } { 1 } }
+        { double } { \__hit_format_spacing_put:nn { multiple } { 2 } }
+        { exactly }
+          { \__hit_format_spacing_put:nV { exactly } \l__hit_format_rest_tl }
+        { at-least }
+          { \__hit_format_spacing_put:nV { at-least } \l__hit_format_rest_tl }
+      }
+      {
+        \__hit_format_one_word:TF
+          { \__hit_format_spacing_put:nV { multiple } \l__hit_format_head_tl }
+          { \msg_error:nnnn { hithesis } { bad-option-value }
+              { line-spacing } {#1} }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_spacing_put:nn #1#2
+  {
+    \__hit_format_put:nn { line-spacing-unit } {#1}
+    \__hit_format_put:nn { line-spacing } {#2}
+  }
+\cs_generate_variant:Nn \__hit_format_spacing_put:nn { nV }
+\cs_generate_variant:Nn \str_case:nnF { VnF }
+%    \end{macrocode}
+%
+% \option{space-before}、\option{space-after} 收 \texttt{1 line} 或长度；
+% \option{indent-left}、\option{indent-right} 收 \texttt{2 chars} 或长度。两种都是
+% 数在前、单位词在后，只有单位词不同，所以走同一个解析器。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_amount:nnn #1#2#3
+  {
+    \__hit_format_split:n {#3}
+    \__hit_format_one_word:TF
+      {
+        \__hit_format_put:nn { #1 -unit } { length }
+        \__hit_format_put:nn {#1} { \dim_eval:n {#3} }
+      }
+      {
+        \str_if_eq:VnTF \l__hit_format_tail_tl {#2}
+          {
+            \__hit_format_put:nn { #1 -unit } {#2}
+            \__hit_format_put:nn {#1} { \fp_to_decimal:n { \l__hit_format_head_tl } }
+          }
+          { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {#3} }
+      }
+  }
+%    \end{macrocode}
+%
+% \option{indent-special} 是「下拉框加数值框」，头一个词是模式，其余是数量。
+% \texttt{none} 后面不跟数量。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_indent_special:n #1
+  {
+    \__hit_format_split:n {#1}
+    \str_case:VnF \l__hit_format_head_tl
+      {
+        { none } { \__hit_format_put:nn { indent-special-mode } { none } }
+        { first-line }
+          { \__hit_format_special_put:nV { first-line } \l__hit_format_rest_tl }
+        { hanging }
+          { \__hit_format_special_put:nV { hanging } \l__hit_format_rest_tl }
+      }
+      { \msg_error:nnnn { hithesis } { bad-option-value }
+          { indent-special } {#1} }
+  }
+\cs_new_protected:Npn \__hit_format_special_put:nn #1#2
+  {
+    \__hit_format_put:nn { indent-special-mode } {#1}
+    \__hit_format_amount:nnn { indent-special } { chars } {#2}
+  }
+\cs_generate_variant:Nn \__hit_format_special_put:nn { nV }
+%    \end{macrocode}
+%
+% 属性族。
+%    \begin{macrocode}
+\keys_define:nn { hit / format / property }
+  {
+    font-zh .code:n =
+      { \__hit_format_enum:nnn { font-zh }
+          { songti , heiti , kaishu , fangsong } {#1} } ,
+    font-en .code:n =
+      { \__hit_format_enum:nnn { font-en } { serif , sans , mono } {#1} } ,
+    size .code:n = { \__hit_format_size:n {#1} } ,
+    alignment .code:n =
+      { \__hit_format_enum:nnn { alignment }
+          { left , centered , right , justified , distributed ,
+            last-line-centered } {#1} } ,
+    indent-left  .code:n = { \__hit_format_amount:nnn { indent-left } { chars } {#1} } ,
+    indent-right .code:n = { \__hit_format_amount:nnn { indent-right } { chars } {#1} } ,
+    indent-special .code:n = { \__hit_format_indent_special:n {#1} } ,
+    line-spacing .code:n = { \__hit_format_line_spacing:n {#1} } ,
+    space-before .code:n = { \__hit_format_amount:nnn { space-before } { line } {#1} } ,
+    space-after  .code:n = { \__hit_format_amount:nnn { space-after } { line } {#1} } ,
+    bold           .code:n = { \__hit_format_bool:nn { bold } {#1} } ,
+    bold           .default:n = { true } ,
+    all-caps       .code:n = { \__hit_format_bool:nn { all-caps } {#1} } ,
+    all-caps       .default:n = { true } ,
+    snap-to-grid   .code:n = { \__hit_format_bool:nn { snap-to-grid } {#1} } ,
+    snap-to-grid   .default:n = { true } ,
+    keep-with-next .code:n = { \__hit_format_bool:nn { keep-with-next } {#1} } ,
+    keep-with-next .default:n = { true } ,
+    unknown .code:n =
+      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
+  }
+%    \end{macrocode}
+%
+% 目标族。每个目标一个键，值是属性的键值表。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_target:nn #1#2
+  {
+    \str_set:Nn \l__hit_format_target_str {#1}
+    \hit@keys@set:nn { hit / format / property } {#2}
+    \__hit_format_legacy:n {#1}
+  }
+\clist_map_inline:Nn \c__hit_format_target_clist
+  {
+    \keys_define:nn { hit / format }
+      { #1 .code:n = { \__hit_format_target:nn {#1} {##1} } }
+  }
+\keys_define:nn { hit / format }
+  {
+    heading .meta:n =
+      {
+        chapter = {#1} , section = {#1} ,
+        subsection = {#1} , subsubsection = {#1} ,
+      } ,
+    caption .meta:n = { caption-figure = {#1} , caption-table = {#1} } ,
+    unknown .code:n =
+      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
+  }
+%    \end{macrocode}
+%
+% 兼容桥：六条已经能接上排版的属性写回原来的标志位。整个目标设完再过一遍，
+% 因为 \option{alignment} 那两条要看最终值，中途改来改去不必每次都写。
+%
+% \option{font-en} 与 \option{all-caps} 的标志位是全局的，所以只在伞上认。伞展开成
+% 四个层级，四次都写同一个标志位，结果一样。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_flag:nn #1#2
+  {
+    \prop_get:cnNT { g__hit_format_ \l__hit_format_target_str _prop }
+      {#2} \l__hit_format_head_tl
+      {
+        \str_if_eq:VnTF \l__hit_format_head_tl { true }
+          { \bool_gset_true:c  { g__hit_#1_bool } }
+          { \bool_gset_false:c { g__hit_#1_bool } }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_flag_eq:nnn #1#2#3
+  {
+    \prop_get:cnNT { g__hit_format_ \l__hit_format_target_str _prop }
+      {#2} \l__hit_format_head_tl
+      {
+        \str_if_eq:VnTF \l__hit_format_head_tl {#3}
+          { \bool_gset_true:c  { g__hit_#1_bool } }
+          { \bool_gset_false:c { g__hit_#1_bool } }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_legacy:n #1
+  {
+    \str_case:nn {#1}
+      {
+        { chapter }
+          {
+            \__hit_format_flag:nn { chapterbold } { bold }
+            \__hit_format_flag_eq:nnn { chapterhang }
+              { indent-special-mode } { hanging }
+            \__hit_format_flag_eq:nnn { heading_latin_sans } { font-en } { sans }
+          }
+        { section }       { \__hit_format_heading_latin: }
+        { subsection }    { \__hit_format_heading_latin: }
+        { subsubsection } { \__hit_format_heading_latin: }
+        { caption-figure }
+          {
+            \__hit_format_flag_eq:nnn { capcenterlast }
+              { alignment } { last-line-centered }
+          }
+        { caption-table }
+          {
+            \__hit_format_flag_eq:nnn { capcenterlast }
+              { alignment } { last-line-centered }
+          }
+        { caption-sub }
+          {
+            \__hit_format_flag_eq:nnn { subcapcenterlast }
+              { alignment } { last-line-centered }
+          }
+        { abstract-heading }
+          { \__hit_format_flag:nn { absupper } { all-caps } }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_heading_latin:
+  { \__hit_format_flag_eq:nnn { heading_latin_sans } { font-en } { sans } }
+%    \end{macrocode}
+%
+% \cs{hit@format@get:nnN}\marg{目标}\marg{键}\meta{记号列表} 取一条设置，没设过就
+% 让记号列表为空。排版那边接进来时用它。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@get:nnN #1#2#3
+  {
+    \prop_get:cnNF { g__hit_format_#1_prop } {#2} #3
+      { \tl_clear:N #3 }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</shared-format>
+%    \end{macrocode}
+%
+% \Finale

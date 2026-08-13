@@ -1,0 +1,99 @@
+% hit/format 族：照 Word 的字体与段落对话框描述一个元素怎么排。
+%
+% 四件事：各种取值写法都解析得对；伞展开成逐级；六个兼容桥写回原来的标志位；
+% 取值不认识时报错。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master,campus=harbin]{hit-thesis}
+\begin{document}
+\START
+\ExplSyntaxOn
+\cs_new_protected:Npn \DUMP #1
+  {
+    \iow_term:x { [#1] }
+    \prop_map_inline:cn { g__hit_format_#1_prop }
+      { \iow_term:x { ~~ ##1 ~ = ~ ##2 } }
+  }
+\cs_new_protected:Npn \FLAG #1
+  { \iow_term:x { #1 ~ = ~ \bool_if:cTF { g__hit_#1_bool } { true } { false } } }
+\ExplSyntaxOff
+
+% 字号收名字也收长度；行距三种模式；间距与缩进的两种单位
+\TEST{value~parsing}{
+  \hitsetup
+    {
+      format =
+        {
+          chapter = { font-zh = heiti , size = xiaoer , bold = true ,
+                      alignment = centered , line-spacing = 1.5 ,
+                      space-before = 1 line , space-after = 12bp ,
+                      indent-special = hanging 4 chars ,
+                      snap-to-grid = false , keep-with-next = true } ,
+          section = { size = 15bp , line-spacing = exactly 25bp ,
+                      indent-left = 2 chars , indent-right = 0pt } ,
+          subsection = { line-spacing = single } ,
+          subsubsection = { line-spacing = at-least 20bp ,
+                            indent-special = none } ,
+        }
+    }
+  \DUMP{chapter}
+  \DUMP{section}
+  \DUMP{subsection}
+  \DUMP{subsubsection}
+}
+
+% 伞展开成四级，写完伞再单设某一级仍然管用
+\TEST{umbrella~expands}{
+  \hitsetup
+    {
+      format =
+        {
+          heading = { size = sanhao } ,
+          subsection = { size = sihao } ,
+          caption = { alignment = centered } ,
+        }
+    }
+  \DUMP{chapter}
+  \DUMP{subsection}
+  \DUMP{caption-figure}
+  \DUMP{caption-table}
+}
+
+% 六个兼容桥：写新键，读旧标志位
+\TEST{legacy~bridge}{
+  \hitsetup
+    {
+      format =
+        {
+          chapter = { bold = false , indent-special = none } ,
+          caption = { alignment = last-line-centered } ,
+          caption-sub = { alignment = last-line-centered } ,
+          abstract-heading = { all-caps = true } ,
+          heading = { font-en = sans } ,
+        }
+    }
+  \FLAG{chapterbold}
+  \FLAG{chapterhang}
+  \FLAG{capcenterlast}
+  \FLAG{subcapcenterlast}
+  \FLAG{absupper}
+  \FLAG{heading_latin_sans}
+}
+
+% 反向：换成别的取值，标志位跟着回去
+\TEST{legacy~bridge~back}{
+  \hitsetup
+    {
+      format =
+        {
+          chapter = { bold = true , indent-special = hanging 2 chars } ,
+          caption = { alignment = justified } ,
+          heading = { font-en = serif } ,
+        }
+    }
+  \FLAG{chapterbold}
+  \FLAG{chapterhang}
+  \FLAG{capcenterlast}
+  \FLAG{heading_latin_sans}
+}
+\END
+\end{document}
