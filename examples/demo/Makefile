@@ -67,9 +67,30 @@ $(error Unknown METHOD: $(METHOD))
 
 endif
 
+# 四份交付物各有各的 jobname，四份都要清。原先只清 main，另外三份的中间文件
+# 一直攒着。
+JOBS = $(THESISMAIN) thesis-en opening midterm
+
+# 按 jobname 逐个删，不用 *.idx 这种通配：hithesis.ist 是随包发的，
+# 通配一扫就把它删了，下次编索引直接报找不到样式文件。
+#
+# latexmkrc 的 $clean_ext 里带着 pdf，所以 latexmk -c 已经把 main.pdf 删了，
+# cleanall 那条是给不走 latexmk 的情形兜底。
+JUNKEXT = aux bbl blg glo gls idx ilg ind ist log out thm toc toe fls fdb_latexmk
+
 clean:
-	latexmk -c $(THESISMAIN)
-	-@$(RM) *~ *.idx *.ind *.ilg *.thm *.toe *.bbl
+	-latexmk -c $(THESISMAIN)
+	-latexmk -c thesis-en
+	-latexmk -c opening
+	-latexmk -c midterm
+	-@$(RM) $(foreach j,$(JOBS),$(foreach e,$(JUNKEXT),$(j).$(e)))
+	-@$(RM) $(foreach j,$(JOBS),$(j)-china.idx $(j)-china.ilg $(j)-china.ind)
+	-@$(RM) $(foreach j,$(JOBS),$(j)-english.idx $(j)-english.ilg $(j)-english.ind)
+	-@$(RM) *~
+	# 分章的 .aux 落在源码旁边（\include 按给的路径写），latexmk -c 只管当前目录
+	-@$(RM) thesis/frontmatter/*.aux thesis/mainmatter/*.aux thesis/backmatter/*.aux
+	-@$(RM) report/proposal/frontmatter/*.aux report/proposal/mainmatter/*.aux
+	-@$(RM) report/interim/frontmatter/*.aux report/interim/mainmatter/*.aux
 
 cleanall: clean
-	-@$(RM) $(THESISMAIN).pdf thesis-en.pdf opening.pdf midterm.pdf
+	-@$(RM) $(foreach j,$(JOBS),$(j).pdf)
