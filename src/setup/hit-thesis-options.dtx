@@ -226,12 +226,16 @@
 %    \end{macrocode}
 %
 % v3.1e 的 \option{newgeometry} 管的是所有学位，所以旧文档写它时两边都要开，
-% 这样版面一字不变。\texttt{no} 已经没有对应的新写法，报一句然后当 \texttt{two} 走。
+% 这样版面一字不变。\texttt{no} 已经没有对应的新写法，报一句然后当 \texttt{two} 走；
+% \texttt{two} 要显式设上，不然硕博会落到新版面去。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_legacy_old_layout:n #1
   {
     \str_if_eq:nnTF {#1} { no }
-      { \msg_warning:nnn { hithesis } { removed-option } { newgeometry=no } }
+      {
+        \msg_warning:nnn { hithesis } { removed-option } { newgeometry=no }
+        \keys_set:nn { hit / class } { old-layout-graduate = two }
+      }
       { \keys_set:nn { hit / class } { old-layout-graduate = #1 } }
     \keys_set:nn { hit / class } { old-layout-bachelor = true }
   }
@@ -572,28 +576,49 @@
   { \bool_gset_true:N \g__hit_ziju_regu_bool }
 %    \end{macrocode}
 %
-% 重新设置geometry的默认选项
 % \changes{v3.0.13}{2020/11/10}{重新设置geometry的默认选项}
-%    \begin{macrocode}
-\bool_lazy_or:nnF
-  { \bool_if_p:N \g__hit_old_layout_graduate_one_bool }
-  { \bool_if_p:N \g__hit_old_layout_graduate_two_bool }
-  { \bool_gset_true:N \g__hit_old_layout_graduate_two_bool }
-%    \end{macrocode}
-%
 % \changes{v3.2a}{2026/08/14}{加 \cs{g\_\_hit\_new\_layout\_bool}，一处算出这份文档
 %   走新版面还是旧版面}
-% 走哪套版面在这里定死一次，后面读标志位就行。眼下只有本科解出了 Word 设置，
-% 所以只有本科走得了新版面，硕博与博士后仍旧落在旧版面上——那两档的页面设置
-% 还没量，见 \file{src/flow/hit-thesis-geometry.dtx}。
+% \changes{v3.2a}{2026/08/14}{硕博也走新版面，与本科同一套。\option{old-layout} 的
+%   \option{graduate} 不写就是新版面，不再兜底成 \texttt{two}}
+% 走哪套版面在这里定死一次，后面读标志位就行。本科与硕博都走新版面，同一套取值，
+% 见 \file{src/setup/hit-defaults.dtx}。博士后还留在旧版面上：那一档另有一套参数，
+% 还没量。
 %
-% 本科要退回旧版面写 \option{old-layout}\texttt{=\{bachelor=true\}}。深圳本科可能
-% 还要用一阵旧的，所以这个后路留着。
+% 退回旧版面：本科写 \option{old-layout}\texttt{=\{bachelor=true\}}，硕博写
+% \option{old-layout}\texttt{=\{graduate=one\}} 或 \texttt{two}。深圳本科可能还要
+% 用一阵旧的，所以这个后路留着。
+%
+% \option{graduate} 原先不写也兜底成 \texttt{two}，那时候硕博只有旧版面一条路，
+% 兜底是为了在两组旧尺寸里选一组。现在不写等于要新版面，所以兜底挪进旧版面那一支：
+% 只有真的走旧版面又没指明是哪一组时才补 \texttt{two}，博士后就落在这一条上。
 %    \begin{macrocode}
 \bool_new:N \g__hit_new_layout_bool
+\bool_new:N \g__hit_old_layout_bool
 \bool_lazy_and:nnT
   { \bool_if_p:N \g__hit_bachelor_bool }
-  { ! \bool_if_p:N \g__hit_old_layout_bachelor_bool }
+  { \bool_if_p:N \g__hit_old_layout_bachelor_bool }
+  { \bool_gset_true:N \g__hit_old_layout_bool }
+\bool_lazy_and:nnT
+  {
+    \bool_lazy_or_p:nn
+      { \bool_if_p:N \g__hit_master_bool } { \bool_if_p:N \g__hit_doctor_bool }
+  }
+  {
+    \bool_lazy_or_p:nn
+      { \bool_if_p:N \g__hit_old_layout_graduate_one_bool }
+      { \bool_if_p:N \g__hit_old_layout_graduate_two_bool }
+  }
+  { \bool_gset_true:N \g__hit_old_layout_bool }
+\bool_if:NT \g__hit_postdoc_bool
+  { \bool_gset_true:N \g__hit_old_layout_bool }
+\bool_if:NTF \g__hit_old_layout_bool
+  {
+    \bool_lazy_or:nnF
+      { \bool_if_p:N \g__hit_old_layout_graduate_one_bool }
+      { \bool_if_p:N \g__hit_old_layout_graduate_two_bool }
+      { \bool_gset_true:N \g__hit_old_layout_graduate_two_bool }
+  }
   { \bool_gset_true:N \g__hit_new_layout_bool }
 %    \end{macrocode}
 %
