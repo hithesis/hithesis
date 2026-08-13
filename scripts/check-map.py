@@ -46,6 +46,7 @@ DESC = {
     "shared-title": "题目的分行与副标题",
     "shared-spread": "定宽拉伸排字",
     "shared-date": "中文日期格式",
+    "shared-msword": "Word 页面设置换算成版面参数",
     "shared-caption": "题注与双语题注",
     "shared-subfigure": "子图",
     "shared-key-engine": "键怎么造、怎么存、旧名怎么兼容",

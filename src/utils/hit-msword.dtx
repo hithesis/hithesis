@@ -1,0 +1,255 @@
+% \iffalse meta-comment
+%
+% hit-msword.dtx 是把 Word 页面设置换算成 LaTeX 版面参数
+%
+% \fi
+%
+% \section{Word 页面设置的换算}
+%
+% \changes{v3.2a}{2026/08/13}{加 \cs{hit@msword@layout:n}，按 Word 的页面设置算出
+%   版心、行距、首行位置与字距}
+% 学校发的范例是 Word 排的，规范里写的也是 Word 的话：「页边距上 3.8 厘米」「文档网格
+% 每页 33 行、间距 19.55 磅」。这些量与 LaTeX 的 \cs{textheight}、\cs{baselineskip}、
+% \cs{topskip} 不是一一对应的，中间隔着 Word 自己的几条规则。以前是把换算结果硬写进
+% \cs{geometry} 里，一份变体一组数，改一个值要连带手算三四个。
+%
+% \cs{hit@msword@layout:n}\marg{键值表} 收 Word 那边的原话，算出 LaTeX 这边的参数：
+% \begin{latex}
+% \hit@msword@layout:n
+%   {
+%     margin-top = 3.8cm , margin-bottom = 3cm ,
+%     margin-left = 3cm , margin-right = 3cm ,
+%     header = 3cm , footer = 2.3cm ,
+%     lines = 33 , line-pitch = 19.55bp ,
+%     chars = 34 , char-pitch = 12.45bp ,
+%     size = 12bp , head = 5mm ,
+%   }
+% \end{latex}
+%
+% \subsection{Word 的几条规则}
+%
+% 下面每一条都是从范例与专门造的对照文档里量出来的，不是从文档里读来的。量法是拿
+% \texttt{mutool} 读 PDF 内容流里的 \texttt{Tm}，取到的是 Word 自己写下的基线坐标。
+%
+% \emph{一、版心只由页边距定。} 宽是纸宽减左右边距，高是纸高减上下边距。
+% 文档网格不参与，页眉页脚也不占版心。
+%
+% \emph{二、行距与每页行数互推，行距为准。} Word 存的是行距，单位是缇，一缇是二十分之一
+% 磅；每页行数是显示出来的推导值。给行数时 Word 拿版心高的缇数除以行数，往下截而不是
+% 四舍五入：版心高 229\,mm 是 12982.68 缇，每页 30 行给出 432 缇也就是 21.6\,bp，量出来的
+% 十个行距一个不差都是 90 个设备单位。反过来，范例存的是 19.55\,磅也就是 391 缇，
+% Word 显示的「每页 33 行」是 12982.68 除以 391 往下截得来的。两个都给且对不上时以行距
+% 为准。
+%
+% \emph{三、多倍行距是网格行距的倍数。} 与字体的单倍行距无关。1.25、1.5、2 倍三份对照
+% 文档都对得上。
+%
+% \emph{四、首行基线在版心顶下方「半个行距加 4.4035\,bp」处。}
+% 半个行距这个系数是量准的：以范例为锚点，按这条式子预测另外六份对照文档的基线，
+% 六份全中（行距 21.6、24.1、24.4375、25、29.325、39.1\,bp）。常数 4.4035\,bp 是七份样本
+% 的区间拟合，误差 0.03\,bp 以内。这个常数按字号成正比缩放，不过只在小四上验过。
+%
+% Word 把每条基线四舍五入到三百分之一英寸（0.24\,bp）再落笔，累加本身是精确的。所以
+% 范例里相邻行距是 19.44 与 19.68 交替，平均下来才是 19.55。这层取整是 Word 内部的，
+% 用 Word 自带的「导出为 PDF」也一样，我们这边不复现。
+%
+% \emph{五、字距。} \cs{CJKglue} 是字距减字号。范例的 12.45\,bp 减小四 12\,bp 得
+% 0.45\,bp。每行字数与字距的互推关系同第二条。
+%
+% \emph{六、页眉页脚。} 页眉那个距离量到页眉块的顶，页脚那个量到页脚块的底。范例里
+% 页眉 3\,cm 而页眉基线在 9.04\,bp 之下，页脚 2.3\,cm 而页脚基线在 2.00\,bp 之上，两处
+% 都是小五。页眉块的底超过上边距时正文整体下移同样的量，这条在「页眉 4\,cm」那份
+% 对照文档上验过。
+%
+% \subsection{参数与产物}
+%
+% 尺寸类的键都收长度：\option{margin-top}、\option{margin-bottom}、\option{margin-left}、
+% \option{margin-right}、\option{header}、\option{footer}、\option{line-pitch}、\option{char-pitch}、
+% \option{size}。\option{lines} 与 \option{chars} 收整数。纸张默认 A4，
+% 用 \option{paper-width}、\option{paper-height} 改。
+%
+% 另有两个键是把类自己的页眉页脚接到 Word 的位置上的：\option{head} 是 \cs{headheight}，
+% \option{foot-baseline} 是页脚基线高出页脚线的量。\option{head} 不给就取调用当时的
+% \cs{headheight}，不给等于零，那样会把类自己的页眉高度抹掉；\option{foot-baseline} 的
+% 默认值是零，也就是页脚基线正好落在页脚线上。
+%
+% 算完当场调用 \cs{geometry}，另外把三个量放进全局长度供调用方取用：
+% \cs{g\_hit\_msword\_lead\_dim}（行距）、\cs{g\_hit\_msword\_topskip\_dim}（首行基线
+% 距版心顶）、\cs{g\_hit\_msword\_glue\_dim}（\cs{CJKglue}）。
+%
+% ^^A ======================================================================
+% ^^A Module shared-msword: Word 页面设置换算（各个类共用）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*shared-msword>
+%    \end{macrocode}
+%
+% 首行常数与它的参照字号。两个写成常量是为了让来路可查：4.4035\,bp 是在小四上量的，
+% 换字号要按比例缩放，所以参照字号必须跟着一起摆出来。
+%    \begin{macrocode}
+\dim_const:Nn \c__hit_msword_first_dim { 4.4035bp }
+\dim_const:Nn \c__hit_msword_probe_dim { 12bp }
+%    \end{macrocode}
+%
+% 缇是 Word 的内部长度单位，第二条规则的取整在这个单位上做。一缇是二十分之一磅，而
+% Word 的磅是 \texttt{bp}，不是 \texttt{pt}：写成 \texttt{0.05pt} 会让每页
+% 30 行算出 434 缇而不是 432 缇。
+%
+% \texttt{pt} 换 \texttt{bp} 是乘 $7200/7227$，再乘 20 得缇，两步并成一个有理数
+% \texttt{144000/7227}。不把 \texttt{0.05bp} 存成长度再乘份数：长度只能到
+% \texttt{sp}（$1/65536$\,pt），一个缇存进去差 0.09\,sp，乘上四百多倍就差到千分之一磅，
+% 排出来的行距对不上整数缇。
+%    \begin{macrocode}
+\int_const:Nn \c__hit_msword_twip_int { 144000 }
+\int_const:Nn \c__hit_msword_point_int { 7227 }
+%    \end{macrocode}
+%
+% 输出的三个量。
+%    \begin{macrocode}
+\dim_new:N \g_hit_msword_lead_dim
+\dim_new:N \g_hit_msword_topskip_dim
+\dim_new:N \g_hit_msword_glue_dim
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\dim_new:N \l__hit_msword_paper_width_dim
+\dim_new:N \l__hit_msword_paper_height_dim
+\dim_new:N \l__hit_msword_top_dim
+\dim_new:N \l__hit_msword_bottom_dim
+\dim_new:N \l__hit_msword_left_dim
+\dim_new:N \l__hit_msword_right_dim
+\dim_new:N \l__hit_msword_header_dim
+\dim_new:N \l__hit_msword_footer_dim
+\dim_new:N \l__hit_msword_head_dim
+\dim_new:N \l__hit_msword_foot_base_dim
+\dim_new:N \l__hit_msword_size_dim
+\dim_new:N \l__hit_msword_lead_dim
+\dim_new:N \l__hit_msword_char_dim
+\dim_new:N \l__hit_msword_text_width_dim
+\dim_new:N \l__hit_msword_text_height_dim
+\int_new:N \l__hit_msword_lines_int
+\int_new:N \l__hit_msword_chars_int
+\tl_new:N \g__hit_msword_geometry_tl
+%    \end{macrocode}
+%
+% \option{line-pitch} 与 \option{lines} 谁都可以不给，所以两个的初值是 0，拿来当「没给」的
+% 哨兵。\option{char-pitch} 与 \option{chars} 同理。
+%    \begin{macrocode}
+\keys_define:nn { hit / msword }
+  {
+    paper-width    .dim_set:N = \l__hit_msword_paper_width_dim ,
+    paper-width    .initial:n = { 210mm } ,
+    paper-height   .dim_set:N = \l__hit_msword_paper_height_dim ,
+    paper-height   .initial:n = { 297mm } ,
+    margin-top     .dim_set:N = \l__hit_msword_top_dim ,
+    margin-bottom  .dim_set:N = \l__hit_msword_bottom_dim ,
+    margin-left    .dim_set:N = \l__hit_msword_left_dim ,
+    margin-right   .dim_set:N = \l__hit_msword_right_dim ,
+    header         .dim_set:N = \l__hit_msword_header_dim ,
+    footer         .dim_set:N = \l__hit_msword_footer_dim ,
+    head           .dim_set:N = \l__hit_msword_head_dim ,
+    foot-baseline  .dim_set:N = \l__hit_msword_foot_base_dim ,
+    foot-baseline  .initial:n = { 0pt } ,
+    size           .dim_set:N = \l__hit_msword_size_dim ,
+    size           .initial:n = { 12bp } ,
+    line-pitch     .dim_set:N = \l__hit_msword_lead_dim ,
+    line-pitch     .initial:n = { 0pt } ,
+    char-pitch     .dim_set:N = \l__hit_msword_char_dim ,
+    char-pitch     .initial:n = { 0pt } ,
+    lines          .int_set:N = \l__hit_msword_lines_int ,
+    lines          .initial:n = { 0 } ,
+    chars          .int_set:N = \l__hit_msword_chars_int ,
+    chars          .initial:n = { 0 } ,
+  }
+%    \end{macrocode}
+%
+% \cs{\_\_hit\_msword\_pitch:NNn}\meta{目标}\meta{版心尺寸}\meta{份数} 是第二条规则：
+% 目标已经有值就不动，否则按份数除，在缇上往下截。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_msword_pitch:NNn #1#2#3
+  {
+    \bool_lazy_and:nnT
+      { \dim_compare_p:nNn {#1} = { 0pt } }
+      { \int_compare_p:nNn {#3} > { 0 } }
+      {
+        \dim_set:Nn #1
+          {
+            \fp_to_decimal:n
+              {
+                floor
+                  (
+                    \dim_to_decimal:n {#2}
+                    * \c__hit_msword_twip_int / \c__hit_msword_point_int / #3
+                  )
+                / 20
+              }
+            bp
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 主命令。键是局部的，整段套在组里，出组时自动复位，下一次调用不受这一次影响。三个
+% 产物与传给 \pkg{geometry} 的键值表跨组，所以是全局赋值。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@msword@layout:n #1
+  {
+    \group_begin:
+      \dim_set:Nn \l__hit_msword_head_dim { \headheight }
+      \keys_set:nn { hit / msword } {#1}
+      \dim_set:Nn \l__hit_msword_text_width_dim
+        {
+          \l__hit_msword_paper_width_dim
+          - \l__hit_msword_left_dim - \l__hit_msword_right_dim
+        }
+      \dim_set:Nn \l__hit_msword_text_height_dim
+        {
+          \l__hit_msword_paper_height_dim
+          - \l__hit_msword_top_dim - \l__hit_msword_bottom_dim
+        }
+      \__hit_msword_pitch:NNn \l__hit_msword_lead_dim
+        \l__hit_msword_text_height_dim { \l__hit_msword_lines_int }
+      \__hit_msword_pitch:NNn \l__hit_msword_char_dim
+        \l__hit_msword_text_width_dim { \l__hit_msword_chars_int }
+      \dim_compare:nNnT { \l__hit_msword_lead_dim } = { 0pt }
+        { \msg_error:nn { hithesis } { msword-no-pitch } }
+      \dim_gset_eq:NN \g_hit_msword_lead_dim \l__hit_msword_lead_dim
+      \dim_gset:Nn \g_hit_msword_topskip_dim
+        {
+          0.5 \l__hit_msword_lead_dim
+          + \dim_to_decimal_in_unit:nn
+              { \l__hit_msword_size_dim } { \c__hit_msword_probe_dim }
+            \c__hit_msword_first_dim
+        }
+      \dim_gset:Nn \g_hit_msword_glue_dim
+        { \l__hit_msword_char_dim - \l__hit_msword_size_dim }
+      \tl_gset:Nx \g__hit_msword_geometry_tl
+        {
+          paperwidth = \dim_use:N \l__hit_msword_paper_width_dim ,
+          paperheight = \dim_use:N \l__hit_msword_paper_height_dim ,
+          left = \dim_use:N \l__hit_msword_left_dim ,
+          right = \dim_use:N \l__hit_msword_right_dim ,
+          top = \dim_use:N \l__hit_msword_top_dim ,
+          bottom = \dim_use:N \l__hit_msword_bottom_dim ,
+          head = \dim_use:N \l__hit_msword_head_dim ,
+          headsep = \dim_eval:n
+            {
+              \l__hit_msword_top_dim
+              - \l__hit_msword_header_dim - \l__hit_msword_head_dim
+            } ,
+          footskip = \dim_eval:n
+            {
+              \l__hit_msword_bottom_dim
+              - \l__hit_msword_footer_dim - \l__hit_msword_foot_base_dim
+            } ,
+        }
+    \group_end:
+    \exp_args:NV \geometry \g__hit_msword_geometry_tl
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</shared-msword>
+%    \end{macrocode}
+%
+% \Finale
