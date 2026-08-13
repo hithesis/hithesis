@@ -44,7 +44,7 @@
 % \begin{tabular}{lll}
 % \toprule
 % 键 & Word 界面 & 取值 \\\midrule
-% \option{font-zh} & Chinese text font & \texttt{songti} \texttt{heiti} \texttt{kaishu} \texttt{fangsong} \\
+% \option{font-zh} & Chinese text font & \texttt{songti} \texttt{heiti} \texttt{kaishu} \texttt{fangsong} \texttt{none} \\
 % \option{font-en} & Latin text font & \texttt{serif} \texttt{sans} \texttt{mono} \\
 % \option{size} & Size & \texttt{sanhao}，或 \texttt{16bp} \\
 % \option{alignment} & Alignment & \texttt{left} \texttt{centered} \texttt{right} \texttt{justified} \\
@@ -85,11 +85,12 @@
 %
 % \subsection{这一轮做到哪}
 %
-% \option{line-spacing} 与 \option{space-before} 这些要换算成 \cs{baselineskip} 与
-% \cs{beforeskip}，换算规则依赖几组还没做的 Word 对照实验（一行占几个网格格、
-% 「一行」等于多少），所以本轮只把取值收下来存住，不接排版。
+% 换算这一层已经齐了，见下面的「换算」小节：\cs{hit@format@compute:n} 把键值算成
+% \cs{baselineskip}、基线落点与段前段后。还没做的是把它接到 \cs{ctexset} 与
+% \cs{captionsetup} 上，那要先把现有五份标题配置里的手算值反推回 Word 设置，
+% 一份一份改写。
 %
-% 已经接上的是原先散在类选项里的六个开关。它们本来就只有真假两态，不需要换算：
+% 原先散在类选项里的六个开关已经接上。它们本来就只有真假两态，不需要换算：
 % \begin{center}
 % \begin{tabular}{ll}
 % \toprule
@@ -293,7 +294,7 @@
   {
     font-zh .code:n =
       { \__hit_format_enum:nnn { font-zh }
-          { songti , heiti , kaishu , fangsong } {#1} } ,
+          { songti , heiti , kaishu , fangsong , none } {#1} } ,
     font-en .code:n =
       { \__hit_format_enum:nnn { font-en } { serif , sans , mono } {#1} } ,
     size .code:n = { \__hit_format_size:n {#1} } ,
@@ -427,6 +428,203 @@
   {
     \prop_get:cnNF { g__hit_format_#1_prop } {#2} #3
       { \tl_clear:N #3 }
+  }
+%    \end{macrocode}
+%
+% \subsection{换算}
+%
+% \changes{v3.2a}{2026/08/13}{加 \cs{hit@format@compute:n}，把键值按 Word 的行盒
+%   模型算成 \cs{baselineskip} 与段前段后}
+% 把收下来的键算成排版参数。规则是从 Word 里量出来的，四轮对照文档、三十组、
+% 一百六十多条基线，量法与来路记在 \file{src/utils/hit-msword.dtx}。
+%
+% \emph{字体常数。} 自然行高与上升部都与字号成正比，系数只跟字体有关：
+% 中易那一系（宋、黑、楷、仿、隶）自然行高是字号的 1.297 倍，上升部 1.0156 倍；
+% 华文新魏是 1.35，Times~New~Roman 是 1.15。苹方是 1.82，差了四成，所以这个系数
+% 必须按字体查，不能当通用常数。
+%
+% 模板一律按中易排，不问实际加载的是哪一个宋体，这样各 \option{fontset} 之间
+% 版面一致。
+%
+% \emph{纯西文的段落行距比中文小。} Word 里一行的行高取这一行\emph{实际用到}的
+% 各个字体的最大值，所以同一个设置下，有汉字的行按中易的 1.297 算，纯英文的行
+% 只有 Times 参与，按 1.15 算。范例的两份摘要就是这样：中英文摘要的段落设置相同
+% （多倍行距 1.25、不对齐到网格），中文那份量出行距 19.455\,bp，英文那份 17.25\,bp，
+% 正好是 $1.25 \times 1.297 \times 12$ 与 $1.25 \times 1.15 \times 12$。
+%
+% \hologo{LaTeX} 静态看不出一段里有没有汉字，所以要配置说一声：
+% \option{font-zh} 取 \texttt{none} 表示这一处没有中文，行高按西文字体算。
+% 英文摘要、英文目录这类地方写它。
+%
+% \emph{行盒高。} 也就是 \cs{baselineskip}。倍数写法在对齐到网格时是网格行距的
+% 倍数，关掉时是自然行高的倍数；一行装不下就往上取整到整数个格。固定值原样生效，
+% 网格与字号都不介入，比字号小也照给（字会叠）。最小值是设定值与「网格开看网格
+% 行距、网格关看自然行高」两者取大。
+%
+% \emph{基线在盒里的位置。} 对齐到网格时行盒居中，基线在盒顶下方
+% 「行盒高减自然行高的一半，再加上升部」；关掉时顶对齐，倍数多出来的量全落在基线之下，
+% 基线就在上升部处。固定值是另一套，基线在盒顶下方 0.8 倍盒高，与网格开关无关。
+%
+% \emph{段前段后。} 「行」这个单位恒指网格行距，与该段自己的行距无关，也与这一段
+% 对不对齐网格无关；磅数原样加，不吸到网格。相邻两段取段后与段前的较大者，
+% 不相加。页首的段前与页尾的段后由 \hologo{TeX} 自己在分页处丢弃，与 Word 一致。
+%    \begin{macrocode}
+\prop_const_from_keyval:Nn \c__hit_format_natural_prop
+  {
+    songti = 1.297 , heiti = 1.297 , kaishu = 1.297 , fangsong = 1.297 ,
+    lishu = 1.297 , xinwei = 1.35 , none = 1.15 ,
+  }
+\tl_const:Nn \c__hit_format_natural_tl { 1.297 }
+\tl_const:Nn \c__hit_format_ascent_tl { 1.0156 }
+\tl_const:Nn \c__hit_format_exact_tl { 0.8 }
+%    \end{macrocode}
+%
+% 算出来的七个量。调用方读这几个，不直接碰存储。
+%    \begin{macrocode}
+\dim_new:N \l_hit_format_size_dim
+\dim_new:N \l_hit_format_natural_dim
+\dim_new:N \l_hit_format_lead_dim
+\dim_new:N \l_hit_format_first_dim
+\dim_new:N \l_hit_format_before_dim
+\dim_new:N \l_hit_format_after_dim
+\bool_new:N \l_hit_format_snap_bool
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\tl_new:N \l__hit_format_value_tl
+\tl_new:N \l__hit_format_unit_tl
+\tl_new:N \l__hit_format_coef_tl
+\dim_new:N \l__hit_format_floor_dim
+\cs_generate_variant:Nn \prop_get:NnNF { NVNF }
+%    \end{macrocode}
+%
+% 取一条设置，没设过就用给的默认值。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_read:nnnN #1#2#3#4
+  {
+    \prop_get:cnNF { g__hit_format_#1_prop } {#2} #4
+      { \tl_set:Nn #4 {#3} }
+  }
+%    \end{macrocode}
+%
+% 带单位的键：\meta{值}加\meta{单位}两条。\texttt{line} 折成网格行距的倍数，
+% 其余当长度。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_amount_get:nnN #1#2#3
+  {
+    \__hit_format_read:nnnN {#1} {#2} { 0pt } \l__hit_format_value_tl
+    \__hit_format_read:nnnN {#1} { #2 -unit } { length } \l__hit_format_unit_tl
+    \str_if_eq:VnTF \l__hit_format_unit_tl { line }
+      { \dim_set:Nn #3 { \l__hit_format_value_tl \g_hit_msword_lead_dim } }
+      { \dim_set:Nn #3 { \l__hit_format_value_tl } }
+  }
+%    \end{macrocode}
+%
+% \cs{hit@format@compute:n}\marg{目标} 把上面那几个量算出来。
+%
+% 网格行距为零说明没走过 \cs{hit@msword@layout:n}，那时候不存在网格，
+% \option{snap-to-grid} 勾了也没有可对齐的东西，按关掉算。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@compute:n #1
+  {
+    \__hit_format_read:nnnN {#1} { size } { } \l__hit_format_value_tl
+    \tl_if_empty:NTF \l__hit_format_value_tl
+      { \dim_set:Nn \l_hit_format_size_dim { \f@size pt } }
+      { \dim_set:Nn \l_hit_format_size_dim { \l__hit_format_value_tl } }
+    \__hit_format_read:nnnN {#1} { font-zh } { songti } \l__hit_format_value_tl
+    \prop_get:NVNF \c__hit_format_natural_prop \l__hit_format_value_tl
+      \l__hit_format_coef_tl { \tl_set_eq:NN \l__hit_format_coef_tl
+        \c__hit_format_natural_tl }
+    \dim_set:Nn \l_hit_format_natural_dim
+      { \l__hit_format_coef_tl \l_hit_format_size_dim }
+    \__hit_format_read:nnnN {#1} { snap-to-grid } { true } \l__hit_format_value_tl
+    \bool_set:Nn \l_hit_format_snap_bool
+      {
+        \str_if_eq_p:Vn \l__hit_format_value_tl { true }
+        && ! \dim_compare_p:nNn { \g_hit_msword_lead_dim } = { 0pt }
+      }
+    \__hit_format_read:nnnN {#1} { line-spacing } { 1 } \l__hit_format_value_tl
+    \__hit_format_read:nnnN {#1} { line-spacing-unit } { multiple }
+      \l__hit_format_unit_tl
+    \__hit_format_lead:
+    \__hit_format_amount_get:nnN {#1} { space-before } \l_hit_format_before_dim
+    \__hit_format_amount_get:nnN {#1} { space-after } \l_hit_format_after_dim
+  }
+%    \end{macrocode}
+%
+% 行盒高与基线落点。三种模式各一支。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_lead:
+  {
+    \str_case:VnF \l__hit_format_unit_tl
+      {
+        { exactly }
+          {
+            \dim_set:Nn \l_hit_format_lead_dim { \l__hit_format_value_tl }
+            \dim_set:Nn \l_hit_format_first_dim
+              { \c__hit_format_exact_tl \l_hit_format_lead_dim }
+          }
+        { at-least }
+          {
+            \dim_set:Nn \l_hit_format_lead_dim { \l__hit_format_value_tl }
+            \dim_set:Nn \l__hit_format_floor_dim
+              { \bool_if:NTF \l_hit_format_snap_bool
+                  { \g_hit_msword_lead_dim } { \l_hit_format_natural_dim } }
+            \dim_compare:nNnT
+              { \l_hit_format_lead_dim } < { \l__hit_format_floor_dim }
+              { \dim_set_eq:NN \l_hit_format_lead_dim \l__hit_format_floor_dim }
+            \__hit_format_first:
+          }
+      }
+      { \__hit_format_multiple: \__hit_format_first: }
+  }
+%    \end{macrocode}
+%
+% 倍数写法。对齐到网格时是网格行距的倍数，装不下就往上取整到整数个格；
+% 关掉时是自然行高的倍数。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_multiple:
+  {
+    \bool_if:NTF \l_hit_format_snap_bool
+      {
+        \dim_set:Nn \l_hit_format_lead_dim
+          { \l__hit_format_value_tl \g_hit_msword_lead_dim }
+        \dim_set:Nn \l__hit_format_floor_dim
+          {
+            \fp_to_decimal:n
+              {
+                ceil
+                  (
+                    \dim_to_decimal:n { \l_hit_format_natural_dim }
+                    / \dim_to_decimal:n { \g_hit_msword_lead_dim }
+                  )
+              }
+            \g_hit_msword_lead_dim
+          }
+        \dim_compare:nNnT
+          { \l_hit_format_lead_dim } < { \l__hit_format_floor_dim }
+          { \dim_set_eq:NN \l_hit_format_lead_dim \l__hit_format_floor_dim }
+      }
+      {
+        \dim_set:Nn \l_hit_format_lead_dim
+          { \l__hit_format_value_tl \l_hit_format_natural_dim }
+      }
+  }
+%    \end{macrocode}
+%
+% 基线落点：对齐到网格时行盒居中，关掉时顶对齐。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_first:
+  {
+    \dim_set:Nn \l_hit_format_first_dim
+      { \c__hit_format_ascent_tl \l_hit_format_size_dim }
+    \bool_if:NT \l_hit_format_snap_bool
+      {
+        \dim_add:Nn \l_hit_format_first_dim
+          {
+            0.5 \l_hit_format_lead_dim - 0.5 \l_hit_format_natural_dim
+          }
+      }
   }
 %    \end{macrocode}
 %
