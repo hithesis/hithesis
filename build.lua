@@ -43,8 +43,8 @@ installfiles = {
   "hithesisbook.cls", "hithesisart.cls", "hithesisartplus.cls",
   "hithesis.sty",
   "hithesis.ist", "hithesis.bst", "hitszthesis.bst",
-  "hitlogo.pdf", "bthesistitle.pdf", "zfb.pdf",
-  "hrb-bachelor-bottommark.pdf", "golfer.pdf",
+  "hit-logo.pdf", "hit-weihai-bachelor-title.pdf", "zfb.pdf",
+  "hit-bachelor-report-bottommark.pdf", "golfer.pdf",
 }
 
 typesetfiles = {"hithesis.dtx"}
