@@ -798,6 +798,25 @@
 %
 % 把字体、字号、行距、加粗、对齐拼成一串排版命令。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{\option{format} 接管标题时改成覆盖，不再追加}
+% 标题的格式是\emph{覆盖}旧的 \cs{ctexset}，不是追加。追加的话新版面算出来的
+% 格式后面还跟着旧版面那一串，旧的写了什么就甩不掉——本科章标题的
+% \cs{bfseries} 就是这么漏过来的：新版面的 \option{format} 里没写
+% \option{bold}，排出来却还是粗的。
+%
+% 覆盖之后旧版面与新版面彻底分家：旧的那套 \cs{ctexset} 只在 \option{old-layout}
+% 下生效，新版面这边字体、字号、行距、对齐、字重、段前段后全从 \option{format}
+% 算，一处说了算。旧版面那一档迟早要废，废的时候删掉即可，不牵连这边。
+%
+% 覆盖就得把旧格式里有的都补齐。旧的 \cs{hit@title@font} 是「西文无衬线开着就
+% \cs{sffamily}，否则 \cs{heiti}」，这边 \option{font-zh} 已经发了 \cs{heiti}，
+% 再补一个无衬线的条件——两个一起发是对的，汉字用黑体、西文用无衬线，
+% 与目录条目那边的 \cs{hit@chapter@entry@font} 同一个写法。
+%    \begin{macrocode}
+\cs_new:Npn \hit@format@latin@sans:
+  { \bool_if:NT \g__hit_heading_latin_sans_bool { \sffamily } }
 \cs_new_protected:Npn \__hit_format_build:n #1
   {
     \tl_clear:N \l__hit_format_out_tl
@@ -809,6 +828,7 @@
         \tl_put_right:Nx \l__hit_format_out_tl
           { \exp_not:c { \l__hit_format_value_tl } }
       }
+    \tl_put_right:Nn \l__hit_format_out_tl { \hit@format@latin@sans: }
     \__hit_format_pick:nnN {#1} { font-en } \c__hit_format_latin_prop
     \__hit_format_read:nnnN {#1} { size } { } \l__hit_format_value_tl
     \tl_if_empty:NF \l__hit_format_value_tl
@@ -853,7 +873,7 @@
         \hit@format@compute:n {#1}
         \__hit_format_build:n {#1}
         \tl_set:Nx \l__hit_format_keys_tl
-          { format ~ += { \exp_not:V \l__hit_format_out_tl } , }
+          { format ~ = { \exp_not:V \l__hit_format_out_tl } , }
         \prop_if_in:cnT { g__hit_format_#1_prop } { space-before }
           {
             \tl_put_right:Nx \l__hit_format_keys_tl
