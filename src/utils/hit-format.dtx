@@ -960,6 +960,59 @@
 \dim_new:N \g_hit_body_lead_dim
 \dim_new:N \g_hit_body_first_dim
 \dim_new:N \g_hit_body_indent_dim
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@latin@pitch:}，字距增量也加到
+%   西文字母上，由 \option{layout}/\option{char-pitch-en} 决定}
+% 西文那半。Word 的字距增量加在\emph{每一个}字符后面，西文字母也不例外，
+% 实测每个字母后多 0.4543\,bp，一行 82 字的自然宽跟 Word 差 0.04\,bp。
+%
+% \pkg{fontspec} 的字体特性只能在声明字体时给，而这个键要到导言区才知道，
+% 所以在这儿把选中的那一档西文字体原样再调一次——入口是
+% \cs{hit@fonts@redo@en:}，见 \file{src/utils/hit-fonts.dtx}，不抄那三句
+% \cs{setmainfont}，免得两处漂移。\cs{defaultfontfeatures} 的加号形式是追加，
+% 原有的特性都留着。
+%
+% \option{LetterSpace} 的单位是百分之一个 em，所以要把增量换算成字号的百分比。
+%
+% 空格也跟着改。\hologo{XeTeX} 的字间距只落在词内，词尾那一份没有，缺的补进
+% 空格，于是空格 = 字体空格 + 两份增量。可压量取自然宽的四分之一——实测 Word
+% 的上限落在 0.78 与 0.97 之间（12\,bp），四分之一在窗口内。可伸量 Word 不设
+% 上限，实测拉到自然宽的 3.17 倍照拉，这里给两倍。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@latin@pitch:
+  {
+    \bool_lazy_and:nnT
+      { \bool_if_p:N \g__hit_layout_pitch_en_bool }
+      { \cs_if_exist_p:N \hit@fonts@redo@en: }
+      {
+        \use:x
+          {
+            \exp_not:N \defaultfontfeatures + [ \exp_not:N \rmfamily ,
+              \exp_not:N \sffamily , \exp_not:N \ttfamily ]
+              {
+                LetterSpace =
+                  \fp_eval:n
+                    {
+                      100 * \dim_to_fp:n { \g_hit_msword_glue_dim }
+                      / \dim_to_fp:n { \g_hit_body_size_dim }
+                    }
+              }
+          }
+        \hit@fonts@redo@en:
+        \normalsize
+        \skip_set:Nn \spaceskip
+          {
+            \fontdimen 2 \font + \g_hit_msword_glue_dim
+            plus 2 \fontdimen 2 \font
+            minus 0.25 \fontdimen 2 \font
+          }
+        \frenchspacing
+      }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@apply@body:
   {
     \prop_if_empty:cF { g__hit_format_body_prop }
@@ -990,6 +1043,7 @@
               { \skip_set_eq:NN \rightskip \g_hit_msword_slack_dim }
               { \skip_set_eq:NN \rightskip \g_hit_msword_glue_dim }
           }
+        \hit@format@latin@pitch:
         \AddToHook { para / begin } { \hit@format@strut: }
         \AddToHook { para / end }   { \hit@format@strut: }
         \cs_if_exist:NT \hit@head@strut:
