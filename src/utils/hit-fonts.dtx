@@ -113,6 +113,61 @@
       { \use:c { __hit_set_font_en_ \l__hit_font_en_str : } }
   }
   { \msg_error:nnx { hithesis } { font-en-unknown } { \l__hit_font_en_str } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{加 \texttt{windows-local} 与 \texttt{mac-word}
+%   两档，按文件路径加载中易字体。做法照抄 \pkg{thuthesis}}
+% 两档按\emph{文件路径}加载中易字体，给「字体文件在、但 fontconfig 没登记」
+% 的场合用：\texttt{windows-local} 读 \option{windows-font-dir} 指的目录
+% （默认当前目录，用户把 \file{Simsun.ttc} 之类拷在文稿旁边就能用），
+% \texttt{mac-word} 读 macOS 上 Microsoft Word 自带的那个字体目录。
+%
+% 文件名两套都试：新一点的 Windows 是 \file{Kaiti.ttf}、\file{Fangsong.ttf}，
+% 老的是 \file{Simkai.ttf}、\file{Simfang.ttf}。
+%
+% 这一段的结构与文件名取自 \pkg{thuthesis}（LPPL，同许可证）。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_font_mac_word_dir_tl
+  { /Applications/Microsoft~Word.app/Contents/Resources/DFonts }
+\cs_new_protected:Npn \__hit_set_font_zh_by_dir:n #1
+  {
+    \file_if_exist:nTF { #1 /Kaiti.ttf }
+      {
+        \setCJKmainfont { SimSun }
+          [ Path = #1 / , Extension = .ttc , AutoFakeBold = true ,
+            ItalicFont = Kaiti , ItalicFeatures = { Extension = .ttf } ]
+        \setCJKsansfont { SimHei }
+          [ Path = #1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKmonofont { Fangsong } [ Path = #1 / , Extension = .ttf ]
+        \setCJKfamilyfont { zhsong } { SimSun }
+          [ Path = #1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKfamilyfont { zhhei } { SimHei }
+          [ Path = #1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKfamilyfont { zhkai } { Kaiti } [ Path = #1 / , Extension = .ttf ]
+        \setCJKfamilyfont { zhfs } { Fangsong } [ Path = #1 / , Extension = .ttf ]
+      }
+      {
+        \setCJKmainfont { SimSun }
+          [ Path = #1 / , Extension = .ttc , AutoFakeBold = true ,
+            ItalicFont = Simkai , ItalicFeatures = { Extension = .ttf } ]
+        \setCJKsansfont { SimHei }
+          [ Path = #1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKmonofont { Simfang } [ Path = #1 / , Extension = .ttf ]
+        \setCJKfamilyfont { zhsong } { SimSun }
+          [ Path = #1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKfamilyfont { zhhei } { SimHei }
+          [ Path = #1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKfamilyfont { zhkai } { Simkai } [ Path = #1 / , Extension = .ttf ]
+        \setCJKfamilyfont { zhfs } { Simfang } [ Path = #1 / , Extension = .ttf ]
+      }
+  }
+\cs_new_protected:cpn { __hit_set_font_zh_windows-local: }
+  { \exp_args:Nx \__hit_set_font_zh_by_dir:n { \hit@windows@font@dir } }
+\cs_new_protected:cpn { __hit_set_font_zh_mac-word: }
+  { \exp_args:NV \__hit_set_font_zh_by_dir:n \c__hit_font_mac_word_dir_tl }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_set_font_zh_windows:
   {
     \setCJKmainfont { SimSun } [ AutoFakeBold = true , AutoFakeSlant = true ]
@@ -269,9 +324,27 @@
             \sys_if_platform_windows:TF
               { \str_set:Nn \l__hit_font_zh_str { windows } }
               {
-                \bool_if:NTF \g__hit_platform_mac_bool
-                  { \str_set:Nn \l__hit_font_zh_str { mac } }
-                  { \str_set:Nn \l__hit_font_zh_str { fandol } }
+                \fontspec_font_if_exist:nTF { SimSun }
+                  { \str_set:Nn \l__hit_font_zh_str { windows } }
+                  {
+                    \file_if_exist:nTF
+                      { \hit@windows@font@dir /Simsun.ttc }
+                      { \str_set:Nn \l__hit_font_zh_str { windows-local } }
+                      {
+                        \file_if_exist:nTF
+                          { \c__hit_font_mac_word_dir_tl /Simsun.ttc }
+                          { \str_set:Nn \l__hit_font_zh_str { mac-word } }
+                          {
+                            \bool_if:NTF \g__hit_platform_mac_bool
+                              { \str_set:Nn \l__hit_font_zh_str { mac } }
+                              {
+                                \fontspec_font_if_exist:nTF { Noto~Serif~CJK~SC }
+                                  { \str_set:Nn \l__hit_font_zh_str { ubuntu } }
+                                  { \str_set:Nn \l__hit_font_zh_str { fandol } }
+                              }
+                          }
+                      }
+                  }
               }
           }
       }
