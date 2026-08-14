@@ -206,13 +206,29 @@
 % 单独使用 \pkg{newtxmath} 宏包改变数学字体时，会使 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令使用 CM 字体，根据 \href{https://github.com/sjtug/SJTUThesis/blob/b164d0f5b3087ed86c1038b5a85014b47a92c6f2/texmf/tex/latex/sjtuthesis/fd/sjtu-math-font-termes.def#L52-L65}{SJTUThesis 的字体设置} 进行调整
 % \changes{v3.0.19}{2022/05/05}{对 \pkg{newtxmath} 宏包打补丁，修复 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令的字体问题}
 %    \begin{macrocode}
+% \changes{v3.2a}{2026/08/15}{\option{fontset-math} 的 \texttt{auto} 默认从
+%   \texttt{xits} 改 \texttt{termes}}
+% \texttt{auto} 走 \texttt{termes}（TeX Gyre Termes Math）而不是 \texttt{xits}：
+% 学校要的正文西文是 Times，Termes 是 Times 的克隆，数学与正文同一血统；
+% XITS 源自 STIX，空心体那批字形是几何化的圆头，跟 Times 摆在一起不像一家。
+% 代价是覆盖面窄一些——Termes 1112 个码位、XITS 2423 个，缺口在冷门运算符、
+% 箭头与杂项技术符号（2300 段 51 对 90）。常用符号两边都全。
+% 要覆盖面就写 \option{fontset-math}\texttt{=stix}，STIX~Two 有 3607 个码位，
+% 比 XITS 还多。
+%
+% \changes{v3.2a}{2026/08/15}{\option{math-style} 默认改 \texttt{auto}，
+%   显式写了又走 \texttt{newtx} 时提示}
+% \option{math-style} 默认 \texttt{auto}，行为与从前的 \texttt{GB} 一致。
+% 改成 \texttt{auto} 是为了能分辨「用户显式写过」——那组选项只对
+% \pkg{unicode-math} 那几档有效，\texttt{newtx} 走 8~位路径，希腊字母正斜体由
+% \pkg{newtxmath} 自己决定。两者撞上时发一条提示，默认值撞上则不打扰。
 \str_set:Nx \l__hit_math_font_str { \hit@mathfont }
 \str_if_eq:VnT \l__hit_math_font_str { } { \str_set:Nn \l__hit_math_font_str { auto } }
 \str_if_eq:VnT \l__hit_math_font_str { auto }
   {
     \bool_if:NTF \g__hit_newtxmath_bool
       { \str_set:Nn \l__hit_math_font_str { newtx } }
-      { \str_set:Nn \l__hit_math_font_str { xits } }
+      { \str_set:Nn \l__hit_math_font_str { termes } }
   }
 %    \end{macrocode}
 %
@@ -226,7 +242,19 @@
 % 8~位数学字体一样从数学字体取字。
 %    \begin{macrocode}
 \str_set:Nx \l__hit_math_style_str { \hit@mathstyle }
-\str_if_eq:VnT \l__hit_math_style_str { } { \str_set:Nn \l__hit_math_style_str { GB } }
+\bool_new:N \l__hit_math_style_explicit_bool
+\str_if_eq:VnTF \l__hit_math_style_str { }
+  { \str_set:Nn \l__hit_math_style_str { auto } }
+  { \bool_set_true:N \l__hit_math_style_explicit_bool }
+\str_if_eq:VnT \l__hit_math_style_str { auto }
+  {
+    \bool_set_false:N \l__hit_math_style_explicit_bool
+    \str_set:Nn \l__hit_math_style_str { GB }
+  }
+\bool_lazy_and:nnT
+  { \bool_if_p:N \l__hit_math_style_explicit_bool }
+  { \str_if_eq_p:Vn \l__hit_math_font_str { newtx } }
+  { \msg_warning:nn { hithesis } { math-style-with-newtx } }
 \str_case:VnF \l__hit_math_style_str
   {
     { TeX } { \clist_set:Nn \l__hit_math_options_clist { math-style=TeX , bold-style=TeX , mathrm=sym , mathit=sym , mathbf=sym , mathsf=sym , mathtt=sym } }
