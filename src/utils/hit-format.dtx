@@ -153,12 +153,30 @@
 % 值当场展开再存。解析器交过来的是 \cs{dim\_eval:n} 与 \cs{fp\_to\_decimal:n} 这种
 % 还没算的式子，里面读着 \cs{l\_\_hit\_format\_head\_tl} 这些临时变量；原样存下去，
 % 等到取用时才算，那几个临时变量早被下一条键覆盖了。
+% \changes{v3.2a}{2026/08/15}{所有 \option{format} 键都收 \texttt{auto}，
+%   含义是「这一项交给模板决定」，实现是把条目从表里删掉}
+% 存一项。取值写 \texttt{auto} 时不存，反而把已有的条目删掉——读取那一头
+% \cs{\_\_hit\_format\_read:nnnN} 每一项都带着内建默认，条目不在表里就用那个默认，
+% 而那个默认正是模板自己的规矩。所以\texttt{auto} 与「没写这一项」等价，
+% 这也正是它该有的含义。
+%
+% 举一个：\option{snap-to-grid} 的内建默认是 \texttt{true} 且要求文档网格已经
+% 立起来，所以写 \texttt{auto} 就是「有网格就贴，没有就不贴」，跟着当前选项走。
+%
+% 数值类的键照样收 \texttt{auto}，含义一样，只是那些键本来就不太用得上。
 %    \begin{macrocode}
 \cs_generate_variant:Nn \prop_gput:Nnn { cnx }
 \cs_new_protected:Npn \__hit_format_put:nn #1#2
   {
-    \prop_gput:cnx
-      { g__hit_format_ \l__hit_format_target_str _prop } {#1} {#2}
+    \str_if_eq:nnTF {#2} { auto }
+      {
+        \prop_gremove:cn
+          { g__hit_format_ \l__hit_format_target_str _prop } {#1}
+      }
+      {
+        \prop_gput:cnx
+          { g__hit_format_ \l__hit_format_target_str _prop } {#1} {#2}
+      }
   }
 %    \end{macrocode}
 %
@@ -199,7 +217,7 @@
       { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {#3} }
   }
 \cs_new_protected:Npn \__hit_format_bool:nn #1#2
-  { \__hit_format_enum:nnn {#1} { true , false } {#2} }
+  { \__hit_format_enum:nnn {#1} { true , false , auto } {#2} }
 %    \end{macrocode}
 %
 % \option{size} 收字号名或长度。名字查 \file{src/utils/hit-fonts.dtx} 存下的常量，
