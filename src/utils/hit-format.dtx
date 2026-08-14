@@ -314,6 +314,8 @@
     indent-right .code:n = { \__hit_format_amount:nnn { indent-right } { chars } {#1} } ,
     indent-special .code:n = { \__hit_format_indent_special:n {#1} } ,
     line-spacing .code:n = { \__hit_format_line_spacing:n {#1} } ,
+    line-gap-min .code:n = { \__hit_format_put:nn { line-gap-min } {#1} } ,
+    line-gap-max .code:n = { \__hit_format_put:nn { line-gap-max } {#1} } ,
     space-before .code:n = { \__hit_format_amount:nnn { space-before } { line } {#1} } ,
     space-after  .code:n = { \__hit_format_amount:nnn { space-after } { line } {#1} } ,
     bold           .code:n = { \__hit_format_bool:nn { bold } {#1} } ,
@@ -522,6 +524,8 @@
 \dim_new:N \l_hit_format_before_dim
 \dim_new:N \l_hit_format_after_dim
 \dim_new:N \l_hit_format_indent_dim
+\dim_new:N \l_hit_format_stretch_dim
+\dim_new:N \l_hit_format_shrink_dim
 \bool_new:N \l_hit_format_snap_bool
 %    \end{macrocode}
 %
@@ -618,11 +622,64 @@
     \__hit_format_read:nnnN {#1} { line-spacing-unit } { multiple }
       \l__hit_format_unit_tl
     \__hit_format_lead:
+    \__hit_format_elastic:n {#1}
     \__hit_format_amount_get:nnN {#1} { space-before } \l_hit_format_before_dim
     \__hit_format_amount_get:nnN {#1} { space-after } \l_hit_format_after_dim
     \__hit_format_indent:n {#1}
   }
 %    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{加 \option{line-gap-min} 与 \option{line-gap-max}，
+%   写作指南 3.8 节的毫米区间换算成基线距的伸缩量}
+% \begin{macro}{\__hit_format_elastic:n}
+% 毫米区间换算成伸缩量。写作指南 3.8 节给的全是区间：正文与款、项标题
+% 3\,--\,4\,mm，条标题 6\,--\,7\,mm，依此类推。量的是\emph{视觉白}，
+% 也就是两行之间那条看得见的空白，不是基线距。
+%
+% 两者差一个字面高。中易宋体全字符集 20992 个汉字的墨迹高度实测平均
+% 0.9050 em（中位数 0.9102），所以
+% \begin{quote}
+%   基线距 = 视觉白 + 0.9050 × 字号
+% \end{quote}
+% 反过来，区间的上下端各换算出一个基线距，与当前基线距相减就是伸与缩。
+%
+% 只有 \option{layout}\texttt{=\{bottom=flush\}} 才给这份胶。取 \texttt{ragged}
+% 时按写作指南 3.2 节的行数与多倍值排，那一栏给的是确切值，刚性，没有可拉的
+% 东西——这也是这两栏必须一起选的原因。
+%
+% 区间写反了（下限比上限大）按写错处理，两头都不给。算出来是负的就取零：
+% 当前基线距落在区间外时，不能靠胶把它拉回去，那是配置本身要改。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_format_ink_tl { 0.9050 }
+\cs_new_protected:Npn \__hit_format_elastic:n #1
+  {
+    \dim_zero:N \l_hit_format_stretch_dim
+    \dim_zero:N \l_hit_format_shrink_dim
+    \bool_if:NF \g__hit_raggedbottom_bool
+      {
+        \__hit_format_read:nnnN {#1} { line-gap-max } { } \l__hit_format_value_tl
+        \tl_if_empty:NF \l__hit_format_value_tl
+          { \__hit_format_elastic_aux:Nn \l_hit_format_stretch_dim { } }
+        \__hit_format_read:nnnN {#1} { line-gap-min } { } \l__hit_format_value_tl
+        \tl_if_empty:NF \l__hit_format_value_tl
+          { \__hit_format_elastic_aux:Nn \l_hit_format_shrink_dim { 0pt - } }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_elastic_aux:Nn #1#2
+  {
+    \dim_set:Nn #1
+      {
+        #2
+        (
+          \l__hit_format_value_tl
+          + \c__hit_format_ink_tl \l_hit_format_size_dim
+          - \l_hit_format_lead_dim
+        )
+      }
+    \dim_compare:nNnT { #1 } < { 0pt } { \dim_zero:N #1 }
+  }
+%    \end{macrocode}
+% \end{macro}
 %
 % 行盒高与基线落点。三种模式各一支。
 %    \begin{macrocode}
@@ -990,6 +1047,8 @@
 %    \begin{macrocode}
 \dim_new:N \g_hit_body_size_dim
 \dim_new:N \g_hit_body_lead_dim
+\dim_new:N \g_hit_body_stretch_dim
+\dim_new:N \g_hit_body_shrink_dim
 \dim_new:N \g_hit_body_first_dim
 \dim_new:N \g_hit_body_indent_dim
 %    \end{macrocode}
@@ -1052,6 +1111,8 @@
         \hit@format@compute:n { body }
         \dim_gset_eq:NN \g_hit_body_size_dim \l_hit_format_size_dim
         \dim_gset_eq:NN \g_hit_body_lead_dim \l_hit_format_lead_dim
+        \dim_gset_eq:NN \g_hit_body_stretch_dim \l_hit_format_stretch_dim
+        \dim_gset_eq:NN \g_hit_body_shrink_dim \l_hit_format_shrink_dim
         \dim_gset_eq:NN \g_hit_body_first_dim \l_hit_format_first_dim
         \dim_gset_eq:NN \g_hit_body_indent_dim \l_hit_format_indent_dim
         \bool_set_eq:NN \l_hit_format_line_snap_bool \l_hit_format_snap_bool
