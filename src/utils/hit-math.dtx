@@ -324,6 +324,47 @@
 % 编码与字族，否则 \texttt{operators}、\cs{mathrm}、\cs{mathit}、\cs{mathbf}
 % 会退回 CM。做法取自
 % \href{https://github.com/sjtug/SJTUThesis/blob/b164d0f5b3087ed86c1038b5a85014b47a92c6f2/texmf/tex/latex/sjtuthesis/fd/sjtu-math-font-termes.def#L52-L65}{SJTUThesis 的字体设置}。
+%
+% \changes{v3.2a}{2026/08/15}{\texttt{newtx} 那档补上 \cs{symbf} 一组的等价写法}
+% \pkg{unicode-math} 的 \cs{symbf}、\cs{symup}、\cs{symit} 在 8~位路径上不存在，
+% 同一份文档从别的档切到 \texttt{newtx}，正文里每一处 \cs{symbf} 都会报未定义。
+% 这里接出三个等价写法，让文档在两条路径上都编得过：
+% \begin{center}
+% \begin{tabular}{ll}
+% \toprule
+% \pkg{unicode-math} & \texttt{newtx} 这边接到 \\\midrule
+% \cs{symbf} & \cs{bm} \\
+% \cs{symup} & \cs{mathrm} \\
+% \cs{symit} & \cs{mathit} \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+%
+% 不是逐字等价：\cs{symbf} 在 \pkg{unicode-math} 那边跟着 \option{bold-style}
+% 走（ISO 下是粗斜体），\cs{bm} 不跟。要的是「切过去能编、观感接近」，
+% 不是两条路径排出同一个 PDF——那本来也做不到，两套字体的字形不一样。
+%
+% 接在 \texttt{begindocument/end} 上：\cs{bm} 由用户的 \cs{usepackage}\marg{bm}
+% 提供，类加载时还不存在，那时候接等于把 \cs{symbf} 定义成一个未定义的东西。
+% 用户没装 \pkg{bm} 时 \cs{symbf} 退到 \cs{mathbf}——粗体是有的，只是不跟着
+% \option{bold-style} 走。已经有定义就不动，用户自己定义过的优先。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_math_sym_shim:
+  {
+    \AddToHook { begindocument/end }
+      {
+        \cs_if_exist:NF \symbf
+          {
+            \cs_if_exist:NTF \bm
+              { \cs_new_eq:NN \symbf \bm }
+              { \cs_new_eq:NN \symbf \mathbf }
+          }
+        \cs_if_exist:NF \symup { \cs_new_eq:NN \symup \mathrm }
+        \cs_if_exist:NF \symit { \cs_new_eq:NN \symit \mathit }
+      }
+  }
+%    \end{macrocode}
+%
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_set_math_newtx:
   {
@@ -340,6 +381,7 @@
     \cs_set_eq:NN \rmdefault \oldrmdefault
     \cs_set_eq:NN \sfdefault \oldsfdefault
     \cs_set_eq:NN \ttdefault \oldttdefault
+    \__hit_math_sym_shim:
   }
 \cs_new_protected:Npn \__hit_set_math_none: { }
 %    \end{macrocode}
