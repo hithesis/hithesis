@@ -147,103 +147,50 @@
 % \changes{v3.2a}{2026/08/08}{三套章节格式各自取名，分派改用 expl3}
 % 章节格式分英文版、博后、其余三套。每套的 \cs{ctexset} 里有字面空格和控制空格，
 % 按 \ref{sec:expl3-space} 的规矩留在 expl3 之外，只把分派放进去。
+% \changes{v3.2a}{2026/08/15}{中文那套章节格式里，新版面已经接管的三个键
+%   （\option{format}、\option{beforeskip}、\option{afterskip}）挪进只对旧版面
+%   发出的一段，新版面不再收到它们}
+% 旧版面从这里开始冻结。做法是\emph{减法}：三个 \cs{ctexset} 块原样留着当共用
+% 基线，只把新版面确实接管了的键挪出来，包进 \cs{bool\_if:NF}。
+%
+% 好处有三。一是旧版面真冻住了——新版面一个记号都收不到，不会再出现
+% 「\option{format} 里没写加粗、排出来却是粗的」那种漏。二是好删——将来
+% 旧版面废除，把这一段连同 \cs{bool\_if:NF} 整个拿掉即可。三是\emph{共用块里
+% 还剩什么，就是新版面还没接管什么}，代码本身就是待办清单。
+%
+% 这一轮只动中文非博后那一套（\cs{hit@chapter@settings@other}），只挪四级编号
+% 标题的那三个键。英文版与博士后两套一个字没动：博士后整个还在旧版面，
+% 英文版新版面接管到什么程度没验过。
+%
+% 剩下的共用内容就是后续要接管的：摘要、目录、附录这类非编号标题的间距，
+% \option{aftername} 那套编号与标题之间的距离，\option{titleformat}，
+% 以及图题表题。每接管一类，就从共用块里再挪一条出来。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@chapter@settings@english
+\cs_new_protected:Npn \hit@chapter@settings@other@old:
   {
 %
 ~\ctexset{%
  chapter={~
- afterindent=true,~
- pagestyle={hit@headings},~
  beforeskip={28.34646bp},%一个空行 1.57481 × 18
  afterskip={28.74646bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
- aftername={\hit@after@number:nnn{chapter}{en}{\par}},~
- format={\hit@chapter@english@format},~
- nameformat={\hit@chapter@english@name@format},%\center 会影响之后全局
- numberformat=\relax,~
- titleformat={\hit@chapter@title@format},~
- fixskip=true,~% 添加这一行去除默认间距
- %hang=true,
+ format={\centering\hit@title@font\xiaoer[1.57481]\hit@if@option@T{chapterbold}{\hit@if@option@T{bachelor}{\bfseries}}},%\center 会影响之后全局
  },~
  section={~
- afterindent=true,~
  beforeskip={\hit@glue@skip{19.84252bp}{2.834646bp}},%上下空0.5行
  afterskip={\hit@glue@skip{19.84252bp}{2.834646bp}},~
- format={\hit@title@font\hit@glue@font@size{15bp}{21bp}{1.677267bp~\@minus 1.157391bp}\selectfont\bfseries},~
- aftername={\hit@after@number:nnn{section}{en}{\enspace}},~
- fixskip=true,~
- break={},~
+ format={\hit@title@font\hit@glue@font@size{15bp}{21bp}{1.677267bp~\@minus 1.157391bp}\selectfont},~
  },~
  subsection={~
- afterindent=true,~
  beforeskip={\hit@glue@skip{17.00787bp}{2.834646bp}},~
  afterskip={\hit@glue@skip{17.00787bp}{2.834646bp}},~
- format={\hit@title@font\hit@glue@font@size{14bp}{18bp}{1.842609bp~\@minus 0.9920497bp}\selectfont\bfseries},~
- aftername={\hit@after@number:nnn{subsection}{en}{\enspace}},~
- fixskip=true,~
- break={},~
+ format={\hit@title@font\hit@glue@font@size{14bp}{18bp}{1.842609bp~\@minus 0.9920497bp}\selectfont},~
  },~
  subsubsection={~
- afterindent=true,~
  beforeskip={\hit@glue@skip{8.503937bp}{2.834646bp}},~
  afterskip={\hit@glue@skip{8.503937bp}{2.834646bp}},~
  format={\hit@title@font\normalsize},~
- aftername={\hit@after@number:nnn{subsubsection}{en}{\enspace}},~
- fixskip=true,~
- break={},~
- },~
- paragraph/afterindent=true,~
- subparagraph/afterindent=true~
  }~
-  }
-\cs_new_protected:Npn \hit@chapter@settings@postdoc
-  {
-%
-~\ctexset{%
- chapter={~
- afterindent=true,~
- pagestyle={hit@headings},~
- beforeskip={28.34646bp},%一个空行 1.57481 × 18
- afterskip={28.74646bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
- aftername={\hit@after@number:nnn{chapter}{zh}{\enspace}},~
- format={\hit@chapter@postdocformat},%\center 会影响之后全局
- nameformat=\relax,~
- numberformat=\relax,~
- titleformat=\hit@chapter@title@format,~
- fixskip=true,~% 添加这一行去除默认间距
- %hang=true,
- },~
- section={~
- afterindent=true,~
- beforeskip={\hit@glue@skip{19.84252bp}{2.834646bp}},%上下空0.5行
- afterskip={\hit@glue@skip{19.84252bp}{2.834646bp}},~
- format={\hit@title@font\hit@glue@font@size{15bp}{21bp}{1.677267bp~\@minus 1.157391bp}\selectfont\bfseries},~
- aftername={\hit@after@number:nnn{section}{zh}{\enspace}},~
- fixskip=true,~
- break={},~
- },~
- subsection={~
- afterindent=true,~
- beforeskip={\hit@glue@skip{17.00787bp}{2.834646bp}},~
- afterskip={\hit@glue@skip{17.00787bp}{2.834646bp}},~
- format={\hit@title@font\hit@glue@font@size{14bp}{18bp}{1.842609bp~\@minus 0.9920497bp}\selectfont\bfseries},~
- aftername={\hit@after@number:nnn{subsection}{zh}{\enspace}},~
- fixskip=true,~
- break={},~
- },~
- subsubsection={~
- afterindent=true,~
- beforeskip={\hit@glue@skip{8.503937bp}{2.834646bp}},~
- afterskip={\hit@glue@skip{8.503937bp}{2.834646bp}},~
- format={\hit@title@font\normalsize},~
- aftername={\hit@after@number:nnn{subsubsection}{zh}{\enspace}},~
- fixskip=true,~
- break={},~
- },~
- paragraph/afterindent=true,~
- subparagraph/afterindent=true~
  }~
-\par
   }
 \cs_new_protected:Npn \hit@chapter@settings@other
   {
@@ -252,8 +199,6 @@
  chapter={~
  afterindent=true,~
  pagestyle={hit@headings},~
- beforeskip={28.34646bp},%一个空行 1.57481 × 18
- afterskip={28.74646bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
@@ -265,7 +210,6 @@
 % 添加本科生章标题加粗选项
 % \changes{v3.0.01}{2020/06/06}{添加本科生章标题加粗选项}
 %    \begin{macrocode}
- format={\centering\hit@title@font\xiaoer[1.57481]\hit@if@option@T{chapterbold}{\hit@if@option@T{bachelor}{\bfseries}}},%\center 会影响之后全局
  nameformat=\relax,~
  numberformat=\relax,~
  titleformat=\hit@chapter@title@format,~
@@ -274,9 +218,6 @@
  },~
  section={~
  afterindent=true,~
- beforeskip={\hit@glue@skip{19.84252bp}{2.834646bp}},%上下空0.5行
- afterskip={\hit@glue@skip{19.84252bp}{2.834646bp}},~
- format={\hit@title@font\hit@glue@font@size{15bp}{21bp}{1.677267bp~\@minus 1.157391bp}\selectfont},~
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
@@ -287,9 +228,6 @@
  },~
  subsection={~
  afterindent=true,~
- beforeskip={\hit@glue@skip{17.00787bp}{2.834646bp}},~
- afterskip={\hit@glue@skip{17.00787bp}{2.834646bp}},~
- format={\hit@title@font\hit@glue@font@size{14bp}{18bp}{1.842609bp~\@minus 0.9920497bp}\selectfont},~
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
@@ -301,9 +239,6 @@
  },~
  subsubsection={~
  afterindent=true,~
- beforeskip={\hit@glue@skip{8.503937bp}{2.834646bp}},~
- afterskip={\hit@glue@skip{8.503937bp}{2.834646bp}},~
- format={\hit@title@font\normalsize},~
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
@@ -320,7 +255,12 @@
   { \hit@chapter@settings@english }
   {
     \bool_if:NTF \g__hit_postdoc_bool
-      { \hit@chapter@settings@postdoc } { \hit@chapter@settings@other }
+      { \hit@chapter@settings@postdoc }
+      {
+        \hit@chapter@settings@other
+        \bool_if:NF \g__hit_new_layout_bool
+          { \hit@chapter@settings@other@old: }
+      }
   }
 %    \end{macrocode}
 %
