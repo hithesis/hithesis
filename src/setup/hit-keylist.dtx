@@ -171,29 +171,82 @@
   { \bool_if:NT \g__hit_toc_latin_sans_bool { \sffamily } }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/13}{加 \texttt{hit/layout} 族与
-%   \option{layout/vertical-alignment}，顶替 \option{style/ragged-bottom}}
-% \texttt{layout} 族收 Word 的页面设置。第一个键是 \option{vertical-alignment}，
-% 对应 Word 的「页面设置 → 版式 → 垂直对齐方式」，取 \texttt{top} 是页面排到哪算哪，
-% 取 \texttt{justified} 是页底拉齐。原先叫 \option{style/ragged-bottom}，
-% 取值还是反的（\texttt{ragged-bottom=true} 等于 \texttt{vertical-alignment=top}）。
+% \changes{v3.2a}{2026/08/13}{加 \texttt{hit/layout} 族}
+% \changes{v3.2a}{2026/08/15}{页底策略定名 \option{layout}/\option{bottom}，
+%   取值 \texttt{ragged}/\texttt{flush}，与 \hologo{LaTeX} 的 \cs{raggedbottom}
+%   与 \cs{flushbottom} 同名。中途用过的 \option{vertical-alignment} 撤销}
+% \texttt{layout} 族收 Word 的页面设置。第一个键是 \option{bottom}，取值
+% \texttt{ragged}（默认，页面排到哪算哪）与 \texttt{flush}（页底拉齐），
+% 名字取自 \hologo{LaTeX} 自己的两个命令。
 %
-% Word 那个下拉框还有「居中」与「底端对齐」两项，模板用不上，键名给它们留着位置。
+% 这一个键同时选定了\emph{按规范的哪一栏排}，因为两者一一对应：
+% \begin{center}
+% \begin{tabular}{lll}
+% \toprule
+% & 依据 & 间距 \\\midrule
+% \texttt{ragged} & 写作指南 3.2 节的行数与多倍值 & 刚性 \\
+% \texttt{flush} & 3.8 节的毫米区间 & 区间即伸缩范围 \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+% 3.2 节给的是确切值，刚性；3.8 节给的全是区间（正文 3\,--\,4\,mm、条标题
+% 6\,--\,7\,mm 之类），区间本身就是伸缩范围。按 3.2 节排就没有可拉伸的东西，
+% 页底拉不齐；按 3.8 节排就有余地。所以不是两个独立的开关，是一件事的两面。
 %
-% 与它常被放在一起说的 \option{style/glue} 不并进来。\option{glue} 管的是各处间距
-% 有没有伸缩量，Word 的间距一律刚性，没有对应的概念。两者也不是一个开关的两个面：
-% \texttt{glue=false} 配 \texttt{vertical-alignment=justified} 这个组合，深圳博士中期
-% 正在用（默认值见 \file{src/setup/hit-report-options.dtx}），编出来一条垂直盒子
-% 欠满的告警都没有。
+% 反过来说，「按毫米排但保持刚性」这一档不存在——毫米栏从来没给过确切值，
+% 硬要刚性就得从区间里挑一个数，那个数没有依据。
+%
+% 正文的余量算得出来：自然值 3.03\,mm、上限 4\,mm，每行富余 0.97\,mm，
+% 一页 33 行合计 32\,mm，而页底缺口通常不到 7\,mm。所以实际每行只拉 0.2\,mm
+% 上下，肉眼看不出来。
+% \begin{macro}{\__hit_layout_bottom:n}
+% \option{layout} 是新版面的接口，不该管旧版面：旧版面进了兼容期就锁死，
+% 章节格式在那边设了不管用，页底策略在那边设了却管用，说不通。所以这个键
+% 只记下取值，能不能落到标志位上由 \cs{\_\_hit\_layout\_bottom\_apply:} 决定。
+%
+% 类选项阶段 \cs{g\_\_hit\_new\_layout\_bool} 还没算出来（它要等所有类选项读完
+% 才知道 \option{old-layout} 到底开没开），所以那时按兵不动，等选项后处理
+% 那里补一次。用 \cs{hitsetup} 设的时候标志位已经有值，当场就能落。
+% \file{hit-report.cls} 没有新旧版面之分，那边这个标志位不存在，直接落。
+%
+% 旧版面要改页底策略走 \option{old-layout}\texttt{=\{bottom=\ldots\}}。
+%    \begin{macrocode}
+\tl_new:N \g__hit_layout_bottom_tl
+\cs_new_protected:Npn \__hit_layout_bottom:n #1
+  {
+    \tl_gset:Nn \g__hit_layout_bottom_tl {#1}
+    \__hit_layout_bottom_apply:
+  }
+\cs_new_protected:Npn \__hit_layout_bottom_apply:
+  {
+    \tl_if_empty:NF \g__hit_layout_bottom_tl
+      { \__hit_layout_bottom_check: }
+  }
+\cs_new_protected:Npn \__hit_layout_bottom_check:
+  {
+    \bool_if_exist:NTF \g__hit_new_layout_bool
+      {
+        \bool_if:NT \g__hit_new_layout_bool
+          { \__hit_layout_bottom_set: }
+      }
+      { \__hit_layout_bottom_set: }
+  }
+\cs_new_protected:Npn \__hit_layout_bottom_set:
+  {
+    \str_if_eq:VnTF \g__hit_layout_bottom_tl { ragged }
+      { \bool_gset_true:N  \g__hit_raggedbottom_bool }
+      { \bool_gset_false:N \g__hit_raggedbottom_bool }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
 %    \begin{macrocode}
 \keys_define:nn { hit / layout }
   {
-    vertical-alignment .choice: ,
-    vertical-alignment / top .code:n =
-      { \bool_gset_true:N \g__hit_raggedbottom_bool } ,
-    vertical-alignment / justified .code:n =
-      { \bool_gset_false:N \g__hit_raggedbottom_bool } ,
-    vertical-alignment .value_required:n = true ,
+    bottom .choice: ,
+    bottom / ragged .code:n = { \__hit_layout_bottom:n { ragged } } ,
+    bottom / flush  .code:n = { \__hit_layout_bottom:n { flush  } } ,
+    bottom .value_required:n = true ,
   }
 %    \end{macrocode}
 %
@@ -480,7 +533,6 @@
 \clist_map_inline:nn
   {
     { title-en-auto } { etitleauto } ,
-    { glue } { glue } ,
     { open-right } { openright } ,
     { library } { library } ,
   }
@@ -541,6 +593,19 @@
 % 另有一张废弃表，记的是没有新名可改的选项。这类键照旧认，只是什么也不做，
 % 提示里说清为什么。\option{tocblank} 插的那个空行规范里没有，所以整条去掉，
 % 行为等同于原先的 \option{tocblank}\texttt{=false}。
+% \changes{v3.2a}{2026/08/15}{\option{glue} 与 \option{raggedbottom} 从改名表
+%   挪到拆分表：这两个不是换了名字，是按新旧版面分成了两个去处}
+% \option{glue} 和 \option{raggedbottom} 不能只报一个新名字。它们原来同时
+% 承担两件事：调旧版面那套手写的伸缩量，以及决定页底排不排齐。新版面把这
+% 两件事分开了，所以得问清楚用户到底要哪一种，两条路都写给他看。
+%    \begin{macrocode}
+\prop_gset_from_keyval:Nn \g__hit_split_option_prop
+  {
+    glue         = { split } ,
+    raggedbottom = { split } ,
+  }
+%    \end{macrocode}
+%
 %    \begin{macrocode}
 \prop_gset_from_keyval:Nn \g__hit_removed_option_prop
   {
@@ -558,10 +623,8 @@
     subcapcenterlast = { format = { caption-sub = { alignment = last-line-centered } } } ,
     absupper         = { format = { abstract-heading = { all-caps = ... } } } ,
     etitleauto       = { style = { title-en-auto = ... } } ,
-    glue             = { style = { glue = ... } } ,
     openright        = { style = { open-right = ... } } ,
     library          = { style = { library = ... } } ,
-    raggedbottom     = { layout = { vertical-alignment = top~|~justified } } ,
     zijv             = { style = { ziju = ... } } ,
     bsheadrule       = { style = { head-rule = ... } } ,
     bsmainpagenumberline  = { style = { page-number-line = { mainmatter = ... } } } ,
@@ -832,7 +895,7 @@
 %    \begin{macrocode}
 \prop_gset_from_keyval:Nn \g__hit_renamed_option_prop
   {
-    raggedbottom   = { layout = { vertical-alignment = top~|~justified } } ,
+    raggedbottom   = { layout = { bottom = ragged~|~flush } } ,
     biblabelalign  = { bib = { label-align = ... } } ,
     bibauthorupper = { bib = { author-case = ... } } ,
     bibmaxauthor   = { bib = { maximum-author = ... } } ,
