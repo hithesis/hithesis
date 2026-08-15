@@ -187,6 +187,24 @@
           }
       }
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{加 \cs{\_\_hit\_format\_drop:n}，写单值时把区间那
+%   第二个端点从表里抹掉，不留空条目}
+% 删一项。区间的第二个端点只在写了两个词时才有，写一个词就得把上一次留下的抹掉。
+% 存一个空值也能起同样的作用，但表里会多出永远读不到东西的条目，
+% \file{testfiles/56-format-keys.lvt} 把整张表印出来对，一眼就看得见。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_drop:n #1
+  {
+    \prop_gremove:cn { g__hit_format_ \l__hit_format_target_str _prop } {#1}
+    \bool_if:NT \g__hit_format_presetup_bool
+      {
+        \__hit_format_default_prop:
+        \prop_gremove:cn
+          { g__hit_format_ \l__hit_format_target_str _default_prop } {#1}
+      }
+  }
 \cs_new_protected:Npn \__hit_format_restore:n #1
   {
     \__hit_format_default_prop:
@@ -234,65 +252,6 @@
 %    \end{macrocode}
 %
 % 取值不在名单里就报一句，键名与取值都印出来。
-% \begin{macro}{\__hit_format_white:nn}
-% 白距的取值：一个长度是刚性，两个长度是区间。词数就是区别，\option{format}
-% 本来就按词解析（\texttt{2 chars}、\texttt{exactly 25bp} 都是多词），不另起机制。
-%
-% 两个长度不分先后，谁大谁小由代码判，写 \texttt{8mm~7mm} 与 \texttt{7mm~8mm}
-% 一个意思。单位也不限死毫米，任何 \hologo{TeX} 长度都收——默认表用毫米只是
-% 因为规范是按毫米给的。
-%
-% 存的时候仍旧拆成 \texttt{-min} 与 \texttt{-max} 两项，算伸缩量那一头不用改。
-%    \begin{macrocode}
-\seq_new:N \l__hit_format_white_seq
-\cs_new_protected:Npn \__hit_format_white:nn #1#2
-  {
-    \str_if_eq:nnTF {#2} { auto }
-      {
-        \__hit_format_put:nn { #1 -min } { auto }
-        \__hit_format_put:nn { #1 -max } { auto }
-      }
-      { \__hit_format_white_aux:nn {#1} {#2} }
-  }
-\cs_new_protected:Npn \__hit_format_white_aux:nn #1#2
-  {
-    \seq_set_split:Nnn \l__hit_format_white_seq { ~ } {#2}
-    \seq_remove_all:Nn \l__hit_format_white_seq { }
-    \int_case:nnF { \seq_count:N \l__hit_format_white_seq }
-      {
-        { 1 }
-          {
-            \__hit_format_white_put:nnn {#1}
-              { \seq_item:Nn \l__hit_format_white_seq { 1 } }
-              { \seq_item:Nn \l__hit_format_white_seq { 1 } }
-          }
-        { 2 }
-          {
-            \dim_compare:nNnTF
-              { \seq_item:Nn \l__hit_format_white_seq { 1 } } >
-              { \seq_item:Nn \l__hit_format_white_seq { 2 } }
-              {
-                \__hit_format_white_put:nnn {#1}
-                  { \seq_item:Nn \l__hit_format_white_seq { 2 } }
-                  { \seq_item:Nn \l__hit_format_white_seq { 1 } }
-              }
-              {
-                \__hit_format_white_put:nnn {#1}
-                  { \seq_item:Nn \l__hit_format_white_seq { 1 } }
-                  { \seq_item:Nn \l__hit_format_white_seq { 2 } }
-              }
-          }
-      }
-      { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {#2} }
-  }
-\cs_new_protected:Npn \__hit_format_white_put:nnn #1#2#3
-  {
-    \__hit_format_put:nn { #1 -min } { \dim_eval:n {#2} }
-    \__hit_format_put:nn { #1 -max } { \dim_eval:n {#3} }
-  }
-%    \end{macrocode}
-% \end{macro}
-%
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_enum:nnn #1#2#3
   {
@@ -309,57 +268,149 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_size:n #1
   {
-    \dim_if_exist:cTF { c__hit_font_size_#1_dim }
+    \str_if_eq:nnTF {#1} { auto }
+      { \__hit_format_put:nn { size } { auto } }
       {
-        \__hit_format_put:nn { size }
-          { \dim_use:c { c__hit_font_size_#1_dim } }
+        \dim_if_exist:cTF { c__hit_font_size_#1_dim }
+          {
+            \__hit_format_put:nn { size }
+              { \dim_use:c { c__hit_font_size_#1_dim } }
+          }
+          { \__hit_format_put:nn { size } { \dim_eval:n {#1} } }
       }
-      { \__hit_format_put:nn { size } { \dim_eval:n {#1} } }
   }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/15}{\texttt{exactly~25bp} 改写 \texttt{25bp!}，
 %   \texttt{at-least~10bp} 改写 \texttt{10bp+}，为的是把「两个词」这个形状
 %   让给区间写法}
-% \option{line-spacing}。\texttt{single} 与 \texttt{double} 是 Word 下拉框里的词，
-% 折成倍数 1 与 2；光秃秃一个数也是倍数；\texttt{exactly} 与 \texttt{at-least} 是
-% 另外两种模式，后面跟长度。
+% \changes{v3.2a}{2026/08/15}{\option{line-spacing} 与 \option{line-white} 收下
+%   一个词或两个词，两个词是区间；两个键量的是同一件事，同时写要报错}
+% \begin{macro}{\__hit_format_measure:nnn}
+% 行距的取值。写一个词是刚性，写两个词是区间，两个词不分先后，谁大谁小由代码判。
+%
+% 一个词有五种写法：
+% \begin{center}
+% \begin{tabular}{lll}
+% \toprule
+% 写法 & 存下来的单位 & 意思 \\\midrule
+% \texttt{single}、\texttt{double} & \texttt{multiple} & Word 下拉框里的词，折成 1 与 2 \\
+% \texttt{1.25} & \texttt{multiple} & 倍数 \\
+% \texttt{25bp!} & \texttt{exactly} & Word 的固定值 \\
+% \texttt{10bp+} & \texttt{at-least} & Word 的最小值 \\
+% \texttt{19bp} & \texttt{length} & 就是这么长，不设下限 \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+% 末一个字符定归属：\texttt{!} 与 \texttt{+} 是模式记号，数字与小数点收尾是倍数，
+% 字母收尾是长度（\hologo{TeX} 的单位一律是字母）。所以
+% \texttt{line-spacing~=~3mm~2} 这种一头长度一头倍数的写法也收。
+%
+% \texttt{length} 与 \texttt{at-least} 差一条下限，\texttt{length} 与
+% \texttt{exactly} 差一处基线落点，三者不能合并。
+%
+% \option{line-white} 走同一个解析器，只是每个端点的单位都记成 \texttt{white}：
+% 它量的是\emph{视觉白}，换算成基线距要加一个字面高，见后面的「换算」一节。
+% 两个键量的是同一件事的两种度量，所以存进同一批条目，同一次
+% \cs{hitsetup} 里都写了就报错，按后写的算。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_format_line_spacing:n #1
+\seq_new:N \l__hit_format_end_seq
+\tl_new:N \l__hit_format_last_tl
+\prop_new:N \l__hit_format_claim_prop
+\prg_generate_conditional_variant:Nnn \str_if_in:nn { nV } { TF }
+\cs_new_protected:Npn \__hit_format_claim:nn #1#2
   {
-    \__hit_format_split:n {#1}
-    \str_case:VnF \l__hit_format_head_tl
+    \prop_get:NnNT \l__hit_format_claim_prop {#1} \l__hit_format_last_tl
       {
-        { single } { \__hit_format_spacing_put:nn { multiple } { 1 } }
-        { double } { \__hit_format_spacing_put:nn { multiple } { 2 } }
+        \str_if_eq:VnF \l__hit_format_last_tl {#2}
+          {
+            \msg_error:nnVn { hithesis } { measure-clash }
+              \l__hit_format_last_tl {#2}
+          }
+      }
+    \prop_put:Nnn \l__hit_format_claim_prop {#1} {#2}
+  }
+\cs_new_protected:Npn \__hit_format_measure:nnnn #1#2#3#4
+  {
+    \__hit_format_claim:nn {#2} {#1}
+    \str_if_eq:nnTF {#4} { auto }
+      {
+        \clist_map_inline:nn { , -unit , -2 , -2-unit }
+          { \__hit_format_put:nn { #2 ##1 } { auto } }
       }
       {
-        \__hit_format_one_word:TF
-          { \__hit_format_spacing_word:V \l__hit_format_head_tl }
-          { \msg_error:nnnn { hithesis } { bad-option-value }
-              { line-spacing } {#1} }
+        \seq_set_split:Nnn \l__hit_format_end_seq { ~ } {#4}
+        \seq_remove_all:Nn \l__hit_format_end_seq { }
+        \int_case:nnF { \seq_count:N \l__hit_format_end_seq }
+          {
+            { 1 }
+              {
+                \__hit_format_end:nnne {#2} { } {#3}
+                  { \seq_item:Nn \l__hit_format_end_seq { 1 } }
+                \__hit_format_drop:n { #2 -2 }
+                \__hit_format_drop:n { #2 -2-unit }
+              }
+            { 2 }
+              {
+                \__hit_format_end:nnne {#2} { } {#3}
+                  { \seq_item:Nn \l__hit_format_end_seq { 1 } }
+                \__hit_format_end:nnne {#2} { -2 } {#3}
+                  { \seq_item:Nn \l__hit_format_end_seq { 2 } }
+              }
+          }
+          { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {#4} }
       }
   }
-\cs_new_protected:Npn \__hit_format_spacing_word:n #1
+%    \end{macrocode}
+% \end{macro}
+%
+% 一个端点。\meta{槽}\meta{后缀}\meta{度量}\meta{词}。量视觉白的键不必再认词，
+% 端点只能是长度。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_end:nnnn #1#2#3#4
   {
-    \str_case:enF { \str_item:nn {#1} { -1 } }
+    \str_if_eq:nnTF {#3} { white }
+      { \__hit_format_end_put:nnnn {#1} {#2} { white } {#4} }
+      { \__hit_format_end_word:nnn {#1} {#2} {#4} }
+  }
+\cs_generate_variant:Nn \__hit_format_end:nnnn { nnne }
+\cs_new_protected:Npn \__hit_format_end_word:nnn #1#2#3
+  {
+    \str_case:nnF {#3}
+      {
+        { single } { \__hit_format_end_put:nnnn {#1} {#2} { multiple } { 1 } }
+        { double } { \__hit_format_end_put:nnnn {#1} {#2} { multiple } { 2 } }
+      }
+      { \__hit_format_end_mark:nnn {#1} {#2} {#3} }
+  }
+\cs_new_protected:Npn \__hit_format_end_mark:nnn #1#2#3
+  {
+    \str_set:Nx \l__hit_format_last_tl { \str_item:nn {#3} { -1 } }
+    \str_case:VnF \l__hit_format_last_tl
       {
         { ! }
-          { \__hit_format_spacing_put:ne { exactly }
-              { \str_range:nnn {#1} { 1 } { -2 } } }
+          {
+            \__hit_format_end_put:nnne {#1} {#2} { exactly }
+              { \str_range:nnn {#3} { 1 } { -2 } }
+          }
         { + }
-          { \__hit_format_spacing_put:ne { at-least }
-              { \str_range:nnn {#1} { 1 } { -2 } } }
+          {
+            \__hit_format_end_put:nnne {#1} {#2} { at-least }
+              { \str_range:nnn {#3} { 1 } { -2 } }
+          }
       }
-      { \__hit_format_spacing_put:nn { multiple } {#1} }
+      {
+        \str_if_in:nVTF { 0123456789. } \l__hit_format_last_tl
+          { \__hit_format_end_put:nnnn {#1} {#2} { multiple } {#3} }
+          { \__hit_format_end_put:nnnn {#1} {#2} { length } {#3} }
+      }
   }
-\cs_generate_variant:Nn \__hit_format_spacing_word:n { V }
-\cs_new_protected:Npn \__hit_format_spacing_put:nn #1#2
+\cs_new_protected:Npn \__hit_format_end_put:nnnn #1#2#3#4
   {
-    \__hit_format_put:nn { line-spacing-unit } {#1}
-    \__hit_format_put:nn { line-spacing } {#2}
+    \__hit_format_put:nn { #1 #2 -unit } {#3}
+    \__hit_format_put:nn { #1 #2 } {#4}
   }
-\cs_generate_variant:Nn \__hit_format_spacing_put:nn { nV , ne }
+\cs_generate_variant:Nn \__hit_format_end_put:nnnn { nnne }
 \cs_generate_variant:Nn \str_case:nnF { VnF }
 %    \end{macrocode}
 %
@@ -368,6 +419,15 @@
 % 数在前、单位词在后，只有单位词不同，所以走同一个解析器。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_amount:nnn #1#2#3
+  {
+    \str_if_eq:nnTF {#3} { auto }
+      {
+        \__hit_format_put:nn {#1} { auto }
+        \__hit_format_put:nn { #1 -unit } { auto }
+      }
+      { \__hit_format_amount_aux:nnn {#1} {#2} {#3} }
+  }
+\cs_new_protected:Npn \__hit_format_amount_aux:nnn #1#2#3
   {
     \__hit_format_split:n {#3}
     \__hit_format_one_word:TF
@@ -394,6 +454,11 @@
     \__hit_format_split:n {#1}
     \str_case:VnF \l__hit_format_head_tl
       {
+        { auto }
+          {
+            \__hit_format_put:nn { indent-special-mode } { auto }
+            \__hit_format_amount:nnn { indent-special } { chars } { auto }
+          }
         { none } { \__hit_format_put:nn { indent-special-mode } { none } }
         { first-line }
           { \__hit_format_special_put:nV { first-line } \l__hit_format_rest_tl }
@@ -428,8 +493,12 @@
     indent-left  .code:n = { \__hit_format_amount:nnn { indent-left } { chars } {#1} } ,
     indent-right .code:n = { \__hit_format_amount:nnn { indent-right } { chars } {#1} } ,
     indent-special .code:n = { \__hit_format_indent_special:n {#1} } ,
-    line-spacing .code:n = { \__hit_format_line_spacing:n {#1} } ,
-    line-white .code:n = { \__hit_format_white:nn { line-white } {#1} } ,
+    line-spacing .code:n =
+      { \__hit_format_measure:nnnn { line-spacing } { line-spacing }
+          { spacing } {#1} } ,
+    line-white .code:n =
+      { \__hit_format_measure:nnnn { line-white } { line-spacing }
+          { white } {#1} } ,
     space-before .code:n = { \__hit_format_amount:nnn { space-before } { line } {#1} } ,
     space-after  .code:n = { \__hit_format_amount:nnn { space-after } { line } {#1} } ,
     bold           .code:n = { \__hit_format_bool:nn { bold } {#1} } ,
@@ -450,6 +519,7 @@
 \cs_new_protected:Npn \__hit_format_target:nn #1#2
   {
     \str_set:Nn \l__hit_format_target_str {#1}
+    \prop_clear:N \l__hit_format_claim_prop
     \hit@keys@set:nn { hit / format / property } {#2}
     \__hit_format_legacy:n {#1}
   }
@@ -639,15 +709,17 @@
 \dim_new:N \l_hit_format_after_dim
 \dim_new:N \l_hit_format_indent_dim
 \dim_new:N \l_hit_format_stretch_dim
-\dim_new:N \l_hit_format_shrink_dim
 \bool_new:N \l_hit_format_snap_bool
 %    \end{macrocode}
 %
 %    \begin{macrocode}
 \tl_new:N \l__hit_format_value_tl
 \tl_new:N \l__hit_format_unit_tl
+\tl_new:N \l__hit_format_value_ii_tl
+\tl_new:N \l__hit_format_unit_ii_tl
 \tl_new:N \l__hit_format_coef_tl
 \dim_new:N \l__hit_format_floor_dim
+\dim_new:N \l__hit_format_span_dim
 \cs_generate_variant:Nn \prop_get:NnNF { NVNF }
 %    \end{macrocode}
 %
@@ -735,27 +807,28 @@
     \__hit_format_read:nnnN {#1} { line-spacing } { 1 } \l__hit_format_value_tl
     \__hit_format_read:nnnN {#1} { line-spacing-unit } { multiple }
       \l__hit_format_unit_tl
+    \__hit_format_read:nnnN {#1} { line-spacing-2 } { } \l__hit_format_value_ii_tl
+    \__hit_format_read:nnnN {#1} { line-spacing-2-unit } { }
+      \l__hit_format_unit_ii_tl
     \__hit_format_lead:
-    \__hit_format_elastic:n {#1}
     \__hit_format_amount_get:nnN {#1} { space-before } \l_hit_format_before_dim
     \__hit_format_amount_get:nnN {#1} { space-after } \l_hit_format_after_dim
     \__hit_format_indent:n {#1}
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/15}{加 \option{line-white-min} 与 \option{line-white-max}，
-%   写作指南 3.8 节的毫米区间换算成基线距的伸缩量}
-% \begin{macro}{\__hit_format_elastic:n}
-% 毫米区间换算成伸缩量。写作指南 3.8 节给的全是区间：正文与款、项标题
-% 3\,--\,4\,mm，条标题 6\,--\,7\,mm，依此类推。量的是\emph{视觉白}，
-% 也就是两行之间那条看得见的空白，不是基线距。
+% \changes{v3.2a}{2026/08/15}{行距的两个端点在算的时候才折成长度，一头长度一头
+%   倍数也能比大小；区间的下端做自然值，上端减下端做伸量}
+% 一个端点折成一段基线距。倍数没有单位，光看写下来的字不知道是多长，所以端点
+% 一直存着原样，到这里才折——字号、自然行高、网格行距这时候才齐。
 %
-% 两者差一个字面高。中易宋体全字符集 20992 个汉字的墨迹高度实测平均
-% 0.9050 em（中位数 0.9102），所以
+% \emph{视觉白折基线距。} 写作指南 3.8 节给的全是视觉白，也就是两行之间那条
+% 看得见的空白：正文与款、项标题 3\,--\,4\,mm，条标题 6\,--\,7\,mm。它与基线距
+% 差一个字面高，中易宋体全字符集 20992 个汉字的墨迹高度实测平均 0.9050 em
+% （中位数 0.9102），所以
 % \begin{quote}
 %   基线距 = 视觉白 + 0.9050 × 字号
 % \end{quote}
-% 反过来，区间的上下端各换算出一个基线距，与当前基线距相减就是伸与缩。
 %
 % 键名里是 \texttt{white} 不是 \texttt{gap}，这一条不要改回去。OpenType 的
 % \texttt{hhea.lineGap} 与 OS/2 的 \texttt{sTypoLineGap} 早就占了后一个词，
@@ -764,82 +837,41 @@
 % 12\,bp 正文、基线距 19.453\,bp，按字体度量算是 7.45\,bp（2.63\,mm），
 % 按这里的墨迹算是 8.59\,bp（3.03\,mm）。差 0.4\,mm，而规范给的区间总共
 % 才 1\,mm 宽，够让人按错的定义去核对，然后得出不合规的结论。
-%
-% 只有 \option{layout}\texttt{=\{bottom=flush\}} 才给这份胶。取 \texttt{ragged}
-% 时按写作指南 3.2 节的行数与多倍值排，那一栏给的是确切值，刚性，没有可拉的
-% 东西——这也是这两栏必须一起选的原因。
-%
-% 区间写反了（下限比上限大）按写错处理，两头都不给。算出来是负的就取零：
-% 当前基线距落在区间外时，不能靠胶把它拉回去，那是配置本身要改。
 %    \begin{macrocode}
 \tl_const:Nn \c__hit_format_ink_tl { 0.9050 }
-\cs_new_protected:Npn \__hit_format_elastic:n #1
+\cs_new_protected:Npn \__hit_format_endpoint:nnN #1#2#3
   {
-    \dim_zero:N \l_hit_format_stretch_dim
-    \dim_zero:N \l_hit_format_shrink_dim
-    \bool_if:NF \g__hit_raggedbottom_bool
+    \str_case:nnF {#1}
       {
-        \__hit_format_read:nnnN {#1} { line-white-max } { } \l__hit_format_value_tl
-        \tl_if_empty:NF \l__hit_format_value_tl
-          { \__hit_format_elastic_aux:Nn \l_hit_format_stretch_dim { } }
-        \__hit_format_read:nnnN {#1} { line-white-min } { } \l__hit_format_value_tl
-        \tl_if_empty:NF \l__hit_format_value_tl
-          { \__hit_format_elastic_aux:Nn \l_hit_format_shrink_dim { 0pt - } }
-      }
-  }
-\cs_new_protected:Npn \__hit_format_elastic_aux:Nn #1#2
-  {
-    \dim_set:Nn #1
-      {
-        #2
-        (
-          \l__hit_format_value_tl
-          + \c__hit_format_ink_tl \l_hit_format_size_dim
-          - \l_hit_format_lead_dim
-        )
-      }
-    \dim_compare:nNnT { #1 } < { 0pt } { \dim_zero:N #1 }
-  }
-%    \end{macrocode}
-% \end{macro}
-%
-% 行盒高与基线落点。三种模式各一支。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_format_lead:
-  {
-    \str_case:VnF \l__hit_format_unit_tl
-      {
-        { exactly }
+        { multiple } { \__hit_format_multiple:nN {#2} #3 }
+        { white }
           {
-            \dim_set:Nn \l_hit_format_lead_dim { \l__hit_format_value_tl }
-            \dim_set:Nn \l_hit_format_first_dim
-              { \c__hit_format_exact_tl \l_hit_format_lead_dim }
+            \dim_set:Nn #3
+              { #2 + \c__hit_format_ink_tl \l_hit_format_size_dim }
           }
         { at-least }
           {
-            \dim_set:Nn \l_hit_format_lead_dim { \l__hit_format_value_tl }
+            \dim_set:Nn #3 {#2}
             \dim_set:Nn \l__hit_format_floor_dim
               { \bool_if:NTF \l_hit_format_snap_bool
                   { \g_hit_msword_lead_dim } { \l_hit_format_natural_dim } }
-            \dim_compare:nNnT
-              { \l_hit_format_lead_dim } < { \l__hit_format_floor_dim }
-              { \dim_set_eq:NN \l_hit_format_lead_dim \l__hit_format_floor_dim }
-            \__hit_format_first:
+            \dim_compare:nNnT { #3 } < { \l__hit_format_floor_dim }
+              { \dim_set_eq:NN #3 \l__hit_format_floor_dim }
           }
       }
-      { \__hit_format_multiple: \__hit_format_first: }
+      { \dim_set:Nn #3 {#2} }
   }
+\cs_generate_variant:Nn \__hit_format_endpoint:nnN { VVN }
 %    \end{macrocode}
 %
 % 倍数写法。对齐到网格时是网格行距的倍数，装不下就往上取整到整数个格；
 % 关掉时是自然行高的倍数。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_format_multiple:
+\cs_new_protected:Npn \__hit_format_multiple:nN #1#2
   {
     \bool_if:NTF \l_hit_format_snap_bool
       {
-        \dim_set:Nn \l_hit_format_lead_dim
-          { \l__hit_format_value_tl \g_hit_msword_lead_dim }
+        \dim_set:Nn #2 { #1 \g_hit_msword_lead_dim }
         \dim_set:Nn \l__hit_format_floor_dim
           {
             \fp_to_decimal:n
@@ -852,14 +884,51 @@
               }
             \g_hit_msword_lead_dim
           }
-        \dim_compare:nNnT
-          { \l_hit_format_lead_dim } < { \l__hit_format_floor_dim }
-          { \dim_set_eq:NN \l_hit_format_lead_dim \l__hit_format_floor_dim }
+        \dim_compare:nNnT { #2 } < { \l__hit_format_floor_dim }
+          { \dim_set_eq:NN #2 \l__hit_format_floor_dim }
       }
+      { \dim_set:Nn #2 { #1 \l_hit_format_natural_dim } }
+  }
+%    \end{macrocode}
+%
+% 行盒高与基线落点。
+%
+% 只写一个端点是刚性。写两个就是区间，两端各折一次，小的做自然值，大的减小的
+% 做伸量。自然值取小端有实测撑着：范例正文是多倍 1.25、基线距 19.453\,bp，
+% 减去 0.9050 × 12 得视觉白 3.03\,mm，正好压在 3\,--\,4\,mm 这个区间的下端。
+% 缩量恒为零，跟着这个选择走——低于小端就出了规范。
+%
+% 端点不分先后，谁大谁小到这里才知道：\texttt{3mm~2} 这种一头长度一头倍数的
+% 写法，解析的时候没有字号，比不了。
+%
+% 基线落点看第一个端点的模式：\texttt{exactly} 是 Word 的固定值，基线在盒顶
+% 下方 0.8 倍盒高，与网格开关无关；其余三种走 \cs{\_\_hit\_format\_first:}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_lead:
+  {
+    \__hit_format_endpoint:VVN \l__hit_format_unit_tl \l__hit_format_value_tl
+      \l_hit_format_lead_dim
+    \dim_zero:N \l_hit_format_stretch_dim
+    \tl_if_empty:NF \l__hit_format_value_ii_tl
       {
-        \dim_set:Nn \l_hit_format_lead_dim
-          { \l__hit_format_value_tl \l_hit_format_natural_dim }
+        \__hit_format_endpoint:VVN \l__hit_format_unit_ii_tl
+          \l__hit_format_value_ii_tl \l__hit_format_span_dim
+        \dim_compare:nNnT
+          { \l__hit_format_span_dim } < { \l_hit_format_lead_dim }
+          {
+            \dim_set_eq:NN \l__hit_format_floor_dim \l_hit_format_lead_dim
+            \dim_set_eq:NN \l_hit_format_lead_dim \l__hit_format_span_dim
+            \dim_set_eq:NN \l__hit_format_span_dim \l__hit_format_floor_dim
+          }
+        \dim_set:Nn \l_hit_format_stretch_dim
+          { \l__hit_format_span_dim - \l_hit_format_lead_dim }
       }
+    \str_if_eq:VnTF \l__hit_format_unit_tl { exactly }
+      {
+        \dim_set:Nn \l_hit_format_first_dim
+          { \c__hit_format_exact_tl \l_hit_format_lead_dim }
+      }
+      { \__hit_format_first: }
   }
 %    \end{macrocode}
 %
@@ -1170,7 +1239,6 @@
 \dim_new:N \g_hit_body_size_dim
 \dim_new:N \g_hit_body_lead_dim
 \dim_new:N \g_hit_body_stretch_dim
-\dim_new:N \g_hit_body_shrink_dim
 \dim_new:N \g_hit_body_first_dim
 \dim_new:N \g_hit_body_indent_dim
 %    \end{macrocode}
@@ -1234,7 +1302,6 @@
         \dim_gset_eq:NN \g_hit_body_size_dim \l_hit_format_size_dim
         \dim_gset_eq:NN \g_hit_body_lead_dim \l_hit_format_lead_dim
         \dim_gset_eq:NN \g_hit_body_stretch_dim \l_hit_format_stretch_dim
-        \dim_gset_eq:NN \g_hit_body_shrink_dim \l_hit_format_shrink_dim
         \dim_gset_eq:NN \g_hit_body_first_dim \l_hit_format_first_dim
         \dim_gset_eq:NN \g_hit_body_indent_dim \l_hit_format_indent_dim
         \bool_set_eq:NN \l_hit_format_line_snap_bool \l_hit_format_snap_bool
