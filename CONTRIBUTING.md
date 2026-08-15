@@ -12,7 +12,7 @@ hithesis/
 │   ├── hithesis.dtx            <- 入口：driver、共用文件头、派发类 hithesis.cls、旧类名空壳
 │   ├── hit-thesis.dtx          <- 学位论文类 hit-thesis 的骨架：LoadClass 与前后钩子
 │   ├── hit-report.dtx          <- 开题中期类 hit-report 的骨架，同上
-│   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst / hitszthesis.bst
+│   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst（官方 gbt7714 底座）
 │   ├── hit-ist.dtx             <- 索引排序样式 hithesis.ist
 │   ├── hit-dtx-style.dtx       <- 排手册用的 dtx-style.sty，不随模板发布
 │   ├── hit-sty.dtx             <- 示例宏包 hithesis.sty，示例文档自己 \usepackage

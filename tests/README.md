@@ -28,7 +28,7 @@ BASE=examples/hitbook/chinese          # 取哪个 example 目录作模板
 OPTIONS=fontset=fandol,type=bachelor,campus=harbin   # 替换进 \documentclass[...] 的选项
 CLS=hit-thesis                         # 文档类名
 ENTRY=thesis.tex                       # 主文件，默认 thesis.tex
-BIBSTYLE=hitszthesis                    # 可选，替换掉整棵树里的 \bibliographystyle
+BIBSTYLE=gbt7714-2025-numeric           # 可选，替换掉整棵树里的 \bibliographystyle
 ```
 
 `tools/compile-variant.sh` 把 `BASE` 整个复制到 `tests/work/<变体名>/`，改写主文件第一行的

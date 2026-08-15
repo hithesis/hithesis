@@ -299,7 +299,7 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
      配置文件、`.bst` 与 `.eps` 复制过去，例如：
 
          cp hit-thesis.cls hit-report.cls hithesis.cls hithesis.ist \
-            hithesis.bst hitszthesis.bst *.eps examples/demo/
+            hithesis.bst *.eps examples/demo/
          cp golfer.eps examples/demo/figures/
 
    - 装了 TeX Live 的话也可以用 l3build（随 TeX 发行，三平台通用）
