@@ -80,6 +80,27 @@ with open(path, 'w', encoding='utf-8') as f:
     f.write(text)
 PYEOF
 
+# 变体指定了 PREAMBLE 就把它插在 \documentclass 那一行后面。demo 的 \hitsetup
+# 全写在 \begin{document} 之后，元信息那样设没问题，可 bib 的 backend=biber
+# 必须在导言区生效（biblatex 过了导言区装不进去），biber 变体靠这个变量把
+# 那几句提前。
+if [ -n "${PREAMBLE:-}" ]; then
+  python3 - "$WORK/$ENTRY" "$PREAMBLE" <<'PYEOF'
+import sys, re
+path, preamble = sys.argv[1], sys.argv[2]
+with open(path, 'r', encoding='utf-8') as f:
+    text = f.read()
+text, n = re.subn(r'(^\\documentclass\[[^\]]*\]\{[^}]+\})',
+                  lambda m: m.group(1) + '\n' + preamble, text, count=1,
+                  flags=re.MULTILINE)
+if n != 1:
+    print("PREAMBLE set but no \\documentclass line found", file=sys.stderr)
+    sys.exit(1)
+with open(path, 'w', encoding='utf-8') as f:
+    f.write(text)
+PYEOF
+fi
+
 # 变体指定了 BIBSTYLE 就把工作目录里所有 \bibliographystyle 换掉。示例文档里
 # 这一句可能写在正文的 body/*.tex 里而不是入口文件，所以整棵树扫一遍。
 # 只换行首的那种，注释掉的备选项照原样留着。

@@ -562,6 +562,14 @@
   }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/08/16}{\option{style} 与三个换算键接上 biblatex 一线的
+%   设值器与「设晚了」守卫；\option{backend} 键本身声明在共享层
+%   \file{hit-bibstyle.dtx}}
+% \option{style}、\option{label-align}、\option{author-case}、
+% \option{maximum-author} 这四个在 biblatex 一线是装载时换算成 \pkg{biblatex}
+% 选项的，装载之后再设不生效，设值器前面搭一句守卫（见
+% \file{hit-bibstyle.dtx}）。\option{split-item} 排版时才读，不用守。
+% \option{adjacent-cite} 的 \texttt{comma} 一档 biblatex 一线没有，点名提示。
 %    \begin{macrocode}
 \keys_define:nn { hit / bib }
   {
@@ -574,14 +582,28 @@
             \bool_gset_false:N \g__hit_citetwo_endash_bool
             \bool_gset_true:c { g__hit_citetwo_ \l_keys_choice_tl _bool }
           }
+        \str_if_eq:VnT \l_keys_choice_tl { comma }
+          {
+            \@ifpackageloaded { biblatex }
+              { \msg_warning:nn { hithesis } { bib-adjacent-cite-fixed } } { }
+          }
       } ,
     adjacent-cite .value_required:n = true ,
-    style .code:n = { \tl_gset:Nn \g__hit_bib_style_tl {#1} } ,
-    label-align .code:n = { \str_set:Nn \g_bib_labelalign_str {#1} } ,
-    author-case .code:n = { \str_if_eq:nnT {#1} { full }
-      { \bool_set_true:N \g_bib_authorupper_bool } } ,
+    style .code:n = { \hit@bib@style:n {#1} } ,
+    label-align .code:n =
+      {
+        \hit@bib@key@guard:n { label-align }
+        \str_set:Nn \g_bib_labelalign_str {#1}
+      } ,
+    author-case .code:n =
+      {
+        \hit@bib@key@guard:n { author-case }
+        \str_if_eq:nnT {#1} { full }
+          { \bool_set_true:N \g_bib_authorupper_bool }
+      } ,
     maximum-author .code:n =
       {
+        \hit@bib@key@guard:n { maximum-author }
         \int_set:Nn \g_bib_maxauthor_int {#1}
         \int_if_zero:nT { \g_bib_maxauthor_int } { \int_gdecr:N \g_bib_maxauthor_int }
       } ,
@@ -789,7 +811,8 @@
     layout .code:n = { \hit@layout@set:n {#1} } ,
     format .code:n = { \hit@keys@set:nn { hit / format } {#1} } ,
     toc   .code:n = { \hit@keys@set:nn { hit / toc } {#1} } ,
-    bib   .code:n = { \hit@keys@set:nn { hit / bib } {#1} } ,
+    bib   .code:n =
+      { \hit@keys@set:nn { hit / bib } {#1} \hit@bib@backend@apply: } ,
     const .code:n = { \hit@keys@set:nn { hit / const } {#1} } ,
     math  .code:n = { \hit@keys@set:nn { hit / math } {#1} } ,
     struct .code:n =
@@ -882,15 +905,26 @@
 %    \end{macrocode}
 %
 % 参考文献的三个选项，改用连字符命名。
+%
+% \changes{v3.2a}{2026/08/16}{与学位论文类一样接上 biblatex 一线的设值器与守卫}
+% 设值器与守卫跟学位论文类同一套，见那边的说明。
 %    \begin{macrocode}
 \keys_define:nn { hit / bib }
   {
-    style .code:n = { \tl_gset:Nn \g__hit_bib_style_tl {#1} } ,
-    label-align .code:n = { \str_set:Nn \g_bib_labelalign_str {#1} } ,
+    style .code:n = { \hit@bib@style:n {#1} } ,
+    label-align .code:n =
+      {
+        \hit@bib@key@guard:n { label-align }
+        \str_set:Nn \g_bib_labelalign_str {#1}
+      } ,
     author-case .code:n =
-      { \str_if_eq:nnT {#1} { full } { \bool_set_true:N \g_bib_authorupper_bool } } ,
+      {
+        \hit@bib@key@guard:n { author-case }
+        \str_if_eq:nnT {#1} { full } { \bool_set_true:N \g_bib_authorupper_bool }
+      } ,
     maximum-author .code:n =
       {
+        \hit@bib@key@guard:n { maximum-author }
         \int_set:Nn \g_bib_maxauthor_int {#1}
         \int_if_zero:nT { \g_bib_maxauthor_int } { \int_gdecr:N \g_bib_maxauthor_int }
       } ,
@@ -956,7 +990,8 @@
     style .code:n = { \hit@keys@set:nn { hit / style } {#1} } ,
     layout .code:n = { \hit@layout@set:n {#1} } ,
     format .code:n = { \hit@keys@set:nn { hit / format } {#1} } ,
-    bib   .code:n = { \hit@keys@set:nn { hit / bib } {#1} } ,
+    bib   .code:n =
+      { \hit@keys@set:nn { hit / bib } {#1} \hit@bib@backend@apply: } ,
     const .code:n = { \hit@keys@set:nn { hit / const } {#1} } ,
     struct .code:n =
       { \__hit_structure_reset_written: \hit@keys@set:nn { hit / struct } {#1} } ,

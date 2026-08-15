@@ -21,10 +21,16 @@
 % \file{hit-thesis-bib.dtx}。\cs{bibstyle@inline} 是普通定义，\cs{bibpunct}
 % 到排版时才展开，留在类加载期；\cs{citestyle} 与 \env{thebibliography} 的
 % 重定义要等 \pkg{natbib} 装完才轮得到，挂 \texttt{package/natbib/after}。
+%
+% \changes{v3.2a}{2026/08/16}{装载前先探 \pkg{biblatex}，与学位论文类一样}
 %    \begin{macrocode}
 %<*report-bib>
 \AddToHook { begindocument / before }
-  { \RequirePackage[sort&compress,numbers]{natbib} }
+  {
+    \@ifpackageloaded { biblatex }
+      { }
+      { \RequirePackage[sort&compress,numbers]{natbib} }
+  }
 \cs_new_protected:Npn \bibstyle@inline
   { \bibpunct {[} {]} {,} {n} {,} {，} }
 %    \end{macrocode}
@@ -63,6 +69,12 @@
   {\cs_set_nopar:Npn \@noitemerr
   {\@latex@warning{Empty `thebibliography' environment}}%
 \endlist\frenchspacing}}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{传统一线补一个 \cs{printbibliography}，与学位论文类
+%   一样，见 \file{hit-thesis-bib.dtx}}
+%    \begin{macrocode}
+\providecommand \printbibliography { \hit@bib@print: }
   }
 %    \end{macrocode}
 %
@@ -95,6 +107,62 @@
   }
   \prg_break_point:
 }
+%    \end{macrocode}
+% \end{macro}
+%
+%
+% \subsection{biblatex 一线}
+%
+% \changes{v3.2a}{2026/08/16}{报告类的 biblatex 排版配置，与
+%   \env{thebibliography} 那一套同一个版面}
+% 与学位论文类同一套机制（见 \file{hit-thesis-bib.dtx} 与
+% \file{hit-bibstyle.dtx}），排版参数照报告类自己的 \env{thebibliography} 搬：
+% 标号后间距 0.5em，分页惩罚归零，深圳硕士开题才排那行节标题。报告类
+% 不用全角序号，\texttt{gbbiblabel} 保持默认的半角方括号。
+%
+% \begin{macro}{\hit@bib@biber@heading:,\hit@bib@biber@env@begin:,\hit@bib@biblatex@setup:}
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@biber@heading:
+  {
+    \bool_lazy_all:nT
+      {
+        { \bool_if_p:N \g__hit_shenzhen_bool }
+        { \bool_if_p:N \g__hit_master_bool }
+        { \bool_if_p:N \g__hit_proposal_bool }
+      }
+      { \hit@report@bibliography@heading }
+  }
+\cs_new_protected:Npn \hit@bib@biber@env@begin:
+  {
+    \list
+      {
+        \printtext [ labelnumberwidth ]
+          { \printfield { labelprefix } \printfield { labelnumber } }
+      }
+      {
+        \str_if_eq:VnT \g_bib_labelalign_str { left }
+          { \RenewDocumentCommand \makelabel { m } { ##1 \hfill } }
+        \dim_set:Nn \labelwidth { \labelnumberwidth }
+        \dim_set:Nn \labelsep { 0.5em }
+        \dim_set:Nn \itemindent { 0pt }
+        \dim_set:Nn \leftmargin { \labelsep + \labelwidth }
+        \dim_add:Nn \itemsep { -0.8em }
+        \dim_set:Nn \parsep { \bibparsep }
+      }
+    \sloppy \frenchspacing
+    \flushbottom
+    \clubpenalty 0
+    \@clubpenalty \clubpenalty
+    \widowpenalty 0
+    \interlinepenalty -50
+    \sfcode `\. \@m
+  }
+\cs_new_protected:Npn \hit@bib@biblatex@setup:
+  {
+    \defbibheading { bibliography } [ \bibname ] { \hit@bib@biber@heading: }
+    \defbibenvironment { bibliography }
+      { \hit@bib@biber@env@begin: } { \endlist \frenchspacing } { \item }
+  }
 %    \end{macrocode}
 % \end{macro}
 %

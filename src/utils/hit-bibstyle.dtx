@@ -118,8 +118,297 @@
         \cs_set:Npn \theenumiv { \@arabic \c@enumiv }
       }
   }
-%</shared-bibstyle>
 %    \end{macrocode}
 % \end{macro}
+%
+% \subsection{后端}
+%
+% \changes{v3.2a}{2026/08/16}{加 \option{bib}/\option{backend}，参考文献分
+%   \texttt{bibtex} 与 \texttt{biber} 两条路线，biblatex 一线由类自己装载配置}
+% \DescribeMacro{backend}
+% \option{bib}/\option{backend} 选参考文献走哪条路线，取值按「要跑哪个程序」起名：
+% \texttt{bibtex} 是传统一线（\pkg{gbt7714}/\pkg{natbib} 加 \file{.bst}，默认），
+% \texttt{biber} 是 \pkg{biblatex} 一线（样式走 \pkg{biblatex-gb7714-2015}）；
+% \texttt{biblatex} 当 \texttt{biber} 的别名也认。默认 \texttt{auto}——没写就走
+% 传统一线，但用户要是自己在导言区装了 \pkg{biblatex}，模板会侦测到并且不再装
+% \pkg{gbt7714}/\pkg{natbib}（侦测在导言区末尾，见各类的 bib 模块），效果等同
+% \texttt{biber}。这一招照抄 thuthesis。
+%
+% \pkg{biblatex} 的装载不能拖到导言区末尾（它自己就在装载时挂
+% \texttt{begindocument} 一族的钩子，晚了赶不上趟），所以在 \option{backend}
+% 所在的那组 \option{bib}\texttt{=\{...\}} 处理完的当口就装。这样
+% \option{style}、\option{author-case} 这些「装载时就得定死」的键只要跟
+% \option{backend} 写在同一组里，先后随意；分开写则必须先键后 \option{backend}，
+% 写反了有中文提示（见 \file{hit-messages.dtx} 的 bib-key-locked 一族）。
+%    \begin{macrocode}
+\str_new:N \g__hit_bib_backend_str
+\str_gset:Nn \g__hit_bib_backend_str { auto }
+\tl_new:N \g__hit_bib_style_used_tl
+\keys_define:nn { hit / bib }
+  {
+    backend .choices:nn = { auto , bibtex , biber , biblatex }
+      {
+        \str_gset:NV \g__hit_bib_backend_str \l_keys_choice_tl
+        \str_if_eq:VnT \g__hit_bib_backend_str { biblatex }
+          { \str_gset:Nn \g__hit_bib_backend_str { biber } }
+      } ,
+    backend .value_required:n = true ,
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@bib@backend@apply:}
+% 每处理完一组 \option{bib}\texttt{=\{...\}} 就照 \option{backend} 的现值行动一次
+% （挂在两个类的根族路由上）：\texttt{biber} 而 \pkg{biblatex} 未装就装；
+% \texttt{bibtex} 而 \pkg{biblatex} 已装是矛盾，报错；\texttt{auto} 不动。
+% 重复设同一个值幂等。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@backend@apply:
+  {
+    \str_case:Vn \g__hit_bib_backend_str
+      {
+        { biber }
+          { \@ifpackageloaded { biblatex } { } { \hit@bib@load@biblatex: } }
+        { bibtex }
+          {
+            \@ifpackageloaded { biblatex }
+              { \msg_error:nn { hithesis } { bib-backend-conflict } } { }
+          }
+        { auto } { }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@bib@load@biblatex:}
+% 装载 \pkg{biblatex}。样式取 \option{bib}/\option{style} 的现值换算：
+% \texttt{hithesis}/\texttt{hitszthesis} 是 \file{.bst} 的名字，biblatex 一线
+% 没有同名样式，换成 \pkg{biblatex-gb7714-2015} 的 \texttt{gb7714-2015}；
+% 认不出的值原样传给 \pkg{biblatex}，让用户能点名任何装了的样式
+% （比如 \texttt{gb7714-2015ay}）。装完把实际用的样式记下来，
+% 之后再改 \option{style} 就拿它对照着提示。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_bib_map_style:nN #1#2
+  {
+    \str_case:nnF {#1}
+      {
+        { hithesis }    { \tl_set:Nn #2 { gb7714-2015 } }
+        { hitszthesis } { \tl_set:Nn #2 { gb7714-2015 } }
+        { auto }        { \tl_set:Nn #2 { gb7714-2015 } }
+        { }             { \tl_set:Nn #2 { gb7714-2015 } }
+      }
+      { \tl_set:Nn #2 {#1} }
+  }
+%    \end{macrocode}
+%
+% 有一道时机护栏：demo 的主文件把 \cs{hitsetup} 全写在
+% \cs{begin}\marg{document} 之后，元信息那样设没问题，可 \pkg{biblatex}
+% 过了导言区就装不进去了。设晚了给一条说清怎么挪的提示，不让内核那句
+% Can~be~used~only~in~preamble 把用户晾在原地。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bib_preamble_bool
+\bool_gset_true:N \g__hit_bib_preamble_bool
+\AddToHook { begindocument }
+  { \bool_gset_false:N \g__hit_bib_preamble_bool }
+\cs_new_protected:Npn \hit@bib@load@biblatex:
+  {
+    \bool_if:NTF \g__hit_bib_preamble_bool
+      {
+        \exp_args:NV \__hit_bib_map_style:nN \g__hit_bib_style_tl \l_tmpa_tl
+        \tl_gset_eq:NN \g__hit_bib_style_used_tl \l_tmpa_tl
+        \use:e
+          {
+            \exp_not:N \RequirePackage
+              [ backend = biber , style = \tl_use:N \l_tmpa_tl ] { biblatex }
+          }
+      }
+      { \msg_error:nn { hithesis } { bib-backend-in-body } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@bib@style:n,\hit@bib@key@guard:n}
+% \option{style} 的设值器与「设晚了」的守卫。\pkg{biblatex} 装载之后样式已经
+% 定死，再改 \option{style} 只提示不生效；\option{author-case} 这些在装载时
+% 换算成 \pkg{biblatex} 选项的键同理，各自的键码前面搭一句守卫。
+% 传统一线不受影响——那边的取值到排版时才读。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@style:n #1
+  {
+    \@ifpackageloaded { biblatex }
+      {
+        \__hit_bib_map_style:nN {#1} \l_tmpa_tl
+        \tl_if_eq:NNF \l_tmpa_tl \g__hit_bib_style_used_tl
+          { \msg_warning:nnn { hithesis } { bib-style-locked } {#1} }
+      }
+      { \tl_gset:Nn \g__hit_bib_style_tl {#1} }
+  }
+\cs_new_protected:Npn \hit@bib@key@guard:n #1
+  {
+    \@ifpackageloaded { biblatex }
+      { \msg_warning:nnn { hithesis } { bib-key-locked } {#1} } { }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@bib@print:}
+% 排文献表的总出口，两个类的 \cs{hitbackmatter} 流程都走它：\pkg{biblatex}
+% 装了就 \cs{printbibliography}，没装就是原来那两句 \cs{bibliographystyle} 加
+% \cs{bibliography}。判据直接看宏包在不在，不看 \option{backend} 的字面值，
+% 免得「用户自己装了 biblatex 而没写键」这一档跟状态记录对不上。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@print:
+  {
+    \@ifpackageloaded { biblatex }
+      { \printbibliography }
+      {
+        \exp_args:NV \bibliographystyle \g__hit_bib_style_tl
+        \exp_args:Nv \bibliography { g__hit_structure_bibliography_tl }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@bib@biblatex@common:}
+% \pkg{biblatex} 装载完立刻要做的、两个类相同的那部分（挂在下面那个
+% \texttt{package/biblatex/after} 钩子上，类专属的排版配置由各类的
+% \cs{hit@bib@biblatex@setup:} 接着做）。
+%
+% 三个选项键换算成 \pkg{biblatex} 的选项：\option{author-case} 对
+% \texttt{gbnamefmt}（\texttt{full} 是全大写，即国标默认；不设则保持
+% \file{.bib} 里写的样子，与 \file{.bst} 一线的默认一致）、
+% \option{maximum-author} 对 \texttt{maxbibnames}/\texttt{minbibnames}
+% （\texttt{0} 表示不限，换成 999）、\option{label-align} 对
+% \texttt{gbalign}。gb 系选项认准 \cs{mkgbnumlabel} 在不在——用户点名
+% 别家样式（比如 apa）时这些选项不存在，塞过去要报错。
+%
+% 这些换算必须在装载当口做：gb 系样式把选项码挂进了每个条目的选项链，
+% 排版时逐条重放，导言区后半再 \cs{ExecuteBibliographyOptions} 会被
+% 重放盖掉（实测）。所以对应的键设晚了只能提示，见上面的守卫。
+%
+% \cs{inlinecite} 的接法：gb7714-2015 的 cbx 自己用 \cs{newcommand} 定义一个
+% \cs{inlinecite}（就是 \cs{parencite}），类里先定义的那份会让它装载报错，
+% 所以装载前先把类的定义撤掉、让 cbx 的进来；点名的样式没带
+% \cs{inlinecite} 的（比如 apa），装完再把 robust 外壳补回去，里面换成
+% \cs{parencite}。\cs{onlinecite} 重新对齐到成品上。
+% \cs{bibliographystyle} 降级成一条提示，老文档里残留这一句不至于炸。
+%
+% 正文里的老写法也要接住：报告类的示例正文就是两句
+% \cs{bibliographystyle} 加 \cs{bibliography}。\pkg{biblatex} 一线把正文的
+% \cs{bibliography} 映射成 \cs{printbibliography}（文献库那时早该注册完了，
+% 参数吞掉不用），\cs{bibliographystyle} 无论导言区还是正文都降级成提示。
+% 映射挂 \texttt{begindocument/end}：\pkg{biblatex} 把这两个名字登进内核的
+% \cs{@onlypreamble} 表，内核在 \cs{document} 收尾处统一禁用
+% （\cs{@preamblecmds}，晚于 \texttt{begindocument} 钩子），要排在那之后
+% 才盖得回来。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_bib_body_bibliography:n #1 { \printbibliography }
+\cs_new_protected:Npn \__hit_bib_body_style:n #1
+  { \msg_warning:nn { hithesis } { bib-style-ignored } }
+\AddToHook { package / biblatex / before }
+  { \cs_undefine:N \inlinecite }
+\cs_new_protected:Npn \hit@bib@biblatex@common:
+  {
+    \cs_set:Npn \@inlinecite ##1 { \parencite {##1} }
+    \cs_if_exist:NF \inlinecite
+      { \DeclareRobustCommand \inlinecite { \@inlinecite } }
+    \cs_set_eq:NN \onlinecite \inlinecite
+    \cs_set_eq:NN \bibliographystyle \__hit_bib_body_style:n
+    \AddToHook { begindocument / end }
+      {
+        \cs_set_eq:NN \bibliography \__hit_bib_body_bibliography:n
+        \cs_set_eq:NN \bibliographystyle \__hit_bib_body_style:n
+      }
+    \cs_if_exist:NT \mkgbnumlabel
+      {
+        \bool_if:NTF \g_bib_authorupper_bool
+          { \ExecuteBibliographyOptions { gbnamefmt = uppercase } }
+          { \ExecuteBibliographyOptions { gbnamefmt = lowercase } }
+        \str_if_eq:VnT \g_bib_labelalign_str { left }
+          { \ExecuteBibliographyOptions { gbalign = left } }
+      }
+    \int_compare:nNnTF \g_bib_maxauthor_int < 0
+      { \ExecuteBibliographyOptions { maxbibnames = 999 , minbibnames = 999 } }
+      {
+        \use:e
+          {
+            \exp_not:N \ExecuteBibliographyOptions
+              {
+                maxbibnames = \int_use:N \g_bib_maxauthor_int ,
+                minbibnames = \int_use:N \g_bib_maxauthor_int
+              }
+          }
+      }
+  }
+\AddToHook { package / biblatex / after }
+  {
+    \hit@bib@biblatex@common:
+    \cs_if_exist_use:N \hit@bib@biblatex@setup:
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{包冲突守卫}
+%
+% \changes{v3.2a}{2026/08/16}{biblatex 与 natbib 一族的有序冲突守卫，
+%   照 thuthesis 的 \cs{thu@package@conflict} 用内核钩子重写}
+% 「先装了 A 再装 B」才报错，所以一对包要两个方向各登记一条。用内核的
+% \texttt{package/.../before} 与 \texttt{.../after} 钩子，不引 \pkg{filehook}。
+% 类自己的装载不会撞上守卫：传统一线的装载在导言区末尾，且探过
+% \pkg{biblatex} 不在才装。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_bib_conflict:nn #1#2
+  {
+    \AddToHook { package / #1 / after }
+      {
+        \AddToHook { package / #2 / before }
+          { \msg_error:nnnn { hithesis } { package-conflict } {#1} {#2} }
+      }
+  }
+\__hit_bib_conflict:nn { biblatex } { natbib }
+\__hit_bib_conflict:nn { biblatex } { gbt7714 }
+\__hit_bib_conflict:nn { biblatex } { cite }
+\__hit_bib_conflict:nn { biblatex } { bibunits }
+\__hit_bib_conflict:nn { biblatex } { chapterbib }
+\__hit_bib_conflict:nn { biblatex } { multibib }
+\__hit_bib_conflict:nn { natbib } { biblatex }
+\__hit_bib_conflict:nn { gbt7714 } { biblatex }
+\__hit_bib_conflict:nn { cite } { biblatex }
+%    \end{macrocode}
+%
+% \subsection{文献库文件}
+%
+% \changes{v3.2a}{2026/08/16}{\option{struct} 的 \option{bibliography} 在
+%   biblatex 一线换算成 \cs{addbibresource}}
+% \option{struct} 里的 \option{bibliography} 写的是给 \cs{bibliography} 的
+% 文件名表（不带后缀）。\pkg{biblatex} 一线改喂 \cs{addbibresource}，一个
+% 文件一句、后缀补上 \file{.bib}（写了后缀的不重复补）。挂导言区末尾做，
+% \option{struct} 与 \option{backend} 谁先谁后都行。开关型取值
+% （\texttt{false}/\texttt{true}/\texttt{auto}）不是文件名，跳过。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_bib_add_resource:n #1
+  {
+    \str_if_eq:eeTF { \str_range:nnn {#1} {-4} {-1} } { .bib }
+      { \addbibresource {#1} }
+      { \addbibresource { #1.bib } }
+  }
+\cs_new_protected:Npn \__hit_bib_resources:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        { }      { \msg_warning:nn { hithesis } { bib-no-resource } }
+        { false } { }
+        { true }  { \msg_warning:nn { hithesis } { bib-no-resource } }
+        { auto }  { \msg_warning:nn { hithesis } { bib-no-resource } }
+      }
+      { \clist_map_inline:nn {#1} { \__hit_bib_add_resource:n {##1} } }
+  }
+\AddToHook { begindocument / before }
+  {
+    \@ifpackageloaded { biblatex }
+      { \exp_args:Nv \__hit_bib_resources:n { g__hit_structure_bibliography_tl } }
+      { }
+  }
+%</shared-bibstyle>
+%    \end{macrocode}
 %
 % \Finale
