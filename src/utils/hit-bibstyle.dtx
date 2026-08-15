@@ -41,6 +41,8 @@
 %   跟官方 \texttt{uppercasefamily=true} 的默认走，biblatex 一线的
 %   \texttt{gbnamefmt} 映射随标志位一起翻}
 %    \begin{macrocode}
+\str_new:N \g__hit_bib_cite_punct_str
+\str_gset:Nn \g__hit_bib_cite_punct_str { half }
 \bool_new:N \g_bib_authorupper_bool
 \bool_set_true:N \g_bib_authorupper_bool
 \keys_define:nn { hit / class }
@@ -78,9 +80,24 @@
 % \changes{v3.0.15}{2021/05/06}{删除 inline 等定义，此命令与 \pkg{gbt7714} 冲突}
 % 数字上标式引用。\cs{bibstyle@inline} 两个类不一样：报告自己定义一份，
 % 学位论文用 \pkg{gbt7714} 带的那份，所以它不在这里。
+%
+% \changes{v3.2a}{2026/08/16}{序号间的分隔按 \option{cite-punct} 分发：
+%   \texttt{half} 是 \texttt{[3,5]}、\texttt{half-with-space} 是
+%   \texttt{[3,~5]}、\texttt{full} 是全角逗号}
+% 序号之间的分隔从 \option{cite-punct} 取：设值器那边改完会重跑一遍
+% \cs{citestyle}，随设随生效。
 %    \begin{macrocode}
-\cs_new_protected:Npn \bibstyle@numerical
-  { \bibpunct {[} {]} {,} {s} {,} { \textsuperscript {,} } }
+\cs_set_protected:Npn \bibstyle@numerical
+  {
+    \str_case:VnF \g__hit_bib_cite_punct_str
+      {
+        { half-with-space }
+          { \bibpunct {[} {]} {,~} {s} {,} { \textsuperscript {,} } }
+        { full }
+          { \bibpunct {[} {]} {，} {s} {,} { \textsuperscript {,} } }
+      }
+      { \bibpunct {[} {]} {,} {s} {,} { \textsuperscript {,} } }
+  }
 %    \end{macrocode}
 % \end{macro}
 %
@@ -319,6 +336,93 @@
     show-sl-sn .default:n = true ,
   }
 %    \end{macrocode}
+%
+% \begin{macro}{show-mark,show-medium,link-title,show-url,show-doi,show-eprint}
+% \changes{v3.2a}{2026/08/16}{六个显示开关：类型标、载体标、题名超链接、
+%   URL、DOI、eprint，两条线同名同义}
+% 六个布尔开关，两边的官方机制一一对应（\file{.bst} 的 CTL 键 ↔
+% \pkg{biblatex} 的 gb 系或核心选项）：\option{show-mark}（类型标 ［J］，
+% \texttt{entrytypeid}↔\texttt{gbtype}）、\option{show-medium}（载体标
+% \texttt{/OL}，\texttt{entrymediumid}↔\texttt{gbmedium}）、
+% \option{link-title}（题名加超链接，\texttt{linktitle}↔\texttt{gbtitlelink}）、
+% \option{show-url}/\option{show-doi}/\option{show-eprint}
+% （\texttt{url}/\texttt{doi}/\texttt{eprint}，biblatex 核心同名）。
+% 默认取 \file{.bst} 的内置默认：前两个开、后面 \texttt{link-title} 关、
+% \texttt{url}/\texttt{doi} 开、\texttt{eprint} 关——biblatex 核心的
+% \texttt{eprint} 本来默认开，跟 \file{.bst} 扯平成关。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bib_showmark_bool
+\bool_gset_true:N \g__hit_bib_showmark_bool
+\bool_new:N \g__hit_bib_showmedium_bool
+\bool_gset_true:N \g__hit_bib_showmedium_bool
+\bool_new:N \g__hit_bib_linktitle_bool
+\bool_new:N \g__hit_bib_showurl_bool
+\bool_gset_true:N \g__hit_bib_showurl_bool
+\bool_new:N \g__hit_bib_showdoi_bool
+\bool_gset_true:N \g__hit_bib_showdoi_bool
+\bool_new:N \g__hit_bib_showeprint_bool
+\cs_new_protected:Npn \__hit_bib_show_key:nN #1#2
+  {
+    \keys_define:nn { hit / bib }
+      {
+        #1 .choices:nn = { true , false }
+          {
+            \hit@bib@key@guard:n {#1}
+            \str_if_eq:VnTF \l_keys_choice_tl { true }
+              { \bool_gset_true:N #2 }
+              { \bool_gset_false:N #2 }
+          } ,
+        #1 .default:n = true ,
+      }
+  }
+\__hit_bib_show_key:nN { show-mark }   \g__hit_bib_showmark_bool
+\__hit_bib_show_key:nN { show-medium } \g__hit_bib_showmedium_bool
+\__hit_bib_show_key:nN { link-title }  \g__hit_bib_linktitle_bool
+\__hit_bib_show_key:nN { show-url }    \g__hit_bib_showurl_bool
+\__hit_bib_show_key:nN { show-doi }    \g__hit_bib_showdoi_bool
+\__hit_bib_show_key:nN { show-eprint } \g__hit_bib_showeprint_bool
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{cite-punct,correct-punct}
+% \changes{v3.2a}{2026/08/16}{加 \option{cite-punct}\texttt{=half|half-with-space|full}：
+%   正文引用序号间的分隔排 \texttt{[3,5]}、\texttt{[3,~5]} 还是全角逗号}
+% \option{cite-punct} 管正文引用序号之间的分隔，名字对 omni 的
+% \texttt{cite-punct-style}：\texttt{half}（默认，\texttt{[3,5]}）、
+% \texttt{half-with-space}（\texttt{[3,~5]}）、\texttt{full}（全角逗号）。
+% 传统一线落在 \cs{bibstyle@numerical} 的 \cs{bibpunct} 上，设完重跑一遍
+% \cs{citestyle} 即刻生效；biblatex 一线落在 gb 系 cbx 的三个分隔宏上
+% （见 \cs{hit@bib@patch@punct:}），排版时读值。两条线都不锁时机。
+%
+% \changes{v3.2a}{2026/08/16}{加 \option{correct-punct}：\file{.bib} 数据里的
+%   标点按 \option{bib-punct} 的档位清洗，名字取 omni 的同义键}
+% \option{correct-punct}（默认开）管数据清洗：字段里写的标点按
+% \option{bib-punct} 的档位归一（全角档把 \texttt{,~:~;~!~?~()} 换成全角，
+% 半角档反向）。传统一线是 \file{.bst} 的 \texttt{convertpunct}；biblatex
+% 一线用 biber 的 sourcemap 镜像同一套替换（见
+% \cs{hit@bib@declare@sourcemaps:}），姓名字段除外——author 里的半角逗号是
+% 姓名分隔语法，装载前动它会毁解析，这一点与 \file{.bst}（排版期才转）不同。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bib_correct_punct_bool
+\bool_gset_true:N \g__hit_bib_correct_punct_bool
+\keys_define:nn { hit / bib }
+  {
+    cite-punct .choices:nn = { half , half-with-space , full }
+      {
+        \str_gset:NV \g__hit_bib_cite_punct_str \l_keys_choice_tl
+        \@ifpackageloaded { natbib } { \citestyle { numerical } } { }
+      } ,
+    cite-punct .value_required:n = true ,
+    correct-punct .choices:nn = { true , false }
+      {
+        \hit@bib@key@guard:n { correct-punct }
+        \str_if_eq:VnTF \l_keys_choice_tl { true }
+          { \bool_gset_true:N  \g__hit_bib_correct_punct_bool }
+          { \bool_gset_false:N \g__hit_bib_correct_punct_bool }
+      } ,
+    correct-punct .default:n = true ,
+  }
+%    \end{macrocode}
 % \end{macro}
 %
 % \begin{macro}{\hit@bib@print:,\hit@bib@forward@ctl:}
@@ -346,6 +450,18 @@
                 bibpunct =
                   \str_case:VnF \g__hit_bib_punct_str
                     { { half } { half } { by-lang } { bylanguage } } { GB } ,
+                convertpunct =
+                  \bool_if:NTF \g__hit_bib_correct_punct_bool { true } { false } ,
+                entrytypeid =
+                  \bool_if:NTF \g__hit_bib_showmark_bool { true } { false } ,
+                entrymediumid =
+                  \bool_if:NTF \g__hit_bib_showmedium_bool { true } { false } ,
+                linktitle =
+                  \bool_if:NTF \g__hit_bib_linktitle_bool { true } { false } ,
+                url = \bool_if:NTF \g__hit_bib_showurl_bool { true } { false } ,
+                doi = \bool_if:NTF \g__hit_bib_showdoi_bool { true } { false } ,
+                eprint =
+                  \bool_if:NTF \g__hit_bib_showeprint_bool { true } { false } ,
                 uppercasefamily =
                   \bool_if:NTF \g_bib_authorupper_bool { true } { false } ,
                 unknownpublisher =
@@ -531,6 +647,10 @@
 % 卷号分隔用 \cs{patchcmd} 点补，全部换成走 \cs{addspace} 的写法，
 % 半角档下排出来与原样一致。
 %
+% 标点缓冲在正文引用里也会走这条钩子（比如页码注的冒号），那边的全半角归
+% \option{cite-punct} 管，所以钩子带 \cs{ifbibliography} 判据，只在文献表里
+% 分发，引用侧走原样。
+%
 % 类型标与「不详」补白的方括号走的是 \cs{gbleftbracket} 一族——它同时也是
 % 引用标签的括号，所以补丁带一道 \cs{ifbibliography} 判据：文献表里按
 % \option{bib-punct} 分发，引用标签保持原样（传统一线的引用标签也是半角，
@@ -562,17 +682,21 @@
     \cs_set_protected:Npn \abx@puncthook ##1
       {
         \bool_gset_false:N \g__hit_bib_gobble_bool
-        \str_if_eq:VnTF \g__hit_bib_punct_str { half }
-          { \__hit_bib_puncthook_std:n {##1} }
+        \ifbibliography
           {
-            \str_if_eq:VnTF \g__hit_bib_punct_str { full }
-              { \hit@bib@punct@full:n {##1} }
+            \str_if_eq:VnTF \g__hit_bib_punct_str { half }
+              { \__hit_bib_puncthook_std:n {##1} }
               {
-                \hit@bib@if@cjk@entry:TF
+                \str_if_eq:VnTF \g__hit_bib_punct_str { full }
                   { \hit@bib@punct@full:n {##1} }
-                  { \__hit_bib_puncthook_std:n {##1} }
+                  {
+                    \hit@bib@if@cjk@entry:TF
+                      { \hit@bib@punct@full:n {##1} }
+                      { \__hit_bib_puncthook_std:n {##1} }
+                  }
               }
           }
+          { \__hit_bib_puncthook_std:n {##1} }
       }
     \cs_set_protected:Npn \addspace
       {
@@ -592,6 +716,14 @@
       }
     \DeclareDelimFormat { multinamedelim } { \addcomma \addspace }
     \DeclareDelimFormat { finalnamedelim } { \addcomma \addspace }
+    \cs_if_exist:NT \compcitedelim
+      {
+        \cs_set_protected:Npn \compcitedelim  { \hit@bib@cite@delim: }
+        \cs_set_protected:Npn \supercitedelim { \hit@bib@cite@delim: }
+        \DeclareDelimFormat { multicitedelimiter } { \hit@bib@cite@delim: }
+        \DeclareDelimFormat [ parencite ] { multicitedelimiter }
+          { \hit@bib@cite@delim: }
+      }
     \cs_if_exist:NT \pubdatadelim
       { \cs_set:Npn \pubdatadelim { \setunit* { \addcomma \addspace } } }
     \cs_if_exist:NT \locnopubdelim
@@ -634,6 +766,120 @@
 %    \end{macrocode}
 % \end{macro}
 %
+% \begin{macro}{\hit@bib@cite@delim:,\hit@bib@declare@sourcemaps:}
+% 引用序号分隔（biblatex 一线）：gb 系 cbx 把分隔收在 \cs{compcitedelim}、
+% \cs{supercitedelim} 与 \texttt{multicitedelimiter} 三处，全指到这一个
+% 分发宏，按 \option{cite-punct} 现值排，随设随生效。
+%
+% 数据清洗（biblatex 一线）：\file{.bst} 的 \texttt{convertpunct} 在排版期
+% 对字段值做字符串替换，biber 这边同一层的东西是 sourcemap——装载时按
+% \option{bib-punct} 的档位声明一批替换步骤，替换对照表照抄 \file{.bst}。
+% \texttt{by-lang} 档按条目判语言：题名含 CJK 判中文（正则与 gb 的 bbx 判
+% \texttt{userd} 用的同一条），\texttt{final} 步骤不中就跳过整张 map。
+% 只清洗文本字段，姓名字段不动（见键的说明）。步骤表先在配平的暂存
+% token 表里攒好，再用 e 展开一次性组装进 \cs{DeclareSourcemap}。
+% 装载时的档位定死，之后改 \option{bib-punct} 只影响模板排的标点、
+% 不重洗数据。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@cite@delim:
+  {
+    \str_case:VnF \g__hit_bib_cite_punct_str
+      {
+        { half-with-space } { \addcomma \addspace }
+        { full } { \mbox{，} \allowbreak }
+      }
+      { \addcomma }
+  }
+\tl_new:N \l__hit_bib_steps_tl
+\tl_new:N \l__hit_bib_maps_tl
+\clist_const:Nn \c__hit_bib_map_fields_clist
+  {
+    title , subtitle , titleaddon , booktitle , journaltitle ,
+    publisher , location , address , eventtitle , series
+  }
+\cs_new_protected:Npn \__hit_bib_full_steps:n #1
+  {
+    \tl_put_right:Nn \l__hit_bib_steps_tl
+      {
+        \step [ fieldsource = #1 , match = \regexp {．} , replace = \regexp {.~} ]
+        \step [ fieldsource = #1 , match = \regexp {,\s+} , replace = \regexp {，} ]
+        \step [ fieldsource = #1 , match = \regexp {:\s+} , replace = \regexp {：} ]
+        \step [ fieldsource = #1 , match = \regexp {;\s+} , replace = \regexp {；} ]
+        \step [ fieldsource = #1 , match = \regexp {!\s*} , replace = \regexp {！} ]
+        \step [ fieldsource = #1 , match = \regexp {\?\s*} , replace = \regexp {？} ]
+        \step [ fieldsource = #1 , match = \regexp {\s*\(} , replace = \regexp {（} ]
+        \step [ fieldsource = #1 , match = \regexp {\)\s*} , replace = \regexp {）} ]
+      }
+  }
+\cs_new_protected:Npn \__hit_bib_half_steps:n #1
+  {
+    \tl_put_right:Nn \l__hit_bib_steps_tl
+      {
+        \step [ fieldsource = #1 , match = \regexp {．\s*} , replace = \regexp {.~} ]
+        \step [ fieldsource = #1 , match = \regexp {，\s*} , replace = \regexp {,~} ]
+        \step [ fieldsource = #1 , match = \regexp {：\s*} , replace = \regexp {:~} ]
+        \step [ fieldsource = #1 , match = \regexp {；\s*} , replace = \regexp {;~} ]
+        \step [ fieldsource = #1 , match = \regexp {！\s*} , replace = \regexp {!~} ]
+        \step [ fieldsource = #1 , match = \regexp {？\s*} , replace = \regexp {?~} ]
+        \step [ fieldsource = #1 , match = \regexp {\s*（} , replace = \regexp {~(} ]
+        \step [ fieldsource = #1 , match = \regexp {）\s*} , replace = \regexp {)~} ]
+      }
+  }
+\cs_new_protected:Npn \__hit_bib_add_map:n #1
+  {
+    \tl_put_right:Ne \l__hit_bib_maps_tl
+      { \exp_not:N \map [ overwrite ] { \exp_not:n {#1} \exp_not:V \l__hit_bib_steps_tl } }
+  }
+\cs_new_protected:Npn \hit@bib@declare@sourcemaps:
+  {
+    \tl_clear:N \l__hit_bib_maps_tl
+    \str_case:VnF \g__hit_bib_punct_str
+      {
+        { half }
+          {
+            \tl_clear:N \l__hit_bib_steps_tl
+            \clist_map_function:NN \c__hit_bib_map_fields_clist
+              \__hit_bib_half_steps:n
+            \__hit_bib_add_map:n { }
+          }
+        { by-lang }
+          {
+            \tl_clear:N \l__hit_bib_steps_tl
+            \clist_map_function:NN \c__hit_bib_map_fields_clist
+              \__hit_bib_full_steps:n
+            \__hit_bib_add_map:n
+              {
+                \step [ fieldsource = title ,
+                         match = \regexp { [\x{2FF0}-\x{9FA5}] } , final ]
+              }
+            \tl_clear:N \l__hit_bib_steps_tl
+            \clist_map_function:NN \c__hit_bib_map_fields_clist
+              \__hit_bib_half_steps:n
+            \__hit_bib_add_map:n
+              {
+                \step [ fieldsource = title ,
+                         notmatch = \regexp { [\x{2FF0}-\x{9FA5}] } , final ]
+              }
+          }
+      }
+      {
+        \tl_clear:N \l__hit_bib_steps_tl
+        \clist_map_function:NN \c__hit_bib_map_fields_clist
+          \__hit_bib_full_steps:n
+        \__hit_bib_add_map:n { }
+      }
+    \use:e
+      {
+        \exp_not:N \DeclareSourcemap
+          {
+            \exp_not:N \maps [ datatype = bibtex ]
+              { \exp_not:V \l__hit_bib_maps_tl }
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_bib_body_bibliography:n #1 { \printbibliography }
 \cs_new_protected:Npn \__hit_bib_body_style:n #1
@@ -663,8 +909,28 @@
         \bool_if:NTF \g__hit_bib_slsn_bool
           { \ExecuteBibliographyOptions { gbpub = true } }
           { \ExecuteBibliographyOptions { gbpub = false } }
+        \bool_if:NTF \g__hit_bib_showmark_bool
+          { \ExecuteBibliographyOptions { gbtype = true } }
+          { \ExecuteBibliographyOptions { gbtype = false } }
+        \bool_if:NTF \g__hit_bib_showmedium_bool
+          { \ExecuteBibliographyOptions { gbmedium = true } }
+          { \ExecuteBibliographyOptions { gbmedium = false } }
+        \bool_if:NTF \g__hit_bib_linktitle_bool
+          { \ExecuteBibliographyOptions { gbtitlelink = true } }
+          { \ExecuteBibliographyOptions { gbtitlelink = false } }
         \hit@bib@patch@brackets:
       }
+    \bool_if:NTF \g__hit_bib_showurl_bool
+      { \ExecuteBibliographyOptions { url = true } }
+      { \ExecuteBibliographyOptions { url = false } }
+    \bool_if:NTF \g__hit_bib_showdoi_bool
+      { \ExecuteBibliographyOptions { doi = true } }
+      { \ExecuteBibliographyOptions { doi = false } }
+    \bool_if:NTF \g__hit_bib_showeprint_bool
+      { \ExecuteBibliographyOptions { eprint = true } }
+      { \ExecuteBibliographyOptions { eprint = false } }
+    \bool_if:NT \g__hit_bib_correct_punct_bool
+      { \hit@bib@declare@sourcemaps: }
     \int_compare:nNnTF \g_bib_maxauthor_int < 0
       { \ExecuteBibliographyOptions { maxbibnames = 999 , minbibnames = 999 } }
       {
