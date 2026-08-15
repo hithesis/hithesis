@@ -134,9 +134,13 @@
 %
 % \changes{v3.2a}{2026/08/11}{\option{bib-style} 从 \option{struct} 的部件表挪进
 %   \texttt{hit/bib} 族叫 \option{style}。它排不出任何东西，不是部件}
-% \option{bib}/\option{style} 是 \cs{bibliographystyle} 的参数。它原先混在
-% \option{struct} 的部件表里，可部件说的是「排不排这一块」，样式说的是「排成什么样」，
-% 不是一回事。默认值在这里给。
+% \changes{v3.2a}{2026/08/16}{\option{style} 再挪进 \option{bibtex} 子组：
+%   它是 \file{.bst} 的名字，biblatex 一线用不上（那边锁死国标）}
+% \option{bib}/\option{bibtex}/\option{style} 是 \cs{bibliographystyle} 的参数。
+% 它原先混在 \option{struct} 的部件表里，可部件说的是「排不排这一块」，样式
+% 说的是「排成什么样」，不是一回事。后来又从 \option{bib} 的根层挪进
+% \option{bibtex} 子组：挑 \file{.bst} 只在传统一线有意义，biblatex 一线的
+% 样式锁死国标（见 \file{hit-bibstyle.dtx}）。键在共享层声明，默认值在这里给。
 %
 % \changes{v3.2a}{2026/08/11}{\texttt{hit/toc} 族挪到共享层，报告类也能用}
 % \texttt{toc} 族。三个键两个类都有，所以声明在共享层：报告一样有目录，一样要
@@ -562,56 +566,88 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/16}{\option{style} 与三个换算键接上 biblatex 一线的
-%   设值器与「设晚了」守卫；\option{backend} 键本身声明在共享层
-%   \file{hit-bibstyle.dtx}}
-% \option{style}、\option{label-align}、\option{author-case}、
-% \option{maximum-author} 这四个在 biblatex 一线是装载时换算成 \pkg{biblatex}
-% 选项的，装载之后再设不生效，设值器前面搭一句守卫（见
-% \file{hit-bibstyle.dtx}）。\option{split-item} 排版时才读，不用守。
-% \option{adjacent-cite} 的 \texttt{comma} 一档 biblatex 一线没有，点名提示。
+% \changes{v3.2a}{2026/08/16}{参考文献的键按 kebab-biblatex-gb7714 的词汇重起：
+%   \option{cite-compress-min}、\option{name-case}、\option{max-names}、
+%   \option{number-align}、\option{entry-split}。\option{style} 挪进
+%   \option{bibtex} 子组（见 \file{hit-bibstyle.dtx}），中途用过的
+%   \option{adjacent-cite}、\option{author-case}、\option{maximum-author}、
+%   \option{label-align}、\option{split-item} 没进过发布版，直接撤}
+% \option{cite-compress-min} 是「相邻连续序号几个起压成区间」：\texttt{2} 排
+% \texttt{[1-2]}（默认），\texttt{3} 排 \texttt{[1,2]}，三个起总归压。两条线
+% 都认：传统一线落到 \option{citetwo} 那对标志位（\pkg{natbib} 补丁读它，见
+% \file{src/flow/hit-thesis-hyperlink.dtx}），biblatex 一线落到
+% \pkg{gb7714-2015} 的 \texttt{gbrefcompress} 计数器——那是加载后命令通道，
+% 不锁时机，随设随生效。
+%
+% \option{name-case}（\texttt{uppercase} 全大写即国标默认、\texttt{none}
+% 保持 \file{.bib} 原样）、\option{max-names}（最多列几位作者，\texttt{0}
+% 不限）、\option{number-align}（标号 \texttt{left}/\texttt{right}）这三个在
+% biblatex 一线是装载时换算成它的选项的，装载之后再设不生效，设值器前面搭
+% 一句守卫（见 \file{hit-bibstyle.dtx}）。\option{entry-split} 排版时才读，
+% 不用守。
 %    \begin{macrocode}
+\int_new:N \g__hit_cite_compress_int
+\cs_new_protected:Npn \hit@bib@cite@compress@apply:
+  {
+    \int_compare:nNnF \g__hit_cite_compress_int = 0
+      {
+        \@ifpackageloaded { biblatex }
+          {
+            \cs_if_exist:cT { c@gbrefcompress }
+              { \setcounter { gbrefcompress } { \g__hit_cite_compress_int } }
+          } { }
+      }
+  }
 \keys_define:nn { hit / bib }
   {
-    adjacent-cite .choices:nn =
-      { auto , comma , endash }
+    cite-compress-min .choices:nn = { auto , 2 , 3 }
       {
-        \str_if_eq:VnF \l_keys_choice_tl { auto }
+        \str_case:Vn \l_keys_choice_tl
           {
-            \bool_gset_false:N \g__hit_citetwo_comma_bool
-            \bool_gset_false:N \g__hit_citetwo_endash_bool
-            \bool_gset_true:c { g__hit_citetwo_ \l_keys_choice_tl _bool }
+            { auto } { \int_gset:Nn \g__hit_cite_compress_int { 0 } }
+            { 2 }
+              {
+                \int_gset:Nn \g__hit_cite_compress_int { 2 }
+                \bool_gset_false:N \g__hit_citetwo_comma_bool
+                \bool_gset_true:N  \g__hit_citetwo_endash_bool
+              }
+            { 3 }
+              {
+                \int_gset:Nn \g__hit_cite_compress_int { 3 }
+                \bool_gset_true:N  \g__hit_citetwo_comma_bool
+                \bool_gset_false:N \g__hit_citetwo_endash_bool
+              }
           }
-        \str_if_eq:VnT \l_keys_choice_tl { comma }
-          {
-            \@ifpackageloaded { biblatex }
-              { \msg_warning:nn { hithesis } { bib-adjacent-cite-fixed } } { }
-          }
+        \hit@bib@cite@compress@apply:
       } ,
-    adjacent-cite .value_required:n = true ,
-    style .code:n = { \hit@bib@style:n {#1} } ,
-    label-align .code:n =
+    cite-compress-min .value_required:n = true ,
+    number-align .code:n =
       {
-        \hit@bib@key@guard:n { label-align }
+        \hit@bib@key@guard:n { number-align }
         \str_set:Nn \g_bib_labelalign_str {#1}
       } ,
-    author-case .code:n =
+    name-case .choices:nn = { auto , uppercase , none }
       {
-        \hit@bib@key@guard:n { author-case }
-        \str_if_eq:nnT {#1} { full }
-          { \bool_set_true:N \g_bib_authorupper_bool }
+        \hit@bib@key@guard:n { name-case }
+        \str_case:Vn \l_keys_choice_tl
+          {
+            { auto } { }
+            { uppercase } { \bool_set_true:N  \g_bib_authorupper_bool }
+            { none }      { \bool_set_false:N \g_bib_authorupper_bool }
+          }
       } ,
-    maximum-author .code:n =
+    name-case .value_required:n = true ,
+    max-names .code:n =
       {
-        \hit@bib@key@guard:n { maximum-author }
+        \hit@bib@key@guard:n { max-names }
         \int_set:Nn \g_bib_maxauthor_int {#1}
         \int_if_zero:nT { \g_bib_maxauthor_int } { \int_gdecr:N \g_bib_maxauthor_int }
       } ,
-    split-item .choice: ,
-    split-item / true  .code:n = { \bool_gset_true:N \g__hit_splitbibitem_bool } ,
-    split-item / false .code:n = { \bool_gset_false:N \g__hit_splitbibitem_bool } ,
-    split-item / auto  .code:n = { } ,
-    split-item .default:n = true ,
+    entry-split .choice: ,
+    entry-split / true  .code:n = { \bool_gset_true:N \g__hit_splitbibitem_bool } ,
+    entry-split / false .code:n = { \bool_gset_false:N \g__hit_splitbibitem_bool } ,
+    entry-split / auto  .code:n = { } ,
+    entry-split .default:n = true ,
   }
 %    \end{macrocode}
 %
@@ -661,11 +697,11 @@
     bsheadrule       = { style = { head-rule = ... } } ,
     bsmainpagenumberline  = { style = { page-number-line = { mainmatter = ... } } } ,
     bsfrontpagenumberline = { style = { page-number-line = { frontmatter = ... } } } ,
-    citetwo          = { bib = { adjacent-cite = ... } } ,
-    splitbibitem     = { bib = { split-item = ... } } ,
-    biblabelalign    = { bib = { label-align = ... } } ,
-    bibauthorupper   = { bib = { author-case = ... } } ,
-    bibmaxauthor     = { bib = { maximum-author = ... } } ,
+    citetwo          = { bib = { cite-compress-min = 2~|~3 } } ,
+    splitbibitem     = { bib = { entry-split = ... } } ,
+    biblabelalign    = { bib = { number-align = ... } } ,
+    bibauthorupper   = { bib = { name-case = ... } } ,
+    bibmaxauthor     = { bib = { max-names = ... } } ,
   }
 %    \end{macrocode}
 %
@@ -906,25 +942,32 @@
 %
 % 参考文献的三个选项，改用连字符命名。
 %
-% \changes{v3.2a}{2026/08/16}{与学位论文类一样接上 biblatex 一线的设值器与守卫}
-% 设值器与守卫跟学位论文类同一套，见那边的说明。
+% \changes{v3.2a}{2026/08/16}{与学位论文类一样按 kebab-biblatex-gb7714 的词汇
+%   重起名并接上 biblatex 一线的守卫}
+% 键名、设值器与守卫跟学位论文类同一套，见那边的说明。报告类没有
+% \option{cite-compress-min} 与 \option{entry-split}，跟统一前一样。
 %    \begin{macrocode}
 \keys_define:nn { hit / bib }
   {
-    style .code:n = { \hit@bib@style:n {#1} } ,
-    label-align .code:n =
+    number-align .code:n =
       {
-        \hit@bib@key@guard:n { label-align }
+        \hit@bib@key@guard:n { number-align }
         \str_set:Nn \g_bib_labelalign_str {#1}
       } ,
-    author-case .code:n =
+    name-case .choices:nn = { auto , uppercase , none }
       {
-        \hit@bib@key@guard:n { author-case }
-        \str_if_eq:nnT {#1} { full } { \bool_set_true:N \g_bib_authorupper_bool }
+        \hit@bib@key@guard:n { name-case }
+        \str_case:Vn \l_keys_choice_tl
+          {
+            { auto } { }
+            { uppercase } { \bool_set_true:N  \g_bib_authorupper_bool }
+            { none }      { \bool_set_false:N \g_bib_authorupper_bool }
+          }
       } ,
-    maximum-author .code:n =
+    name-case .value_required:n = true ,
+    max-names .code:n =
       {
-        \hit@bib@key@guard:n { maximum-author }
+        \hit@bib@key@guard:n { max-names }
         \int_set:Nn \g_bib_maxauthor_int {#1}
         \int_if_zero:nT { \g_bib_maxauthor_int } { \int_gdecr:N \g_bib_maxauthor_int }
       } ,
@@ -946,9 +989,9 @@
 \prop_gset_from_keyval:Nn \g__hit_renamed_option_prop
   {
     raggedbottom   = { layout = { bottom = ragged~|~flush } } ,
-    biblabelalign  = { bib = { label-align = ... } } ,
-    bibauthorupper = { bib = { author-case = ... } } ,
-    bibmaxauthor   = { bib = { maximum-author = ... } } ,
+    biblabelalign  = { bib = { number-align = ... } } ,
+    bibauthorupper = { bib = { name-case = ... } } ,
+    bibmaxauthor   = { bib = { max-names = ... } } ,
   }
 %    \end{macrocode}
 %

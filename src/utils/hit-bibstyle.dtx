@@ -180,30 +180,16 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@bib@load@biblatex:}
-% 装载 \pkg{biblatex}。样式取 \option{bib}/\option{style} 的现值换算：
-% \texttt{hithesis}/\texttt{hitszthesis} 是 \file{.bst} 的名字，biblatex 一线
-% 没有同名样式，换成 \pkg{biblatex-gb7714-2015} 的 \texttt{gb7714-2015}；
-% 认不出的值原样传给 \pkg{biblatex}，让用户能点名任何装了的样式
-% （比如 \texttt{gb7714-2015ay}）。装完把实际用的样式记下来，
-% 之后再改 \option{style} 就拿它对照着提示。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_bib_map_style:nN #1#2
-  {
-    \str_case:nnF {#1}
-      {
-        { hithesis }    { \tl_set:Nn #2 { gb7714-2015 } }
-        { hitszthesis } { \tl_set:Nn #2 { gb7714-2015 } }
-        { auto }        { \tl_set:Nn #2 { gb7714-2015 } }
-        { }             { \tl_set:Nn #2 { gb7714-2015 } }
-      }
-      { \tl_set:Nn #2 {#1} }
-  }
-%    \end{macrocode}
+% 装载 \pkg{biblatex}。样式锁死 \pkg{biblatex-gb7714-2015} 的
+% \texttt{gb7714-2015}：规范就是国标，biblatex 一线不开挑样式的口子——
+% \file{.bst} 一线让挑（\option{bibtex}/\option{style}）是因为 \hologo{BibTeX}
+% 能力有限，得靠换 \file{.bst} 微调；biblatex 自己的选项够用，细调走
+% \option{biber}\texttt{=\{...\}} 透传。
 %
 % 有一道时机护栏：demo 的主文件把 \cs{hitsetup} 全写在
 % \cs{begin}\marg{document} 之后，元信息那样设没问题，可 \pkg{biblatex}
-% 过了导言区就装不进去了。设晚了给一条说清怎么挪的提示，不让内核那句
-% Can~be~used~only~in~preamble 把用户晾在原地。
+% 过了导言区就装不进去了。设晚了给一条说清怎么挪的警告然后照旧走传统一线，
+% 不让内核那句 Can~be~used~only~in~preamble 把用户晾在原地。
 %    \begin{macrocode}
 \bool_new:N \g__hit_bib_preamble_bool
 \bool_gset_true:N \g__hit_bib_preamble_bool
@@ -213,40 +199,58 @@
   {
     \bool_if:NTF \g__hit_bib_preamble_bool
       {
-        \exp_args:NV \__hit_bib_map_style:nN \g__hit_bib_style_tl \l_tmpa_tl
-        \tl_gset_eq:NN \g__hit_bib_style_used_tl \l_tmpa_tl
         \use:e
           {
             \exp_not:N \RequirePackage
-              [ backend = biber , style = \tl_use:N \l_tmpa_tl ] { biblatex }
+              [
+                backend = biber , style = gb7714-2015
+                \tl_if_empty:NF \g__hit_bib_biber_opts_tl
+                  { , \exp_not:V \g__hit_bib_biber_opts_tl }
+              ] { biblatex }
           }
       }
-      { \msg_error:nn { hithesis } { bib-backend-in-body } }
+      { \msg_warning:nn { hithesis } { bib-backend-in-body } }
   }
 %    \end{macrocode}
 % \end{macro}
 %
-% \begin{macro}{\hit@bib@style:n,\hit@bib@key@guard:n}
-% \option{style} 的设值器与「设晚了」的守卫。\pkg{biblatex} 装载之后样式已经
-% 定死，再改 \option{style} 只提示不生效；\option{author-case} 这些在装载时
-% 换算成 \pkg{biblatex} 选项的键同理，各自的键码前面搭一句守卫。
+% \begin{macro}{\hit@bib@key@guard:n}
+% 「设晚了」的守卫。\option{name-case} 这些键在 \pkg{biblatex} 装载时换算成
+% 它的选项，装载之后再设不生效，键码前面搭一句守卫提示。
 % 传统一线不受影响——那边的取值到排版时才读。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@bib@style:n #1
-  {
-    \@ifpackageloaded { biblatex }
-      {
-        \__hit_bib_map_style:nN {#1} \l_tmpa_tl
-        \tl_if_eq:NNF \l_tmpa_tl \g__hit_bib_style_used_tl
-          { \msg_warning:nnn { hithesis } { bib-style-locked } {#1} }
-      }
-      { \tl_gset:Nn \g__hit_bib_style_tl {#1} }
-  }
 \cs_new_protected:Npn \hit@bib@key@guard:n #1
   {
     \@ifpackageloaded { biblatex }
       { \msg_warning:nnn { hithesis } { bib-key-locked } {#1} } { }
   }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{bibtex,biber}
+% \changes{v3.2a}{2026/08/16}{\option{bib} 族按后端各开一个子组：
+%   \option{bibtex}/\option{style} 挑 \file{.bst}，\option{biber} 原封透传
+%   \pkg{biblatex} 的装载选项}
+% 后端专属的配置各归各的子组。\option{bibtex}/\option{style} 是
+% \cs{bibliographystyle} 的参数（\texttt{hithesis}、\texttt{hitszthesis} 或
+% \hologo{TeX} 树里任何 \file{.bst} 名），排版时才读，什么时候设都行。
+% \option{biber} 收一张键值表，原封并进 \pkg{biblatex} 的装载选项——
+% \pkg{biblatex-gb7714-2015} 的几十个选项（\texttt{gbpub}、\texttt{gbtype}、
+% \texttt{gbannote}……）都从这儿过，模板不逐个转译；装载选项自然要在装载前
+% 给，跟 \option{backend} 同组或在其之前，设晚了同一句守卫提示。
+%    \begin{macrocode}
+\tl_new:N \g__hit_bib_biber_opts_tl
+\keys_define:nn { hit / bib }
+  {
+    bibtex .code:n = { \hit@keys@set:nn { hit / bib / bibtex } {#1} } ,
+    biber .code:n =
+      {
+        \hit@bib@key@guard:n { biber }
+        \tl_gset:Nn \g__hit_bib_biber_opts_tl {#1}
+      } ,
+  }
+\keys_define:nn { hit / bib / bibtex }
+  { style .code:n = { \tl_gset:Nn \g__hit_bib_style_tl {#1} } }
 %    \end{macrocode}
 % \end{macro}
 %

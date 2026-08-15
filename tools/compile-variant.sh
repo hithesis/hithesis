@@ -106,7 +106,7 @@ fi
 # 只换行首的那种，注释掉的备选项照原样留着。
 #
 # 用 \hitbackmatter 排后置部分时，\bibliographystyle 是类生成的，源码里根本
-# 没有这一行，样式写在 bib 族的 style 键上，所以那个键也要一起换。
+# 没有这一行，样式写在 bib 族 bibtex 子组的 style 键上，所以那个键也要一起换。
 if [ -n "${BIBSTYLE:-}" ]; then
   python3 - "$WORK" "$BIBSTYLE" <<'PYEOF'
 import sys, re, pathlib
@@ -117,7 +117,7 @@ for p in root.rglob("*.tex"):
     text, n = re.subn(r'^(\s*)\\bibliographystyle\{[^}]*\}',
                       lambda m: m.group(1) + "\\bibliographystyle{" + style + "}",
                       text, flags=re.MULTILINE)
-    text, k = re.subn(r'(bib\s*=\s*\{\s*style\s*=\s*)\{[^}]*\}',
+    text, k = re.subn(r'(bibtex\s*=\s*\{\s*style\s*=\s*)\{[^}]*\}',
                       lambda m: m.group(1) + "{" + style + "}",
                       text)
     n += k

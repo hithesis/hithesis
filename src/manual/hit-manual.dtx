@@ -1188,11 +1188,11 @@
 % \option{bsheadrule} & \option{style} = \{ \option{head-rule} \} \\
 % \option{bsmainpagenumberline} & \option{style} = \{ \option{page-number-line} = \{ \option{mainmatter} \} \} \\
 % \option{bsfrontpagenumberline} & \option{style} = \{ \option{page-number-line} = \{ \option{frontmatter} \} \} \\
-% \option{citetwo} & \option{bib} = \{ \option{adjacent-cite} \} \\
-% \option{splitbibitem} & \option{bib} = \{ \option{split-item} \} \\
-% \option{biblabelalign} & \option{bib} = \{ \option{label-align} \} \\
-% \option{bibauthorupper} & \option{bib} = \{ \option{author-case} \} \\
-% \option{bibmaxauthor} & \option{bib} = \{ \option{maximum-author} \} \\\bottomrule
+% \option{citetwo} & \option{bib} = \{ \option{cite-compress-min} = \texttt{2}｜\texttt{3} \} \\
+% \option{splitbibitem} & \option{bib} = \{ \option{entry-split} \} \\
+% \option{biblabelalign} & \option{bib} = \{ \option{number-align} \} \\
+% \option{bibauthorupper} & \option{bib} = \{ \option{name-case} \} \\
+% \option{bibmaxauthor} & \option{bib} = \{ \option{max-names} \} \\\bottomrule
 % \end{longtable}
 %
 % 元信息字段在 v3.2a 也改成了英文名。原先的 \texttt{c}\ldots{} 与 \texttt{e}\ldots{}
@@ -1343,11 +1343,14 @@
 % \option{fontset=siyuan} 会被 \pkg{ctex} 报成找不到字体集，然后回退到平台默认
 % 字体继续编译。
 %
-% \subsection{相邻文献序号的连接符}
-% \changes{v3.2a}{2026/08/06}{\option{adjacent-cite} 换实现，从 2022 年加进来
+% \subsection{相邻文献序号的压缩}
+% \label{sec:cite-compress}
+% \changes{v3.2a}{2026/08/06}{原 \option{citetwo} 换实现，从 2022 年加进来
 %   就没生效过}
-% \option{bib} 族的 \option{adjacent-cite} 管两个相邻且连续的文献序号之间用什么
-% 连接：
+% \changes{v3.2a}{2026/08/16}{定名 \option{cite-compress-min}：几个连续序号起
+%   压成区间，取值 \texttt{2}｜\texttt{3}，两条文献路线都认}
+% \option{bib} 族的 \option{cite-compress-min} 管相邻连续的文献序号几个起压成
+% 区间：
 %
 % \begin{longtable}{lll}
 % \toprule
@@ -1356,15 +1359,17 @@
 % \toprule
 % 取值 & \cs{cite}\{a,b\} & \cs{cite}\{a,b,c\} \\\midrule
 % \endhead
-% \texttt{endash} & \texttt{[1-2]}，默认 & \texttt{[1-3]} \\
-% \texttt{comma} & \texttt{[1,2]} & \texttt{[1-3]} \\\bottomrule
+% \texttt{2} & \texttt{[1-2]}，默认 & \texttt{[1-3]} \\
+% \texttt{3} & \texttt{[1,2]} & \texttt{[1-3]} \\\bottomrule
 % \end{longtable}
 %
-% 三个及以上连续的照样压成区间，只有正好两个的那种情况会换成逗号。不连续的序号
-% 本来就是逗号分隔，不受这个选项影响。
+% 三个及以上连续的总归压成区间。不连续的序号本来就是逗号分隔，不受这个选项
+% 影响。两条文献路线都认（见第~\ref{sec:bib-backend}~节）：传统 \hologo{BibTeX}
+% 一线落到 \pkg{natbib} 的补丁上，biblatex 一线落到 \pkg{gb7714-2015} 的
+% \texttt{gbrefcompress} 计数器上，后者是加载后命令通道，什么时候设都行。
 %
 % \begin{latex}
-% \hitsetup{bib={adjacent-cite=comma}}
+% \hitsetup{bib={cite-compress-min=3}}
 % \end{latex}
 %
 % \subsection{参考文献的两条路线}
@@ -1407,21 +1412,35 @@
 %
 % 写晚了模板会一条条提醒，不会闷头编出错的结果。
 %
-% \option{bib} 族的其他键照旧写，模板在装载时换算成 \pkg{biblatex} 的选项：
-% \option{style}（\texttt{hithesis}/\texttt{hitszthesis} 换算成
-% \texttt{gb7714-2015}，认不出的值原样传给 \pkg{biblatex}，可以点名
-% \texttt{gb7714-2015ay} 这类装了的样式）、\option{author-case}、
-% \option{maximum-author}、\option{label-align}。这几个键\emph{装载时定死}，
-% 要么跟 \option{backend} 写进同一组 \option{bib}\texttt{=\{...\}}，要么排在
-% 它前面；\option{split-item} 排版时才读，不受此限。上标引用、
-% \cs{inlinecite}、\cs{citeup}、全角序号、著录列表的版面都对齐到传统一线。
+% \option{bib} 族的通用键两条路线都认：\option{name-case}（\texttt{uppercase}
+% 著者姓名全大写即国标排法、\texttt{none} 保持 \file{.bib} 原样，默认）、
+% \option{max-names}（最多列几位作者，\texttt{0} 不限）、
+% \option{number-align}（文献表标号 \texttt{left}/\texttt{right}）、
+% \option{cite-compress-min}（见第~\ref{sec:cite-compress}~节）、
+% \option{entry-split}（一条文献可否跨页）。前三个在 biblatex 一线是装载时
+% 换算成它的选项的，要么跟 \option{backend} 写进同一组
+% \option{bib}\texttt{=\{...\}}，要么排在它前面，设晚了有提示；后两个排版时
+% 才读，不受此限。
 %
-% 已知差别三处：著录条目的细排跟着 \pkg{biblatex-gb7714-2015} 走，与
-% \file{.bst} 不逐字一致（比如会议文献多排出版地）；\cs{inlinecite} 的标签
-% 前后没有传统一线那个中西文自动间距（gb 系样式特意压掉的）；
-% \option{adjacent-cite}\texttt{=comma} 这一档没有，相邻序号固定压成国标的
-% \texttt{[1-2]}。正文里残留的 \cs{bibliographystyle} 会降级成一条提示，
-% \cs{bibliography} 自动当 \cs{printbibliography} 排，老文档不用大改。
+% 后端专属的配置各归各的子组。传统一线换 \file{.bst} 写
+% \option{bib}\texttt{=\{bibtex=\{style=hitszthesis\}\}}，值交给
+% \cs{bibliographystyle}，\hologo{TeX} 树里任何 \file{.bst} 名都行，什么时候
+% 设都行。biblatex 一线不开挑样式的口子——规范就是国标，样式锁死
+% \texttt{gb7714-2015}；细调走 \option{biber}\texttt{=\{...\}}，整张键值表
+% 原封并进 \pkg{biblatex} 的装载选项，\pkg{biblatex-gb7714-2015} 的几十个
+% 选项（\texttt{gbpub}、\texttt{gbtype}、\texttt{gbannote}……）都从这儿过：
+%
+% \begin{latex}
+% \hitsetup{ bib = { backend = biber ,
+%                    biber = { gbpub = false , gbannote = true } } }
+% \end{latex}
+%
+% 上标引用、\cs{inlinecite}、\cs{citeup}、全角序号、著录列表的版面都对齐到
+% 传统一线。已知差别两处：著录条目的细排跟着 \pkg{biblatex-gb7714-2015} 走，
+% 与 \file{.bst} 不逐字一致（比如会议文献多排出版地）；\cs{inlinecite} 的标签
+% 前后没有传统一线那个中西文自动间距（gb 系样式特意压掉的）。正文里残留的
+% \cs{bibliographystyle} 会降级成一条提示，\cs{bibliography} 自动当
+% \cs{printbibliography} 排，老文档不用大改。
 %
 % \subsection{不再预载的 \pkg{tikz} 库}
 % \changes{v3.2a}{2026/08/06}{不再预载 \pkg{tikz} 的 \texttt{calc} 库}

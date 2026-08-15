@@ -1,11 +1,11 @@
-% bib 族的 backend 键：biber 一线的装载、样式映射、装载之后再改键的守卫。
+% bib 族的 backend 键：biber 一线的装载、按后端分组的配置、装载之后再改键的守卫。
 %
 % biblatex 在 \START 之前装载，横幅与 begindocument 的日志都不进 tlg；
 % \START 之后只看模板自己的状态与消息。
 \input{regression-test}
 \documentclass[fontset=fandol,degree-level=master,campus=harbin]{hit-thesis}
-% biblatex 当 biber 的别名认；maximum-author 与 backend 同组，先后随意
-\hitsetup{ bib = { maximum-author = 5 , backend = biblatex } }
+% biblatex 当 biber 的别名认；通用键与 biber 透传跟 backend 同组，先后随意
+\hitsetup{ bib = { max-names = 5 , biber = { gbannote = true } , backend = biblatex } }
 \begin{document}
 \START
 \ExplSyntaxOn
@@ -13,26 +13,32 @@
 % 装载状态：biblatex 进来了，gbt7714 被侦测挡在门外
 \TEST{backend~records}{
   \iow_term:x { backend ~ = ~ \g__hit_bib_backend_str }
-  \iow_term:x { style-used ~ = ~ \tl_use:N \g__hit_bib_style_used_tl }
   \IfPackageLoadedTF { biblatex }
     { \iow_term:n { biblatex ~ loaded } } { \iow_term:n { biblatex ~ missing } }
   \IfPackageLoadedTF { gbt7714 }
     { \iow_term:n { gbt7714 ~ loaded } } { \iow_term:n { gbt7714 ~ skipped } }
 }
 
-% 装载后设 style：映射结果相同就不响
-\TEST{late~style~same~mapping~silent}{
-  \hitsetup { bib = { style = {hitszthesis} } }
+% cite-compress-min 走 gbrefcompress 计数器，是加载后命令通道，设晚了照样生效
+\TEST{cite~compress~post~load~works}{
+  \hitsetup { bib = { cite-compress-min = 3 } }
+  \iow_term:x { gbrefcompress ~ = ~ \arabic { gbrefcompress } }
 }
 
-% 映射结果不同：bib-style-locked
-\TEST{late~style~different~warns}{
-  \hitsetup { bib = { style = {gb7714-2015ay} } }
+% bibtex 子组的 style 排版时才读，什么时候设都行，不响
+\TEST{bibtex~style~anytime~silent}{
+  \hitsetup { bib = { bibtex = { style = {hitszthesis} } } }
+  \iow_term:x { bst ~ = ~ \tl_use:N \g__hit_bib_style_tl }
 }
 
 % 装载时换算的键设晚了：bib-key-locked
-\TEST{late~author-case~warns}{
-  \hitsetup { bib = { author-case = full } }
+\TEST{late~name-case~warns}{
+  \hitsetup { bib = { name-case = uppercase } }
+}
+
+% biber 透传是装载选项，设晚了同一句守卫
+\TEST{late~biber~options~warn}{
+  \hitsetup { bib = { biber = { gbpub = false } } }
 }
 
 % biblatex 已装载还要 backend=bibtex：矛盾，报错
