@@ -382,16 +382,61 @@
   { \__hit_format_enum:nnn {#1} { true , false , auto } {#2} }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/16}{加 \option{char-spacing}，收一个长度}
-% \option{char-spacing} 是 Word 字体对话框里的「字符间距」，收一个长度，
-% 负值表示紧缩。存的时候就把 \cs{dim\_eval:n} 算掉。
+% \changes{v3.2a}{2026/08/16}{加 \option{char-spacing}，照 Word 字体对话框写
+%   \texttt{normal}/\texttt{expanded}/\texttt{condensed} 加磅值}
+% \option{char-spacing} 是 Word「字体」对话框「高级」页里的字符间距，
+% 三个取值与那个下拉框一一对应：\texttt{normal} 标准、\texttt{expanded} 加宽、
+% \texttt{condensed} 紧缩，后两个再跟一个磅值。词序与
+% \option{line-spacing}\texttt{=exactly~25bp} 一致，词在前数在后。
+%
+% 存两条：\texttt{char-spacing-mode} 记那个词，\texttt{char-spacing} 记磅值，
+% 与别的带单位的键同一个路子。紧缩存成负数，取用那头不必再判方向。
+% \texttt{normal} 不带值，磅值记零。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_format_length:nn #1#2
+\cs_new_protected:Npn \__hit_format_char_spacing:n #1
   {
-    \str_if_eq:nnTF {#2} { auto }
-      { \__hit_format_put:nn {#1} { auto } }
-      { \__hit_format_put:nn {#1} { \dim_eval:n {#2} } }
+    \str_case:nnF {#1}
+      {
+        { auto }
+          {
+            \__hit_format_put:nn { char-spacing-mode } { auto }
+            \__hit_format_put:nn { char-spacing } { auto }
+          }
+        { normal }
+          {
+            \__hit_format_put:nn { char-spacing-mode } { normal }
+            \__hit_format_put:nn { char-spacing } { 0pt }
+          }
+      }
+      { \__hit_format_char_spacing_aux:n {#1} }
   }
+\cs_new_protected:Npn \__hit_format_char_spacing_aux:n #1
+  {
+    \__hit_format_split:n {#1}
+    \int_compare:nNnTF { \l__hit_format_count_int } = { 2 }
+      {
+        \clist_if_in:nVTF { expanded , condensed } \l__hit_format_head_tl
+          { \__hit_format_char_spacing_put: }
+          { \__hit_format_char_spacing_bad:n {#1} }
+      }
+      { \__hit_format_char_spacing_bad:n {#1} }
+  }
+\cs_new_protected:Npn \__hit_format_char_spacing_put:
+  {
+    \__hit_format_put:nx { char-spacing-mode } { \l__hit_format_head_tl }
+    \__hit_format_put:nx { char-spacing }
+      {
+        \dim_eval:n
+          {
+            \str_if_eq:VnT \l__hit_format_head_tl { condensed } { - }
+            \l__hit_format_tail_tl
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_char_spacing_bad:n #1
+  { \msg_error:nnnn { hithesis } { bad-option-value } { char-spacing } {#1} }
+\cs_generate_variant:Nn \__hit_format_put:nn { nx }
+\prg_generate_conditional_variant:Nnn \clist_if_in:nn { nV } { TF }
 %    \end{macrocode}
 %
 % \option{size} 收字号名或长度。名字查 \file{src/utils/hit-fonts.dtx} 存下的常量，
@@ -669,7 +714,7 @@
     all-caps       .default:n = { true } ,
     snap-to-grid   .code:n = { \__hit_format_snap:n {#1} } ,
     snap-to-grid   .default:n = { true } ,
-    char-spacing   .code:n = { \__hit_format_length:nn { char-spacing } {#1} } ,
+    char-spacing   .code:n = { \__hit_format_char_spacing:n {#1} } ,
     bottom .code:n = { \__hit_format_bottom:n {#1} } ,
     bottom .value_required:n = true ,
     keep-with-next .code:n = { \__hit_format_bool:nn { keep-with-next } {#1} } ,
