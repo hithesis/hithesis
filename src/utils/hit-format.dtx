@@ -1565,6 +1565,7 @@
 \dim_new:N \g_hit_body_stretch_dim
 \dim_new:N \g_hit_body_first_dim
 \dim_new:N \g_hit_body_indent_dim
+\dim_new:N \hit@body@depth
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@latin@pitch:}，字距增量也加到
@@ -1617,6 +1618,139 @@
   }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@reserve@depth:}，版心底留出一个
+%   正文行深，换页的判据从「末行基线」改成「末行盒底」，与 Word 一致}
+% \begin{macro}{\hit@format@reserve@depth:}
+% 换页的判据两边不一样。Word 要末行的\emph{行盒底}不越版心底；\hologo{TeX} 的
+% 页面构建器比的是 \cs{pagetotal} 与 \cs{pagegoal}，末行的深度挂在
+% \cs{pagedepth} 里不算进去，等于只要末行的\emph{基线}不越版心底就行。差的正是
+% 一个行深，范例里 7.30\,bp，所以底下常常比 Word 多排一行。
+%
+% 动的是「一栏还能装多少」，也就是 \cs{@colroom} 与 \cs{vsize}，两个都减掉一个
+% 行深。\cs{maxdepth} 同时设成行深：深度不超过行深的东西正好落在留出的那一段里，
+% 一分不占；更深的东西超出多少算多少。图表公式这类比正文深的块也就一并算对了。
+%
+% \cs{textheight} 与 \cs{@colht} 一个不动。这两个说的是「版心多高」与
+% 「页面盒子多高」，Word 那边这两个数就是整个版心：范例的 \texttt{sectPr} 里
+% 页高 841.90、上边距 107.75、下边距 85.05，版心 649.10\,bp，合 22.899\,cm。
+% 留出来的那一段是换页时不许末行盒底越过的边界，不是版心矮了一截。
+%
+% 分开这两件事还有个好处：页面盒子仍按整个版心打包，封面上的 \cs{vfill}、
+% 整页浮动体两头的 \texttt{1fil} 分到的量都不变，位置一点不动，页脚也不用挪。
+% 留出来的那一段在 \texttt{ragged} 一档由 \cs{@textbottom} 那道 fil 吸掉；
+% \texttt{flush} 一档 \hologo{LaTeX} 原本把 \cs{@textbottom} 设成 \cs{relax}，
+% 页面会被拉开去补这一段，所以改发一个刚性的行深，见 \cs{hit@format@flush@bottom:}。
+%
+% \cs{maxdepth} 单独设成零是不够的。行盒的深度是墨迹深度，汉字只有 1.32\,pt；
+% 撑杆挂在 \texttt{para/begin} 与 \texttt{para/end} 两个钩子上，段落中间那些行
+% 两头都不挨，撑不到。范例正文第 17 页的 \cs{tracingpages}：
+% \texttt{maxdepth=6.0} 时 \texttt{t=648.68}，\texttt{maxdepth=0.0} 时
+% \texttt{t=650.00}，只多算了 1.32\,pt，离 \texttt{g=651.52} 还差着，那一行照样
+% 留在这一页。
+%
+% 正常满页的容量没有变：版心 649.09\,bp、首行基线在版心顶下 12.18\,bp、行距
+% 19.45\,bp，留之前末行基线的上限是 756.84，留之后 749.57，两种算法都是 33 行。
+% 只有末行基线落在底下那 7.3\,bp 带子里的页面才会少排一行，而那正是 Word 不许
+% 的位置。
+%
+% \cs{@colroom} 每页由 \hologo{LaTeX} 从 \cs{@colht} 重设，所以要补两句，见
+% \cs{hit@format@patch@colroom:}。\cs{vsize} 不用补，它在 \cs{output} 末尾从
+% \cs{@colroom} 取。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@reserve@depth:
+  {
+    \dim_gset:Nn \hit@body@depth
+      { \g_hit_body_lead_dim - \g_hit_body_first_dim }
+    \dim_compare:nNnT { \hit@body@depth } > { \c_zero_dim }
+      {
+        \dim_gset_eq:NN \maxdepth \hit@body@depth
+        \dim_gset_eq:NN \@maxdepth \hit@body@depth
+        \dim_gsub:Nn \@colroom { \hit@body@depth }
+        \dim_gset_eq:NN \vsize \@colroom
+        \AddToHook { begindocument/end }
+          {
+            \hit@format@patch@colroom:
+            \bool_if:NF \g__hit_raggedbottom_bool
+              { \hit@format@flush@bottom: }
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@patch@colroom:}，把每页重设
+%   \cs{@colroom} 的两句改成扣掉行深}
+% \begin{macro}{\hit@format@patch@colroom:}
+% \cs{@colroom} 是「这一栏还剩多少地方」，每页开头由 \cs{@startcolumn} 从
+% \cs{@colht} 重设，\cs{clearpage} 那条路上 \cs{@doclearpage} 也重设一次。
+% 留出来的那一段每页都会被这两句填回去，所以两处都要补。
+% 单栏用不到 \cs{twocolumn} 里那一句，不补。
+%
+% 补丁里\emph{不能出现 \pkg{expl3} 的变量名}。\cs{patchcmd} 是把宏体反切分再重扫
+% 一遍，重扫时的 catcode 是打补丁那一刻的，\pkg{etoolbox} 只替你把 \texttt{@}
+% 设成字母，下划线与冒号不管。写 \cs{g\_hit\_body\_lead\_dim} 那种名字进去，
+% 出版时会断成 \cs{g} 加一串下标，报「Undefined control sequence」。所以行深
+% 存在 \cs{hit@body@depth} 里，名字只带 \texttt{@}，跟这一族别的量不同款是有意的。
+%
+% 三个记号之间没有空格记号：控制词后面的空格在切分时就被吞掉了，
+% \verb|\global \@colroom \@colht| 与 \verb|\global\@colroom\@colht| 是同一串，
+% 所以这一段不必退出 \pkg{expl3} 写（CONTRIBUTING §4.7）。
+%
+% 打不上就报警告：那时留白只在第一页有效，第二页起换页的位置会跟 Word 差回一行，
+% 不该无声无息。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_patch_room:N #1
+  {
+    \patchcmd #1
+      { \global\@colroom\@colht }
+      { \global\@colroom\dimexpr\@colht-\hit@body@depth\relax }
+      { }
+      { \msg_warning:nnn { hithesis } { page-patch-failed } {#1} }
+  }
+\cs_new_protected:Npn \hit@format@patch@colroom:
+  {
+    \__hit_format_patch_room:N \@startcolumn
+    \__hit_format_patch_room:N \@doclearpage
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@flush@bottom:}，\option{bottom}
+%   \texttt{=flush} 时页底那一段留白改成刚性，不摊到行间}
+% \begin{macro}{\hit@format@flush@bottom:}
+% \cs{flushbottom} 把 \cs{@textbottom} 设成 \cs{relax}，页面盒子按 \cs{@colht}
+% 打包时缺的那一段就摊到行间去了。留出来的行深本来就该空着，摊掉等于白留，
+% 所以换成一个刚性的行深：盒子照样填满 \cs{@colht}，末行基线仍然停在
+% 版心底减一个行深的地方。
+%
+% 可压量也给一个行深。整页装的是压不动的东西时，页面盒子会比 \cs{@colht} 高出
+% 几个点，报 Overfull；给了可压量，\hologo{TeX} 先把这一段压回去，最坏退回原先
+% 那种「末行基线压在版心底」的样子，不会更差。
+%
+% 参考文献那两处环境里也各发一次 \cs{flushbottom}，所以要改的是 \cs{flushbottom}
+% 本身，不是发过之后再补一句。改法是打补丁不是重定义：\cs{flushbottom} 是内核的
+% 名字，重定义等于把它算进模板的公开面；打补丁只换掉 \cs{@textbottom} 那一句，
+% 别人往里加过什么都留着，加不上还会报出来。
+%
+% 它是 \cs{DeclareRobustCommand} 建的，宏体在带一个空格的那个名字里，所以用
+% \cs{exp\_args:Nc} 把 \texttt{flushbottom\textvisiblespace} 拼出来再打。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_patch_flush:N #1
+  {
+    \patchcmd #1
+      { \let\@textbottom\relax }
+      { \def\@textbottom{\vskip\hit@body@depth minus \hit@body@depth} }
+      { }
+      { \msg_warning:nnn { hithesis } { page-patch-failed } { \flushbottom } }
+  }
+\cs_new_protected:Npn \hit@format@flush@bottom:
+  {
+    \exp_args:Nc \__hit_format_patch_flush:N { flushbottom ~ }
+    \flushbottom
+  }
+%    \end{macrocode}
+% \end{macro}
+%
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@apply@body:
   {
@@ -1630,6 +1764,7 @@
         \dim_gset_eq:NN \g_hit_body_indent_dim \l_hit_format_indent_dim
         \bool_set_eq:NN \l_hit_format_line_snap_bool \l_hit_format_snap_bool
         \dim_set_eq:NN \topskip \g_hit_body_first_dim
+        \hit@format@reserve@depth:
         \normalsize
         \ctexset { autoindent = false }
         \dim_set_eq:NN \parindent \g_hit_body_indent_dim
