@@ -35,6 +35,7 @@ DESC = {
     "thesiscls": "类文件头：\\NeedsTeXFormat、\\ProvidesExplClass",
     "reportcls": "类文件头：\\NeedsTeXFormat、\\ProvidesExplClass",
     "shared-defaults": "常量默认值，只记进队列不执行",
+    "shared-engine": "引擎差异的封装：xetex 与 luatex 各一套",
     "shared-messages": "面向用户的提示文案",
     "shared-lang": "支持哪几种语言",
     "shared-fonts": "字号命令与字体族",

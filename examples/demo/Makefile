@@ -1,6 +1,10 @@
 # Makefile for hithesis dissertation
 
-# Compiling method: latexmk/xelatex
+# Compiling method: latexmk/xelatex/lualatex
+#
+# 模板认 xelatex 与 lualatex 两个引擎。默认 xelatex——版面参数是按它核过的，
+# lualatex 排出来是对的，但中文标点宽度等细节与它不逐页相同，见手册的「用哪个引擎」。
+# 换 lualatex 两行一起改：METHOD = lualatex，LATEXMKOPTS = -lualatex。
 METHOD = xelatex
 # Set opts for latexmk if you use it
 LATEXMKOPTS = -xelatex
@@ -41,7 +45,7 @@ ifeq ($(METHOD),latexmk)
 $(THESISMAIN).pdf: $(CLSFILES)
 	$(METHOD) $(LATEXMKOPTS) $(THESISMAIN)
 
-else ifeq ($(METHOD),xelatex)
+else ifneq ($(filter $(METHOD),xelatex lualatex),)
 
 $(THESISMAIN).idx: $(THESISMAIN).bbl
 	$(METHOD) $(THESISMAIN)
