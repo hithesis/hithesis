@@ -43,6 +43,8 @@
 %    \begin{macrocode}
 \str_new:N \g__hit_bib_cite_punct_str
 \str_gset:Nn \g__hit_bib_cite_punct_str { half }
+\str_new:N \g__hit_bib_cite_brackets_str
+\str_gset:Nn \g__hit_bib_cite_brackets_str { half }
 \bool_new:N \g_bib_authorupper_bool
 \bool_set_true:N \g_bib_authorupper_bool
 \keys_define:nn { hit / class }
@@ -81,22 +83,25 @@
 % 数字上标式引用。\cs{bibstyle@inline} 两个类不一样：报告自己定义一份，
 % 学位论文用 \pkg{gbt7714} 带的那份，所以它不在这里。
 %
-% \changes{v3.2a}{2026/08/16}{序号间的分隔按 \option{cite-punct} 分发：
-%   \texttt{half} 是 \texttt{[3,5]}、\texttt{half-with-space} 是
-%   \texttt{[3,~5]}、\texttt{full} 是全角逗号}
-% 序号之间的分隔从 \option{cite-punct} 取：设值器那边改完会重跑一遍
-% \cs{citestyle}，随设随生效。
+% \changes{v3.2a}{2026/08/16}{序号间的分隔按 \option{comma-in-cite} 分发、
+%   方括号按 \option{brackets-in-cite} 分发。\cs{bibpunct} 收的是三个转接宏，
+%   \pkg{natbib} 存宏名不存展开，键随设随生效，不必重跑 \cs{citestyle}}
+% 括号与分隔都从转接宏取：\cs{bibpunct} 存进 \pkg{natbib} 的是宏名，
+% 每次引用展开的都是键的现值。
 %    \begin{macrocode}
-\cs_set_protected:Npn \bibstyle@numerical
+\cs_new:Npn \hit@bib@cite@open:
+  { \str_if_eq:VnTF \g__hit_bib_cite_brackets_str { full } {［} {[} }
+\cs_new:Npn \hit@bib@cite@close:
+  { \str_if_eq:VnTF \g__hit_bib_cite_brackets_str { full } {］} {]} }
+\cs_new:Npn \hit@bib@cite@sep:
   {
     \str_case:VnF \g__hit_bib_cite_punct_str
-      {
-        { half-with-space }
-          { \bibpunct {[} {]} {,~} {s} {,} { \textsuperscript {,} } }
-        { full }
-          { \bibpunct {[} {]} {，} {s} {,} { \textsuperscript {,} } }
-      }
-      { \bibpunct {[} {]} {,} {s} {,} { \textsuperscript {,} } }
+      { { half-with-space } { ,~ } { full } { ，} } { , }
+  }
+\cs_set_protected:Npn \bibstyle@numerical
+  {
+    \bibpunct { \hit@bib@cite@open: } { \hit@bib@cite@close: }
+      { \hit@bib@cite@sep: } {s} {,} { \textsuperscript {,} }
   }
 %    \end{macrocode}
 % \end{macro}
@@ -385,14 +390,16 @@
 % \end{macro}
 %
 % \begin{macro}{cite-punct,correct-punct}
-% \changes{v3.2a}{2026/08/16}{加 \option{cite-punct}\texttt{=half|half-with-space|full}：
-%   正文引用序号间的分隔排 \texttt{[3,5]}、\texttt{[3,~5]} 还是全角逗号}
-% \option{cite-punct} 管正文引用序号之间的分隔，名字对 omni 的
-% \texttt{cite-punct-style}：\texttt{half}（默认，\texttt{[3,5]}）、
-% \texttt{half-with-space}（\texttt{[3,~5]}）、\texttt{full}（全角逗号）。
-% 传统一线落在 \cs{bibstyle@numerical} 的 \cs{bibpunct} 上，设完重跑一遍
-% \cs{citestyle} 即刻生效；biblatex 一线落在 gb 系 cbx 的三个分隔宏上
-% （见 \cs{hit@bib@patch@punct:}），排版时读值。两条线都不锁时机。
+% \changes{v3.2a}{2026/08/16}{加 \option{comma-in-cite}\texttt{=half|half-with-space|full}
+%   与 \option{brackets-in-cite}\texttt{=half|full}：正文引用序号间的分隔与
+%   方括号各自的全半角（中途用过的 \option{cite-punct} 撤销改名）}
+% \option{comma-in-cite} 管正文引用序号之间的分隔：\texttt{half}（默认，
+% \texttt{[3,5]}）、\texttt{half-with-space}（\texttt{[3,~5]}）、
+% \texttt{full}（全角逗号）。\option{brackets-in-cite} 管引用的方括号：
+% \texttt{half}（默认）或 \texttt{full}（［3,5］）。传统一线经
+% \cs{bibstyle@numerical} 里的转接宏落到 \pkg{natbib} 上；biblatex 一线
+% 分隔落在 gb 系 cbx 的三个分隔宏、方括号落在 \cs{gbleftbracket} 的引用侧
+% 分支（见 \cs{hit@bib@patch@punct:}），全部排版时读值。两条线都不锁时机。
 %
 % \changes{v3.2a}{2026/08/16}{加 \option{correct-punct}：\file{.bib} 数据里的
 %   标点按 \option{bib-punct} 的档位清洗，名字取 omni 的同义键}
@@ -407,12 +414,12 @@
 \bool_gset_true:N \g__hit_bib_correct_punct_bool
 \keys_define:nn { hit / bib }
   {
-    cite-punct .choices:nn = { half , half-with-space , full }
-      {
-        \str_gset:NV \g__hit_bib_cite_punct_str \l_keys_choice_tl
-        \@ifpackageloaded { natbib } { \citestyle { numerical } } { }
-      } ,
-    cite-punct .value_required:n = true ,
+    comma-in-cite .choices:nn = { half , half-with-space , full }
+      { \str_gset:NV \g__hit_bib_cite_punct_str \l_keys_choice_tl } ,
+    comma-in-cite .value_required:n = true ,
+    brackets-in-cite .choices:nn = { half , full }
+      { \str_gset:NV \g__hit_bib_cite_brackets_str \l_keys_choice_tl } ,
+    brackets-in-cite .value_required:n = true ,
     correct-punct .choices:nn = { true , false }
       {
         \hit@bib@key@guard:n { correct-punct }
@@ -653,8 +660,8 @@
 %
 % 类型标与「不详」补白的方括号走的是 \cs{gbleftbracket} 一族——它同时也是
 % 引用标签的括号，所以补丁带一道 \cs{ifbibliography} 判据：文献表里按
-% \option{bib-punct} 分发，引用标签保持原样（传统一线的引用标签也是半角，
-% 两边一致）。
+% \option{bib-punct} 分发，引用侧按 \option{brackets-in-cite} 分发，
+% 两个键各管各的。
 %
 % 挂载时机有讲究：\cs{abx@puncthook} 会被 \pkg{biblatex} 的语言初始化在
 % \texttt{begindocument} 里重设（法文间距那套），补丁挂
@@ -744,13 +751,19 @@
       {
         \ifbibliography
           { \hit@bib@punct@bracket:nN { ［ } \__hit_bib_gblbracket_std: }
-          { \__hit_bib_gblbracket_std: }
+          {
+            \str_if_eq:VnTF \g__hit_bib_cite_brackets_str { full }
+              { ［ } { \__hit_bib_gblbracket_std: }
+          }
       }
     \cs_set_protected:Npn \gbrightbracket
       {
         \ifbibliography
           { \hit@bib@punct@bracket:nN { ］ } \__hit_bib_gbrbracket_std: }
-          { \__hit_bib_gbrbracket_std: }
+          {
+            \str_if_eq:VnTF \g__hit_bib_cite_brackets_str { full }
+              { ］ } { \__hit_bib_gbrbracket_std: }
+          }
       }
   }
 \cs_new_protected:Npn \hit@bib@punct@bracket:nN #1#2
