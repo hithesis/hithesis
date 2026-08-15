@@ -16,10 +16,10 @@
 %   页脚这两块内容留在 expl3 之外定义成宏：它们的花括号后换行会产生一个空格
 %   记号，\cs{ExplSyntaxOn} 下会消失，见 CONTRIBUTING §4.7}
 \RequirePackage{fancyhdr}
-\cs_set_eq:NN \hit@original@head@rule \headrule
+\cs_set_eq:NN \hit@original@header@rule \headrule
 \fancypagestyle{hit@empty}{%
   \fancyhf{}
-  \cs_set_eq:NN \headrule \hit@original@head@rule
+  \cs_set_eq:NN \headrule \hit@original@header@rule
   \cs_set:Npn \headrulewidth {0pt}
   \cs_set:Npn \footrulewidth {0pt}
 }
@@ -41,9 +41,9 @@
 %    \begin{macrocode}
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/14}{页眉的字体命令收成 \cs{hit@head@font}，里面留一个
+% \changes{v3.2a}{2026/08/14}{页眉的字体命令收成 \cs{hit@header@font}，里面留一个
 %   撑杆的位置，新版面下把页眉那一行的行盒撑成 Word 的尺寸}
-% \cs{hit@head@font} 是页眉的字体，十五处页眉共用。字号之后留了一根撑杆的位置：
+% \cs{hit@header@font} 是页眉的字体，十五处页眉共用。字号之后留了一根撑杆的位置：
 % Word 的页眉行盒底在基线下 2.53\,bp（小五的下降部），\hologo{TeX} 只按字形外框
 % 算 0.63\,bp，页眉横线跟着上移 2\,bp。撑杆把行盒补齐，横线就落回原处。
 %
@@ -68,27 +68,27 @@
 % 前后各加一个 \cs{nointerlineskip}：盒子会引来行间胶，\cs{hrule} 不会。
 % 不加的话整条线往下掉十四个磅，300\,ppi 下六十一个像素。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@head@strut: { }
-\cs_new_protected:Npn \hit@head@font { \xiaowu [ 0 ] \hit@head@strut: }
-\dim_const:Nn \c__hit_head_rule_over_dim { 1.56bp }
-\cs_new_protected:Npn \hit@thesis@head@rule
+\cs_new_protected:Npn \hit@header@strut: { }
+\cs_new_protected:Npn \hit@header@font { \xiaowu [ 0 ] \hit@header@strut: }
+\dim_const:Nn \c__hit_header_rule_over_dim { 1.56bp }
+\cs_new_protected:Npn \hit@thesis@header@rule
   {
     \cs_set:Npn \headrule
       {
-        \vskip 1.190132pt
-        \hit@head@rule:n { 2.276208pt }
-        \vskip 0.75pt
-        \hit@head@rule:n { .75pt }
+        \vskip \l__hit_msword_rule_text_dim
+        \hit@header@rule:n { \l__hit_msword_rule_width_dim }
+        \vskip 0.75bp
+        \hit@header@rule:n { 0.75bp }
       }
   }
-\cs_new_protected:Npn \hit@head@rule:n #1
+\cs_new_protected:Npn \hit@header@rule:n #1
   {
     \nointerlineskip
     \hbox to \headwidth
       {
         \hss
         \vrule \@height #1 \@depth \z@
-          \@width \dim_eval:n { \headwidth + 2 \c__hit_head_rule_over_dim }
+          \@width \dim_eval:n { \headwidth + 2 \c__hit_header_rule_over_dim }
         \hss
       }
     \nointerlineskip
@@ -109,7 +109,7 @@
 % \changes{v3.2a}{2026/08/15}{装饰形式各学位统一，都走 \cs{hit@page@number@separator}}
 % \changes{v3.2a}{2026/08/16}{前置部分的装饰三校区统一，深圳与威海本科的例外删掉}
 % \option{page-number-line} 的 \texttt{auto}：正文与前置部分一律带装饰。
-% \option{head-rule} 的 \texttt{auto} 一律为真。
+% \option{header-rule} 的 \texttt{auto} 一律为真。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@page@number@main
   {
@@ -121,10 +121,10 @@
     \__hit_tristate_if:NnTF \g__hit_page_number_line_front_tl { \c_true_bool }
       { \hit@page@number@decorated } { \hit@page@number@plain }
   }
-\cs_new_protected:Npn \hit@thesis@head@rule@setup
+\cs_new_protected:Npn \hit@thesis@header@rule@setup
   {
-    \__hit_tristate_if:NnTF \g__hit_head_rule_tl { \c_true_bool }
-      { \hit@thesis@head@rule } { \cs_set:Npn \headrulewidth { 0pt } }
+    \__hit_tristate_if:NnTF \g__hit_header_rule_tl { \c_true_bool }
+      { \hit@thesis@header@rule } { \cs_set:Npn \headrulewidth { 0pt } }
   }
 \cs_new_protected:Npn \hit@thesis@footer
   {
@@ -157,6 +157,8 @@
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/15}{加 \cs{hit@page@number@shift}，页码整体右移一个像素}
+% \changes{v3.2a}{2026/08/16}{取值改由 \option{layout}/\option{footer}/%
+%   \option{shift}/\option{horizontal} 给}
 % \cs{hit@page@number@shift} 是页码整体的横向偏移，往右为正。范例的页码是个
 % 文本框，\texttt{<w:framePr w:hAnchor="margin" w:xAlign="center"/>}：框按版心
 % 居中，框里的段落是 \texttt{<w:jc w:val="left"/>} 左对齐。框宽是内容的自然宽，
@@ -167,8 +169,7 @@
 % 前后各一个反号的 \cs{kern}：盒子的总宽不变，只有内容整体挪一格。只在一头加
 % 的话盒子跟着变宽，居中又把它匀掉一半，得写两倍，绕。
 %    \begin{macrocode}
-\skip_new:N \hit@page@number@shift
-\dim_set:Nn \hit@page@number@shift { 0.24bp }
+\cs_new:Npn \hit@page@number@shift { \g_hit_msword_foot_shift_x_dim }
 %    \end{macrocode}
 %
 % 此处根据本科生模板的多种版本，提供选项自定义页码、页眉样式。
@@ -189,30 +190,30 @@
     \fancyhf { }
     \bool_if:NTF \g__hit_en_bool
       {
-        \fancyhead [ C ] { \hit@head@font \leftmark }
+        \fancyhead [ C ] { \hit@header@font \leftmark }
         \fancyfoot [ C ] { \xiaowu \hit@page@number@decorated }
-        \hit@thesis@head@rule
+        \hit@thesis@header@rule
       }
       {
         \bool_if:NT \g__hit_postdoc_bool
           {
-            \fancyhead [ CO ] { \songti \hit@head@font \leftmark }
+            \fancyhead [ CO ] { \songti \hit@header@font \leftmark }
             \fancyhead [ CE ]
-              { \songti \hit@head@font \hit@school@zh \hit@postdoc@report }
+              { \songti \hit@header@font \hit@school@zh \hit@postdoc@report }
           }
         \bool_if:NTF \g__hit_doctor_bool
           {
-            \fancyhead [ CO ] { \songti \hit@head@font \leftmark }
+            \fancyhead [ CO ] { \songti \hit@header@font \leftmark }
             \bool_if:NT \g__hit_harbin_bool
               {
                 \fancyhead [ CE ]
-                  { \songti \hit@head@font \hit@school@zh \hit@degree@level@zh \hit@document@type }
+                  { \songti \hit@header@font \hit@school@zh \hit@degree@level@zh \hit@document@type }
               }
             \bool_if:NT \g__hit_shenzhen_bool
               {
                 \fancyhead [ CE ]
                   {
-                    \songti \hit@head@font \hit@school@zh
+                    \songti \hit@header@font \hit@school@zh
                     \hit@if@option@TF{doctor}{}{\hit@campus@full}
                     \hit@degree@of@discipline@format@zh \hit@document@type
                   }
@@ -221,7 +222,7 @@
               {
                 \fancyhead [ CE ]
                   {
-                    \songti \hit@head@font \hit@school@zh （\hit@campus）
+                    \songti \hit@header@font \hit@school@zh （\hit@campus）
                     \hit@degree@of@discipline@format@zh \hit@document@type
                   }
               }
@@ -232,7 +233,7 @@
                 \bool_if:NT \g__hit_harbin_bool
                   {
                     \fancyhead [ C ]
-                      { \songti \hit@head@font \hit@school@zh \hit@degree@level@zh \hit@document@type }
+                      { \songti \hit@header@font \hit@school@zh \hit@degree@level@zh \hit@document@type }
                   }
                 \bool_if:NT \g__hit_shenzhen_bool
                   {
@@ -240,17 +241,17 @@
                       {
                         \fancyhead [ C ]
                           {
-                            \songti \hit@head@font \hit@school@zh \hit@degree@of@discipline@format@zh
+                            \songti \hit@header@font \hit@school@zh \hit@degree@of@discipline@format@zh
                             \hit@document@type
                           }
                       }
-                      { \fancyhead [ C ] { \hit@head@font \leftmark } }
+                      { \fancyhead [ C ] { \hit@header@font \leftmark } }
                   }
                 \bool_if:NT \g__hit_weihai_bool
                   {
                     \fancyhead [ C ]
                       {
-                        \songti \hit@head@font \hit@school@zh （\hit@campus）
+                        \songti \hit@header@font \hit@school@zh （\hit@campus）
                         \hit@degree@of@discipline@format@zh \hit@document@type
                       }
                   }
@@ -264,15 +265,15 @@
           {
             \fancyhead [ C ]
               {
-                \songti \hit@head@font \hit@school@zh \hit@bachelor@degree@level
+                \songti \hit@header@font \hit@school@zh \hit@bachelor@degree@level
                 \hit@bachelor@document@type
               }
             \hit@thesis@footer
-            \hit@thesis@head@rule@setup
+            \hit@thesis@header@rule@setup
           }
           {
             \hit@thesis@footer
-            \hit@thesis@head@rule@setup
+            \hit@thesis@header@rule@setup
           }
       }
     \cs_set:Npn \footrulewidth { 0pt }

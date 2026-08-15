@@ -229,9 +229,9 @@
   }
 \cs_new_protected:Npn \__hit_layout_bottom_check:
   {
-    \bool_if_exist:NTF \g__hit_layout_four_bool
+    \bool_if_exist:NTF \g__hit_layout_two_bool
       {
-        \bool_if:NT \g__hit_layout_four_bool
+        \bool_if:NF \g__hit_layout_two_bool
           { \__hit_layout_bottom_set: }
       }
       { \__hit_layout_bottom_set: }
@@ -276,8 +276,8 @@
 %
 % 表是全局只增的，所以分几次写等同于一次写全，后写的盖先写的。
 %
-% \option{head} 与 \option{foot-baseline} 是把类自己的页眉页脚接到 Word 位置上的
-% 两个键，不在 Word 的对话框里，来路见 \file{src/utils/hit-msword.dtx}。
+% \option{header}/\option{rule} 那两个键与 \option{footer}/\option{shift} 是把类自己的
+% 页眉页脚接到 Word 位置上的，来路见 \file{src/utils/hit-msword.dtx}。
 %    \begin{macrocode}
 \tl_new:N \g__hit_layout_msword_tl
 \bool_new:N \l__hit_layout_dirty_bool
@@ -286,19 +286,74 @@
     \tl_gput_right:Nx \g__hit_layout_msword_tl { #1 = \exp_not:n {#2} , }
     \bool_set_true:N \l__hit_layout_dirty_bool
   }
-\clist_map_inline:nn
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{\option{layout} 的键按 Word「页面设置」的四个
+%   选项卡分组嵌套；\option{head} 撤掉，\option{foot-baseline} 并入
+%   \option{footer}/\option{shift}}
+% \cs{\_\_hit\_layout\_leaf:nnn}\marg{块}\marg{键}\marg{msword 键} 把一个叶子键
+% 定义两遍：一遍在块的子族里，一遍在 \texttt{hit\,/\,layout} 里带全路径。所以
+% 下面两种写法等价，嵌套着写和顺手写一条都行：
+% \begin{latex}
+% layout = { header = { from-edge = 85.05bp } }
+% layout = { header/from-edge = 85.05bp }
+% \end{latex}
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_layout_leaf:nnn #1#2#3
   {
-    paper-width , paper-height , margin-top , margin-bottom ,
-    margin-left , margin-right , header , footer , head , foot-baseline ,
-    size , line-pitch , char-pitch , lines-per-page , chars-per-line
+    \keys_define:nn { hit / layout / #1 }
+      {
+        #2 .code:n = { \__hit_layout_msword:nn {#3} {##1} } ,
+        #2 .value_required:n = true ,
+      }
+    \keys_define:nn { hit / layout }
+      {
+        #1 / #2 .code:n = { \__hit_layout_msword:nn {#3} {##1} } ,
+        #1 / #2 .value_required:n = true ,
+      }
   }
+\cs_new_protected:Npn \__hit_layout_block:nn #1#2
+  {
+    \keys_define:nn { hit / layout / #1 }
+      {
+        #2 .code:n = { \hit@keys@set:nn { hit / layout / #1 / #2 } {##1} } ,
+        #2 .value_required:n = true ,
+      }
+    \keys_define:nn { hit / layout }
+      {
+        #1 / #2 .code:n = { \hit@keys@set:nn { hit / layout / #1 / #2 } {##1} } ,
+        #1 / #2 .value_required:n = true ,
+      }
+  }
+\clist_map_inline:nn { paper , margin , header , footer , grid }
   {
     \keys_define:nn { hit / layout }
       {
-        #1 .code:n = { \__hit_layout_msword:nn {#1} {##1} } ,
+        #1 .code:n = { \hit@keys@set:nn { hit / layout / #1 } {##1} } ,
         #1 .value_required:n = true ,
       }
   }
+\__hit_layout_leaf:nnn { paper } { width }  { paper-width }
+\__hit_layout_leaf:nnn { paper } { height } { paper-height }
+\__hit_layout_leaf:nnn { margin } { top }    { margin-top }
+\__hit_layout_leaf:nnn { margin } { bottom } { margin-bottom }
+\__hit_layout_leaf:nnn { margin } { left }   { margin-left }
+\__hit_layout_leaf:nnn { margin } { right }  { margin-right }
+\__hit_layout_leaf:nnn { header } { from-edge } { header }
+\__hit_layout_leaf:nnn { footer } { from-edge } { footer }
+\__hit_layout_block:nn { header } { rule }
+\__hit_layout_block:nn { footer } { shift }
+\__hit_layout_block:nn { grid } { chars }
+\__hit_layout_block:nn { grid } { lines }
+\__hit_layout_leaf:nnn { header / rule } { width }     { header-rule-width }
+\__hit_layout_leaf:nnn { header / rule } { from-text } { header-rule-from-text }
+\__hit_layout_leaf:nnn { footer / shift } { vertical }   { footer-shift-vertical }
+\__hit_layout_leaf:nnn { footer / shift } { horizontal } { footer-shift-horizontal }
+\__hit_layout_leaf:nnn { grid } { size } { size }
+\__hit_layout_leaf:nnn { grid / chars } { pitch }    { char-pitch }
+\__hit_layout_leaf:nnn { grid / chars } { per-line } { chars-per-line }
+\__hit_layout_leaf:nnn { grid / lines } { pitch }    { line-pitch }
+\__hit_layout_leaf:nnn { grid / lines } { per-page } { lines-per-page }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/15}{加 \option{layout}/\option{char-pitch-en}，
@@ -530,7 +585,7 @@
           }
       } ,
     ziju .value_required:n = true ,
-    head-rule .code:n = { \__hit_tristate_set:Nn \g__hit_head_rule_tl {#1} } ,
+    header-rule .code:n = { \__hit_tristate_set:Nn \g__hit_header_rule_tl {#1} } ,
     page-number-line .code:n =
       { \hit@keys@set:nn { hit / style / page-number-line } {#1} } ,
   }
@@ -721,7 +776,7 @@
     openright        = { style = { open-right = ... } } ,
     library          = { style = { library = ... } } ,
     zijv             = { style = { ziju = ... } } ,
-    bsheadrule       = { style = { head-rule = ... } } ,
+    bsheadrule       = { style = { header-rule = ... } } ,
     bsmainpagenumberline  = { style = { page-number-line = { mainmatter = ... } } } ,
     bsfrontpagenumberline = { style = { page-number-line = { frontmatter = ... } } } ,
     citetwo          = { bib = { compress-min = 2~|~3 } } ,

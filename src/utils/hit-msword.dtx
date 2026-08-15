@@ -131,8 +131,12 @@
 \dim_new:N \l__hit_msword_right_dim
 \dim_new:N \l__hit_msword_header_dim
 \dim_new:N \l__hit_msword_footer_dim
-\dim_new:N \l__hit_msword_head_dim
-\dim_new:N \l__hit_msword_foot_base_dim
+\dim_new:N \l__hit_msword_header_height_dim
+\dim_new:N \l__hit_msword_rule_width_dim
+\dim_new:N \l__hit_msword_rule_text_dim
+\dim_new:N \l__hit_msword_foot_shift_dim
+\dim_new:N \l__hit_msword_foot_shift_x_dim
+\dim_new:N \g_hit_msword_foot_shift_x_dim
 \dim_new:N \l__hit_msword_size_dim
 \dim_new:N \l__hit_msword_lead_dim
 \dim_new:N \l__hit_msword_char_dim
@@ -160,9 +164,12 @@
     margin-right   .dim_set:N = \l__hit_msword_right_dim ,
     header         .dim_set:N = \l__hit_msword_header_dim ,
     footer         .dim_set:N = \l__hit_msword_footer_dim ,
-    head           .dim_set:N = \l__hit_msword_head_dim ,
-    foot-baseline  .dim_set:N = \l__hit_msword_foot_base_dim ,
-    foot-baseline  .initial:n = { 0pt } ,
+    header-rule-width     .dim_set:N = \l__hit_msword_rule_width_dim ,
+    header-rule-width     .initial:n = { 2.25bp } ,
+    header-rule-from-text .dim_set:N = \l__hit_msword_rule_text_dim ,
+    header-rule-from-text .initial:n = { 1bp } ,
+    footer-shift-vertical .dim_set:N = \l__hit_msword_foot_shift_dim ,
+    footer-shift-vertical .initial:n = { 0pt } ,
     size           .dim_set:N = \l__hit_msword_size_dim ,
     size           .initial:n = { 12bp } ,
     line-pitch     .dim_set:N = \l__hit_msword_lead_dim ,
@@ -173,6 +180,8 @@
     lines-per-page .initial:n = { 0 } ,
     chars-per-line .int_set:N = \l__hit_msword_chars_int ,
     chars-per-line .initial:n = { 0 } ,
+    footer-shift-horizontal .dim_set:N = \l__hit_msword_foot_shift_x_dim ,
+    footer-shift-horizontal .initial:n = { 0pt } ,
   }
 %    \end{macrocode}
 %
@@ -208,8 +217,28 @@
 \cs_new_protected:Npn \hit@msword@layout:n #1
   {
     \group_begin:
-      \dim_set:Nn \l__hit_msword_head_dim { \headheight }
       \keys_set:nn { hit / msword } {#1}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{页眉盒高由页眉行高、\option{header}/\option{rule}/%
+%   \option{from-text} 与线宽算出来，不再手写}
+% 页眉盒高不是独立的量，它是三段之和：页眉那一行的自然行高、文字到横线的距离、
+% 横线本身。Word 那边横线是页眉段落的下边框，位置就是这么定的——跟着文字走，
+% 隔一个 \texttt{w:space}，再画线。所以这里照着算，别人手写一个数就失去了这层关系。
+%
+% 横线是 \texttt{thinThickSmallGap}：粗线取 \option{width}（Word 的 \texttt{w:sz}），
+% 间隙与细线各 0.75\,磅，比例由线型定义写死，Word 也不让改。
+%
+% 页眉一律小五，所以行高直接取小五。哪天页眉字号可配了，这一句跟着换。
+%    \begin{macrocode}
+      \dim_set:Nn \l__hit_msword_header_height_dim
+        {
+          \c__hit_format_natural_tl \c__hit_font_size_xiaowu_dim
+          + \l__hit_msword_rule_text_dim
+          + \l__hit_msword_rule_width_dim + 1.5bp
+        }
+      \dim_gset_eq:NN \g_hit_msword_foot_shift_x_dim
+        \l__hit_msword_foot_shift_x_dim
       \dim_set:Nn \l__hit_msword_text_width_dim
         {
           \l__hit_msword_paper_width_dim
@@ -272,16 +301,16 @@
           right = \dim_use:N \l__hit_msword_right_dim ,
           top = \dim_use:N \l__hit_msword_top_dim ,
           bottom = \dim_use:N \l__hit_msword_bottom_dim ,
-          head = \dim_use:N \l__hit_msword_head_dim ,
+          head = \dim_use:N \l__hit_msword_header_height_dim ,
           headsep = \dim_eval:n
             {
               \l__hit_msword_top_dim
-              - \l__hit_msword_header_dim - \l__hit_msword_head_dim
+              - \l__hit_msword_header_dim - \l__hit_msword_header_height_dim
             } ,
           footskip = \dim_eval:n
             {
               \l__hit_msword_bottom_dim
-              - \l__hit_msword_footer_dim - \l__hit_msword_foot_base_dim
+              - \l__hit_msword_footer_dim + \l__hit_msword_foot_shift_dim
             } ,
         }
     \group_end:
