@@ -133,7 +133,8 @@
     body ,
     chapter , section , subsection , subsubsection ,
     caption-figure , caption-table , caption-sub , abstract-heading ,
-    toc-chapter , toc-section , toc-subsection , toc-subsubsection
+    toc-chapter , toc-section , toc-subsection , toc-subsubsection ,
+    header , footer
   }
 \clist_map_inline:Nn \c__hit_format_target_clist
   {
@@ -1518,6 +1519,14 @@
 % 再补一个无衬线的条件——两个一起发是对的，汉字用黑体、西文用无衬线，
 % 与目录条目那边的 \cs{hit@chapter@entry@font} 同一个写法。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{\cs{hit@format@latin@sans:} 只发给四级标题}
+% 这一句是 \option{heading}/\option{font-en}\texttt{=sans} 那个兼容桥，读的标志位
+% 是标题专用的。从前 \cs{\_\_hit\_format\_build:n} 无条件发，四级标题之外的目标
+% 也会跟着变西文字体；页眉页脚进了 \option{format} 之后这一条就会串味，所以限制到
+% 四级标题。
+%    \begin{macrocode}
 \cs_new:Npn \hit@format@latin@sans:
   { \bool_if:NT \g__hit_heading_latin_sans_bool { \sffamily } }
 \cs_new_protected:Npn \__hit_format_build:n #1
@@ -1531,7 +1540,8 @@
         \tl_put_right:Nx \l__hit_format_out_tl
           { \exp_not:c { \l__hit_format_value_tl } }
       }
-    \tl_put_right:Nn \l__hit_format_out_tl { \hit@format@latin@sans: }
+    \clist_if_in:nnT { chapter , section , subsection , subsubsection } {#1}
+      { \tl_put_right:Nn \l__hit_format_out_tl { \hit@format@latin@sans: } }
     \__hit_format_pick:nnN {#1} { font-en } \c__hit_format_latin_prop
     \__hit_format_read:nnnN {#1} { size } { } \l__hit_format_value_tl
     \tl_if_empty:NF \l__hit_format_value_tl
@@ -1679,6 +1689,24 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@apply@headings:n #1
   { \clist_map_inline:nn {#1} { \hit@format@apply@heading:n {##1} } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{加 \cs{hit@format@apply@font:nN}，把一个目标算出来的
+%   排版命令存进一个宏}
+% \cs{hit@format@apply@font:nN}\marg{目标}\meta{宏} 把目标算出来的那串排版命令
+% 存进宏里，供不走 \pkg{ctex} 标题机制的地方用——页眉页脚就是这样，它们由
+% \pkg{fancyhdr} 排，收不到 \cs{ctexset}。目标是空的就不动那个宏，
+% 旧版面因此原样保留原有定义。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@apply@font:nN #1#2
+  {
+    \__hit_format_if_blank:nF {#1}
+      {
+        \hit@format@compute:n {#1}
+        \__hit_format_build:n {#1}
+        \cs_set_eq:NN #2 \l__hit_format_out_tl
+      }
+  }
 %    \end{macrocode}
 %
 % \subsection{接到正文上}
