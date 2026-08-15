@@ -382,7 +382,7 @@
 %
 % 标准没有专门的词，写任何等于零的长度就是。它与 \texttt{auto} 不同：
 % \texttt{auto} 是「这一项不设，跟着外层的字距走」，\texttt{0bp} 是
-% 「明确设成不加不减」，会把外层的字距挡住，见 \cs{\_\_hit\_format\_hglue:N}。
+% 「明确设成不加不减」，会把外层的字距挡住，见 \cs{\_\_hit\_format\_hglue\_cc:}。
 %
 % \emph{与 \option{line-spacing} 那个加号不是一回事。} \texttt{20bp+} 的加号
 % 在\emph{后面}，意思是「至少」；这里的加号在\emph{前面}，是数的正负号。
@@ -1558,23 +1558,36 @@
         \bool_if:NT \l_hit_format_hglue_set_bool
           {
             \exp_not:N \hit@format@hglue:nn
-              { \dim_eval:n { \__hit_format_hglue:N \g_hit_msword_glue_dim } }
-              { \dim_eval:n { \__hit_format_hglue:N \g_hit_msword_ecglue_dim } }
+              { \dim_eval:n { \__hit_format_hglue_cc: } }
+              { \dim_eval:n { \__hit_format_hglue_ec: } }
           }
         \exp_not:N \hit@format@strut:
       }
   }
 %    \end{macrocode}
 %
-% 一道胶的取值：吃网格就取网格那一份，不吃就取零，再加上
-% \option{char-spacing}。两项相加是 Word 的算法——\texttt{docGrid} 的字距被
+% 两道胶的取值。\cs{CJKglue} 是汉字之间的：吃网格就取网格那一份，不吃就取零，
+% 再加上 \option{char-spacing}。两项相加是 Word 的算法，\texttt{docGrid} 的字距被
 % \texttt{snapToGrid=0} 关掉，run 上的 \texttt{w:spacing} 照样生效，
 % 章标题正是这个情形（\texttt{snapToGrid=0} 且 \texttt{w:spacing=-4}）。
+%
+% \cs{CJKecglue} 是汉字与西文之间的，它是两截相加：网格那一份，加上 Word 的
+% 「自动调整中文与西文的间距」那一份（\texttt{w:autoSpaceDE}/\texttt{DN}，
+% \cs{g\_hit\_msword\_ecglue\_dim} 里算好的 0.225 格）。关掉网格只该去掉前一截，
+% 后一截跟网格无关，去掉了中西文之间就一点空隙都没有了。
 %    \begin{macrocode}
-\cs_new:Npn \__hit_format_hglue:N #1
+\cs_new:Npn \__hit_format_hglue_cc:
   {
-    \bool_if:NT \l_hit_format_snap_horizontal_bool { #1 + }
+    \bool_if:NT \l_hit_format_snap_horizontal_bool
+      { \g_hit_msword_glue_dim + }
     \l_hit_format_char_spacing_dim
+  }
+\cs_new:Npn \__hit_format_hglue_ec:
+  {
+    \g_hit_msword_ecglue_dim
+    \bool_if:NF \l_hit_format_snap_horizontal_bool
+      { - \g_hit_msword_glue_dim }
+    + \l_hit_format_char_spacing_dim
   }
 \cs_new_protected:Npn \__hit_format_pick:nnN #1#2#3
   {
@@ -1976,8 +1989,7 @@
         \dim_compare:nNnF { \g_hit_msword_char_dim } = { 0pt }
           {
             \hit@format@hglue:nn
-              { \__hit_format_hglue:N \g_hit_msword_glue_dim }
-              { \__hit_format_hglue:N \g_hit_msword_ecglue_dim }
+              { \__hit_format_hglue_cc: } { \__hit_format_hglue_ec: }
             \bool_if:NT \l_hit_format_snap_horizontal_bool
               {
                 \bool_if:NTF \l_hit_format_snap_vertical_bool
