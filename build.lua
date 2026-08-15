@@ -43,8 +43,7 @@ installfiles = {
   "hithesisbook.cls", "hithesisart.cls", "hithesisartplus.cls",
   "hithesis.sty",
   "hithesis.ist", "hithesis.bst", "hitszthesis.bst",
-  "hit-logo.pdf", "hit-weihai-bachelor-title.pdf",
-  "hit-bachelor-report-bottommark.pdf",
+  "hit-logo.pdf", "hit-bachelor-report-bottommark.pdf",
 }
 
 -- zfb.pdf（打赏二维码）与 golfer.pdf（插图样例）不进这里：它们是示例与手册的

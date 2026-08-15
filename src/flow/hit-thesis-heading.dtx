@@ -17,9 +17,17 @@
 %   迁到 expl3，四个重复的 \cs{ifboolexpr} 收敛成两个函数}
 % \cs{hit@title@font} 是标题字体，\cs{hit@chapter@entry@font} 是目录里章标题的字体
 % （注意别跟 \file{book-toc} 里的 \cs{hit@chapter@entry@font} 弄混，那个只在
-% \option{toc/sans-font} 打开时才定义）。\cs{hit@section@separator} 与
-% \cs{hit@section@separator@shenzhen} 是节号与节名之间的间隔，两者只差哈尔滨本科算不算进
-% \cs{quad}。四个都可展开，能直接写进 \cs{ctexset} 的取值。
+% \option{toc/sans-font} 打开时才定义）。\cs{hit@chapter@separator} 与
+% \cs{hit@section@separator} 是编号与标题之间的间隔，前者给章、后者给节以下三级。
+% 四个都可展开，能直接写进 \cs{ctexset} 的取值。
+%
+% \changes{v3.2a}{2026/08/16}{\cs{hit@section@separator@shenzhen} 改名
+%   \cs{hit@chapter@separator}，两个间隔的条件跟着本科三校区统一重写}
+% 原先这两个是同一个辅助函数的两次调用，参数是「哪些校区的本科算进 \cs{quad}」：
+% 章那一路写 \texttt{shenzhen}，节那一路写 \texttt{shenzhen} 或 \texttt{harbin}。
+% 深圳本科重定向到本部之后 \texttt{shenzhen} 与 \texttt{bachelor} 不可能同时成立，
+% 章那一路的条件恒假；本科三校区统一之后节那一路就是「本科」。两条各自写开，
+% 名字也跟着改：章那个不再与深圳有关，叫 \cs{hit@chapter@separator}。
 %    \begin{macrocode}
 %    \end{macrocode}
 %
@@ -47,25 +55,17 @@
   { \bool_if:NTF \g__hit_heading_latin_sans_bool { \sffamily } { \heiti } }
 \cs_new:Npn \hit@chapter@entry@font
   { \bool_if:NTF \g__hit_heading_latin_sans_bool { \sffamily \heiti } { \heiti } }
-\cs_new:Npn \__hit_section_separator:n #1
+\cs_new:Npn \hit@chapter@separator
+  { \hit@if@both@options@TF{harbin}{master}{\quad}{\enspace} }
+\cs_new:Npn \hit@section@separator
   {
     \bool_lazy_or:nnTF
       {
         \bool_lazy_and_p:nn
           { \bool_if_p:N \g__hit_harbin_bool } { \bool_if_p:N \g__hit_master_bool }
       }
-      { \bool_lazy_and_p:nn {#1} { \bool_if_p:N \g__hit_bachelor_bool } }
+      { \bool_if_p:N \g__hit_bachelor_bool }
       { \quad } { \enspace }
-  }
-\cs_new:Npn \hit@section@separator@shenzhen
-  { \__hit_section_separator:n { \bool_if_p:N \g__hit_shenzhen_bool } }
-\cs_new:Npn \hit@section@separator
-  {
-    \__hit_section_separator:n
-      {
-        \bool_lazy_or_p:nn
-          { \bool_if_p:N \g__hit_shenzhen_bool } { \bool_if_p:N \g__hit_harbin_bool }
-      }
   }
 %    \end{macrocode}
 % \begin{macro}{\hit@chapter@title@format}
@@ -311,7 +311,7 @@
 % \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
 % 本部硕士，深圳本科的序号与标题间距为两个半角空格，其余设置为一个半角空格，如果其他规范中有两个半角空格，欢迎提 \issue
 %    \begin{macrocode}
- aftername={\hit@after@number:nnn{chapter}{zh}{\hit@section@separator@shenzhen}},~
+ aftername={\hit@after@number:nnn{chapter}{zh}{\hit@chapter@separator}},~
 %    \end{macrocode}
 %
 % 添加本科生章标题加粗选项
