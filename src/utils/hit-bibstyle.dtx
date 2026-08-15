@@ -148,6 +148,32 @@
 % \option{backend} 写在同一组里，先后随意；分开写则必须先键后 \option{backend}，
 % 写反了有中文提示（见 \file{hit-messages.dtx} 的 bib-key-locked 一族）。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \begin{macro}{bib-punct}
+% \changes{v3.2a}{2026/08/16}{加 \option{bib-punct}\texttt{=half|full|by-lang}，
+%   默认 \texttt{full}：不分语种一律全角逗号冒号圆括号（句点恒半角带空格），
+%   照学校规范的示例；旧深圳版就是这个排法}
+% \option{bib-punct} 管著录表的标点宽度，三档：\texttt{full}（默认，不分语种
+% 一律全角逗号冒号圆括号方括号，句点恒半角带空格，学校规范的示例与旧深圳版
+% 都是这个排法）、\texttt{half}（一律半角，旧哈尔滨版的排法）、
+% \texttt{by-lang}（按条目语言，中文全角西文半角）。传统一线映射官方
+% \file{.bst} 的 \texttt{bibpunct} 三档（\texttt{GB}/\texttt{half}/%
+% \texttt{bylanguage}，控制通道在 \cs{bibliography} 当口才读）；biblatex
+% 一线的方括号由下面的补丁按此键分发。两条线都随设随生效，不锁时机。
+%    \begin{macrocode}
+\str_new:N \g__hit_bib_punct_str
+\str_gset:Nn \g__hit_bib_punct_str { full }
+\keys_define:nn { hit / bib }
+  {
+    bib-punct .choices:nn = { half , full , by-lang }
+      { \str_gset:NV \g__hit_bib_punct_str \l_keys_choice_tl } ,
+    bib-punct .value_required:n = true ,
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
 \str_new:N \g__hit_bib_backend_str
 \str_gset:Nn \g__hit_bib_backend_str { auto }
 \tl_new:N \g__hit_bib_style_used_tl
@@ -317,6 +343,9 @@
           {
             \exp_not:N \keys_set:nn { gbt7714 }
               {
+                bibpunct =
+                  \str_case:VnF \g__hit_bib_punct_str
+                    { { half } { half } { by-lang } { bylanguage } } { GB } ,
                 uppercasefamily =
                   \bool_if:NTF \g_bib_authorupper_bool { true } { false } ,
                 unknownpublisher =
@@ -363,9 +392,9 @@
 % \file{.bib} 里写的样子，与 \file{.bst} 一线的默认一致）、
 % \option{maximum-author} 对 \texttt{maxbibnames}/\texttt{minbibnames}
 % （\texttt{0} 表示不限，换成 999）、\option{label-align} 对
-% \texttt{gbalign}。标点宽度那个旋钮（\texttt{gbpunctwidth}）是
-% gb7714-\emph{2025} 样式才有的，2015 样式没有，biblatex 一线的标点宽度
-% 暂时对不齐 \file{.bst} 一线的 \texttt{bylanguage} 默认档，记为已知差异。
+% \texttt{gbalign}。标点宽度：逗号冒号那半在 2015 样式里没有旋钮
+% （\texttt{gbpunctwidth} 是 gb7714-\emph{2025} 才有的），\option{bib-punct}
+% 在 biblatex 一线只落到方括号补丁上，逗号冒号保持半角，记为已知差异。
 % gb 系选项认准 \cs{mkgbnumlabel} 在不在——用户点名
 % 别家样式（比如 apa）时这些选项不存在，塞过去要报错。
 %
@@ -388,6 +417,68 @@
 % \cs{@onlypreamble} 表，内核在 \cs{document} 收尾处统一禁用
 % （\cs{@preamblecmds}，晚于 \texttt{begindocument} 钩子），要排在那之后
 % 才盖得回来。
+%
+% \begin{macro}{\hit@bib@patch@brackets:}
+% \changes{v3.2a}{2026/08/16}{biblatex 一线不 fork 样式文件，运行时补丁把
+%   著录里的方括号接到 \option{bib-punct} 上}
+% biblatex 一线的方括号补丁。gb7714-2015 的 bbx 把著录里所有方括号（类型标、
+% 访问日期、序号标签的缺省形）都收口在 \pkg{biblatex} 内核的
+% \cs{bibleftbracket}/\cs{bibrightbracket} 一对宏上，补丁只动这两个名字，
+% 不动样式文件。分发看 \option{bib-punct} 的现值：\texttt{full} 全角、
+% \texttt{half} 走存下来的原定义、\texttt{by-lang} 按条目语言（bbx 用
+% biber 的 sourcemap 把语言标进 \texttt{userd} 域，排版时逐条可查）。
+% 现值是排版时才读的，键随设随生效。引用标签的方括号（\cs{gbleftbracket}
+% 一族）不动——传统一线的引用标签也是半角，两边一致。
+% 句点不用补：2015 样式本来就是半角加空格。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@if@cjk@entry:TF #1#2
+  {
+    \ifboolexpr
+      {
+        test { \iffieldequalstr { userd } { chinese } } or
+        test { \iffieldequalstr { userd } { japanese } } or
+        test { \iffieldequalstr { userd } { korean } }
+      }
+      {#1} {#2}
+  }
+\cs_new_protected:Npn \hit@bib@patch@brackets:
+  {
+    \cs_if_exist:NF \__hit_bib_lbracket_std:
+      {
+        \cs_new_eq:NN \__hit_bib_lbracket_std: \bibleftbracket
+        \cs_new_eq:NN \__hit_bib_rbracket_std: \bibrightbracket
+      }
+    \cs_set_protected:Npn \bibleftbracket
+      {
+        \str_if_eq:VnTF \g__hit_bib_punct_str { half }
+          { \__hit_bib_lbracket_std: }
+          {
+            \str_if_eq:VnTF \g__hit_bib_punct_str { full }
+              { \blx@postpunct ［ }
+              {
+                \hit@bib@if@cjk@entry:TF
+                  { \blx@postpunct ［ } { \__hit_bib_lbracket_std: }
+              }
+          }
+      }
+    \cs_set_protected:Npn \bibrightbracket
+      {
+        \str_if_eq:VnTF \g__hit_bib_punct_str { half }
+          { \__hit_bib_rbracket_std: }
+          {
+            \str_if_eq:VnTF \g__hit_bib_punct_str { full }
+              { \blx@postpunct ］ \midsentence }
+              {
+                \hit@bib@if@cjk@entry:TF
+                  { \blx@postpunct ］ \midsentence }
+                  { \__hit_bib_rbracket_std: }
+              }
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_bib_body_bibliography:n #1 { \printbibliography }
 \cs_new_protected:Npn \__hit_bib_body_style:n #1
@@ -416,6 +507,7 @@
         \bool_if:NTF \g__hit_bib_slsn_bool
           { \ExecuteBibliographyOptions { gbpub = true } }
           { \ExecuteBibliographyOptions { gbpub = false } }
+        \hit@bib@patch@brackets:
       }
     \int_compare:nNnTF \g_bib_maxauthor_int < 0
       { \ExecuteBibliographyOptions { maxbibnames = 999 , minbibnames = 999 } }
