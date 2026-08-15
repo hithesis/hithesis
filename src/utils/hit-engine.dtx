@@ -237,6 +237,36 @@
   }
 %    \end{macrocode}
 %
+% \subsection{段末撑杆前的断点封条}
+%
+% \changes{v3.2a}{2026/08/16}{加 \cs{hit@engine@parend@guard:}。\pkg{luatexja} 在
+%   段末标点与撑杆之间插可断的边界胶，末行排满时 TeX 在那儿断出一个只有撑杆的
+%   空行；\hologo{XeLaTeX} 下无此断点，也就无此空行}
+% \cs{hit@engine@parend@guard:} 排在 \texttt{para/end} 钩子里、段末撑杆
+% \cs{hit@format@strut:} 之前，把撑杆焊在段落最后一个字上。\hologo{XeLaTeX} 下
+% 是空操作——那边本来就是焊死的。
+%
+% \textbf{病灶。} 段末的水平列表是「\dots 。\meta{撑杆}\cs{penalty}~10000
+% \cs{parfillskip}」。\pkg{xeCJK} 在句号与撑杆之间什么都不放，撑杆离不开末行。
+% \pkg{luatexja} 会在和文字符与后续节点之间插一段 JFM 边界胶——句号（JFM 里是
+% 半宽字形）后面是「\cs{glue}~6.02\,pt~minus~6.02\,pt」，这段胶是合法断点。
+% 于是当段落末行恰好排满时，TeX 有两个选择：把「边界胶＋撑杆＋\cs{parfillskip}」
+% 压上末行，或在边界胶处断行——断出来的新行只有撑杆和 \cs{parfillskip}，
+% badness 为零，总是胜出。结果是段与段之间凭空多出一行空白，高度正好一个
+% \cs{baselineskip}（撑杆的高深）。末行差一点排满时是另一副面孔：那段
+% minus 胶被压光，句号收成半宽、整行两端撑满，而 \hologo{XeLaTeX} 是自然宽度加
+% \cs{parfillskip} 补白。
+%
+% \textbf{封条是 \cs{ltjfakeboxbdd}。} 它告诉 \pkg{luatexja}「此处按盒子边界
+% 处理」：盒末的尾随边界胶本来就不插（\cs{hbox} 实测如此），于是句号与撑杆之间
+% 不再有断点，两种病症一起消失。段落以普通汉字收尾时 JFM 本来就不在字与撑杆之间
+% 插胶，没病也不受影响；只有以标点收尾的段落走到这条上。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  { \cs_new_protected:Npn \hit@engine@parend@guard: { \ltjfakeboxbdd } }
+  { \cs_new_protected:Npn \hit@engine@parend@guard: { } }
+%    \end{macrocode}
+%
 % \subsection{装载基础类之后要补的两件事}
 %
 % \cs{hit@engine@postload:} 由两个 \file{*-deps.dtx} 调用。本文件整体排在
