@@ -234,6 +234,65 @@
 %    \end{macrocode}
 %
 % 取值不在名单里就报一句，键名与取值都印出来。
+% \begin{macro}{\__hit_format_white:nn}
+% 白距的取值：一个长度是刚性，两个长度是区间。词数就是区别，\option{format}
+% 本来就按词解析（\texttt{2 chars}、\texttt{exactly 25bp} 都是多词），不另起机制。
+%
+% 两个长度不分先后，谁大谁小由代码判，写 \texttt{8mm~7mm} 与 \texttt{7mm~8mm}
+% 一个意思。单位也不限死毫米，任何 \hologo{TeX} 长度都收——默认表用毫米只是
+% 因为规范是按毫米给的。
+%
+% 存的时候仍旧拆成 \texttt{-min} 与 \texttt{-max} 两项，算伸缩量那一头不用改。
+%    \begin{macrocode}
+\seq_new:N \l__hit_format_white_seq
+\cs_new_protected:Npn \__hit_format_white:nn #1#2
+  {
+    \str_if_eq:nnTF {#2} { auto }
+      {
+        \__hit_format_put:nn { #1 -min } { auto }
+        \__hit_format_put:nn { #1 -max } { auto }
+      }
+      { \__hit_format_white_aux:nn {#1} {#2} }
+  }
+\cs_new_protected:Npn \__hit_format_white_aux:nn #1#2
+  {
+    \seq_set_split:Nnn \l__hit_format_white_seq { ~ } {#2}
+    \seq_remove_all:Nn \l__hit_format_white_seq { }
+    \int_case:nnF { \seq_count:N \l__hit_format_white_seq }
+      {
+        { 1 }
+          {
+            \__hit_format_white_put:nnn {#1}
+              { \seq_item:Nn \l__hit_format_white_seq { 1 } }
+              { \seq_item:Nn \l__hit_format_white_seq { 1 } }
+          }
+        { 2 }
+          {
+            \dim_compare:nNnTF
+              { \seq_item:Nn \l__hit_format_white_seq { 1 } } >
+              { \seq_item:Nn \l__hit_format_white_seq { 2 } }
+              {
+                \__hit_format_white_put:nnn {#1}
+                  { \seq_item:Nn \l__hit_format_white_seq { 2 } }
+                  { \seq_item:Nn \l__hit_format_white_seq { 1 } }
+              }
+              {
+                \__hit_format_white_put:nnn {#1}
+                  { \seq_item:Nn \l__hit_format_white_seq { 1 } }
+                  { \seq_item:Nn \l__hit_format_white_seq { 2 } }
+              }
+          }
+      }
+      { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {#2} }
+  }
+\cs_new_protected:Npn \__hit_format_white_put:nnn #1#2#3
+  {
+    \__hit_format_put:nn { #1 -min } { \dim_eval:n {#2} }
+    \__hit_format_put:nn { #1 -max } { \dim_eval:n {#3} }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_enum:nnn #1#2#3
   {
@@ -357,8 +416,7 @@
     indent-right .code:n = { \__hit_format_amount:nnn { indent-right } { chars } {#1} } ,
     indent-special .code:n = { \__hit_format_indent_special:n {#1} } ,
     line-spacing .code:n = { \__hit_format_line_spacing:n {#1} } ,
-    line-white-min .code:n = { \__hit_format_put:nn { line-white-min } {#1} } ,
-    line-white-max .code:n = { \__hit_format_put:nn { line-white-max } {#1} } ,
+    line-white .code:n = { \__hit_format_white:nn { line-white } {#1} } ,
     space-before .code:n = { \__hit_format_amount:nnn { space-before } { line } {#1} } ,
     space-after  .code:n = { \__hit_format_amount:nnn { space-after } { line } {#1} } ,
     bold           .code:n = { \__hit_format_bool:nn { bold } {#1} } ,
