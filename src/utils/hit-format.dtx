@@ -1751,6 +1751,41 @@
 %    \end{macrocode}
 % \end{macro}
 %
+% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@penalties:}，孤行寡行的四个罚分
+%   归零，与 Word 的\enquote{孤行控制关闭}一致}
+% \begin{macro}{\hit@format@penalties:}
+% 范例的 Normal 样式写着 \texttt{<w:widowControl w:val="0"/>}，全文 566 个段落
+% 没有一个在段级覆盖它，也就是孤行寡行控制全程关闭：段首一行单独留在页底、
+% 段末一行单独跑到下页页顶，Word 都不拦。
+%
+% \hologo{TeX} 这边管这件事的是四个罚分，含义各不相同：\cs{clubpenalty} 是在段落
+% 第一行之后断页，\cs{widowpenalty} 是在段落最后一行之前断页，
+% \cs{displaywidowpenalty} 是公式前那几行的寡行，\cs{brokenpenalty} 是在一个
+% 断字的行之后断页。后两个 Word 根本没有对应的概念。四个一律归零。
+%
+% \cs{clubpenalty} 其实早就对齐了。\hologo{LaTeX} 内核的 \cs{@afterheading} 写的是
+% \cs{clubpenalty}\cs{@M}，标题后头一行之后禁止断页；
+% \file{src/flow/hit-thesis-heading.dtx} 把它改成了 1，第一个标题之后就一直是 1。
+% 那句是 \cs{everypar} 里的局部赋值，而那一层组就是 document，所以设完不还原。
+% 这里再设一次零只管第一个标题之前那一段，1 与 0 实际没有分别。不去动
+% \cs{@afterheading} 里那个 1，是因为旧版面也走同一条路，改了会把旧版面一起动了。
+%
+% 范例上实测这一步不改变任何一页：\cs{tracingpages} 里带 \texttt{p=150} 的候选
+% 断点有 110 个，罚分是真加上去了，但一次都没改变最终选中的那个断点——页面通常
+% 有几个点可伸，badness 落在几十的量级，150 顶不过后面那个不带罚分的候选。
+% 归零是为了别人的稿子：范例没炸不等于用户的稿子不炸。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@penalties:
+  {
+    \int_set:Nn \clubpenalty { 0 }
+    \int_set:Nn \@clubpenalty { 0 }
+    \int_set:Nn \widowpenalty { 0 }
+    \int_set:Nn \displaywidowpenalty { 0 }
+    \int_set:Nn \brokenpenalty { 0 }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@apply@body:
   {
@@ -1765,6 +1800,7 @@
         \bool_set_eq:NN \l_hit_format_line_snap_bool \l_hit_format_snap_bool
         \dim_set_eq:NN \topskip \g_hit_body_first_dim
         \hit@format@reserve@depth:
+        \hit@format@penalties:
         \normalsize
         \ctexset { autoindent = false }
         \dim_set_eq:NN \parindent \g_hit_body_indent_dim
