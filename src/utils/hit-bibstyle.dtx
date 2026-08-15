@@ -36,8 +36,13 @@
 %    \begin{macrocode}
 %<*shared-bibstyle>
 
+%    \end{macrocode}
+% \changes{v3.2a}{2026/08/16}{西文姓氏默认全大写。\file{.bst} 换官方底座后
+%   跟官方 \texttt{uppercasefamily=true} 的默认走，biblatex 一线的
+%   \texttt{gbnamefmt} 映射随标志位一起翻}
+%    \begin{macrocode}
 \bool_new:N \g_bib_authorupper_bool
-\bool_set_false:N \g_bib_authorupper_bool
+\bool_set_true:N \g_bib_authorupper_bool
 \keys_define:nn { hit / class }
   {
     bibauthorupper .code:n =
@@ -260,17 +265,19 @@
 % \changes{v3.2a}{2026/08/16}{加 \option{show-sl-sn}：出版地或出版者缺失时
 %   补不补「不详」占位，默认补。biblatex 一线原先跟着 gbpub 的默认不补，
 %   与 \file{.bst} 一线对不上，顺带扯平}
-% \option{show-sl-sn}\texttt{=true|false}：文献缺出版地或出版者时补不补
+% \option{show-sl-sn}（\texttt{true}／\texttt{false}）：文献缺出版地或出版者时补不补
 % ［出版地不详］（sine~loco）与［出版者不详］（sine~nomine）。国标要补，
 % 默认 \texttt{true}。名字取自 kebab-biblatex-gb7714 的同义键。
 %
 % 落实分两线：biblatex 一线在装载时换算成 \pkg{biblatex-gb7714-2015} 的
 % \texttt{gbpub}——注意那边默认是 \texttt{false}（不补），跟 \file{.bst}
-% 一线写死的「恒补」对不上，所以这里无论用户设没设都显式发一次，两线默认
-% 才一致。传统一线的对应物是官方 gbt7714~v3 的 \texttt{unknownpublisher}
-% （走 aux 控制通道给 \file{.bst} 读），可我们的 fork 没有这条通道、补白
-% 写死在 \file{src/hit-bst.dtx} 里，关不掉——\texttt{false} 只在 biblatex
-% 一线生效，传统一线在导言区末尾给一条提示。
+% 一线的「按国标补」对不上，所以这里无论用户设没设都显式发一次，两线默认
+% 才一致。
+%
+% \changes{v3.2a}{2026/08/16}{\file{.bst} 换官方底座后传统一线也可关：走
+%   \texttt{unknownpublisher} 控制通道下发，见 \cs{hit@bib@forward@ctl:}}
+% 传统一线走官方 gbt7714~v3 的 \texttt{unknownpublisher}（控制通道，见
+% \cs{hit@bib@forward@ctl:}），两线都真实可开可关。
 %    \begin{macrocode}
 \bool_new:N \g__hit_bib_slsn_bool
 \bool_gset_true:N \g__hit_bib_slsn_bool
@@ -285,28 +292,60 @@
       } ,
     show-sl-sn .default:n = true ,
   }
-\AddToHook { begindocument / before }
-  {
-    \bool_if:NF \g__hit_bib_slsn_bool
-      {
-        \@ifpackageloaded { biblatex } { }
-          { \msg_warning:nn { hithesis } { bib-sl-sn-bst-fixed } }
-      }
-  }
 %    \end{macrocode}
 % \end{macro}
 %
-% \begin{macro}{\hit@bib@print:}
+% \begin{macro}{\hit@bib@print:,\hit@bib@forward@ctl:}
 % 排文献表的总出口，两个类的 \cs{hitbackmatter} 流程都走它：\pkg{biblatex}
 % 装了就 \cs{printbibliography}，没装就是原来那两句 \cs{bibliographystyle} 加
 % \cs{bibliography}。判据直接看宏包在不在，不看 \option{backend} 的字面值，
 % 免得「用户自己装了 biblatex 而没写键」这一档跟状态记录对不上。
+%
+% \changes{v3.2a}{2026/08/16}{传统一线的键改走官方 \pkg{gbt7714} 的控制通道下发，
+%   \file{.bst} 换底座后 \cs{bibauthor} 那套回调不再被调用}
+% 传统一线排之前先把键下发给官方通道：\pkg{gbt7714.sty} 把这些选项写成一个
+% \texttt{-BSTcontrol} 控制文件、挂进 \cs{bibliography} 的库表，官方底座的
+% \file{.bst} 从那里读。控制文件在 \cs{bibliography} 执行的当口才写，所以这些
+% 键在传统一线什么时候设都来得及，不用锁。\texttt{0}（不限）换成 999。
+% 报告类只装 \pkg{natbib} 没有这条通道，吃 \file{.bst} 内置默认。
 %    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@forward@ctl:
+  {
+    \@ifpackageloaded { gbt7714 }
+      {
+        \use:e
+          {
+            \exp_not:N \keys_set:nn { gbt7714 }
+              {
+                uppercasefamily =
+                  \bool_if:NTF \g_bib_authorupper_bool { true } { false } ,
+                unknownpublisher =
+                  \bool_if:NTF \g__hit_bib_slsn_bool { true } { false } ,
+                maxbibnames =
+                  \int_compare:nNnTF \g_bib_maxauthor_int < 0
+                    { 999 } { \int_use:N \g_bib_maxauthor_int } ,
+                minbibnames =
+                  \int_compare:nNnTF \g_bib_maxauthor_int < 0
+                    { 999 } { \int_use:N \g_bib_maxauthor_int }
+                \int_compare:nNnF \g__hit_bib_maxcite_int = { -2 }
+                  {
+                    , maxcitenames =
+                      \int_compare:nNnTF \g__hit_bib_maxcite_int < 0
+                        { 999 } { \int_use:N \g__hit_bib_maxcite_int } ,
+                    mincitenames =
+                      \int_compare:nNnTF \g__hit_bib_maxcite_int < 0
+                        { 999 } { \int_use:N \g__hit_bib_maxcite_int }
+                  }
+              }
+          }
+      } { }
+  }
 \cs_new_protected:Npn \hit@bib@print:
   {
     \@ifpackageloaded { biblatex }
       { \printbibliography }
       {
+        \hit@bib@forward@ctl:
         \exp_args:NV \bibliographystyle \g__hit_bib_style_tl
         \exp_args:Nv \bibliography { g__hit_structure_bibliography_tl }
       }

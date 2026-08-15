@@ -575,10 +575,11 @@
 %   \option{label-align}、\option{split-item} 没进过发布版，直接撤}
 % \option{compress-min} 是「相邻连续序号几个起压成区间」：\texttt{2} 排
 % \texttt{[1-2]}（默认），\texttt{3} 排 \texttt{[1,2]}，三个起总归压。两条线
-% 都认：传统一线落到 \option{citetwo} 那对标志位（\pkg{natbib} 补丁读它，见
-% \file{src/flow/hit-thesis-hyperlink.dtx}），biblatex 一线落到
-% \pkg{gb7714-2015} 的 \texttt{gbrefcompress} 计数器——那是加载后命令通道，
-% 不锁时机，随设随生效。
+% 都认，落点都是官方机制：传统一线转发给 \pkg{gbt7714.sty} 的
+% \texttt{mincompress}（v3.2a 起，原先自家打的 \pkg{natbib} 补丁退役），
+% biblatex 一线落到 \pkg{gb7714-2015} 的 \texttt{gbrefcompress} 计数器。
+% 两边都不锁时机，随设随生效；旧类选项 \option{citetwo} 的那对标志位并进
+% 同一个取值函数，两条线都认它。
 %
 % \option{uppercase-family}（\texttt{true} 著者姓名全大写即国标排法、
 % \texttt{false} 保持 \file{.bib} 原样）、\option{max-bib-names}（文献表里
@@ -590,15 +591,34 @@
 % 不用守。
 %    \begin{macrocode}
 \int_new:N \g__hit_cite_compress_int
+\cs_new:Npn \__hit_bib_compress_effective:
+  {
+    \int_compare:nNnTF \g__hit_cite_compress_int > 0
+      { \int_use:N \g__hit_cite_compress_int }
+      {
+        \bool_if:NTF \g__hit_citetwo_comma_bool { 3 }
+          { \bool_if:NTF \g__hit_citetwo_endash_bool { 2 } { 0 } }
+      }
+  }
 \cs_new_protected:Npn \hit@bib@cite@compress@apply:
   {
-    \int_compare:nNnF \g__hit_cite_compress_int = 0
+    \int_compare:nNnF { \__hit_bib_compress_effective: } = 0
       {
         \@ifpackageloaded { biblatex }
           {
             \cs_if_exist:cT { c@gbrefcompress }
-              { \setcounter { gbrefcompress } { \g__hit_cite_compress_int } }
-          } { }
+              { \setcounter { gbrefcompress } { \__hit_bib_compress_effective: } }
+          }
+          {
+            \@ifpackageloaded { gbt7714 }
+              {
+                \use:e
+                  {
+                    \exp_not:N \keys_set:nn { gbt7714 }
+                      { mincompress = \__hit_bib_compress_effective: }
+                  }
+              } { }
+          }
       }
   }
 \keys_define:nn { hit / bib }
