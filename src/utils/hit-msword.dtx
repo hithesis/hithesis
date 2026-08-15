@@ -108,7 +108,6 @@
 % \texttt{sp}（$1/65536$\,pt），一个缇存进去差 0.09\,sp，乘上四百多倍就差到
 % $0.001$\,\texttt{bp}，排出来的行距对不上整数缇。
 %    \begin{macrocode}
-\tl_const:Nn \c__hit_msword_ecglue_tl { 0.225 }
 \int_const:Nn \c__hit_msword_twip_int { 144000 }
 \int_const:Nn \c__hit_msword_point_int { 7227 }
 %    \end{macrocode}
@@ -117,9 +116,7 @@
 %    \begin{macrocode}
 \dim_new:N \g_hit_msword_lead_dim
 \dim_new:N \g_hit_msword_char_dim
-\dim_new:N \g_hit_msword_glue_dim
-\dim_new:N \g_hit_msword_slack_dim
-\dim_new:N \g_hit_msword_ecglue_dim
+\int_new:N \g_hit_msword_cells_int
 %    \end{macrocode}
 %
 %    \begin{macrocode}
@@ -137,12 +134,10 @@
 \dim_new:N \l__hit_msword_foot_shift_dim
 \dim_new:N \l__hit_msword_foot_shift_x_dim
 \dim_new:N \g_hit_msword_foot_shift_x_dim
-\dim_new:N \l__hit_msword_size_dim
 \dim_new:N \l__hit_msword_lead_dim
 \dim_new:N \l__hit_msword_char_dim
 \dim_new:N \l__hit_msword_text_width_dim
 \dim_new:N \l__hit_msword_text_height_dim
-\dim_new:N \l__hit_msword_slack_dim
 \int_new:N \l__hit_msword_lines_int
 \int_new:N \l__hit_msword_chars_int
 \int_new:N \l__hit_msword_cells_int
@@ -170,8 +165,6 @@
     header-rule-from-text .initial:n = { 1bp } ,
     footer-shift-vertical .dim_set:N = \l__hit_msword_foot_shift_dim ,
     footer-shift-vertical .initial:n = { 0pt } ,
-    size           .dim_set:N = \l__hit_msword_size_dim ,
-    size           .initial:n = { 12bp } ,
     line-pitch     .dim_set:N = \l__hit_msword_lead_dim ,
     line-pitch     .initial:n = { 0pt } ,
     char-pitch     .dim_set:N = \l__hit_msword_char_dim ,
@@ -257,19 +250,16 @@
         { \msg_error:nn { hithesis } { msword-no-pitch } }
       \dim_gset_eq:NN \g_hit_msword_lead_dim \l__hit_msword_lead_dim
       \dim_gset_eq:NN \g_hit_msword_char_dim \l__hit_msword_char_dim
-      \dim_gset:Nn \g_hit_msword_glue_dim
-        { \l__hit_msword_char_dim - \l__hit_msword_size_dim }
-      \dim_gset:Nn \g_hit_msword_ecglue_dim
-        {
-          \g_hit_msword_glue_dim
-          + \c__hit_msword_ecglue_tl \l__hit_msword_char_dim
-        }
 %    \end{macrocode}
 %
-% 第七条那点余量。整行放得下 $n$ 个字，$n$ 个字连着排占 $n$ 个字号加 $n-1$ 段
-% 字距胶，版心宽减掉它就是余量。字距没给就没有网格，余量是零。
+% \changes{v3.2a}{2026/08/16}{余量的算法挪进 \file{src/utils/hit-format.dtx}，
+%   这里只出「一行放得下几个格」}
+% 一行放得下几个格，只跟版心宽与字距有关，是版面的量。余量还要减掉正文字号，
+% 那个数由 \option{format}/\option{body}/\option{size} 定，所以算法挪去 format，
+% 见 \cs{hit@format@slack:}。
+% 字距没给就没有网格，格数是零。
 %    \begin{macrocode}
-      \dim_zero:N \l__hit_msword_slack_dim
+      \int_zero:N \l__hit_msword_cells_int
       \dim_compare:nNnF { \l__hit_msword_char_dim } = { 0pt }
         {
           \int_set:Nn \l__hit_msword_cells_int
@@ -283,16 +273,8 @@
                     )
                 }
             }
-          \dim_set:Nn \l__hit_msword_slack_dim
-            {
-              \l__hit_msword_text_width_dim
-              - \l__hit_msword_cells_int \l__hit_msword_size_dim
-            }
-          \int_decr:N \l__hit_msword_cells_int
-          \dim_sub:Nn \l__hit_msword_slack_dim
-            { \l__hit_msword_cells_int \g_hit_msword_glue_dim }
         }
-      \dim_gset_eq:NN \g_hit_msword_slack_dim \l__hit_msword_slack_dim
+      \int_gset_eq:NN \g_hit_msword_cells_int \l__hit_msword_cells_int
       \tl_gset:Nx \g__hit_msword_geometry_tl
         {
           paperwidth = \dim_use:N \l__hit_msword_paper_width_dim ,
