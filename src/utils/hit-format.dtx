@@ -954,11 +954,16 @@
 %
 % 量出来的关系是（\file{testfiles/61-format-white-skip.lvt} 逐条对着）
 % \begin{quote}
-%   块间基线距 = （上块行距 − 上块上升部）+ 下块上升部 + 段前段后
+%   块间基线距 = max（正文行距，上块深度 + 下块上升部）+ 段前段后
 % \end{quote}
-% 中间没有行间胶：撑杆已经把两块的行盒撑到 Word 的尺寸，\hologo{TeX} 自己那份
-% \cs{baselineskip} 胶在这里不起作用。上升部用的是排版这一头的
+% 上块深度是上块行距减上块上升部，上升部用的是排版这一头的
 % $1.008 \times 字号 + 0.082$\,bp，不是墨迹那一头。
+%
+% 里头那个 \texttt{max} 是 \hologo{TeX} 的行间胶：两块的行盒接起来还不够正文
+% 的 \cs{baselineskip} 高时，它把差额补上。标题的行盒一般比正文高，补不上，
+% 所以多数时候取的是后一项；款、项标题的行距比正文小，它的下距就要扣掉这一段。
+% 定行间胶的是外层那个 \cs{baselineskip}，也就是正文的，不是标题自己的——
+% 节标题上距那一处量出来是 22.477\,bp 而不是节标题行距 24.316\,bp，就是这个缘故。
 %
 % 视觉白与基线距差两块的墨迹：
 % \begin{quote}
@@ -990,40 +995,46 @@
 \tl_const:Nn \c__hit_format_ink_descent_tl { 0.0927 }
 \clist_const:Nn \c__hit_format_pagetop_clist { chapter }
 \dim_new:N \l__hit_format_block_dim
+\dim_new:N \l__hit_format_base_dim
 \cs_new_protected:Npn \__hit_format_block_up:nn #1#2
   {
-    \dim_add:Nn \l__hit_format_block_dim
-      {
-        \c__hit_format_ink_descent_tl #1
-        + \c__hit_format_ascent_tl #1 + \c__hit_format_ascent_dim
-        - #2
-      }
+    \dim_add:Nn \l__hit_format_block_dim { \c__hit_format_ink_descent_tl #1 }
+    \dim_add:Nn \l__hit_format_base_dim
+      { #2 - \c__hit_format_ascent_tl #1 - \c__hit_format_ascent_dim }
   }
 \cs_new_protected:Npn \__hit_format_block_down:n #1
   {
-    \dim_add:Nn \l__hit_format_block_dim
-      {
-        \c__hit_format_ink_ascent_tl #1
-        - \c__hit_format_ascent_tl #1 - \c__hit_format_ascent_dim
-      }
+    \dim_add:Nn \l__hit_format_block_dim { \c__hit_format_ink_ascent_tl #1 }
+    \dim_add:Nn \l__hit_format_base_dim
+      { \c__hit_format_ascent_tl #1 + \c__hit_format_ascent_dim }
+  }
+\cs_new_protected:Npn \__hit_format_block_lead:
+  {
+    \dim_compare:nNnT { \l__hit_format_base_dim } < { \g_hit_body_lead_dim }
+      { \dim_set_eq:NN \l__hit_format_base_dim \g_hit_body_lead_dim }
   }
 \cs_new_protected:Npn \__hit_format_block:nn #1#2
   {
     \dim_zero:N \l__hit_format_block_dim
+    \dim_zero:N \l__hit_format_base_dim
     \str_if_eq:nnTF {#2} { before }
       {
-        \clist_if_in:NnF \c__hit_format_pagetop_clist {#1}
+        \clist_if_in:NnTF \c__hit_format_pagetop_clist {#1}
+          { \__hit_format_block_down:n { \l_hit_format_size_dim } }
           {
             \__hit_format_block_up:nn
               { \g_hit_body_size_dim } { \g_hit_body_lead_dim }
+            \__hit_format_block_down:n { \l_hit_format_size_dim }
+            \__hit_format_block_lead:
           }
-        \__hit_format_block_down:n { \l_hit_format_size_dim }
       }
       {
         \__hit_format_block_up:nn
           { \l_hit_format_size_dim } { \l_hit_format_lead_dim }
         \__hit_format_block_down:n { \g_hit_body_size_dim }
+        \__hit_format_block_lead:
       }
+    \dim_sub:Nn \l__hit_format_block_dim { \l__hit_format_base_dim }
   }
 %    \end{macrocode}
 % \end{macro}
