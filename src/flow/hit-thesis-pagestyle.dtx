@@ -53,18 +53,45 @@
 %
 % 段落钩子上那根撑杆管不到这里：\pkg{fancyhdr} 把页眉排在 \cs{parbox} 里，
 % \cs{@parboxrestore} 会清掉 \cs{everypar}，钩子不发。
+%
+% \changes{v3.2a}{2026/08/15}{页眉横线左右各外伸 1.56\,bp，与范例的段落边框对齐}
+% 那两条线比版心宽：左右各外伸 1.56\,bp。Word 里页眉的横线是段落的下边框，
+% 边框会伸出段落左右各一小段，范例在 300\,ppi 下量出来两边各 6.5 个像素，
+% 折 1.56\,bp。\cs{headwidth} 是 \pkg{fancyhdr} 的宽度，等于版心宽，
+% 所以横线要单独加宽再往左挪回去，页眉文字的宽度不受影响。
+%
+% 加宽的写法是定宽 \cs{hbox} 里放一条更宽的 \cs{vrule}，两边各一个 \cs{hss}
+% 把溢出吸掉。盒子对外仍报 \cs{headwidth}，页眉不会报 Overfull；换成
+% \cs{vbox} 加 \cs{moveleft} 的话，盒子的宽度是内容的宽度，整个页眉块跟着变宽
+% 1.56\,pt，每一页都报一次 Overfull。
+%
+% 前后各加一个 \cs{nointerlineskip}：盒子会引来行间胶，\cs{hrule} 不会。
+% 不加的话整条线往下掉十四个磅，300\,ppi 下六十一个像素。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@head@strut: { }
 \cs_new_protected:Npn \hit@head@font { \xiaowu [ 0 ] \hit@head@strut: }
+\dim_const:Nn \c__hit_head_rule_over_dim { 1.56bp }
 \cs_new_protected:Npn \hit@thesis@head@rule
   {
     \cs_set:Npn \headrule
       {
         \vskip 1.190132pt
-        \hrule \@height 2.276208pt \@width \headwidth
+        \hit@head@rule:n { 2.276208pt }
         \vskip 0.75pt
-        \hrule \@height .75pt \@width \headwidth
+        \hit@head@rule:n { .75pt }
       }
+  }
+\cs_new_protected:Npn \hit@head@rule:n #1
+  {
+    \nointerlineskip
+    \hbox to \headwidth
+      {
+        \hss
+        \vrule \@height #1 \@depth \z@
+          \@width \dim_eval:n { \headwidth + 2 \c__hit_head_rule_over_dim }
+        \hss
+      }
+    \nointerlineskip
   }
 \cs_new_protected:Npn \hit@page@number@plain { \thepage }
 \cs_new_protected:Npn \hit@page@number@decorated
