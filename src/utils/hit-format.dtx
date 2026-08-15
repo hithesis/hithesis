@@ -414,9 +414,34 @@
 \cs_generate_variant:Nn \str_case:nnF { VnF }
 %    \end{macrocode}
 %
-% \option{space-before}、\option{space-after} 收 \texttt{1 line} 或长度；
-% \option{indent-left}、\option{indent-right} 收 \texttt{2 chars} 或长度。两种都是
-% 数在前、单位词在后，只有单位词不同，所以走同一个解析器。
+% \changes{v3.2a}{2026/08/15}{加 \option{white-before} 与 \option{white-after}，
+%   与 \option{space-before}、\option{space-after} 存进同一个槽}
+% \option{space-before} 与 \option{white-before} 说的是同一段间距：前者按行数或
+% 长度给，后者按视觉白给。所以两个键存进同一个槽，同一个目标里都写了就报错，
+% 按后写的算。\option{space-after} 与 \option{white-after} 同理。
+%
+% 走 \option{space-before} 这一路时把区间的第二个端点抹掉：\texttt{1~line} 是
+% 「数加单位词」两个词，不是两个端点。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_space:nn #1#2
+  {
+    \__hit_format_claim:nn {#1} {#1}
+    \str_if_eq:nnTF {#2} { auto }
+      {
+        \clist_map_inline:nn { , -unit , -2 , -2-unit }
+          { \__hit_format_put:nn { #1 ##1 } { auto } }
+      }
+      {
+        \__hit_format_amount:nnn {#1} { line } {#2}
+        \__hit_format_drop:n { #1 -2 }
+        \__hit_format_drop:n { #1 -2-unit }
+      }
+  }
+%    \end{macrocode}
+%
+% \option{indent-left}、\option{indent-right} 收 \texttt{2 chars} 或长度，
+% \option{space-before} 那一路收 \texttt{1 line} 或长度。两种都是数在前、单位词
+% 在后，只有单位词不同，所以走同一个解析器。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_amount:nnn #1#2#3
   {
@@ -499,8 +524,14 @@
     line-white .code:n =
       { \__hit_format_measure:nnnn { line-white } { line-spacing }
           { white } {#1} } ,
-    space-before .code:n = { \__hit_format_amount:nnn { space-before } { line } {#1} } ,
-    space-after  .code:n = { \__hit_format_amount:nnn { space-after } { line } {#1} } ,
+    space-before .code:n = { \__hit_format_space:nn { space-before } {#1} } ,
+    space-after  .code:n = { \__hit_format_space:nn { space-after } {#1} } ,
+    white-before .code:n =
+      { \__hit_format_measure:nnnn { white-before } { space-before }
+          { white } {#1} } ,
+    white-after .code:n =
+      { \__hit_format_measure:nnnn { white-after } { space-after }
+          { white } {#1} } ,
     bold           .code:n = { \__hit_format_bool:nn { bold } {#1} } ,
     bold           .default:n = { true } ,
     all-caps       .code:n = { \__hit_format_bool:nn { all-caps } {#1} } ,
@@ -706,7 +737,9 @@
 \dim_new:N \l_hit_format_lead_dim
 \dim_new:N \l_hit_format_first_dim
 \dim_new:N \l_hit_format_before_dim
+\dim_new:N \l_hit_format_before_plus_dim
 \dim_new:N \l_hit_format_after_dim
+\dim_new:N \l_hit_format_after_plus_dim
 \dim_new:N \l_hit_format_indent_dim
 \dim_new:N \l_hit_format_stretch_dim
 \bool_new:N \l_hit_format_snap_bool
@@ -733,13 +766,11 @@
 %    \end{macrocode}
 %
 % 带单位的键：\meta{值}加\meta{单位}两条。\texttt{line} 折成网格行距的倍数，
-% \texttt{chars} 折成网格字距的倍数，其余当长度。
+% \texttt{chars} 折成网格字距的倍数，\texttt{white} 是视觉白，其余当长度。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_format_amount_get:nnN #1#2#3
+\cs_new_protected:Npn \__hit_format_amount_use:nnN #1#2#3
   {
-    \__hit_format_read:nnnN {#1} {#2} { 0pt } \l__hit_format_value_tl
-    \__hit_format_read:nnnN {#1} { #2 -unit } { length } \l__hit_format_unit_tl
-    \str_case:VnF \l__hit_format_unit_tl
+    \str_case:nnF {#1}
       {
         { line }
           {
@@ -749,18 +780,146 @@
                   {
                     floor
                       (
-                        \dim_to_fp:n
-                          { \l__hit_format_value_tl \g_hit_msword_lead_dim }
+                        \dim_to_fp:n { #2 \g_hit_msword_lead_dim }
                         / \dim_to_fp:n { 0.05bp } + 0.0001
                       )
                     * \dim_to_fp:n { 0.05bp }
                   }
               }
           }
-        { chars }
-          { \dim_set:Nn #3 { \l__hit_format_value_tl \g_hit_msword_char_dim } }
+        { chars } { \dim_set:Nn #3 { #2 \g_hit_msword_char_dim } }
+        { white }
+          {
+            \dim_set:Nn #3 { #2 + \l__hit_format_block_dim }
+            \dim_compare:nNnT { #3 } < { 0pt } { \dim_zero:N #3 }
+          }
       }
-      { \dim_set:Nn #3 { \l__hit_format_value_tl } }
+      { \dim_set:Nn #3 {#2} }
+  }
+\cs_generate_variant:Nn \__hit_format_amount_use:nnN { VVN }
+%    \end{macrocode}
+%
+% 四条一起读出来：\option{space-before} 这个槽还要收区间，第二个端点没写就是空的。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_amount_read:nn #1#2
+  {
+    \__hit_format_read:nnnN {#1} {#2} { 0pt } \l__hit_format_value_tl
+    \__hit_format_read:nnnN {#1} { #2 -unit } { length } \l__hit_format_unit_tl
+    \__hit_format_read:nnnN {#1} { #2 -2 } { } \l__hit_format_value_ii_tl
+    \__hit_format_read:nnnN {#1} { #2 -2-unit } { } \l__hit_format_unit_ii_tl
+  }
+\cs_new_protected:Npn \__hit_format_amount_pick:nnN #1#2#3
+  {
+    \__hit_format_amount_read:nn {#1} {#2}
+    \__hit_format_amount_use:VVN \l__hit_format_unit_tl
+      \l__hit_format_value_tl #3
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{块白换算成段前段后，四处间距逐个量过}
+% \begin{macro}{\__hit_format_block:n}
+% \emph{块白。} \option{white-before} 与 \option{white-after} 量的是上下两块之间
+% 那条看得见的空白：上一块末行的墨迹底，到下一块首行的墨迹顶。段前段后是
+% \hologo{TeX} 那边的量，两者之间隔着两块的行盒，所以要换。
+%
+% 量出来的关系是（\file{testfiles/61-format-white-skip.lvt} 逐条对着）
+% \begin{quote}
+%   块间基线距 = （上块行距 − 上块上升部）+ 下块上升部 + 段前段后
+% \end{quote}
+% 中间没有行间胶：撑杆已经把两块的行盒撑到 Word 的尺寸，\hologo{TeX} 自己那份
+% \cs{baselineskip} 胶在这里不起作用。上升部用的是排版这一头的
+% $1.008 \times 字号 + 0.082$\,bp，不是墨迹那一头。
+%
+% 视觉白与基线距差两块的墨迹：
+% \begin{quote}
+%   视觉白 = 块间基线距 − 0.0927 × 上块字号 − 0.8123 × 下块字号
+% \end{quote}
+% 0.8123 与 0.0927 是中易宋体全字符集 20992 个汉字的墨迹上伸与下伸的实测平均，
+% 两个加起来是前面那个 0.9050。行内的白只跟一个字号有关，所以那里用合数；
+% 块间的上下两块字号不同，得拆开。
+%
+% 两式相减，段前段后就是视觉白加上下两块各自的一项：上块那一项是
+% （0.0927 + 1.008）× 上块字号 + 0.082\,bp − 上块行距，下块那一项是
+% （0.8123 − 1.008）× 下块字号 − 0.082\,bp。
+% 上块与下块是谁看方向：\option{white-before} 的上块是正文、下块是这个元素，
+% \option{white-after} 反过来。正文的字号与行距取 \cs{g\_hit\_body\_size\_dim}
+% 与 \cs{g\_hit\_body\_lead\_dim}，\cs{hit@format@apply@body:} 先跑，所以标题
+% 这边读得到。
+%
+% 相邻两级标题（章下面紧接着节）的上块不是正文，这一档不管，按正文算。
+%
+% 章标题总是另起一页，上面没有块，参照物换成版心顶：那一档的上块两项全归零，
+% 量出来基线正好落在版心顶下方一个上升部处。
+%
+% 换出来是负的就取零。\hologo{LaTeX} 的 \cs{@startsection} 把负的段前读成
+% 「后一段不缩进」、把负的段后读成「标题与正文串行」，都不是「往上挪一点」的
+% 意思，发过去会改掉排版而不是改掉间距。要的白比两块行盒自带的还窄时，只能
+% 就着行盒，那点差在零点几毫米上。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_format_ink_ascent_tl { 0.8123 }
+\tl_const:Nn \c__hit_format_ink_descent_tl { 0.0927 }
+\clist_const:Nn \c__hit_format_pagetop_clist { chapter }
+\dim_new:N \l__hit_format_block_dim
+\cs_new_protected:Npn \__hit_format_block_up:nn #1#2
+  {
+    \dim_add:Nn \l__hit_format_block_dim
+      {
+        \c__hit_format_ink_descent_tl #1
+        + \c__hit_format_ascent_tl #1 + \c__hit_format_ascent_dim
+        - #2
+      }
+  }
+\cs_new_protected:Npn \__hit_format_block_down:n #1
+  {
+    \dim_add:Nn \l__hit_format_block_dim
+      {
+        \c__hit_format_ink_ascent_tl #1
+        - \c__hit_format_ascent_tl #1 - \c__hit_format_ascent_dim
+      }
+  }
+\cs_new_protected:Npn \__hit_format_block:nn #1#2
+  {
+    \dim_zero:N \l__hit_format_block_dim
+    \str_if_eq:nnTF {#2} { before }
+      {
+        \clist_if_in:NnF \c__hit_format_pagetop_clist {#1}
+          {
+            \__hit_format_block_up:nn
+              { \g_hit_body_size_dim } { \g_hit_body_lead_dim }
+          }
+        \__hit_format_block_down:n { \l_hit_format_size_dim }
+      }
+      {
+        \__hit_format_block_up:nn
+          { \l_hit_format_size_dim } { \l_hit_format_lead_dim }
+        \__hit_format_block_down:n { \g_hit_body_size_dim }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% 段前段后也收区间：写作指南 3.8 节给节标题的是 7\,--\,8\,mm，条标题
+% 6\,--\,7\,mm。小端做自然值，大端减小端做伸量，与行距那边同一个规矩。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_space_get:nnnNN #1#2#3#4#5
+  {
+    \__hit_format_amount_read:nn {#1} {#2}
+    \__hit_format_block:nn {#1} {#3}
+    \__hit_format_amount_use:VVN \l__hit_format_unit_tl
+      \l__hit_format_value_tl #4
+    \dim_zero:N #5
+    \tl_if_empty:NF \l__hit_format_value_ii_tl
+      {
+        \__hit_format_amount_use:VVN \l__hit_format_unit_ii_tl
+          \l__hit_format_value_ii_tl \l__hit_format_span_dim
+        \dim_compare:nNnT { \l__hit_format_span_dim } < { #4 }
+          {
+            \dim_set_eq:NN \l__hit_format_floor_dim #4
+            \dim_set_eq:NN #4 \l__hit_format_span_dim
+            \dim_set_eq:NN \l__hit_format_span_dim \l__hit_format_floor_dim
+          }
+        \dim_set:Nn #5 { \l__hit_format_span_dim - #4 }
+      }
   }
 %    \end{macrocode}
 %
@@ -773,7 +932,7 @@
     \str_if_eq:VnTF \l__hit_format_coef_tl { none }
       { \dim_zero:N \l_hit_format_indent_dim }
       {
-        \__hit_format_amount_get:nnN {#1} { indent-special }
+        \__hit_format_amount_pick:nnN {#1} { indent-special }
           \l_hit_format_indent_dim
         \str_if_eq:VnT \l__hit_format_coef_tl { hanging }
           { \dim_set:Nn \l_hit_format_indent_dim { - \l_hit_format_indent_dim } }
@@ -811,8 +970,10 @@
     \__hit_format_read:nnnN {#1} { line-spacing-2-unit } { }
       \l__hit_format_unit_ii_tl
     \__hit_format_lead:
-    \__hit_format_amount_get:nnN {#1} { space-before } \l_hit_format_before_dim
-    \__hit_format_amount_get:nnN {#1} { space-after } \l_hit_format_after_dim
+    \__hit_format_space_get:nnnNN {#1} { space-before } { before }
+      \l_hit_format_before_dim \l_hit_format_before_plus_dim
+    \__hit_format_space_get:nnnNN {#1} { space-after } { after }
+      \l_hit_format_after_dim \l_hit_format_after_plus_dim
     \__hit_format_indent:n {#1}
   }
 %    \end{macrocode}
@@ -1125,7 +1286,17 @@
 %    \end{macrocode}
 %
 % 发给 \pkg{ctex}。段前段后只在用户设过时才发，没设过就让各个类原有的取值留着。
+%
+% \changes{v3.2a}{2026/08/15}{段前段后写区间时发可伸的胶给 \pkg{ctex}}
+% 段前段后写了区间就带一段伸量发过去。\pkg{ctex} 的 \option{beforeskip} 与
+% \option{afterskip} 收的是胶不是长度，写 \texttt{10bp~plus~3bp} 它照收。
+% 伸量为零时一个字也不发，生成物与从前逐字节相同。
 %    \begin{macrocode}
+\cs_new:Npn \__hit_format_plus:N #1
+  {
+    \dim_compare:nNnF { #1 } = { 0pt }
+      { ~ plus ~ \dim_use:N #1 }
+  }
 \cs_new_protected:Npn \hit@format@apply@heading:n #1
   {
     \prop_if_empty:cF { g__hit_format_#1_prop }
@@ -1137,12 +1308,24 @@
         \prop_if_in:cnT { g__hit_format_#1_prop } { space-before }
           {
             \tl_put_right:Nx \l__hit_format_keys_tl
-              { beforeskip = { \dim_use:N \l_hit_format_before_dim } , }
+              {
+                beforeskip =
+                  {
+                    \dim_use:N \l_hit_format_before_dim
+                    \__hit_format_plus:N \l_hit_format_before_plus_dim
+                  } ,
+              }
           }
         \prop_if_in:cnT { g__hit_format_#1_prop } { space-after }
           {
             \tl_put_right:Nx \l__hit_format_keys_tl
-              { afterskip = { \dim_use:N \l_hit_format_after_dim } , }
+              {
+                afterskip =
+                  {
+                    \dim_use:N \l_hit_format_after_dim
+                    \__hit_format_plus:N \l_hit_format_after_plus_dim
+                  } ,
+              }
           }
         \use:x
           {
