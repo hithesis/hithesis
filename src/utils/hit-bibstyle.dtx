@@ -392,9 +392,10 @@
 % \file{.bib} 里写的样子，与 \file{.bst} 一线的默认一致）、
 % \option{maximum-author} 对 \texttt{maxbibnames}/\texttt{minbibnames}
 % （\texttt{0} 表示不限，换成 999）、\option{label-align} 对
-% \texttt{gbalign}。标点宽度：逗号冒号那半在 2015 样式里没有旋钮
-% （\texttt{gbpunctwidth} 是 gb7714-\emph{2025} 才有的），\option{bib-punct}
-% 在 biblatex 一线只落到方括号补丁上，逗号冒号保持半角，记为已知差异。
+% \texttt{gbalign}。标点宽度 \option{bib-punct} 在 biblatex 一线全靠
+% 运行时补丁：方括号圆括号走 \cs{bibleftbracket} 一族的领口，逗号冒号分号
+% 走 \cs{abx@puncthook} 单点（2015 样式没有 2025 代的
+% \texttt{gbpunctwidth} 旋钮，能力用补丁补齐），见下方两个 patch 宏。
 % gb 系选项认准 \cs{mkgbnumlabel} 在不在——用户点名
 % 别家样式（比如 apa）时这些选项不存在，塞过去要报错。
 %
@@ -429,7 +430,8 @@
 % biber 的 sourcemap 把语言标进 \texttt{userd} 域，排版时逐条可查）。
 % 现值是排版时才读的，键随设随生效。引用标签的方括号（\cs{gbleftbracket}
 % 一族）不动——传统一线的引用标签也是半角，两边一致。
-% 句点不用补：2015 样式本来就是半角加空格。
+% 句点不用补：2015 样式本来就是半角加空格。圆括号与方括号同款，走
+% \cs{bibleftparen}/\cs{bibrightparen} 领口。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@bib@if@cjk@entry:TF #1#2
   {
@@ -475,6 +477,159 @@
               }
           }
       }
+    \cs_if_exist:NF \__hit_bib_lparen_std:
+      {
+        \cs_new_eq:NN \__hit_bib_lparen_std: \bibleftparen
+        \cs_new_eq:NN \__hit_bib_rparen_std: \bibrightparen
+      }
+    \cs_set_protected:Npn \bibleftparen
+      {
+        \str_if_eq:VnTF \g__hit_bib_punct_str { half }
+          { \__hit_bib_lparen_std: }
+          {
+            \str_if_eq:VnTF \g__hit_bib_punct_str { full }
+              { \blx@postpunct （ }
+              {
+                \hit@bib@if@cjk@entry:TF
+                  { \blx@postpunct （ } { \__hit_bib_lparen_std: }
+              }
+          }
+      }
+    \cs_set_protected:Npn \bibrightparen
+      {
+        \str_if_eq:VnTF \g__hit_bib_punct_str { half }
+          { \__hit_bib_rparen_std: }
+          {
+            \str_if_eq:VnTF \g__hit_bib_punct_str { full }
+              { \blx@postpunct ）\midsentence }
+              {
+                \hit@bib@if@cjk@entry:TF
+                  { \blx@postpunct ）\midsentence }
+                  { \__hit_bib_rparen_std: }
+              }
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@bib@patch@punct:}
+% \changes{v3.2a}{2026/08/16}{逗号冒号分号也接上 \option{bib-punct}：
+%   \pkg{biblatex} 缓冲的标点全走 \cs{abx@puncthook} 单点，2025 代的
+%   \texttt{gbpunctwidth} 干的事在 2015 代用运行时补丁补齐}
+% 逗号冒号分号的补丁，把 2025 代 \texttt{gbpunctwidth} 的能力补到 2015 代上。
+% \pkg{biblatex} 的标点缓冲（重复合并、句点让位那套语义）最终从
+% \cs{abx@puncthook}\marg{字符} 这一个口打出字形，补丁在这里按
+% \option{bib-punct} 换成全角，缓冲语义原封不动；句点问号叹号照旧半角。
+% 全角标点后原样式还会发一个 \cs{addspace}（写在几十处调用点里），全角后
+% 不该再空，打全角时立一个旗子，\cs{addspace}/\cs{addthinspace} 先照原样
+% 冲刷缓冲（冲刷才会打出标点、立起旗子），再见旗吞空格、用后即清；旗子
+% 每次进钩子先清一遍，不会窜到别的空格上。姓名之间的分隔符默认写的是裸
+% \cs{space}（不走 \cs{addspace}，吞不到），把
+% \texttt{multinamedelim}/\texttt{finalnamedelim} 重声明、
+% \cs{pubdatadelim}/\cs{locnopubdelim} 重定义、期刊宏里那处内联的
+% 卷号分隔用 \cs{patchcmd} 点补，全部换成走 \cs{addspace} 的写法，
+% 半角档下排出来与原样一致。
+%
+% 类型标与「不详」补白的方括号走的是 \cs{gbleftbracket} 一族——它同时也是
+% 引用标签的括号，所以补丁带一道 \cs{ifbibliography} 判据：文献表里按
+% \option{bib-punct} 分发，引用标签保持原样（传统一线的引用标签也是半角，
+% 两边一致）。
+%
+% 挂载时机有讲究：\cs{abx@puncthook} 会被 \pkg{biblatex} 的语言初始化在
+% \texttt{begindocument} 里重设（法文间距那套），补丁挂
+% \texttt{begindocument/end}、注册在 \pkg{biblatex} 装载之后，排它后面。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bib_gobble_bool
+\cs_new_protected:Npn \hit@bib@punct@full:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        { , } { ，\allowbreak \bool_gset_true:N \g__hit_bib_gobble_bool }
+        { : } { ：\allowbreak \bool_gset_true:N \g__hit_bib_gobble_bool }
+        { ; } { ；\allowbreak \bool_gset_true:N \g__hit_bib_gobble_bool }
+      }
+      { \__hit_bib_puncthook_std:n {#1} }
+  }
+\cs_new_protected:Npn \hit@bib@patch@punct:
+  {
+    \cs_if_exist:NF \__hit_bib_puncthook_std:n
+      {
+        \cs_new_eq:NN \__hit_bib_puncthook_std:n \abx@puncthook
+        \cs_new_eq:NN \__hit_bib_addspace_std: \addspace
+        \cs_new_eq:NN \__hit_bib_addthinspace_std: \addthinspace
+      }
+    \cs_set_protected:Npn \abx@puncthook ##1
+      {
+        \bool_gset_false:N \g__hit_bib_gobble_bool
+        \str_if_eq:VnTF \g__hit_bib_punct_str { half }
+          { \__hit_bib_puncthook_std:n {##1} }
+          {
+            \str_if_eq:VnTF \g__hit_bib_punct_str { full }
+              { \hit@bib@punct@full:n {##1} }
+              {
+                \hit@bib@if@cjk@entry:TF
+                  { \hit@bib@punct@full:n {##1} }
+                  { \__hit_bib_puncthook_std:n {##1} }
+              }
+          }
+      }
+    \cs_set_protected:Npn \addspace
+      {
+        \unspace \blx@postpunct
+        \bool_if:NTF \g__hit_bib_gobble_bool
+          { \bool_gset_false:N \g__hit_bib_gobble_bool }
+          { \space }
+        \blx@imc@resetpunctfont
+      }
+    \cs_set_protected:Npn \addthinspace
+      {
+        \unspace \blx@postpunct
+        \bool_if:NTF \g__hit_bib_gobble_bool
+          { \bool_gset_false:N \g__hit_bib_gobble_bool }
+          { \hskip 0.16667 em \relax }
+        \blx@imc@resetpunctfont
+      }
+    \DeclareDelimFormat { multinamedelim } { \addcomma \addspace }
+    \DeclareDelimFormat { finalnamedelim } { \addcomma \addspace }
+    \cs_if_exist:NT \pubdatadelim
+      { \cs_set:Npn \pubdatadelim { \setunit* { \addcomma \addspace } } }
+    \cs_if_exist:NT \locnopubdelim
+      { \cs_set:Npn \locnopubdelim { \setunit* { \addcomma \addspace } } }
+    \cs_if_exist:cT { abx@macro@journal+issuetitle }
+      {
+        \exp_args:Nc \patchcmd { abx@macro@journal+issuetitle }
+          { \setunit* { \addcomma \space } }
+          { \setunit* { \addcomma \addspace } }
+          { } { }
+      }
+    \cs_if_exist:NF \__hit_bib_gblbracket_std:
+      {
+        \cs_new_eq:NN \__hit_bib_gblbracket_std: \gbleftbracket
+        \cs_new_eq:NN \__hit_bib_gbrbracket_std: \gbrightbracket
+      }
+    \cs_set_protected:Npn \gbleftbracket
+      {
+        \ifbibliography
+          { \hit@bib@punct@bracket:nN { ［ } \__hit_bib_gblbracket_std: }
+          { \__hit_bib_gblbracket_std: }
+      }
+    \cs_set_protected:Npn \gbrightbracket
+      {
+        \ifbibliography
+          { \hit@bib@punct@bracket:nN { ］ } \__hit_bib_gbrbracket_std: }
+          { \__hit_bib_gbrbracket_std: }
+      }
+  }
+\cs_new_protected:Npn \hit@bib@punct@bracket:nN #1#2
+  {
+    \str_if_eq:VnTF \g__hit_bib_punct_str { half }
+      {#2}
+      {
+        \str_if_eq:VnTF \g__hit_bib_punct_str { full }
+          {#1}
+          { \hit@bib@if@cjk@entry:TF {#1} {#2} }
+      }
   }
 %    \end{macrocode}
 % \end{macro}
@@ -496,6 +651,7 @@
       {
         \cs_set_eq:NN \bibliography \__hit_bib_body_bibliography:n
         \cs_set_eq:NN \bibliographystyle \__hit_bib_body_style:n
+        \hit@bib@patch@punct:
       }
     \cs_if_exist:NT \mkgbnumlabel
       {
