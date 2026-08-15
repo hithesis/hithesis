@@ -68,19 +68,34 @@
 % 这么存的，名字全局唯一。
 %
 % \changes{v3.2a}{2026/08/14}{条件里的取值认连字符，查标志位时折成下划线}
-% 取值里的连字符折成下划线再去查：选项取值一律用连字符分词
-% （\option{old-layout}、\option{new-layout}），\pkg{expl3} 的变量名一律用下划线，
-% 折一下两边就能对上，条件写出来跟别处的选项取值一个样。
+% 取值里的连字符折成下划线再去查：选项取值一律用连字符分词，\pkg{expl3} 的
+% 变量名一律用下划线，折一下两边就能对上，条件写出来跟别处的选项取值一个样。
+%
+% \changes{v3.2a}{2026/08/15}{取值带数字的另立一张对照表：数字接不进控制序列名}
+% 取值里带数字的（\option{v2-layout}、\option{v4-layout}）得另查一张表。
+% \hologo{TeX} 的控制序列名只收字母，\cs{g\_\_hit\_v4\_layout\_bool} 读到
+% \texttt{4} 就断了，前半截 \cs{g\_\_hit\_v} 成了命令、后半截成了普通文字，
+% 既不报错也不生效。所以标志位那一头把数字写成词，两头由这张表接上。
 %    \begin{macrocode}
 \tl_new:N \l__hit_presetup_name_tl
+\tl_new:N \l__hit_presetup_alias_tl
+\prop_const_from_keyval:Nn \c__hit_presetup_alias_prop
+  {
+    v2-layout = layout-two ,
+    v4-layout = layout-four ,
+  }
 \cs_new_protected:Npn \__hit_presetup_clause:w #1 = #2 \q_stop
   {
     \bool_set_false:N \l__hit_presetup_any_bool
     \seq_set_split:Nnn \l__hit_presetup_value_seq { | } {#2}
     \seq_map_inline:Nn \l__hit_presetup_value_seq
       {
-        \tl_set:Nx \l__hit_presetup_name_tl
-          { g__hit_ \tl_trim_spaces:n {##1} _bool }
+        \tl_set:Nx \l__hit_presetup_name_tl { \tl_trim_spaces:n {##1} }
+        \prop_get:NVNT \c__hit_presetup_alias_prop \l__hit_presetup_name_tl
+          \l__hit_presetup_alias_tl
+          { \tl_set_eq:NN \l__hit_presetup_name_tl \l__hit_presetup_alias_tl }
+        \tl_put_left:Nn  \l__hit_presetup_name_tl { g__hit_ }
+        \tl_put_right:Nn \l__hit_presetup_name_tl { _bool }
         \tl_replace_all:Nnn \l__hit_presetup_name_tl { - } { _ }
         \bool_if_exist:cTF { \l__hit_presetup_name_tl }
           {
@@ -238,7 +253,7 @@
 % \changes{v3.2a}{2026/08/14}{网格字距改回 249 缇，款项标题的段前段后改回零，
 %   两处都按写作指南 3.2 节与研究生范例定}
 % \changes{v3.2a}{2026/08/14}{硕博与本科共用这一份，条件从学位放宽到
-%   \option{layout}\texttt{=new-layout}}
+%   \option{layout}\texttt{=v4-layout}}
 % 下面这一份本科与硕博共用。硕博不另解范例：两边的页面设置量出来一样，
 % 字号行距也照同一份写作指南，只有图题表题的间距有出入，那一处等接
 % \option{caption-figure} 与 \option{caption-table} 时再补。
@@ -250,8 +265,8 @@
 % 「本科毕业论文（设计）写作指南（理工类）」3.2 节的原话。
 % 威海本科没有对照文档，跟着这一份走。
 %
-% 条件写 \option{layout}\texttt{=new-layout}：本科写了
-% \option{old-layout}\texttt{=\{bachelor=true\}} 就回到 v3.1e 那套硬编码尺寸，
+% 条件写 \option{layout}\texttt{=v4-layout}：本科写了
+% \option{v2-layout}\texttt{=\{bachelor=true\}} 就回到 v3.1e 那套硬编码尺寸，
 % 这一整段都不发，见 \file{src/flow/hit-thesis-geometry.dtx}。
 %
 % \emph{页面设置。} 缇是 Word 的内部单位，一缇是 $1/20$\,bp：上边距 2155 缇、
@@ -355,7 +370,7 @@
 % 正文也改成了对齐网格；致谢那一段也对齐网格。
 %    \begin{macrocode}
 \ExplSyntaxOff
-\hit@presetup[layout=new-layout]{
+\hit@presetup[layout=v4-layout]{
   layout = {
     bottom = auto,
     margin-top = 107.75bp, margin-bottom = 85.05bp,
@@ -365,7 +380,7 @@
     size = 12bp, line-pitch = 19.15bp, char-pitch = 12.4543bp,
   },
 }
-\hit@presetup[layout=new-layout]{
+\hit@presetup[layout=v4-layout]{
   format = {
     body = {
       font-zh = songti, size = xiaosi, snap-to-grid = auto,
