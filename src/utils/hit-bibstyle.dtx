@@ -256,6 +256,46 @@
 %    \end{macrocode}
 % \end{macro}
 %
+% \begin{macro}{show-sl-sn}
+% \changes{v3.2a}{2026/08/16}{加 \option{show-sl-sn}：出版地或出版者缺失时
+%   补不补「不详」占位，默认补。biblatex 一线原先跟着 gbpub 的默认不补，
+%   与 \file{.bst} 一线对不上，顺带扯平}
+% \option{show-sl-sn}\texttt{=true|false}：文献缺出版地或出版者时补不补
+% ［出版地不详］（sine~loco）与［出版者不详］（sine~nomine）。国标要补，
+% 默认 \texttt{true}。名字取自 kebab-biblatex-gb7714 的同义键。
+%
+% 落实分两线：biblatex 一线在装载时换算成 \pkg{biblatex-gb7714-2015} 的
+% \texttt{gbpub}——注意那边默认是 \texttt{false}（不补），跟 \file{.bst}
+% 一线写死的「恒补」对不上，所以这里无论用户设没设都显式发一次，两线默认
+% 才一致。传统一线的对应物是官方 gbt7714~v3 的 \texttt{unknownpublisher}
+% （走 aux 控制通道给 \file{.bst} 读），可我们的 fork 没有这条通道、补白
+% 写死在 \file{src/hit-bst.dtx} 里，关不掉——\texttt{false} 只在 biblatex
+% 一线生效，传统一线在导言区末尾给一条提示。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bib_slsn_bool
+\bool_gset_true:N \g__hit_bib_slsn_bool
+\keys_define:nn { hit / bib }
+  {
+    show-sl-sn .choices:nn = { true , false }
+      {
+        \hit@bib@key@guard:n { show-sl-sn }
+        \str_if_eq:VnTF \l_keys_choice_tl { true }
+          { \bool_gset_true:N  \g__hit_bib_slsn_bool }
+          { \bool_gset_false:N \g__hit_bib_slsn_bool }
+      } ,
+    show-sl-sn .default:n = true ,
+  }
+\AddToHook { begindocument / before }
+  {
+    \bool_if:NF \g__hit_bib_slsn_bool
+      {
+        \@ifpackageloaded { biblatex } { }
+          { \msg_warning:nn { hithesis } { bib-sl-sn-bst-fixed } }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
 % \begin{macro}{\hit@bib@print:}
 % 排文献表的总出口，两个类的 \cs{hitbackmatter} 流程都走它：\pkg{biblatex}
 % 装了就 \cs{printbibliography}，没装就是原来那两句 \cs{bibliographystyle} 加
@@ -331,6 +371,9 @@
           { \ExecuteBibliographyOptions { gbnamefmt = lowercase } }
         \str_if_eq:VnT \g_bib_labelalign_str { left }
           { \ExecuteBibliographyOptions { gbalign = left } }
+        \bool_if:NTF \g__hit_bib_slsn_bool
+          { \ExecuteBibliographyOptions { gbpub = true } }
+          { \ExecuteBibliographyOptions { gbpub = false } }
       }
     \int_compare:nNnTF \g_bib_maxauthor_int < 0
       { \ExecuteBibliographyOptions { maxbibnames = 999 , minbibnames = 999 } }
