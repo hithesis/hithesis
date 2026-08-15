@@ -382,6 +382,18 @@
   { \__hit_format_enum:nnn {#1} { true , false , auto } {#2} }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/08/16}{加 \option{char-spacing}，收一个长度}
+% \option{char-spacing} 是 Word 字体对话框里的「字符间距」，收一个长度，
+% 负值表示紧缩。存的时候就把 \cs{dim\_eval:n} 算掉。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_length:nn #1#2
+  {
+    \str_if_eq:nnTF {#2} { auto }
+      { \__hit_format_put:nn {#1} { auto } }
+      { \__hit_format_put:nn {#1} { \dim_eval:n {#2} } }
+  }
+%    \end{macrocode}
+%
 % \option{size} 收字号名或长度。名字查 \file{src/utils/hit-fonts.dtx} 存下的常量，
 % 那张表是字号命令自己那份，不会走样。
 %    \begin{macrocode}
@@ -655,8 +667,9 @@
     bold           .default:n = { true } ,
     all-caps       .code:n = { \__hit_format_bool:nn { all-caps } {#1} } ,
     all-caps       .default:n = { true } ,
-    snap-to-grid   .code:n = { \__hit_format_bool:nn { snap-to-grid } {#1} } ,
+    snap-to-grid   .code:n = { \__hit_format_snap:n {#1} } ,
     snap-to-grid   .default:n = { true } ,
+    char-spacing   .code:n = { \__hit_format_length:nn { char-spacing } {#1} } ,
     bottom .code:n = { \__hit_format_bottom:n {#1} } ,
     bottom .value_required:n = true ,
     keep-with-next .code:n = { \__hit_format_bool:nn { keep-with-next } {#1} } ,
@@ -688,6 +701,45 @@
       \prop_clear:N \l__hit_format_claim_prop
       \hit@keys@set:nn { hit / format / property } {#2}
     \group_end:
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{\option{snap-to-grid} 拆成纵横两轴，写布尔时两轴一起设，
+%   也可以写 \texttt{\{vertical=\ldots,horizontal=\ldots\}} 分开设}
+% \emph{网格分两个方向。} Word 的 \texttt{docGrid} 同时定行距与字距，
+% 但一个段落要不要吃这两样是分开的：范例的正文吃字距（每字 0.4543\,bp），
+% 行距却按自然行高排（实测 19.44\,bp，不是一格 19.55\,bp）；三级标题的
+% \texttt{snapToGrid=0} 把两样一起关掉。所以这里拆成两轴。
+%
+% 写成布尔或 \texttt{auto} 是两轴的简写，两轴一起设；要分开设就写子块。
+% 两种写法都收，因为绝大多数场合两轴同进同退，为了少数场合逼所有人写子块不划算。
+%
+% \emph{横轴的 \texttt{auto} 是「跟着外层走」。} 纵轴的 \texttt{auto} 求值成假，
+% 与写 \texttt{false} 同义；横轴不一样：写 \texttt{true} 或 \texttt{false} 才发
+% \cs{CJKglue}，写 \texttt{auto}（或压根没写、也没写 \option{char-spacing}）
+% 一个字也不发，该元素就继承外层当时的字距。标题多半就该这样——它排在正文的
+% 字距设定里面，没有理由自己另起一套。
+%    \begin{macrocode}
+\clist_const:Nn \c__hit_format_axis_clist { vertical , horizontal }
+\keys_define:nn { hit / format / snap }
+  {
+    vertical .code:n =
+      { \__hit_format_bool:nn { snap-to-grid-vertical } {#1} } ,
+    vertical .default:n = { true } ,
+    horizontal .code:n =
+      { \__hit_format_bool:nn { snap-to-grid-horizontal } {#1} } ,
+    horizontal .default:n = { true } ,
+    unknown .code:n =
+      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
+  }
+\cs_new_protected:Npn \__hit_format_snap:n #1
+  {
+    \clist_if_in:nnTF { true , false , auto } {#1}
+      {
+        \clist_map_inline:Nn \c__hit_format_axis_clist
+          { \__hit_format_bool:nn { snap-to-grid-##1 } {#1} }
+      }
+      { \hit@keys@set:nn { hit / format / snap } {#1} }
   }
 %    \end{macrocode}
 %
@@ -883,7 +935,10 @@
 \dim_new:N \l_hit_format_after_plus_dim
 \dim_new:N \l_hit_format_indent_dim
 \dim_new:N \l_hit_format_stretch_dim
-\bool_new:N \l_hit_format_snap_bool
+\dim_new:N \l_hit_format_char_spacing_dim
+\bool_new:N \l_hit_format_snap_vertical_bool
+\bool_new:N \l_hit_format_snap_horizontal_bool
+\bool_new:N \l_hit_format_hglue_set_bool
 %    \end{macrocode}
 %
 %    \begin{macrocode}
@@ -1106,11 +1161,28 @@
         \c__hit_format_natural_tl }
     \dim_set:Nn \l_hit_format_natural_dim
       { \l__hit_format_coef_tl \l_hit_format_size_dim }
-    \__hit_format_read:nnnN {#1} { snap-to-grid } { false } \l__hit_format_value_tl
-    \bool_set:Nn \l_hit_format_snap_bool
+    \__hit_format_read:nnnN {#1} { snap-to-grid-vertical } { false }
+      \l__hit_format_value_tl
+    \bool_set:Nn \l_hit_format_snap_vertical_bool
       {
         \str_if_eq_p:Vn \l__hit_format_value_tl { true }
         && ! \dim_compare_p:nNn { \g_hit_msword_lead_dim } = { 0pt }
+      }
+    \__hit_format_read:nnnN {#1} { snap-to-grid-horizontal } { auto }
+      \l__hit_format_value_tl
+    \bool_set:Nn \l_hit_format_snap_horizontal_bool
+      {
+        \str_if_eq_p:Vn \l__hit_format_value_tl { true }
+        && ! \dim_compare_p:nNn { \g_hit_msword_char_dim } = { 0pt }
+      }
+    \bool_set:Nn \l_hit_format_hglue_set_bool
+      { ! \str_if_eq_p:Vn \l__hit_format_value_tl { auto } }
+    \__hit_format_read:nnnN {#1} { char-spacing } { auto } \l__hit_format_value_tl
+    \str_if_eq:VnTF \l__hit_format_value_tl { auto }
+      { \dim_zero:N \l_hit_format_char_spacing_dim }
+      {
+        \dim_set:Nn \l_hit_format_char_spacing_dim { \l__hit_format_value_tl }
+        \bool_set_true:N \l_hit_format_hglue_set_bool
       }
     \__hit_format_read:nnnN {#1} { line-spacing } { 1 } \l__hit_format_value_tl
     \__hit_format_read:nnnN {#1} { line-spacing-unit } { multiple }
@@ -1163,7 +1235,7 @@
           {
             \dim_set:Nn #3 {#2}
             \dim_set:Nn \l__hit_format_floor_dim
-              { \bool_if:NTF \l_hit_format_snap_bool
+              { \bool_if:NTF \l_hit_format_snap_vertical_bool
                   { \g_hit_msword_lead_dim } { \l_hit_format_natural_dim } }
             \dim_compare:nNnT { #3 } < { \l__hit_format_floor_dim }
               { \dim_set_eq:NN #3 \l__hit_format_floor_dim }
@@ -1179,7 +1251,7 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_multiple:nN #1#2
   {
-    \bool_if:NTF \l_hit_format_snap_bool
+    \bool_if:NTF \l_hit_format_snap_vertical_bool
       {
         \dim_set:Nn #2 { #1 \g_hit_msword_lead_dim }
         \dim_set:Nn \l__hit_format_floor_dim
@@ -1249,7 +1321,7 @@
     \dim_set:Nn \l_hit_format_first_dim
       { \c__hit_format_ascent_tl \l_hit_format_size_dim
         + \c__hit_format_ascent_dim }
-    \bool_if:NT \l_hit_format_snap_bool
+    \bool_if:NT \l_hit_format_snap_vertical_bool
       {
         \dim_add:Nn \l_hit_format_first_dim
           {
@@ -1330,6 +1402,31 @@
   { \bool_set_true:N \l_hit_format_line_snap_bool }
 \cs_new_protected:Npn \hit@format@snap@false:
   { \bool_set_false:N \l_hit_format_line_snap_bool }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{加 \cs{hit@format@hglue:nn}，横轴的两道胶按元素发}
+% 横轴的两道胶。\cs{CJKglue} 是汉字之间的空隙，\cs{CJKecglue} 是汉字与西文之间的。
+% 从前这两道只在 \cs{hit@format@apply@body:} 里全局设一次，标题跟着吃了正文的
+% 字距；Word 那边三级标题写着 \texttt{snapToGrid=0}，不吃。所以改成按元素发，
+% 发的位置是 \cs{\_\_hit\_format\_build:n} 拼的那串排版命令，被 \pkg{ctex} 限制
+% 在该级标题里。
+%
+% 伸量照 \pkg{xeCJK} 原样留 0.08\cs{baselineskip}：字距是自然宽度，两端对齐时
+% 照样要拉开。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@hglue:nn #1#2
+  {
+    \cs_set:Npx \CJKglue
+      {
+        \exp_not:N \hskip \dim_eval:n {#1}
+        \exp_not:N \@plus 0.08 \exp_not:N \baselineskip
+      }
+    \cs_set:Npx \CJKecglue
+      {
+        \exp_not:N \hskip \dim_eval:n {#2}
+        \exp_not:N \@plus 0.08 \exp_not:N \baselineskip
+      }
+  }
 \cs_new_protected:Npn \hit@format@strut:
   {
     \leavevmode
@@ -1420,10 +1517,28 @@
         \exp_not:c
           {
             hit@format@snap@
-            \bool_if:NTF \l_hit_format_snap_bool { true } { false } :
+            \bool_if:NTF \l_hit_format_snap_vertical_bool { true } { false } :
+          }
+        \bool_if:NT \l_hit_format_hglue_set_bool
+          {
+            \exp_not:N \hit@format@hglue:nn
+              { \dim_eval:n { \__hit_format_hglue:N \g_hit_msword_glue_dim } }
+              { \dim_eval:n { \__hit_format_hglue:N \g_hit_msword_ecglue_dim } }
           }
         \exp_not:N \hit@format@strut:
       }
+  }
+%    \end{macrocode}
+%
+% 一道胶的取值：吃网格就取网格那一份，不吃就取零，再加上
+% \option{char-spacing}。两项相加是 Word 的算法——\texttt{docGrid} 的字距被
+% \texttt{snapToGrid=0} 关掉，run 上的 \texttt{w:spacing} 照样生效，
+% 章标题正是这个情形（\texttt{snapToGrid=0} 且 \texttt{w:spacing=-4}）。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_format_hglue:N #1
+  {
+    \bool_if:NT \l_hit_format_snap_horizontal_bool { #1 + }
+    \l_hit_format_char_spacing_dim
   }
 \cs_new_protected:Npn \__hit_format_pick:nnN #1#2#3
   {
@@ -1815,7 +1930,7 @@
         \dim_gset_eq:NN \g_hit_body_stretch_dim \l_hit_format_stretch_dim
         \dim_gset_eq:NN \g_hit_body_first_dim \l_hit_format_first_dim
         \dim_gset_eq:NN \g_hit_body_indent_dim \l_hit_format_indent_dim
-        \bool_set_eq:NN \l_hit_format_line_snap_bool \l_hit_format_snap_bool
+        \bool_set_eq:NN \l_hit_format_line_snap_bool \l_hit_format_snap_vertical_bool
         \dim_set_eq:NN \topskip \g_hit_body_first_dim
         \hit@format@reserve@depth:
         \hit@format@penalties:
@@ -1824,19 +1939,15 @@
         \dim_set_eq:NN \parindent \g_hit_body_indent_dim
         \dim_compare:nNnF { \g_hit_msword_char_dim } = { 0pt }
           {
-            \cs_set:Npx \CJKglue
+            \hit@format@hglue:nn
+              { \__hit_format_hglue:N \g_hit_msword_glue_dim }
+              { \__hit_format_hglue:N \g_hit_msword_ecglue_dim }
+            \bool_if:NT \l_hit_format_snap_horizontal_bool
               {
-                \exp_not:N \hskip \dim_use:N \g_hit_msword_glue_dim
-                \exp_not:N \@plus 0.08 \exp_not:N \baselineskip
+                \bool_if:NTF \l_hit_format_snap_vertical_bool
+                  { \skip_set_eq:NN \rightskip \g_hit_msword_slack_dim }
+                  { \skip_set_eq:NN \rightskip \g_hit_msword_glue_dim }
               }
-            \cs_set:Npx \CJKecglue
-              {
-                \exp_not:N \hskip \dim_use:N \g_hit_msword_ecglue_dim
-                \exp_not:N \@plus 0.08 \exp_not:N \baselineskip
-              }
-            \bool_if:NTF \l_hit_format_snap_bool
-              { \skip_set_eq:NN \rightskip \g_hit_msword_slack_dim }
-              { \skip_set_eq:NN \rightskip \g_hit_msword_glue_dim }
             \dim_set_eq:NN \ccwd \g_hit_msword_char_dim
           }
         \hit@format@latin@pitch:
