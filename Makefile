@@ -68,7 +68,7 @@ viewmanual: manual
 # 手册的源文件在 v3.2a 从 src/doc/hit-doc.dtx 改名 src/manual/hit-manual.dtx，
 # 目标名跟着改成 manual。旧名留着当别名，先提示再转发，兼容期到 v4.1。
 # README 里给用户的 docker 用法示例写的是旧名，直接删会让那条命令不通。
-DEPRECATED_TARGET = @printf '\033[33m[hithesis]\033[0m make %s 已改名 make %s，旧名将在 v4.1 移除。\n'
+DEPRECATED_TARGET = @printf '\033[33m[hithesis]\033[0m make %s 已改名 make %s，旧名将在 v4 中移除。\n'
 
 doc:
 	$(DEPRECATED_TARGET) doc manual

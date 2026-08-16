@@ -455,55 +455,61 @@
 % 键在传统一线什么时候设都来得及，不用锁。\texttt{0}（不限）换成 999。
 % 报告类只装 \pkg{natbib} 没有这条通道，吃 \file{.bst} 内置默认。
 %    \begin{macrocode}
+\tl_const:Nn \c__hit_bib_ctl_suffix_tl { -BSTcontrol }
+\tl_const:Nn \c__hit_bib_ctl_type_tl { GBT7714BSTCTL }
+\tl_const:Nn \c__hit_bib_ctl_key_tl { GBT7714:BSTcontrol }
+\iow_new:N \l__hit_bib_ctl_iow
+\prop_new:N \l__hit_bib_ctl_prop
+\cs_new_protected:Npn \__hit_bib_ctl_bool:nN #1#2
+  { \prop_put:Nnx \l__hit_bib_ctl_prop {#1} { \bool_if:NTF #2 { true } { false } } }
+\cs_new_protected:Npn \__hit_bib_ctl_names:nN #1#2
+  {
+    \prop_put:Nnx \l__hit_bib_ctl_prop {#1}
+      { \int_compare:nNnTF #2 < 0 { 999 } { \int_use:N #2 } }
+  }
 \cs_new_protected:Npn \hit@bib@forward@ctl:
   {
-    \@ifpackageloaded { gbt7714 }
+    \prop_clear:N \l__hit_bib_ctl_prop
+    \prop_put:Nnx \l__hit_bib_ctl_prop { CTL_bib_punct }
       {
-        \keys_if_exist:nnT { gbt7714 } { bibpunct }
+        \str_case:VnF \g__hit_bib_punct_str
+          { { half } { half } { by-lang } { bylanguage } } { GB }
+      }
+    \__hit_bib_ctl_bool:nN { CTL_convert_punct }     \g__hit_bib_correct_punct_bool
+    \__hit_bib_ctl_bool:nN { CTL_entry_type_id }     \g__hit_bib_showmark_bool
+    \__hit_bib_ctl_bool:nN { CTL_entry_medium_id }   \g__hit_bib_showmedium_bool
+    \__hit_bib_ctl_bool:nN { CTL_link_title }        \g__hit_bib_linktitle_bool
+    \__hit_bib_ctl_bool:nN { CTL_url }               \g__hit_bib_showurl_bool
+    \__hit_bib_ctl_bool:nN { CTL_doi }               \g__hit_bib_showdoi_bool
+    \__hit_bib_ctl_bool:nN { CTL_eprint }            \g__hit_bib_showeprint_bool
+    \__hit_bib_ctl_bool:nN { CTL_uppercase_family }  \g_bib_authorupper_bool
+    \__hit_bib_ctl_bool:nN { CTL_unknown_publisher } \g__hit_bib_slsn_bool
+    \__hit_bib_ctl_names:nN { CTL_max_bib_names } \g_bib_maxauthor_int
+    \__hit_bib_ctl_names:nN { CTL_min_bib_names } \g_bib_maxauthor_int
+    \int_compare:nNnF \g__hit_bib_maxcite_int = { -2 }
       {
-        \use:e
-          {
-            \exp_not:N \keys_set:nn { gbt7714 }
-              {
-                bibpunct =
-                  \str_case:VnF \g__hit_bib_punct_str
-                    { { half } { half } { by-lang } { bylanguage } } { GB } ,
-                convertpunct =
-                  \bool_if:NTF \g__hit_bib_correct_punct_bool { true } { false } ,
-                entrytypeid =
-                  \bool_if:NTF \g__hit_bib_showmark_bool { true } { false } ,
-                entrymediumid =
-                  \bool_if:NTF \g__hit_bib_showmedium_bool { true } { false } ,
-                linktitle =
-                  \bool_if:NTF \g__hit_bib_linktitle_bool { true } { false } ,
-                url = \bool_if:NTF \g__hit_bib_showurl_bool { true } { false } ,
-                doi = \bool_if:NTF \g__hit_bib_showdoi_bool { true } { false } ,
-                eprint =
-                  \bool_if:NTF \g__hit_bib_showeprint_bool { true } { false } ,
-                uppercasefamily =
-                  \bool_if:NTF \g_bib_authorupper_bool { true } { false } ,
-                unknownpublisher =
-                  \bool_if:NTF \g__hit_bib_slsn_bool { true } { false } ,
-                maxbibnames =
-                  \int_compare:nNnTF \g_bib_maxauthor_int < 0
-                    { 999 } { \int_use:N \g_bib_maxauthor_int } ,
-                minbibnames =
-                  \int_compare:nNnTF \g_bib_maxauthor_int < 0
-                    { 999 } { \int_use:N \g_bib_maxauthor_int }
-                \int_compare:nNnF \g__hit_bib_maxcite_int = { -2 }
-                  {
-                    , maxcitenames =
-                      \int_compare:nNnTF \g__hit_bib_maxcite_int < 0
-                        { 999 } { \int_use:N \g__hit_bib_maxcite_int } ,
-                    mincitenames =
-                      \int_compare:nNnTF \g__hit_bib_maxcite_int < 0
-                        { 999 } { \int_use:N \g__hit_bib_maxcite_int }
-                  }
-              }
-          }
+        \__hit_bib_ctl_names:nN { CTL_max_cite_names } \g__hit_bib_maxcite_int
+        \__hit_bib_ctl_names:nN { CTL_min_cite_names } \g__hit_bib_maxcite_int
       }
+    \iow_open:Nn \l__hit_bib_ctl_iow
+      { \jobname \c__hit_bib_ctl_suffix_tl .bib }
+      \iow_now:Ne \l__hit_bib_ctl_iow
+        {
+          @ \c__hit_bib_ctl_type_tl \c_left_brace_str
+          \c__hit_bib_ctl_key_tl ,
+        }
+      \prop_map_inline:Nn \l__hit_bib_ctl_prop
+        {
+          \iow_now:Ne \l__hit_bib_ctl_iow
+            { \c_space_tl \c_space_tl ##1 \c_space_tl = \c_space_tl {##2} , }
+        }
+      \iow_now:Ne \l__hit_bib_ctl_iow { \c_right_brace_str }
+    \iow_close:N \l__hit_bib_ctl_iow
+    \legacy_if:nT { @filesw }
+      {
+        \iow_now:Ne \@auxout
+          { \token_to_str:N \citation { \c__hit_bib_ctl_key_tl } }
       }
-      { }
   }
 \cs_new_protected:Npn \hit@bib@print:
   {
@@ -541,7 +547,11 @@
             \cs_set_protected:Npn \bibliography #1
               {
                 \hit@bib@forward@ctl:
-                \hit@bib@inner@bibliography {#1}
+                \use:e
+                  {
+                    \exp_not:N \hit@bib@inner@bibliography
+                      { \jobname \c__hit_bib_ctl_suffix_tl , \exp_not:n {#1} }
+                  }
               }
           }
       }
