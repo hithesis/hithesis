@@ -1467,6 +1467,24 @@
 %
 % 伸量照 \pkg{xeCJK} 原样留 0.08\cs{baselineskip}：字距是自然宽度，两端对齐时
 % 照样要拉开。
+%
+% \changes{v3.2a}{2026/08/16}{同时设 \pkg{ctex} 的 \cs{l\_\_ctex\_ccglue\_skip}，
+%   \TeX~Live 2025 上光设 \cs{CJKglue} 会被 \pkg{ctex} 盖掉}
+% \emph{两处都设。} \pkg{ctex} 的 \cs{CJKglue} 是
+% \cs{skip\_horizontal:N} \cs{l\_\_ctex\_ccglue\_skip}，它在字号变化时由
+% \cs{\_\_ctex\_update\_stretch\_auxi:} 重设，重设前先问
+% \cs{ctex\_if\_ccglue\_touched:}——这个判断比的是 \cs{CJKglue} 与
+% \cs{\_\_ctex\_ccglue:} 的 meaning。\TeX~Live 2026 的
+% \cs{ctex\_update\_ccglue:} 会把 \cs{\_\_ctex\_ccglue:} 同步过去，判断准；
+% 2025 的不同步，判断不准，于是我们设的定义在 \cs{begin\{document\}} 里被盖回
+% \pkg{ctex} 自己那份。实测 2025 下整篇字距都是裸字号，字符网格等于没开。
+%
+% 定义与寄存器一起设，\pkg{ctex} 那份定义读的就是这个寄存器，谁赢都是同一个值。
+% \cs{CJKecglue} 没有对应的 \pkg{ctex} 寄存器，它走 \pkg{xeCJK}，不受影响。
+%
+% 试过再把比对基准 \cs{\_\_ctex\_ccglue:} 一并换掉，好让
+% \cs{ctex\_if\_ccglue\_touched:} 一律答「改过了」。不行：\TeX~Live 2025 仍是
+% 裸字号，2026 反而从 12.6720 变成 12.7320。记在这里省得重来。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@hglue:nn #1#2
   {
@@ -1474,6 +1492,11 @@
       {
         \exp_not:N \hskip \dim_eval:n {#1}
         \exp_not:N \@plus 0.08 \exp_not:N \baselineskip
+      }
+    \cs_if_exist:NT \l__ctex_ccglue_skip
+      {
+        \skip_set:Nn \l__ctex_ccglue_skip
+          { \dim_eval:n {#1} plus 0.08 \baselineskip }
       }
     \cs_set:Npx \CJKecglue
       {
@@ -2135,6 +2158,18 @@
         \normalsize
         \ctexset { autoindent = false }
         \dim_set_eq:NN \parindent \g_hit_body_indent_dim
+        \hit@format@latin@pitch:
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{字距那一段挪到 \cs{hit@format@latin@pitch:} 后面，
+%   它里面那句 \cs{normalsize} 会让 \pkg{ctex} 把字距重置掉}
+% \emph{顺序要紧。} \cs{hit@format@latin@pitch:} 末尾要发一次 \cs{normalsize}
+% 好让重新声明的西文字体生效，而 \pkg{ctex} 挂在字号变化上的
+% \cs{\_\_ctex\_update\_stretch\_auxi:} 会重设 \cs{CJKglue}。它重设前先问
+% \cs{ctex\_if\_ccglue\_touched:}，那个判断在 \TeX~Live 2026 上准、2025 上不准
+% （见 \cs{hit@format@hglue:nn} 处的说明），于是 2025 下我们先设的字距被这句
+% \cs{normalsize} 冲掉，整篇排出来都是裸字号。字距改到最后设，两版都稳。
+%    \begin{macrocode}
         \dim_compare:nNnF { \g_hit_msword_char_dim } = { 0pt }
           {
             \hit@format@hglue:nn
@@ -2151,7 +2186,6 @@
             \dim_set_eq:NN \ccwd \g_hit_msword_char_dim
             \hit@format@punct@grid:
           }
-        \hit@format@latin@pitch:
         \AddToHook { para / begin } { \hit@format@strut: }
         \AddToHook { para / end }   { \hit@format@strut: }
         \cs_if_exist:NT \hit@header@strut:

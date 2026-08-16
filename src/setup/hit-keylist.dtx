@@ -676,15 +676,45 @@
           {
             \@ifpackageloaded { gbt7714 }
               {
-                \use:e
+                \__hit_bib_if_mincompress:T
                   {
-                    \exp_not:N \keys_set:nn { gbt7714 }
-                      { mincompress = \__hit_bib_compress_effective: }
+                    \use:e
+                      {
+                        \exp_not:N \keys_set:nn { gbt7714 }
+                          { mincompress = \__hit_bib_compress_effective: }
+                      }
                   }
               } { }
           }
       }
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{转发 \texttt{mincompress} 前先查这个键在不在，
+%   \pkg{gbt7714}~v2 没有它}
+% \texttt{mincompress} 是 \pkg{gbt7714}~v3 才有的键。\TeX~Live 2025 装的是
+% v2.1.5（2022/10/03），\TeX~Live 2026 才换成 v3.0.1（2026/07/20）。直接
+% \cs{keys\_set:nn} 过去，v2 上会报 \texttt{The key 'gbt7714/mincompress' is
+% unknown}，配上 \texttt{-halt-on-error} 就是编不出来。
+%
+% 判据用 \cs{keys\_if\_exist:nnTF} 查键本身，不查包的版本号或日期：版本号将来
+% 怎么走不好说，键在不在才是我们真正依赖的东西。这个判断在 \TeX~Live 2025 与
+% 2026 的 \pkg{l3kernel} 里都有；万一更老的树上没有，外面那层
+% \cs{cs\_if\_exist:NTF} 会让它退回「不转发」，仍然编得出来，只是压缩阈值用
+% \pkg{gbt7714} 自己的默认值。
+%    \begin{macrocode}
+\prg_new_protected_conditional:Npnn \__hit_bib_if_mincompress: { T }
+  {
+    \cs_if_exist:NTF \keys_if_exist:nnTF
+      {
+        \keys_if_exist:nnTF { gbt7714 } { mincompress }
+          { \prg_return_true: } { \prg_return_false: }
+      }
+      { \prg_return_false: }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
 \keys_define:nn { hit / bib }
   {
     compress-min .choices:nn = { auto , 2 , 3 }
