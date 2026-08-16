@@ -1638,8 +1638,36 @@
   {
     \bool_if:NT \l_hit_format_snap_horizontal_bool
       { \__hit_format_grid_glue: + }
-    \c__hit_format_ecglue_tl \g_hit_msword_char_dim
+    \__hit_format_ecglue_base:
     + \l_hit_format_char_spacing_dim
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{中西文间距的基准由固定格宽改成按本级字号缩放的格宽}
+% \cs{\_\_hit\_format\_ecglue\_base:} 是那 0.225 乘的东西。从前直接乘
+% \cs{g\_hit\_msword\_char\_dim}，也就是正文那一格的宽度，于是不论多大的字号，
+% 中西文之间都只留正文那一格的 0.225。Word 不是这样，这段间距跟着字号走。
+%
+% 章标题实测最明显。范例里 18\,bp 的汉字接数字是 22.28\,bp，减掉汉字 18 得 4.28；
+% 固定格宽给的是 $0.225 \times 12.6719 = 2.851$，差 1.37\,bp，「第\,1\,章」的 1
+% 因此贴得太近。改成按字号缩放，$0.225 \times 18 \times 12.6719 / 12 = 4.2768$，
+% 与实测同位。正文那一档本级字号等于正文字号，算出来仍是原值，不受影响。
+%
+% 正文字号为零时（旧版面没走 \cs{hit@msword@layout:n}）退回固定格宽，不做除法。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_format_ecglue_base:
+  {
+    \dim_compare:nNnTF { \g_hit_body_size_dim } = { 0pt }
+      { \c__hit_format_ecglue_tl \g_hit_msword_char_dim }
+      {
+        \fp_to_dim:n
+          {
+            \c__hit_format_ecglue_tl
+            * \dim_to_fp:n { \l_hit_format_size_dim }
+            * \dim_to_fp:n { \g_hit_msword_char_dim }
+            / \dim_to_fp:n { \g_hit_body_size_dim }
+          }
+      }
   }
 \cs_new_protected:Npn \__hit_format_pick:nnN #1#2#3
   {
