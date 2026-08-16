@@ -717,17 +717,29 @@
 %   也可以写 \texttt{\{vertical=\ldots,horizontal=\ldots\}} 分开设}
 % \emph{网格分两个方向。} Word 的 \texttt{docGrid} 同时定行距与字距，
 % 但一个段落要不要吃这两样是分开的：范例的正文吃字距（每字 0.4543\,bp），
-% 行距却按自然行高排（实测 19.44\,bp，不是一格 19.55\,bp）；三级标题的
-% \texttt{snapToGrid=0} 把两样一起关掉。所以这里拆成两轴。
+% 行距却按自然行高排（实测 19.44\,bp，不是一格 19.55\,bp）。所以这里拆成两轴。
 %
 % 写成布尔或 \texttt{auto} 是两轴的简写，两轴一起设；要分开设就写子块。
 % 两种写法都收，因为绝大多数场合两轴同进同退，为了少数场合逼所有人写子块不划算。
 %
-% \emph{横轴的 \texttt{auto} 是「跟着外层走」。} 纵轴的 \texttt{auto} 求值成假，
-% 与写 \texttt{false} 同义；横轴不一样：写 \texttt{true} 或 \texttt{false} 才发
-% \cs{CJKglue}，写 \texttt{auto}（或压根没写、也没写 \option{char-spacing}）
-% 一个字也不发，该元素就继承外层当时的字距。标题多半就该这样——它排在正文的
-% 字距设定里面，没有理由自己另起一套。
+% \emph{横轴的 \texttt{auto} 是「跟着正文走」。} 纵轴的 \texttt{auto} 求值成假，
+% 与写 \texttt{false} 同义；横轴不一样，它取 \option{body} 那一档的横轴取值。
+% 没写 \option{char-spacing} 时这一档一个字也不发 \cs{CJKglue}，靠继承拿到
+% 正文的字距，结果一样；写了 \option{char-spacing} 就得发，发的时候网格那一截
+% 照样按正文的来，只是再加上本档的字距增减。
+%
+% \changes{v3.2a}{2026/08/16}{横轴的 \texttt{auto} 改成回查 \option{body} 的取值，
+%   从前写了 \option{char-spacing} 会把网格那一截连带关掉}
+% 从前 \texttt{auto} 是靠「不发」来实现「跟着走」的，一旦 \option{char-spacing}
+% 逼着发，网格那一截就按假算，等于悄悄关掉了网格。章标题正是这个情形：写着
+% \texttt{char-spacing = -0.4bp}，字距因此比范例窄了一整格网格余量。
+%
+% \emph{标题吃横向网格。} 范例里 \texttt{heading} 各级样式都写着
+% \texttt{snapToGrid=0}，但逐页量下来，同一页上节标题与正文的每字增量总是相同：
+% 前半那几页都是 $+0.6720$，后半那几页都是 $+0.4536$，正好是两节
+% \texttt{docGrid} 的 \texttt{charSpace} 除以 4096。章标题也跟着换档，
+% 只是每档都比正文低 $0.400$，那是它自己的 \texttt{w:spacing}。
+% 所以 \texttt{snapToGrid=0} 在那个渲染里只关掉了纵轴。
 %    \begin{macrocode}
 \clist_const:Nn \c__hit_format_axis_clist { vertical , horizontal }
 \keys_define:nn { hit / format / snap }
@@ -1207,13 +1219,18 @@
       }
     \__hit_format_read:nnnN {#1} { snap-to-grid-horizontal } { auto }
       \l__hit_format_value_tl
+    \bool_set:Nn \l_hit_format_hglue_set_bool
+      { ! \str_if_eq_p:Vn \l__hit_format_value_tl { auto } }
+    \str_if_eq:VnT \l__hit_format_value_tl { auto }
+      {
+        \__hit_format_read:nnnN { body } { snap-to-grid-horizontal } { false }
+          \l__hit_format_value_tl
+      }
     \bool_set:Nn \l_hit_format_snap_horizontal_bool
       {
         \str_if_eq_p:Vn \l__hit_format_value_tl { true }
         && ! \dim_compare_p:nNn { \g_hit_msword_char_dim } = { 0pt }
       }
-    \bool_set:Nn \l_hit_format_hglue_set_bool
-      { ! \str_if_eq_p:Vn \l__hit_format_value_tl { auto } }
     \__hit_format_read:nnnN {#1} { char-spacing } { auto } \l__hit_format_value_tl
     \str_if_eq:VnTF \l__hit_format_value_tl { auto }
       { \dim_zero:N \l_hit_format_char_spacing_dim }
