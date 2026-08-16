@@ -46,25 +46,25 @@
 \str_new:N \g__hit_bib_cite_brackets_str
 \str_gset:Nn \g__hit_bib_cite_brackets_str { half }
 \bool_new:N \g_bib_authorupper_bool
-\bool_set_true:N \g_bib_authorupper_bool
+\bool_gset_true:N \g_bib_authorupper_bool
 \keys_define:nn { hit / class }
   {
     bibauthorupper .code:n =
       {
         \str_if_eq:nnT {#1} {full}
-          { \bool_set_true:N \g_bib_authorupper_bool }
+          { \bool_gset_true:N \g_bib_authorupper_bool }
       } ,
   }
 
 \int_new:N \g_bib_maxauthor_int
-\int_set:Nn \g_bib_maxauthor_int {3}
+\int_gset:Nn \g_bib_maxauthor_int {3}
 \int_new:N \g__hit_bib_maxcite_int
 \int_gset:Nn \g__hit_bib_maxcite_int { -2 }
 \keys_define:nn { hit / class }
   {
     bibmaxauthor .code:n =
       {
-        \int_set:Nn \g_bib_maxauthor_int {#1}
+        \int_gset:Nn \g_bib_maxauthor_int {#1}
         \int_if_zero:nT { \g_bib_maxauthor_int }
           { \int_gdecr:N \g_bib_maxauthor_int }
       } ,
@@ -72,7 +72,7 @@
 
 \str_new:N \g_bib_labelalign_str
 \keys_define:nn { hit / class }
-  { biblabelalign .code:n = { \str_set:Nn \g_bib_labelalign_str {#1} } }
+  { biblabelalign .code:n = { \str_gset:Nn \g_bib_labelalign_str {#1} } }
 
 %    \end{macrocode}
 %
@@ -497,9 +497,40 @@
     \@ifpackageloaded { biblatex }
       { \printbibliography }
       {
-        \hit@bib@forward@ctl:
         \exp_args:NV \bibliographystyle \g__hit_bib_style_tl
         \exp_args:Nv \bibliography { g__hit_structure_bibliography_tl }
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{下发挂到 \cs{bibliography} 自己身上，不再只在
+%   \cs{hit@bib@print:} 里调}
+% \emph{下发要挂在 \cs{bibliography} 上，不能只挂在 \cs{hit@bib@print:} 里。}
+% v3.1 时代的文档在正文里直接写 \cs{bibliographystyle}\marg{hithesis} 加
+% \cs{bibliography}\marg{reference}，走不到 \cs{hit@bib@print:}。下发只写在那里的话，
+% 这类文档编得过、但 \option{bib} 底下的键一个都不落地，用户也收不到任何提示——
+% 实测老文档里 \option{max-bib-names}\texttt{=1} 无效，同一个键在新范例上是好的。
+%
+% 所以改成包住 \cs{bibliography}：谁调都先下发一次。\cs{hit@bib@print:} 里那一句
+% 因此撤掉，两条路合成一条。下发本身是 \cs{keys\_set:nn}，重复调用无害。
+%
+% 挂的时机是 \cs{AtBeginDocument}：\pkg{natbib} 与 \pkg{gbt7714} 都在导言区加载，
+% 太早包会包到还没被它们改过的那一版。\pkg{biblatex} 一线没有 \cs{bibliography}
+% 这条路，所以只在传统一线包。
+%    \begin{macrocode}
+\AtBeginDocument
+  {
+    \@ifpackageloaded { biblatex } { }
+      {
+        \cs_if_exist:NT \bibliography
+          {
+            \cs_set_eq:NN \hit@bib@inner@bibliography \bibliography
+            \cs_set_protected:Npn \bibliography #1
+              {
+                \hit@bib@forward@ctl:
+                \hit@bib@inner@bibliography {#1}
+              }
+          }
       }
   }
 %    \end{macrocode}
