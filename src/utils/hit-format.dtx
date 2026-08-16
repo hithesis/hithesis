@@ -2075,6 +2075,49 @@
 % \end{macro}
 %
 %    \begin{macrocode}
+% \changes{v3.2a}{2026/08/16}{加 \cs{hit@format@punct@grid:}，把全角标点缺的那一格
+%   网格胶补上}
+% \emph{全角标点少一格网格胶。} Word 的字符网格里，每个全角字符占整整一格，标点
+% 不例外。\pkg{xeCJK} 只在标点\emph{空白的那一侧}发 \cs{CJKglue}：\texttt{，} 的
+% 空白在右，于是 \texttt{点→汉} 有胶而 \texttt{汉→点} 没有；\texttt{（} 的空白在
+% 左，于是 \texttt{汉→开} 有胶而 \texttt{开→汉} 没有。结果每个标点恰好少一格胶，
+% \texttt{汉，汉} 排出来是 $12.0 + 12.672 = 24.672$，Word 是 $2 \times 12.672
+% = 25.344$。
+%
+% 补的办法是往 \pkg{xeCJK} 的字符类记号表里前置一道 \cs{CJKglue}。用的是
+% \cs{xeCJK\_pre\_inter\_class\_toks:nnn}，单下划线前缀，是 \pkg{xeCJK} 给别的
+% 宏包用的模块级接口，不是 \cs{\_\_xeCJK\_} 那种私有件。发的是 \cs{CJKglue} 本身
+% 而不是某个定值，所以每一级标题各自的字距都跟得上。
+%
+% 追加版 \cs{xeCJK\_app\_inter\_class\_toks:nnn} 不行，实测三处纹丝不动：
+% \pkg{xeCJK} 自己那串记号会把后面的东西吃掉，必须前置。
+%
+% \emph{版本断言。} 这两个接口在 \pkg{xeCJK} 3.9.1（\TeX~Live 2025）与
+% 3.10.5（2026）上都验过。够不着时报错而不是静默少一格——静默走样比报错难查得多。
+% 能挡住改名，挡不住保名改行为，后者只能靠每年跟着上游复验。
+%    \begin{macrocode}
+\msg_new:nnnn { hithesis } { xecjk-punct-grid }
+  { xeCJK~缺少~\token_to_str:N \xeCJK_pre_inter_class_toks:nnn ~接口。 }
+  {
+    全角标点每个会比 Word 少一格字符网格的字距。\\
+    这两个接口在 xeCJK 3.9.1（TeX~Live~2025）与 3.10.5（2026）上验过，
+    你装的版本没有它们。\\
+    换回上述版本，或者忽略本条——排版仍能完成，只是标点略窄。
+  }
+\cs_new_protected:Npn \hit@format@punct@grid:
+  {
+    \bool_lazy_and:nnTF
+      { \cs_if_exist_p:N \xeCJK_pre_inter_class_toks:nnn }
+      { \cs_if_exist_p:N \xeCJK_class_num:n }
+      {
+        \xeCJK_pre_inter_class_toks:nnn { CJK } { FullRight } { \CJKglue }
+        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { CJK } { \CJKglue }
+      }
+      { \msg_error:nn { hithesis } { xecjk-punct-grid } }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@apply@body:
   {
     \__hit_format_if_blank:nF { body }
@@ -2106,6 +2149,7 @@
                   { \skip_set:Nn \rightskip { \__hit_format_grid_glue: } }
               }
             \dim_set_eq:NN \ccwd \g_hit_msword_char_dim
+            \hit@format@punct@grid:
           }
         \hit@format@latin@pitch:
         \AddToHook { para / begin } { \hit@format@strut: }
