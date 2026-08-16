@@ -1465,8 +1465,15 @@
 % 发的位置是 \cs{\_\_hit\_format\_build:n} 拼的那串排版命令，被 \pkg{ctex} 限制
 % 在该级标题里。
 %
-% 伸量照 \pkg{xeCJK} 原样留 0.08\cs{baselineskip}：字距是自然宽度，两端对齐时
-% 照样要拉开。
+% \changes{v3.2a}{2026/08/16}{字距胶去掉伸量，改成刚性}
+% \emph{字距是刚性的。} \pkg{xeCJK} 原样给 0.08\cs{baselineskip} 的伸量，一行 33
+% 缝合计约 51\,bp，两端对齐时行就靠拉汉字间距填满。Word 不这样：网格是刚的，
+% 填行靠压本行的标点，汉字之间纹丝不动。范例声明页那种整行 34 字自然宽 423.01\,bp，
+% 行尾离版心还差 2.2\,bp，就是没拉伸的样子。
+%
+% 留着伸量的后果不只是间距不准，还会少装字：\hologo{TeX} 断行取全局最优，拉伸
+% 比压缩便宜得多，于是它宁可少放一个字去把行拉开。demo 里那段实测第一行 33 格
+% 自然宽 418.2\,bp 却撑到 424.45\,bp，多拉的 6.25\,bp 本来够再放一个字。
 %
 % \changes{v3.2a}{2026/08/16}{同时设 \pkg{ctex} 的 \cs{l\_\_ctex\_ccglue\_skip}，
 %   \TeX~Live 2025 上光设 \cs{CJKglue} 会被 \pkg{ctex} 盖掉}
@@ -1488,16 +1495,9 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@hglue:nn #1#2
   {
-    \cs_set:Npx \CJKglue
-      {
-        \exp_not:N \hskip \dim_eval:n {#1}
-        \exp_not:N \@plus 0.08 \exp_not:N \baselineskip
-      }
+    \cs_set:Npx \CJKglue { \exp_not:N \hskip \dim_eval:n {#1} }
     \cs_if_exist:NT \l__ctex_ccglue_skip
-      {
-        \skip_set:Nn \l__ctex_ccglue_skip
-          { \dim_eval:n {#1} plus 0.08 \baselineskip }
-      }
+      { \skip_set:Nn \l__ctex_ccglue_skip { \dim_eval:n {#1} } }
     \cs_set:Npx \CJKecglue
       {
         \exp_not:N \hskip \dim_eval:n {#2}
@@ -2134,6 +2134,21 @@
     你装的版本没有它们。\\
     换回上述版本，或者忽略本条——排版仍能完成，只是标点略窄。
   }
+% \changes{v3.2a}{2026/08/16}{给全角标点加可压量，紧行照 Word 的办法挤标点}
+% \emph{可压量。} 行装不下时 Word 挤本行的标点，不动汉字之间的距离；范例实测紧行
+% 标点中位 9.85\,bp、最小 6.24\,bp，也就是能压到半格。我们原先只能压 0.864\,bp，
+% 那点是 \pkg{xeCJK} 自带的，一行六个标点合计 5.2\,bp，刚够把 34 格塞进版心，
+% 再多就塞不下，字只能挤到下一行。
+%
+% 补的是一道零宽可压胶，摆在标点\emph{空白的那一侧}：\texttt{，} 的空白在右，
+% 压它等于让后一个字左移，所以加在 \texttt{FullRight~$\to$~CJK}；\texttt{（}
+% 的空白在左，加在 \texttt{CJK~$\to$~FullLeft}。自然宽是零，松行一点不压，
+% 与 Word 「行没占满就按整格排」一致。
+%
+% 这一侧不加 \cs{nobreak}：标点之后本来就是合法断点，前置标点之前也是。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@punct@shrink:
+  { \skip_horizontal:n { 0pt ~ minus ~ 0.5 \ccwd } }
 \cs_new_protected:Npn \hit@format@punct@grid:
   {
     \bool_lazy_and:nnTF
@@ -2144,6 +2159,10 @@
           { \nobreak \CJKglue }
         \xeCJK_pre_inter_class_toks:nnn { FullLeft } { CJK }
           { \nobreak \CJKglue }
+        \xeCJK_pre_inter_class_toks:nnn { FullRight } { CJK }
+          { \hit@format@punct@shrink: }
+        \xeCJK_pre_inter_class_toks:nnn { CJK } { FullLeft }
+          { \hit@format@punct@shrink: }
       }
       { \msg_error:nn { hithesis } { xecjk-punct-grid } }
   }
