@@ -440,6 +440,15 @@
 %
 % \changes{v3.2a}{2026/08/16}{传统一线的键改走官方 \pkg{gbt7714} 的控制通道下发，
 %   \file{.bst} 换底座后 \cs{bibauthor} 那套回调不再被调用}
+% \changes{v3.2a}{2026/08/16}{下发前先探一句键在不在。TeX Live 2025 带的
+%   \pkg{gbt7714} 是 v2.1.8，没有这条 l3keys 通道}
+% \emph{下发前先探键在不在。} 这条通道是官方 \pkg{gbt7714} v3（2026-07）才有的。
+% TeX Live 2025 带的是 v2.1.8，\cs{@ifpackageloaded} 照样为真，但族里没有这些键，
+% 12 个键会各报一次「Can be used only in preamble」，键名还被原样排进文档
+% （v2 那边同名的是 \pkg{natbib} 的 \cs{bibpunct} 一族，都是导言区专用命令，
+% 禁用之后参数没人吃，落进正文）。所以改成探 \option{bibpunct} 在不在：
+% 在就下发，不在就整段跳过，键不生效但文档照排。
+%
 % 传统一线排之前先把键下发给官方通道：\pkg{gbt7714.sty} 把这些选项写成一个
 % \texttt{-BSTcontrol} 控制文件、挂进 \cs{bibliography} 的库表，官方底座的
 % \file{.bst} 从那里读。控制文件在 \cs{bibliography} 执行的当口才写，所以这些
@@ -449,6 +458,8 @@
 \cs_new_protected:Npn \hit@bib@forward@ctl:
   {
     \@ifpackageloaded { gbt7714 }
+      {
+        \keys_if_exist:nnT { gbt7714 } { bibpunct }
       {
         \use:e
           {
@@ -490,7 +501,9 @@
                   }
               }
           }
-      } { }
+      }
+      }
+      { }
   }
 \cs_new_protected:Npn \hit@bib@print:
   {
