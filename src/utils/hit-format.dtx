@@ -1500,6 +1500,23 @@
 %    \begin{macrocode}
 \tl_const:Nn \c__hit_format_ccstretch_tl { 0.02 }
 \tl_const:Nn \c__hit_format_ecstretch_tl { 0.08 }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/18}{西文标点与乘除号并入半角标点类，旁边不发中西文胶}
+% \emph{中西文胶只该发给字母和数字。} 1--5 页版实测 \texttt{即→×} 是 12.32、
+% \texttt{“→,} 是 12.35、\texttt{汉→,} 约一格——Word 的中西文空隙只加在汉字与
+% 字母数字之间，西文标点、乘除号这类符号旁没有。按字符豁免不走窥探（试过：
+% \cs{CJKecglue} 的调用点后面时常跟着 \cs{scan\_stop:} 或 \pkg{xeCJK} 的内部宏，
+% \cs{peek\_after:Nw} 读不到真字符），走字符类：这些字符声明进 \pkg{xeCJK}
+% 本来就为半角标点准备的 \texttt{HalfLeft}/\texttt{HalfRight} 类，与
+% \texttt{Default} 拆开之后，边界规则在 \cs{hit@format@punct@grid:} 里按类各配。
+%    \begin{macrocode}
+\dim_new:N \l__hit_format_ecglue_dim
+\cs_new_protected:Npn \__hit_format_ecglue_emit:
+  {
+    \hskip \l__hit_format_ecglue_dim
+      \@plus \c__hit_format_ecstretch_tl \baselineskip
+  }
 \cs_new_protected:Npn \hit@format@hglue:nn #1#2
   {
     \cs_set:Npx \CJKglue
@@ -1509,11 +1526,8 @@
       }
     \cs_if_exist:NT \l__ctex_ccglue_skip
       { \skip_set:Nn \l__ctex_ccglue_skip { \dim_eval:n {#1} } }
-    \cs_set:Npx \CJKecglue
-      {
-        \exp_not:N \hskip \dim_eval:n {#2}
-        \exp_not:N \@plus \c__hit_format_ecstretch_tl \exp_not:N \baselineskip
-      }
+    \dim_set:Nn \l__hit_format_ecglue_dim { \dim_eval:n {#2} }
+    \cs_set_eq:NN \CJKecglue \__hit_format_ecglue_emit:
   }
 \cs_new_protected:Npn \hit@format@strut:
   {
@@ -1636,8 +1650,14 @@
 % 「自动调整中文与西文的间距」那一份（\texttt{w:autoSpaceDE}/\texttt{DN}，
 % \cs{g\_hit\_msword\_ecglue\_dim} 里算好的 0.225 格）。关掉网格只该去掉前一截，
 % 后一截跟网格无关，去掉了中西文之间就一点空隙都没有了。
+%
+% \changes{v3.2a}{2026/08/18}{中西文间距那一截由 0.261 改 0.246：按 1--5 页版
+%   汉字接数字实测 15.52 反推}
+% 0.246 由 1--5 页版反推：\texttt{汉→数字} 松行实测 15.52，减掉一整格 12.4543
+% 得 3.07，除以格宽即 0.246。旧值 0.261 是按伪影文档定的，总步进会到 15.70，
+% 宽 0.18。
 %    \begin{macrocode}
-\tl_const:Nn \c__hit_format_ecglue_tl { 0.261 }
+\tl_const:Nn \c__hit_format_ecglue_tl { 0.246 }
 \dim_new:N \g_hit_msword_slack_dim
 \cs_new:Npn \__hit_format_grid_glue:
   { \g_hit_msword_char_dim - \g_hit_body_size_dim }
@@ -2166,85 +2186,137 @@
 % \changes{v3.2a}{2026/08/17}{相邻标点前一个缩到半格}
 % \changes{v3.2a}{2026/08/18}{标点规则改按范例第 18 页实测重排；
 %   引号、波浪线单列字符类，省略号、破折号并入汉字类}
-% \emph{标点连排，规则以范例第 18 页那行为准。} 范例
-% 「一般使用第三人称, 采用“分析了……原因”、“认为……”、“对……进行了探讨”」
-% 一行给出了全套步进（字符网格 12.4543\,bp 一格）：
-% \begin{itemize}
-%   \item \texttt{”→、} 6.25——后置接后置，前一个减半；
-%   \item \texttt{、→“} 1.50——减半再叠开引号的左削，$6.23-4.73$；
-%   \item \texttt{用→“} 7.75——开引号在行中左侧削 0.38 格；
-%   \item \texttt{“→分}、\texttt{因→”} 12.49——引号的另一侧不动；
-%   \item \texttt{…→…}、\texttt{…}与汉字相邻 12.24～12.49——省略号完全按汉字排；
-%   \item 行首的「“」不削（12.49 整格起排）。
-% \end{itemize}
-% 同页另一行「采用《汉语主题词表」给出 \texttt{用→《} 12.50——书名号、括号这些
-% 前置符号 Word \emph{不}削。v3.2a 早先版本按自造测试文档给汉→开置一道
-% $-0.3$ 格的 kern、给后→开置 $-0.185$ 格，两个数后来查明都是测试文档的伪影：
-% 那份 docx 的引号被 Word 排成了 Times 字形，压缩设置也与范例不同。已删。
+% \changes{v3.2a}{2026/08/18}{压缩由定值 kern 改成按需的可压胶；引号类并回
+%   \texttt{FullLeft}}
+% \emph{Word 的标点压缩是按需的排版资源，不是定值。} 修正过字体提示的测试文档
+% （\file{标点压缩测试2}）把同一标点对铺在各个行位上，结果是双态分布：
+% \texttt{汉→“} 松行 12.49、紧行 8.24；\texttt{汉→《} 12.49 与 9.00；
+% \texttt{；→”} 12.49 与 11.24；\texttt{、→汉} 12.50 与 6.74。1--5 页版同一行里
+% \texttt{；→”} 压满 6.25 而 \texttt{用→“} 只压 1.0。合起来的模型很短：
+% \emph{每个全角字符自然占一格（字身加网格增量），行紧时排版器从标点的空白侧
+% 按需扣，扣的上限约是空白的大小}。范例第 18 页「、→“」的 1.50 是两侧上限同时
+% 扣满的极端（$12.45-5.77-4.73$），同页「用→《」的 12.50 是松行一点不扣。
+% v3.2a 早先按定值 kern 实现，松行也在扣，用户看出「引号有时贴得过近」。
 %
-% 减半 kern 取「半格减一个字身」（标点之间没有网格胶，前一个的自然宽是一个字身）。
-% 必须是 kern 不能是胶：胶是合法断点，实测发胶 demo 立刻出现 3 处行首点号；
-% kern 只有后面紧跟胶时才构成断点。
+% 照搬「自然宽=整格、可压量=空白」在 \hologo{TeX} 里走不通，断行会漂：Word 的
+% 断行器把标点压缩当免费资源，挤一挤也要把「探讨”」塞进第 18 页那行；
+% \hologo{TeX} 的 shrink 带 badness，同样的行宁可提前断也不肯压，实测那行
+% 「探讨”」被推去下一行。所以标点对写成\emph{反方向}：自然宽取压紧值
+% （kern，断行器看到的宽度与 Word 压完一致，断点因此对齐），后面补一道
+% 只伸不缩的胶，行松时把间隙撑回去。紧行伸长率为零，数值自动落在压紧值上。
+% 上限沿用实测：闭号右空白半格（$0.5$\cs{ccwd}），开号左侧削 0.38 格，
+% 后接开双方相加 0.88 格。松行的撑开是按伸量比例分的，撑不满 Word 的全格，
+% 这是两家分配器的固有差距，记档。
+%
+% 胶是合法断点，所以每道胶前的断行语义都要点名：禁则处（汉→后置、开→汉、
+% 开→开、开→后置）压胶前置 \cs{nobreak}；可断处（汉→开）让胶裸着；
+% 「后置→汉」「后置→开」「后置→西文」的断点交给行末减半的
+% \cs{discretionary}，折处后再补 \cs{nobreak} 封住胶，这样断行必走折处，
+% 行末闭号\emph{恒}压半格——1--5 页版「总结与概括，」行末逗号实测就是半格
+% 6.46，此前折处与胶两个断点并存、胶不罚分，\hologo{TeX} 时选胶，行末逗号
+% 时压时不压。
+%
+% \changes{v3.2a}{2026/08/18}{行末减半的折处在盒内不发：\pkg{ulem} 的收词盒
+%   遇到 \cs{discretionary} 会拆坏分组}
+% 折处只在能断行的地方发。盒子里（\cs{hbox}、表格格子、\pkg{ulem} 的收词盒）
+% 不断行，折处无用；\pkg{ulem} 更是遇到它直接把分组拆坏，demo 里
+% \cs{uline} 内的「：B」实测报 Too~many~\}'s。用 \cs{mode\_if\_inner:F} 挡掉。
+% \texttt{p} 型表列里的段落是普通水平模式，不受影响，行末减半照常。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@format@punct@pair:
+\cs_new_protected:Npn \hit@format@punct@half:
+  { \mode_if_inner:F { \discretionary { \kern -0.5 \ccwd } { } { } } }
+\cs_new_protected:Npn \hit@format@punct@oshrink:
+  { \skip_horizontal:n { 0pt ~ minus ~ 0.38 \ccwd } }
+\cs_new_protected:Npn \hit@format@punct@cshrink:
+  { \skip_horizontal:n { 0pt ~ minus ~ 0.5 \ccwd } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/18}{标点对之间的胶盒内换成等宽 kern：\pkg{ulem}
+%   按胶分段，而这些记号落在 \pkg{xeCJK} 的标点类分组里，分组没闭合就切段，
+%   报 Too~many~\}'s}
+% \emph{标点与标点之间的胶，盒内要换成 kern。} \pkg{ulem} 收词时按胶和罚分
+% 切段，而标点对的记号表在 \pkg{xeCJK} 的标点类分组\emph{内部}执行，组还没
+% 闭合就切段，直接拆坏分组（demo 里 \cs{uline} 内的「？】」实测报
+% Too~many~\}'s；同位置 v3.2a 之前的定值 kern 就没事）。盒内不断行、胶的
+% 伸缩也不参与，等宽 kern 与自然宽的胶输出相同，于是每对做两个分支：
+% 盒内发一格增量的 kern，盒外发 \cs{nobreak} 加可压胶。汉字与标点之间的
+% 三对（汉→后、开→汉、汉→开）在分组外执行，v3.2a 以来一直发胶且
+% \cs{uline} 实测无恙，不用换。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_punct_pair_kern:
   { \tex_kern:D \dim_eval:n { 0.5 \ccwd - 1em } \scan_stop: }
-%    \end{macrocode}
-%
-% \emph{开引号的左削用可断折处发。} 削量 0.38 格来自上面两处实测的中点
-% （$12.45-7.75=4.70$ 与 $6.23-1.50=4.73$）。宋体「“」的墨迹在字身右半
-% （ink 左界 0.469\,em），削掉左空白不碰墨。放进 \cs{discretionary} 的
-% 不断分支里：行中不断时 kern 生效，恰在此处断行时开引号原样起下一行，
-% 行首不削这条就不用另写。断到行首的旧写法（kern 在胶前）会把断点前那行
-% 末字拉窄，折处没有这个毛病。
-%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@punct@ngap:
+  {
+    \mode_if_inner:TF
+      { \tex_kern:D \dim_eval:n { \ccwd - 1em } \scan_stop: }
+      { \nobreak \CJKglue }
+  }
 \cs_new_protected:Npn \hit@format@punct@qtrim:
-  { \discretionary { } { } { \tex_kern:D \dim_eval:n { -0.38 \ccwd } \scan_stop: } }
+  {
+    \discretionary { } { } { \tex_kern:D \dim_eval:n { -0.38 \ccwd } \scan_stop: }
+    \mode_if_inner:F
+      { \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.38 \ccwd } }
+  }
+\cs_new_protected:Npn \hit@format@punct@cpair:
+  {
+    \__hit_format_punct_pair_kern:
+    \mode_if_inner:F
+      { \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.5 \ccwd } }
+  }
+\cs_new_protected:Npn \hit@format@punct@bpair:
+  {
+    \__hit_format_punct_pair_kern:
+    \mode_if_inner:F
+      { \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.5 \ccwd } }
+    \hit@format@punct@qtrim:
+  }
 %    \end{macrocode}
 %
-% \emph{波浪线两侧各补半格字距。} 生成的测试文档里 \texttt{～→数字} Word 给
-% 「一个字身加半格网格增量」，与西文同待遇，前后都没有中西文胶。数字侧进场
-% 方向也要补：西文字距是按字符加的，\pkg{fontspec} 会删掉一段西文末字的尾距，
-% \texttt{3→～} 那半格就丢在这里。em 在这两处边界上都等于当前字号，够用。
+% \emph{波浪线进场补半格。} 数字侧的西文字距是按字符加的，\pkg{fontspec} 会删掉
+% 一段西文末字的尾距，\texttt{3→～} 那半格就丢在这里。出场方向（\texttt{～→6}）
+% 提示修正后的测试文档实测 12.50，一整格增量，直接用 \cs{CJKglue}。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@punct@xtra:
   { \tex_kern:D \dim_eval:n { ( \ccwd - 1em ) / 2 } \scan_stop: }
 %    \end{macrocode}
 %
-%    \begin{macrocode}
-\cs_new_protected:Npn \hit@format@punct@half:
-  { \discretionary { \kern -0.5 \ccwd } { } { } }
-\cs_new_protected:Npn \hit@format@punct@shrink:
-  { \skip_horizontal:n { 0pt ~ minus ~ 0.4 \ccwd } }
-%    \end{macrocode}
+% \emph{开引号与波浪线各单开一类。} 开引号「“」「‘」进 \texttt{HITQuote}：
+% 行中左侧削 0.38 格（压紧值做进 \cs{discretionary} 的不断分支，断行处与行首
+% 自动不削），行松时靠 \cs{hit@format@punct@qtrim:} 里那道只伸的胶撑回来。
+% 书名号括号不削（范例 \texttt{用→《} 12.50），所以引号不能与 \texttt{FullLeft}
+% 同类。「～」单开 \texttt{HITTilde}：不参与压缩，与数字相邻也不发中西文胶。
+% 建类照抄 \pkg{xeCJK} 处理破折号的 \texttt{PoZheHao} 三步：
+% \cs{xeCJK\_new\_class:n} 建类、\cs{\_\_xeCJK\_save\_CJK\_class:n} 注册类号
+% （漏这步字体查类号报 Missing number，早先自建类失败就败在这里）、
+% \cs{xeCJK\_copy\_inter\_class\_toks:nnnn} 逐对克隆素表（引号克隆
+% \texttt{FullLeft}，波浪线克隆 \texttt{FullRight}）。克隆要在发规则之前做；
+% 对象类清单用 \cs{g\_\_xeCJK\_class\_seq} 的快照，不写死——2025 的
+% \pkg{xeCJK} 3.9.1 还没有 \texttt{PoZheHao}。
 %
-% \emph{按字符区别对待，办法是给字符单开类。} \cs{xeCJK\_pre\_inter\_class\_toks:nnn}
-% 只认类不认字，而 Word 的规则是按字的：开引号削、书名号不削，省略号破折号
-% 整格、顿号句号减半。\pkg{xeCJK} 自己处理破折号连排用的就是单开类的办法
-% （\texttt{PoZheHao} 类，从 \texttt{FullRight} 克隆记号表），照抄它的三步：
-% \cs{xeCJK\_new\_class:n} 建类、\cs{\_\_xeCJK\_save\_CJK\_class:n} 把类号注册成
-% 中文类（漏这步字体查类号时报 Missing number，早先自建类失败就败在这里）、
-% \cs{xeCJK\_copy\_inter\_class\_toks:nnnn} 逐对克隆记号表。克隆要在下面发
-% 网格胶之前做，素表克隆完各类再配各类的规则，互不沾染。克隆的对象类清单用
-% \cs{g\_\_xeCJK\_class\_seq} 的快照，不写死——2025 的 \pkg{xeCJK} 3.9.1 还没有
-% \texttt{PoZheHao}。
-%
-% 「……」「——」直接并入汉字类：范例里它们与汉字步进完全相同，整格、可断、
+% 「……」「——」并入汉字类：范例里它们与汉字步进完全相同，整格、可断、
 % 不压缩，连「、→…」「。→…」也是整格（Word 的压缩不作用于非标点邻位）。
 % \cs{xeCJKDeclareCharClass} 在 \cs{begin\{document\}} 时刻改已有类照样生效，
 % 早先「导言区后定型」的结论是在 shell 转义污染期得出的，不对。
 %
 % \emph{源码在后置标点后换行会丢配对。} 「、」后换行，行尾换行符变成空格记号，
 % \pkg{xeCJK} 吞掉它之后「“」是从 \texttt{Boundary} 类入场的，上面按类配的
-% kern 一条都轮不上——demo 里同一行的两处「”、“」一处 1.49 一处 12.00，就是
+% 规则一条都轮不上——demo 里同一行的两处「”、“」曾一处 1.49 一处 12.00，就是
 % 这么来的。开 \texttt{CheckFullRight} 让 \pkg{xeCJK} 在记号层直接删掉后置标点
 % 后的空格，两个字符恢复相邻，配对保住。代价是「。~A」这种全角标点后手打的
-% 西文空格也会被删（由后→西的减半加中西文胶顶替）；中文标点后本不该打空格，
-% 真要空可以写 \verb|~|。
+% 西文空格也会被删；中文标点后本不该打空格，真要空可以写 \verb|~|。
 %
-% 开引号「“」「‘」进 \texttt{HITQuote} 类：与 \texttt{FullLeft} 唯一的差别是
-% 各来向都多一道左削折处，行首（\texttt{Boundary} 来向）不配削，自然不削。
-% 闭引号「”」「’」的行为与 \texttt{FullRight} 完全一致（入邻整格、连排减半），
-% 不动。波浪线「～」进 \texttt{HITTilde} 类：不参与减半，对西文侧只补半格字距。
+% 「后置→西文」的中西文胶直接前置发胶原语：字母数字要那道空隙，
+% 西文标点如今在半角类里，不从这对走，不会错发。
+%
+% \emph{半角标点类的三处修正。} 西文句读、括号、乘除号声明进
+% \texttt{HalfLeft}/\texttt{HalfRight} 后，它们与字母数字分了家，三处按
+% 1--5 页版实测配平：汉与开引号到半角标点，补一格网格增量（\texttt{汉→,}
+% 与 \texttt{“→,} 都是一格出头）；\pkg{xeCJK} 原生在「半角标点→汉」方向
+% 发一道 \cs{CJKecglue}，Word 没有（\texttt{,→汉} 实测裸宽），用
+% \cs{xeCJK\_replace\_inter\_class\_toks:nnnn} 从素表里摘掉；
+% 「汉→半角开号」原生也发 \cs{CJKecglue}，按实测降格成 \cs{CJKglue}。
+% 「(→x」「3×4」这类西文互邻的边界两类之间没有记号表，天然裸排，
+% 英文正文里的逗号句号不受影响。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@punct@grid:
   {
@@ -2255,9 +2327,18 @@
         { \cs_if_exist_p:N \xeCJK_new_class:n }
         { \cs_if_exist_p:N \__xeCJK_save_CJK_class:n }
         { \cs_if_exist_p:N \xeCJK_copy_inter_class_toks:nnnn }
+        { \cs_if_exist_p:N \xeCJK_replace_inter_class_toks:nnnn }
       }
       {
         \xeCJKsetup { PunctStyle = plain , CheckFullRight = true }
+%    \end{macrocode}
+%
+% 行末闭号试过恒压：给 \cs{\_\_xeCJK\_punct\_hskip:n}（原生标点胶的间接层）
+% 前置罚分，灭掉原生胶自带的断点，断行必走折处。撤了——断点集一变全文断行
+% 跟着漂，「外，」那行把下一个字拽了上来，与范例逐行对不上。现状是折处与
+% 原生胶两个断点并存，\hologo{TeX} 按代价挑：行末闭号有时半格有时全格，
+% Word 恒半格。这是两家断行器的取舍函数不同，改哪一侧都会牵动断点，记档。
+%    \begin{macrocode}
         \xeCJKDeclareCharClass { CJK } { "2026 , "2014 }
         \seq_set_eq:NN \l_tmpa_seq \g__xeCJK_class_seq
         \xeCJK_new_class:n { HITQuote }
@@ -2289,20 +2370,32 @@
           { \nobreak \CJKglue }
         \xeCJK_pre_inter_class_toks:nnn { FullLeft } { CJK }
           { \nobreak \CJKglue }
-        \xeCJK_pre_inter_class_toks:nnn { FullRight } { CJK }
-          { \hit@format@punct@half: \hit@format@punct@shrink: }
+        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { Default }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { FullRight }
+          { \hit@format@punct@ngap: }
         \xeCJK_pre_inter_class_toks:nnn { CJK } { FullLeft }
-          { \hit@format@punct@shrink: }
+          { \hit@format@punct@oshrink: }
+        \xeCJK_pre_inter_class_toks:nnn { FullRight } { CJK }
+          {
+            \mode_if_inner:F
+              { \hit@format@punct@half: \nobreak \hit@format@punct@cshrink: }
+          }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { FullRight }
-          { \hit@format@punct@pair: }
+          { \hit@format@punct@cpair: }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { FullLeft }
-          { \hit@format@punct@pair: }
+          { \hit@format@punct@bpair: }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { Default }
-          { \hit@format@punct@pair: \CJKecglue }
+          {
+            \__hit_format_punct_pair_kern:
+            \mode_if_inner:F
+              { \skip_horizontal:n { 0pt ~ plus ~ 0.5 \ccwd } }
+            \__hit_format_ecglue_emit:
+          }
         \xeCJK_pre_inter_class_toks:nnn { CJK } { HITQuote }
           { \hit@format@punct@qtrim: }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { HITQuote }
-          { \hit@format@punct@pair: \hit@format@punct@qtrim: }
+          { \hit@format@punct@bpair: }
         \xeCJK_pre_inter_class_toks:nnn { FullLeft } { HITQuote }
           { \hit@format@punct@qtrim: }
         \xeCJK_pre_inter_class_toks:nnn { HITQuote } { HITQuote }
@@ -2311,12 +2404,35 @@
           { \hit@format@punct@qtrim: }
         \xeCJK_pre_inter_class_toks:nnn { HITQuote } { CJK }
           { \nobreak \CJKglue }
+        \xeCJK_pre_inter_class_toks:nnn { HITQuote } { FullRight }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { HITQuote } { Default }
+          { \hit@format@punct@ngap: }
         \xeCJK_pre_inter_class_toks:nnn { CJK } { HITTilde }
           { \nobreak \CJKglue }
         \xeCJK_pre_inter_class_toks:nnn { HITTilde } { Default }
-          { \hit@format@punct@xtra: }
+          { \hit@format@punct@ngap: }
         \xeCJK_pre_inter_class_toks:nnn { Default } { HITTilde }
           { \hit@format@punct@xtra: }
+        \xeCJK_pre_inter_class_toks:nnn { FullRight } { HITTilde }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { HITTilde } { FullRight }
+          { \hit@format@punct@ngap: }
+        \xeCJKDeclareCharClass { HalfRight }
+          { "21 , "29 , "2C , "2E , "3A , "3B , "3F , "5D , "D7 , "F7 }
+        \xeCJKDeclareCharClass { HalfLeft } { "28 , "5B }
+        \xeCJK_pre_inter_class_toks:nnn { CJK } { HalfRight }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { HalfRight }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { HITQuote } { HalfRight }
+          { \hit@format@punct@ngap: }
+        \xeCJK_replace_inter_class_toks:nnnn { HalfRight } { CJK }
+          { \CJKecglue } { }
+        \xeCJK_replace_inter_class_toks:nnnn { HalfLeft } { CJK }
+          { \CJKecglue } { }
+        \xeCJK_replace_inter_class_toks:nnnn { CJK } { HalfLeft }
+          { \CJKecglue } { \CJKglue }
       }
       { \msg_error:nn { hithesis } { xecjk-punct-grid } }
   }
