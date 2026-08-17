@@ -2256,6 +2256,26 @@
         \hit@format@latin@pitch:
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/08/17}{设字距前先停掉 \pkg{ctex} 的 \cs{ctex\_update\_ccglue:}，
+%   \TeX~Live 2025 上不停它整篇网格都不生效}
+% \emph{先停掉 \pkg{ctex} 的重置。} \pkg{ctex} 把 \cs{CJKglue} 挂在字号变化上，
+% 由 \cs{\_\_ctex\_update\_stretch\_auxi:} 调 \cs{ctex\_update\_ccglue:} 重设，
+% 重设前先问 \cs{ctex\_if\_ccglue\_touched:}。那个判断比的是 \cs{CJKglue} 与
+% \cs{\_\_ctex\_ccglue:} 的 meaning：\TeX~Live 2026 的
+% \cs{ctex\_update\_ccglue:} 会同步后者，判得准；2025 的不同步，判不准，于是我们
+% 设的字距被冲回 \pkg{ctex} 自己那份。实测 2025 下整篇字距都是裸字号 12.0，
+% 字符网格等于没开。
+%
+% 先前试过三条都不行，记下省得重来：同时设 \cs{l\_\_ctex\_ccglue\_skip}（重置那条
+% 路把定义和寄存器一起冲）；把设字距挪到 \cs{normalsize} 之后（还有别处在重置）；
+% 把比对基准 \cs{\_\_ctex\_ccglue:} 换掉逼它一直判「已改过」（2025 仍没救回，
+% 2026 反而从 12.6720 变成 12.7320）。
+%
+% 直接把 \cs{ctex\_update\_ccglue:} 停成空操作，两版都稳，实测汉字步进都是
+% 12.5040。停它不影响别的：\cs{ccwd} 由 \cs{ctex\_update\_ccwd:} 单独管，我们也
+% 自己设一次。只在新版面下停——旧版面的 \cs{ziju} 还要靠 \pkg{ctex} 这套，所以
+% 这一句摆在 \cs{g\_hit\_msword\_char\_dim} 非零的那个分支里。
+%
 % \changes{v3.2a}{2026/08/16}{字距那一段挪到 \cs{hit@format@latin@pitch:} 后面，
 %   它里面那句 \cs{normalsize} 会让 \pkg{ctex} 把字距重置掉}
 % \emph{顺序要紧。} \cs{hit@format@latin@pitch:} 末尾要发一次 \cs{normalsize}
@@ -2267,6 +2287,8 @@
 %    \begin{macrocode}
         \dim_compare:nNnF { \g_hit_msword_char_dim } = { 0pt }
           {
+            \cs_if_exist:NT \ctex_update_ccglue:
+              { \cs_set_eq:NN \ctex_update_ccglue: \prg_do_nothing: }
             \hit@format@hglue:nn
               { \__hit_format_hglue_cc: } { \__hit_format_hglue_ec: }
             \bool_if:NT \l_hit_format_snap_horizontal_bool
