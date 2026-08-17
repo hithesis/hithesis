@@ -2146,83 +2146,145 @@
 % 全文出现 13 处行首点号。\cs{nobreak} 就是 \cs{penalty10000}，摆在胶前面把这个
 % 断点的代价抬到禁止。
 %
-% \emph{版本断言。} 这两个接口在 \pkg{xeCJK} 3.9.1（\TeX~Live 2025）与
-% 3.10.5（2026）上都验过。够不着时报错而不是静默少一格——静默走样比报错难查得多。
-% 能挡住改名，挡不住保名改行为，后者只能靠每年跟着上游复验。
+% \emph{版本断言。} 用到的几个接口——\cs{xeCJK\_pre\_inter\_class\_toks:nnn}、
+% \cs{xeCJK\_class\_num:n}、\cs{xeCJK\_new\_class:n}、
+% \cs{\_\_xeCJK\_save\_CJK\_class:n}、\cs{xeCJK\_copy\_inter\_class\_toks:nnnn}——
+% 在 \pkg{xeCJK} 3.9.1（\TeX~Live 2025）与 3.10.5（2026）上都验过。够不着时报错
+% 而不是静默少一格——静默走样比报错难查得多。能挡住改名，挡不住保名改行为，
+% 后者只能靠每年跟着上游复验。
 %    \begin{macrocode}
 \msg_new:nnnn { hithesis } { xecjk-punct-grid }
-  { xeCJK~缺少~\token_to_str:N \xeCJK_pre_inter_class_toks:nnn ~接口。 }
+  { xeCJK~缺少字符类接口。 }
   {
-    全角标点每个会比 Word 少一格字符网格的字距。\\
-    这两个接口在 xeCJK 3.9.1（TeX~Live~2025）与 3.10.5（2026）上验过，
-    你装的版本没有它们。\\
-    换回上述版本，或者忽略本条——排版仍能完成，只是标点略窄。
+    全角标点每个会比 Word 少一格字符网格的字距，引号、省略号、
+    破折号、波浪线的宽度也不会按 Word 的规则排。\\
+    用到的接口在 xeCJK 3.9.1（TeX~Live~2025）与 3.10.5（2026）上验过，
+    你装的版本缺其中一个。\\
+    换回上述版本，或者忽略本条——排版仍能完成，只是标点走样。
   }
 %    \begin{macrocode}
 % \changes{v3.2a}{2026/08/17}{相邻标点前一个缩到半格}
-% \emph{标点连排。} 两个全角标点挨着时，Word 让前一个只占半格。范例实测
-% \texttt{”→、} 的步进是 6.25\,bp，正是半格；我们是 12.00\,bp，整格。
-% \pkg{xeCJK} 的 \texttt{quanjiao} 本来管这件事，但我们为了修行末过压换成了
-% \texttt{plain}，把这条一起关掉了，所以自己补。
+% \changes{v3.2a}{2026/08/18}{标点规则改按范例第 18 页实测重排；
+%   引号、波浪线单列字符类，省略号、破折号并入汉字类}
+% \emph{标点连排，规则以范例第 18 页那行为准。} 范例
+% 「一般使用第三人称, 采用“分析了……原因”、“认为……”、“对……进行了探讨”」
+% 一行给出了全套步进（字符网格 12.4543\,bp 一格）：
+% \begin{itemize}
+%   \item \texttt{”→、} 6.25——后置接后置，前一个减半；
+%   \item \texttt{、→“} 1.50——减半再叠开引号的左削，$6.23-4.73$；
+%   \item \texttt{用→“} 7.75——开引号在行中左侧削 0.38 格；
+%   \item \texttt{“→分}、\texttt{因→”} 12.49——引号的另一侧不动；
+%   \item \texttt{…→…}、\texttt{…}与汉字相邻 12.24～12.49——省略号完全按汉字排；
+%   \item 行首的「“」不削（12.49 整格起排）。
+% \end{itemize}
+% 同页另一行「采用《汉语主题词表」给出 \texttt{用→《} 12.50——书名号、括号这些
+% 前置符号 Word \emph{不}削。v3.2a 早先版本按自造测试文档给汉→开置一道
+% $-0.3$ 格的 kern、给后→开置 $-0.185$ 格，两个数后来查明都是测试文档的伪影：
+% 那份 docx 的引号被 Word 排成了 Times 字形，压缩设置也与范例不同。已删。
 %
-% 补法是在标点与标点的四种类边界上各加一道负 kern，把前一个从整格压到半格。
-% 前一个的自然宽是一个字身（没有网格胶，\pkg{xeCJK} 在标点之间不发 \cs{CJKglue}），
-% 所以 kern 取「半格减一个字身」。
-%
-% \emph{省略号与破折号是个已知缺口。} 「……」「——」是一个符号写成两个字符，
-% Word 不压它们（实测 \texttt{…→…} 与 \texttt{—→—} 都是 12.25\,bp 整格），
-% 我们按连排规则压成了半格，符号被拦腰断开。试过用 \cs{xeCJKDeclareCharClass}
-% 把它们从 \texttt{CL} 里拉出来单列一类，无效——那个命令要在导言区生效，
-% 而这里是 \cs{begin\{document\}} 时刻，\pkg{xeCJK} 的字符类已经定型。
-% 要修得把声明提到载入 \pkg{xeCJK} 之后、导言区结束之前，另做。
-%
-% 必须是 kern 不能是胶。胶在 \hologo{TeX} 眼里是合法断点，用 \cs{skip\_horizontal:n}
-% 发会让两个标点之间可断，实测 demo 里立刻出现 3 处行首点号。kern 只有后面紧跟胶
-% 时才构成断点，这里后面是标点字身，不会。
+% 减半 kern 取「半格减一个字身」（标点之间没有网格胶，前一个的自然宽是一个字身）。
+% 必须是 kern 不能是胶：胶是合法断点，实测发胶 demo 立刻出现 3 处行首点号；
+% kern 只有后面紧跟胶时才构成断点。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@punct@pair:
   { \tex_kern:D \dim_eval:n { 0.5 \ccwd - 1em } \scan_stop: }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/17}{后置接前置只轻压；后置接西文减半并补中西文胶}
-% \emph{后置接前置只轻压。} 生成的测试文档里 \texttt{。“} 这一对 Word 给
-% 10.19\,bp，不是半格；减半会让引号贴到句号上。这一对单独走
-% \cs{hit@format@punct@near:}，压 0.185 格。
-%
-% \emph{后置接西文减半，再补一道 \cs{CJKecglue}。} 同一份测试里 \texttt{，→a}
-% 最小 9.38\,bp，拆开是「半格 6.227 加中西文胶 3.25」。\pkg{xeCJK} 在标点与西文
-% 之间不发中西文胶，只减半会让西文贴上来。
-%
-% 四种标点相邻的组合要分开写，不能拿两重循环一把发。\cs{xeCJK\_pre\_inter\_class\_toks:nnn}
-% 是前置，\texttt{FullRight~$\to$~FullLeft} 若既落在循环里又落在自己那一条上，
-% 两道 kern 会叠起来压掉 8.6\,bp，实测出来 3.94\,bp。
+% \emph{开引号的左削用可断折处发。} 削量 0.38 格来自上面两处实测的中点
+% （$12.45-7.75=4.70$ 与 $6.23-1.50=4.73$）。宋体「“」的墨迹在字身右半
+% （ink 左界 0.469\,em），削掉左空白不碰墨。放进 \cs{discretionary} 的
+% 不断分支里：行中不断时 kern 生效，恰在此处断行时开引号原样起下一行，
+% 行首不削这条就不用另写。断到行首的旧写法（kern 在胶前）会把断点前那行
+% 末字拉窄，折处没有这个毛病。
 %    \begin{macrocode}
-% \changes{v3.2a}{2026/08/17}{汉字接前置符号固定收 0.3 格}
-% \emph{汉字接前置符号要收。} 生成的测试文档里 \texttt{癸→《}、\texttt{癸→（}、
-% \texttt{癸→【} Word 一律给 8.75\,bp，比一整格少 3.75\,bp——前置符号的左侧空白
-% 被收掉一部分。我们原先只在这一处给了可压量，自然宽仍是整格，实测 10.97\,bp。
-% 补一道固定的负 kern，0.3 格算出来 3.736\,bp。
+\cs_new_protected:Npn \hit@format@punct@qtrim:
+  { \discretionary { } { } { \tex_kern:D \dim_eval:n { -0.38 \ccwd } \scan_stop: } }
+%    \end{macrocode}
+%
+% \emph{波浪线两侧各补半格字距。} 生成的测试文档里 \texttt{～→数字} Word 给
+% 「一个字身加半格网格增量」，与西文同待遇，前后都没有中西文胶。数字侧进场
+% 方向也要补：西文字距是按字符加的，\pkg{fontspec} 会删掉一段西文末字的尾距，
+% \texttt{3→～} 那半格就丢在这里。em 在这两处边界上都等于当前字号，够用。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@format@punct@lead:
-  { \tex_kern:D \dim_eval:n { -0.3 \ccwd } \scan_stop: }
+\cs_new_protected:Npn \hit@format@punct@xtra:
+  { \tex_kern:D \dim_eval:n { ( \ccwd - 1em ) / 2 } \scan_stop: }
 %    \end{macrocode}
 %
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@format@punct@near:
-  { \tex_kern:D \dim_eval:n { -0.185 \ccwd } \scan_stop: }
-%    \end{macrocode}
-%
 \cs_new_protected:Npn \hit@format@punct@half:
   { \discretionary { \kern -0.5 \ccwd } { } { } }
 \cs_new_protected:Npn \hit@format@punct@shrink:
   { \skip_horizontal:n { 0pt ~ minus ~ 0.4 \ccwd } }
+%    \end{macrocode}
+%
+% \emph{按字符区别对待，办法是给字符单开类。} \cs{xeCJK\_pre\_inter\_class\_toks:nnn}
+% 只认类不认字，而 Word 的规则是按字的：开引号削、书名号不削，省略号破折号
+% 整格、顿号句号减半。\pkg{xeCJK} 自己处理破折号连排用的就是单开类的办法
+% （\texttt{PoZheHao} 类，从 \texttt{FullRight} 克隆记号表），照抄它的三步：
+% \cs{xeCJK\_new\_class:n} 建类、\cs{\_\_xeCJK\_save\_CJK\_class:n} 把类号注册成
+% 中文类（漏这步字体查类号时报 Missing number，早先自建类失败就败在这里）、
+% \cs{xeCJK\_copy\_inter\_class\_toks:nnnn} 逐对克隆记号表。克隆要在下面发
+% 网格胶之前做，素表克隆完各类再配各类的规则，互不沾染。克隆的对象类清单用
+% \cs{g\_\_xeCJK\_class\_seq} 的快照，不写死——2025 的 \pkg{xeCJK} 3.9.1 还没有
+% \texttt{PoZheHao}。
+%
+% 「……」「——」直接并入汉字类：范例里它们与汉字步进完全相同，整格、可断、
+% 不压缩，连「、→…」「。→…」也是整格（Word 的压缩不作用于非标点邻位）。
+% \cs{xeCJKDeclareCharClass} 在 \cs{begin\{document\}} 时刻改已有类照样生效，
+% 早先「导言区后定型」的结论是在 shell 转义污染期得出的，不对。
+%
+% \emph{源码在后置标点后换行会丢配对。} 「、」后换行，行尾换行符变成空格记号，
+% \pkg{xeCJK} 吞掉它之后「“」是从 \texttt{Boundary} 类入场的，上面按类配的
+% kern 一条都轮不上——demo 里同一行的两处「”、“」一处 1.49 一处 12.00，就是
+% 这么来的。开 \texttt{CheckFullRight} 让 \pkg{xeCJK} 在记号层直接删掉后置标点
+% 后的空格，两个字符恢复相邻，配对保住。代价是「。~A」这种全角标点后手打的
+% 西文空格也会被删（由后→西的减半加中西文胶顶替）；中文标点后本不该打空格，
+% 真要空可以写 \verb|~|。
+%
+% 开引号「“」「‘」进 \texttt{HITQuote} 类：与 \texttt{FullLeft} 唯一的差别是
+% 各来向都多一道左削折处，行首（\texttt{Boundary} 来向）不配削，自然不削。
+% 闭引号「”」「’」的行为与 \texttt{FullRight} 完全一致（入邻整格、连排减半），
+% 不动。波浪线「～」进 \texttt{HITTilde} 类：不参与减半，对西文侧只补半格字距。
+%    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@punct@grid:
   {
-    \bool_lazy_and:nnTF
-      { \cs_if_exist_p:N \xeCJK_pre_inter_class_toks:nnn }
-      { \cs_if_exist_p:N \xeCJK_class_num:n }
+    \bool_lazy_all:nTF
       {
-        \xeCJKsetup { PunctStyle = plain }
+        { \cs_if_exist_p:N \xeCJK_pre_inter_class_toks:nnn }
+        { \cs_if_exist_p:N \xeCJK_class_num:n }
+        { \cs_if_exist_p:N \xeCJK_new_class:n }
+        { \cs_if_exist_p:N \__xeCJK_save_CJK_class:n }
+        { \cs_if_exist_p:N \xeCJK_copy_inter_class_toks:nnnn }
+      }
+      {
+        \xeCJKsetup { PunctStyle = plain , CheckFullRight = true }
+        \xeCJKDeclareCharClass { CJK } { "2026 , "2014 }
+        \seq_set_eq:NN \l_tmpa_seq \g__xeCJK_class_seq
+        \xeCJK_new_class:n { HITQuote }
+        \__xeCJK_save_CJK_class:n { HITQuote }
+        \xeCJK_new_class:n { HITTilde }
+        \__xeCJK_save_CJK_class:n { HITTilde }
+        \seq_map_inline:Nn \l_tmpa_seq
+          {
+            \xeCJK_copy_inter_class_toks:nnnn { ##1 } { HITQuote }
+              { ##1 } { FullLeft }
+            \xeCJK_copy_inter_class_toks:nnnn { HITQuote } { ##1 }
+              { FullLeft } { ##1 }
+            \xeCJK_copy_inter_class_toks:nnnn { ##1 } { HITTilde }
+              { ##1 } { FullRight }
+            \xeCJK_copy_inter_class_toks:nnnn { HITTilde } { ##1 }
+              { FullRight } { ##1 }
+          }
+        \xeCJK_copy_inter_class_toks:nnnn { HITQuote } { HITQuote }
+          { FullLeft } { FullLeft }
+        \xeCJK_copy_inter_class_toks:nnnn { HITTilde } { HITTilde }
+          { FullRight } { FullRight }
+        \xeCJK_copy_inter_class_toks:nnnn { HITQuote } { HITTilde }
+          { FullLeft } { FullRight }
+        \xeCJK_copy_inter_class_toks:nnnn { HITTilde } { HITQuote }
+          { FullRight } { FullLeft }
+        \xeCJKDeclareCharClass { HITQuote } { "201C , "2018 }
+        \xeCJKDeclareCharClass { HITTilde } { "FF5E }
         \xeCJK_pre_inter_class_toks:nnn { CJK } { FullRight }
           { \nobreak \CJKglue }
         \xeCJK_pre_inter_class_toks:nnn { FullLeft } { CJK }
@@ -2230,17 +2292,31 @@
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { CJK }
           { \hit@format@punct@half: \hit@format@punct@shrink: }
         \xeCJK_pre_inter_class_toks:nnn { CJK } { FullLeft }
-          { \hit@format@punct@lead: \hit@format@punct@shrink: }
+          { \hit@format@punct@shrink: }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { FullRight }
           { \hit@format@punct@pair: }
-        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { FullRight }
-          { \hit@format@punct@pair: }
-        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { FullLeft }
-          { \hit@format@punct@pair: }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { FullLeft }
-          { \hit@format@punct@near: }
+          { \hit@format@punct@pair: }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { Default }
           { \hit@format@punct@pair: \CJKecglue }
+        \xeCJK_pre_inter_class_toks:nnn { CJK } { HITQuote }
+          { \hit@format@punct@qtrim: }
+        \xeCJK_pre_inter_class_toks:nnn { FullRight } { HITQuote }
+          { \hit@format@punct@pair: \hit@format@punct@qtrim: }
+        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { HITQuote }
+          { \hit@format@punct@qtrim: }
+        \xeCJK_pre_inter_class_toks:nnn { HITQuote } { HITQuote }
+          { \hit@format@punct@qtrim: }
+        \xeCJK_pre_inter_class_toks:nnn { Default } { HITQuote }
+          { \hit@format@punct@qtrim: }
+        \xeCJK_pre_inter_class_toks:nnn { HITQuote } { CJK }
+          { \nobreak \CJKglue }
+        \xeCJK_pre_inter_class_toks:nnn { CJK } { HITTilde }
+          { \nobreak \CJKglue }
+        \xeCJK_pre_inter_class_toks:nnn { HITTilde } { Default }
+          { \hit@format@punct@xtra: }
+        \xeCJK_pre_inter_class_toks:nnn { Default } { HITTilde }
+          { \hit@format@punct@xtra: }
       }
       { \msg_error:nn { hithesis } { xecjk-punct-grid } }
   }
