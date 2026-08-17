@@ -2169,6 +2169,25 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@punct@pair:
   { \tex_kern:D \dim_eval:n { 0.5 \ccwd - 1em } \scan_stop: }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/17}{后置接前置只轻压；后置接西文减半并补中西文胶}
+% \emph{后置接前置只轻压。} 生成的测试文档里 \texttt{。“} 这一对 Word 给
+% 10.19\,bp，不是半格；减半会让引号贴到句号上。这一对单独走
+% \cs{hit@format@punct@near:}，压 0.185 格。
+%
+% \emph{后置接西文减半，再补一道 \cs{CJKecglue}。} 同一份测试里 \texttt{，→a}
+% 最小 9.38\,bp，拆开是「半格 6.227 加中西文胶 3.25」。\pkg{xeCJK} 在标点与西文
+% 之间不发中西文胶，只减半会让西文贴上来。
+%
+% 四种标点相邻的组合要分开写，不能拿两重循环一把发。\cs{xeCJK\_pre\_inter\_class\_toks:nnn}
+% 是前置，\texttt{FullRight~$\to$~FullLeft} 若既落在循环里又落在自己那一条上，
+% 两道 kern 会叠起来压掉 8.6\,bp，实测出来 3.94\,bp。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@punct@near:
+  { \tex_kern:D \dim_eval:n { -0.185 \ccwd } \scan_stop: }
+%    \end{macrocode}
+%
 \cs_new_protected:Npn \hit@format@punct@half:
   { \discretionary { \kern -0.5 \ccwd } { } { } }
 \cs_new_protected:Npn \hit@format@punct@shrink:
@@ -2188,14 +2207,16 @@
           { \hit@format@punct@half: \hit@format@punct@shrink: }
         \xeCJK_pre_inter_class_toks:nnn { CJK } { FullLeft }
           { \hit@format@punct@shrink: }
-        \clist_map_inline:nn { FullRight , FullLeft }
-          {
-            \clist_map_inline:nn { FullRight , FullLeft }
-              {
-                \xeCJK_pre_inter_class_toks:nnn {####1} {##1}
-                  { \hit@format@punct@pair: }
-              }
-          }
+        \xeCJK_pre_inter_class_toks:nnn { FullRight } { FullRight }
+          { \hit@format@punct@pair: }
+        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { FullRight }
+          { \hit@format@punct@pair: }
+        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { FullLeft }
+          { \hit@format@punct@pair: }
+        \xeCJK_pre_inter_class_toks:nnn { FullRight } { FullLeft }
+          { \hit@format@punct@near: }
+        \xeCJK_pre_inter_class_toks:nnn { FullRight } { Default }
+          { \hit@format@punct@pair: \CJKecglue }
       }
       { \msg_error:nn { hithesis } { xecjk-punct-grid } }
   }
