@@ -2210,21 +2210,17 @@
 %
 % 胶是合法断点，所以每道胶前的断行语义都要点名：禁则处（汉→后置、开→汉、
 % 开→开、开→后置）压胶前置 \cs{nobreak}；可断处（汉→开）让胶裸着；
-% 「后置→汉」「后置→开」「后置→西文」的断点交给行末减半的
-% \cs{discretionary}，折处后再补 \cs{nobreak} 封住胶，这样断行必走折处，
-% 行末闭号\emph{恒}压半格——1--5 页版「总结与概括，」行末逗号实测就是半格
-% 6.46，此前折处与胶两个断点并存、胶不罚分，\hologo{TeX} 时选胶，行末逗号
-% 时压时不压。
+% 「后置→汉」的断点用 \pkg{xeCJK} 原生胶自带的那一个，行末减半由字符突出
+% 负责（见下）；「后置→开」「后置→引」的断点是各自折处里的，断行分支把
+% pair~kern 退回去，标点回整格再由突出挂半。
 %
 % \changes{v3.2a}{2026/08/18}{行末减半的折处在盒内不发：\pkg{ulem} 的收词盒
 %   遇到 \cs{discretionary} 会拆坏分组}
-% 折处只在能断行的地方发。盒子里（\cs{hbox}、表格格子、\pkg{ulem} 的收词盒）
-% 不断行，折处无用；\pkg{ulem} 更是遇到它直接把分组拆坏，demo 里
-% \cs{uline} 内的「：B」实测报 Too~many~\}'s。用 \cs{mode\_if\_inner:F} 挡掉。
-% \texttt{p} 型表列里的段落是普通水平模式，不受影响，行末减半照常。
+% 折处与标点对的胶只在能断行的地方发。盒子里（\cs{hbox}、表格格子、
+% \pkg{ulem} 的收词盒）不断行，胶的伸缩不参与，一律换等宽或压紧 kern；
+% \pkg{ulem} 遇到分组内的胶和罚分会把分组拆坏（实测报 Too~many~\}'s），
+% kern 无害。\texttt{p} 型表列里的段落是普通水平模式，不受影响。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@format@punct@half:
-  { \mode_if_inner:F { \discretionary { \kern -0.5 \ccwd } { } { } } }
 \cs_new_protected:Npn \hit@format@punct@oshrink:
   { \skip_horizontal:n { 0pt ~ minus ~ 0.38 \ccwd } }
 \cs_new_protected:Npn \hit@format@punct@cshrink:
@@ -2268,7 +2264,26 @@
     \__hit_format_punct_pair_kern:
     \mode_if_inner:F
       { \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.5 \ccwd } }
-    \hit@format@punct@qtrim:
+    \mode_if_inner:TF
+      { \tex_kern:D \dim_eval:n { -0.38 \ccwd } \scan_stop: }
+      {
+        \discretionary
+          { \tex_kern:D \dim_eval:n { 1em - 0.5 \ccwd } \scan_stop: }
+          { }
+          { \tex_kern:D \dim_eval:n { -0.38 \ccwd } \scan_stop: }
+        \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.38 \ccwd }
+      }
+  }
+\cs_new_protected:Npn \hit@format@punct@cbreak:
+  {
+    \__hit_format_punct_pair_kern:
+    \mode_if_inner:F
+      {
+        \discretionary
+          { \tex_kern:D \dim_eval:n { 1em - 0.5 \ccwd } \scan_stop: }
+          { } { }
+        \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.5 \ccwd }
+      }
   }
 %    \end{macrocode}
 %
@@ -2279,6 +2294,15 @@
 \cs_new_protected:Npn \hit@format@punct@xtra:
   { \tex_kern:D \dim_eval:n { ( \ccwd - 1em ) / 2 } \scan_stop: }
 %    \end{macrocode}
+%
+% \emph{行末闭号 Word 恒压半格，这边不追了，记下为什么。} 试过三条路：
+% 封掉原生胶断点逼断行走折处，断点集一变全文断行漂移；折处与原生胶并存让
+% \hologo{TeX} 按代价挑，行末闭号时半时全；字符突出（\cs{XeTeXprotrudechars=2}
+% 加 \cs{rpcode}，挂 \cs{xeCJK\_select\_font:} 逐字体设，机制本身可用）——
+% 突出量在断行账本上不是免费的，挂半格的行要多撑半格，与折处减半同价，
+% \hologo{TeX} 照样不选；行末闭号后面还跟着类记号的节点，突出常被挡住。
+% Word 的断行是逐行贪心、压缩不计代价，\hologo{TeX} 是全段最优、伸缩都算钱，
+% 这半格是两个模型的固有差距。
 %
 % \emph{开引号与波浪线各单开一类。} 开引号「“」「‘」进 \texttt{HITQuote}：
 % 行中左侧削 0.38 格（压紧值做进 \cs{discretionary} 的不断分支，断行处与行首
@@ -2331,15 +2355,7 @@
       }
       {
         \xeCJKsetup { PunctStyle = plain , CheckFullRight = true }
-%    \end{macrocode}
-%
-% 行末闭号试过恒压：给 \cs{\_\_xeCJK\_punct\_hskip:n}（原生标点胶的间接层）
-% 前置罚分，灭掉原生胶自带的断点，断行必走折处。撤了——断点集一变全文断行
-% 跟着漂，「外，」那行把下一个字拽了上来，与范例逐行对不上。现状是折处与
-% 原生胶两个断点并存，\hologo{TeX} 按代价挑：行末闭号有时半格有时全格，
-% Word 恒半格。这是两家断行器的取舍函数不同，改哪一侧都会牵动断点，记档。
-%    \begin{macrocode}
-        \xeCJKDeclareCharClass { CJK } { "2026 , "2014 }
+        \xeCJKDeclareCharClass { CJK } { "2026 }
         \seq_set_eq:NN \l_tmpa_seq \g__xeCJK_class_seq
         \xeCJK_new_class:n { HITQuote }
         \__xeCJK_save_CJK_class:n { HITQuote }
@@ -2365,7 +2381,7 @@
         \xeCJK_copy_inter_class_toks:nnnn { HITTilde } { HITQuote }
           { FullRight } { FullLeft }
         \xeCJKDeclareCharClass { HITQuote } { "201C , "2018 }
-        \xeCJKDeclareCharClass { HITTilde } { "FF5E }
+        \xeCJKDeclareCharClass { HITTilde } { "FF5E , "2014 , "2015 }
         \xeCJK_pre_inter_class_toks:nnn { CJK } { FullRight }
           { \nobreak \CJKglue }
         \xeCJK_pre_inter_class_toks:nnn { FullLeft } { CJK }
@@ -2377,14 +2393,11 @@
         \xeCJK_pre_inter_class_toks:nnn { CJK } { FullLeft }
           { \hit@format@punct@oshrink: }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { CJK }
-          {
-            \mode_if_inner:F
-              { \hit@format@punct@half: \nobreak \hit@format@punct@cshrink: }
-          }
+          { \mode_if_inner:F { \nobreak \hit@format@punct@cshrink: } }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { FullRight }
           { \hit@format@punct@cpair: }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { FullLeft }
-          { \hit@format@punct@bpair: }
+          { \hit@format@punct@cbreak: }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { Default }
           {
             \__hit_format_punct_pair_kern:
@@ -2417,6 +2430,16 @@
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { HITTilde }
           { \hit@format@punct@ngap: }
         \xeCJK_pre_inter_class_toks:nnn { HITTilde } { FullRight }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { HITTilde } { HITTilde }
+          {
+            \mode_if_inner:TF
+              { \tex_kern:D \dim_eval:n { \ccwd - 1em } \scan_stop: }
+              { \CJKglue }
+          }
+        \xeCJK_pre_inter_class_toks:nnn { HITQuote } { HITTilde }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { HITTilde } { HITQuote }
           { \hit@format@punct@ngap: }
         \xeCJKDeclareCharClass { HalfRight }
           { "21 , "29 , "2C , "2E , "3A , "3B , "3F , "5D , "D7 , "F7 }

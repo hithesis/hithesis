@@ -465,9 +465,26 @@
 % \cs{lineskip}，与 TeX 自己的规则一致。\cs{prevdepth} 是 \texttt{-1000pt}（页首、
 % 紧跟标题）时本来就不该有胶，置零。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/18}{\env{eqdenote} 关段时停掉段末撑竿钩子：公式后
+%   的空续段被撑竿撑成一行幽灵行，段前多一个行距，断页时还抢走页首基线}
+% \emph{关段要避开撑竿钩子。} \cs{end}\marg{equation} 之后段落还开着（行间
+% 公式属于所在段落），紧跟 \env{eqdenote} 时这个续段是空的。\hologo{TeX} 对
+% 空续段的 \cs{par} 本不产生任何行，但 \texttt{para/end} 钩子里的段落撑竿把
+% 它撑成一行只有零宽 rule 的幽灵行：行中形态下公式到「式中」多出一个行距
+% （实测 48 对范例 22），表被推到新页时幽灵行抢走 \cs{topskip} 基线，
+% 「式中」首行比正文页首低一行（实测 140.5 对 119.9）。关段那一下把
+% \cs{hit@format@strut:} 临时置空，空续段不再成行；前一行真正文的撑竿在
+% 各自成行时已经排进去了，不受影响。
+%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_eqdenote_pre_skip:
   {
+    \group_begin:
+    \cs_if_exist:NT \hit@format@strut:
+      { \cs_set_eq:NN \hit@format@strut: \prg_do_nothing: }
     \par
+    \group_end:
     \dim_compare:nNnTF { \tex_prevdepth:D } < { -999pt }
       { \skip_zero:N \LTpre }
       {
@@ -480,10 +497,48 @@
 \cs_new_protected:Npn \__hit_eqdenote_table:nn #1#2
   {
     \__hit_eqdenote_keep_font:
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/18}{\env{eqdenote} 的行撑竿缩到 0.9 倍：撑竿恰好等于
+%   行距时 \hologo{TeX} 退到 lineskip 堆叠，行距多出约 1\,pt，换页后首行基线也
+%   不落在 \cs{topskip} 上}
+% 行撑竿要\emph{小于}行距。\cs{strutbox} 的高深加起来正好一个 \cs{baselineskip}，
+% \cs{arraystretch} 取 1 时表格行高不小于行距，基线间距放不下，\hologo{TeX} 退到
+% 按 \cs{lineskip} 堆叠，行距变成「行高加 1\,pt」（实测 20.9 对正文 19.45）；
+% 换页后首行的基线取行高而不是 \cs{topskip}，比正文页首低约 22\,bp——1--7 页版
+% 实测正文页首基线 119.9，注释表首行 141.8。缩到 0.9 后撑竿 17.5，行距回落到
+% \cs{baselineskip}，页首基线回到 \cs{topskip}，两处一起归位。
+%    \begin{macrocode}
+    \cs_set:Npn \arraystretch { 0.9 }
     \skip_zero:N \LTleft
     \skip_set:Nn \LTright { 0pt~plus~1fill }
     \__hit_eqdenote_pre_skip:
     \skip_zero:N \LTpost
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/18}{清空 \pkg{longtable} 的表头盒。零高的空表头盒
+%   恰好落在新页页顶时会吃掉 \cs{topskip} 基线，注释表首行比正文页首低一行}
+% 表头盒要清成 void 而不是留个空盒。\pkg{longtable} 没写 \cs{endhead} 时表头
+% 是零高空盒，仍会作为盒子进主竖列；断页恰好断在它前面时，新页第一个盒子
+% 就是它，\cs{topskip} 的基线给了它，真正的首行再往下一个行距。清成 void
+% 后 \pkg{longtable} 的 \cs{ifvoid} 守卫直接跳过，不再有这只盒子。
+%
+% \changes{v3.2a}{2026/08/18}{\env{eqdenote} 里局部关掉 \pkg{hyperref} 给
+%   \pkg{longtable} 加的锚点：锚点自成一个带撑竿的空段落，表被推到新页时这个
+%   空段落占住页首基线，注释首行比正文页首低一行}
+% \pkg{longtable} 的 \cs{LT@start} 给每张表排一个链接锚
+% （\cs{MakeLinkTarget}，\cs{LTcaptype} 为空时也照排一个
+% \texttt{LT@tables} 的），锚变成一个只装撑竿的空段落（\cs{showoutput} 里
+% 是 12.2+7.3 的空行盒，内容只有段落撑竿那根零宽 rule，后跟
+% \texttt{dest (table.1.1)}）。表整个被推到新页时，空段落抢走 \cs{topskip}
+% 基线，「式中」首行低一个行距（1--7 页版实测 140.5 对正文页首 119.9）。
+% 注释表不是编号插表，锚没有用处，环境组内把 \cs{MakeLinkTarget} 换成
+% 吞参数的空操作，空段落连同锚一起消失。
+%    \begin{macrocode}
+    \box_gclear:N \LT@head
+    \box_gclear:N \LT@firsthead
+    \cs_if_exist:NT \MakeLinkTarget
+      { \cs_set_eq:NN \MakeLinkTarget \use_none:n }
     \begin{xltabular} { \textwidth }
       { @{} l @{ \hspace { \ccwd } } r @{ \hit@eqdenote@dash } X @{} }
       #1 & #2 \\
