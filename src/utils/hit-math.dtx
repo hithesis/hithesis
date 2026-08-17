@@ -410,6 +410,7 @@
 % 由环境自己补。可选参数换引导词，传空则留出等宽的空位，拆成两段接排时左缘对得上。
 %    \begin{macrocode}
 \dim_new:N \l__hit_eqdenote_depth_dim
+\box_new:N \l__hit_eqdenote_box
 \seq_new:N \l__hit_eqdenote_seq
 \tl_new:N \l__hit_eqdenote_tl
 \cs_new:Npn \hit@eqdenote@label
@@ -506,10 +507,12 @@
 % \cs{arraystretch} 取 1 时表格行高不小于行距，基线间距放不下，\hologo{TeX} 退到
 % 按 \cs{lineskip} 堆叠，行距变成「行高加 1\,pt」（实测 20.9 对正文 19.45）；
 % 换页后首行的基线取行高而不是 \cs{topskip}，比正文页首低约 22\,bp——1--7 页版
-% 实测正文页首基线 119.9，注释表首行 141.8。缩到 0.9 后撑竿 17.5，行距回落到
-% \cs{baselineskip}，页首基线回到 \cs{topskip}，两处一起归位。
+% 实测正文页首基线 119.9，注释表首行 141.8。缩到 0.89 后撑竿高 12.16 低于
+% 正文撑竿 12.22，行盒尺寸由格内段落撑竿接管，恰为一个 \cs{baselineskip}，
+% 行距与页首基线两处一起归位（0.9 时撑竿高 12.30 仍比上限多 0.08\,pt，
+% 还是掉进 lineskip 堆叠）。
 %    \begin{macrocode}
-    \cs_set:Npn \arraystretch { 0.9 }
+    \cs_set:Npn \arraystretch { 0.89 }
     \skip_zero:N \LTleft
     \skip_set:Nn \LTright { 0pt~plus~1fill }
     \__hit_eqdenote_pre_skip:
@@ -569,12 +572,41 @@
       { \tl_set:Nn \l__hit_eqdenote_tl { \hphantom { \hit@eqdenote@label } } }
     \exp_args:NV \__hit_eqdenote_table:nn \l__hit_eqdenote_tl
       { \seq_use:Nn \l__hit_eqdenote_seq { \\ & } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/18}{\env{eqdenote} 收尾从「中」字形深度改成段落撑竿
+%   深度，后接任何元素的间距与正文相同}
+% 收尾要把表底整理成「一行正文的底」。正文行靠段落撑竿把高深撑成正好一个
+% \cs{baselineskip}（高 12.22、深 7.30），后面的行距胶、标题的
+% \cs{addvspace} 都按这个深度记账。原来按「中」字形深度收，与撑竿体系
+% 对不上：接正文 20.9（应 19.45），接小节标题 26.3（应 31.0）。现在量一只
+% 段落撑竿的盒子，把 \cs{prevdepth}（此刻等于末行行深）kern 到撑竿深度，
+% 再把 \cs{prevdepth} 设成撑竿深度——之后不管接段落、标题还是公式，
+% 几何上与接在一段正文后面完全相同。撑竿宏不存在时不动，保持原样。
+%    \begin{macrocode}
     \par
-    \settodepth \l__hit_eqdenote_depth_dim { 中 }
-    \kern \dim_eval:n { \l__hit_eqdenote_depth_dim - \dp \strutbox }
-    \tex_prevdepth:D \l__hit_eqdenote_depth_dim
+    \cs_if_exist:NT \hit@format@strut:
+      {
+        \hbox_set:Nn \l__hit_eqdenote_box { \hit@format@strut: }
+        \dim_gset:Nn \g__hit_eqdenote_dp_dim
+          { \box_dp:N \l__hit_eqdenote_box }
+        \group_insert_after:N \__hit_eqdenote_finish:
+      }
   }
   { }
+%    \end{macrocode}
+%
+% 修正必须推迟到环境组外，而且只设 \cs{prevdepth} 不补 kern。
+% \cs{prevdepth} 是组内状态，组一关就被还原，组内设的那份白设；表格行的
+% X 列 parbox 里段落撑竿照常生效，行盒的深度本来就是正文行深 7.30，不需要
+% kern 找齐（先补过一道 kern，间距反而多出约 7\,bp）。表格收尾后
+% \cs{prevdepth} 被 \pkg{longtable} 留成别的值（实测 0.42），所以还是要把
+% 撑竿深度存进全局量，\cs{group\_insert\_after:N} 在 \cs{end}\marg{eqdenote}
+% 关组之后设回去。
+%    \begin{macrocode}
+\dim_new:N \g__hit_eqdenote_dp_dim
+\cs_new_protected:Npn \__hit_eqdenote_finish:
+  { \tex_prevdepth:D \g__hit_eqdenote_dp_dim }
 %</shared-math>
 %    \end{macrocode}
 %
