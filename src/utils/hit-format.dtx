@@ -2159,59 +2159,32 @@
     换回上述版本，或者忽略本条——排版仍能完成，只是标点略窄。
   }
 %    \begin{macrocode}
-% \changes{v3.2a}{2026/08/17}{相邻标点前一个缩到半格}
-% \emph{标点连排。} 两个全角标点挨着时，Word 让前一个只占半格。范例实测
-% \texttt{”→、} 的步进是 6.25\,bp，正是半格；我们是 12.00\,bp，整格。
-% \pkg{xeCJK} 的 \texttt{quanjiao} 本来管这件事，但我们为了修行末过压换成了
-% \texttt{plain}，把这条一起关掉了，所以自己补。
+% \changes{v3.2a}{2026/08/18}{标点连排交回 \pkg{xeCJK} 的 \texttt{quanjiao}，
+%   自建的三道 kern 撤除}
+% \emph{标点连排交给 \pkg{xeCJK}。} 两个全角标点挨着时前一个只占半格、汉字接前置
+% 符号要收一点、后置接西文要收一点——这些 \pkg{xeCJK} 的 \texttt{quanjiao} 本来
+% 就按每个标点左右两侧的空白量算，比我们按类一刀切准。
 %
-% 补法是在标点与标点的四种类边界上各加一道负 kern，把前一个从整格压到半格。
-% 前一个的自然宽是一个字身（没有网格胶，\pkg{xeCJK} 在标点之间不发 \cs{CJKglue}），
-% 所以 kern 取「半格减一个字身」。
+% 一度改成 \texttt{plain} 再自建三道负 kern，是因为 \texttt{quanjiao} 会把
+% \emph{行尾}标点压到半个 em 以下（实测 4.95\,bp，范例的下限是 6.27）。现在行尾
+% 那一处由 \cs{hit@format@punct@half:} 的 \cs{discretionary} 自己管，
+% \texttt{quanjiao} 那点过压就没有了：实测行尾标点中位 12.48、最小 6.25，
+% 57 条里 0 条低于半个 em。
 %
-% \emph{省略号与破折号是个已知缺口。} 「……」「——」是一个符号写成两个字符，
-% Word 不压它们（实测 \texttt{…→…} 与 \texttt{—→—} 都是 12.25\,bp 整格），
-% 我们按连排规则压成了半格，符号被拦腰断开。试过用 \cs{xeCJKDeclareCharClass}
-% 把它们从 \texttt{CL} 里拉出来单列一类，无效——那个命令要在导言区生效，
-% 而这里是 \cs{begin\{document\}} 时刻，\pkg{xeCJK} 的字符类已经定型。
-% 要修得把声明提到载入 \pkg{xeCJK} 之后、导言区结束之前，另做。
+% 拿生成的测试文档量过，62 组可比对的字符对里 \texttt{quanjiao} 对上 40 组，
+% \texttt{plain} 加自建 kern 只有 37 组。而且 \texttt{quanjiao} 顺手修好了一条我们
+% 按类做不到的：「……」「——」是一个符号写成两个字符，Word 不压，按类发的 kern 会把
+% 它们拦腰压成半格（6.24），\texttt{quanjiao} 给 12.00 与 11.32，与范例的 12.25 相符。
 %
-% 必须是 kern 不能是胶。胶在 \hologo{TeX} 眼里是合法断点，用 \cs{skip\_horizontal:n}
-% 发会让两个标点之间可断，实测 demo 里立刻出现 3 处行首点号。kern 只有后面紧跟胶
-% 时才构成断点，这里后面是标点字身，不会。
+% 两者不能叠。自建 kern 留着会与 \pkg{xeCJK} 的压缩重复，实测 \texttt{癸→《} 压到
+% 7.24（范例 8.75）、\texttt{，→a} 压到 7.47（范例 9.38），62 组掉到 33 组。所以
+% \cs{hit@format@punct@pair:}、\cs{hit@format@punct@near:}、
+% \cs{hit@format@punct@lead:} 三个一并撤除。
+%
+% 仍差的是引号那一族：Word 的「“」「”」「‘」「’」是半宽字形（\texttt{“→甲} 5.50，
+% 我们 12.44），连带 \texttt{。“}、\texttt{。”}、\texttt{，’} 都对不上。这一族要按
+% 字符区分，\pkg{xeCJK} 的类分不开。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@format@punct@pair:
-  { \tex_kern:D \dim_eval:n { 0.5 \ccwd - 1em } \scan_stop: }
-%    \end{macrocode}
-%
-% \changes{v3.2a}{2026/08/17}{后置接前置只轻压；后置接西文减半并补中西文胶}
-% \emph{后置接前置只轻压。} 生成的测试文档里 \texttt{。“} 这一对 Word 给
-% 10.19\,bp，不是半格；减半会让引号贴到句号上。这一对单独走
-% \cs{hit@format@punct@near:}，压 0.185 格。
-%
-% \emph{后置接西文减半，再补一道 \cs{CJKecglue}。} 同一份测试里 \texttt{，→a}
-% 最小 9.38\,bp，拆开是「半格 6.227 加中西文胶 3.25」。\pkg{xeCJK} 在标点与西文
-% 之间不发中西文胶，只减半会让西文贴上来。
-%
-% 四种标点相邻的组合要分开写，不能拿两重循环一把发。\cs{xeCJK\_pre\_inter\_class\_toks:nnn}
-% 是前置，\texttt{FullRight~$\to$~FullLeft} 若既落在循环里又落在自己那一条上，
-% 两道 kern 会叠起来压掉 8.6\,bp，实测出来 3.94\,bp。
-%    \begin{macrocode}
-% \changes{v3.2a}{2026/08/17}{汉字接前置符号固定收 0.3 格}
-% \emph{汉字接前置符号要收。} 生成的测试文档里 \texttt{癸→《}、\texttt{癸→（}、
-% \texttt{癸→【} Word 一律给 8.75\,bp，比一整格少 3.75\,bp——前置符号的左侧空白
-% 被收掉一部分。我们原先只在这一处给了可压量，自然宽仍是整格，实测 10.97\,bp。
-% 补一道固定的负 kern，0.3 格算出来 3.736\,bp。
-%    \begin{macrocode}
-\cs_new_protected:Npn \hit@format@punct@lead:
-  { \tex_kern:D \dim_eval:n { -0.3 \ccwd } \scan_stop: }
-%    \end{macrocode}
-%
-%    \begin{macrocode}
-\cs_new_protected:Npn \hit@format@punct@near:
-  { \tex_kern:D \dim_eval:n { -0.185 \ccwd } \scan_stop: }
-%    \end{macrocode}
-%
 \cs_new_protected:Npn \hit@format@punct@half:
   { \discretionary { \kern -0.5 \ccwd } { } { } }
 \cs_new_protected:Npn \hit@format@punct@shrink:
@@ -2222,7 +2195,7 @@
       { \cs_if_exist_p:N \xeCJK_pre_inter_class_toks:nnn }
       { \cs_if_exist_p:N \xeCJK_class_num:n }
       {
-        \xeCJKsetup { PunctStyle = plain }
+        \xeCJKsetup { PunctStyle = quanjiao }
         \xeCJK_pre_inter_class_toks:nnn { CJK } { FullRight }
           { \nobreak \CJKglue }
         \xeCJK_pre_inter_class_toks:nnn { FullLeft } { CJK }
@@ -2230,17 +2203,7 @@
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { CJK }
           { \hit@format@punct@half: \hit@format@punct@shrink: }
         \xeCJK_pre_inter_class_toks:nnn { CJK } { FullLeft }
-          { \hit@format@punct@lead: \hit@format@punct@shrink: }
-        \xeCJK_pre_inter_class_toks:nnn { FullRight } { FullRight }
-          { \hit@format@punct@pair: }
-        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { FullRight }
-          { \hit@format@punct@pair: }
-        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { FullLeft }
-          { \hit@format@punct@pair: }
-        \xeCJK_pre_inter_class_toks:nnn { FullRight } { FullLeft }
-          { \hit@format@punct@near: }
-        \xeCJK_pre_inter_class_toks:nnn { FullRight } { Default }
-          { \hit@format@punct@pair: \CJKecglue }
+          { \hit@format@punct@shrink: }
       }
       { \msg_error:nn { hithesis } { xecjk-punct-grid } }
   }
