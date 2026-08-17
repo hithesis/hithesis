@@ -2146,6 +2146,22 @@
     换回上述版本，或者忽略本条——排版仍能完成，只是标点略窄。
   }
 %    \begin{macrocode}
+% \changes{v3.2a}{2026/08/17}{相邻标点前一个缩到半格}
+% \emph{标点连排。} 两个全角标点挨着时，Word 让前一个只占半格。范例实测
+% \texttt{”→、} 的步进是 6.25\,bp，正是半格；我们是 12.00\,bp，整格。
+% \pkg{xeCJK} 的 \texttt{quanjiao} 本来管这件事，但我们为了修行末过压换成了
+% \texttt{plain}，把这条一起关掉了，所以自己补。
+%
+% 补法是在标点与标点的四种类边界上各加一道负 kern，把前一个从整格压到半格。
+% 前一个的自然宽是一个字身（没有网格胶，\pkg{xeCJK} 在标点之间不发 \cs{CJKglue}），
+% 所以 kern 取「半格减一个字身」。
+%
+% 必须是 kern 不能是胶。胶在 \hologo{TeX} 眼里是合法断点，用 \cs{skip\_horizontal:n}
+% 发会让两个标点之间可断，实测 demo 里立刻出现 3 处行首点号。kern 只有后面紧跟胶
+% 时才构成断点，这里后面是标点字身，不会。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@punct@pair:
+  { \tex_kern:D \dim_eval:n { 0.5 \ccwd - 1em } \scan_stop: }
 \cs_new_protected:Npn \hit@format@punct@half:
   { \discretionary { \kern -0.5 \ccwd } { } { } }
 \cs_new_protected:Npn \hit@format@punct@shrink:
@@ -2165,6 +2181,14 @@
           { \hit@format@punct@half: \hit@format@punct@shrink: }
         \xeCJK_pre_inter_class_toks:nnn { CJK } { FullLeft }
           { \hit@format@punct@shrink: }
+        \clist_map_inline:nn { FullRight , FullLeft }
+          {
+            \clist_map_inline:nn { FullRight , FullLeft }
+              {
+                \xeCJK_pre_inter_class_toks:nnn {####1} {##1}
+                  { \hit@format@punct@pair: }
+              }
+          }
       }
       { \msg_error:nn { hithesis } { xecjk-punct-grid } }
   }
