@@ -1,0 +1,161 @@
+\documentclass[kind=thesis,degree-level=doctor,campus=harbin]{hithesis}
+\makeatletter
+\ExplSyntaxOn
+\box_new:N \l__hg_trial_box
+\box_new:N \l__hg_line_box
+\tl_new:N \l__hg_line_tl
+\tl_new:N \l__hg_cand_tl
+\dim_new:N \l__hg_measure_dim
+\seq_new:N \l__hg_items_seq
+\dim_new:N \l__hg_pool_dim
+\bool_new:N \l__hg_abort_bool
+\bool_new:N \l__hg_first_bool
+\tl_const:Nn \c__hg_closers_tl { 。，、；：？！）》〉”’」』】 }
+\tl_const:Nn \c__hg_openers_tl { （《〈「『【“‘ }
+
+% 自然宽试排
+\cs_new_protected:Npn \__hg_inner_off:
+  {
+    \cs_set_eq:NN \mode_if_inner:F \use:n
+    \cs_set_eq:NN \mode_if_inner:T \use_none:n
+    \cs_set:Npn \mode_if_inner:TF ##1##2 {##2}
+  }
+\cs_new_protected:Npn \__hg_natural:n #1
+  { \hbox_set:Nn \l__hg_trial_box { \__hg_inner_off: \hit@format@strut: #1 } }
+% 定宽试排（读 \badness 判塞字预算）
+\cs_new_protected:Npn \__hg_tight:n #1
+  {
+    \hbox_set_to_wd:Nnn \l__hg_trial_box { \l__hg_measure_dim }
+      { \__hg_inner_off: \hit@format@strut: #1 }
+  }
+% 发一行
+\cs_new_protected:Npn \__hg_emit:n #1
+  {
+    \hbox_set_to_wd:Nnn \l__hg_line_box { \l__hg_measure_dim }
+      { \__hg_inner_off: \hit@format@strut: #1 }
+    \box_use_drop:N \l__hg_line_box
+  }
+\cs_new_protected:Npn \__hg_emit_last:n #1
+  {
+    \hbox_set_to_wd:Nnn \l__hg_line_box { \l__hg_measure_dim }
+      { \__hg_inner_off: \hit@format@strut: #1 \skip_horizontal:n { 0pt ~ plus ~ 1 fil } }
+    \box_use_drop:N \l__hg_line_box
+  }
+
+\NewDocumentCommand \hitgreedy { +m }
+  {
+    \par
+    \group_begin:
+    \dim_set:Nn \l__hg_measure_dim { \textwidth }
+    % 收集条目：字符与空格；其余中止
+    \seq_clear:N \l__hg_items_seq
+    \bool_set_false:N \l__hg_abort_bool
+    \tl_analysis_map_inline:nn {#1}
+      {
+        \int_compare:nNnTF { "##3 } = { 10 }
+          { \seq_put_right:Nn \l__hg_items_seq { ~ } }
+          {
+            \int_compare:nNnTF { "##3 } = { 12 }
+              { \seq_put_right:Nn \l__hg_items_seq {##1} }
+              {
+                \int_compare:nNnTF { "##3 } = { 11 }
+                  { \seq_put_right:Nn \l__hg_items_seq {##1} }
+                  { \bool_set_true:N \l__hg_abort_bool }
+              }
+          }
+      }
+    \bool_if:NTF \l__hg_abort_bool
+      { #1 \par }
+      { \__hg_run: }
+    \group_end:
+    \par
+  }
+
+\cs_new_protected:Npn \__hg_run:
+  {
+    \tl_set:Nn \l__hg_line_tl { \tex_kern:D 2 \ccwd \scan_stop: }
+    \dim_zero:N \l__hg_pool_dim
+    \bool_set_true:N \l__hg_first_bool
+    \seq_map_inline:Nn \l__hg_items_seq { \__hg_step:n {##1} }
+    % 末行
+    \tl_if_empty:NF \l__hg_line_tl { \exp_args:NV \__hg_emit_last:n \l__hg_line_tl }
+  }
+
+\cs_new_protected:Npn \__hg_step:n #1
+  {
+    % 候选 = 现行 + 新字
+    \tl_set:Nx \l__hg_cand_tl { \exp_not:V \l__hg_line_tl \exp_not:n {#1} }
+    \exp_args:NV \__hg_natural:n \l__hg_cand_tl
+    \dim_compare:nNnTF { \box_wd:N \l__hg_trial_box } > { \l__hg_measure_dim }
+      { \__hg_overflow:n {#1} }
+      {
+        \tl_set_eq:NN \l__hg_line_tl \l__hg_cand_tl
+        \tl_if_in:NnT \c__hg_closers_tl {#1}
+          { \dim_add:Nn \l__hg_pool_dim { 0.3 \ccwd } }
+      }
+  }
+
+\cs_new_protected:Npn \__hg_overflow:n #1
+  {
+    \tl_if_in:NnTF \c__hg_closers_tl {#1}
+      {
+        % 禁则：先试拉回（定宽重排，预算=行内 0.3 格 caps）
+        \dim_compare:nNnTF
+          { \box_wd:N \l__hg_trial_box - \l__hg_measure_dim }
+          > { \l__hg_pool_dim + 0.5 \ccwd }
+          {
+            % 悬挂（口袋加行末闭号自身半格都不够）
+            \tl_set:Nx \l__hg_cand_tl
+              {
+                \exp_not:V \l__hg_line_tl \exp_not:n {#1}
+                \exp_not:N \tex_kern:D \dim_eval:n { 0.25 bp - 1 em }
+                \exp_not:N \scan_stop:
+              }
+            \exp_args:NV \__hg_emit:n \l__hg_cand_tl
+            \tl_clear:N \l__hg_line_tl
+            \dim_zero:N \l__hg_pool_dim
+          }
+          {
+            \exp_args:NV \__hg_emit:n \l__hg_cand_tl
+            \tl_clear:N \l__hg_line_tl
+            \dim_zero:N \l__hg_pool_dim
+          }
+      }
+      {
+        \tl_if_in:NnTF \c__hg_openers_tl {#1}
+          {
+            % 开号推下行
+            \exp_args:NV \__hg_emit:n \l__hg_line_tl
+            \tl_set:Nn \l__hg_line_tl {#1}
+            \dim_zero:N \l__hg_pool_dim
+          }
+          {
+            % 普通字：口袋内塞字，超了推下行
+            \dim_compare:nNnTF
+              { \box_wd:N \l__hg_trial_box - \l__hg_measure_dim }
+              > { \l__hg_pool_dim }
+              {
+                \exp_args:NV \__hg_emit:n \l__hg_line_tl
+                \tl_set:Nn \l__hg_line_tl {#1}
+              }
+              {
+                \exp_args:NV \__hg_emit:n \l__hg_cand_tl
+                \tl_clear:N \l__hg_line_tl
+              }
+            \dim_zero:N \l__hg_pool_dim
+          }
+      }
+  }
+\ExplSyntaxOff
+\makeatother
+\begin{document}
+\chapter{测}
+对照段（现行引擎）：
+
+层次以少为宜，应根据实际需要选择。层次代号建议采用本文3.7中表1的格式。层次要求统一，若节下内容无须列条，可直接列项。具体用到哪一层次，视需要而定。
+
+贪心段：
+
+\hitgreedy{层次以少为宜，应根据实际需要选择。层次代号建议采用本文3.7中表1的格式。层次要求统一，若节下内容无须列条，可直接列项。具体用到哪一层次，视需要而定。}
+
+\end{document}
