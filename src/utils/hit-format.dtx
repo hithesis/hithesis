@@ -674,6 +674,8 @@
     char-spacing   .code:n = { \__hit_format_char_spacing:n {#1} } ,
     keep-with-next .code:n = { \__hit_format_bool:nn { keep-with-next } {#1} } ,
     keep-with-next .default:n = { true } ,
+    line-break .code:n =
+      { \__hit_format_enum:nnn { line-break } { ctex , msword } {#1} } ,
     unknown .code:n =
       { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
   }
@@ -2512,6 +2514,14 @@
         \dim_set_eq:NN \topskip \g_hit_body_first_dim
         \hit@format@reserve@depth:
         \hit@format@penalties:
+        % 正文断行引擎:默认 ctex 原生,line-break=msword 时逐段捕获进
+        % 贪心(Word 逐行断行),开关全局、按属性取值
+        \__hit_format_get:nnNT { body } { line-break } \l__hit_format_head_tl
+          {
+            \str_if_eq:VnTF \l__hit_format_head_tl { msword }
+              { \bool_gset_true:N \g__hit_greedy_capture_bool }
+              { \bool_gset_false:N \g__hit_greedy_capture_bool }
+          }
         \normalsize
         \ctexset { autoindent = false }
         \dim_set_eq:NN \parindent \g_hit_body_indent_dim
@@ -2565,8 +2575,24 @@
             \dim_set_eq:NN \ccwd \g_hit_msword_char_dim
             \hit@format@punct@grid:
           }
-        \AddToHook { para / begin } { \hit@format@strut: }
-        \AddToHook { para / end }   { \hit@format@strut: }
+        % 被捕进贪心的段不放撑竿:撑竿是 \vrule 刚性节点进了列表拔不
+        % 出来,空段收束时会带出一根 19.4 高的幽灵行;贪心的行盒里
+        % 自带撑竿。begin 时刻捕获门还开着看 pargate,end 时刻门已
+        % 消费看 swallow(抓取进行中)
+        \AddToHook { para / begin }
+          {
+            \bool_lazy_or:nnF
+              { \bool_if_p:N \l__hit_greedy_pargate_bool }
+              { \bool_if_p:N \l__hit_greedy_swallow_bool }
+              { \hit@format@strut: }
+          }
+        \AddToHook { para / end }
+          {
+            \bool_lazy_or:nnF
+              { \bool_if_p:N \l__hit_greedy_pargate_bool }
+              { \bool_if_p:N \l__hit_greedy_swallow_bool }
+              { \hit@format@strut: }
+          }
         \cs_if_exist:NT \hit@header@strut:
           { \cs_set_eq:NN \hit@header@strut: \hit@format@strut: }
       }
@@ -3538,7 +3564,8 @@
   {
     \__hit_greedy_trace:n { ==para-manual== }
     \seq_clear:N \l__hit_greedy_ml_seq
-    \bool_set_true:N \l__hit_greedy_mfirst_bool
+    \bool_set:Nn \l__hit_greedy_mfirst_bool
+      { ! \bool_if_p:N \l__hit_greedy_noindent_bool }
     \seq_map_inline:Nn \l__hit_greedy_items_seq { \__hit_greedy_manual_step:n {##1} }
     % 段末行
     \seq_if_empty:NF \l__hit_greedy_ml_seq
@@ -3577,6 +3604,12 @@
     \int_set:Nn \l__hit_greedy_mheadline_int { 1 }
     \tl_set:Nn \l__hit_greedy_line_tl { \tex_kern:D 2 \ccwd \scan_stop: }
     \dim_set:Nn \l__hit_greedy_width_dim { 2 \l__hit_greedy_cell_dim }
+    \bool_if:NT \l__hit_greedy_noindent_bool
+      {
+        \int_zero:N \l__hit_greedy_mheadline_int
+        \tl_clear:N \l__hit_greedy_line_tl
+        \dim_zero:N \l__hit_greedy_width_dim
+      }
     \tl_clear:N \l__hit_greedy_undo_tl
     \seq_map_inline:Nn \l__hit_greedy_items_seq { \__hit_greedy_step:n {##1} }
     \tl_if_empty:NF \l__hit_greedy_line_tl
@@ -4310,10 +4343,13 @@
 % 普通排版。\pkg{l3tl-analysis} 交来的 \texttt{\#\#1} 是「o 展开还原记号」的
 % 包装，进序列前解开，后面的类归属判断才有裸记号可比。
 %    \begin{macrocode}
-\NewDocumentCommand \hitgreedy { +m }
+\cs_new_protected:Npn \__hit_greedy_par:n #1
   {
     \par
     \group_begin:
+    % 渲染全程立防再捕旗:发射的行盒段落同样会过 \everypar,不拦会把
+    % 自己的行盒当缩进盒摘走(行距倍增、丢字实测);组关自动还原
+    \bool_set_true:N \l__hit_greedy_incapture_bool
     \dim_set:Nn \l__hit_greedy_measure_dim { \textwidth }
     \dim_set:Nn \l__hit_greedy_emitw_dim { \textwidth - 0.65 pt }
     % latin 段:行盒排满整版心;词间距名义值 = fd2 − 字距加宽(范例词隙
@@ -4430,7 +4466,13 @@
       }
     \__hit_greedy_flush_run:
     \bool_if:NTF \l__hit_greedy_abort_bool
-      { #1 \par }
+      {
+        % 回落原生排版:组内立防再捕标志(捕获段的回落会再起段落),
+        % 原段是 \noindent 的补回去
+        \bool_set_true:N \l__hit_greedy_incapture_bool
+        \bool_if:NT \l__hit_greedy_noindent_bool { \tex_noindent:D }
+        #1 \par
+      }
       {
         \bool_if:NTF \l__hit_greedy_manual_bool
           { \__hit_greedy_run_manual: }
@@ -4440,6 +4482,140 @@
     \group_end:
     \par
   }
+\NewDocumentCommand \hitgreedy { +m }
+  {
+    \bool_set_false:N \l__hit_greedy_noindent_bool
+    \__hit_greedy_par:n {#1}
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/19}{新增 \option{line-break} 属性（\texttt{ctex}
+%   默认原生断行，\texttt{msword} 逐段捕获进贪心得到 Word 断行）}
+% 正文断行引擎的逐段捕获。开关由 \option{format}/\option{body}/
+% \option{line-break} 拨（见 \cs{hit@format@apply@body:}），默认 ctex
+% 一行代码不走。
+%
+% 捕获寄生在用户 \cs{everypar} 里：内核钩子链的时序是
+% \texttt{para/before}（竖直模式）、\texttt{para/begin}、用户
+% \cs{everypar}、正文——实测钩子体内抓流会吞掉钩子系统自身的续接记号，
+% 而用户 \cs{everypar} 是正文紧前最后一站，从这里抓到的就是纯正文。
+% \cs{@afterheading} 这类会整个改写寄存器再自清，所以每段在
+% \texttt{para/before} 里查一次，不在就追加到末尾：他们先跑我们后跑，
+% 他们摘过缩进盒我们就得到 \cs{noindent} 语义，两不相扰。
+%
+% 门在竖直模式里判：主竖列才捕。盒内列（\cs{parbox}、图注、脚注在
+% \texttt{para/before} 时刻还在内部竖直模式）、列表、带缩排或窄行宽的
+% 段（目录行）都放行原生。捕获段回落原生（含宏、数学等扫描器不认的
+% 内容）由 abort 分支带防再捕标志完成。
+%    \begin{macrocode}
+\bool_new:N \g__hit_greedy_capture_bool
+\bool_new:N \l__hit_greedy_pargate_bool
+\bool_new:N \l__hit_greedy_swallow_bool
+\bool_new:N \l__hit_greedy_incapture_bool
+\bool_new:N \l__hit_greedy_noindent_bool
+\box_new:N \l__hit_greedy_indent_box
+\tl_new:N \l__hit_greedy_evp_tl
+\cs_new_protected:Npn \__hit_greedy_gate:
+  {
+    \bool_set_false:N \l__hit_greedy_pargate_bool
+    \bool_if:NT \g__hit_greedy_capture_bool
+      {
+        % 只捕正文卷(mainmatter):封面/摘要/目录这些机器排的辅文段落
+        % 各有括号敏感的结构,收集器一停机就拆散它们(镜像实测)
+        \bool_lazy_all:nT
+          {
+            { \cs_if_exist_p:c { if@mainmatter } }
+            { \legacy_if_p:n { @mainmatter } }
+            { ! \bool_if_p:N \l__hit_greedy_incapture_bool }
+            { ! \mode_if_inner_p: }
+            { \int_compare_p:nNn { \@listdepth } = { 0 } }
+            { \dim_compare_p:nNn \leftskip = { 0 pt } }
+            { \dim_compare_p:nNn \hsize = { \textwidth } }
+          }
+          { \bool_set_true:N \l__hit_greedy_pargate_bool }
+        \tl_set:Nx \l__hit_greedy_evp_tl { \tex_the:D \everypar }
+        \tl_if_in:NnF \l__hit_greedy_evp_tl { \__hit_greedy_capture: }
+          {
+            \everypar \exp_after:wN
+              { \tex_the:D \everypar \__hit_greedy_capture: }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_greedy_capture:
+  {
+    \bool_if:NT \l__hit_greedy_pargate_bool
+      {
+        \bool_set_false:N \l__hit_greedy_pargate_bool
+        \bool_set_true:N \l__hit_greedy_swallow_bool
+        \box_set_to_last:N \l__hit_greedy_indent_box
+        \bool_set:Nn \l__hit_greedy_noindent_bool
+          { \box_if_empty_p:N \l__hit_greedy_indent_box }
+        \__hit_greedy_trace:n { CAPfire~ void=
+          \bool_if:NTF \l__hit_greedy_noindent_bool { Y } { N } }
+        \__hit_greedy_grab:
+      }
+  }
+% 逐记号收集:定界抓取不展开任何记号,段落顶着 \end 收束时会抓穿
+% 文件尾。收集停在 \par 义(消费)或 \end 义(不消费,贪心排完照常
+% 走环境收尾),两种停法正文都全须全尾进贪心
+\tl_new:N \l__hit_greedy_body_tl
+\cs_new_protected:Npn \__hit_greedy_grab:
+  {
+    \tl_clear:N \l__hit_greedy_body_tl
+    \__hit_greedy_collect:
+  }
+% 停机集:\par 义(消费)、\end 义、\begin 义、裸组闭(都不消费)。
+% 环境开合不进收集,否则 \begin 被吞进回落组、\end 对不上环境嵌套;
+% 裸组闭属于外层结构,undelimited 抓取也啃不动它
+\cs_new_protected:Npn \__hit_greedy_collect:
+  {
+    \peek_meaning_remove:NTF \par
+      { \__hit_greedy_collect_done: }
+      {
+        \peek_meaning:NTF \end
+          { \__hit_greedy_collect_done: }
+          {
+        \peek_meaning:NTF \begin
+          { \__hit_greedy_collect_done: }
+          {
+        \peek_catcode:NTF \c_group_end_token
+          { \__hit_greedy_collect_done: }
+          {
+            \peek_catcode:NTF \c_group_begin_token
+              { \__hit_greedy_collect_group:n }
+              {
+                \peek_meaning_remove:NTF \c_space_token
+                  {
+                    \tl_put_right:Nn \l__hit_greedy_body_tl { ~ }
+                    \__hit_greedy_collect:
+                  }
+                  { \__hit_greedy_collect_tok:N }
+              }
+          }
+          }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_greedy_collect_group:n #1
+  {
+    \tl_put_right:Nn \l__hit_greedy_body_tl { {#1} }
+    \__hit_greedy_collect:
+  }
+\cs_new_protected:Npn \__hit_greedy_collect_tok:N #1
+  {
+    \tl_put_right:Nn \l__hit_greedy_body_tl {#1}
+    \__hit_greedy_collect:
+  }
+\cs_new_protected:Npn \__hit_greedy_collect_done:
+  {
+    \tex_par:D
+    \bool_set_false:N \l__hit_greedy_swallow_bool
+    \__hit_greedy_trace:n { CAPtext~ \tl_to_str:V \l__hit_greedy_body_tl }
+    \exp_args:NV \__hit_greedy_par:n \l__hit_greedy_body_tl
+  }
+\AddToHook { para / before } { \__hit_greedy_gate: }
+% 收尾自动排的封面/摘要机器段落括号敏感,capture 到点全局熄火
+\AddToHook { enddocument } { \bool_gset_false:N \g__hit_greedy_capture_bool }
 %    \end{macrocode}
 %
 %    \begin{macrocode}
