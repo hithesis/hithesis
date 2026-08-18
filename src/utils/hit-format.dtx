@@ -1958,6 +1958,10 @@
           }
         \hit@fonts@redo@en:
         \normalsize
+        % 汉字段里的西文空格:Word 按东亚字体空格加两侧字距加宽排(实测有效
+        % 词隙 3.6~3.9),fd2+加宽 的 3.70 恰在此档,回归验证通过。
+        % 拉丁段落(英文摘要等)不走 spaceskip——贪心 latin 模式自发 kern,
+        % 词隙自然值另按拉丁档实测(见 latin 分支)
         \skip_set:Nn \spaceskip
           {
             \dim_eval:n
@@ -2626,6 +2630,9 @@
 \bool_new:N \l__hit_greedy_auto_bool
 \bool_set_true:N \l__hit_greedy_auto_bool
 \bool_new:N \l__hit_greedy_trace_bool
+\bool_new:N \l__hit_greedy_latin_bool
+\dim_new:N \l__hit_greedy_latinsp_dim
+\dim_new:N \l__hit_greedy_asprender_dim
 \bool_new:N \l__hit_greedy_manual_bool
 \dim_new:N \l__hit_greedy_measure_dim
 \dim_new:N \l__hit_greedy_emitw_dim
@@ -2692,6 +2699,8 @@
         \bool_set_false:N \l__hit_greedy_auto_bool
       } ,
     trace .bool_set:N = \l__hit_greedy_trace_bool ,
+    latin .bool_set:N = \l__hit_greedy_latin_bool ,
+    latin-sp .dim_set:N = \l__hit_greedy_latinsp_dim ,
   }
 \NewDocumentCommand \hitgreedyset { m }
   { \keys_set:nn { hit / greedy } {#1} }
@@ -3101,6 +3110,8 @@
     \bool_set_false:N \l__hit_greedy_mprevcjk_bool
     \seq_map_inline:Nn \l__hit_greedy_ml_seq
       { \__hit_greedy_ml_census:nn ##1 }
+    % 均摊调整量只属于上一根行盒,试排前必须清零(否则污染量宽)
+    \dim_zero:N \l__hit_greedy_spadj_dim
     \hbox_set:Nn \l__hit_greedy_trial_box
       {
         \__hit_greedy_inner_off: \__hit_greedy_loose_on:
@@ -3114,6 +3125,9 @@
       }
     \dim_set:Nn \l__hit_greedy_mover_dim
       { \box_wd:N \l__hit_greedy_trial_box - \l__hit_greedy_emitw_dim }
+    \bool_if:NTF \l__hit_greedy_latin_bool
+      { \__hit_greedy_ml_emit_latin: }
+      {
     \bool_lazy_or:nnTF
       { \dim_compare_p:nNn \l__hit_greedy_mover_dim > { 0.1 pt } }
       { \bool_if_p:N \l__hit_greedy_mforcetrim_bool }
@@ -3132,6 +3146,41 @@
           }
         \__hit_greedy_ship:
       }
+      }
+  }
+% latin 行:Word 两端对齐把差额平摊进词间空格(范例每行词隙等宽实测),
+% 收缩不越 30% 名义值;行盒不带汉字撑竿,行距由外层 latin 行距管
+\cs_new_protected:Npn \__hit_greedy_ml_emit_latin:
+  {
+    \int_zero:N \l__hit_greedy_nsp_int
+    \seq_map_inline:Nn \l__hit_greedy_ml_seq { \__hit_greedy_count_sp:nn ##1 }
+    \dim_zero:N \l__hit_greedy_spadj_dim
+    \int_compare:nNnT \l__hit_greedy_nsp_int > { 0 }
+      {
+        \dim_set:Nn \l__hit_greedy_spadj_dim
+          {
+            ( \l__hit_greedy_emitw_dim - \box_wd:N \l__hit_greedy_trial_box )
+            / \l__hit_greedy_nsp_int
+          }
+        \dim_compare:nNnT \l__hit_greedy_spadj_dim <
+          { -0.3 \l__hit_greedy_asprender_dim }
+          {
+            \dim_set:Nn \l__hit_greedy_spadj_dim
+              { -0.3 \l__hit_greedy_asprender_dim }
+          }
+      }
+    \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
+      {
+        \__hit_greedy_inner_off:
+        \int_set:Nn \l__hit_greedy_mtprev_int { 9 }
+        \bool_set_false:N \l__hit_greedy_iotail_bool
+        \bool_if:NT \l__hit_greedy_mfirst_bool
+          { \tex_kern:D 2 \ccwd \scan_stop: }
+        \seq_map_inline:Nn \l__hit_greedy_ml_seq
+          { \__hit_greedy_item_out:nn ##1 }
+      }
+    \dim_zero:N \l__hit_greedy_spadj_dim
+    \__hit_greedy_ship:
   }
 % 紧行分摊的瀑布模型（范例三类行实测归纳）：
 % 一档 中位闭号均摊，帽 0.46 格（教材、行 5.45/5.71 贴帽，所有段 L2 3.5 均摊帽下）；
@@ -3248,7 +3297,7 @@
         { 4 }
           {
             \int_compare:nNnTF \l__hit_greedy_mprevc_int = { 3 }
-              { \dim_add:Nn \l__hit_greedy_mw_dim { \l__hit_greedy_aspw_dim } }
+              { \dim_add:Nn \l__hit_greedy_mw_dim { \l__hit_greedy_asprender_dim } }
               { \dim_add:Nn \l__hit_greedy_mw_dim { 0.5 \l__hit_greedy_cell_dim } }
           }
       }
@@ -3511,7 +3560,15 @@
 \cs_new_protected:Npn \__hit_greedy_space:
   { \skip_horizontal:n { 0.5 \ccwd ~ minus ~ 0.25 \ccwd } }
 \cs_new_protected:Npn \__hit_greedy_space_ascii:
-  { \tex_kern:D \l__hit_greedy_aspw_dim \scan_stop: }
+  {
+    \tex_kern:D \dim_eval:n
+      { \l__hit_greedy_asprender_dim + \l__hit_greedy_spadj_dim }
+    \scan_stop:
+  }
+\dim_new:N \l__hit_greedy_spadj_dim
+\int_new:N \l__hit_greedy_nsp_int
+\cs_new_protected:Npn \__hit_greedy_count_sp:nn #1#2
+  { \int_compare:nNnT {#1} = { 4 } { \int_incr:N \l__hit_greedy_nsp_int } }
 \cs_new_protected:Npn \__hit_greedy_thin:
   { \tex_kern:D \dim_eval:n { 0.25 em + \l__hit_greedy_lsp_dim } \scan_stop: }
 % 空格溢出断行:若行尾串以 ( [ { 收尾,连串一起退下行再断
@@ -3561,8 +3618,10 @@
             \tl_put_right:Nn \l__hit_greedy_line_tl { \__hit_greedy_space_ascii: }
             \__hit_greedy_ml_put:nn { 4 } { }
             \dim_add:Nn \l__hit_greedy_width_dim { \l__hit_greedy_aspw_dim }
-            % 西文词间空格的收缩钱(URL 段第二行实测差一个空格组)
-            \dim_add:Nn \l__hit_greedy_gapcap_dim { 0.08 \l__hit_greedy_cell_dim }
+            % 西文词间空格的收缩钱:latin 段塞词只看自然装不装得下(范例通篇
+            % 词隙不低于自然值,钱为零);汉字网格段维持小额
+            \bool_if:NF \l__hit_greedy_latin_bool
+              { \dim_add:Nn \l__hit_greedy_gapcap_dim { 0.08 \l__hit_greedy_cell_dim } }
             \int_set:Nn \l__hit_greedy_prev_int { 4 }
           }
       }
@@ -3894,19 +3953,25 @@
 % 数值与汉字步深层同源;前项为汉字/空格的串拒绝维持浅层(F 组现状)
 \cs_new:Npn \__hit_greedy_run_deep:n #1
   {
-    \bool_lazy_or:nnTF
-      { \int_compare_p:nNn \l__hit_greedy_prev_int = { 1 } }
-      { \int_compare_p:nNn \l__hit_greedy_prev_int = { 2 } }
+    \bool_lazy_and:nnTF
+      { \bool_if_p:N \l__hit_greedy_latin_bool }
+      { \int_compare_p:nNn \l__hit_greedy_prev_int = { 4 } }
+      { \dim_eval:n { \l__hit_greedy_gapcap_dim } }
       {
-        \dim_eval:n
+        \bool_lazy_or:nnTF
+          { \int_compare_p:nNn \l__hit_greedy_prev_int = { 1 } }
+          { \int_compare_p:nNn \l__hit_greedy_prev_int = { 2 } }
           {
-            \dim_min:nn { 2 \l__hit_greedy_cap_dim } { 1.3 \l__hit_greedy_cell_dim }
-            + \l__hit_greedy_gapcap_dim + \l__hit_greedy_paircap_dim
-            + 0.5 \l__hit_greedy_cell_dim
-            - 0.2 \l__hit_greedy_cell_dim * \l__hit_greedy_ncl_int
+            \dim_eval:n
+              {
+                \dim_min:nn { 2 \l__hit_greedy_cap_dim } { 1.3 \l__hit_greedy_cell_dim }
+                + \l__hit_greedy_gapcap_dim + \l__hit_greedy_paircap_dim
+                + 0.5 \l__hit_greedy_cell_dim
+                - 0.2 \l__hit_greedy_cell_dim * \l__hit_greedy_ncl_int
+              }
           }
+          { 0pt }
       }
-      { 0pt }
   }
 \cs_new_protected:Npn \__hit_greedy_step_run:n #1
   {
@@ -3969,6 +4034,10 @@
         \tl_set:Nn \l__hit_greedy_undo_tl {#1}
         \tl_put_right:Nn \l__hit_greedy_line_tl {#1}
         \__hit_greedy_ml_put:nn { 3 } {#1}
+        \__hit_greedy_trace:n { Rgo~ \tl_to_str:n {#1} ~
+          rw= \dim_use:N \l__hit_greedy_rw_dim ~
+          w= \dim_eval:n { \l__hit_greedy_width_dim + \l__hit_greedy_pre_dim
+            + \l__hit_greedy_rw_dim } }
         \dim_add:Nn \l__hit_greedy_width_dim
           { \l__hit_greedy_pre_dim + \l__hit_greedy_rw_dim }
         \dim_compare:nNnT \l__hit_greedy_pre_dim > { 0pt }
@@ -3992,6 +4061,10 @@
     \group_begin:
     \dim_set:Nn \l__hit_greedy_measure_dim { \textwidth }
     \dim_set:Nn \l__hit_greedy_emitw_dim { \textwidth - 0.65 pt }
+    % latin 段:行盒排满整版心;词间距名义值 = fd2 − 字距加宽(范例词隙
+    % 自然 3.47 = 步进 3.24 + 前词尾字距 0.23),收缩限 30%(实测 71.5% 下限)
+    \bool_if:NT \l__hit_greedy_latin_bool
+      { \dim_set:Nn \l__hit_greedy_emitw_dim { \textwidth } }
     \bool_if:NT \l__hit_greedy_auto_bool
       {
         \dim_set:Nn \l__hit_greedy_cell_dim { \ccwd }
@@ -4007,6 +4080,37 @@
     \tl_clear:N \l__hit_greedy_run_tl
     % 西文空格宽(串际空格按当前西文字体量,含字符间距)
     \__hit_greedy_run_width:nN { ~ } \l__hit_greedy_aspw_dim
+    \dim_set_eq:NN \l__hit_greedy_asprender_dim \l__hit_greedy_aspw_dim
+    \bool_if:NT \l__hit_greedy_latin_bool
+      {
+        % 字体已带字距加宽,账本字距不得再叠(每词虚胖 lsp×字数)
+        \dim_zero:N \l__hit_greedy_lsp_dim
+        % 空格步进 = 盒量的西文空格(勿读 \font 的 fd2:调用点当前字体是
+        % 中文主字体,fd2 为零)再减一份字距加宽——范例词隙自然 3.47 =
+        % 步进 3.24 + 前词尾字距 0.23
+        % 空格步进按拉丁上下文量(夹在字母间,不吃调用点当前字体的 fd2):
+        % 双字带空格盒减双字盒。范例词隙自然值 3.23 = 步进 + 前词尾字距,
+        % 故再减两份字距加宽(盒差含字体级空格两侧的加宽)
+        \hbox_set:Nn \l__hit_greedy_trial_box
+          { \tex_XeTeXinterchartokenstate:D = 0 \scan_stop: n ~ n }
+        \dim_set:Nn \l__hit_greedy_aspw_dim { \box_wd:N \l__hit_greedy_trial_box }
+        \hbox_set:Nn \l__hit_greedy_trial_box
+          { \tex_XeTeXinterchartokenstate:D = 0 \scan_stop: n n }
+        \dim_sub:Nn \l__hit_greedy_aspw_dim { \box_wd:N \l__hit_greedy_trial_box }
+        \dim_add:Nn \l__hit_greedy_aspw_dim { \box_wd:N \l__hit_greedy_trial_box }
+        \hbox_set:Nn \l__hit_greedy_trial_box
+          { \tex_XeTeXinterchartokenstate:D = 0 \scan_stop: nn }
+        \dim_sub:Nn \l__hit_greedy_aspw_dim { \box_wd:N \l__hit_greedy_trial_box }
+        \dim_sub:Nn \l__hit_greedy_aspw_dim
+          { \g_hit_msword_char_dim - \g_hit_body_size_dim }
+        % 渲染宽:词隙自然值(范例 3.23 = 步进 + 前词尾字距)
+        \dim_set_eq:NN \l__hit_greedy_asprender_dim \l__hit_greedy_aspw_dim
+        % 决策宽:Word 塞词账目的每空格步进,实测区间 3.75~3.90(摘要段 7/7),
+        % 与渲染宽分账——渲染差额由双程试排均摊回收
+        \dim_set:Nn \l__hit_greedy_aspw_dim { 3.82 bp }
+        \dim_compare:nNnT \l__hit_greedy_latinsp_dim > { 0pt }
+          { \dim_set_eq:NN \l__hit_greedy_aspw_dim \l__hit_greedy_latinsp_dim }
+      }
     \tl_analysis_map_inline:nn {#1}
       {
         \int_compare:nNnTF { "##3 } = { 10 }
