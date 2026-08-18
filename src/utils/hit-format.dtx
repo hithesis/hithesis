@@ -3606,25 +3606,163 @@
     \int_set:Nn \exhyphenpenalty { 10000 }
     \hitgreedyset { latin }
   }
-% 拉丁空段高(关键词前距等):一个空段按同一条自动行距规则
-\cs_new:Npn \hit@format@latin@line: { \dim_eval:n { 1.434 em } }
+% 拉丁空段高(关键词前距等):一个空段按同一条自动行距规则。数值来源
+% 收口在 \hitenter 的自然行高常量上(1.25 × 1.1472 = 1.4340),别处不抄
+\cs_new:Npn \hit@format@latin@line:
+  { \dim_eval:n { \fp_eval:n { 1.25 * \c__hit_enter_natural_serif_fp } em } }
 %    \end{macrocode}
 % \end{macro}
 %
 % \begin{macro}{\hitenter}
 % \changes{v3.2a}{2026/08/19}{新增 \cs{hitenter}：模拟 Word 空回车段的公开命令}
+% \changes{v3.2a}{2026/08/19}{星号版由整段 \cs{vspace*} 改为逐行空行盒}
 % 模拟 Word 里单独按一次回车留下的空段。高度走版面制度的同一条自动行距
 % 规则（空段行高 = 段落标记字体的自然行高 $\times$ 1.25，Word 的段落标记
 % 是西文字符，故取西文档 1.434\,em，随字号缩放），不写死数值。可选参数是
-% 回车几次。恰逢换页时默认随页首丢弃（学位论文版式里页首空行无意义）；
-% 星号版保留该距离，与 Word 空段占据页首一行的原义等效。
+% 回车几次。
+%
+% 恰逢换页时默认随页首丢弃（学位论文版式里页首空行无意义）。星号版与
+% Word 的空段同构：每行发一个真实的空行盒，盒不可弃、盒间行距胶是合法
+% 断点，所以页底装得下几行装几行，剩下的落到新页页首照常占位——整段
+% \cs{vspace*} 只能整体保留，劈不开。中页几何两版相同：盒高深为零，局部
+% \cs{baselineskip} 设成空段行高，基线步进恰为每行一份。
 %    \begin{macrocode}
+% \changes{v3.2a}{2026/08/19}{可选参数除行数外收下新版面词汇：\option{lines}、
+%   \option{size}、\option{line-spacing}、\option{font-en}、\option{font-zh}}
+% 可选参数含等号时按键值读，与新版面属性族同词汇：\option{size} 收
+% \texttt{wuhao} 这类字号名或长度；\option{line-spacing} 收一个词，文法同
+% 版面制度（\texttt{single}、\texttt{double}、倍数、\texttt{25bp!} 固定值、
+% \texttt{10bp+} 最小值、裸长度）；\option{font-en}/\option{font-zh} 指定段落
+% 标记字体，自然行高只认实测值（serif~1.1472、songti~1.29333），没量过的
+% 字体报错不瞎给。纯整数是 \option{lines} 的简写。
+%
+% 空段行高的算法与 Word 同构：倍数乘在指定字体字号的自然行高上；固定值
+% 就是那么高；最小值取「自然行高与给定值的较大者」。
+%    \begin{macrocode}
+\int_new:N \l__hit_enter_lines_int
+\dim_new:N \l__hit_enter_size_dim
+\dim_new:N \l__hit_enter_base_dim
+\dim_new:N \l__hit_enter_natural_dim
+\dim_new:N \l__hit_enter_ht_dim
+\fp_new:N \l__hit_enter_ratio_fp
+\tl_new:N \l__hit_enter_mode_tl
+\tl_new:N \l__hit_enter_val_tl
+\tl_new:N \l__hit_enter_last_tl
+\fp_const:Nn \c__hit_enter_natural_serif_fp { 1.1472 }
+\fp_const:Nn \c__hit_enter_natural_songti_fp { 1.2933333 }
+\str_const:Nn \c__hit_enter_alpha_str { abcdefghijklmnopqrstuvwxyz }
+\prg_generate_conditional_variant:Nnn \str_if_in:Nn { NV } { TF }
+\cs_new_protected:Npn \__hit_enter_size:n #1
+  {
+    \dim_if_exist:cTF { c__hit_font_size_#1_dim }
+      { \dim_set_eq:Nc \l__hit_enter_size_dim { c__hit_font_size_#1_dim } }
+      { \dim_set:Nn \l__hit_enter_size_dim { #1 } }
+  }
+\cs_new_protected:Npn \__hit_enter_font:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        { serif }
+          { \fp_set_eq:NN \l__hit_enter_ratio_fp \c__hit_enter_natural_serif_fp }
+        { songti }
+          { \fp_set_eq:NN \l__hit_enter_ratio_fp \c__hit_enter_natural_songti_fp }
+      }
+      { \msg_error:nnn { hithesis } { enter-font-unmeasured } {#1} }
+  }
+% 行距一个词的文法与版面制度同款:末字符定归属,! 固定值、+ 最小值、
+% 字母收尾是长度、数字收尾是倍数
+\cs_new_protected:Npn \__hit_enter_spacing:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        { single } { \tl_set:Nn \l__hit_enter_mode_tl { multiple }
+                     \tl_set:Nn \l__hit_enter_val_tl { 1 } }
+        { double } { \tl_set:Nn \l__hit_enter_mode_tl { multiple }
+                     \tl_set:Nn \l__hit_enter_val_tl { 2 } }
+      }
+      {
+        \tl_set:Nx \l__hit_enter_last_tl { \str_item:nn {#1} { -1 } }
+        \str_case:VnF \l__hit_enter_last_tl
+          {
+            { ! }
+              {
+                \tl_set:Nn \l__hit_enter_mode_tl { exactly }
+                \tl_set:Nx \l__hit_enter_val_tl { \str_range:nnn {#1} { 1 } { -2 } }
+              }
+            { + }
+              {
+                \tl_set:Nn \l__hit_enter_mode_tl { atleast }
+                \tl_set:Nx \l__hit_enter_val_tl { \str_range:nnn {#1} { 1 } { -2 } }
+              }
+          }
+          {
+            \str_if_in:NVTF \c__hit_enter_alpha_str \l__hit_enter_last_tl
+              { \tl_set:Nn \l__hit_enter_mode_tl { exactly } }
+              { \tl_set:Nn \l__hit_enter_mode_tl { multiple } }
+            \tl_set:Nn \l__hit_enter_val_tl {#1}
+          }
+      }
+  }
+\keys_define:nn { hit / enter }
+  {
+    lines .int_set:N = \l__hit_enter_lines_int ,
+    size .code:n = { \__hit_enter_size:n {#1} } ,
+    line-spacing .code:n = { \__hit_enter_spacing:n {#1} } ,
+    font-en .code:n = { \__hit_enter_font:n {#1} } ,
+    font-zh .code:n = { \__hit_enter_font:n {#1} } ,
+    unknown .code:n =
+      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
+  }
+\cs_new_protected:Npn \__hit_enter_height:
+  {
+    \dim_compare:nNnTF \l__hit_enter_size_dim > { 0pt }
+      { \dim_set_eq:NN \l__hit_enter_base_dim \l__hit_enter_size_dim }
+      { \dim_set:Nn \l__hit_enter_base_dim { 1 em } }
+    \dim_set:Nn \l__hit_enter_natural_dim
+      { \fp_to_decimal:N \l__hit_enter_ratio_fp \l__hit_enter_base_dim }
+    \str_case:VnF \l__hit_enter_mode_tl
+      {
+        { multiple }
+          {
+            \dim_set:Nn \l__hit_enter_ht_dim
+              { \l__hit_enter_val_tl \l__hit_enter_natural_dim }
+          }
+        { exactly }
+          { \dim_set:Nn \l__hit_enter_ht_dim { \l__hit_enter_val_tl } }
+        { atleast }
+          {
+            \dim_set:Nn \l__hit_enter_ht_dim
+              {
+                \dim_max:nn { \l__hit_enter_val_tl }
+                  { \l__hit_enter_natural_dim }
+              }
+          }
+      }
+      { }
+  }
 \NewDocumentCommand \hitenter { s O{1} }
   {
     \par
+    \group_begin:
+    \int_set:Nn \l__hit_enter_lines_int { 1 }
+    \dim_zero:N \l__hit_enter_size_dim
+    \fp_set_eq:NN \l__hit_enter_ratio_fp \c__hit_enter_natural_serif_fp
+    \tl_set:Nn \l__hit_enter_mode_tl { multiple }
+    \tl_set:Nn \l__hit_enter_val_tl { 1.25 }
+    \tl_if_in:nnTF {#2} { = }
+      { \keys_set:nn { hit / enter } {#2} }
+      { \int_set:Nn \l__hit_enter_lines_int {#2} }
+    \__hit_enter_height:
     \IfBooleanTF {#1}
-      { \vspace* { \dim_eval:n { ( \hit@format@latin@line: ) * #2 } } }
-      { \vspace { \dim_eval:n { ( \hit@format@latin@line: ) * #2 } } }
+      {
+        \dim_set_eq:NN \baselineskip \l__hit_enter_ht_dim
+        \prg_replicate:nn { \l__hit_enter_lines_int } { \hbox:n { } }
+      }
+      {
+        \vspace
+          { \dim_eval:n { \l__hit_enter_ht_dim * \l__hit_enter_lines_int } }
+      }
+    \group_end:
   }
 %    \end{macrocode}
 % \end{macro}
