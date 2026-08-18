@@ -5,6 +5,8 @@
 （mutool stext 逐字符抽取，按段落锚定）。本脚本把 demo 的 main.pdf 用同一套
 逻辑抽行，按段首文本对齐段落，逐行比：行文本（硬性）、行首/行末 x 坐标
 （容差默认 0.6bp）。任何一行差异即失败。
+LINE 行可带第四列 waive-pos：文本仍硬性比对，只豁免坐标（用于已论证
+不可再收的 Word/TeX 断行经济学差异，豁免原因写在基线注释里）。
 
 用法：check-line-ends.py [--pdf examples/demo/main.pdf] [--fixture tests/lineends-regu.tsv]
       check-line-ends.py --gen 参考.pdf > tests/lineends-regu.tsv   # 重制基线
@@ -100,7 +102,8 @@ def main():
         if kind == 'PARA':
             cur = fixture.setdefault(rest[0], [])
         elif kind == 'LINE':
-            cur.append((rest[0], float(rest[1]), float(rest[2])))
+            cur.append((rest[0], float(rest[1]), float(rest[2]),
+                        rest[3] if len(rest) > 3 else ''))
 
     ours = paragraphs(stext(a.pdf))
     bad = miss = 0
@@ -119,15 +122,19 @@ def main():
                 print('少行  %s… L%d: %s' % (anchor, i + 1, want[i][0]))
                 bad += 1
                 continue
-            wt, wx0, wxl = want[i]
+            wt, wx0, wxl, wflag = want[i]
             gt, gx0, gxl = norm(got[i][0]), got[i][1], got[i][2]
             if gt != wt:
                 print('文异  %s… L%d\n  们: %s\n  例: %s' % (anchor, i + 1, gt, wt))
                 bad += 1
             elif abs(gx0 - wx0) > a.tol or abs(gxl - wxl) > a.tol:
-                print('位差  %s… L%d  x0 %.1f/%.1f  末 %.1f/%.1f  «%s»'
-                      % (anchor, i + 1, gx0, wx0, gxl, wxl, wt[-6:]))
-                bad += 1
+                if wflag == 'waive-pos':
+                    print('豁免  %s… L%d  位差 %.1f（基线注释记档）'
+                          % (anchor, i + 1, max(abs(gx0 - wx0), abs(gxl - wxl))))
+                else:
+                    print('位差  %s… L%d  x0 %.1f/%.1f  末 %.1f/%.1f  «%s»'
+                          % (anchor, i + 1, gx0, wx0, gxl, wxl, wt[-6:]))
+                    bad += 1
     print('—— 段 %d，缺段 %d，行差 %d' % (len(fixture), miss, bad))
     return 1 if bad or miss else 0
 
