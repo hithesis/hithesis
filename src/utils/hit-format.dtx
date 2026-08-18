@@ -2621,7 +2621,9 @@
 \bool_new:N \l__hit_greedy_auto_bool
 \bool_set_true:N \l__hit_greedy_auto_bool
 \bool_new:N \l__hit_greedy_trace_bool
+\bool_new:N \l__hit_greedy_manual_bool
 \dim_new:N \l__hit_greedy_measure_dim
+\dim_new:N \l__hit_greedy_emitw_dim
 \dim_new:N \l__hit_greedy_width_dim
 \dim_new:N \l__hit_greedy_cap_dim
 \dim_new:N \l__hit_greedy_gapcap_dim
@@ -2743,14 +2745,14 @@
   }
 \cs_new_protected:Npn \__hit_greedy_emit_tight:
   {
-    \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_measure_dim }
+    \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
       { \__hit_greedy_inner_off: \hit@format@strut: \l__hit_greedy_line_tl }
     \box_use_drop:N \l__hit_greedy_line_box
     \__hit_greedy_line_reset:
   }
 \cs_new_protected:Npn \__hit_greedy_emit_deep:
   {
-    \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_measure_dim }
+    \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
       {
         \__hit_greedy_inner_off:
         \cs_set_protected:Npn \hit@format@punct@cshrink:
@@ -2762,7 +2764,7 @@
   }
 \cs_new_protected:Npn \__hit_greedy_emit_loose:
   {
-    \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_measure_dim }
+    \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
       {
         \__hit_greedy_inner_off: \__hit_greedy_loose_on:
         \hit@format@strut: \l__hit_greedy_line_tl
@@ -2832,6 +2834,243 @@
 % 主循环。条目逐个进账本；汉字与西文串按塞字本钱收，闭号按拉回本钱收，
 % 开号只按自然宽收。
 %    \begin{macrocode}
+\seq_new:N \l__hit_greedy_ml_seq
+\int_new:N \l__hit_greedy_mcl_int
+\int_new:N \l__hit_greedy_mpair_int
+\dim_new:N \l__hit_greedy_mover_dim
+\dim_new:N \l__hit_greedy_mkern_dim
+\tl_new:N \l__hit_greedy_mline_tl
+\int_new:N \l__hit_greedy_mprevc_int
+% 行内条目分类码：0 汉字 1 闭号 2 开号 3 西文串 4 空格
+\cs_new_protected:Npn \__hit_greedy_ml_put:nn #1#2
+  { \seq_put_right:Nn \l__hit_greedy_ml_seq { {#1} {#2} } }
+\cs_new_protected:Npn \__hit_greedy_manual_step:n #1
+  {
+    \tl_if_blank:nTF {#1}
+      { \__hit_greedy_ml_put:nn { 4 } { } }
+      {
+        \bool_lazy_and:nnTF
+          { \int_compare_p:nNn { \tl_count:n {#1} } = { 1 } }
+          { \int_compare_p:nNn { `#1 } = { "A6 } }
+          { \__hit_greedy_ml_flush: }
+          {
+            \int_compare:nNnTF { \tl_count:n {#1} } = { 1 }
+              {
+                \bool_lazy_or:nnTF
+                  { \int_compare_p:nNn { `#1 } < { "2000 } }
+                  { \int_compare_p:n { "2000 <= `#1 <= "200A } }
+                  { \__hit_greedy_ml_put:nn { 3 } {#1} }
+                  {
+                    \__hit_greedy_if_closer:nTF {#1}
+                      { \__hit_greedy_ml_put:nn { 1 } {#1} }
+                      {
+                        \__hit_greedy_if_opener:nTF {#1}
+                          { \__hit_greedy_ml_put:nn { 2 } {#1} }
+                          { \__hit_greedy_ml_put:nn { 0 } {#1} }
+                      }
+                  }
+              }
+              { \__hit_greedy_ml_put:nn { 3 } {#1} }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 手动行发射。松式自然宽放得下走松式；放不下按 Word 的均摊规则给行内
+% 各压缩位插定值 kern：中位闭号先均摊（每处至多 0.46 格），再动对位
+% （闭前对 0.5 格、开后对 0.38 格），最后行末闭号自削半格。行盒此后
+% 刚性定宽，分摊结果与范例逐字实测一致，不再依赖盒内伸缩的比例分配。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_greedy_ml_flush:
+  {
+    \seq_if_empty:NF \l__hit_greedy_ml_seq { \__hit_greedy_ml_emit: }
+    \seq_clear:N \l__hit_greedy_ml_seq
+    \bool_set_false:N \l__hit_greedy_mfirst_bool
+  }
+\bool_new:N \l__hit_greedy_mfirst_bool
+\cs_new_protected:Npn \__hit_greedy_ml_text:
+  {
+    \tl_clear:N \l__hit_greedy_mline_tl
+    \bool_if:NT \l__hit_greedy_mfirst_bool
+      { \tl_put_right:Nn \l__hit_greedy_mline_tl { \tex_kern:D 2 \ccwd \scan_stop: } }
+    \seq_map_inline:Nn \l__hit_greedy_ml_seq
+      { \__hit_greedy_ml_text_one:nn ##1 }
+  }
+\cs_new_protected:Npn \__hit_greedy_ml_text_one:nn #1#2
+  {
+    \int_compare:nNnTF {#1} = { 4 }
+      { \tl_put_right:Nn \l__hit_greedy_mline_tl { \__hit_greedy_space: } }
+      { \tl_put_right:Nn \l__hit_greedy_mline_tl {#2} }
+  }
+\cs_new_protected:Npn \__hit_greedy_ml_emit:
+  {
+    \__hit_greedy_ml_text:
+    \hbox_set:Nn \l__hit_greedy_trial_box
+      {
+        \__hit_greedy_inner_off: \__hit_greedy_loose_on:
+        \hit@format@strut: \l__hit_greedy_mline_tl
+      }
+    \dim_set:Nn \l__hit_greedy_mover_dim
+      { \box_wd:N \l__hit_greedy_trial_box - \l__hit_greedy_emitw_dim }
+    \dim_compare:nNnTF \l__hit_greedy_mover_dim > { 0.1 pt }
+      { \__hit_greedy_ml_emit_tight: }
+      {
+        \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
+          {
+            \__hit_greedy_inner_off: \__hit_greedy_loose_on:
+            \hit@format@strut: \l__hit_greedy_mline_tl
+          }
+        \box_use_drop:N \l__hit_greedy_line_box
+      }
+  }
+% 紧行：数中位闭号（后随非标点的闭号，行末那个除外）与对位数
+\cs_new_protected:Npn \__hit_greedy_ml_emit_tight:
+  {
+    \int_zero:N \l__hit_greedy_mcl_int
+    \int_zero:N \l__hit_greedy_mpair_int
+    \int_set:Nn \l__hit_greedy_mprevc_int { 9 }
+    \int_zero:N \l__hit_greedy_tmpa_int
+    \seq_map_inline:Nn \l__hit_greedy_ml_seq
+      { \__hit_greedy_ml_census:nn ##1 }
+    % 中位闭号均摊,帽 0.46 格
+    \dim_set:Nn \l__hit_greedy_mkern_dim { 0pt }
+    \int_compare:nNnT \l__hit_greedy_mcl_int > 0
+      {
+        \dim_set:Nn \l__hit_greedy_mkern_dim
+          {
+            \dim_min:nn
+              { \l__hit_greedy_mover_dim / \l__hit_greedy_mcl_int }
+              { 0.46 \l__hit_greedy_cell_dim }
+          }
+      }
+    % 剩余交给对位（帽 0.88 格/处）与行末闭号自削（帽半格）
+    \dim_set:Nn \l__hit_greedy_mrest_dim
+      {
+        \l__hit_greedy_mover_dim
+        - \l__hit_greedy_mkern_dim * \l__hit_greedy_mcl_int
+      }
+    \dim_set:Nn \l__hit_greedy_mpk_dim { 0pt }
+    \bool_lazy_and:nnT
+      { \int_compare_p:nNn \l__hit_greedy_mpair_int > 0 }
+      { \dim_compare_p:nNn \l__hit_greedy_mrest_dim > { 0.1 pt } }
+      {
+        \dim_set:Nn \l__hit_greedy_mpk_dim
+          {
+            \dim_min:nn
+              { \l__hit_greedy_mrest_dim / \l__hit_greedy_mpair_int }
+              { 0.88 \l__hit_greedy_cell_dim }
+          }
+        \dim_sub:Nn \l__hit_greedy_mrest_dim
+          { \l__hit_greedy_mpk_dim * \l__hit_greedy_mpair_int }
+      }
+    \dim_set:Nn \l__hit_greedy_mtrim_dim { 0pt }
+    \bool_lazy_and:nnT
+      { \int_compare_p:nNn \l__hit_greedy_mlastc_int = { 1 } }
+      { \dim_compare_p:nNn \l__hit_greedy_mrest_dim > { 0.1 pt } }
+      {
+        \dim_set:Nn \l__hit_greedy_mtrim_dim
+          { \dim_min:nn { \l__hit_greedy_mrest_dim } { 0.5 \l__hit_greedy_cell_dim } }
+      }
+    \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
+      {
+        \__hit_greedy_inner_off: \__hit_greedy_loose_on:
+        \hit@format@strut:
+        \int_set:Nn \l__hit_greedy_mprevc_int { 9 }
+        \bool_if:NT \l__hit_greedy_mfirst_bool
+          { \tex_kern:D 2 \ccwd \scan_stop: }
+        \seq_map_inline:Nn \l__hit_greedy_ml_seq
+          { \__hit_greedy_ml_out:nn ##1 }
+        \dim_compare:nNnT \l__hit_greedy_mtrim_dim > { 0pt }
+          {
+            \tex_kern:D \dim_eval:n { - \l__hit_greedy_mtrim_dim }
+            \scan_stop:
+          }
+      }
+    \box_use_drop:N \l__hit_greedy_line_box
+  }
+\dim_new:N \l__hit_greedy_mrest_dim
+\dim_new:N \l__hit_greedy_mpk_dim
+\dim_new:N \l__hit_greedy_mtrim_dim
+\int_new:N \l__hit_greedy_mlastc_int
+\int_new:N \l__hit_greedy_tmpa_int
+% 普查:mcl = 闭号后随非标点(含行末闭号前那些);对位数计闭前对/开后对
+\cs_new_protected:Npn \__hit_greedy_ml_census:nn #1#2
+  {
+    \int_set:Nn \l__hit_greedy_mlastc_int {#1}
+    \int_incr:N \l__hit_greedy_tmpa_int
+    \int_compare:nNnT \l__hit_greedy_mprevc_int = { 1 }
+      {
+        \int_compare:nNnTF {#1} < { 1 }
+          { \int_incr:N \l__hit_greedy_mcl_int }
+          {
+            \int_compare:nNnT {#1} < { 3 }
+              { \int_incr:N \l__hit_greedy_mpair_int }
+          }
+      }
+    \int_set:Nn \l__hit_greedy_mprevc_int {#1}
+  }
+% 发射:中位闭号(后随非标点)之后落均摊 kern;行末闭号落剩余(帽半格)
+\cs_new_protected:Npn \__hit_greedy_ml_out:nn #1#2
+  {
+    % 上一条是闭号:按本条身份补它的 kern
+    \int_compare:nNnT \l__hit_greedy_mprevc_int = { 1 }
+      {
+        \int_compare:nNnTF {#1} < { 1 }
+          {
+            \dim_compare:nNnT \l__hit_greedy_mkern_dim > { 0pt }
+              {
+                \tex_kern:D \dim_eval:n { - \l__hit_greedy_mkern_dim }
+                \scan_stop:
+              }
+          }
+          {
+            \int_compare:nNnT {#1} < { 3 }
+              {
+                \dim_compare:nNnT \l__hit_greedy_mpk_dim > { 0pt }
+                  {
+                    \tex_kern:D \dim_eval:n { - \l__hit_greedy_mpk_dim }
+                    \scan_stop:
+                  }
+              }
+          }
+      }
+    \int_compare:nNnTF {#1} = { 4 }
+      { \__hit_greedy_space: }
+      {#2}
+    \int_set:Nn \l__hit_greedy_mprevc_int {#1}
+  }
+\cs_new_protected:Npn \__hit_greedy_run_manual:
+  {
+    \__hit_greedy_trace:n { ==para-manual== }
+    \seq_clear:N \l__hit_greedy_ml_seq
+    \bool_set_true:N \l__hit_greedy_mfirst_bool
+    \seq_map_inline:Nn \l__hit_greedy_items_seq { \__hit_greedy_manual_step:n {##1} }
+    % 段末行
+    \seq_if_empty:NF \l__hit_greedy_ml_seq
+      {
+        \__hit_greedy_ml_text:
+        \hbox_set:Nn \l__hit_greedy_trial_box
+          {
+            \__hit_greedy_inner_off: \__hit_greedy_loose_on:
+            \hit@format@strut: \l__hit_greedy_mline_tl
+          }
+        \dim_compare:nNnTF
+          { \box_wd:N \l__hit_greedy_trial_box }
+          > { \l__hit_greedy_emitw_dim + 0.1 pt }
+          { \__hit_greedy_ml_flush: }
+          {
+            \tl_put_right:Nn \l__hit_greedy_mline_tl
+              { \skip_horizontal:n { 0pt ~ plus ~ 1 fil } }
+            \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
+              {
+                \__hit_greedy_inner_off: \__hit_greedy_loose_on:
+                \hit@format@strut: \l__hit_greedy_mline_tl
+              }
+            \box_use_drop:N \l__hit_greedy_line_box
+            \seq_clear:N \l__hit_greedy_ml_seq
+          }
+      }
+  }
 \cs_new_protected:Npn \__hit_greedy_run:
   {
     \__hit_greedy_trace:n { ==para== }
@@ -2870,7 +3109,7 @@
   }
 \cs_new_protected:Npn \__hit_greedy_step_one:n #1
   {
-    \int_compare:nNnTF { `#1 } = { "2028 }
+    \int_compare:nNnTF { `#1 } = { "A6 }
       {
         % 强制断点：范例钉死的断行（Word 分配器不可判定的毫厘案）
         \tl_if_empty:NF \l__hit_greedy_line_tl { \__hit_greedy_emit_auto: }
@@ -3169,6 +3408,7 @@
     \par
     \group_begin:
     \dim_set:Nn \l__hit_greedy_measure_dim { \textwidth }
+    \dim_set:Nn \l__hit_greedy_emitw_dim { \textwidth - 0.65 pt }
     \bool_if:NT \l__hit_greedy_auto_bool
       {
         \dim_set:Nn \l__hit_greedy_cell_dim { \ccwd }
@@ -3180,6 +3420,7 @@
     \dim_set:Nn \l__hit_greedy_lsp_dim { 0.0402 \l__hit_greedy_cell_dim }
     \seq_clear:N \l__hit_greedy_items_seq
     \bool_set_false:N \l__hit_greedy_abort_bool
+    \bool_set_false:N \l__hit_greedy_manual_bool
     \tl_clear:N \l__hit_greedy_run_tl
     \bool_set_false:N \l__hit_greedy_pend_space_bool
     \tl_analysis_map_inline:nn {#1}
@@ -3195,6 +3436,14 @@
               { \int_compare_p:nNn { "##3 } = { 12 } }
               { \int_compare_p:nNn { "##3 } = { 11 } }
               {
+                \int_compare:nNnTF {##2} = { "A6 }
+                  {
+                    \bool_set_true:N \l__hit_greedy_manual_bool
+                    \__hit_greedy_flush_run:
+                    \bool_set_false:N \l__hit_greedy_pend_space_bool
+                    \exp_args:NNo \seq_put_right:Nn \l__hit_greedy_items_seq {##1}
+                  }
+                  {
                 \bool_lazy_or:nnTF
                   { \int_compare_p:nNn {##2} < { "2000 } }
                   { \int_compare_p:n { "2000 <= ##2 <= "200A } }
@@ -3215,6 +3464,7 @@
                       }
                     \exp_args:NNo \seq_put_right:Nn \l__hit_greedy_items_seq {##1}
                   }
+                  }
               }
               { \bool_set_true:N \l__hit_greedy_abort_bool }
           }
@@ -3222,7 +3472,11 @@
     \__hit_greedy_flush_run:
     \bool_if:NTF \l__hit_greedy_abort_bool
       { #1 \par }
-      { \__hit_greedy_run: }
+      {
+        \bool_if:NTF \l__hit_greedy_manual_bool
+          { \__hit_greedy_run_manual: }
+          { \__hit_greedy_run: }
+      }
     \group_end:
     \par
   }
