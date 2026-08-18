@@ -2625,6 +2625,20 @@
 \bool_new:N \l__hit_greedy_manual_bool
 \dim_new:N \l__hit_greedy_measure_dim
 \dim_new:N \l__hit_greedy_emitw_dim
+\dim_new:N \g__hit_greedy_lastdp_dim
+\cs_new_protected:Npn \__hit_greedy_ship:
+  {
+    % 行以真段落落地:小节前距等段界机制才与普通段一致
+    \dim_gset:Nn \g__hit_greedy_lastdp_dim { \box_dp:N \l__hit_greedy_line_box }
+    \tex_noindent:D
+    \box_use_drop:N \l__hit_greedy_line_box
+    \par
+  }
+\cs_new_protected:Npn \__hit_greedy_fix_prevdepth:
+  {
+    \mode_if_vertical:T
+      { \dim_set:Nn \tex_prevdepth:D { \g__hit_greedy_lastdp_dim } }
+  }
 \dim_new:N \l__hit_greedy_width_dim
 \dim_new:N \l__hit_greedy_cap_dim
 \dim_new:N \l__hit_greedy_gapcap_dim
@@ -2687,7 +2701,7 @@
     \tl_if_in:NnTF \c__hit_greedy_openers_tl {#1}
       { \prg_return_true: } { \prg_return_false: }
   }
-\prg_new_protected_conditional:Npnn \__hit_greedy_if_alnum:n #1 { TF }
+\prg_new_protected_conditional:Npnn \__hit_greedy_if_alnum:n #1 { TF , T }
   {
     \bool_lazy_any:nTF
       {
@@ -2757,7 +2771,7 @@
   {
     \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
       { \__hit_greedy_inner_off: \hit@format@strut: \l__hit_greedy_line_tl }
-    \box_use_drop:N \l__hit_greedy_line_box
+    \__hit_greedy_ship:
     \__hit_greedy_line_reset:
   }
 \cs_new_protected:Npn \__hit_greedy_emit_deep:
@@ -2769,7 +2783,7 @@
           { \skip_horizontal:n { 0pt ~ minus ~ 0.5 \ccwd } }
         \hit@format@strut: \l__hit_greedy_line_tl
       }
-    \box_use_drop:N \l__hit_greedy_line_box
+    \__hit_greedy_ship:
     \__hit_greedy_line_reset:
   }
 \cs_new_protected:Npn \__hit_greedy_emit_loose:
@@ -2779,7 +2793,7 @@
         \__hit_greedy_inner_off: \__hit_greedy_loose_on:
         \hit@format@strut: \l__hit_greedy_line_tl
       }
-    \box_use_drop:N \l__hit_greedy_line_box
+    \__hit_greedy_ship:
     \__hit_greedy_line_reset:
   }
 %    \end{macrocode}
@@ -2816,7 +2830,7 @@
             \skip_horizontal:n { 0pt ~ plus ~ 1 fil }
           }
       }
-    \box_use_drop:N \l__hit_greedy_line_box
+    \__hit_greedy_ship:
     \__hit_greedy_line_reset:
   }
 \cs_new_protected:Npn \__hit_greedy_line_reset:
@@ -2947,6 +2961,7 @@
   {
     \tl_clear:N \l__hit_greedy_mline_tl
     \int_set:Nn \l__hit_greedy_mtprev_int { 9 }
+    \bool_set_false:N \l__hit_greedy_iotail_bool
     \bool_if:NT \l__hit_greedy_mfirst_bool
       { \tl_put_right:Nn \l__hit_greedy_mline_tl { \tex_kern:D 2 \ccwd \scan_stop: } }
     \seq_map_inline:Nn \l__hit_greedy_ml_seq
@@ -2954,22 +2969,46 @@
   }
 \cs_new_protected:Npn \__hit_greedy_ml_text_one:nn #1#2
   {
+    \bool_lazy_and:nnT
+      { \bool_if_p:N \l__hit_greedy_iotail_bool }
+      { \int_compare_p:nNn {#1} = { 0 } }
+      {
+        \__hit_greedy_if_cjk:nT {#2}
+          {
+            \tl_put_right:Nn \l__hit_greedy_mline_tl
+              {
+                \tex_kern:D \dim_eval:n
+                  { \l__hit_greedy_gapr_dim - \l__hit_greedy_lsp_dim }
+                \scan_stop:
+              }
+          }
+      }
+    \bool_set_false:N \l__hit_greedy_iotail_bool
     \int_case:nnF {#1}
       {
         { 4 } { \tl_put_right:Nn \l__hit_greedy_mline_tl { \__hit_greedy_space: } }
         { 3 }
           {
-            \int_compare:nNnT \l__hit_greedy_mtprev_int = { 0 }
+            \bool_lazy_and:nnT
+              { \int_compare_p:nNn \l__hit_greedy_mtprev_int = { 0 } }
+              { \bool_if_p:N \l__hit_greedy_iocjk_bool }
               {
                 \exp_args:Ne \__hit_greedy_rt_gapl:n { \tl_head:n {#2} }
               }
             \tl_put_right:Nn \l__hit_greedy_mline_tl
               { { \tex_XeTeXinterchartokenstate:D = 0 \scan_stop: #2 } }
-            \exp_args:Ne \__hit_greedy_rt_gapr:n { \tl_item:nn {#2} { -1 } }
+            \exp_args:Ne \__hit_greedy_io_tail:n { \tl_item:nn {#2} { -1 } }
           }
       }
       { \tl_put_right:Nn \l__hit_greedy_mline_tl {#2} }
     \int_set:Nn \l__hit_greedy_mtprev_int {#1}
+    \int_compare:nNnTF {#1} = { 0 }
+      {
+        \__hit_greedy_if_cjk:nTF {#2}
+          { \bool_set_true:N \l__hit_greedy_iocjk_bool }
+          { \bool_set_false:N \l__hit_greedy_iocjk_bool }
+      }
+      { \bool_set_false:N \l__hit_greedy_iocjk_bool }
   }
 \int_new:N \l__hit_greedy_mtprev_int
 \cs_new_protected:Npn \__hit_greedy_rt_gapl:n #1
@@ -2981,34 +3020,29 @@
       }
       { }
   }
-\cs_new_protected:Npn \__hit_greedy_rt_gapr:n #1
-  {
-    \__hit_greedy_if_alnum:nTF {#1}
-      { }
-      {
-        \tl_put_right:Nn \l__hit_greedy_mline_tl
-          {
-            \tex_kern:D \dim_eval:n
-              { - \l__hit_format_ecglue_dim + \ccwd - 1 em }
-            \scan_stop:
-          }
-      }
-  }
 \cs_new_protected:Npn \__hit_greedy_ml_emit:
   {
     \__hit_greedy_ml_text:
-    % 算术宽:普查里逐项累计(网格胶在裸盒里塌陷,盒测不可用)
-    \dim_zero:N \l__hit_greedy_mw_dim
-    \bool_if:NT \l__hit_greedy_mfirst_bool
-      { \dim_add:Nn \l__hit_greedy_mw_dim { 2 \l__hit_greedy_cell_dim } }
+    % 双程:先量渲染记号实宽(kern 分配以实宽为准,盒内无伸缩余地)
     \int_zero:N \l__hit_greedy_mcl_int
     \dim_zero:N \l__hit_greedy_mcap_dim
     \int_zero:N \l__hit_greedy_tmpa_int
     \int_set:Nn \l__hit_greedy_mprevc_int { 9 }
     \seq_map_inline:Nn \l__hit_greedy_ml_seq
       { \__hit_greedy_ml_census:nn ##1 }
+    \hbox_set:Nn \l__hit_greedy_trial_box
+      {
+        \__hit_greedy_inner_off: \__hit_greedy_loose_on:
+        \hit@format@strut:
+        \int_set:Nn \l__hit_greedy_mtprev_int { 9 }
+        \bool_set_false:N \l__hit_greedy_iotail_bool
+        \bool_if:NT \l__hit_greedy_mfirst_bool
+          { \tex_kern:D 2 \ccwd \scan_stop: }
+        \seq_map_inline:Nn \l__hit_greedy_ml_seq
+          { \__hit_greedy_item_out:nn ##1 }
+      }
     \dim_set:Nn \l__hit_greedy_mover_dim
-      { \l__hit_greedy_mw_dim - \l__hit_greedy_emitw_dim }
+      { \box_wd:N \l__hit_greedy_trial_box - \l__hit_greedy_emitw_dim }
     \__hit_greedy_trace:n { MLine~ov= \dim_use:N \l__hit_greedy_mover_dim
       ~ n= \seq_count:N \l__hit_greedy_ml_seq }
     \bool_lazy_or:nnTF
@@ -3019,9 +3053,15 @@
         \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
           {
             \__hit_greedy_inner_off: \__hit_greedy_loose_on:
-            \hit@format@strut: \l__hit_greedy_mline_tl
+            \hit@format@strut:
+            \int_set:Nn \l__hit_greedy_mtprev_int { 9 }
+            \bool_set_false:N \l__hit_greedy_iotail_bool
+            \bool_if:NT \l__hit_greedy_mfirst_bool
+              { \tex_kern:D 2 \ccwd \scan_stop: }
+            \seq_map_inline:Nn \l__hit_greedy_ml_seq
+              { \__hit_greedy_item_out:nn ##1 }
           }
-        \box_use_drop:N \l__hit_greedy_line_box
+        \__hit_greedy_ship:
       }
   }
 % 紧行分摊的瀑布模型（范例三类行实测归纳）：
@@ -3087,6 +3127,8 @@
         \__hit_greedy_inner_off: \__hit_greedy_loose_on:
         \hit@format@strut:
         \int_set:Nn \l__hit_greedy_mprevc_int { 9 }
+        \int_set:Nn \l__hit_greedy_mtprev_int { 9 }
+        \bool_set_false:N \l__hit_greedy_iotail_bool
         \int_zero:N \l__hit_greedy_tmpb_int
         \bool_if:NT \l__hit_greedy_mfirst_bool
           { \tex_kern:D 2 \ccwd \scan_stop: }
@@ -3100,7 +3142,7 @@
             \scan_stop:
           }
       }
-    \box_use_drop:N \l__hit_greedy_line_box
+    \__hit_greedy_ship:
   }
 \dim_new:N \l__hit_greedy_mcap_dim
 \dim_new:N \l__hit_greedy_mpretrim_dim
@@ -3198,6 +3240,69 @@
       { }
   }
 \dim_new:N \l__hit_greedy_mw_dim
+\prg_new_protected_conditional:Npnn \__hit_greedy_if_cjk:n #1 { T , TF }
+  {
+    \tl_if_blank:nTF {#1}
+      { \prg_return_false: }
+      {
+        \int_compare:nNnTF { \tl_count:n {#1} } = { 1 }
+          {
+            \int_compare:nNnTF { `#1 } < { "2E80 }
+              { \prg_return_false: } { \prg_return_true: }
+          }
+          { \prg_return_false: }
+      }
+  }
+\bool_new:N \l__hit_greedy_iotail_bool
+\bool_new:N \l__hit_greedy_iocjk_bool
+\cs_new_protected:Npn \__hit_greedy_item_out:nn #1#2
+  {
+    \bool_lazy_and:nnT
+      { \bool_if_p:N \l__hit_greedy_iotail_bool }
+      { \int_compare_p:nNn {#1} = { 0 } }
+      {
+        \__hit_greedy_if_cjk:nT {#2}
+          {
+            \tex_kern:D \dim_eval:n
+              { \l__hit_greedy_gapr_dim - \l__hit_greedy_lsp_dim }
+            \scan_stop:
+          }
+      }
+    \bool_set_false:N \l__hit_greedy_iotail_bool
+    \int_case:nnF {#1}
+      {
+        { 4 } { \__hit_greedy_space: }
+        { 3 }
+          {
+            \bool_lazy_and:nnT
+              { \int_compare_p:nNn \l__hit_greedy_mtprev_int = { 0 } }
+              { \bool_if_p:N \l__hit_greedy_iocjk_bool }
+              { \exp_args:Ne \__hit_greedy_io_gapl:n { \tl_head:n {#2} } }
+            { \tex_XeTeXinterchartokenstate:D = 0 \scan_stop: #2 }
+            \exp_args:Ne \__hit_greedy_io_tail:n { \tl_item:nn {#2} { -1 } }
+          }
+      }
+      {#2}
+    \int_set:Nn \l__hit_greedy_mtprev_int {#1}
+    \int_compare:nNnTF {#1} = { 0 }
+      {
+        \__hit_greedy_if_cjk:nTF {#2}
+          { \bool_set_true:N \l__hit_greedy_iocjk_bool }
+          { \bool_set_false:N \l__hit_greedy_iocjk_bool }
+      }
+      { \bool_set_false:N \l__hit_greedy_iocjk_bool }
+  }
+\cs_new_protected:Npn \__hit_greedy_io_gapl:n #1
+  {
+    \__hit_greedy_if_alnum:nT {#1}
+      { \tex_kern:D \dim_eval:n { \l__hit_greedy_gapl_dim } \scan_stop: }
+  }
+\cs_new_protected:Npn \__hit_greedy_io_tail:n #1
+  {
+    \__hit_greedy_if_alnum:nTF {#1}
+      { \bool_set_true:N \l__hit_greedy_iotail_bool }
+      { \bool_set_false:N \l__hit_greedy_iotail_bool }
+  }
 \cs_new_protected:Npn \__hit_greedy_ml_kern:n #1
   {
     \tex_kern:D \dim_eval:n
@@ -3239,9 +3344,7 @@
             { 4 } { \__hit_greedy_ml_kern:n { 0.22 } }
           }
       }
-    \int_compare:nNnTF {#1} = { 4 }
-      { \__hit_greedy_space: }
-      {#2}
+    \__hit_greedy_item_out:nn {#1} {#2}
     \bool_lazy_and:nnT
       { \int_compare_p:nNn \l__hit_greedy_tmpb_int = \l__hit_greedy_tmpa_int }
       { \int_compare_p:nNn {#1} = { 2 } }
@@ -3284,7 +3387,7 @@
                 \__hit_greedy_inner_off:
                 \hit@format@strut: \l__hit_greedy_mline_tl
               }
-            \box_use_drop:N \l__hit_greedy_line_box
+            \__hit_greedy_ship:
             \seq_clear:N \l__hit_greedy_ml_seq
           }
       }
@@ -3709,6 +3812,7 @@
           { \__hit_greedy_run_manual: }
           { \__hit_greedy_run: }
       }
+    \group_insert_after:N \__hit_greedy_fix_prevdepth:
     \group_end:
     \par
   }
