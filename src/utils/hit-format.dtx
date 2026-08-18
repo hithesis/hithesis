@@ -2806,6 +2806,9 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_greedy_emit_auto:
   {
+    % line_tl 路的首行缩进在 line_tl 里自带,但首行标志也要在此消费:
+    % 否则下一行经 ml 发射时又当自己是首行(简历段续行缩进实测)
+    \int_zero:N \l__hit_greedy_mheadline_int
     \dim_compare:nNnTF \l__hit_greedy_width_dim > \l__hit_greedy_measure_dim
       { \__hit_greedy_emit_tight: }
       { \__hit_greedy_emit_loose: }
@@ -2961,6 +2964,8 @@
       }
     \seq_if_empty:NF \l__hit_greedy_ml_seq { \__hit_greedy_ml_emit: }
     \__hit_greedy_line_reset:
+    % 首行标志只供本次发射,用完即清(段末 ml_text 复用它排缩进)
+    \bool_set_false:N \l__hit_greedy_mfirst_bool
   }
 \int_new:N \l__hit_greedy_mheadline_int
 \cs_new_protected:Npn \__hit_greedy_ml_flush:
@@ -3764,6 +3769,9 @@
         \int_set:Nn \l__hit_greedy_prev_int { 2 }
       }
       {
+        % 快照:行尾开号退让要能精确回滚到开号之前(否则回滚越位丢字)
+        \__hit_greedy_snap:
+        \tl_set:Nn \l__hit_greedy_undo_tl {#1}
         \int_compare:nNnTF \l__hit_greedy_prev_int > { 3 }
           { }
           {
@@ -3823,7 +3831,7 @@
           }
           {
             \__hit_greedy_rollback:
-            \__hit_greedy_emit_auto:
+            \__hit_greedy_ml_flush_model:
             \exp_args:NV \__hit_greedy_step:n \l__hit_greedy_undo_tl
             \__hit_greedy_step_run:n {#1}
           }
