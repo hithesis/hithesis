@@ -2514,14 +2514,6 @@
         \dim_set_eq:NN \topskip \g_hit_body_first_dim
         \hit@format@reserve@depth:
         \hit@format@penalties:
-        % 正文断行引擎:默认 ctex 原生,line-break=msword 时逐段捕获进
-        % 贪心(Word 逐行断行),开关全局、按属性取值
-        \__hit_format_get:nnNT { body } { line-break } \l__hit_format_head_tl
-          {
-            \str_if_eq:VnTF \l__hit_format_head_tl { msword }
-              { \bool_gset_true:N \g__hit_greedy_capture_bool }
-              { \bool_gset_false:N \g__hit_greedy_capture_bool }
-          }
         \normalsize
         \ctexset { autoindent = false }
         \dim_set_eq:NN \parindent \g_hit_body_indent_dim
@@ -4508,17 +4500,28 @@
 % 段（目录行）都放行原生。捕获段回落原生（含宏、数学等扫描器不认的
 % 内容）由 abort 分支带防再捕标志完成。
 %    \begin{macrocode}
-\bool_new:N \g__hit_greedy_capture_bool
 \bool_new:N \l__hit_greedy_pargate_bool
+\bool_new:N \l__hit_greedy_lbon_bool
+\tl_new:N \l__hit_greedy_lb_tl
 \bool_new:N \l__hit_greedy_swallow_bool
 \bool_new:N \l__hit_greedy_incapture_bool
 \bool_new:N \l__hit_greedy_noindent_bool
 \box_new:N \l__hit_greedy_indent_box
 \tl_new:N \l__hit_greedy_evp_tl
+% 开关按属性现读:line-break 是逐段决策,门每段都过,现读即中途
+% \hitsetup 改就中途生效,不吃「apply 只跑一次」的亏(属性存储是
+% \prop_gput 全局量)。缓存成旗曾把 enddocument 延迟排版的整本书
+% 一起断电,现读没有这一层
 \cs_new_protected:Npn \__hit_greedy_gate:
   {
     \bool_set_false:N \l__hit_greedy_pargate_bool
-    \bool_if:NT \g__hit_greedy_capture_bool
+    \bool_set_false:N \l__hit_greedy_lbon_bool
+    \__hit_format_get:nnNT { body } { line-break } \l__hit_greedy_lb_tl
+      {
+        \str_if_eq:VnT \l__hit_greedy_lb_tl { msword }
+          { \bool_set_true:N \l__hit_greedy_lbon_bool }
+      }
+    \bool_if:NT \l__hit_greedy_lbon_bool
       {
         % 只捕正文卷(mainmatter):封面/摘要/目录这些机器排的辅文段落
         % 各有括号敏感的结构,收集器一停机就拆散它们(镜像实测)
@@ -4552,7 +4555,16 @@
           { \box_if_empty_p:N \l__hit_greedy_indent_box }
         \__hit_greedy_trace:n { CAPfire~ void=
           \bool_if:NTF \l__hit_greedy_noindent_bool { Y } { N } }
-        \__hit_greedy_grab:
+        % 段首是宏记号就地撤销:正文段落首记号是文字;显示公式复读、
+        % 环境机器、\label 起头这类段横竖要回落原生,提前撤销省一趟
+        % 收集且不碰它们的括号结构(equation 案实测)
+        \peek_N_type:TF
+          {
+            \token_if_cs:NTF \l_peek_token
+              { \__hit_greedy_collect_bail: }
+              { \__hit_greedy_grab: }
+          }
+          { \__hit_greedy_grab: }
       }
   }
 % 逐记号收集:定界抓取不展开任何记号,段落顶着 \end 收束时会抓穿
@@ -4581,6 +4593,15 @@
         \peek_catcode:NTF \c_group_end_token
           { \__hit_greedy_collect_done: }
           {
+        \peek_catcode:NTF \c_math_toggle_token
+          {
+            % 段首就是 $:多半是竖直模式里 $$ 起段后的复读,撤销捕获让
+            % 显示公式在原段里照常走;段中的 $ 照收,交给回落
+            \tl_if_empty:NTF \l__hit_greedy_body_tl
+              { \__hit_greedy_collect_bail: }
+              { \__hit_greedy_collect_tok:N }
+          }
+          {
             \peek_catcode:NTF \c_group_begin_token
               { \__hit_greedy_collect_group:n }
               {
@@ -4591,6 +4612,7 @@
                   }
                   { \__hit_greedy_collect_tok:N }
               }
+          }
           }
           }
           }
@@ -4606,16 +4628,31 @@
     \tl_put_right:Nn \l__hit_greedy_body_tl {#1}
     \__hit_greedy_collect:
   }
+% 撤销捕获:缩进盒与撑竿按原序归位,正文在原段里续流
+\cs_new_protected:Npn \__hit_greedy_collect_bail:
+  {
+    \bool_set_false:N \l__hit_greedy_swallow_bool
+    \box_if_empty:NF \l__hit_greedy_indent_box
+      { \box_use_drop:N \l__hit_greedy_indent_box }
+    \hit@format@strut:
+  }
 \cs_new_protected:Npn \__hit_greedy_collect_done:
   {
     \tex_par:D
+    % 空段起段时已插过一份 \parskip,渲染那趟不再起段,不对冲就比显式
+    % 调用多一份(新版面 parskip 为零看不出,博士后旧版面每段多一点,
+    % 一页漏一行实测)。主竖列禁 \unskip,发一根等量反胶:中页净零;
+    % 断页只可能落在正胶上(反胶前邻是可弃胶,不成断点),断开后两根
+    % 都在页首被弃,对称消失
+    \skip_vertical:n { - \parskip }
     \bool_set_false:N \l__hit_greedy_swallow_bool
+    % 源码换行在段尾留下的空格记号会改行末闭号的语义(题目段尾差
+    % 3.2bp 实测),Word 段落无首尾空格,修剪
+    \tl_trim_spaces:N \l__hit_greedy_body_tl
     \__hit_greedy_trace:n { CAPtext~ \tl_to_str:V \l__hit_greedy_body_tl }
     \exp_args:NV \__hit_greedy_par:n \l__hit_greedy_body_tl
   }
 \AddToHook { para / before } { \__hit_greedy_gate: }
-% 收尾自动排的封面/摘要机器段落括号敏感,capture 到点全局熄火
-\AddToHook { enddocument } { \bool_gset_false:N \g__hit_greedy_capture_bool }
 %    \end{macrocode}
 %
 %    \begin{macrocode}
