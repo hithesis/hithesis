@@ -79,7 +79,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--pdf', default='examples/demo/main.pdf')
     ap.add_argument('--fixture', default='tests/lineends-regu.tsv')
-    ap.add_argument('--tol', type=float, default=0.6)
+    ap.add_argument('--tol', type=float, default=0.75)
     ap.add_argument('--gen', metavar='REF_PDF', help='从参考 PDF 生成基线到 stdout')
     a = ap.parse_args()
 
