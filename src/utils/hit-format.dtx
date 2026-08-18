@@ -2620,6 +2620,7 @@
 \bool_new:N \l__hit_greedy_pend_space_bool
 \bool_new:N \l__hit_greedy_auto_bool
 \bool_set_true:N \l__hit_greedy_auto_bool
+\bool_new:N \l__hit_greedy_trace_bool
 \dim_new:N \l__hit_greedy_measure_dim
 \dim_new:N \l__hit_greedy_width_dim
 \dim_new:N \l__hit_greedy_cap_dim
@@ -2669,6 +2670,7 @@
         \dim_set:Nn \l__hit_greedy_eps_dim {#1}
         \bool_set_false:N \l__hit_greedy_auto_bool
       } ,
+    trace .bool_set:N = \l__hit_greedy_trace_bool ,
   }
 \NewDocumentCommand \hitgreedyset { m }
   { \keys_set:nn { hit / greedy } {#1} }
@@ -2692,6 +2694,8 @@
       }
       { \prg_return_true: } { \prg_return_false: }
   }
+\cs_new_protected:Npn \__hit_greedy_trace:n #1
+  { \bool_if:NT \l__hit_greedy_trace_bool { \iow_term:x { HG| #1 } } }
 \cs_new_protected:Npn \__hit_greedy_flush_run:
   {
     \tl_if_empty:NF \l__hit_greedy_run_tl
@@ -2830,6 +2834,7 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_greedy_run:
   {
+    \__hit_greedy_trace:n { ==para== }
     \__hit_greedy_line_reset:
     \tl_set:Nn \l__hit_greedy_line_tl { \tex_kern:D 2 \ccwd \scan_stop: }
     \dim_set:Nn \l__hit_greedy_width_dim { 2 \l__hit_greedy_cell_dim }
@@ -2914,12 +2919,28 @@
       }
       > { \l__hit_greedy_avail_dim }
       {
+        \__hit_greedy_trace:n { Hpush~ \tl_to_str:n {#1} ~
+          ov= \dim_eval:n { \l__hit_greedy_width_dim + \l__hit_greedy_pre_dim
+            + \l__hit_greedy_cell_dim - \l__hit_greedy_measure_dim } ~
+          av= \dim_use:N \l__hit_greedy_avail_dim }
         \__hit_greedy_emit_auto:
         \tl_set:Nn \l__hit_greedy_line_tl {#1}
         \dim_set:Nn \l__hit_greedy_width_dim { \l__hit_greedy_cell_dim }
         \int_set:Nn \l__hit_greedy_prev_int { 0 }
       }
       {
+        \dim_compare:nNnT
+          {
+            \l__hit_greedy_width_dim + \l__hit_greedy_pre_dim
+            + \l__hit_greedy_cell_dim - \l__hit_greedy_measure_dim
+          }
+          > { 0pt }
+          {
+            \__hit_greedy_trace:n { Hpack~ \tl_to_str:n {#1} ~
+              ov= \dim_eval:n { \l__hit_greedy_width_dim + \l__hit_greedy_pre_dim
+                + \l__hit_greedy_cell_dim - \l__hit_greedy_measure_dim } ~
+              av= \dim_use:N \l__hit_greedy_avail_dim }
+          }
         \__hit_greedy_snap:
         \tl_set:Nn \l__hit_greedy_undo_tl {#1}
         \__hit_greedy_book_follower:
@@ -2944,7 +2965,7 @@
       }
       > { \l__hit_greedy_avail_dim }
       {
-        % 浅层不够。深层：闭号让到半格、行末闭号自削半格，总量帽 1.6 格。
+        % 浅层不够。深层：闭号让到半格、行末闭号自削半格，总量帽 1.77 格。
         \dim_set:Nn \l__hit_greedy_avail_dim
           {
             \dim_min:nn
@@ -2965,12 +2986,20 @@
             % 深层也不够。行已压缩就退一字重来；否则悬挂出边。
             \dim_compare:nNnTF \l__hit_greedy_width_dim > \l__hit_greedy_measure_dim
               {
+                \__hit_greedy_trace:n { Croll~ \tl_to_str:n {#1} ~
+                  ov= \dim_eval:n { \l__hit_greedy_width_dim + \l__hit_greedy_pre_dim
+                    + \l__hit_greedy_cell_dim - \l__hit_greedy_measure_dim } ~
+                  av= \dim_use:N \l__hit_greedy_avail_dim }
                 \__hit_greedy_rollback:
                 \__hit_greedy_emit_auto:
                 \exp_args:NV \__hit_greedy_step:n \l__hit_greedy_undo_tl
                 \__hit_greedy_step_closer:n {#1}
               }
               {
+                \__hit_greedy_trace:n { Chang~ \tl_to_str:n {#1} ~
+                  ov= \dim_eval:n { \l__hit_greedy_width_dim + \l__hit_greedy_pre_dim
+                    + \l__hit_greedy_cell_dim - \l__hit_greedy_measure_dim } ~
+                  av= \dim_use:N \l__hit_greedy_avail_dim }
                 \tl_put_right:Nn \l__hit_greedy_line_tl
                   { #1 \tex_kern:D \dim_eval:n { 0.25 bp - 1 em } \scan_stop: }
                 \__hit_greedy_emit_tight:
@@ -2978,12 +3007,28 @@
           }
           {
             % 深拉：行末闭号补削半格
+            \__hit_greedy_trace:n { Cdeep~ \tl_to_str:n {#1} ~
+              ov= \dim_eval:n { \l__hit_greedy_width_dim + \l__hit_greedy_pre_dim
+                + \l__hit_greedy_cell_dim - \l__hit_greedy_measure_dim } ~
+              av= \dim_use:N \l__hit_greedy_avail_dim }
             \tl_put_right:Nn \l__hit_greedy_line_tl
               { #1 \tex_kern:D \dim_eval:n { - 0.5 \ccwd } \scan_stop: }
             \__hit_greedy_emit_deep:
           }
       }
       {
+        \dim_compare:nNnT
+          {
+            \l__hit_greedy_width_dim + \l__hit_greedy_pre_dim
+            + \l__hit_greedy_cell_dim - \l__hit_greedy_measure_dim
+          }
+          > { 0pt }
+          {
+            \__hit_greedy_trace:n { Cpull~ \tl_to_str:n {#1} ~
+              ov= \dim_eval:n { \l__hit_greedy_width_dim + \l__hit_greedy_pre_dim
+                + \l__hit_greedy_cell_dim - \l__hit_greedy_measure_dim } ~
+              av= \dim_use:N \l__hit_greedy_avail_dim }
+          }
         \bool_lazy_or:nnT
           { \int_compare_p:nNn \l__hit_greedy_prev_int = { 1 } }
           { \int_compare_p:nNn \l__hit_greedy_prev_int = { 2 } }
