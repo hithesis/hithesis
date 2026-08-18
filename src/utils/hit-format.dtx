@@ -2827,12 +2827,18 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_greedy_emit_auto:
   {
-    % line_tl 路的首行缩进在 line_tl 里自带,但首行标志也要在此消费:
-    % 否则下一行经 ml 发射时又当自己是首行(简历段续行缩进实测)
-    \int_zero:N \l__hit_greedy_mheadline_int
-    \dim_compare:nNnTF \l__hit_greedy_width_dim > \l__hit_greedy_measure_dim
-      { \__hit_greedy_emit_tight: }
-      { \__hit_greedy_emit_loose: }
+    % latin 行一律走 ml 均摊发射(空格溢出等路径若走 line_tl 静态渲染,
+    % 均摊不发生,右缘二齐失效——英文摘要实测)
+    \bool_if:NTF \l__hit_greedy_latin_bool
+      { \__hit_greedy_ml_flush_model: }
+      {
+        % line_tl 路的首行缩进在 line_tl 里自带,但首行标志也要在此消费:
+        % 否则下一行经 ml 发射时又当自己是首行(简历段续行缩进实测)
+        \int_zero:N \l__hit_greedy_mheadline_int
+        \dim_compare:nNnTF \l__hit_greedy_width_dim > \l__hit_greedy_measure_dim
+          { \__hit_greedy_emit_tight: }
+          { \__hit_greedy_emit_loose: }
+      }
   }
 \cs_new_protected:Npn \__hit_greedy_emit_last:
   {
@@ -3149,8 +3155,26 @@
   }
 % latin 行:Word 两端对齐把差额平摊进词间空格(范例每行词隙等宽实测),
 % 收缩不越 30% 名义值;行盒不带汉字撑竿,行距由外层 latin 行距管
+% 行尾空格是词拒绝回滚留下的,Word 行尾空格悬挂不占宽,发射前弹掉;
+% trial 盒里它按原宽记过账,弹几个就从账上扣几份原宽
 \cs_new_protected:Npn \__hit_greedy_ml_emit_latin:
   {
+    \int_zero:N \l__hit_greedy_ltrail_int
+    \bool_set_true:N \l__hit_greedy_ltrail_bool
+    \bool_do_while:nn
+      {
+        \bool_if_p:N \l__hit_greedy_ltrail_bool
+        && ! \seq_if_empty_p:N \l__hit_greedy_ml_seq
+      }
+      {
+        \seq_get_right:NN \l__hit_greedy_ml_seq \l__hit_greedy_ltrail_tl
+        \int_compare:nNnTF { \tl_item:Nn \l__hit_greedy_ltrail_tl { 1 } } = { 4 }
+          {
+            \seq_pop_right:NN \l__hit_greedy_ml_seq \l__hit_greedy_ltrail_tl
+            \int_incr:N \l__hit_greedy_ltrail_int
+          }
+          { \bool_set_false:N \l__hit_greedy_ltrail_bool }
+      }
     \int_zero:N \l__hit_greedy_nsp_int
     \seq_map_inline:Nn \l__hit_greedy_ml_seq { \__hit_greedy_count_sp:nn ##1 }
     \dim_zero:N \l__hit_greedy_spadj_dim
@@ -3158,7 +3182,8 @@
       {
         \dim_set:Nn \l__hit_greedy_spadj_dim
           {
-            ( \l__hit_greedy_emitw_dim - \box_wd:N \l__hit_greedy_trial_box )
+            ( \l__hit_greedy_emitw_dim - \box_wd:N \l__hit_greedy_trial_box
+              + \l__hit_greedy_ltrail_int \l__hit_greedy_asprender_dim )
             / \l__hit_greedy_nsp_int
           }
         \dim_compare:nNnT \l__hit_greedy_spadj_dim <
@@ -3168,6 +3193,11 @@
               { -0.3 \l__hit_greedy_asprender_dim }
           }
       }
+    \__hit_greedy_trace:n { Lemit~ nsp= \int_use:N \l__hit_greedy_nsp_int ~
+      trail= \int_use:N \l__hit_greedy_ltrail_int ~
+      trial= \dim_eval:n { \box_wd:N \l__hit_greedy_trial_box } ~
+      ledger= \dim_use:N \l__hit_greedy_width_dim ~
+      spadj= \dim_use:N \l__hit_greedy_spadj_dim }
     \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
       {
         \__hit_greedy_inner_off:
@@ -3588,6 +3618,10 @@
     \scan_stop:
   }
 \dim_new:N \l__hit_greedy_spadj_dim
+\dim_new:N \l__hit_greedy_rwkeep_dim
+\int_new:N \l__hit_greedy_ltrail_int
+\tl_new:N \l__hit_greedy_ltrail_tl
+\bool_new:N \l__hit_greedy_ltrail_bool
 \int_new:N \l__hit_greedy_nsp_int
 \cs_new_protected:Npn \__hit_greedy_pend_ascii:n #1
   {
@@ -4082,10 +4116,14 @@
             \__hit_greedy_step_run:n {#1}
           }
           {
+            % flush 里的 pend 护卫会重量 rw(量的是上一行行尾条目),
+            % 新行台账要的是被拒词串自己的宽,先存后冲(EN 摘要台账
+            % 逐行欠 20-50pt、L12 塞爆突出 6bp 实测)
+            \dim_set:Nn \l__hit_greedy_rwkeep_dim { \l__hit_greedy_rw_dim }
             \__hit_greedy_ml_flush_model:
             \tl_set:Nn \l__hit_greedy_line_tl {#1}
             \__hit_greedy_ml_put:nn { 3 } {#1}
-            \dim_set:Nn \l__hit_greedy_width_dim { \l__hit_greedy_rw_dim }
+            \dim_set:Nn \l__hit_greedy_width_dim { \l__hit_greedy_rwkeep_dim }
             \exp_args:Ne \__hit_greedy_set_runtail:n { \tl_item:nn {#1} { -1 } }
             \int_set:Nn \l__hit_greedy_prev_int { 3 }
           }
@@ -4166,9 +4204,11 @@
           { \g_hit_msword_char_dim - \g_hit_body_size_dim }
         % 渲染宽:词隙自然值(范例 3.23 = 步进 + 前词尾字距)
         \dim_set_eq:NN \l__hit_greedy_asprender_dim \l__hit_greedy_aspw_dim
-        % 决策宽:Word 塞词账目的每空格步进,实测区间 3.75~3.90(摘要段 7/7),
-        % 与渲染宽分账——渲染差额由双程试排均摊回收
-        \dim_set:Nn \l__hit_greedy_aspw_dim { 3.82 bp }
+        % 决策宽 = 自然宽:Word 塞词只看自然空格下装不装得下(装下后的
+        % 差额才由两端对齐伸缩)。ref20 十三行逐行反解的塞词区间
+        % (2.52, 3.14]pt 含自然值 3.01,收缩地板 0.7 倍(2.11)与旧常数
+        % 3.82bp 都在区间外——3.82 是对着坏台账(拒绝分支 rw 被 flush
+        % 冲掉)拟合出来的,台账修好后作废
         \dim_compare:nNnT \l__hit_greedy_latinsp_dim > { 0pt }
           { \dim_set_eq:NN \l__hit_greedy_aspw_dim \l__hit_greedy_latinsp_dim }
       }
