@@ -2620,6 +2620,7 @@
 \bool_new:N \l__hit_greedy_pend_bool
 \bool_new:N \l__hit_greedy_pendhit_bool
 \bool_new:N \l__hit_greedy_mswallow_bool
+\dim_new:N \l__hit_greedy_aspw_dim
 \bool_new:N \l__hit_greedy_snap_prevcjk_bool
 \bool_new:N \l__hit_greedy_pend_space_bool
 \bool_new:N \l__hit_greedy_auto_bool
@@ -2998,7 +2999,15 @@
     \bool_set_false:N \l__hit_greedy_iotail_bool
     \int_case:nnF {#1}
       {
-        { 4 } { \tl_put_right:Nn \l__hit_greedy_mline_tl { \__hit_greedy_space: } }
+        { 4 }
+          {
+            \int_compare:nNnTF \l__hit_greedy_mtprev_int = { 3 }
+              {
+                \tl_put_right:Nn \l__hit_greedy_mline_tl
+                  { \__hit_greedy_space_ascii: }
+              }
+              { \tl_put_right:Nn \l__hit_greedy_mline_tl { \__hit_greedy_space: } }
+          }
         { 3 }
           {
             \bool_lazy_and:nnT
@@ -3187,7 +3196,12 @@
             \dim_add:Nn \l__hit_greedy_mw_dim { \l__hit_greedy_rw_dim }
             \exp_args:Ne \__hit_greedy_set_runtail:n { \tl_item:nn {#2} { -1 } }
           }
-        { 4 } { \dim_add:Nn \l__hit_greedy_mw_dim { 0.5 \l__hit_greedy_cell_dim } }
+        { 4 }
+          {
+            \int_compare:nNnTF \l__hit_greedy_mprevc_int = { 3 }
+              { \dim_add:Nn \l__hit_greedy_mw_dim { \l__hit_greedy_aspw_dim } }
+              { \dim_add:Nn \l__hit_greedy_mw_dim { 0.5 \l__hit_greedy_cell_dim } }
+          }
       }
       {
         \int_compare:nNnT \l__hit_greedy_mprevc_int = { 3 }
@@ -3301,7 +3315,12 @@
     \bool_set_false:N \l__hit_greedy_iotail_bool
     \int_case:nnF {#1}
       {
-        { 4 } { \__hit_greedy_space: }
+        { 4 }
+          {
+            \int_compare:nNnTF \l__hit_greedy_mtprev_int = { 3 }
+              { \__hit_greedy_space_ascii: }
+              { \__hit_greedy_space: }
+          }
         { 3 }
           {
             \bool_lazy_and:nnT
@@ -3442,19 +3461,37 @@
   }
 \cs_new_protected:Npn \__hit_greedy_space:
   { \skip_horizontal:n { 0.5 \ccwd ~ minus ~ 0.25 \ccwd } }
+\cs_new_protected:Npn \__hit_greedy_space_ascii:
+  { \tex_kern:D \l__hit_greedy_aspw_dim \scan_stop: }
 \cs_new_protected:Npn \__hit_greedy_step_space:
   {
-    \dim_compare:nNnTF
-      { \l__hit_greedy_width_dim + 0.5 \l__hit_greedy_cell_dim }
-      > { \l__hit_greedy_measure_dim + \l__hit_greedy_eps_dim }
-      { \__hit_greedy_emit_auto: }
+    % 串后的空格是西文词间空格:宽按西文字体,不入伸缩记帐(实测账目同串内)
+    \int_compare:nNnTF \l__hit_greedy_prev_int = { 3 }
       {
-        \tl_put_right:Nn \l__hit_greedy_line_tl { \__hit_greedy_space: }
-        \__hit_greedy_ml_put:nn { 4 } { }
-        \dim_add:Nn \l__hit_greedy_width_dim { 0.5 \l__hit_greedy_cell_dim }
-        \dim_add:Nn \l__hit_greedy_gapcap_dim { 0.25 \l__hit_greedy_cell_dim }
-        \int_incr:N \l__hit_greedy_ngap_int
-        \int_set:Nn \l__hit_greedy_prev_int { 4 }
+        \dim_compare:nNnTF
+          { \l__hit_greedy_width_dim + \l__hit_greedy_aspw_dim }
+          > { \l__hit_greedy_measure_dim + \l__hit_greedy_eps_dim }
+          { \__hit_greedy_emit_auto: }
+          {
+            \tl_put_right:Nn \l__hit_greedy_line_tl { \__hit_greedy_space_ascii: }
+            \__hit_greedy_ml_put:nn { 4 } { }
+            \dim_add:Nn \l__hit_greedy_width_dim { \l__hit_greedy_aspw_dim }
+            \int_set:Nn \l__hit_greedy_prev_int { 4 }
+          }
+      }
+      {
+        \dim_compare:nNnTF
+          { \l__hit_greedy_width_dim + 0.5 \l__hit_greedy_cell_dim }
+          > { \l__hit_greedy_measure_dim + \l__hit_greedy_eps_dim }
+          { \__hit_greedy_emit_auto: }
+          {
+            \tl_put_right:Nn \l__hit_greedy_line_tl { \__hit_greedy_space: }
+            \__hit_greedy_ml_put:nn { 4 } { }
+            \dim_add:Nn \l__hit_greedy_width_dim { 0.5 \l__hit_greedy_cell_dim }
+            \dim_add:Nn \l__hit_greedy_gapcap_dim { 0.25 \l__hit_greedy_cell_dim }
+            \int_incr:N \l__hit_greedy_ngap_int
+            \int_set:Nn \l__hit_greedy_prev_int { 4 }
+          }
       }
   }
 \cs_new_protected:Npn \__hit_greedy_step:n #1
@@ -3776,12 +3813,28 @@
         + \l__hit_greedy_eps_dim
       }
       {
-        \__hit_greedy_ml_flush_model:
-        \tl_set:Nn \l__hit_greedy_line_tl {#1}
-        \__hit_greedy_ml_put:nn { 3 } {#1}
-        \dim_set:Nn \l__hit_greedy_width_dim { \l__hit_greedy_rw_dim }
-        \exp_args:Ne \__hit_greedy_set_runtail:n { \tl_item:nn {#1} { -1 } }
-        \int_set:Nn \l__hit_greedy_prev_int { 3 }
+        % 行尾开号不悬在西文串前:开号随串退下行(书脊段「》|（GB」实测);
+        % 宽度门槛防退让循环(整行只剩开号时按原样落串)
+        \bool_lazy_and:nnTF
+          { \int_compare_p:nNn \l__hit_greedy_prev_int = { 2 } }
+          {
+            \dim_compare_p:nNn \l__hit_greedy_width_dim >
+              { 1.5 \l__hit_greedy_cell_dim }
+          }
+          {
+            \__hit_greedy_rollback:
+            \__hit_greedy_emit_auto:
+            \exp_args:NV \__hit_greedy_step:n \l__hit_greedy_undo_tl
+            \__hit_greedy_step_run:n {#1}
+          }
+          {
+            \__hit_greedy_ml_flush_model:
+            \tl_set:Nn \l__hit_greedy_line_tl {#1}
+            \__hit_greedy_ml_put:nn { 3 } {#1}
+            \dim_set:Nn \l__hit_greedy_width_dim { \l__hit_greedy_rw_dim }
+            \exp_args:Ne \__hit_greedy_set_runtail:n { \tl_item:nn {#1} { -1 } }
+            \int_set:Nn \l__hit_greedy_prev_int { 3 }
+          }
       }
       {
         \__hit_greedy_snap:
@@ -3824,14 +3877,14 @@
     \bool_set_false:N \l__hit_greedy_abort_bool
     \bool_set_false:N \l__hit_greedy_manual_bool
     \tl_clear:N \l__hit_greedy_run_tl
-    \bool_set_false:N \l__hit_greedy_pend_space_bool
+    % 西文空格宽(串际空格按当前西文字体量,含字符间距)
+    \__hit_greedy_run_width:nN { ~ } \l__hit_greedy_aspw_dim
     \tl_analysis_map_inline:nn {#1}
       {
         \int_compare:nNnTF { "##3 } = { 10 }
           {
-            \tl_if_empty:NTF \l__hit_greedy_run_tl
-              { \seq_put_right:Nn \l__hit_greedy_items_seq { ~ } }
-              { \bool_set_true:N \l__hit_greedy_pend_space_bool }
+            \__hit_greedy_flush_run:
+            \seq_put_right:Nn \l__hit_greedy_items_seq { ~ }
           }
           {
             \bool_lazy_or:nnTF
@@ -3844,7 +3897,6 @@
                   {
                     \bool_set_true:N \l__hit_greedy_manual_bool
                     \__hit_greedy_flush_run:
-                    \bool_set_false:N \l__hit_greedy_pend_space_bool
                     \exp_args:NNo \seq_put_right:Nn \l__hit_greedy_items_seq {##1}
                   }
                   {
@@ -3852,20 +3904,14 @@
                   { \int_compare_p:nNn {##2} < { "2000 } }
                   { \int_compare_p:n { "2000 <= ##2 <= "200A } }
                   {
-                    \bool_if:NT \l__hit_greedy_pend_space_bool
-                      {
-                        \tl_put_right:Nn \l__hit_greedy_run_tl { ~ }
-                        \bool_set_false:N \l__hit_greedy_pend_space_bool
-                      }
+                    % 连字符后是 Word 的串内断点(「117-|121」实测);斜杠不是
+                    % (「GB/T」不拆,URL 处断的是 docx 源文本里的空格)
                     \tl_put_right:Nx \l__hit_greedy_run_tl {##1}
+                    \int_compare:nNnT {##2} = { "2D }
+                      { \__hit_greedy_flush_run: }
                   }
                   {
                     \__hit_greedy_flush_run:
-                    \bool_if:NT \l__hit_greedy_pend_space_bool
-                      {
-                        \seq_put_right:Nn \l__hit_greedy_items_seq { ~ }
-                        \bool_set_false:N \l__hit_greedy_pend_space_bool
-                      }
                     \exp_args:NNo \seq_put_right:Nn \l__hit_greedy_items_seq {##1}
                   }
                   }
