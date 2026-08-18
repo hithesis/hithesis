@@ -2612,6 +2612,7 @@
 \tl_new:N \l__hit_greedy_line_tl
 \tl_new:N \l__hit_greedy_run_tl
 \tl_new:N \l__hit_greedy_snap_line_tl
+\seq_new:N \l__hit_greedy_snap_ml_seq
 \tl_new:N \l__hit_greedy_undo_tl
 \seq_new:N \l__hit_greedy_items_seq
 \bool_new:N \l__hit_greedy_abort_bool
@@ -2791,6 +2792,7 @@
 \cs_new_protected:Npn \__hit_greedy_line_reset:
   {
     \tl_clear:N \l__hit_greedy_line_tl
+    \seq_clear:N \l__hit_greedy_ml_seq
     \dim_zero:N \l__hit_greedy_width_dim
     \dim_zero:N \l__hit_greedy_cap_dim
     \dim_zero:N \l__hit_greedy_gapcap_dim
@@ -2812,6 +2814,7 @@
     \dim_set_eq:NN \l__hit_greedy_snap_cap_dim \l__hit_greedy_cap_dim
     \dim_set_eq:NN \l__hit_greedy_snap_gapcap_dim \l__hit_greedy_gapcap_dim
     \dim_set_eq:NN \l__hit_greedy_snap_paircap_dim \l__hit_greedy_paircap_dim
+    \seq_set_eq:NN \l__hit_greedy_snap_ml_seq \l__hit_greedy_ml_seq
     \int_set_eq:NN \l__hit_greedy_snap_prev_int \l__hit_greedy_prev_int
     \int_set_eq:NN \l__hit_greedy_snap_ncl_int \l__hit_greedy_ncl_int
     \int_set_eq:NN \l__hit_greedy_snap_ngap_int \l__hit_greedy_ngap_int
@@ -2824,6 +2827,7 @@
     \dim_set_eq:NN \l__hit_greedy_cap_dim \l__hit_greedy_snap_cap_dim
     \dim_set_eq:NN \l__hit_greedy_gapcap_dim \l__hit_greedy_snap_gapcap_dim
     \dim_set_eq:NN \l__hit_greedy_paircap_dim \l__hit_greedy_snap_paircap_dim
+    \seq_set_eq:NN \l__hit_greedy_ml_seq \l__hit_greedy_snap_ml_seq
     \int_set_eq:NN \l__hit_greedy_prev_int \l__hit_greedy_snap_prev_int
     \int_set_eq:NN \l__hit_greedy_ncl_int \l__hit_greedy_snap_ncl_int
     \int_set_eq:NN \l__hit_greedy_ngap_int \l__hit_greedy_snap_ngap_int
@@ -2881,6 +2885,18 @@
 % （闭前对 0.5 格、开后对 0.38 格），最后行末闭号自削半格。行盒此后
 % 刚性定宽，分摊结果与范例逐字实测一致，不再依赖盒内伸缩的比例分配。
 %    \begin{macrocode}
+\cs_new_protected:Npn \__hit_greedy_ml_flush_model:
+  {
+    \bool_set_false:N \l__hit_greedy_mfirst_bool
+    \int_compare:nNnT \l__hit_greedy_mheadline_int = { 1 }
+      {
+        \bool_set_true:N \l__hit_greedy_mfirst_bool
+        \int_zero:N \l__hit_greedy_mheadline_int
+      }
+    \seq_if_empty:NF \l__hit_greedy_ml_seq { \__hit_greedy_ml_emit: }
+    \__hit_greedy_line_reset:
+  }
+\int_new:N \l__hit_greedy_mheadline_int
 \cs_new_protected:Npn \__hit_greedy_ml_flush:
   {
     \seq_if_empty:NF \l__hit_greedy_ml_seq { \__hit_greedy_ml_emit: }
@@ -2940,25 +2956,26 @@
       { \__hit_greedy_ml_census:nn ##1 }
     \int_compare:nNnT \l__hit_greedy_mlastc_int = { 2 }
       { \dim_sub:Nn \l__hit_greedy_mover_dim { 0.5 \l__hit_greedy_cell_dim } }
-    % 一档:中位闭号均摊
-    \dim_set:Nn \l__hit_greedy_mkern_dim { 0pt }
-    \int_compare:nNnT \l__hit_greedy_mcl_int > 0
+    % 行末闭号（顿号除外）先削半格再入池；顿号只在末招削
+    \dim_set:Nn \l__hit_greedy_mpretrim_dim { 0pt }
+    \bool_lazy_all:nT
       {
-        \dim_set:Nn \l__hit_greedy_mkern_dim
+        { \int_compare_p:nNn \l__hit_greedy_mlastc_int = { 1 } }
+        { ! \str_if_eq_p:Vn \l__hit_greedy_mlastt_tl { 、 } }
+        { \int_compare_p:nNn \l__hit_greedy_mcl_int < { 3 } }
+      }
+      {
+        \dim_set:Nn \l__hit_greedy_mpretrim_dim
           {
-            \dim_min:nn
-              { \l__hit_greedy_mover_dim / \l__hit_greedy_mcl_int }
-              { 0.46 \l__hit_greedy_cell_dim }
+            \dim_min:nn { \l__hit_greedy_mover_dim }
+              { 0.5 \l__hit_greedy_cell_dim }
           }
-        \dim_compare:nNnT \l__hit_greedy_mkern_dim < { 0pt }
-          { \dim_zero:N \l__hit_greedy_mkern_dim }
+        \dim_compare:nNnT \l__hit_greedy_mpretrim_dim < { 0pt }
+          { \dim_zero:N \l__hit_greedy_mpretrim_dim }
+        \dim_sub:Nn \l__hit_greedy_mover_dim \l__hit_greedy_mpretrim_dim
       }
-    \dim_set:Nn \l__hit_greedy_mrest_dim
-      {
-        \l__hit_greedy_mover_dim
-        - \l__hit_greedy_mkern_dim * \l__hit_greedy_mcl_int
-      }
-    % 二档:对位与串隙等比
+    % 混池 ρ:各位按帽等比出资
+    \dim_set_eq:NN \l__hit_greedy_mrest_dim \l__hit_greedy_mover_dim
     \fp_zero:N \l__hit_greedy_mrho_fp
     \bool_lazy_and:nnT
       { \dim_compare_p:nNn \l__hit_greedy_mcap_dim > { 0.1 pt } }
@@ -2994,35 +3011,53 @@
           { \tex_kern:D 2 \ccwd \scan_stop: }
         \seq_map_inline:Nn \l__hit_greedy_ml_seq
           { \__hit_greedy_ml_out:nn ##1 }
-        \dim_compare:nNnT \l__hit_greedy_mtrim_dim > { 0pt }
+        \dim_compare:nNnT
+          { \l__hit_greedy_mtrim_dim + \l__hit_greedy_mpretrim_dim } > { 0pt }
           {
-            \tex_kern:D \dim_eval:n { - \l__hit_greedy_mtrim_dim } \scan_stop:
+            \tex_kern:D \dim_eval:n
+              { - \l__hit_greedy_mtrim_dim - \l__hit_greedy_mpretrim_dim }
+            \scan_stop:
           }
       }
     \box_use_drop:N \l__hit_greedy_line_box
   }
 \dim_new:N \l__hit_greedy_mcap_dim
+\dim_new:N \l__hit_greedy_mpretrim_dim
 \dim_new:N \l__hit_greedy_mrest_dim
 \dim_new:N \l__hit_greedy_mtrim_dim
 \fp_new:N \l__hit_greedy_mrho_fp
 \int_new:N \l__hit_greedy_tmpa_int
 \int_new:N \l__hit_greedy_tmpb_int
 \int_new:N \l__hit_greedy_mlastc_int
+\tl_new:N \l__hit_greedy_mlastt_tl
 % 普查:一档计数(mcl);二档帽累计(mcap):闭前对 0.5、闭开对 0.88、汉开对 0.38、
 % 汉串隙 0.08 格、串汉隙 0.075 格、空格 0.22 格
 \cs_new_protected:Npn \__hit_greedy_ml_census:nn #1#2
   {
     \int_set:Nn \l__hit_greedy_mlastc_int {#1}
+    \tl_set:Nn \l__hit_greedy_mlastt_tl {#2}
     \int_incr:N \l__hit_greedy_tmpa_int
     \int_compare:nNnTF \l__hit_greedy_mprevc_int = { 1 }
       {
         \int_case:nn {#1}
           {
-            { 0 } { \int_incr:N \l__hit_greedy_mcl_int }
-            { 3 } { \int_incr:N \l__hit_greedy_mcl_int }
+            { 0 }
+              {
+                \dim_add:Nn \l__hit_greedy_mcap_dim { 0.46 \l__hit_greedy_cell_dim }
+                \int_incr:N \l__hit_greedy_mcl_int
+              }
+            { 3 }
+              {
+                \dim_add:Nn \l__hit_greedy_mcap_dim { 0.46 \l__hit_greedy_cell_dim }
+                \int_incr:N \l__hit_greedy_mcl_int
+              }
+            { 4 }
+              {
+                \dim_add:Nn \l__hit_greedy_mcap_dim { 0.46 \l__hit_greedy_cell_dim }
+                \int_incr:N \l__hit_greedy_mcl_int
+              }
             { 1 } { \dim_add:Nn \l__hit_greedy_mcap_dim { 0.5 \l__hit_greedy_cell_dim } }
             { 2 } { \dim_add:Nn \l__hit_greedy_mcap_dim { 0.88 \l__hit_greedy_cell_dim } }
-            { 4 } { \int_incr:N \l__hit_greedy_mcl_int }
           }
       }
       {
@@ -3043,7 +3078,6 @@
                 \int_compare:nNnT \l__hit_greedy_mprevc_int = { 3 }
                   { \dim_add:Nn \l__hit_greedy_mcap_dim { 0.075 \l__hit_greedy_cell_dim } }
               }
-            { 4 } { \dim_add:Nn \l__hit_greedy_mcap_dim { 0.22 \l__hit_greedy_cell_dim } }
           }
       }
     \int_set:Nn \l__hit_greedy_mprevc_int {#1}
@@ -3062,9 +3096,9 @@
       {
         \int_case:nn {#1}
           {
-            { 0 } { \__hit_greedy_ml_mid: }
-            { 3 } { \__hit_greedy_ml_mid: }
-            { 4 } { \__hit_greedy_ml_mid: }
+            { 0 } { \__hit_greedy_ml_kern:n { 0.46 } }
+            { 3 } { \__hit_greedy_ml_kern:n { 0.46 } }
+            { 4 } { \__hit_greedy_ml_kern:n { 0.46 } }
             { 1 } { \__hit_greedy_ml_kern:n { 0.5 } }
             { 2 } { \__hit_greedy_ml_kern:n { 0.88 } }
           }
@@ -3090,13 +3124,13 @@
             { 4 } { \__hit_greedy_ml_kern:n { 0.22 } }
           }
       }
+    \int_compare:nNnTF {#1} = { 4 }
+      { \__hit_greedy_space: }
+      {#2}
     \bool_lazy_and:nnT
       { \int_compare_p:nNn \l__hit_greedy_tmpb_int = \l__hit_greedy_tmpa_int }
       { \int_compare_p:nNn {#1} = { 2 } }
       { \tex_kern:D \dim_eval:n { - 0.5 \ccwd } \scan_stop: }
-    \int_compare:nNnTF {#1} = { 4 }
-      { \__hit_greedy_space: }
-      {#2}
     \int_set:Nn \l__hit_greedy_mprevc_int {#1}
   }
 \cs_new_protected:Npn \__hit_greedy_ml_mid:
@@ -3142,6 +3176,7 @@
   {
     \__hit_greedy_trace:n { ==para== }
     \__hit_greedy_line_reset:
+    \int_set:Nn \l__hit_greedy_mheadline_int { 1 }
     \tl_set:Nn \l__hit_greedy_line_tl { \tex_kern:D 2 \ccwd \scan_stop: }
     \dim_set:Nn \l__hit_greedy_width_dim { 2 \l__hit_greedy_cell_dim }
     \tl_clear:N \l__hit_greedy_undo_tl
@@ -3149,7 +3184,7 @@
     \tl_if_empty:NF \l__hit_greedy_line_tl
       {
         \dim_compare:nNnTF \l__hit_greedy_width_dim > \l__hit_greedy_measure_dim
-          { \__hit_greedy_emit_auto: }
+          { \__hit_greedy_ml_flush_model: }
           { \__hit_greedy_emit_last: }
       }
   }
@@ -3163,6 +3198,7 @@
       { \__hit_greedy_emit_auto: }
       {
         \tl_put_right:Nn \l__hit_greedy_line_tl { \__hit_greedy_space: }
+        \__hit_greedy_ml_put:nn { 4 } { }
         \dim_add:Nn \l__hit_greedy_width_dim { 0.5 \l__hit_greedy_cell_dim }
         \dim_add:Nn \l__hit_greedy_gapcap_dim { 0.25 \l__hit_greedy_cell_dim }
         \int_incr:N \l__hit_greedy_ngap_int
@@ -3266,8 +3302,9 @@
           ov= \dim_eval:n { \l__hit_greedy_width_dim + \l__hit_greedy_pre_dim
             + \l__hit_greedy_cell_dim - \l__hit_greedy_measure_dim } ~
           av= \dim_use:N \l__hit_greedy_avail_dim }
-        \__hit_greedy_emit_auto:
+        \__hit_greedy_ml_flush_model:
         \tl_set:Nn \l__hit_greedy_line_tl {#1}
+        \__hit_greedy_ml_put:nn { 0 } {#1}
         \dim_set:Nn \l__hit_greedy_width_dim { \l__hit_greedy_cell_dim }
         \int_set:Nn \l__hit_greedy_prev_int { 0 }
       }
@@ -3288,6 +3325,7 @@
         \tl_set:Nn \l__hit_greedy_undo_tl {#1}
         \__hit_greedy_book_follower:
         \tl_put_right:Nn \l__hit_greedy_line_tl {#1}
+        \__hit_greedy_ml_put:nn { 0 } {#1}
         \dim_add:Nn \l__hit_greedy_width_dim
           { \l__hit_greedy_pre_dim + \l__hit_greedy_cell_dim }
         \int_set:Nn \l__hit_greedy_prev_int { 0 }
@@ -3339,9 +3377,8 @@
                   ov= \dim_eval:n { \l__hit_greedy_width_dim + \l__hit_greedy_pre_dim
                     + \l__hit_greedy_cell_dim - \l__hit_greedy_measure_dim } ~
                   av= \dim_use:N \l__hit_greedy_avail_dim }
-                \tl_put_right:Nn \l__hit_greedy_line_tl
-                  { #1 \tex_kern:D \dim_eval:n { 0.25 bp - 1 em } \scan_stop: }
-                \__hit_greedy_emit_tight:
+                \__hit_greedy_ml_put:nn { 1 } {#1}
+                \__hit_greedy_ml_flush_model:
               }
           }
           {
@@ -3350,9 +3387,8 @@
               ov= \dim_eval:n { \l__hit_greedy_width_dim + \l__hit_greedy_pre_dim
                 + \l__hit_greedy_cell_dim - \l__hit_greedy_measure_dim } ~
               av= \dim_use:N \l__hit_greedy_avail_dim }
-            \tl_put_right:Nn \l__hit_greedy_line_tl
-              { #1 \tex_kern:D \dim_eval:n { - 0.5 \ccwd } \scan_stop: }
-            \__hit_greedy_emit_deep:
+            \__hit_greedy_ml_put:nn { 1 } {#1}
+            \__hit_greedy_ml_flush_model:
           }
       }
       {
@@ -3376,6 +3412,7 @@
             \int_incr:N \l__hit_greedy_ngap_int
           }
         \tl_put_right:Nn \l__hit_greedy_line_tl {#1}
+        \__hit_greedy_ml_put:nn { 1 } {#1}
         \dim_add:Nn \l__hit_greedy_width_dim
           { \l__hit_greedy_pre_dim + \l__hit_greedy_cell_dim }
         \int_set:Nn \l__hit_greedy_prev_int { 1 }
@@ -3396,8 +3433,9 @@
       }
       > { \l__hit_greedy_eps_dim }
       {
-        \__hit_greedy_emit_auto:
+        \__hit_greedy_ml_flush_model:
         \tl_set:Nn \l__hit_greedy_line_tl {#1}
+        \__hit_greedy_ml_put:nn { 2 } {#1}
         \dim_set:Nn \l__hit_greedy_width_dim { \l__hit_greedy_cell_dim }
         \int_set:Nn \l__hit_greedy_prev_int { 2 }
       }
@@ -3409,6 +3447,7 @@
             \int_incr:N \l__hit_greedy_ngap_int
           }
         \tl_put_right:Nn \l__hit_greedy_line_tl {#1}
+        \__hit_greedy_ml_put:nn { 2 } {#1}
         \dim_add:Nn \l__hit_greedy_width_dim
           { \l__hit_greedy_pre_dim + \l__hit_greedy_cell_dim }
         \int_set:Nn \l__hit_greedy_prev_int { 2 }
@@ -3448,8 +3487,9 @@
         + \l__hit_greedy_eps_dim
       }
       {
-        \__hit_greedy_emit_auto:
+        \__hit_greedy_ml_flush_model:
         \tl_set:Nn \l__hit_greedy_line_tl {#1}
+        \__hit_greedy_ml_put:nn { 3 } {#1}
         \dim_set:Nn \l__hit_greedy_width_dim { \l__hit_greedy_rw_dim }
         \exp_args:Ne \__hit_greedy_set_runtail:n { \tl_item:nn {#1} { -1 } }
         \int_set:Nn \l__hit_greedy_prev_int { 3 }
@@ -3458,6 +3498,7 @@
         \__hit_greedy_snap:
         \tl_set:Nn \l__hit_greedy_undo_tl {#1}
         \tl_put_right:Nn \l__hit_greedy_line_tl {#1}
+        \__hit_greedy_ml_put:nn { 3 } {#1}
         \dim_add:Nn \l__hit_greedy_width_dim
           { \l__hit_greedy_pre_dim + \l__hit_greedy_rw_dim }
         \dim_compare:nNnT \l__hit_greedy_pre_dim > { 0pt }
