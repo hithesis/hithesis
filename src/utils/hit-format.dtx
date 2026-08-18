@@ -2617,6 +2617,8 @@
 \bool_new:N \l__hit_greedy_snap_runtail_bool
 \bool_new:N \l__hit_greedy_prevcjk_bool
 \bool_new:N \l__hit_greedy_mprevcjk_bool
+\bool_new:N \l__hit_greedy_pend_bool
+\bool_new:N \l__hit_greedy_pendhit_bool
 \bool_new:N \l__hit_greedy_snap_prevcjk_bool
 \bool_new:N \l__hit_greedy_pend_space_bool
 \bool_new:N \l__hit_greedy_auto_bool
@@ -3417,6 +3419,7 @@
   {
     \__hit_greedy_trace:n { ==para== }
     \__hit_greedy_line_reset:
+    \bool_set_false:N \l__hit_greedy_pend_bool
     \int_set:Nn \l__hit_greedy_mheadline_int { 1 }
     \tl_set:Nn \l__hit_greedy_line_tl { \tex_kern:D 2 \ccwd \scan_stop: }
     \dim_set:Nn \l__hit_greedy_width_dim { 2 \l__hit_greedy_cell_dim }
@@ -3448,12 +3451,39 @@
   }
 \cs_new_protected:Npn \__hit_greedy_step:n #1
   {
-    \tl_if_blank:nTF {#1}
-      { \__hit_greedy_step_space: }
+    % 行末闭号已悬挂待落:紧跟的闭号并入悬挂(禁则,闭号不得当头),
+    % 其余条目先落行再走常规。非闭号路径与旧的立即落行输出全同。
+    \bool_if:NT \l__hit_greedy_pend_bool
       {
-        \int_compare:nNnTF { \tl_count:n {#1} } = { 1 }
-          { \__hit_greedy_step_one:n {#1} }
-          { \__hit_greedy_step_run:n {#1} }
+        \bool_set_false:N \l__hit_greedy_pendhit_bool
+        \tl_if_blank:nF {#1}
+          {
+            \int_compare:nNnT { \tl_count:n {#1} } = { 1 }
+              {
+                \tl_if_in:NnT \c__hit_greedy_closers_tl {#1}
+                  { \bool_set_true:N \l__hit_greedy_pendhit_bool }
+              }
+          }
+        \bool_if:NTF \l__hit_greedy_pendhit_bool
+          {
+            \__hit_greedy_ml_put:nn { 1 } {#1}
+            \dim_add:Nn \l__hit_greedy_width_dim { \l__hit_greedy_cell_dim }
+            \int_set:Nn \l__hit_greedy_prev_int { 1 }
+          }
+          {
+            \__hit_greedy_ml_flush_model:
+            \bool_set_false:N \l__hit_greedy_pend_bool
+          }
+      }
+    \bool_if:NF \l__hit_greedy_pend_bool
+      {
+        \tl_if_blank:nTF {#1}
+          { \__hit_greedy_step_space: }
+          {
+            \int_compare:nNnTF { \tl_count:n {#1} } = { 1 }
+              { \__hit_greedy_step_one:n {#1} }
+              { \__hit_greedy_step_run:n {#1} }
+          }
       }
   }
 \cs_new_protected:Npn \__hit_greedy_step_one:n #1
@@ -3627,7 +3657,7 @@
                     + \l__hit_greedy_cell_dim - \l__hit_greedy_measure_dim } ~
                   av= \dim_use:N \l__hit_greedy_avail_dim }
                 \__hit_greedy_ml_put:nn { 1 } {#1}
-                \__hit_greedy_ml_flush_model:
+                \bool_set_true:N \l__hit_greedy_pend_bool
               }
           }
           {
@@ -3637,7 +3667,7 @@
                 + \l__hit_greedy_cell_dim - \l__hit_greedy_measure_dim } ~
               av= \dim_use:N \l__hit_greedy_avail_dim }
             \__hit_greedy_ml_put:nn { 1 } {#1}
-            \__hit_greedy_ml_flush_model:
+            \bool_set_true:N \l__hit_greedy_pend_bool
           }
       }
       {
