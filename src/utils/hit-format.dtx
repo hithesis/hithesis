@@ -2717,6 +2717,15 @@
     \cs_set_eq:NN \mode_if_inner:F \use:n
     \cs_set_eq:NN \mode_if_inner:T \use_none:n
     \cs_set:Npn \mode_if_inner:TF ##1##2 {##2}
+    % 盒内汉西隙按范例自然值（正向 4.06、反向 3.60）
+    \dim_set:Nn \l__hit_format_ecglue_dim { 0.325 \ccwd }
+    % 盒内 ASCII 标点归还 Default 类：范例的 [3] 逗号括号全按 TNR 排，
+    % 类里的半角映射是正文行为，贪心行以范例为准（类赋值随组关闭还原）
+    \cs_if_exist:NT \xeCJKDeclareCharClass
+      {
+        \xeCJKDeclareCharClass { Default }
+          { "21 , "28 , "29 , "2C , "2E , "3A , "3B , "3F , "5B , "5D , "D7 , "F7 }
+      }
   }
 \cs_new_protected:Npn \__hit_greedy_run_width:nN #1#2
   {
@@ -2785,9 +2794,30 @@
   }
 \cs_new_protected:Npn \__hit_greedy_emit_last:
   {
-    \tl_put_right:Nn \l__hit_greedy_line_tl
-      { \skip_horizontal:n { 0pt ~ plus ~ 1 fil } }
-    \__hit_greedy_emit_loose:
+    % 散排末行按类静态记号发（对子压缩是自然态，范例散行「”，」6.25 实测），
+    % 条目文本经 ml 重建（串走中性组）
+    \bool_lazy_or:nnTF
+      { \int_compare_p:nNn \l__hit_greedy_mheadline_int = { 1 } }
+      { \seq_if_empty_p:N \l__hit_greedy_ml_seq }
+      {
+        % 首行态（单行段）：line_tl 自带缩进
+        \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
+          {
+            \__hit_greedy_inner_off: \hit@format@strut: \l__hit_greedy_line_tl
+            \skip_horizontal:n { 0pt ~ plus ~ 1 fil }
+          }
+      }
+      {
+        \__hit_greedy_ml_text:
+        \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
+          {
+            \__hit_greedy_inner_off: \hit@format@strut:
+            \l__hit_greedy_mline_tl
+            \skip_horizontal:n { 0pt ~ plus ~ 1 fil }
+          }
+      }
+    \box_use_drop:N \l__hit_greedy_line_box
+    \__hit_greedy_line_reset:
   }
 \cs_new_protected:Npn \__hit_greedy_line_reset:
   {
@@ -2855,8 +2885,17 @@
       {
         \bool_lazy_and:nnTF
           { \int_compare_p:nNn { \tl_count:n {#1} } = { 1 } }
-          { \int_compare_p:nNn { `#1 } = { "A6 } }
-          { \__hit_greedy_ml_flush: }
+          {
+            \bool_lazy_or_p:nn
+              { \int_compare_p:nNn { `#1 } = { "A6 } }
+              { \int_compare_p:nNn { `#1 } = { "2016 } }
+          }
+          {
+            \int_compare:nNnT { `#1 } = { "2016 }
+              { \bool_set_true:N \l__hit_greedy_mforcetrim_bool }
+            \__hit_greedy_ml_flush:
+            \bool_set_false:N \l__hit_greedy_mforcetrim_bool
+          }
           {
             \int_compare:nNnTF { \tl_count:n {#1} } = { 1 }
               {
@@ -2907,6 +2946,7 @@
 \cs_new_protected:Npn \__hit_greedy_ml_text:
   {
     \tl_clear:N \l__hit_greedy_mline_tl
+    \int_set:Nn \l__hit_greedy_mtprev_int { 9 }
     \bool_if:NT \l__hit_greedy_mfirst_bool
       { \tl_put_right:Nn \l__hit_greedy_mline_tl { \tex_kern:D 2 \ccwd \scan_stop: } }
     \seq_map_inline:Nn \l__hit_greedy_ml_seq
@@ -2914,23 +2954,66 @@
   }
 \cs_new_protected:Npn \__hit_greedy_ml_text_one:nn #1#2
   {
-    \int_compare:nNnTF {#1} = { 4 }
-      { \tl_put_right:Nn \l__hit_greedy_mline_tl { \__hit_greedy_space: } }
+    \int_case:nnF {#1}
+      {
+        { 4 } { \tl_put_right:Nn \l__hit_greedy_mline_tl { \__hit_greedy_space: } }
+        { 3 }
+          {
+            \int_compare:nNnT \l__hit_greedy_mtprev_int = { 0 }
+              {
+                \exp_args:Ne \__hit_greedy_rt_gapl:n { \tl_head:n {#2} }
+              }
+            \tl_put_right:Nn \l__hit_greedy_mline_tl
+              { { \tex_XeTeXinterchartokenstate:D = 0 \scan_stop: #2 } }
+            \exp_args:Ne \__hit_greedy_rt_gapr:n { \tl_item:nn {#2} { -1 } }
+          }
+      }
       { \tl_put_right:Nn \l__hit_greedy_mline_tl {#2} }
+    \int_set:Nn \l__hit_greedy_mtprev_int {#1}
+  }
+\int_new:N \l__hit_greedy_mtprev_int
+\cs_new_protected:Npn \__hit_greedy_rt_gapl:n #1
+  {
+    \__hit_greedy_if_alnum:nTF {#1}
+      {
+        \tl_put_right:Nn \l__hit_greedy_mline_tl
+          { \tex_kern:D \dim_eval:n { \l__hit_greedy_gapl_dim } \scan_stop: }
+      }
+      { }
+  }
+\cs_new_protected:Npn \__hit_greedy_rt_gapr:n #1
+  {
+    \__hit_greedy_if_alnum:nTF {#1}
+      { }
+      {
+        \tl_put_right:Nn \l__hit_greedy_mline_tl
+          {
+            \tex_kern:D \dim_eval:n
+              { - \l__hit_format_ecglue_dim + \ccwd - 1 em }
+            \scan_stop:
+          }
+      }
   }
 \cs_new_protected:Npn \__hit_greedy_ml_emit:
   {
     \__hit_greedy_ml_text:
-    \hbox_set:Nn \l__hit_greedy_trial_box
-      {
-        \__hit_greedy_inner_off: \__hit_greedy_loose_on:
-        \hit@format@strut: \l__hit_greedy_mline_tl
-      }
+    % 算术宽:普查里逐项累计(网格胶在裸盒里塌陷,盒测不可用)
+    \dim_zero:N \l__hit_greedy_mw_dim
+    \bool_if:NT \l__hit_greedy_mfirst_bool
+      { \dim_add:Nn \l__hit_greedy_mw_dim { 2 \l__hit_greedy_cell_dim } }
+    \int_zero:N \l__hit_greedy_mcl_int
+    \dim_zero:N \l__hit_greedy_mcap_dim
+    \int_zero:N \l__hit_greedy_tmpa_int
+    \int_set:Nn \l__hit_greedy_mprevc_int { 9 }
+    \seq_map_inline:Nn \l__hit_greedy_ml_seq
+      { \__hit_greedy_ml_census:nn ##1 }
     \dim_set:Nn \l__hit_greedy_mover_dim
-      { \box_wd:N \l__hit_greedy_trial_box - \l__hit_greedy_emitw_dim }
+      { \l__hit_greedy_mw_dim - \l__hit_greedy_emitw_dim }
     \__hit_greedy_trace:n { MLine~ov= \dim_use:N \l__hit_greedy_mover_dim
       ~ n= \seq_count:N \l__hit_greedy_ml_seq }
-    \dim_compare:nNnTF \l__hit_greedy_mover_dim > { 0.1 pt }
+    \bool_lazy_or:nnTF
+      { \dim_compare_p:nNn \l__hit_greedy_mover_dim > { 0.1 pt } }
+      { \bool_if_p:N \l__hit_greedy_mforcetrim_bool }
       { \__hit_greedy_ml_emit_tight: }
       {
         \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
@@ -2948,21 +3031,19 @@
 % 行末开号左削半格在入账前直接扣除（《 at EOL 实测半宽）。
 \cs_new_protected:Npn \__hit_greedy_ml_emit_tight:
   {
-    \int_zero:N \l__hit_greedy_mcl_int
-    \dim_zero:N \l__hit_greedy_mcap_dim
-    \int_zero:N \l__hit_greedy_tmpa_int
-    \int_set:Nn \l__hit_greedy_mprevc_int { 9 }
-    \seq_map_inline:Nn \l__hit_greedy_ml_seq
-      { \__hit_greedy_ml_census:nn ##1 }
     \int_compare:nNnT \l__hit_greedy_mlastc_int = { 2 }
       { \dim_sub:Nn \l__hit_greedy_mover_dim { 0.5 \l__hit_greedy_cell_dim } }
     % 行末闭号（顿号除外）先削半格再入池；顿号只在末招削
     \dim_set:Nn \l__hit_greedy_mpretrim_dim { 0pt }
-    \bool_lazy_all:nT
+    \bool_lazy_and:nnT
+      { \int_compare_p:nNn \l__hit_greedy_mlastc_int = { 1 } }
       {
-        { \int_compare_p:nNn \l__hit_greedy_mlastc_int = { 1 } }
-        { ! \str_if_eq_p:Vn \l__hit_greedy_mlastt_tl { 、 } }
-        { \int_compare_p:nNn \l__hit_greedy_mcl_int < { 3 } }
+        \bool_if_p:N \l__hit_greedy_manual_bool
+        && \bool_if_p:N \l__hit_greedy_mforcetrim_bool
+        ||
+        ! \bool_if_p:N \l__hit_greedy_manual_bool
+        && \dim_compare_p:nNn \l__hit_greedy_mover_dim >
+          { 0.46 \l__hit_greedy_cell_dim * \l__hit_greedy_mcl_int }
       }
       {
         \dim_set:Nn \l__hit_greedy_mpretrim_dim
@@ -3030,6 +3111,7 @@
 \int_new:N \l__hit_greedy_tmpb_int
 \int_new:N \l__hit_greedy_mlastc_int
 \tl_new:N \l__hit_greedy_mlastt_tl
+\bool_new:N \l__hit_greedy_mforcetrim_bool
 % 普查:一档计数(mcl);二档帽累计(mcap):闭前对 0.5、闭开对 0.88、汉开对 0.38、
 % 汉串隙 0.08 格、串汉隙 0.075 格、空格 0.22 格
 \cs_new_protected:Npn \__hit_greedy_ml_census:nn #1#2
@@ -3037,6 +3119,32 @@
     \int_set:Nn \l__hit_greedy_mlastc_int {#1}
     \tl_set:Nn \l__hit_greedy_mlastt_tl {#2}
     \int_incr:N \l__hit_greedy_tmpa_int
+    % 宽度账本（决策用；盒测在网格胶下失真）
+    \int_case:nnF {#1}
+      {
+        { 3 }
+          {
+            \__hit_greedy_run_width:nN {#2} \l__hit_greedy_rw_dim
+            \int_compare:nNnT \l__hit_greedy_mprevc_int = { 0 }
+              {
+                \exp_args:Ne \__hit_greedy_mw_gapl:n { \tl_head:n {#2} }
+              }
+            \dim_add:Nn \l__hit_greedy_mw_dim { \l__hit_greedy_rw_dim }
+            \exp_args:Ne \__hit_greedy_set_runtail:n { \tl_item:nn {#2} { -1 } }
+          }
+        { 4 } { \dim_add:Nn \l__hit_greedy_mw_dim { 0.5 \l__hit_greedy_cell_dim } }
+      }
+      {
+        \int_compare:nNnT \l__hit_greedy_mprevc_int = { 3 }
+          {
+            \bool_if:NT \l__hit_greedy_runtail_bool
+              {
+                \dim_add:Nn \l__hit_greedy_mw_dim
+                  { \l__hit_greedy_gapr_dim - \l__hit_greedy_lsp_dim }
+              }
+          }
+        \dim_add:Nn \l__hit_greedy_mw_dim { \l__hit_greedy_cell_dim }
+      }
     \int_compare:nNnTF \l__hit_greedy_mprevc_int = { 1 }
       {
         \int_case:nn {#1}
@@ -3083,6 +3191,13 @@
     \int_set:Nn \l__hit_greedy_mprevc_int {#1}
   }
 % 发射:一档落均摊,二档落 ρ×帽,行末开号先左削
+\cs_new_protected:Npn \__hit_greedy_mw_gapl:n #1
+  {
+    \__hit_greedy_if_alnum:nTF {#1}
+      { \dim_add:Nn \l__hit_greedy_mw_dim { \l__hit_greedy_gapl_dim } }
+      { }
+  }
+\dim_new:N \l__hit_greedy_mw_dim
 \cs_new_protected:Npn \__hit_greedy_ml_kern:n #1
   {
     \tex_kern:D \dim_eval:n
@@ -3150,13 +3265,15 @@
     \seq_if_empty:NF \l__hit_greedy_ml_seq
       {
         \__hit_greedy_ml_text:
-        \hbox_set:Nn \l__hit_greedy_trial_box
-          {
-            \__hit_greedy_inner_off: \__hit_greedy_loose_on:
-            \hit@format@strut: \l__hit_greedy_mline_tl
-          }
+        \dim_zero:N \l__hit_greedy_mw_dim
+        \int_zero:N \l__hit_greedy_mcl_int
+        \dim_zero:N \l__hit_greedy_mcap_dim
+        \int_zero:N \l__hit_greedy_tmpa_int
+        \int_set:Nn \l__hit_greedy_mprevc_int { 9 }
+        \seq_map_inline:Nn \l__hit_greedy_ml_seq
+          { \__hit_greedy_ml_census:nn ##1 }
         \dim_compare:nNnTF
-          { \box_wd:N \l__hit_greedy_trial_box }
+          { \l__hit_greedy_mw_dim }
           > { \l__hit_greedy_emitw_dim + 0.1 pt }
           { \__hit_greedy_ml_flush: }
           {
@@ -3164,7 +3281,7 @@
               { \skip_horizontal:n { 0pt ~ plus ~ 1 fil } }
             \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
               {
-                \__hit_greedy_inner_off: \__hit_greedy_loose_on:
+                \__hit_greedy_inner_off:
                 \hit@format@strut: \l__hit_greedy_mline_tl
               }
             \box_use_drop:N \l__hit_greedy_line_box
@@ -3549,7 +3666,9 @@
               { \int_compare_p:nNn { "##3 } = { 12 } }
               { \int_compare_p:nNn { "##3 } = { 11 } }
               {
-                \int_compare:nNnTF {##2} = { "A6 }
+                \bool_lazy_or:nnTF
+                  { \int_compare_p:nNn {##2} = { "A6 } }
+                  { \int_compare_p:nNn {##2} = { "2016 } }
                   {
                     \bool_set_true:N \l__hit_greedy_manual_bool
                     \__hit_greedy_flush_run:
