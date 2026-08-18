@@ -2435,10 +2435,9 @@
           { \hit@format@punct@cbreak: }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { Default }
           {
-            \__hit_format_punct_pair_kern:
-            \mode_if_inner:F
-              { \skip_horizontal:n { 0pt ~ plus ~ 0.5 \ccwd } }
-            \__hit_format_ecglue_emit:
+            % 闭号接西文:Word 全宽加约 0.25bp 微隙(关键词行「；t」实测
+            % 12.30 对我们旧式减半+文数隙的 9.74),不减半不加文数隙
+            \tex_kern:D 0.25 bp \scan_stop:
           }
         \xeCJK_pre_inter_class_toks:nnn { CJK } { HITQuote }
           { \hit@format@punct@oshrink: }
@@ -3590,6 +3589,23 @@
   }
 \dim_new:N \l__hit_greedy_spadj_dim
 \int_new:N \l__hit_greedy_nsp_int
+\cs_new_protected:Npn \__hit_greedy_pend_ascii:n #1
+  {
+    \token_if_cs:NF #1
+      {
+        \str_case:nn {#1}
+          {
+            { . } { \bool_set_true:N \l__hit_greedy_pendhit_bool }
+            { , } { \bool_set_true:N \l__hit_greedy_pendhit_bool }
+            { ; } { \bool_set_true:N \l__hit_greedy_pendhit_bool }
+            { : } { \bool_set_true:N \l__hit_greedy_pendhit_bool }
+            { ! } { \bool_set_true:N \l__hit_greedy_pendhit_bool }
+            { ? } { \bool_set_true:N \l__hit_greedy_pendhit_bool }
+            { ) } { \bool_set_true:N \l__hit_greedy_pendhit_bool }
+            { ] } { \bool_set_true:N \l__hit_greedy_pendhit_bool }
+          }
+      }
+  }
 \cs_new_protected:Npn \__hit_greedy_count_sp:nn #1#2
   { \int_compare:nNnT {#1} = { 4 } { \int_incr:N \l__hit_greedy_nsp_int } }
 \cs_new_protected:Npn \__hit_greedy_thin:
@@ -3670,20 +3686,42 @@
     % 其余条目先落行再走常规。非闭号路径与旧的立即落行输出全同。
     \bool_if:NT \l__hit_greedy_pend_bool
       {
+        \tl_if_blank:nF {#1}
+          {
+            \int_compare:nNnF { \tl_count:n {#1} } = { 1 }
+              { \__hit_greedy_run_width:nN {#1} \l__hit_greedy_rw_dim }
+          }
         \bool_set_false:N \l__hit_greedy_pendhit_bool
         \tl_if_blank:nF {#1}
           {
-            \int_compare:nNnT { \tl_count:n {#1} } = { 1 }
+            \int_compare:nNnTF { \tl_count:n {#1} } = { 1 }
               {
-                \tl_if_in:NnT \c__hit_greedy_closers_tl {#1}
+                \tl_if_in:NnTF \c__hit_greedy_closers_tl {#1}
                   { \bool_set_true:N \l__hit_greedy_pendhit_bool }
+                  { \__hit_greedy_pend_ascii:n {#1} }
+              }
+              {
+                % 半角闭标点短串(如「.」「,」)同为禁头,并入悬挂
+                % (报告段「［R］.」实测 Word 整体收在行末)
+                \dim_compare:nNnT { \l__hit_greedy_rw_dim } < { \l__hit_greedy_cell_dim }
+                  {
+                    \exp_args:Ne \__hit_greedy_pend_ascii:n { \tl_head:n {#1} }
+                  }
               }
           }
         \bool_if:NTF \l__hit_greedy_pendhit_bool
           {
-            \__hit_greedy_ml_put:nn { 1 } {#1}
-            \dim_add:Nn \l__hit_greedy_width_dim { \l__hit_greedy_cell_dim }
-            \int_set:Nn \l__hit_greedy_prev_int { 1 }
+            \int_compare:nNnTF { \tl_count:n {#1} } = { 1 }
+              {
+                \__hit_greedy_ml_put:nn { 1 } {#1}
+                \dim_add:Nn \l__hit_greedy_width_dim { \l__hit_greedy_cell_dim }
+                \int_set:Nn \l__hit_greedy_prev_int { 1 }
+              }
+              {
+                \__hit_greedy_ml_put:nn { 3 } {#1}
+                \dim_add:Nn \l__hit_greedy_width_dim { \l__hit_greedy_rw_dim }
+                \int_set:Nn \l__hit_greedy_prev_int { 3 }
+              }
           }
           {
             \__hit_greedy_ml_flush_model:
