@@ -2667,7 +2667,7 @@
 \int_new:N \l__hit_greedy_ngap_int
 \int_new:N \l__hit_greedy_snap_ncl_int
 \int_new:N \l__hit_greedy_snap_ngap_int
-\tl_const:Nn \c__hit_greedy_closers_tl { 。，、；：？！）》〉”’」』】］ }
+\tl_const:Nn \c__hit_greedy_closers_tl { 。，、；：？！）》〉”’」』】］． }
 \tl_const:Nn \c__hit_greedy_openers_tl { （《〈「『【“‘［ }
 \keys_define:nn { hit / greedy }
   {
@@ -2707,13 +2707,26 @@
   }
 \prg_new_protected_conditional:Npnn \__hit_greedy_if_alnum:n #1 { TF , T }
   {
-    \bool_lazy_any:nTF
+    % 宏记号(thin 条目等)不取码,直接判否
+    \tl_if_blank:nTF {#1}
+      { \prg_return_false: }
       {
-        { \int_compare_p:n { "30 <= `#1 <= "39 } }
-        { \int_compare_p:n { "41 <= `#1 <= "5A } }
-        { \int_compare_p:n { "61 <= `#1 <= "7A } }
+        \exp_args:Ne \__hit_greedy_if_alnum_aux:n { \tl_head:n {#1} }
       }
-      { \prg_return_true: } { \prg_return_false: }
+  }
+\cs_new_protected:Npn \__hit_greedy_if_alnum_aux:n #1
+  {
+    \token_if_cs:NTF #1
+      { \prg_return_false: }
+      {
+        \bool_lazy_any:nTF
+          {
+            { \int_compare_p:n { "30 <= `#1 <= "39 } }
+            { \int_compare_p:n { "41 <= `#1 <= "5A } }
+            { \int_compare_p:n { "61 <= `#1 <= "7A } }
+          }
+          { \prg_return_true: } { \prg_return_false: }
+      }
   }
 \cs_new_protected:Npn \__hit_greedy_trace:n #1
   { \bool_if:NT \l__hit_greedy_trace_bool { \iow_term:x { HG| #1 } } }
@@ -2903,6 +2916,12 @@
   { \seq_put_right:Nn \l__hit_greedy_ml_seq { {#1} {#2} } }
 \cs_new_protected:Npn \__hit_greedy_manual_step:n #1
   {
+    \tl_if_head_eq_meaning:nNTF {#1} \__hit_greedy_thin:
+      {
+        \bool_set_false:N \l__hit_greedy_mswallow_bool
+        \__hit_greedy_ml_put:nn { 3 } {#1}
+      }
+      {
     \tl_if_blank:nTF {#1}
       {
         % 强制断行后紧跟的空格不上行首(Word 断行处吸收源空格)
@@ -2945,6 +2964,7 @@
               }
               { \__hit_greedy_ml_put:nn { 3 } {#1} }
           }
+      }
       }
   }
 %    \end{macrocode}
@@ -3492,6 +3512,8 @@
   { \skip_horizontal:n { 0.5 \ccwd ~ minus ~ 0.25 \ccwd } }
 \cs_new_protected:Npn \__hit_greedy_space_ascii:
   { \tex_kern:D \l__hit_greedy_aspw_dim \scan_stop: }
+\cs_new_protected:Npn \__hit_greedy_thin:
+  { \tex_kern:D \dim_eval:n { 0.25 em + \l__hit_greedy_lsp_dim } \scan_stop: }
 % 空格溢出断行:若行尾串以 ( [ { 收尾,连串一起退下行再断
 \cs_new_protected:Npn \__hit_greedy_spopen_check:n #1
   {
@@ -3599,6 +3621,10 @@
   }
 \cs_new_protected:Npn \__hit_greedy_step_one:n #1
   {
+    % thin 条目是宏记号,先于取码比较拦下,按串条目走(量宽=定值 kern)
+    \tl_if_head_eq_meaning:nNTF {#1} \__hit_greedy_thin:
+      { \__hit_greedy_step_run:n {#1} }
+      {
     \int_compare:nNnTF { `#1 } = { "A6 }
       {
         % 强制断点：范例钉死的断行（Word 分配器不可判定的毫厘案）
@@ -3618,6 +3644,7 @@
                       { \__hit_greedy_step_hanzi:n {#1} }
                   }
               }
+      }
       }
   }
 %    \end{macrocode}
@@ -4003,7 +4030,10 @@
                   {
                 \bool_lazy_or:nnTF
                   { \int_compare_p:nNn {##2} < { "2000 } }
-                  { \int_compare_p:n { "2000 <= ##2 <= "200A } }
+                  {
+                    \int_compare_p:n { "2000 <= ##2 <= "200A }
+                    && ! \int_compare_p:nNn {##2} = { "2005 }
+                  }
                   {
                     % 连字符后是 Word 的串内断点(「117-|121」实测);斜杠不是
                     % (「GB/T」不拆,URL 处断的是 docx 源文本里的空格)
@@ -4013,7 +4043,24 @@
                   }
                   {
                     \__hit_greedy_flush_run:
-                    \exp_args:NNo \seq_put_right:Nn \l__hit_greedy_items_seq {##1}
+                    \int_compare:nNnTF {##2} = { "3000 }
+                      {
+                        % 全角空格 = 两个源空格(宽两半格、深层收缩钱同、可断)
+                        \seq_put_right:Nn \l__hit_greedy_items_seq { ~ }
+                        \seq_put_right:Nn \l__hit_greedy_items_seq { ~ }
+                      }
+                      {
+                        \int_compare:nNnTF {##2} = { "2005 }
+                          {
+                            % 四分之一嗨空格:西文字体无字形会被静默丢掉,改发定值
+                            % kern(0.25em+字符间距),不断行(千位组随数字走)
+                            \seq_put_right:Nn \l__hit_greedy_items_seq { \__hit_greedy_thin: }
+                          }
+                          {
+                            \exp_args:NNo \seq_put_right:Nn
+                              \l__hit_greedy_items_seq {##1}
+                          }
+                      }
                   }
                   }
               }
