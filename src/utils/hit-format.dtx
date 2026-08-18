@@ -2842,13 +2842,43 @@
     \seq_map_inline:Nn \l__hit_greedy_items_seq { \__hit_greedy_step:n {##1} }
     \tl_if_empty:NF \l__hit_greedy_line_tl { \__hit_greedy_emit_last: }
   }
+\cs_new_protected:Npn \__hit_greedy_space:
+  { \skip_horizontal:n { 0.5 \ccwd ~ minus ~ 0.25 \ccwd } }
+\cs_new_protected:Npn \__hit_greedy_step_space:
+  {
+    \dim_compare:nNnTF
+      { \l__hit_greedy_width_dim + 0.5 \l__hit_greedy_cell_dim }
+      > { \l__hit_greedy_measure_dim + \l__hit_greedy_eps_dim }
+      { \__hit_greedy_emit_auto: }
+      {
+        \tl_put_right:Nn \l__hit_greedy_line_tl { \__hit_greedy_space: }
+        \dim_add:Nn \l__hit_greedy_width_dim { 0.5 \l__hit_greedy_cell_dim }
+        \dim_add:Nn \l__hit_greedy_gapcap_dim { 0.25 \l__hit_greedy_cell_dim }
+        \int_incr:N \l__hit_greedy_ngap_int
+        \int_set:Nn \l__hit_greedy_prev_int { 4 }
+      }
+  }
 \cs_new_protected:Npn \__hit_greedy_step:n #1
   {
-    \tl_if_blank:nF {#1}
+    \tl_if_blank:nTF {#1}
+      { \__hit_greedy_step_space: }
       {
         \int_compare:nNnTF { \tl_count:n {#1} } = { 1 }
-          {
-            \int_compare:nNnTF { `#1 } < { "7F }
+          { \__hit_greedy_step_one:n {#1} }
+          { \__hit_greedy_step_run:n {#1} }
+      }
+  }
+\cs_new_protected:Npn \__hit_greedy_step_one:n #1
+  {
+    \int_compare:nNnTF { `#1 } = { "2028 }
+      {
+        % 强制断点：范例钉死的断行（Word 分配器不可判定的毫厘案）
+        \tl_if_empty:NF \l__hit_greedy_line_tl { \__hit_greedy_emit_auto: }
+      }
+      {
+        \bool_lazy_or:nnTF
+              { \int_compare_p:nNn { `#1 } < { "2000 } }
+              { \int_compare_p:n { "2000 <= `#1 <= "200A } }
               { \__hit_greedy_step_run:n {#1} }
               {
                 \__hit_greedy_if_closer:nTF {#1}
@@ -2859,8 +2889,6 @@
                       { \__hit_greedy_step_hanzi:n {#1} }
                   }
               }
-          }
-          { \__hit_greedy_step_run:n {#1} }
       }
   }
 %    \end{macrocode}
@@ -2902,10 +2930,14 @@
     % 行末闭号不算捐主（「一」案），单价 0.2 由塞/拒全案例表联立（「出」案封顶）。
     \int_set:Nn \l__hit_greedy_ndon_int
       { \l__hit_greedy_ncl_int + \l__hit_greedy_ngap_int }
-    \int_compare:nNnT \l__hit_greedy_prev_int = { 3 }
+    \int_case:nn \l__hit_greedy_prev_int
       {
-        \bool_if:NT \l__hit_greedy_runtail_bool
-          { \int_incr:N \l__hit_greedy_ndon_int }
+        { 2 } { \int_incr:N \l__hit_greedy_ndon_int }
+        { 3 }
+          {
+            \bool_if:NT \l__hit_greedy_runtail_bool
+              { \int_incr:N \l__hit_greedy_ndon_int }
+          }
       }
     \dim_set:Nn \l__hit_greedy_avail_dim
       {
@@ -2968,13 +3000,9 @@
         % 浅层不够。深层：闭号让到半格、行末闭号自削半格，总量帽 1.77 格。
         \dim_set:Nn \l__hit_greedy_avail_dim
           {
-            \dim_min:nn
-              {
-                2 \l__hit_greedy_cap_dim + \l__hit_greedy_gapcap_dim
-                + \l__hit_greedy_paircap_dim + 0.5 \l__hit_greedy_cell_dim
-              }
-              { 1.77 \l__hit_greedy_cell_dim }
-            + \l__hit_greedy_eps_dim
+            \dim_min:nn { 2 \l__hit_greedy_cap_dim } { 1.3 \l__hit_greedy_cell_dim }
+            + \l__hit_greedy_gapcap_dim + \l__hit_greedy_paircap_dim
+            + 0.5 \l__hit_greedy_cell_dim + \l__hit_greedy_eps_dim
           }
         \dim_compare:nNnTF
           {
@@ -3032,7 +3060,10 @@
         \bool_lazy_or:nnT
           { \int_compare_p:nNn \l__hit_greedy_prev_int = { 1 } }
           { \int_compare_p:nNn \l__hit_greedy_prev_int = { 2 } }
-          { \dim_add:Nn \l__hit_greedy_paircap_dim { 0.5 \l__hit_greedy_cell_dim } }
+          {
+            \dim_add:Nn \l__hit_greedy_paircap_dim { 0.5 \l__hit_greedy_cell_dim }
+            \int_incr:N \l__hit_greedy_ngap_int
+          }
         \tl_put_right:Nn \l__hit_greedy_line_tl {#1}
         \dim_add:Nn \l__hit_greedy_width_dim
           { \l__hit_greedy_pre_dim + \l__hit_greedy_cell_dim }
@@ -3062,7 +3093,10 @@
       {
         \int_compare:nNnTF \l__hit_greedy_prev_int > { 3 }
           { }
-          { \dim_add:Nn \l__hit_greedy_paircap_dim { 0.38 \l__hit_greedy_cell_dim } }
+          {
+            \dim_add:Nn \l__hit_greedy_paircap_dim { 0.38 \l__hit_greedy_cell_dim }
+            \int_incr:N \l__hit_greedy_ngap_int
+          }
         \tl_put_right:Nn \l__hit_greedy_line_tl {#1}
         \dim_add:Nn \l__hit_greedy_width_dim
           { \l__hit_greedy_pre_dim + \l__hit_greedy_cell_dim }
@@ -3161,7 +3195,9 @@
               { \int_compare_p:nNn { "##3 } = { 12 } }
               { \int_compare_p:nNn { "##3 } = { 11 } }
               {
-                \int_compare:nNnTF {##2} < { "7F }
+                \bool_lazy_or:nnTF
+                  { \int_compare_p:nNn {##2} < { "2000 } }
+                  { \int_compare_p:n { "2000 <= ##2 <= "200A } }
                   {
                     \bool_if:NT \l__hit_greedy_pend_space_bool
                       {
