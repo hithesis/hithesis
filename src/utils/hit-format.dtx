@@ -2224,7 +2224,7 @@
 \cs_new_protected:Npn \hit@format@punct@oshrink:
   { \skip_horizontal:n { 0pt ~ minus ~ 0.38 \ccwd } }
 \cs_new_protected:Npn \hit@format@punct@cshrink:
-  { \skip_horizontal:n { 0pt ~ minus ~ 0.3 \ccwd } }
+  { \skip_horizontal:n { 0pt ~ minus ~ 0.46 \ccwd } }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/18}{标点对之间的胶盒内换成等宽 kern：\pkg{ulem}
@@ -2422,9 +2422,6 @@
                 \tex_kern:D \dim_eval:n { -0.5 \ccwd } \scan_stop:
                 \discretionary { } { }
                   { \kern \dim_eval:n { 0.5 \ccwd } }
-                \discretionary
-                  { \kern \dim_eval:n { 0.25 bp - 1 em + 0.5 \ccwd } }
-                  { } { }
                 \nobreak \hit@format@punct@cshrink:
               }
           }
@@ -2618,6 +2615,9 @@
 \bool_new:N \l__hit_greedy_abort_bool
 \bool_new:N \l__hit_greedy_runtail_bool
 \bool_new:N \l__hit_greedy_snap_runtail_bool
+\bool_new:N \l__hit_greedy_prevcjk_bool
+\bool_new:N \l__hit_greedy_mprevcjk_bool
+\bool_new:N \l__hit_greedy_snap_prevcjk_bool
 \bool_new:N \l__hit_greedy_pend_space_bool
 \bool_new:N \l__hit_greedy_auto_bool
 \bool_set_true:N \l__hit_greedy_auto_bool
@@ -2863,6 +2863,7 @@
     \int_set_eq:NN \l__hit_greedy_snap_ncl_int \l__hit_greedy_ncl_int
     \int_set_eq:NN \l__hit_greedy_snap_ngap_int \l__hit_greedy_ngap_int
     \bool_set_eq:NN \l__hit_greedy_snap_runtail_bool \l__hit_greedy_runtail_bool
+    \bool_set_eq:NN \l__hit_greedy_snap_prevcjk_bool \l__hit_greedy_prevcjk_bool
   }
 \cs_new_protected:Npn \__hit_greedy_rollback:
   {
@@ -2876,6 +2877,7 @@
     \int_set_eq:NN \l__hit_greedy_ncl_int \l__hit_greedy_snap_ncl_int
     \int_set_eq:NN \l__hit_greedy_ngap_int \l__hit_greedy_snap_ngap_int
     \bool_set_eq:NN \l__hit_greedy_runtail_bool \l__hit_greedy_snap_runtail_bool
+    \bool_set_eq:NN \l__hit_greedy_prevcjk_bool \l__hit_greedy_snap_prevcjk_bool
   }
 %    \end{macrocode}
 %
@@ -3028,6 +3030,7 @@
     \dim_zero:N \l__hit_greedy_mcap_dim
     \int_zero:N \l__hit_greedy_tmpa_int
     \int_set:Nn \l__hit_greedy_mprevc_int { 9 }
+    \bool_set_false:N \l__hit_greedy_mprevcjk_bool
     \seq_map_inline:Nn \l__hit_greedy_ml_seq
       { \__hit_greedy_ml_census:nn ##1 }
     \hbox_set:Nn \l__hit_greedy_trial_box
@@ -3165,7 +3168,9 @@
         { 3 }
           {
             \__hit_greedy_run_width:nN {#2} \l__hit_greedy_rw_dim
-            \int_compare:nNnT \l__hit_greedy_mprevc_int = { 0 }
+            \bool_lazy_and:nnT
+              { \int_compare_p:nNn \l__hit_greedy_mprevc_int = { 0 } }
+              { \bool_if_p:N \l__hit_greedy_mprevcjk_bool }
               {
                 \exp_args:Ne \__hit_greedy_mw_gapl:n { \tl_head:n {#2} }
               }
@@ -3177,7 +3182,12 @@
       {
         \int_compare:nNnT \l__hit_greedy_mprevc_int = { 3 }
           {
-            \bool_if:NT \l__hit_greedy_runtail_bool
+            \bool_lazy_and:nnT
+              { \bool_if_p:N \l__hit_greedy_runtail_bool }
+              {
+                \int_compare_p:nNn {#1} > { 0 }
+                || \__hit_greedy_if_cjk_p:n {#2}
+              }
               {
                 \dim_add:Nn \l__hit_greedy_mw_dim
                   { \l__hit_greedy_gapr_dim - \l__hit_greedy_lsp_dim }
@@ -3229,6 +3239,13 @@
           }
       }
     \int_set:Nn \l__hit_greedy_mprevc_int {#1}
+    \int_compare:nNnTF {#1} = { 0 }
+      {
+        \__hit_greedy_if_cjk:nTF {#2}
+          { \bool_set_true:N \l__hit_greedy_mprevcjk_bool }
+          { \bool_set_false:N \l__hit_greedy_mprevcjk_bool }
+      }
+      { \bool_set_false:N \l__hit_greedy_mprevcjk_bool }
   }
 % 发射:一档落均摊,二档落 ρ×帽,行末开号先左削
 \cs_new_protected:Npn \__hit_greedy_mw_gapl:n #1
@@ -3238,7 +3255,7 @@
       { }
   }
 \dim_new:N \l__hit_greedy_mw_dim
-\prg_new_protected_conditional:Npnn \__hit_greedy_if_cjk:n #1 { T , TF }
+\prg_new_conditional:Npnn \__hit_greedy_if_cjk:n #1 { p , T , TF }
   {
     \tl_if_blank:nTF {#1}
       { \prg_return_false: }
@@ -3246,7 +3263,12 @@
         \int_compare:nNnTF { \tl_count:n {#1} } = { 1 }
           {
             \int_compare:nNnTF { `#1 } < { "2E80 }
-              { \prg_return_false: } { \prg_return_true: }
+              { \prg_return_false: }
+              {
+                % 全宽波浪线不算真汉字:Word 对 ～ 两侧不加文数隙
+                \int_compare:nNnTF { `#1 } = { "FF5E }
+                  { \prg_return_false: } { \prg_return_true: }
+              }
           }
           { \prg_return_false: }
       }
@@ -3371,6 +3393,7 @@
         \dim_zero:N \l__hit_greedy_mcap_dim
         \int_zero:N \l__hit_greedy_tmpa_int
         \int_set:Nn \l__hit_greedy_mprevc_int { 9 }
+        \bool_set_false:N \l__hit_greedy_mprevcjk_bool
         \seq_map_inline:Nn \l__hit_greedy_ml_seq
           { \__hit_greedy_ml_census:nn ##1 }
         \dim_compare:nNnTF
@@ -3471,7 +3494,7 @@
           }
         { 3 }
           {
-            \bool_if:NT \l__hit_greedy_runtail_bool
+            \dim_compare:nNnT \l__hit_greedy_pre_dim > { 0pt }
               {
                 \dim_add:Nn \l__hit_greedy_gapcap_dim { 0.25 \l__hit_greedy_gapr_dim }
                 \int_incr:N \l__hit_greedy_ngap_int
@@ -3484,7 +3507,9 @@
     \dim_zero:N \l__hit_greedy_pre_dim
     \int_compare:nNnT \l__hit_greedy_prev_int = { 3 }
       {
-        \bool_if:NT \l__hit_greedy_runtail_bool
+        \bool_lazy_and:nnT
+          { \bool_if_p:N \l__hit_greedy_runtail_bool }
+          { \__hit_greedy_if_cjk_p:n {#1} }
           {
             \dim_set:Nn \l__hit_greedy_pre_dim
               { \l__hit_greedy_gapr_dim - \l__hit_greedy_lsp_dim }
@@ -3500,7 +3525,7 @@
         { 2 } { \int_incr:N \l__hit_greedy_ndon_int }
         { 3 }
           {
-            \bool_if:NT \l__hit_greedy_runtail_bool
+            \dim_compare:nNnT \l__hit_greedy_pre_dim > { 0pt }
               { \int_incr:N \l__hit_greedy_ndon_int }
           }
       }
@@ -3525,6 +3550,9 @@
         \__hit_greedy_ml_put:nn { 0 } {#1}
         \dim_set:Nn \l__hit_greedy_width_dim { \l__hit_greedy_cell_dim }
         \int_set:Nn \l__hit_greedy_prev_int { 0 }
+        \__hit_greedy_if_cjk:nTF {#1}
+          { \bool_set_true:N \l__hit_greedy_prevcjk_bool }
+          { \bool_set_false:N \l__hit_greedy_prevcjk_bool }
       }
       {
         \dim_compare:nNnT
@@ -3547,6 +3575,9 @@
         \dim_add:Nn \l__hit_greedy_width_dim
           { \l__hit_greedy_pre_dim + \l__hit_greedy_cell_dim }
         \int_set:Nn \l__hit_greedy_prev_int { 0 }
+        \__hit_greedy_if_cjk:nTF {#1}
+          { \bool_set_true:N \l__hit_greedy_prevcjk_bool }
+          { \bool_set_false:N \l__hit_greedy_prevcjk_bool }
       }
   }
 \cs_new_protected:Npn \__hit_greedy_step_closer:n #1
@@ -3691,7 +3722,9 @@
   {
     \__hit_greedy_run_width:nN {#1} \l__hit_greedy_rw_dim
     \dim_zero:N \l__hit_greedy_pre_dim
-    \int_compare:nNnT \l__hit_greedy_prev_int = { 0 }
+    \bool_lazy_and:nnT
+      { \int_compare_p:nNn \l__hit_greedy_prev_int = { 0 } }
+      { \bool_if_p:N \l__hit_greedy_prevcjk_bool }
       { \exp_args:Ne \__hit_greedy_gapl_head:n { \tl_head:n {#1} } }
     % 塞西文串只数闭号捐主
     \dim_compare:nNnTF
