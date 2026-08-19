@@ -963,6 +963,8 @@
     songti = 1.296875 , heiti = 1.296875 , kaishu = 1.296875 ,
     fangsong = 1.296875 , lishu = 1.296875 , xinwei = 1.35 , none = 1.15 ,
   }
+\dim_new:N \l_hit_format_strut_box_dim
+\dim_new:N \l_hit_format_strut_size_dim
 \tl_const:Nn \c__hit_format_natural_tl { 1.296875 }
 \tl_const:Nn \c__hit_format_ascent_tl { 1.008 }
 \dim_const:Nn \c__hit_format_ascent_dim { 0.082bp }
@@ -1537,8 +1539,24 @@
     \dim_set:Nn \l__hit_format_strut_dim { \f@size pt }
     \dim_set:Nn \l__hit_format_nat_dim
       { \c__hit_format_natural_tl \l__hit_format_strut_dim }
-    \dim_set:Nn \l__hit_format_box_dim
-      { \dim_max:nn { \baselineskip } { \l__hit_format_nat_dim } }
+    % 指定行盒高:按行自动的场合(见 \cs{hitgreedy} 的逐行撑竿)由调用方
+    % 算好这一行该多高;零是自动档,仍按「行距与自然行高取大」。
+    % 只在算它时的那个字号上认:段首段末钩子的撑竿是全局的,页眉在输出
+    % 例程里也走这两个钩子,而输出例程可能在贪心组内触发——那时正文那
+    % 一行的行盒高还在,页眉行的行深跟着变,页眉横线整体挪位(46 变体
+    % 逐页比对里恒在页眉的那条差异带,实测 16 处小五字号的撑竿中招)。
+    % 行盒高本来就是按某个字号算出来的,换了字号本就不该用
+    \bool_lazy_and:nnTF
+      { \dim_compare_p:nNn \l_hit_format_strut_box_dim > { \c_zero_dim } }
+      {
+        \dim_compare_p:nNn { \l_hit_format_strut_size_dim }
+          = { \l__hit_format_strut_dim }
+      }
+      { \dim_set_eq:NN \l__hit_format_box_dim \l_hit_format_strut_box_dim }
+      {
+        \dim_set:Nn \l__hit_format_box_dim
+          { \dim_max:nn { \baselineskip } { \l__hit_format_nat_dim } }
+      }
     \dim_set:Nn \l__hit_format_asc_dim
       { \c__hit_format_ascent_tl \l__hit_format_strut_dim
         + \c__hit_format_ascent_dim }
@@ -2654,13 +2672,75 @@
 \dim_new:N \l__hit_greedy_measure_dim
 \dim_new:N \l__hit_greedy_emitw_dim
 \dim_new:N \g__hit_greedy_lastdp_dim
+% 逐行自然行高(Word 的自动行距在我们这边的落法)。汉字行维持原状:
+% 行距与自然行高取大,与逐行前完全同值。纯西文行改按西文档,不超过
+% 汉字档(小字号下取小的那个,免得反被撑大)。
+% 基线间距由「上一行行深 + 本行行升」决定,所以行盒的升降分配沿用
+% 汉字档的比例:西文档的升降比没有 Word 参照,不瞎给。
+\cs_new_protected:Npn \__hit_greedy_line_height:
+  {
+    \seq_if_empty:NT \l__hit_greedy_ml_seq
+      { \dim_zero:N \l_hit_format_strut_box_dim }
+    \seq_if_empty:NF \l__hit_greedy_ml_seq
+      { \__hit_greedy_line_height_aux: }
+  }
+\cs_new_protected:Npn \__hit_greedy_line_height_aux:
+  {
+    \bool_set_false:N \l__hit_greedy_lcjk_bool
+    \seq_map_inline:Nn \l__hit_greedy_ml_seq
+      { \__hit_greedy_scan_cjk:nn ##1 }
+    % 因子后面不能直接跟 \dim_eval:n,两个数会拼成一个(旧账),先落到寄存器
+    \dim_set:Nn \l_hit_format_strut_size_dim { \f@size pt }
+    \dim_set:Nn \l__hit_greedy_cjkbox_dim { \f@size pt }
+    \dim_set:Nn \l__hit_greedy_cjkbox_dim
+      {
+        \dim_max:nn { \l__hit_greedy_amblead_dim }
+          { \c__hit_format_natural_tl \l__hit_greedy_cjkbox_dim }
+      }
+    \bool_if:NTF \l__hit_greedy_lcjk_bool
+      { \dim_set_eq:NN \l_hit_format_strut_box_dim \l__hit_greedy_cjkbox_dim }
+      {
+        \dim_set:Nn \l_hit_format_strut_box_dim
+          {
+            \dim_min:nn { \l__hit_greedy_cjkbox_dim }
+              { \hit@format@latin@line: }
+          }
+      }
+  }
 \cs_new_protected:Npn \__hit_greedy_ship:
   {
+    % 指定行盒高只属于刚造好的那根行盒,落地前归零:行盒一落地就可能
+    % 触发输出例程,页眉的撑竿与正文同源,读到本行的值页眉就跟着挪
+    % (46 变体逐页比对里那条恒在页眉的差异带)
     % 行以真段落落地:小节前距等段界机制才与普通段一致
-    \dim_gset:Nn \g__hit_greedy_lastdp_dim { \box_dp:N \l__hit_greedy_line_box }
     \tex_noindent:D
     \box_use_drop:N \l__hit_greedy_line_box
     \par
+    % 行深记落地后的真实值:段末钩子还会往行里放一根撑竿,行盒自己的
+    % 深度不等于这一行在竖列里的深度。组关之后 \cs{prevdepth} 由它接回,
+    % 记错了下一个元素的间距就跟着错
+    \dim_gset:Nn \g__hit_greedy_lastdp_dim { \tex_prevdepth:D }
+    \__hit_greedy_perline_on:
+  }
+% 首行落地之后转入逐行档:行间胶清零、上限拉满,于是 \TeX{} 恒走行间胶
+% 那条路,基线间距 = 上一行行深 + 本行行升,正是 Word 的模型。汉字行逐值
+% 不变(行盒仍是 19.4,升深之和没变)。
+%
+% 不动 \cs{baselineskip}:输出例程可能在贪心组内触发,页眉的撑竿按当时的
+% 行距算高,行距一降页眉横线就跟着挪(46 变体逐页比对里恒在页眉的那条
+% 差异带,实测)。行距改由行间胶接管,外面看到的行距分毫不动。
+%
+% 只在首行之后转档:首行仍按行距落位,段界间距不变。若首行也走这条路,
+% 段首会跟着上一个元素的行深走,在浅行深的元素(例如小节标题)之后往上跑。
+\cs_new_protected:Npn \__hit_greedy_perline_on:
+  {
+    % latin 段不转档:那边整段都是西文,行距本来就是西文档,而且撑竿是
+    % 停掉的——行盒只有字形那么高,拉满上限会让间距塌到 10.8(实测)
+    \bool_if:NF \l__hit_greedy_latin_bool
+      {
+        \skip_zero:N \lineskip
+        \dim_set_eq:NN \lineskiplimit \c_max_dim
+      }
   }
 \cs_new_protected:Npn \__hit_greedy_fix_prevdepth:
   {
@@ -2812,6 +2892,7 @@
   }
 \cs_new_protected:Npn \__hit_greedy_emit_tight:
   {
+    \__hit_greedy_line_height:
     \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
       { \__hit_greedy_inner_off: \hit@format@strut: \l__hit_greedy_line_tl }
     \__hit_greedy_ship:
@@ -2819,6 +2900,7 @@
   }
 \cs_new_protected:Npn \__hit_greedy_emit_deep:
   {
+    \__hit_greedy_line_height:
     \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
       {
         \__hit_greedy_inner_off:
@@ -2831,6 +2913,7 @@
   }
 \cs_new_protected:Npn \__hit_greedy_emit_loose:
   {
+    \__hit_greedy_line_height:
     \hbox_set_to_wd:Nnn \l__hit_greedy_line_box { \l__hit_greedy_emitw_dim }
       {
         \__hit_greedy_inner_off: \__hit_greedy_loose_on:
@@ -2860,6 +2943,7 @@
   }
 \cs_new_protected:Npn \__hit_greedy_emit_last:
   {
+    \__hit_greedy_line_height:
     % 散排末行按类静态记号发（对子压缩是自然态，范例散行「”，」6.25 实测），
     % 条目文本经 ml 重建（串走中性组）
     \bool_lazy_or:nnTF
@@ -3124,6 +3208,7 @@
   }
 \cs_new_protected:Npn \__hit_greedy_ml_emit:
   {
+    \__hit_greedy_line_height:
     \__hit_greedy_ml_text:
     % 双程:先量渲染记号实宽(kern 分配以实宽为准,盒内无伸缩余地)
     \int_zero:N \l__hit_greedy_mcl_int
@@ -3571,6 +3656,7 @@
         \bool_set_false:N \l__hit_greedy_mprevcjk_bool
         \seq_map_inline:Nn \l__hit_greedy_ml_seq
           { \__hit_greedy_ml_census:nn ##1 }
+        \__hit_greedy_line_height:
         \dim_compare:nNnTF
           { \l__hit_greedy_mw_dim }
           > { \l__hit_greedy_emitw_dim + 0.1 pt }
@@ -3802,6 +3888,9 @@
   }
 \dim_new:N \l__hit_greedy_spadj_dim
 \dim_new:N \l__hit_greedy_rwkeep_dim
+\dim_new:N \l__hit_greedy_amblead_dim
+\dim_new:N \l__hit_greedy_cjkbox_dim
+\bool_new:N \l__hit_greedy_lcjk_bool
 \int_new:N \l__hit_greedy_ltrail_int
 \tl_new:N \l__hit_greedy_ltrail_tl
 \bool_new:N \l__hit_greedy_ltrail_bool
@@ -3825,6 +3914,11 @@
   }
 \cs_new_protected:Npn \__hit_greedy_count_sp:nn #1#2
   { \int_compare:nNnT {#1} = { 4 } { \int_incr:N \l__hit_greedy_nsp_int } }
+% 本行有没有汉字类条目(0 汉字、1 闭号、2 开号;3 是西文串、4 是空格)。
+% Word 的行高按「本行用到的字体里最高的那个的自然行高乘 1.25」算,
+% 一行只要沾一个汉字就按汉字档,纯西文行按西文档
+\cs_new_protected:Npn \__hit_greedy_scan_cjk:nn #1#2
+  { \int_compare:nNnT {#1} < { 3 } { \bool_set_true:N \l__hit_greedy_lcjk_bool } }
 \cs_new_protected:Npn \__hit_greedy_thin:
   { \tex_kern:D \dim_eval:n { 0.25 em + \l__hit_greedy_lsp_dim } \scan_stop: }
 % 空格溢出断行:若行尾串以 ( [ { 收尾,连串一起退下行再断
@@ -4344,6 +4438,8 @@
     % 渲染全程立防再捕旗:发射的行盒段落同样会过 \everypar,不拦会把
     % 自己的行盒当缩进盒摘走(行距倍增、丢字实测);组关自动还原
     \bool_set_true:N \l__hit_greedy_incapture_bool
+    % 外面的行距存下来:逐行档要拿它当汉字行的行盒高
+    \dim_set:Nn \l__hit_greedy_amblead_dim { \baselineskip }
     \dim_set:Nn \l__hit_greedy_measure_dim { \textwidth }
     \dim_set:Nn \l__hit_greedy_emitw_dim { \textwidth - 0.65 pt }
     % latin 段:行盒排满整版心;词间距名义值 = fd2 − 字距加宽(范例词隙
@@ -4466,6 +4562,10 @@
         \bool_set_true:N \l__hit_greedy_incapture_bool
         \bool_if:NT \l__hit_greedy_noindent_bool { \tex_noindent:D }
         #1 \par
+        % 回落原生的段也要记行深:组关之后 \cs{prevdepth} 由这个量接回,
+        % 不记就还是上一段末行的值,两者差多少下一段的段首就错多少
+        % (含 \cs{cite} 的段回落后,下一段间距多出 2.25bp 实测)
+        \dim_gset:Nn \g__hit_greedy_lastdp_dim { \tex_prevdepth:D }
       }
       {
         \bool_if:NTF \l__hit_greedy_manual_bool
