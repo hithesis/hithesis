@@ -3626,10 +3626,12 @@
   {
     \skip_zero:N \rightskip
     \cs_set_eq:NN \hit@format@strut: \prg_do_nothing:
-    \dim_set:Nn \baselineskip { 1.434 em }
+    \dim_set:Nn \baselineskip { \hit@format@latin@line: }
     \int_set:Nn \hyphenpenalty { 10000 }
     \int_set:Nn \exhyphenpenalty { 10000 }
-    \hitgreedyset { latin }
+    % 断行部分认 \option{line-break}:版式(行距/版宽/撑竿/断词)是
+    % Word 的页面制度,恒发;逐行贪心是断行制度,跟着键走
+    \hit@format@if@msword:T { \hitgreedyset { latin } }
   }
 % 拉丁空段高(关键词前距等):一个空段按同一条自动行距规则。数值来源
 % 收口在 \hitenter 的自然行高常量上(1.25 × 1.1472 = 1.4340),别处不抄
@@ -4508,19 +4510,33 @@
 \bool_new:N \l__hit_greedy_noindent_bool
 \box_new:N \l__hit_greedy_indent_box
 \tl_new:N \l__hit_greedy_evp_tl
-% 开关按属性现读:line-break 是逐段决策,门每段都过,现读即中途
-% \hitsetup 改就中途生效,不吃「apply 只跑一次」的亏(属性存储是
-% \prop_gput 全局量)。缓存成旗曾把 enddocument 延迟排版的整本书
-% 一起断电,现读没有这一层
+% \changes{v3.2a}{2026/08/19}{断行制度的判据提成 \cs{hit@format@if@msword:}，
+%   捕获闸门与类侧订阅(英文摘要等)共用一条,不再有恒开的订阅方}
+% \begin{macro}{\hit@format@if@msword:TF}
+% 当前是不是 Word 断行制度。取值现读:\option{line-break} 是逐段决策,
+% 现读即中途 \cs{hitsetup} 改就中途生效,不吃「apply 只跑一次」的亏
+% (属性存储是 \cs{prop\_gput} 全局量)。缓存成旗曾把 \texttt{enddocument}
+% 延迟排版的整本书一起断电,现读没有这一层。
+%    \begin{macrocode}
+\prg_new_protected_conditional:Npnn \hit@format@if@msword: { T , F , TF }
+  {
+    \__hit_format_get:nnNTF { body } { line-break } \l__hit_greedy_lb_tl
+      {
+        \str_if_eq:VnTF \l__hit_greedy_lb_tl { msword }
+          { \prg_return_true: } { \prg_return_false: }
+      }
+      { \prg_return_false: }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_greedy_gate:
   {
     \bool_set_false:N \l__hit_greedy_pargate_bool
     \bool_set_false:N \l__hit_greedy_lbon_bool
-    \__hit_format_get:nnNT { body } { line-break } \l__hit_greedy_lb_tl
-      {
-        \str_if_eq:VnT \l__hit_greedy_lb_tl { msword }
-          { \bool_set_true:N \l__hit_greedy_lbon_bool }
-      }
+    \hit@format@if@msword:T
+      { \bool_set_true:N \l__hit_greedy_lbon_bool }
     \bool_if:NT \l__hit_greedy_lbon_bool
       {
         % 只捕正文卷(mainmatter):封面/摘要/目录这些机器排的辅文段落
@@ -4623,10 +4639,40 @@
     \tl_put_right:Nn \l__hit_greedy_body_tl { {#1} }
     \__hit_greedy_collect:
   }
+% catcode 敏感的宏不能被捕获:它们要在读入的当下改 catcode,记号一旦
+% 成形就晚了(\cs{verb} 在记号表里重放会报「illegal in argument」)。
+% 这类宏一露面就地撤销:缩进盒与撑竿归位、已收的前缀原样排出、宏本身
+% 放回记号流自己去读参数,整段落回原生断行
+% 名字比对走 \pkg{l3str}:\cs{cs\_to\_str:N} 出的是 12 类字符,拿
+% 字母写的 clist 比不上(catcode 敏感,实测一个都匹配不上)
+\str_new:N \l__hit_greedy_csname_str
+\prg_new_protected_conditional:Npnn \__hit_greedy_if_unsafe:N #1 { TF }
+  {
+    \token_if_cs:NTF #1
+      {
+        \str_set:Nx \l__hit_greedy_csname_str { \cs_to_str:N #1 }
+        \str_case:VnTF \l__hit_greedy_csname_str
+          {
+            { verb } { } { lstinline } { } { mintinline } { }
+            { url } { } { nolinkurl } { } { path } { }
+            { href } { } { hyperref } { }
+          }
+          { \prg_return_true: } { \prg_return_false: }
+      }
+      { \prg_return_false: }
+  }
 \cs_new_protected:Npn \__hit_greedy_collect_tok:N #1
   {
-    \tl_put_right:Nn \l__hit_greedy_body_tl {#1}
-    \__hit_greedy_collect:
+    \__hit_greedy_if_unsafe:NTF #1
+      {
+        \__hit_greedy_collect_bail:
+        \l__hit_greedy_body_tl
+        #1
+      }
+      {
+        \tl_put_right:Nn \l__hit_greedy_body_tl {#1}
+        \__hit_greedy_collect:
+      }
   }
 % 撤销捕获:缩进盒与撑竿按原序归位,正文在原段里续流
 \cs_new_protected:Npn \__hit_greedy_collect_bail:
