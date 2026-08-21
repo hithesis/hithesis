@@ -253,18 +253,27 @@ jobs:
           l3build unpack
           l3build distribute
 
-      # 这一步只问「模板在这个平台上编不编得出来」，所以直接跑 xelatex：
+      # 这一步只问“模板在这个平台上编不编得出来”，所以直接跑 xelatex：
       # 走 latexmk 会把 examples/demo/latexmkrc 里的 makeindex 与 splitindex
       # 一并拖进来，那是另一回事，出了问题也分不清是模板还是工具链。
+      #
+      # 必须显式指定 fontset=fandol。示例的 main.tex 不写 fontset，走的是
+      # 按机器上装了什么字体逐级探测；而 runner 上一个中文系统字体都没有，
+      # 汉字会全部落到 Times New Roman，每个字一条 Missing character，
+      # 排出来是空白（实测 53 页、满屏缺字）。fandol 随 TeX Live 发，各平台都在。
+      # 变体矩阵不受影响，它的每个变体本来就写着 fontset=fandol。
+      #
       # 失败时把日志末尾打出来，构件要管理员权限才下载得了。
       - name: Build example
         shell: bash
         working-directory: examples/demo
         run: |
-          xelatex -interaction=nonstopmode main.tex || {
+          doc='\PassOptionsToClass{fontset=fandol}{hithesis}\input{main.tex}'
+          xelatex -interaction=nonstopmode -jobname=main "$doc" || {
             echo "::group::main.log 末尾"; tail -60 main.log; echo "::endgroup::"; exit 1; }
-          xelatex -interaction=nonstopmode main.tex || {
+          xelatex -interaction=nonstopmode -jobname=main "$doc" || {
             echo "::group::main.log 末尾"; tail -60 main.log; echo "::endgroup::"; exit 1; }
+          echo "缺字条数: $(grep -c 'Missing character' main.log || true)"
 
   # ============================================================
   # L2 变体矩阵，看 42 种 \documentclass 选项组合还能不能编出来。
