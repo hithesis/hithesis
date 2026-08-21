@@ -512,13 +512,25 @@
   }
 %    \end{macrocode}
 %
-% 探测要等基础类把 \pkg{fontspec} 与 \pkg{xeCJK} 装上，所以排进 \cs{hit@preconfig}
-% 的队列，与 \cs{hit@setup@date} 同一时机。共享层跑在基础类之前，写在顶层会因为
-% \cs{fontspec\_font\_if\_exist:nTF} 还没定义而报未定义控制序列。
+% \changes{v3.2a}{2026/08/21}{探测改成惰性：用到才探，不再每篇文档都探一遍}
+% \emph{探测要等到真用得上的那一刻。} 从前排在 \cs{hit@preconfig} 队列里，
+% 每篇文档加载时都探一次。机器上没有这个字体时（Linux 上基本都没有），
+% \hologo{XeTeX} 找不到同名系统字体就退回去找 \file{.tfm}，kpathsea 跟着
+% 起 \texttt{mktextfm} 造字，造不出来再写一条 \file{missfont.log}——每编
+% 一次多一轮 metafont，还往工作目录里丢文件（\pkg{l3build} 的 66 个测试
+% 逐个中招，实测有一次因此丢了测试日志把整轮 check 打断）。
+%
+% 而这个标志位只有 \option{cover-script} 那一处用得上。改成第一次问它的
+% 时候才探，探完记住。默认文档一次都不会探。
 %    \begin{macrocode}
-\hit@preconfig
+\bool_new:N \g__hit_lishu_probed_bool
+\cs_new_protected:Npn \__hit_cover_font_probe:
   {
-    \__hit_cover_font:nnN { LiSu } { hit@cover@lishu } \g__hit_lishu_bool
+    \bool_if:NF \g__hit_lishu_probed_bool
+      {
+        \bool_gset_true:N \g__hit_lishu_probed_bool
+        \__hit_cover_font:nnN { LiSu } { hit@cover@lishu } \g__hit_lishu_bool
+      }
   }
 %    \end{macrocode}
 %
@@ -529,6 +541,7 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@cover@script:nnn #1#2#3
   {
+    \__hit_cover_font_probe:
     \str_case:onF { \hit@cover@script }
       {
         { image } {#3}
