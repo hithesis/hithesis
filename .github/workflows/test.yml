@@ -367,7 +367,77 @@ jobs:
   #    默认只出报告和差异 artifact，不阻断合并。要卡的话给 PR 打
   #    regression-must-match 标签。
   # ============================================================
+  # 轨一：旧版面兼容回归，钉死 v3.1e，常设。
+  #
+  # 旧版面要长期保留，这一轨测的是「老文档在新模板的兼容层（v2-layout）下，
+  # 排出来还是不是老样子」。同一份内容编两遍：参照侧是 v3.1e 的示例配 v3.1e
+  # 的类，当前侧是同一份示例配当前的类加 v2-layout。不能各编各的树——两版的
+  # 示例内容本身就不同，逐页比出来全是内容差异。
+  #
+  # 现在先只报告不拦：兼容层与 v3.1e 尚有差异（本地实测中文书 58 页对 66 页），
+  # 收敛到零之前当门会一直红。把仓库变量 COMPAT_MUST_MATCH 设成 true 就变硬门。
+  # ============================================================
+  compat-regression:
+    name: 旧版面兼容回归（钉 v3.1e）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: TeX-Live/setup-texlive-action@v4
+        with:
+          version: latest
+          package-file: .github/tl_packages
+
+      - name: Install ghostscript
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ghostscript
+
+      - name: Generate cls files
+        run: make cls
+
+      - name: Run compat regression
+        id: compat
+        run: |
+          set +e
+          bash scripts/compat-regression.sh | tee /tmp/compat.txt
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+          set -e
+          {
+            echo "### 旧版面兼容回归（钉 v3.1e）"
+            echo
+            echo '```'
+            cat /tmp/compat.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload compat PDFs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: compat-regression
+          path: |
+            tests/compat-work/*/main.pdf
+            tests/compat-work/*.log
+          retention-days: 7
+
+      - name: Fail if COMPAT_MUST_MATCH
+        if: vars.COMPAT_MUST_MATCH == 'true' && steps.compat.outputs.rc != '0'
+        run: |
+          echo "兼容回归有差异，且仓库变量 COMPAT_MUST_MATCH=true"
+          exit 1
+
+  # ============================================================
+  # 轨二：跟上一个正式版比的常规回归。上一版必然是新版面，所以不开 v2-layout。
+  #
+  # 新版面还没稳定，这一轨现在关着，只留开关：仓库变量 RUN_RELEASE_REGRESSION
+  # 设成 true 就开。版面定下来之后打开它，那时参照的才是同版面的上一版，比出来
+  # 的差异才有意义（现在最近的 tag 还是 v3.1e，是旧版面，比了全是版面差）。
+  # ============================================================
   regression:
+    if: vars.RUN_RELEASE_REGRESSION == 'true'
     name: 排版回归
     runs-on: ubuntu-latest
     steps:

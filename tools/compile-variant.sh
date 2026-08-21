@@ -5,6 +5,8 @@
 # 认这几个环境变量：
 #   SRC_ROOT    去哪棵树取 example 目录，默认仓库根目录。回归测试比历史版本时
 #               指向解压出来的 release 目录
+#   CLS_ROOT    去哪棵树取类文件，默认跟 SRC_ROOT 同一棵。兼容回归要「旧内容 +
+#               新模板」：内容取 v3.1e 的示例，类取当前工作树，靠这个变量拆开
 #   WORK_DIR    编译工作目录，默认 <repo>/tests/work/<variant>
 #   PNG_DIR     PNG 输出目录，默认 <repo>/tests/current
 #   RENDER_PNG  设成 0 就只编译不渲染 PNG，CI 只看能不能编过时用
@@ -17,6 +19,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
 SRC_ROOT=${SRC_ROOT:-$ROOT}
+CLS_ROOT=${CLS_ROOT:-$SRC_ROOT}
 WORK=${WORK_DIR:-$ROOT/tests/work/$variant}
 PNG_DIR=${PNG_DIR:-$ROOT/tests/current}
 RENDER_PNG=${RENDER_PNG:-1}
@@ -75,6 +78,18 @@ for f in $(python3 "$ROOT/scripts/products.py" --dist); do
     *.pdf) cp "$ROOT/$f" "$WORK"/ ;;
   esac
 done
+
+# CLS_ROOT 与 SRC_ROOT 不同，说明是“一棵树的内容 + 另一棵树的模板”。类文件是
+# 跟着示例目录一起拷进来的，这里按分发清单从 CLS_ROOT 覆盖一遍。
+if [ "$CLS_ROOT" != "$SRC_ROOT" ]; then
+  for f in $(python3 "$ROOT/scripts/products.py" --dist); do
+    [ -f "$CLS_ROOT/$f" ] && cp "$CLS_ROOT/$f" "$WORK"/
+  done
+  # v3.1e 的示例按 figures/golfer 引图，新树里这份资源挪了位置，补一份进去
+  if [ -f "$CLS_ROOT/assets/golfer.pdf" ] && [ -d "$WORK/figures" ]; then
+    cp "$CLS_ROOT/assets/golfer.pdf" "$WORK/figures/"
+  fi
+fi
 
 # Rewrite the first \documentclass line in $ENTRY
 python3 - "$WORK/$ENTRY" "$OPTIONS" "$CLS" <<'PYEOF'

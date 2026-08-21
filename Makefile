@@ -23,7 +23,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls lineends manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck mapcheck mapfix depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls lineends compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck mapcheck mapfix depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
@@ -34,6 +34,11 @@ all: manual
 cls: $(TARGETS)
 
 # 行末回归：demo 与书写范例逐行比对（需先构建 examples/demo/main.pdf）
+# 旧版面兼容回归：钉死 v3.1e，测 v2-layout 还原不还原得了老版面。
+# 名单与做法见 tests/compat/README.txt。
+compat-regression:
+	bash scripts/compat-regression.sh
+
 # 行末距离：断行交给 TeX，与 Word 不会归零；--max-diff 是棘轮上限，
 # 只保证不变坏，改进之后把这个数调低
 lineends:
