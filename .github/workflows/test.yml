@@ -125,6 +125,19 @@ jobs:
           HITHESIS_TL_LEGACY: ${{ matrix.tl-version != 2026 && '1' || '' }}
         run: l3build check
 
+      # 构件要仓库管理员权限才下载得了，排查时很不方便。失败时把 diff 直接
+      # 打进日志，看一眼就知道差在哪。
+      - name: Print check diffs
+        if: failure()
+        run: |
+          echo "跳过名单：${HITHESIS_TL_LEGACY:-（未设，跑全量）}"
+          for f in build/test/*.diff; do
+            [ -e "$f" ] || { echo "没有 diff 文件（测试崩溃或未产出日志）"; break; }
+            echo "::group::$(basename "$f")"
+            head -60 "$f"
+            echo "::endgroup::"
+          done
+
       - name: Upload check diffs
         if: failure()
         uses: actions/upload-artifact@v7
