@@ -125,6 +125,26 @@ jobs:
           HITHESIS_TL_LEGACY: ${{ matrix.tl-version != 2026 && '1' || '' }}
         run: l3build check
 
+      # l3build 把 xelatex 的输出收进 build/test/*.log 再做归一化，类加载期就
+      # 报错的话归一化后是空文件，diff 只显示“对面 0 行”，看不出原因。这里
+      # 手动跑一个测试文档，把原始日志打出来。
+      - name: Print raw log of one failing test
+        if: failure()
+        run: |
+          cd build/test 2>/dev/null || exit 0
+          lvt=$(ls *.lvt 2>/dev/null | head -1)
+          [ -n "$lvt" ] || { echo "build/test 下没有 .lvt"; exit 0; }
+          echo "::group::手动编译 $lvt 的原始日志"
+          xelatex -interaction=nonstopmode "$lvt" > /dev/null 2>&1 || true
+          raw="${lvt%.lvt}.log"
+          if [ -f "$raw" ]; then
+            echo "--- 前 40 行 ---"; head -40 "$raw"
+            echo "--- 全部报错 ---"; grep -nE '^!|Emergency|not found|I can.t find' "$raw" | head -20
+          else
+            echo "连 $raw 都没产出"
+          fi
+          echo "::endgroup::"
+
       # 构件要仓库管理员权限才下载得了，排查时很不方便。失败时把 diff 直接
       # 打进日志，看一眼就知道差在哪。
       - name: Print check diffs
