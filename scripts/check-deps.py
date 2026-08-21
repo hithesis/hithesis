@@ -163,9 +163,9 @@ _no_kpse = False
 def kpse(name: str) -> str:
     """kpsewhich 查一个文件。没装 TeX Live 就返回空串，不炸。
 
-    「changes 日期约定」那个 CI job 只跑 python，不装 TeX Live，从前在这里
+    “changes 日期约定”那个 CI job 只跑 python，不装 TeX Live，从前在这里
     直接 FileNotFoundError。策略表比对本身不需要 kpsewhich，只有下面查
-    「归了 sty 却被类调用」那一道要读宏包源码，查不到就跳过并说一声。
+    “归了 sty 却被类调用”那一道要读宏包源码，查不到就跳过并说一声。
     """
     global _no_kpse
     if _no_kpse:
@@ -250,7 +250,7 @@ def check() -> int:
     print("%d 个宏包都在 tools/deps-policy.txt 说的位置" % len(want))
     if _no_kpse:
         print("（没找到 kpsewhich，"
-              "「归了 sty 却被类调用」那一道跳过了）")
+              "“归了 sty 却被类调用”那一道跳过了）")
     return 0
 
 
