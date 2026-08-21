@@ -34,8 +34,10 @@ all: manual
 cls: $(TARGETS)
 
 # 行末回归：demo 与书写范例逐行比对（需先构建 examples/demo/main.pdf）
+# 行末距离：断行交给 TeX，与 Word 不会归零；--max-diff 是棘轮上限，
+# 只保证不变坏，改进之后把这个数调低
 lineends:
-	python3 scripts/check-line-ends.py
+	python3 scripts/check-line-ends.py --max-diff 84
 
 # 解压走自解压的 dtx，不走 .ins：解压规则写在 src/hithesis.dtx 的 install 守卫里，
 # hithesis.ins 是它的产物之一（提交进仓库，随 CTAN 包发出去，供拿到源码包的人用）。

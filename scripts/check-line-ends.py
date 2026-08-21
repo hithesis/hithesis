@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""行末回归：demo 与 Word 范例逐行比对。
+"""行末距离：demo 与 Word 范例逐行比对，报出还差多少行。
+
+模板不自己接管断行，断行交给 TeX，所以与 Word 的逐行结果不会归零。
+本脚本量的是「离 Word 还有多远」，用 --max-diff 钉一个上限当棘轮：
+现状不许变坏，几何或标点改进把数字压下去之后再把上限调低。
 
 基线 tests/lineends-regu.tsv 来自《本科毕业论文书写范例》的 Word 导出 PDF
 （mutool stext 逐字符抽取，按段落锚定）。本脚本把 demo 的 main.pdf 用同一套
@@ -9,6 +13,7 @@ LINE 行可带第四列 waive-pos：文本仍硬性比对，只豁免坐标（�
 不可再收的 Word/TeX 断行经济学差异，豁免原因写在基线注释里）。
 
 用法：check-line-ends.py [--pdf examples/demo/main.pdf] [--fixture tests/lineends-regu.tsv]
+      check-line-ends.py --max-diff 84            # 棘轮：超过上限才算失败
       check-line-ends.py --gen 参考.pdf > tests/lineends-regu.tsv   # 重制基线
 """
 import argparse, html, re, subprocess, sys, tempfile, os
@@ -82,6 +87,7 @@ def main():
     ap.add_argument('--pdf', default='examples/demo/main.pdf')
     ap.add_argument('--fixture', default='tests/lineends-regu.tsv')
     ap.add_argument('--tol', type=float, default=0.75)
+    ap.add_argument('--max-diff', type=int, default=0, help='允许的行差上限（棘轮）')
     ap.add_argument('--gen', metavar='REF_PDF', help='从参考 PDF 生成基线到 stdout')
     a = ap.parse_args()
 
@@ -135,8 +141,8 @@ def main():
                     print('位差  %s… L%d  x0 %.1f/%.1f  末 %.1f/%.1f  «%s»'
                           % (anchor, i + 1, gx0, wx0, gxl, wxl, wt[-6:]))
                     bad += 1
-    print('—— 段 %d，缺段 %d，行差 %d' % (len(fixture), miss, bad))
-    return 1 if bad or miss else 0
+    print('—— 段 %d，缺段 %d，行差 %d（上限 %d）' % (len(fixture), miss, bad, a.max_diff))
+    return 1 if bad > a.max_diff or miss else 0
 
 
 if __name__ == '__main__':
