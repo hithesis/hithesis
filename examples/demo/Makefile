@@ -23,19 +23,17 @@ else
 	OPEN = open
 endif
 
-.PHONY: clean cleanall thesis viewthesis thesis-en opening midterm
+.PHONY: clean cleanall thesis viewthesis
 
 viewthesis: thesis
 	$(OPEN) $(THESISMAIN).pdf
 
 thesis: $(THESISMAIN).pdf
 
-# 这个目录里放着三份交付物：开题、中期、学位论文。元信息在 hitsetup.tex，
-# 三份共用；主文件只有第一行的 kind 不同。学位论文要跑 splitindex 做索引，
-# 走下面那套规则；其余三份交给 latexmk 就够了。
-thesis-en opening midterm:
-	latexmk $(LATEXMKOPTS) $@
-
+# 四种交付物共用这一份 main.tex，写哪一种由第一行 \documentclass 上的 kind
+# 决定（见 main.tex 顶上的说明）。所以这里只有一个编译目标；从前那三个
+# thesis-en / opening / midterm 找的是同名 .tex，四棵示例树合成一棵之后
+# 就没有那些文件了，一直编不出来，删掉。
 ifeq ($(METHOD),latexmk)
 
 $(THESISMAIN).pdf: $(CLSFILES)
@@ -67,8 +65,7 @@ $(error Unknown METHOD: $(METHOD))
 
 endif
 
-# 四份交付物各有各的 jobname，四份都要清。原先只清 main，另外三份的中间文件
-# 一直攒着。
+# 换 kind 编别的交付物时可以自己指定 jobname，这里把常见的几个一并清掉。
 JOBS = $(THESISMAIN) thesis-en opening midterm
 
 # 按 jobname 逐个删，不用 *.idx 这种通配：hithesis.ist 是随包发的，
