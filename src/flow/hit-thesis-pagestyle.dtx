@@ -1,0 +1,297 @@
+% \iffalse meta-comment
+%
+% hit-thesis-pagestyle.dtx 是页眉与页脚
+%
+% \fi
+%
+% \section{页眉与页脚}
+%
+% ^^A ======================================================================
+% ^^A Module thesis-pagestyle: 页眉页脚样式（fancyhdr 配置）（hit-thesis）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*thesis-pagestyle>
+% \changes{v3.2a}{2026/08/07}{pagestyle 模块抽取后，fancyhdr 需提前加载}
+% \changes{v3.2a}{2026/08/07}{book-pagestyle 的条件树改用 expl3。页眉横线与本科
+%   页脚这两块内容留在 expl3 之外定义成宏：它们的花括号后换行会产生一个空格
+%   记号，\cs{ExplSyntaxOn} 下会消失，见 CONTRIBUTING §4.7}
+\RequirePackage{fancyhdr}
+\cs_set_eq:NN \hit@original@header@rule \headrule
+\fancypagestyle{hit@empty}{%
+  \fancyhf{}
+  \cs_set_eq:NN \headrule \hit@original@header@rule
+  \cs_set:Npn \headrulewidth {0pt}
+  \cs_set:Npn \footrulewidth {0pt}
+}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{schrb: 添加扫描PDF专用页面样式，只显示页码}
+%    \begin{macrocode}
+\fancypagestyle{hit@scanpage}{%
+  \fancyhf{}
+  \fancyfoot[C]{\hit@footer@font\hit@page@number@decorated}
+  \cs_set_eq:NN \headrule \relax
+  \cs_set:Npn \headrulewidth {0pt}
+  \cs_set:Npn \footrulewidth {0pt}
+}
+%    \end{macrocode}
+%
+% 页眉那条粗细双线三处都一样，本科页脚的页码格式只此一处。两块都含花括号后
+% 换行产生的空格记号，所以留在 expl3 之外原样定义。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/14}{页眉的字体命令收成 \cs{hit@header@font}，里面留一个
+%   撑杆的位置，新版面下把页眉那一行的行盒撑成 Word 的尺寸}
+% \cs{hit@header@font} 是页眉的字体，十五处页眉共用。字号之后留了一根撑杆的位置：
+% Word 的页眉行盒底在基线下 2.53\,bp（小五的下降部），\hologo{TeX} 只按字形外框
+% 算 0.63\,bp，页眉横线跟着上移 2\,bp。撑杆把行盒补齐，横线就落回原处。
+%
+% 撑杆默认是空的，只有新版面才由 \cs{hit@format@apply@body:} 换成真的，见
+% \file{src/utils/hit-format.dtx}。旧版面的页眉位置是另一套参数定的，
+% 补齐行盒反而会动它。
+%
+% 段落钩子上那根撑杆管不到这里：\pkg{fancyhdr} 把页眉排在 \cs{parbox} 里，
+% \cs{@parboxrestore} 会清掉 \cs{everypar}，钩子不发。
+%
+% \changes{v3.2a}{2026/08/15}{页眉横线左右各外伸 1.56\,bp，与范例的段落边框对齐}
+% 那两条线比版心宽：左右各外伸 1.56\,bp。Word 里页眉的横线是段落的下边框，
+% 边框会伸出段落左右各一小段，范例在 300\,ppi 下量出来两边各 6.5 个像素，
+% 折 1.56\,bp。\cs{headwidth} 是 \pkg{fancyhdr} 的宽度，等于版心宽，
+% 所以横线要单独加宽再往左挪回去，页眉文字的宽度不受影响。
+%
+% 加宽的写法是定宽 \cs{hbox} 里放一条更宽的 \cs{vrule}，两边各一个 \cs{hss}
+% 把溢出吸掉。盒子对外仍报 \cs{headwidth}，页眉不会报 Overfull；换成
+% \cs{vbox} 加 \cs{moveleft} 的话，盒子的宽度是内容的宽度，整个页眉块跟着变宽
+% 1.56\,pt，每一页都报一次 Overfull。
+%
+% 前后各加一个 \cs{nointerlineskip}：盒子会引来行间胶，\cs{hrule} 不会。
+% 不加的话整条线往下掉十四个磅，300\,ppi 下六十一个像素。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@header@strut: { }
+\cs_new_protected:Npn \hit@header@font { \songti \xiaowu [ 0 ] \hit@header@strut: }
+\cs_new_protected:Npn \hit@footer@font { \xiaowu }
+\dim_const:Nn \c__hit_header_rule_over_dim { 1.56bp }
+\cs_new_protected:Npn \hit@thesis@header@rule
+  {
+    \cs_set:Npn \headrule
+      {
+        \vskip \l__hit_msword_rule_text_dim
+        \hit@header@rule:n { \l__hit_msword_rule_width_dim }
+        \vskip 0.75bp
+        \hit@header@rule:n { 0.75bp }
+      }
+  }
+\cs_new_protected:Npn \hit@header@rule:n #1
+  {
+    \nointerlineskip
+    \hbox to \headwidth
+      {
+        \hss
+        \vrule \@height #1 \@depth \z@
+          \@width \dim_eval:n { \headwidth + 2 \c__hit_header_rule_over_dim }
+        \hss
+      }
+    \nointerlineskip
+  }
+\cs_new_protected:Npn \hit@page@number@plain { \thepage }
+\cs_new_protected:Npn \hit@page@number@decorated
+  {
+    \kern \hit@page@number@shift
+    - \hspace { \hit@page@number@separator }
+    \thepage
+    \hspace { \hit@page@number@separator } -
+    \kern -\hit@page@number@shift
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{页码装饰与页眉横线的开关改为三态，本科与非本科
+%   走同一套逻辑}
+% \changes{v3.2a}{2026/08/15}{装饰形式各学位统一，都走 \cs{hit@page@number@separator}}
+% \changes{v3.2a}{2026/08/16}{前置部分的装饰三校区统一，深圳与威海本科的例外删掉}
+% \option{page-number-line} 的 \texttt{auto}：正文与前置部分一律带装饰。
+% \option{header-rule} 的 \texttt{auto} 一律为真。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@page@number@main
+  {
+    \__hit_tristate_if:NnTF \g__hit_page_number_line_main_tl { \c_true_bool }
+      { \hit@page@number@decorated } { \hit@page@number@plain }
+  }
+\cs_new_protected:Npn \hit@page@number@front
+  {
+    \__hit_tristate_if:NnTF \g__hit_page_number_line_front_tl { \c_true_bool }
+      { \hit@page@number@decorated } { \hit@page@number@plain }
+  }
+\cs_new_protected:Npn \hit@thesis@header@rule@setup
+  {
+    \__hit_tristate_if:NnTF \g__hit_header_rule_tl { \c_true_bool }
+      { \hit@thesis@header@rule } { \cs_set:Npn \headrulewidth { 0pt } }
+  }
+\cs_new_protected:Npn \hit@thesis@footer
+  {
+    \fancyfoot [C]
+      {
+        \hit@footer@font
+        \legacy_if:nTF { @mainmatter }
+          { \hit@page@number@main } { \hit@page@number@front }
+      }
+  }
+%    \end{macrocode}
+% 
+% \changes{v3.1d}{2025/03/03}{定义页脚中横线与页码的距离。\issue[172]}
+% \changes{v3.2a}{2026/08/15}{各学位的页码间距统一到小五的半个字宽，判断撤掉}
+% \cs{hit@page@number@separator} 是页码两侧短横与数字之间的距离，各学位一个值。
+% 范例里那段间距在 300\,ppi 下量出来是二十个像素，半个字宽最接近：页脚是小五，
+% 一个字宽 9\,bp，一半 4.5\,bp 折 18.75 个像素，再加上短横右侧与数字左侧的空白
+% 正好二十。
+%
+% 这里写死 4.5\,bp 而不写 \texttt{.5em}，因为这一行在类文件加载时执行，那时
+% 当前字体是小四，\texttt{em} 会读成 12\,bp，间距要宽出三分之一。从前的
+% \texttt{.3333333em} 与 \texttt{.1666667em} 也踩在这上面。
+%
+% 从前哈尔滨本科取三分之一字宽、其余取六分之一字宽，硕博那一支根本没读这个
+% 长度，直接写的不断行空格。现在四处页码都走这一条路径。判断虽然撤了，长度本身
+% 留着，往后哪个学位再分家，改这一个值就够。
+%    \begin{macrocode}
+\skip_new:N \hit@page@number@separator
+\dim_set:Nn \hit@page@number@separator { 4.5bp }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{加 \cs{hit@page@number@shift}，页码整体右移一个像素}
+% \changes{v3.2a}{2026/08/16}{取值改由 \option{layout}/\option{footer}/%
+%   \option{shift}/\option{horizontal} 给}
+% \cs{hit@page@number@shift} 是页码整体的横向偏移，往右为正。范例的页码是个
+% 文本框，\texttt{<w:framePr w:hAnchor="margin" w:xAlign="center"/>}：框按版心
+% 居中，框里的段落是 \texttt{<w:jc w:val="left"/>} 左对齐。框宽是内容的自然宽，
+% 里头的 \texttt{-} 与空格那两段还带着 \texttt{w:hint="eastAsia"}，走的是宋体
+% 而不是西文字体。这一串下来落点与我们居中排出来的差 300\,ppi 下一个像素，
+% 折 0.24\,bp，往右补。
+%
+% 前后各一个反号的 \cs{kern}：盒子的总宽不变，只有内容整体挪一格。只在一头加
+% 的话盒子跟着变宽，居中又把它匀掉一半，得写两倍，绕。
+%    \begin{macrocode}
+\cs_new:Npn \hit@page@number@shift { \g_hit_msword_foot_shift_x_dim }
+%    \end{macrocode}
+%
+% 此处根据本科生模板的多种版本，提供选项自定义页码、页眉样式。
+% \changes{v1.0.15}{2018/06/05}{添加控制本科论文的页码横线选项}
+% \changes{v1.0.15}{2018/06/05}{删除冗余的页面格式}
+% \changes{v3.0.0}{2020/05/21}{添加英文版页眉格式控制}
+% \changes{v3.0.0}{2020/05/21}{添加博后页眉控制}
+% \changes{v3.1b}{2022/06/06}{本部硕博页眉中不再包含学科}
+% \changes{v3.1d}{2025/03/03}{根据 \issue[222] 修改深圳博士的页眉}
+% \changes{v3.0.10}{2020/10/28}{根据窝工2020年深圳校区新规定，mainmatter之前都用正文内容作为页眉，之后都用哈尔滨工业大学作为页眉}
+% \changes{v3.0.01}{2020/06/06}{此处设置威海本科页眉与本部一样}
+% 页眉恒排中文，英文版也一样，规范如此。所以下面一律取常量的 zh 那半，
+% 那不是漏了英文分支。\option{lang} 只管摘要之后的正文，见手册
+% 第 \ref{sec:option} 节。
+%    \begin{macrocode}
+\fancypagestyle { hit@headings }
+  {
+    \fancyhf { }
+    \bool_if:NTF \g__hit_en_bool
+      {
+        \fancyhead [ C ] { \hit@header@font \leftmark }
+        \fancyfoot [ C ] { \hit@footer@font \hit@page@number@decorated }
+        \hit@thesis@header@rule
+      }
+      {
+        \bool_if:NT \g__hit_postdoc_bool
+          {
+            \fancyhead [ CO ] { \hit@header@font \leftmark }
+            \fancyhead [ CE ]
+              { \hit@header@font \hit@school@zh \hit@postdoc@report }
+          }
+        \bool_if:NTF \g__hit_doctor_bool
+          {
+            \fancyhead [ CO ] { \hit@header@font \leftmark }
+            \bool_if:NT \g__hit_harbin_bool
+              {
+                \fancyhead [ CE ]
+                  { \hit@header@font \hit@school@zh \hit@degree@level@zh \hit@document@type }
+              }
+            \bool_if:NT \g__hit_shenzhen_bool
+              {
+                \fancyhead [ CE ]
+                  {
+                    \hit@header@font \hit@school@zh
+                    \hit@if@option@TF{doctor}{}{\hit@campus@full}
+                    \hit@degree@of@discipline@format@zh \hit@document@type
+                  }
+              }
+            \bool_if:NT \g__hit_weihai_bool
+              {
+                \fancyhead [ CE ]
+                  {
+                    \hit@header@font \hit@school@zh （\hit@campus）
+                    \hit@degree@of@discipline@format@zh \hit@document@type
+                  }
+              }
+          }
+          {
+            \bool_if:NT \g__hit_master_bool
+              {
+                \bool_if:NT \g__hit_harbin_bool
+                  {
+                    \fancyhead [ C ]
+                      { \hit@header@font \hit@school@zh \hit@degree@level@zh \hit@document@type }
+                  }
+                \bool_if:NT \g__hit_shenzhen_bool
+                  {
+                    \legacy_if:nTF { @mainmatter }
+                      {
+                        \fancyhead [ C ]
+                          {
+                            \hit@header@font \hit@school@zh \hit@degree@of@discipline@format@zh
+                            \hit@document@type
+                          }
+                      }
+                      { \fancyhead [ C ] { \hit@header@font \leftmark } }
+                  }
+                \bool_if:NT \g__hit_weihai_bool
+                  {
+                    \fancyhead [ C ]
+                      {
+                        \hit@header@font \hit@school@zh （\hit@campus）
+                        \hit@degree@of@discipline@format@zh \hit@document@type
+                      }
+                  }
+              }
+          }
+%    \end{macrocode}
+% \changes{v3.2a}{2026/08/16}{本科页眉三个校区统一，深圳与威海两支删掉}
+% 三个校区的本科页眉都是「哈尔滨工业大学本科毕业论文（设计）」，不带校区名。
+%    \begin{macrocode}
+        \bool_if:NTF \g__hit_bachelor_bool
+          {
+            \fancyhead [ C ]
+              {
+                \hit@header@font \hit@school@zh \hit@bachelor@degree@level
+                \hit@bachelor@document@type
+              }
+            \hit@thesis@footer
+            \hit@thesis@header@rule@setup
+          }
+          {
+            \hit@thesis@footer
+            \hit@thesis@header@rule@setup
+          }
+      }
+    \cs_set:Npn \footrulewidth { 0pt }
+  }
+%    \end{macrocode}
+%
+% 此处解决页眉经典 bug。
+%
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_pagestyle_at_begin:
+  {
+    \pagestyle { hit@empty }
+    \RenewDocumentCommand \chaptermark { m }
+      { \@mkboth { \CTEXthechapter \enspace ##1 } { } }
+  }
+\AtBeginDocument { \__hit_pagestyle_at_begin: }
+%</thesis-pagestyle>
+%    \end{macrocode}
+%
+% \Finale

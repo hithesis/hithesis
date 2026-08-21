@@ -26,19 +26,38 @@
 ```sh
 BASE=examples/hitbook/chinese          # 取哪个 example 目录作模板
 OPTIONS=fontset=fandol,type=bachelor,campus=harbin   # 替换进 \documentclass[...] 的选项
-CLS=hithesisbook                       # 文档类名
+CLS=hit-thesis                         # 文档类名
 ENTRY=thesis.tex                       # 主文件，默认 thesis.tex
+BIBSTYLE=gbt7714-2025-numeric           # 可选，替换掉整棵树里的 \bibliographystyle
 ```
 
 `tools/compile-variant.sh` 把 `BASE` 整个复制到 `tests/work/<变体名>/`，改写主文件第一行的
-`\documentclass`，再用 `latexmk -xelatex` 编译。
+`\documentclass`，再用 `latexmk -xelatex` 编译。输出一律叫 `main.pdf`：文件名会进 PDF
+（同内容的 `a.tex` 与 `b.tex` 编出来第 2261 字节起就不同），入口一改名逐字节比对
+就全是假差异。
+
+`BIBSTYLE` 改写两处：源码里的 `\bibliographystyle{}` 那一行，以及 `structure` 族的
+`bib-style` 键。用 `\hitbackmatter` 排后置部分时前者由类生成，源码里根本没有。
+
+变体 42 与 43 是同一份文档的两种写法：42 走 `hithesisartplus` 空壳，43 走
+`hit-report` 加三个选项。深圳博士中期 v3.2a 从独立文档类并回报告类，
+两者的 PDF 必须逐字节相同，空壳一断就会在这里露出来。空壳在 v4.1a 移除，
+届时删掉 42。
+
+变体 44 与 45 走 `fontset=mac`，其余全部钉死 `fontset=fandol`。行距与字体无关是
+靠绝对值实现的：字号和行距都写成 bp，不用 `em` 也不用 `\linespread`。但每页第一行
+走 `\topskip`（12pt），而 mac 仿宋的字面高是 10.13pt，余量只有 1.87pt——再高一点
+每页第一行就会跟着字体往下掉。这两个变体钉的就是那点余量。
+
+另外两个空壳 `hithesisbook` 与 `hithesisart` 走 `testfiles/23`、`testfiles/24`，
+那边比变体便宜，只钉转发结果。
 
 要加新组合，往 `tests/variants/` 里丢一个 `.conf` 就行，别处不用改。
 
 ## 用法
 
 ```sh
-# 42 个变体全编一遍，渲染结果存为本地基线
+# 45 个变体全编一遍，渲染结果存为本地基线
 make baseline            # 即 bash tools/make-baseline.sh
 
 # 改完 dtx，重编并与本地基线逐页比对
@@ -57,8 +76,8 @@ python3 scripts/regression_test.py --against dev    # 指定分支
 手册（`hithesis.pdf`）不在上面这套里，它有单独一条：
 
 ```sh
-make doc-baseline   # 动手改之前存一份
-make doc-check      # 改完重编，与基线逐页比
+make manual-baseline   # 动手改之前存一份
+make manual-check      # 改完重编，与基线逐页比
 ```
 
 参照的是改动前的自己，所以只能在本地跑，CI 取不到“改动前”的状态。要注意手册会把源码

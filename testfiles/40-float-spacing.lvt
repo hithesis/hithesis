@@ -1,0 +1,44 @@
+% 浮动体间距与三个内核补丁。
+%
+% 四个位置的浮动体间距原先各不相同（intextsep 与 textfloatsep 是 8.5pt、floatsep
+% 是 12pt、@fpsep 是 10pt），同一份文档里几张图表的前后空白宽窄不一。现在统一到
+% 12bp，题注间距交给 caption 的 captionsetup。
+%
+% 光把长度设成一样不够，内核里浮动体与正文的前后距离本身不对称，要另打三个补丁
+% （出处 tuna/thuthesis#614）。补丁必须在 AtBeginDocument 打：AtEndOfClass 时
+% \@addtocurcol 还不是最终那一版，\patchcmd 三个都找不到目标，会各报一次
+% ClassWarning。这个测试就是拿来盯这件事的，打不上的话 tlg 里会多出三条警告。
+%
+% 判断补丁是否落地看替换文本里的标记：之一引入 \hit@save@first@penalty，之二引入
+% \nointerlineskip，\@getpen 把 \@M 换成 \@Mi。
+%
+% 顺带断言 \longbionenumcaption 的废弃提示会发，以及它跟内层 \hit@long@bicaption
+% 是两个东西（新的 \caption{中文题}[英文题] 走内层，不该触发提示）。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=doctor,campus=harbin]{hithesis}
+\begin{document}
+\START
+\makeatletter
+\TEST{四个位置同一个间距}{
+  \showthe\floatsep
+  \showthe\textfloatsep
+  \showthe\intextsep
+  \showthe\@fptop
+  \showthe\@fpsep
+  \showthe\@fpbot
+}
+\TEST{三个补丁都打上了}{
+  \ifpatchable{\@addtocurcol}{\hit@save@first@penalty}
+    {\typeout{之一=打上}}{\typeout{之一=没打上}}
+  \ifpatchable{\@addtocurcol}{\nointerlineskip}
+    {\typeout{之二=打上}}{\typeout{之二=没打上}}
+  \ifpatchable{\@getpen}{\@Mi}
+    {\typeout{getpen=打上}}{\typeout{getpen=没打上}}
+}
+\TEST{旧命令与内层是两个宏}{
+  \typeout{longbionenumcaption=\meaning\longbionenumcaption}
+  \typeout{内层存在=\ifdefined\hit@long@bicaption 是\else 否\fi}
+}
+\makeatother
+\END
+\end{document}

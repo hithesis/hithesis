@@ -1,0 +1,355 @@
+% \iffalse meta-comment
+%
+% hit-structure.dtx 是文档骨架的部件声明
+%
+% \fi
+%
+% \section{文档骨架}
+%
+% \changes{v3.2a}{2026/08/11}{加 \option{struct} 族与 \cs{hitfrontmatter}、
+%   \cs{hitbackmatter}，规范定死的排列顺序改由类负责}
+% 前置与后置部分的排列顺序是规范定死的：结论在参考文献前，附录在参考文献后，
+% 决议在成果后，授权在索引后。用户没有自由度，却要自己在主文件里抄对二十来行
+% \cs{include}。抄错了不会报错，只会排错。
+%
+% 所以把「哪个部件用哪个文件」做成键，顺序交给类：
+% \begin{latex}
+% \hitsetup{ struct = {
+%   conclusion       = {back/conclusion},
+%   bib              = {reference},
+%   appendix         = {back/appA},
+%   publications     = {back/publications},
+%   acknowledgements = {back/acknowledgements},
+% } }
+% \begin{document}
+% \hitfrontmatter
+% \include{body/ch1}
+% \hitbackmatter
+% \end{document}
+% \end{latex}
+% 没声明的部件不排。\option{defense}、\option{declarations}、\option{contents}
+% 这几样由类自己排，取 \texttt{true} 打开、\texttt{false} 关掉。
+%
+% 原先逐个 \cs{include} 的写法照旧有效，两种可以混着用。
+%
+% 这里只放键与取值的存取，排列顺序写在各个类的 matter 模块里：学位论文走
+% \file{src/flow/hit-thesis-matter.dtx}，报告走 \file{src/flow/hit-report-matter.dtx}。
+% 两个类的基础类不是一个，\cs{frontmatter} 在 \cls{ctexart} 底下根本不存在，
+% 所以骨架宏没法共用一份。
+%    \begin{macrocode}
+%<*shared-structure>
+\clist_const:Nn \c__hit_structure_part_clist
+  {
+    cover , abstract , denotation , contents , mainmatter , bibliography ,
+    appendix , publications , defense , index , declarations ,
+    acknowledgements , resume ,
+  }
+\clist_map_inline:Nn \c__hit_structure_part_clist
+  {
+    \tl_new:c { g__hit_structure_#1_tl }
+    \keys_define:nn { hit / struct }
+      {
+        #1 .tl_gset:c = { g__hit_structure_#1_tl } ,
+        #1 .default:n = { true } ,
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/11}{部件可以写进 \option{frontmatter} 与 \option{backmatter}
+%   两个分组，分组决定这个部件归哪一段；段内部的顺序仍由规范定死。
+%   \option{conclusion} 不再是部件，它是正文的最后一章，写进 \option{mainmatter} 就行}
+% 部件归哪一段。分组只决定归属，不决定次序——段内部的先后是规范定死的那套，
+% 交给用户排会把这个特性当初要消灭的错误原样放回来。
+%
+% 能挪的部件其实很少。封面与摘要压根不是「排在哪」，它们要赶在 \cs{makecover}
+% 之前读进来；参考文献、附录、索引、授权这几样规范写死在后置，彼此还有先后约束。
+% 眼下只有致谢真有两处可去：中文论文排在后置，英文论文习惯排在前置。
+%
+% \cs{\_\_hit\_structure\_declare:nnn}\marg{部件}\marg{默认段}\marg{允许的段}
+% 给每个部件在每个段的族里注册一个键：允许的段里注册真正的设值器，不允许的段里
+% 注册一个报错的，错误文本直接说这个部件能写在哪，省得用户翻手册。
+%    \begin{macrocode}
+\clist_const:Nn \c__hit_structure_section_clist { front , back }
+\cs_new_protected:Npn \__hit_structure_declare:nnn #1#2#3
+  {
+    \tl_new:c { g__hit_structure_#1_section_tl }
+    \tl_gset:cn { g__hit_structure_#1_section_tl } {#2}
+    \tl_new:c { g__hit_structure_#1_written_tl }
+    \clist_map_inline:Nn \c__hit_structure_section_clist
+      {
+        \clist_if_in:nnTF {#3} {##1}
+          {
+            \keys_define:nn { hit / struct / ##1 }
+              { #1 .code:n = { \__hit_structure_place:nnn {#1} {##1} {####1} } }
+          }
+          {
+            \keys_define:nn { hit / struct / ##1 }
+              { #1 .code:n = { \__hit_structure_wrong:nnn {#1} {##1} {#3} } }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 同一个部件写进两个段：警告，后写的赢。键是认识的、意图猜得出来，而且「后设的
+% 覆盖先设的」是模板一以贯之的规矩。提示里两处都点出来，不然用户不知道另一处在哪。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_structure_place:nnn #1#2#3
+  {
+    \tl_if_empty:cF { g__hit_structure_#1_written_tl }
+      {
+        \str_if_eq:eeF { \tl_use:c { g__hit_structure_#1_written_tl } } {#2}
+          {
+            \use:x
+              {
+                \exp_not:N \msg_warning:nnnnn { hithesis } { structure-twice }
+                  { \exp_not:n {#1} }
+                  { \tl_use:c { g__hit_structure_#1_written_tl } }
+                  { \exp_not:n {#2} }
+              }
+          }
+      }
+    \tl_gset:cn { g__hit_structure_#1_written_tl } {#2}
+    \tl_gset:cn { g__hit_structure_#1_section_tl } {#2}
+    \tl_gset:cn { g__hit_structure_#1_tl } {#3}
+  }
+\cs_new_protected:Npn \__hit_structure_wrong:nnn #1#2#3
+  { \msg_error:nnnnn { hithesis } { structure-wrong-section } {#1} {#2} {#3} }
+%    \end{macrocode}
+%
+% 段的族里认不出的键：警告并忽略，跟 \texttt{hit/const} 那边的规矩一致。
+%    \begin{macrocode}
+\clist_map_inline:Nn \c__hit_structure_section_clist
+  {
+    \keys_define:nn { hit / struct / #1 }
+      { unknown .code:n = { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } }
+  }
+\__hit_structure_declare:nnn { cover }            { front } { front }
+\__hit_structure_declare:nnn { abstract }         { front } { front }
+\__hit_structure_declare:nnn { denotation }       { front } { front }
+\__hit_structure_declare:nnn { contents }         { front } { front }
+\__hit_structure_declare:nnn { bibliography }     { back }  { back }
+\__hit_structure_declare:nnn { appendix }         { back }  { back }
+\__hit_structure_declare:nnn { publications }     { back }  { back }
+\__hit_structure_declare:nnn { defense }          { back }  { back }
+\__hit_structure_declare:nnn { index }            { back }  { back }
+\__hit_structure_declare:nnn { declarations }     { back }  { back }
+\__hit_structure_declare:nnn { resume }           { back }  { back }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/13}{\option{defense} 与 \option{declarations} 加带
+%   星号的同名键，取代 \cs{resolution*} 那个可选参数。这两块的三种排法就都在
+%   \option{struct} 里了：\texttt{auto}/\texttt{true}/\texttt{false} 是排出来，
+%   给文件名是贴那个 PDF，带星号的给文件名是贴 PDF 并排页码}
+% 答辩决议与授权书各多一个带星号的键。这两块与别的部件不同，除了「排不排」还有
+% 「贴一份扫描件」这条路，扫描件又分排不排页码，原先靠 \cs{resolution*}\oarg{文件}
+% 表达。现在统一进 \option{struct}：
+% \begin{longtable}{ll}
+% \toprule
+% 写法 & 结果 \\\midrule
+% \endfirsthead
+% \option{defense} = \texttt{auto} & 只有博士排，排版式表格 \\
+% \option{defense} = \texttt{true} & 都排，排版式表格 \\
+% \option{defense} = \texttt{false} & 不排 \\
+% \option{defense} = \meta{文件} & 贴这个 PDF，不排页码 \\
+% \option{defense*} = \meta{文件} & 贴这个 PDF，排页码 \\\bottomrule
+% \end{longtable}
+% \option{declarations} 一样，只是没有 \texttt{auto} 那一档。
+%
+% 带星号那个键存进同一个变量，另外把星号标志位置上，所以两个键写哪个都只有
+% 一份取值，后写的覆盖先写的，与别的部件一个规矩。
+%    \begin{macrocode}
+\bool_new:N \g__hit_structure_defense_star_bool
+\bool_new:N \g__hit_structure_declarations_star_bool
+\keys_define:nn { hit / struct / back }
+  {
+    defense * .code:n =
+      {
+        \bool_gset_true:N \g__hit_structure_defense_star_bool
+        \__hit_structure_place:nnn { defense } { back } {#1}
+      } ,
+    declarations * .code:n =
+      {
+        \bool_gset_true:N \g__hit_structure_declarations_star_bool
+        \__hit_structure_place:nnn { declarations } { back } {#1}
+      } ,
+  }
+%    \end{macrocode}
+%    \begin{macrocode}
+
+\__hit_structure_declare:nnn { acknowledgements } { back }  { front , back }
+\keys_define:nn { hit / struct }
+  {
+    frontmatter .code:n = { \hit@keys@set:nn { hit / struct / front } {#1} } ,
+    backmatter  .code:n = { \hit@keys@set:nn { hit / struct / back  } {#1} } ,
+  }
+%    \end{macrocode}
+%
+% 「写了两遍」只管同一次 \cs{hitsetup}\marg{struct=…} 之内。两次调用先后覆盖是
+% 正常用法——\cs{hitsetup} 本来就是后写的盖先写的，条件只决定这一次做不做，
+% 不改覆盖规则。一份主文件里中文那组先设、英文那组再改几项，就是这么用的。
+% 所以每进一次 \option{struct} 先把「本次写过」的记录清掉。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_structure_reset_written:
+  {
+    \clist_map_inline:Nn \c__hit_structure_part_clist
+      { \tl_if_exist:cT { g__hit_structure_##1_written_tl }
+          { \tl_gclear:c { g__hit_structure_##1_written_tl } } }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@structure@here:nnn}
+% \cs{hit@structure@here:nnn}\marg{部件}\marg{段}\marg{动作}：这个部件设了值、
+% 不是 \texttt{false}、而且归在这一段，才做那个动作。能两处去的部件在两个骨架宏里
+% 各写一次，靠这一层选中其中一处。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@structure@here:nnn #1#2#3
+  {
+    \str_if_eq:eeT { \tl_use:c { g__hit_structure_#1_section_tl } } {#2}
+      { \hit@structure@part:nn {#1} {#3} }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@structure@part:nn}
+% \cs{hit@structure@part:nn}\marg{部件}\marg{动作}：这个部件设了值而且不是
+% \texttt{false} 才做那个动作。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{加 \cs{hit@structure@scanned:nnn}，把「排出来还是
+%   贴扫描件」这个分岔收在一处}
+% 答辩决议与授权书这两块的取值有两种意思：\texttt{auto}/\texttt{true}/\texttt{false}
+% 说的是排不排，别的都当文件名，贴那个 PDF。带星号的键还要排页码。
+%
+% \meta{部件名}\marg{命令名}\marg{排出来的代码}：值不是那三个词就走 \cs{includepdf}
+% 那条路。部件名与命令名分开传：答辩决议那一块的键叫 \option{defense}，
+% 贴扫描件走的却是 v3.1e 就有的 \cs{resolution}，两个名字对不上。
+% 星号看的是同名的星号标志位。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@structure@scanned:nnn #1#2#3
+  {
+    \hit@structure@part:nn {#1}
+      {
+        \exp_args:Nv \__hit_structure_scanned_aux:nnnn
+          { g__hit_structure_#1_tl } {#1} {#2} {#3}
+      }
+  }
+\cs_new_protected:Npn \__hit_structure_scanned_aux:nnnn #1#2#3#4
+  {
+    \str_case:nnF {#1}
+      {
+        { auto } {#4}
+        { true } {#4}
+      }
+      {
+        \bool_if:cTF { g__hit_structure_#2_star_bool }
+          { \use:c {#3} * [#1] }
+          { \use:c {#3} [#1] }
+      }
+  }
+%    \end{macrocode}
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@structure@part:nn #1#2
+  {
+    \tl_if_empty:cF { g__hit_structure_#1_tl }
+      {
+        \str_if_eq:eeF { \tl_use:c { g__hit_structure_#1_tl } } { false }
+          {#2}
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{取文件名的部件写了 \texttt{auto} 时给一句明白话，
+%   不再让它当文件名去找 \file{auto.tex}}
+% \textbf{\texttt{auto} 在哪儿都是安全值。} 开关型的部件（\option{contents}、
+% \option{defense}、\option{declarations}）写 \texttt{auto} 是「让模板决定
+% 排不排」；取文件名的部件写 \texttt{auto} 没有意义，那就说一句、这一块不排，
+% 而不是拿 \texttt{auto} 当文件名去找 \file{auto.tex}——那个报错跟用户写的东西
+% 对不上，看半天看不出问题在哪。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_structure_file:nn #1#2
+  {
+    \hit@structure@part:nn {#1}
+      {
+        \str_if_eq:eeTF { \tl_use:c { g__hit_structure_#1_tl } } { auto }
+          { \msg_warning:nnn { hithesis } { structure-needs-file } {#1} }
+          { \exp_args:Nv #2 { g__hit_structure_#1_tl } }
+      }
+  }
+\cs_new_protected:Npn \hit@structure@include:n #1
+  { \__hit_structure_file:nn {#1} \include }
+\cs_new_protected:Npn \hit@structure@input:n #1
+  { \__hit_structure_file:nn {#1} \input }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/11}{加 \cs{hit@structure@include@list:n}，
+%   给取一串文件名的部件用}
+% \cs{hit@structure@include@list:n}\marg{部件}：取值当逗号分隔的文件名表，逐个
+% \cs{include}。给 \option{mainmatter} 用，那是唯一一个「一个部件对应多个文件」的。
+% 逗号后面的空格由 \pkg{expl3} 的逗号表在解析时去掉，\texttt{\{a,~b,~c\}} 这种
+% 排版好看的写法照认，不用自己再 \cs{tl\_trim\_spaces:n}。
+%
+% 另有一个走 \cs{input} 的版本给报告类：\cs{include} 前后各带一个 \cs{clearpage}，
+% 报告的正文紧接目录排，多一个分页就多一张空白页。学位论文各章本来就要另起一页，
+% 用 \cs{include} 正合适。
+%
+% 文件名不要再套一层 \cs{exp\_args:Nx}：\cs{include} 的参数会进 \cs{csname}，
+% 而 \cs{exp\_args:Nx} 的内部量 \cs{cs\_set\_nopar:Npx} 正好在那里被读到，
+% 报 \texttt{Missing \string\endcsname\space inserted}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@structure@include@list:n #1
+  {
+    \hit@structure@part:nn {#1}
+      {
+        \exp_args:Nv \clist_map_inline:nn { g__hit_structure_#1_tl }
+          { \include {##1} }
+      }
+  }
+\cs_new_protected:Npn \hit@structure@input@list:n #1
+  {
+    \hit@structure@part:nn {#1}
+      {
+        \exp_args:Nv \clist_map_inline:nn { g__hit_structure_#1_tl }
+          { \input {##1} }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%
+% \changes{v3.2a}{2026/08/11}{三个骨架宏可省，没写的由 \cs{AtEndDocument} 补齐}
+% 三个骨架宏可以一个都不写。各部件用哪个文件已经在 \option{struct} 里说清了，
+% 再要用户在正文里按顺序摆三句是重复劳动。
+%
+% 各自记一个标志位，\cs{AtEndDocument} 时把没排过的按前置、正文、后置补上。
+% 写了的照旧在写的位置排——想在两段之间插点别的东西时仍然有地方插。
+%
+% 补的时机是文末，所以「写了正文却没写 \cs{hitmainmatter}」这种混着来的写法，
+% 补出来的正文会落在自己写的内容后面。这是混写的代价，不是这套机制的错。
+%    \begin{macrocode}
+\bool_new:N \g__hit_matter_front_bool
+\bool_new:N \g__hit_matter_main_bool
+\bool_new:N \g__hit_matter_back_bool
+\AtEndDocument
+  {
+    \bool_if:NF \g__hit_matter_front_bool { \hitfrontmatter }
+    \bool_if:NF \g__hit_matter_main_bool  { \hitmainmatter  }
+    \bool_if:NF \g__hit_matter_back_bool  { \hitbackmatter  }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hitfrontmatter,\hitbackmatter}
+% 先占位，各个类在自己的 matter 模块里接管。没接管的话调用会提示，不至于静悄悄
+% 什么都不排。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hitfrontmatter
+  { \msg_warning:nnn { hithesis } { no-structure } { \string \hitfrontmatter } }
+\cs_new_protected:Npn \hitmainmatter
+  { \msg_warning:nnn { hithesis } { no-structure } { \string \hitmainmatter } }
+\cs_new_protected:Npn \hitbackmatter
+  { \msg_warning:nnn { hithesis } { no-structure } { \string \hitbackmatter } }
+%</shared-structure>
+%    \end{macrocode}
+% \end{macro}
+%
+% \Finale

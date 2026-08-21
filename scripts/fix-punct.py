@@ -128,7 +128,7 @@ def default_targets() -> list[Path]:
     """
     globs = [
         "*.md", "*/*.md",
-        "src/hithesis-doc.dtx",
+        "src/manual/hit-manual.dtx",
         "build.lua", "Makefile",
         ".github/workflows/*.yml",
         "scripts/*.py", "scripts/*.sh",
@@ -182,6 +182,8 @@ def main() -> int:
     parser.add_argument("--quotes", choices=["curly", "corner"], default="curly",
                         help="引号风格：curly 用 “”（默认，大陆通行），corner 用 「」")
     parser.add_argument("--changed", action="store_true", help="只处理相对 HEAD 有改动的文件")
+    parser.add_argument("--check", action="store_true",
+                        help="有可改之处就以退出码 1 结束，CI 当门禁用")
     args = parser.parse_args()
 
     if args.files:
@@ -212,6 +214,9 @@ def main() -> int:
         print("没有需要修改的地方。")
     elif args.fix:
         print(f"\n已修改 {total} 行。")
+    elif args.check:
+        print(f"\n共 {total} 行标点不合约定，跑 make punct-fix 修。")
+        return 1
     else:
         print(f"\n共 {total} 行可改。确认无误后加 --fix 写回。")
     return 0

@@ -1,0 +1,89 @@
+% 答辩决议那一页的数据层。排出来长什么样归排版比对管，这里只看数据收对没有。
+%
+% 三件事：同一个键写多遍是不是累加、一条记录解开之后四个字段对不对得上、
+% 少写一个字段是不是只空那一格而不把后面顶错位。
+%
+% 断言一律比对，不打印取到的值。两个原因：xeCJK 把汉字设成活动符，
+% \iow_term:x 会把它们展开掉，打出来是空的；再者含中文的基线行要明显短于
+% 79 字节，见 CONTRIBUTING 的宏级测试那一节。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=doctor,campus=harbin]{hit-thesis}
+\hitsetup{
+  defense = {
+    reviewer  = {name=张三, title=教授, affiliation=哈工大, discipline=机械},
+    reviewer  = {name=李四, title=研究员, affiliation=自动化所, discipline=控制},
+    reviewer  = {name=王五, affiliation=清华},
+    chair     = {name=赵六, title=教授, affiliation=清华, discipline=机械},
+    member    = {name=孙七, title=副教授, affiliation=哈工大, discipline=机械},
+    member    = {name=周八, title=讲师, affiliation=哈工大, discipline=机械},
+    secretary = {name=吴九, title=讲师, affiliation=哈工大, discipline=机械},
+    resolution = {一致同意通过答辩。},
+  },
+}
+\begin{document}
+\START
+% \hit@... 带 @，正文里 @ 不是字母，要自己开 makeatletter
+\makeatletter
+\ExplSyntaxOn
+\tl_new:N \l_want_tl
+\cs_new_protected:Npn \CHECK #1#2#3
+  {
+    \tl_set:Nn \l_want_tl {#3}
+    \iow_term:x { #1 = \tl_if_eq:NNTF #2 \l_want_tl { ok } { WRONG } }
+  }
+% 取到的值要拷成全局变量：\seq_map_indexed_inline:Nn 每轮一个组，
+% 局部赋值出了组就没了，比对得放在组外做。
+\tl_new:N \g_got_name_tl   \tl_new:N \g_got_title_tl
+\tl_new:N \g_got_affi_tl   \tl_new:N \g_got_disc_tl
+\cs_new_protected:Npn \PICK #1#2
+  {
+    \seq_map_indexed_inline:Nn #1
+      {
+        \int_compare:nNnT {##1} = {#2}
+          {
+            \hit@defense@unpack:n {##2}
+            \tl_gset_eq:NN \g_got_name_tl  \l__hit_defense_name_tl
+            \tl_gset_eq:NN \g_got_title_tl \l__hit_defense_title_tl
+            \tl_gset_eq:NN \g_got_affi_tl  \l__hit_defense_affiliation_tl
+            \tl_gset_eq:NN \g_got_disc_tl  \l__hit_defense_discipline_tl
+          }
+      }
+  }
+
+\TEST{same key twice accumulates}{
+  \iow_term:x { reviewer = \seq_count:N \g__hit_defense_reviewer_seq }
+  \iow_term:x { chair = \seq_count:N \g__hit_defense_chair_seq }
+  \iow_term:x { member = \seq_count:N \g__hit_defense_member_seq }
+  \iow_term:x { secretary = \seq_count:N \g__hit_defense_secretary_seq }
+}
+
+\TEST{second record unpacks into four fields}{
+  \PICK \g__hit_defense_reviewer_seq { 2 }
+  \CHECK { name }        \g_got_name_tl { 李四 }
+  \CHECK { title }       \g_got_title_tl { 研究员 }
+  \CHECK { affiliation } \g_got_affi_tl { 自动化所 }
+  \CHECK { discipline }  \g_got_disc_tl { 控制 }
+}
+
+\TEST{missing field leaves only that cell empty}{
+  \PICK \g__hit_defense_reviewer_seq { 3 }
+  \CHECK { name }        \g_got_name_tl { 王五 }
+  \CHECK { title }       \g_got_title_tl { }
+  \CHECK { affiliation } \g_got_affi_tl { 清华 }
+  \CHECK { discipline }  \g_got_disc_tl { }
+}
+
+\TEST{members keep the written order}{
+  \PICK \g__hit_defense_member_seq { 1 }
+  \CHECK { first-member }  \g_got_name_tl { 孙七 }
+  \PICK \g__hit_defense_member_seq { 2 }
+  \CHECK { second-member } \g_got_name_tl { 周八 }
+}
+
+\TEST{resolution text is stored}{
+  \CHECK { resolution } \g__hit_defense_resolution_tl { 一致同意通过答辩。}
+}
+\ExplSyntaxOff
+\makeatother
+\END
+\end{document}

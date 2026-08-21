@@ -1,0 +1,163 @@
+% \iffalse meta-comment
+%
+% hit-option-engine.dtx 是各个类共用的选项声明与判断助手
+%
+% \fi
+%
+% \section{选项机制（engine）}
+%
+% \changes{v3.2a}{2026/08/07}{声明选项的四个助手与一族判断函数抽出来给各个类共用，
+%   原先每个类各写一遍，十五个定义逐字节相同}
+% \changes{v3.2a}{2026/08/07}{删掉 \cs{hit@iffontset} 与 \cs{hit@ifwiderdim}：
+%   两个都一处没调用过，后者与 \cs{hit@if@wider@TF} 定义完全相同}
+% 声明类选项的助手，以及排版代码里用来读标志位的一族判断函数。原先每个类的
+% \texttt{*-options} 模块里各写一遍，十三个定义一字不差。
+%
+% 这个文件只放定义，不执行任何依赖类状态的东西，所以排在类自己的模块之前没关系。
+% 各个类照旧在自己的 \texttt{*-options} 里调用 \cs{hit@define@boolean@option} 这些声明选项。
+%
+%    \begin{macrocode}
+%<*shared-option-engine>
+%    \end{macrocode}
+%
+% 声明选项
+%
+% \cs{hit@define@boolean@option}\marg{名}\marg{默认} 声明一个布尔选项，标志位是
+% \cs{g\_\_hit\_}\meta{名}\cs{\_bool}；\cs{hit@define@string@option}\marg{名} 声明一个存字符串的选项，
+% 存进 \cs{hit@}\meta{名}。键名带连字符时不能直接拿来拼控制序列，
+% \cs{hit@define@string@option@as}\marg{键名}\marg{宏名} 把两者分开。
+%
+% \changes{v3.2a}{2026/08/11}{加 \cs{hit@define@boolean@option@as}，键名与标志位名分开}
+% 布尔选项也有一个分开写的版本
+% \cs{hit@define@boolean@option@as}\marg{键名}\marg{标志位名}\marg{默认}。
+% 改过名的选项要用它：\option{arialtoc} 这个键名留在兼容期，标志位却该按新名
+% \option{toc}/\option{latin-sans} 叫，两套名字指的是同一个开关。
+%
+% \cs{hit@define@choice@option}\marg{键名}\marg{前缀}\marg{取值表}\marg{默认} 声明一组互斥取值，
+% 每个取值一个标志位，选中的置真、其余置假，取值不在表里就报错。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{基础类加载之后再遇到不认识的键就报警告，
+%   不再默默传给基础类}
+% \texttt{hit/class} 族认不出的键有两种来路。基础类还没加载时，那是写在
+% \cs{documentclass} 里给基础类的选项（\option{oneside} 这类），照旧传过去。
+% 基础类加载完之后再出现，只可能是 \cs{hitsetup} 里拼错了键名——这时传给基础类
+% 等于扔掉，所以改成报一条警告。带连字符的键名有一百多个，打错是迟早的事，
+% 静默丢值最难查。
+%    \begin{macrocode}
+\bool_new:N \g__hit_base_class_loaded_bool
+\cs_generate_variant:Nn \msg_warning:nnn { nnV }
+\cs_new_protected:Npn \hit@pass@or@warn #1#2
+  {
+    \bool_if:NTF \g__hit_base_class_loaded_bool
+      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str }
+      {
+        \tl_if_empty:nTF {#2}
+          { \exp_args:NV \PassOptionsToClass \l_keys_key_str {#1} }
+          {
+            \use:x
+              {
+                \exp_not:N \PassOptionsToClass
+                  { \l_keys_key_str = \exp_not:n {#2} } {#1}
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \hit@define@boolean@option #1#2
+  { \hit@define@boolean@option@as {#1} {#1} {#2} }
+\cs_new_protected:Npn \hit@define@boolean@option@as #1#2#3
+  {
+    \bool_new:c { g__hit_#2_bool }
+    \str_if_eq:nnT {#3} { true } { \bool_gset_true:c { g__hit_#2_bool } }
+    \keys_define:nn { hit / class }
+      { #1 .bool_gset:c = { g__hit_#2_bool } , #1 .default:n = { true } }
+  }
+\cs_new_protected:Npn \hit@define@string@option #1 { \hit@define@string@option@as {#1} {#1} }
+\cs_new_protected:Npn \hit@define@string@option@as #1#2
+  {
+    \tl_new:c { hit@#2 }
+    \keys_define:nn { hit / class } { #1 .tl_gset:c = { hit@#2 } }
+  }
+\cs_new_protected:Npn \hit@define@choice@option #1#2#3#4
+  {
+    \clist_map_inline:nn {#3} { \bool_new:c { g__hit_#2##1_bool } }
+    \tl_if_empty:nF {#4} { \bool_gset_true:c { g__hit_#2#4_bool } }
+    \keys_define:nn { hit / class }
+      {
+        #1 .code:n =
+          {
+            \clist_map_inline:nn {#3}
+              { \bool_gset_false:c { g__hit_#2####1_bool } }
+            \bool_if_exist:cTF { g__hit_#2##1_bool }
+              { \bool_gset_true:c { g__hit_#2##1_bool } }
+              { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {##1} }
+          } ,
+      }
+  }
+%    \end{macrocode}
+%
+% 读标志位的判断函数
+%
+% 排版代码里大量出现「按某个标志位二选一」，写成 \cs{bool\_if:cTF} 要带上
+% \cs{g\_\_hit\_}\ldots\cs{\_bool} 这一长串，所以各起了名字。参数是在 \pkg{expl3}
+% 之外记号化的，里面的字面空格照原样保留，含排版内容的判断因此不必整段搬进
+% \pkg{expl3}。
+%
+% 名字末尾的 \texttt{@TF} 表示真假两个分支都要给，\texttt{@T} 表示只有真分支。
+% \cs{hit@if@option@TF}\marg{名}\marg{真}\marg{假} 读一个布尔选项的标志位，
+% \cs{hit@if@both@options@TF}\marg{名}\marg{名}\marg{真}\marg{假} 要两个同时成立，
+%
+% \changes{v3.2a}{2026/08/10}{\cs{hit@if@not@empty@T}、\cs{hit@if@wider@TF}、
+%   \cs{hit@if@greater@T} 删掉。三个都只是 \cs{tl\_if\_empty:NF}、
+%   \cs{dim\_compare:nNnTF}、\cs{int\_compare:nNnT} 的别名，类文件整份都在
+%   \pkg{expl3} 里，包一层什么也没多做，调用处直接写 \pkg{expl3} 的写法}
+% \changes{v3.2a}{2026/08/10}{\cs{hit@if@same@TF} 挪到
+%   \file{src/flow/hit-thesis-heading.dtx}。它跟选项无关，三处调用也都在那个文件里}
+%    \begin{macrocode}
+\cs_new:Npn \hit@if@option@TF #1#2#3 { \bool_if:cTF { g__hit_#1_bool } {#2} {#3} }
+\cs_new:Npn \hit@if@option@T #1#2 { \bool_if:cT { g__hit_#1_bool } {#2} }
+\cs_new:Npn \hit@if@both@options@TF #1#2#3#4
+  {
+    \bool_lazy_and:nnTF
+      { \bool_if_p:c { g__hit_#1_bool } } { \bool_if_p:c { g__hit_#2_bool } } {#3} {#4}
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{按校区、学位、阶段组合出来的具名判断改由
+%   \cs{hit@define@condition} 生成。原先每条手写十来行 \cs{bool\_lazy\_all:nTF} 样板，
+%   十一条一百二十多行，实际只有十一处调用}
+% \cs{hit@define@condition}\marg{名}\marg{布尔表达式} 造一对判断：
+% \cs{hit@if@}\meta{名} 只有真分支，\cs{hit@if@}\meta{名}\texttt{@TF} 两个分支都有。
+% 表达式用 \pkg{expl3} 的布尔写法，\texttt{\&\&}、\texttt{||}、\texttt{!} 与括号都能用。
+%
+% 名字里的词用 \texttt{@} 分隔、一个都不缩写，虚词也留着（\texttt{harbin@master@or@doctor}）。
+% 控制序列里不能用连字符，\texttt{@} 是这里的等价物。
+%
+% 判断本身各个类不一样（\file{hit-thesis.cls} 没有阶段，报告类没有博后），所以
+% 生成器放这里，具体声明留在各个类的 \texttt{*-options} 模块，一条一行。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@define@condition #1#2
+  {
+    \cs_new:cpn { hit@if@#1 } ##1 { \bool_if:nT {#2} {##1} }
+    \cs_new:cpn { hit@if@#1 @TF } ##1##2 { \bool_if:nTF {#2} {##1} {##2} }
+  }
+%    \end{macrocode}
+%
+% \option{style/glue} 开时给标题前后距与行距一个伸缩量，关时是固定值。这两个函数
+% 把原地重复过二十多次的判断收成一处。
+%    \begin{macrocode}
+\cs_new:Npn \hit@glue@skip #1#2
+  { \bool_if:NTF \g__hit_glue_bool { #1~plus~#2~minus~0bp } { #1 } }
+\cs_new:Npn \hit@glue@font@size #1#2#3
+  {
+    \bool_if:NTF \g__hit_glue_bool
+      { \fontsize {#1} { #2~plus~#3 } } { \fontsize {#1} {#2} }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</shared-option-engine>
+%    \end{macrocode}
+%
+% \Finale

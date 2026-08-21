@@ -1,0 +1,90 @@
+# 每个第三方宏包归哪儿、为什么。scripts/check-deps.py 拿这份跟代码比对。
+#
+# 格式：一行一个包
+#   包名  位置  理由
+#
+# 位置可以是：
+#   deps          src/flow/hit-thesis-deps.dtx 或 src/flow/hit-report-deps.dtx
+#   sty           src/hit-sty.dtx，出 hithesis.sty
+#   <相对路径>    src/ 下某个模块自己加载
+# 一个包在多处加载就用 + 连起来，每处都得是有意为之，写进理由里。
+#
+# 分家的三条规矩：
+#   \RequirePackage 之后类自己不调，纯粹替用户预装  → sty
+#   类自己调，两个以上模块调                          → deps
+#   类自己调，只有一个模块调                          → 那个模块自己 \RequirePackage
+#
+# 加了新包却没在这里交代，check-deps 会点名。空行与 # 开头的行忽略。
+
+# ---- 替用户预装：类里一处都不调 ------------------------------------------
+algorithm2e   sty   算法环境，类不调；报告类没有 chapter 计数器，那边整段跳过
+bm            sty   \bm 粗体数学，类只提供 \boldsymbol，两者不等价
+lipsum        sty   填充文字，只有深圳博士中期那份示例正文用
+listings       sty   代码环境，类不调
+mathrsfs      sty   \mathscr 花体，不装它会跟 \mathcal 同形
+multirow      sty   \multirow 合并表格纵向单元格，类不调
+placeins      sty   \FloatBarrier，类不调；不传 section 选项就不会自动插栏栅
+rotating      sty   图表旋转，类不调
+siunitx       sty   数字分组空格，落实规范里 4 位以上每 3 位空 1/4 汉字
+
+# ---- 多模块共用：deps ------------------------------------------------------
+booktabs      deps  三线表，utils/hit-table.dtx 与示例正文都要
+ccaption      deps  \bicaption 双语题注，utils/hit-caption.dtx 与浮动体模块都要
+flafter       deps  没有对外的宏，装上就重定义内核 \@addtocurcol，类的浮动体排版依赖它
+graphicx      deps  封面、决议页、声明页插图
+longtable     deps  长表格，摘要页、符号表、示例正文都要
+pdfpages      deps  \includepdf 插扫描件，声明页与决议页都要
+subcaption    deps  子图，必须早于 ccaption
+tabularx      deps  等宽列表格，封面与数学模块都要
+xcolor        deps  彩色，封面与目录都要
+xltabular     deps  可跨页的 tabularx
+xeCJKfntef    deps  分散对齐 \hit@spread@to 的底层 CJKfilltwosides，两个类都用；
+                    utils/hit-spread.dtx 排在 \LoadClass 之前，那里装不了包
+tikz          deps+pages/hit-report-cover.dtx
+                    正文图形放 deps；报告类只在深圳博士中期那份封面用，
+                    跟 eso-pic 一起由封面自己装
+layout        deps  只在 debug 选项下加载，给维护者看版心
+layouts       deps  同 layout
+lineno        deps  同 layout
+splitidx      deps  唯一消费者是紧跟其后的两句 \newindex。后置页
+                    pages/hit-thesis-backmatter.dtx 在装配序列上比 deps 早，
+                    搬过去撞 Undefined control sequence，试过了
+
+# ---- 单一模块自己加载 ------------------------------------------------------
+amsmath       utils/hit-math.dtx               数学基础
+amssymb       utils/hit-math.dtx               数学符号
+amsthm        utils/hit-math.dtx               定理机制
+thmtools      utils/hit-math.dtx               定理声明
+newtxmath     utils/hit-math.dtx               8 位数学字体
+unicode-math  utils/hit-math.dtx               Unicode 数学字体
+caption       flow/hit-report-float.dtx        题注格式，报告类的浮动体模块装
+changepage    pages/hit-thesis-backmatter.dtx  索引页要比正文更宽的边距
+multicol      pages/hit-thesis-backmatter.dtx  索引页双栏
+circledsteps  utils/hit-footnote.dtx           带圈数字，超出字体可用范围时画圈
+footmisc      utils/hit-footnote.dtx           脚注按页编号
+etoolbox      setup/hit-keylist.dtx            \AfterPreamble 与 \ifdefempty；
+                                               utils/hit-caption.dtx 的 \patchcmd 也用它，
+                                               那边排在 \LoadClass 前，装不了包
+eso-pic       pages/hit-report-cover.dtx       深圳博士中期封面往整页贴图形
+tikzpagenodes pages/hit-report-cover.dtx       同 eso-pic，取整页的坐标
+gbt7714       pages/hit-thesis-bib.dtx         学位论文的参考文献样式，导言区末尾才装
+natbib        pages/hit-report-bib.dtx         报告类的参考文献样式，导言区末尾才装
+biblatex      utils/hit-bibstyle.dtx           bib 的 backend=biber 一线，设了那个键才装
+glossaries    flow/hit-thesis-glossary.dtx     术语与符号表
+glossaries-extra flow/hit-thesis-glossary.dtx  同上
+hyperref      utils/hit-hyperlink.dtx          超链接，装配序列上落到所有包之后
+tocloft       pages/hit-report-toc.dtx         报告类的目录版式
+tabularray    pages/hit-thesis-resolution.dtx  答辩决议那一页的名单表
+tcolorbox     pages/hit-thesis-resolution.dtx  答辩决议那一页的决议区框线
+
+# ---- 一个包多处加载：都是有意的，写清各处为什么 ----------------------------
+fancyhdr      flow/hit-report-pagestyle.dtx+flow/hit-thesis-pagestyle.dtx
+                    页眉页脚。两个类各有各的页眉模块，各装各的
+geometry      flow/hit-report-geometry.dtx+flow/hit-thesis-geometry.dtx
+                    版心。同上，两个类的版心规范不同
+ifthen        setup/hit-report-options.dtx+setup/hit-thesis-options.dtx
+                    选项后处理里的 \ifthenelse，两个类各一份选项文件
+enumitem      pages/hit-thesis-abstract.dtx+pages/hit-thesis-appendix.dtx+utils/hit-list.dtx
+                    utils/hit-list.dtx 里那次包在 \hit@setup@list@packages 里，
+                    由 deps 调用，位置偏后；摘要页与附录页在它之前就要 \setlist，
+                    各自先装一次

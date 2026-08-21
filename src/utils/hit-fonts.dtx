@@ -1,0 +1,618 @@
+% \iffalse meta-comment
+%
+% hit-fonts.dtx 是各个类共用的字体层
+%
+% \fi
+%
+% \section{共享字体层}
+%
+% \changes{v3.2a}{2026/08/07}{字体设置合成一份共享层，各个类共用}
+% \changes{v3.2a}{2026/08/07}{新增 \option{font-en} 与 \option{font-zh}，西文与中文
+%   字体可以分别指定，不再只能整体转给 \pkg{ctex}}
+% \changes{v3.2a}{2026/08/07}{废弃模板自带的 \texttt{siyuan} fontset，改用
+%   \option{font-zh} 取 \texttt{ubuntu}}
+% 各个类共用的字体设置。西文与中文各由 \option{font-en} 与 \option{font-zh} 决定，
+% 并提供了一套中文字号命令（字号没有统一规定，\hithesis{} 与 \CTeX、MS~Word、
+% WPS、Adobe 的选择一致）。
+%
+% 本文件排在每个 \cs{file} 列表的第二位，此时 \pkg{fontspec} 与 \pkg{xeCJK} 尚未
+% 加载，所以只做声明，要执行的放进 \cs{hit@setup@fonts}，由各个类调用。
+%
+%    \begin{macrocode}
+%<*shared-fonts>
+\bool_new:N \g__hit_platform_mac_bool
+\str_new:N \l__hit_font_en_str
+\str_new:N \l__hit_font_zh_str
+\cs_new_protected:Npn \hit@setup@fonts
+  {
+%    \end{macrocode}
+%
+% 平台探测。\pkg{expl3} 只能判断是不是 Windows，macOS 看系统字体文件在不在。
+%    \begin{macrocode}
+\sys_if_platform_unix:T
+  {
+    \file_if_exist:nT { /System/Library/Fonts/Menlo.ttc }
+      { \bool_gset_true:N \g__hit_platform_mac_bool }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{\option{font-en} 取 \texttt{auto} 时改为除开源字体集外
+%   一律优先 Times New Roman，原先 \texttt{adobe} 与 \texttt{founder} 拿不到}
+% \option{font-en} 取 \texttt{auto} 时，\option{fontset} 是开源字体集
+% （\texttt{fandol}、\texttt{ubuntu}）就用 TeX Gyre Termes，其余优先
+% Times New Roman，找不到再退回。
+%    \begin{macrocode}
+% \changes{v3.2a}{2026/08/21}{\cs{str\_case:enF} 换成先落寄存器再
+%   \cs{str\_case:VnF}。前者是 \pkg{expl3} 较新的 \texttt{e} 展开变体，
+%   \TeX~Live 2022 上不存在，那句直接 Undefined control sequence，
+%   \option{font-en} 解析不出来仍是 \texttt{auto}，接着报「取值无效」，
+%   整份文档在导言区就塌了（CI 上 2022--2025 四个版本的宏级测试全灭）}
+\str_new:N \l__hit_font_set_str
+\str_set:Nx \l__hit_font_en_str { \hit@font@en }
+\str_if_eq:VnT \l__hit_font_en_str { } { \str_set:Nn \l__hit_font_en_str { auto } }
+\str_if_eq:VnT \l__hit_font_en_str { auto }
+  {
+    \str_set:Nx \l__hit_font_set_str { \hit@fontset }
+    \str_case:VnF \l__hit_font_set_str
+      {
+        { fandol } { \str_set:Nn \l__hit_font_en_str { termes } }
+        { ubuntu } { \str_set:Nn \l__hit_font_en_str { termes } }
+      }
+      { \str_set:Nn \l__hit_font_en_str { times } }
+  }
+\str_if_eq:VnT \l__hit_font_en_str { times }
+  {
+    \fontspec_font_if_exist:nF { Times~New~Roman }
+      { \str_set:Nn \l__hit_font_en_str { termes } }
+  }
+\cs_new_protected:Npn \__hit_set_font_en_times:
+  {
+    \setmainfont { Times~New~Roman }
+    \setsansfont { Arial }
+    \setmonofont { Courier~New } [ Scale = MatchLowercase ]
+  }
+\cs_new_protected:Npn \__hit_set_font_en_termes:
+  {
+    \setmainfont { TeXGyreTermesX }
+      [
+        UprightFont    = *-Regular ,
+        BoldFont       = *-Bold ,
+        ItalicFont     = *-Italic ,
+        BoldItalicFont = *-BoldItalic ,
+        Extension      = .otf ,
+      ]
+    \setsansfont { texgyreheros }
+      [
+        UprightFont    = *-regular ,
+        BoldFont       = *-bold ,
+        ItalicFont     = *-italic ,
+        BoldItalicFont = *-bolditalic ,
+        Extension      = .otf ,
+      ]
+    \setmonofont { texgyrecursor }
+      [
+        UprightFont    = *-regular ,
+        BoldFont       = *-bold ,
+        ItalicFont     = *-italic ,
+        BoldItalicFont = *-bolditalic ,
+        Extension      = .otf ,
+      ]
+  }
+\cs_new_protected:Npn \__hit_set_font_en_none: { }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{\option{font-en} 取值无效时报错，原先被 \cs{use:c}
+%   静默吞掉，拼错的人拿到一份没设西文字体的文档}
+% 取值无效时报错。
+% \changes{v3.2a}{2026/08/15}{记下西文字体那一档的重设入口，供
+%   \option{grid}/\option{chars}/\option{latin} 用}
+% 顺手把「再设一遍西文字体」这件事封成 \cs{hit@fonts@redo@en:}。
+% \option{layout}/\option{grid}/\option{chars}/\option{latin} 要给西文字母加字间距，而
+% \pkg{fontspec} 的字体特性只能在声明字体时给，那个键又要等到导言区才知道。
+% 解法是在导言区末尾把选中的那一档\emph{原样再调一次}，调之前用
+% \cs{defaultfontfeatures} 把特性塞进去。不抄那三句 \cs{setmainfont}——
+% 抄了以后那边一改这边就漂。
+%    \begin{macrocode}
+\cs_if_exist:cTF { __hit_set_font_en_ \l__hit_font_en_str : }
+  {
+    \use:c { __hit_set_font_en_ \l__hit_font_en_str : }
+    \cs_new_protected:Npn \hit@fonts@redo@en:
+      { \use:c { __hit_set_font_en_ \l__hit_font_en_str : } }
+  }
+  { \msg_error:nnx { hithesis } { font-en-unknown } { \l__hit_font_en_str } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{加 \texttt{windows-local} 与 \texttt{mac-word}
+%   两档，按文件路径加载中易字体。做法照抄 \pkg{thuthesis}}
+% 两档按\emph{文件路径}加载中易字体，给「字体文件在、但 fontconfig 没登记」
+% 的场合用：\texttt{windows-local} 读 \option{windows-font-dir} 指的目录
+% （默认当前目录，用户把 \file{Simsun.ttc} 之类拷在文稿旁边就能用），
+% \texttt{mac-word} 读 macOS 上 Microsoft Word 自带的那个字体目录。
+%
+% 文件名两套都试：新一点的 Windows 是 \file{Kaiti.ttf}、\file{Fangsong.ttf}，
+% 老的是 \file{Simkai.ttf}、\file{Simfang.ttf}。
+%
+% 这一段的结构与文件名取自 \pkg{thuthesis}（LPPL，同许可证）。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_font_mac_word_dir_tl
+  { /Applications/Microsoft~Word.app/Contents/Resources/DFonts }
+\cs_new_protected:Npn \__hit_set_font_zh_by_dir:n ##1
+  {
+    \file_if_exist:nTF { ##1 /Kaiti.ttf }
+      {
+        \setCJKmainfont { SimSun }
+          [ Path = ##1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKsansfont { SimHei }
+          [ Path = ##1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKmonofont { Fangsong } [ Path = ##1 / , Extension = .ttf ]
+        \setCJKfamilyfont { zhsong } { SimSun }
+          [ Path = ##1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKfamilyfont { zhhei } { SimHei }
+          [ Path = ##1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKfamilyfont { zhkai } { Kaiti } [ Path = ##1 / , Extension = .ttf ]
+        \setCJKfamilyfont { zhfs } { Fangsong } [ Path = ##1 / , Extension = .ttf ]
+      }
+      {
+        \setCJKmainfont { SimSun }
+          [ Path = ##1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKsansfont { SimHei }
+          [ Path = ##1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKmonofont { Simfang } [ Path = ##1 / , Extension = .ttf ]
+        \setCJKfamilyfont { zhsong } { SimSun }
+          [ Path = ##1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKfamilyfont { zhhei } { SimHei }
+          [ Path = ##1 / , Extension = .ttc , AutoFakeBold = true ]
+        \setCJKfamilyfont { zhkai } { Simkai } [ Path = ##1 / , Extension = .ttf ]
+        \setCJKfamilyfont { zhfs } { Simfang } [ Path = ##1 / , Extension = .ttf ]
+      }
+  }
+\cs_new_protected:cpn { __hit_set_font_zh_windows-local: }
+  { \exp_args:Nx \__hit_set_font_zh_by_dir:n { \hit@windows@font@dir } }
+\cs_new_protected:cpn { __hit_set_font_zh_mac-word: }
+  { \exp_args:NV \__hit_set_font_zh_by_dir:n \c__hit_font_mac_word_dir_tl }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_set_font_zh_windows:
+  {
+    \setCJKmainfont { SimSun } [ AutoFakeBold = true ]
+    \setCJKsansfont { SimHei } [ AutoFakeBold = true ]
+    \setCJKmonofont { FangSong }
+    \setCJKfamilyfont { zhsong } { SimSun } [ AutoFakeBold = true ]
+    \setCJKfamilyfont { zhhei }  { SimHei } [ AutoFakeBold = true ]
+    \setCJKfamilyfont { zhkai }  { KaiTi }
+    \setCJKfamilyfont { zhfs }   { FangSong }
+  }
+\cs_new_protected:Npn \__hit_set_font_zh_mac:
+  {
+    \defaultCJKfontfeatures { AutoFakeSlant = 0.3333 }
+    \setCJKmainfont { Songti~SC }
+      [
+        UprightFont    = *~Light ,
+        BoldFont       = *~Bold ,
+      ]
+    \setCJKsansfont { Heiti~SC } [ UprightFont = *~Light , BoldFont = *~Medium ]
+    \setCJKmonofont { STFangsong }
+    \setCJKfamilyfont { zhsong } { Songti~SC }
+      [ UprightFont = *~Light , BoldFont = *~Bold ]
+    \setCJKfamilyfont { zhhei } { Heiti~SC }
+      [ UprightFont = *~Light , BoldFont = *~Medium ]
+    \setCJKfamilyfont { zhfs }  { STFangsong }
+    \setCJKfamilyfont { zhkai } { Kaiti~SC }
+      [ UprightFont = *~Regular , BoldFont = *~Bold ]
+  }
+\cs_new_protected:Npn \__hit_set_font_zh_ubuntu:
+  {
+    \defaultCJKfontfeatures { AutoFakeSlant = 0.3333 }
+    \setCJKmainfont { Noto~Serif~CJK~SC }
+      [
+        UprightFont    = *~Light ,
+        BoldFont       = *~Bold ,
+        Script         = CJK ,
+      ]
+    \setCJKsansfont { Noto~Sans~CJK~SC } [ BoldFont = *~Medium , Script = CJK ]
+    \setCJKmonofont { Noto~Sans~Mono~CJK~SC } [ Script = CJK ]
+    \setCJKfamilyfont { zhsong } { Noto~Serif~CJK~SC }
+      [ UprightFont = *~Light , BoldFont = *~Bold , Script = CJK ]
+    \setCJKfamilyfont { zhhei } { Noto~Sans~CJK~SC }
+      [ BoldFont = *~Medium , Script = CJK ]
+    \fontspec_font_if_exist:nTF { LXGWZhuqueFangsong-Regular.ttf }
+      {
+        \setCJKmonofont { LXGWZhuqueFangsong-Regular.ttf }
+        \setCJKfamilyfont { zhfs } { LXGWZhuqueFangsong-Regular.ttf }
+      }
+      {
+        \setCJKfamilyfont { zhfs } { FandolFang } [ Extension = .otf , UprightFont = *-Regular ]
+      }
+    \fontspec_font_if_exist:nTF { AR~PL~KaitiM~GB }
+      { \setCJKfamilyfont { zhkai } { AR~PL~KaitiM~GB } }
+      { \setCJKfamilyfont { zhkai } { FandolKai } [ Extension = .otf , UprightFont = *-Regular ] }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{新增 \texttt{hanyi} 一档，跟 \pkg{ctex} 2.6.4 的
+%   同名 fontset 一致}
+% 汉仪。\pkg{ctex} 2.6.4（2026）新加的一档。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_set_font_zh_hanyi:
+  {
+    \defaultCJKfontfeatures { AutoFakeSlant = 0.3333 }
+    \setCJKmainfont { HYShuSongEr~S }
+      [ BoldFont = HYZhongSong~S ]
+    \setCJKsansfont { HYZhongHei~S } [ BoldFont = HYDaHei~S ]
+    \setCJKmonofont { HYFangSong~S }
+    \setCJKfamilyfont { zhsong } { HYShuSongEr~S } [ BoldFont = HYZhongSong~S ]
+    \setCJKfamilyfont { zhhei }  { HYZhongHei~S }  [ BoldFont = HYDaHei~S ]
+    \setCJKfamilyfont { zhkai }  { HYKaiTi~S }
+    \setCJKfamilyfont { zhfs }   { HYFangSong~S }
+  }
+\cs_new_protected:Npn \__hit_set_font_zh_fandol:
+  {
+    \defaultCJKfontfeatures { AutoFakeSlant = 0.3333 }
+    \setCJKmainfont { FandolSong }
+      [
+        Extension      = .otf ,
+        UprightFont    = *-Regular ,
+        BoldFont       = *-Bold ,
+      ]
+    \setCJKsansfont { FandolHei } [ Extension = .otf , UprightFont = *-Regular , BoldFont = *-Bold ]
+    \setCJKmonofont { FandolFang } [ Extension = .otf , UprightFont = *-Regular ]
+    \setCJKfamilyfont { zhsong } { FandolSong }
+      [ Extension = .otf , UprightFont = *-Regular , BoldFont = *-Bold ]
+    \setCJKfamilyfont { zhhei } { FandolHei }
+      [ Extension = .otf , UprightFont = *-Regular , BoldFont = *-Bold ]
+    \setCJKfamilyfont { zhfs }  { FandolFang } [ Extension = .otf , UprightFont = *-Regular ]
+    \setCJKfamilyfont { zhkai } { FandolKai }  [ Extension = .otf , UprightFont = *-Regular ]
+  }
+%    \end{macrocode}
+%
+% Adobe 与方正两档。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_set_font_zh_adobe:
+  {
+    \defaultCJKfontfeatures { AutoFakeSlant = 0.3333 }
+    \setCJKmainfont { AdobeSongStd-Light }
+      [ BoldFont = AdobeHeitiStd-Regular ]
+    \setCJKsansfont { AdobeHeitiStd-Regular }
+    \setCJKmonofont { AdobeFangsongStd-Regular }
+    \setCJKfamilyfont { zhsong } { AdobeSongStd-Light }
+    \setCJKfamilyfont { zhhei }  { AdobeHeitiStd-Regular }
+    \setCJKfamilyfont { zhfs }   { AdobeFangsongStd-Regular }
+    \setCJKfamilyfont { zhkai }  { AdobeKaitiStd-Regular }
+  }
+\cs_new_protected:Npn \__hit_set_font_zh_founder:
+  {
+    \defaultCJKfontfeatures { AutoFakeSlant = 0.3333 }
+    \setCJKmainfont { FZShuSong-Z01 }
+      [ BoldFont = FZXiaoBiaoSong-B05 ]
+    \setCJKsansfont { FZXiHeiI-Z08 } [ BoldFont = FZHei-B01 ]
+    \setCJKmonofont { FZFangSong-Z02 }
+    \setCJKfamilyfont { zhsong } { FZShuSong-Z01 } [ BoldFont = FZXiaoBiaoSong-B05 ]
+    \setCJKfamilyfont { zhhei }  { FZHei-B01 }
+    \setCJKfamilyfont { zhfs }   { FZFangSong-Z02 }
+    \setCJKfamilyfont { zhkai }  { FZKai-Z03 }
+  }
+\cs_new_protected:Npn \__hit_set_font_zh_none: { }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{中文的斜体改用 \texttt{AutoFakeSlant}，不再拿楷体顶。
+%   楷体仍旧由 \cs{kaishu} 与 \texttt{zhkai} 字族提供}
+% \changes{v3.2a}{2026/08/07}{\texttt{ubuntu} 一档的仿宋与楷体跟 \pkg{ctex} 2.6.4
+%   对齐：仿宋用霞鹜朱雀、楷体用 \texttt{AR~PL~KaitiM~GB}，都是装了才用，没装退回
+%   Fandol。\pkg{ctex} 的同名 fontset 是硬指定，缺字体直接报错，这里不这么做}
+% 中文字体。不写 \option{font-zh} 则整块跳过，字体由 \pkg{ctex} 按
+% \option{fontset} 设置。取值一律沿用 \pkg{ctex} 的 fontset 名。
+%
+% \changes{v3.2a}{2026/08/15}{伪斜体收进 \cs{defaultCJKfontfeatures}，每一档字体
+%   方案的每一个字族都有了；\texttt{windows-local} 与 \texttt{mac-word} 两档原先
+%   用楷体当斜体，一并改掉}
+% \changes{v3.2a}{2026/08/15}{伪斜体的倾斜因子从 \pkg{xeCJK} 的默认 0.167 改成
+%   0.3333，与 Word 一致}
+% 斜体走 \texttt{AutoFakeSlant}，倾斜因子 0.3333，也就是 18.43 度。这个数是量
+% 出来的：拿 Word 排一段宋体与黑体的斜体导成 PDF，两处的文本矩阵都是
+% \texttt{24 0 7.9992 24}，斜切量 $7.9992 / 24 = 0.3333$。\pkg{xeCJK} 自己的默认值
+% （\file{xeCJK.sty} 里 \texttt{SlantFactor} 的初值）是 0.167，只有一半，排出来
+% 明显比 Word 正。
+%
+% 西文不走这一条。Word 对西文用的是字体自带的斜体面（量到的是
+% \texttt{TimesNewRomanPS-ItalicMT}，矩阵不带斜切），模板这边也一样，
+% 见上面 \cs{\_\_hit\_set\_font\_en\_times:} 与 \cs{\_\_hit\_set\_font\_en\_termes:}
+% 里的 \texttt{ItalicFont}。
+% \pkg{ctex} 与多数中文模板是把楷体指定成斜体，这里不这么做：楷体是独立的一族，
+% 由 \cs{kaishu} 显式选用，不该被 \cs{textit} 顺带占掉。
+%
+% 这一句写在 \cs{defaultCJKfontfeatures} 里，不是逐个字族去写。八档字体方案
+% 一共六十多处 \cs{setCJKfamilyfont}，逐个写等于把同一条策略抄六十多遍，
+% 加一档新字体就会漏。原先只有各档的\emph{正文}字体带这个特性，于是
+% \verb|\textit{中文}| 是斜的，\verb|\heiti\textit{中文}| 不斜，
+% \verb|\songti\textit{中文}| 也不斜——正文字体与 \texttt{zhsong} 是两次声明。
+%
+% 六档在开头调 \cs{defaultCJKfontfeatures} 清掉 \pkg{ctex} 留下的特性，
+% 所以那六处也要带上这一句，不能只在派发前设一次。
+%    \begin{macrocode}
+\str_set:Nx \l__hit_font_zh_str { \hit@font@zh }
+\str_if_eq:VnF \l__hit_font_zh_str { }
+  {
+    \str_if_eq:VnT \l__hit_font_zh_str { auto }
+      {
+        \str_set:Nx \l__hit_font_set_str { \hit@fontset }
+        \str_case:VnF \l__hit_font_set_str
+          {
+            { windows } { \str_set:Nn \l__hit_font_zh_str { windows } }
+            { mac }     { \str_set:Nn \l__hit_font_zh_str { mac } }
+            { ubuntu }  { \str_set:Nn \l__hit_font_zh_str { ubuntu } }
+            { fandol }  { \str_set:Nn \l__hit_font_zh_str { fandol } }
+            { adobe }   { \str_set:Nn \l__hit_font_zh_str { adobe } }
+            { founder } { \str_set:Nn \l__hit_font_zh_str { founder } }
+            { hanyi }   { \str_set:Nn \l__hit_font_zh_str { hanyi } }
+          }
+          {
+            \sys_if_platform_windows:TF
+              { \str_set:Nn \l__hit_font_zh_str { windows } }
+              {
+                \fontspec_font_if_exist:nTF { SimSun }
+                  { \str_set:Nn \l__hit_font_zh_str { windows } }
+                  {
+                    \file_if_exist:nTF
+                      { \hit@windows@font@dir /Simsun.ttc }
+                      { \str_set:Nn \l__hit_font_zh_str { windows-local } }
+                      {
+                        \file_if_exist:nTF
+                          { \c__hit_font_mac_word_dir_tl /Simsun.ttc }
+                          { \str_set:Nn \l__hit_font_zh_str { mac-word } }
+                          {
+                            \bool_if:NTF \g__hit_platform_mac_bool
+                              { \str_set:Nn \l__hit_font_zh_str { mac } }
+                              {
+                                \fontspec_font_if_exist:nTF { Noto~Serif~CJK~SC }
+                                  { \str_set:Nn \l__hit_font_zh_str { ubuntu } }
+                                  { \str_set:Nn \l__hit_font_zh_str { fandol } }
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+      }
+    \defaultCJKfontfeatures { AutoFakeSlant = 0.3333 }
+    \cs_if_exist:cTF { __hit_set_font_zh_ \l__hit_font_zh_str : }
+      { \use:c { __hit_set_font_zh_ \l__hit_font_zh_str : } }
+      { \msg_error:nnx { hithesis } { font-zh-unknown } { \l__hit_font_zh_str } }
+%    \end{macrocode}
+%
+% 字体由模板设置时传给 \pkg{ctex} 的是 \texttt{fontset=none}，这四个命令
+% \pkg{ctex} 不会定义，要自己补。
+%    \begin{macrocode}
+    \cs_set_protected:Npn \songti { \CJKfamily { zhsong } }
+    \cs_set_protected:Npn \heiti { \CJKfamily { zhhei } }
+    \cs_set_protected:Npn \fangsong { \CJKfamily { zhfs } }
+    \cs_set_protected:Npn \kaishu { \CJKfamily { zhkai } }
+  }% \str_if_eq:VnF \l__hit_font_zh_str { } 到此为止
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/08}{把中文里常用的几个几何符号归成汉字，原先它们去找西文
+%   字体，字体里没有就整个排丢了}
+% \pkg{xeCJK} 按 Unicode 区块分中西文，「几何图形」这一块归了西文，于是中文正文里
+% 写 \texttt{□}（规范原文用它占位，如「攻读□士学位」）会去找西文字体，
+% \pkg{TeX~Gyre~Termes} 里没有这个字，整个字就排丢了——不是排成豆腐块，是什么都
+% 没有，只在日志里留一句 Missing character。归成汉字之后从中文字体取，正常排出来。
+%    \begin{macrocode}
+    \clist_map_inline:nn { "25A1 , "25A0 , "25CB , "25CF , "25B3 , "25B2 }
+      { \xeCJKDeclareCharClass { CJK } { ##1 } }
+  }% \hit@setup@fonts 到此为止
+%    \end{macrocode}
+%
+% MS~Word 里的 1\,pt 就是 \hologo{LaTeX} 里的 1\,bp，而 1\,bp 等于 \hologo{LaTeX} 里的
+% 72.27/72\,pt。所以 Word 上看到的磅数，在这里直接写成 bp 即可。对照如下：
+% \begin{center}
+% \begin{tabular}{llll}
+% \toprule
+% 初号 & 42bp & 14.82mm & 42.1575pt \\
+% 小初 & 36bp & 12.70mm & 36.135 pt \\
+% 一号 & 26bp & 9.17mm & 26.0975pt \\
+% 小一 & 24bp & 8.47mm & 24.09pt \\
+% 二号 & 22bp & 7.76mm & 22.0825pt \\
+% 小二 & 18bp & 6.35mm & 18.0675pt \\
+% 三号 & 16bp & 5.64mm & 16.06pt \\
+% 小三 & 15bp & 5.29mm & 15.05625pt \\
+% 四号 & 14bp & 4.94mm & 14.0525pt \\
+% 小四 & 12bp & 4.23mm & 12.045pt \\
+% 五号 & 10.5bp & 3.70mm & 10.59375pt \\
+% 小五 & 9bp & 3.18mm & 9.03375pt \\
+% 六号 & 7.5bp & 2.56mm & \\
+% 小六 & 6.5bp & 2.29mm & \\
+% 七号 & 5.5bp & 1.94mm & \\
+% 八号 & 5bp & 1.76mm & \\\bottomrule
+% \end{tabular}
+% \end{center}
+%
+% \changes{v3.2a}{2026/08/07}{\cs{hit@def@fontsize} 改名
+%   \cs{\_\_hit\_define\_font\_size:nn}，它只在本文件里用}
+% 定义一个字号命令，参数为名称与磅数。字号与行距解耦，行距由可选参数给出，
+% 默认 1.3 倍。下面十七个字号的取值，\hithesis{} 与 \CTeX、MS~Word、WPS、Adobe
+% 的选择一致，模板自己只用到其中十一个，其余留给用户。
+%
+% \changes{v3.2a}{2026/08/13}{字号顺带存成常量 \cs{c\_\_hit\_font\_size\_}\meta{名}\cs{\_dim}，
+%   给 \texttt{hit/format} 族的 \option{size} 取用}
+% 磅数除了包进命令体，还存一份常量 \cs{c\_\_hit\_font\_size\_}\meta{名}\cs{\_dim}。
+% \texttt{format} 族的 \option{size} 键收 \texttt{sanhao} 这种名字，要把它换算成长度，
+% 读的就是这份常量。不另抄一张表，改磅数只改这里一处。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_define_font_size:nn #1#2
+  {
+    \exp_args:Nc \NewDocumentCommand {#1} { O{1.3} }
+      { \fontsize {#2} { ##1 \dimexpr #2 } \selectfont }
+    \dim_const:cn { c__hit_font_size_#1_dim } {#2}
+  }
+%    \end{macrocode}
+%
+%
+% \changes{v3.2a}{2026/08/06}{删掉 \cs{dachu}、\cs{banxiaosi}、\cs{dawu} 三个字号。
+%   这三个不在通行的中文字号里，手册的字号对照表也没列，模板自己一处没用过}
+% \begin{macro}{\chuhao}
+% \begin{macro}{\xiaochu}
+% \begin{macro}{\yihao}
+% \begin{macro}{\xiaoyi}
+% \begin{macro}{\erhao}
+% \begin{macro}{\xiaoer}
+% \begin{macro}{\sanhao}
+% \begin{macro}{\xsanhao}
+% \changes{v3.1b}{2022/06/06}{增加 \cs{xsanhao} 为了深圳校区的原创性声明标题}
+% \begin{macro}{\xiaosan}
+% \begin{macro}{\sihao}
+% \begin{macro}{\xiaosi}
+% \begin{macro}{\wuhao}
+% \begin{macro}{\xiaowu}
+% \begin{macro}{\liuhao}
+% \begin{macro}{\xiaoliu}
+% \begin{macro}{\qihao}
+% \begin{macro}{\bahao}
+% 一组字号定义。
+%    \begin{macrocode}
+\__hit_define_font_size:nn{chuhao}{42bp}
+\__hit_define_font_size:nn{xiaochu}{36bp}
+\__hit_define_font_size:nn{yihao}{26bp}
+\__hit_define_font_size:nn{xiaoyi}{24bp}
+\__hit_define_font_size:nn{erhao}{22bp}
+\__hit_define_font_size:nn{xiaoer}{18bp}
+\__hit_define_font_size:nn{sanhao}{16bp}
+\__hit_define_font_size:nn{xsanhao}{15.9bp}
+\__hit_define_font_size:nn{xiaosan}{15bp}
+\__hit_define_font_size:nn{sihao}{14bp}
+\__hit_define_font_size:nn{xiaosi}{12bp}
+\__hit_define_font_size:nn{wuhao}{10.5bp}
+\__hit_define_font_size:nn{xiaowu}{9bp}
+\__hit_define_font_size:nn{liuhao}{7.5bp}
+\__hit_define_font_size:nn{xiaoliu}{6.5bp}
+\__hit_define_font_size:nn{qihao}{5.5bp}
+\__hit_define_font_size:nn{bahao}{5bp}
+%    \end{macrocode}
+%
+% \cs{xsanhao} 比三号略小，给深圳校区本科生的原创性声明标题用，取自
+% \hitszthesis{}。规范里那个标题是三号，但 \cs{sanhao} 一行排不下。
+%
+% \subsection{封面上的美术字}
+%
+% \changes{v3.2a}{2026/08/13}{封面上那两处美术字改成有字体就排字体、没字体才贴图，
+%   由 \option{cover-script} 决定}
+% \changes{v3.2a}{2026/08/16}{威海本科内封删掉之后，华文新魏那一处美术字也没了，
+%   只剩本科报告封面的落款}
+% 本科报告封面底下的「哈尔滨工业大学教务处制」不是正文字体排的，是隶书，
+% 原先一律贴事先转好的 PDF。
+%
+% 贴图的毛病是选不中、搜不到，缩放之后与正文两样。有字体就该排字体。但装不装得上
+% 这个字体是机器的事，所以两条路都留着，由 \option{cover-script} 选：
+% \texttt{auto} 有字体就排字体、没有就贴图，\texttt{font} 与 \texttt{image} 各自钉死。
+%
+% 探测走 \cs{fontspec\_font\_if\_exist:nTF}，与上面挑英文字体是同一套。不查
+% \cs{lishu} 那种字体命令：那个只在 \option{fontset} 取 \texttt{windows} 时才有定义，
+% 而字体装没装上与 \option{fontset} 选哪套是两回事。
+%    \begin{macrocode}
+\bool_new:N \g__hit_lishu_bool
+\cs_new_protected:Npn \__hit_cover_font:nnN #1#2#3
+  {
+    \fontspec_font_if_exist:nTF {#1}
+      {
+        \bool_gset_true:N #3
+        \use:x { \exp_not:N \newCJKfontfamily \exp_not:c {#2} { \exp_not:n {#1} } }
+      }
+      { }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/21}{探测改成惰性：用到才探，不再每篇文档都探一遍}
+% \emph{探测要等到真用得上的那一刻。} 从前排在 \cs{hit@preconfig} 队列里，
+% 每篇文档加载时都探一次。机器上没有这个字体时（Linux 上基本都没有），
+% \hologo{XeTeX} 找不到同名系统字体就退回去找 \file{.tfm}，kpathsea 跟着
+% 起 \texttt{mktextfm} 造字，造不出来再写一条 \file{missfont.log}——每编
+% 一次多一轮 metafont，还往工作目录里丢文件（\pkg{l3build} 的 66 个测试
+% 逐个中招，实测有一次因此丢了测试日志把整轮 check 打断）。
+%
+% 而这个标志位只有 \option{cover-script} 那一处用得上。改成第一次问它的
+% 时候才探，探完记住。默认文档一次都不会探。
+%    \begin{macrocode}
+\bool_new:N \g__hit_lishu_probed_bool
+\cs_new_protected:Npn \__hit_cover_font_probe:
+  {
+    \bool_if:NF \g__hit_lishu_probed_bool
+      {
+        \bool_gset_true:N \g__hit_lishu_probed_bool
+        \__hit_cover_font:nnN { LiSu } { hit@cover@lishu } \g__hit_lishu_bool
+      }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@cover@script:nnn}
+% \meta{有没有这个字体}\marg{排字体的代码}\marg{贴图的代码}。
+% \option{cover-script} 写 \texttt{font} 而机器上没这个字体时给一句提示再贴图——
+% 钉死了却办不到，不说一声排出来会与预期两样。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@cover@script:nnn #1#2#3
+  {
+    \__hit_cover_font_probe:
+    \str_case:onF { \hit@cover@script }
+      {
+        { image } {#3}
+        { font }
+          {
+            \bool_if:NTF #1 {#2}
+              { \msg_warning:nn { hithesis } { cover-script-no-font } #3 }
+          }
+      }
+      { \bool_if:NTF #1 {#2} {#3} }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@cover@bottommark}
+% \changes{v3.2a}{2026/08/16}{删掉 \cs{hit@cover@title@weihai}，威海本科内封没了}
+% 落款那处美术字的排法。尺寸是照原图逐像素标定出来的，两条路排出来一样：
+% 隶书小二，墨迹量出来 194.88 $\times$ 11.28\,pt，原图 195.12 $\times$ 11.52，
+% 差 0.24\,pt，即 300\,dpi 下的一个像素。不用缩放。
+%
+% 要把 \cs{CJKglue} 归零。\pkg{xeCJK} 在正文里给汉字之间留一段可伸缩的胶
+% 好让整行对齐，美术字这里不该有，原图本来也是紧排的。
+%
+% \textbf{归零必须写在 \cs{selectfont} 之后。} \cs{selectfont} 会按新字号把
+% \cs{CJKglue} 重设一遍，写在前面等于白写，逐字量左边界是均匀累积的每字距，
+% 正是这段胶。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@cover@bottommark
+  {
+    \hit@cover@script:nnn \g__hit_lishu_bool
+      {
+        {
+          \hit@cover@lishu
+          \fontsize { 18bp } { 18bp } \selectfont
+          \cs_set_eq:NN \CJKglue \prg_do_nothing:
+          哈尔滨工业大学教务处制
+        }
+      }
+      { \includegraphics { hit-bachelor-report-bottommark } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%    \begin{macrocode}
+%</shared-fonts>
+%    \end{macrocode}
+%
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+% \end{macro}
+%
+%
+% \Finale

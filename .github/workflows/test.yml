@@ -2,7 +2,8 @@ name: Test
 
 on:
   push:
-    branches: [master, dev]
+    # Andrew's-test 是推上来看 CI 全绿不绿的临时分支，验完删掉这一项
+    branches: [master, dev, "Andrew's-test"]
   pull_request:
   workflow_dispatch:
   schedule:
@@ -32,9 +33,23 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: python3 scripts/changes.py --check
-      # dtx 注释里的文档宏检查。写错宏名不影响 cls 生成，只有 make doc 会报，
-      # 而 make doc 在编译矩阵里，反馈慢。这里几秒钟先挡一道。
+      # dtx 注释里的文档宏检查。写错宏名不影响 cls 生成，只有 make manual 会报，
+      # 而 make manual 在编译矩阵里，反馈慢。这里几秒钟先挡一道。
       - run: python3 scripts/check-dtx-doc.py
+      # 版本号散在 ProvidesFile、五条 ProvidesExpl* 与四个示例横幅里，改一处漏两处
+      # 是常事，发到 CTAN 才发现就晚了。
+      - run: python3 scripts/version.py --check
+      # 中文标点。默认只报告，这里当门禁用：报出来就说明有半角标点混进中文语境。
+      - run: python3 scripts/fix-punct.py --check
+
+      # 产物清单交叉校验：install 守卫、tools/distfiles.txt、installfiles、安装横幅
+      - run: python3 scripts/products.py --check
+
+      # 两个类骨架里的装配表与 install 守卫是否一致
+      - run: python3 scripts/check-map.py
+
+      # 每个 \RequirePackage 都在 tools/deps-policy.txt 里交代了归属与理由
+      - run: python3 scripts/check-deps.py
 
   # ============================================================
   # L1 编译矩阵，看五个 TeX Live 版本还能不能编出来
@@ -94,13 +109,54 @@ jobs:
       - name: Generate cls files
         run: make cls
 
+      # hithesis.ins 是 src/hithesis.dtx 的 install 守卫的产物，提交进仓库随包发。
+      # 上一步已经重新生成过，这里只看有没有忘记把它一起提交。
+      - name: Check hithesis.ins is in sync
+        run: git diff --exit-code -- hithesis.ins
+
       # 宏级回归：比对 .lvt 编出的日志与 testfiles/*.tlg 基线。
       # 五个版本都跑。基线里只有本模板自己的宏定义，不含内核版本信息或文件日期，
       # 涉及内核的只有 \DeclareRobustCommand 与 \newcommand 可选参数两处展开结果，
       # 2022 到 2026 没有变化。跨版本运行是必要的：gbt7714 在 TL2026 改用
       # \ProcessKeyOptions 后模板无法编译，就属于只在个别版本出现的宏级差异。
+      # 2026 之外的版本跳过几个与第三方版本绑定的测试，名单与理由写在 build.lua
       - name: Run macro-level checks
+        env:
+          HITHESIS_TL_LEGACY: ${{ matrix.tl-version != 2026 && '1' || '' }}
         run: l3build check
+
+      # l3build 把 xelatex 的输出收进 build/test/*.log 再做归一化，类加载期就
+      # 报错的话归一化后是空文件，diff 只显示“对面 0 行”，看不出原因。这里
+      # 手动跑一个测试文档，把原始日志打出来。
+      - name: Print raw log of one failing test
+        if: failure()
+        run: |
+          cd build/test 2>/dev/null || exit 0
+          lvt=$(ls *.lvt 2>/dev/null | head -1)
+          [ -n "$lvt" ] || { echo "build/test 下没有 .lvt"; exit 0; }
+          echo "::group::手动编译 $lvt 的原始日志"
+          xelatex -interaction=nonstopmode "$lvt" > /dev/null 2>&1 || true
+          raw="${lvt%.lvt}.log"
+          if [ -f "$raw" ]; then
+            echo "--- 前 40 行 ---"; head -40 "$raw"
+            echo "--- 全部报错 ---"; grep -nE '^!|Emergency|not found|I can.t find' "$raw" | head -20
+          else
+            echo "连 $raw 都没产出"
+          fi
+          echo "::endgroup::"
+
+      # 构件要仓库管理员权限才下载得了，排查时很不方便。失败时把 diff 直接
+      # 打进日志，看一眼就知道差在哪。
+      - name: Print check diffs
+        if: failure()
+        run: |
+          echo "跳过名单：${HITHESIS_TL_LEGACY:-（未设，跑全量）}"
+          for f in build/test/*.diff; do
+            [ -e "$f" ] || { echo "没有 diff 文件（测试崩溃或未产出日志）"; break; }
+            echo "::group::$(basename "$f")"
+            head -60 "$f"
+            echo "::endgroup::"
+          done
 
       - name: Upload check diffs
         if: failure()
@@ -111,19 +167,18 @@ jobs:
           retention-days: 7
 
       - name: Build package documentation
-        run: make doc
+        run: make manual
 
-      - name: Build Chinese thesis
-        run: make -C examples/hitbook/chinese thesis
+      # 四棵示例树在 d0e6dd9 合成了一棵 examples/demo，一份 main.tex 按 kind
+      # 出四种交付物。开题、中期、英文那三种由变体矩阵覆盖（它按 OPTIONS 传
+      # kind），这里只编默认那一份。
+      - name: Build example
+        run: make -C examples/demo thesis
 
-      - name: Build English thesis
-        run: make -C examples/hitbook/english thesis
-
-      - name: Build report
-        run: make -C examples/hitart/reports report
-
-      - name: Build reportplus
-        run: make -C examples/hitart/reportplus report
+      # 编得过不等于编得对。这一步扫日志里那几类问题：缺字、盒子溢出、
+      # 字号代用、悬空引用、版心过度指定。它们都不会让编译失败，但都是缺陷。
+      - name: Check build logs
+        run: make logcheck
 
   # ============================================================
   # 跨平台编译：模板本身在 macOS / Windows 上还编不编得出来。
@@ -218,21 +273,27 @@ jobs:
           l3build unpack
           l3build distribute
 
-      - name: Build Chinese thesis
-        working-directory: examples/hitbook/chinese
-        run: latexmk -xelatex -interaction=nonstopmode thesis.tex
-
-      - name: Build English thesis
-        working-directory: examples/hitbook/english
-        run: latexmk -xelatex -interaction=nonstopmode thesis.tex
-
-      - name: Build report
-        working-directory: examples/hitart/reports
-        run: latexmk -xelatex -interaction=nonstopmode report.tex
-
-      - name: Build reportplus
-        working-directory: examples/hitart/reportplus
-        run: latexmk -xelatex -interaction=nonstopmode report.tex
+      # 这一步只问“模板在这个平台上编不编得出来”，所以直接跑 xelatex：
+      # 走 latexmk 会把 examples/demo/latexmkrc 里的 makeindex 与 splitindex
+      # 一并拖进来，那是另一回事，出了问题也分不清是模板还是工具链。
+      #
+      # 必须显式指定 fontset=fandol。示例的 main.tex 不写 fontset，走的是
+      # 按机器上装了什么字体逐级探测；而 runner 上一个中文系统字体都没有，
+      # 汉字会全部落到 Times New Roman，每个字一条 Missing character，
+      # 排出来是空白（实测 53 页、满屏缺字）。fandol 随 TeX Live 发，各平台都在。
+      # 变体矩阵不受影响，它的每个变体本来就写着 fontset=fandol。
+      #
+      # 失败时把日志末尾打出来，构件要管理员权限才下载得了。
+      - name: Build example
+        shell: bash
+        working-directory: examples/demo
+        run: |
+          doc='\PassOptionsToClass{fontset=fandol}{hithesis}\input{main.tex}'
+          xelatex -interaction=nonstopmode -jobname=main "$doc" || {
+            echo "::group::main.log 末尾"; tail -60 main.log; echo "::endgroup::"; exit 1; }
+          xelatex -interaction=nonstopmode -jobname=main "$doc" || {
+            echo "::group::main.log 末尾"; tail -60 main.log; echo "::endgroup::"; exit 1; }
+          echo "缺字条数: $(grep -c 'Missing character' main.log || true)"
 
   # ============================================================
   # L2 变体矩阵，看 42 种 \documentclass 选项组合还能不能编出来。
@@ -388,8 +449,5 @@ jobs:
             texlive/texlive:latest bash -c '
               set -e
               make all
-              make -C examples/hitbook/chinese thesis
-              make -C examples/hitbook/english thesis
-              make -C examples/hitart/reports report
-              make -C examples/hitart/reportplus report
+              make -C examples/demo thesis
             '

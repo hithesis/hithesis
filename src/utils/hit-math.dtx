@@ -1,0 +1,614 @@
+% \iffalse meta-comment
+%
+% hit-math.dtx 是各个类共用的数学层
+%
+% \fi
+%
+% \section{共享数学层}
+%
+% \changes{v3.2a}{2026/08/07}{数学部分从各个类的 \texttt{*-deps-a} 模块抽出合并}
+% \pkg{amsmath} 一路到数学字体选择这一段，原来每个类一字不差地各写了一遍。
+% 这里合成一份。
+%
+% 位置与 \file{hit-fonts.dtx} 一样，排在类文件头和 \file{hit-fonts.dtx} 之后、类
+% 自己的 dtx 之前。这个位置在 \cs{LoadClass} 之前，宏包还不能加载，所以只留声明，
+% 其余放进 \cs{hit@setup@math}，由各个类在原来的位置调用。
+%
+%    \begin{macrocode}
+%<*shared-math>
+\prop_new:N \g__hit_theorem_option_prop
+\seq_new:N \g__hit_theorem_order_seq
+\tl_new:N \g__hit_theorem_within_tl
+\tl_new:N \g__hit_theorem_option_list_tl
+\tl_new:N \l__hit_theorem_temporary_tl
+\int_new:N \g__hit_theorem_style_int
+\tl_new:N \g__hit_theorem_style_tl
+\str_new:N \l__hit_math_font_str
+\str_new:N \l__hit_math_style_str
+\clist_new:N \l__hit_math_options_clist
+\bool_new:N \g__hit_unicodemath_bool
+\cs_new_protected:Npn \hit@setup@math
+  {
+%    \end{macrocode}
+%    \begin{macrocode}
+\RequirePackage{amsmath}
+%    \end{macrocode}
+%
+% 定理类环境宏包，其中 \pkg{amsmath} 选项用来兼容 \AmSTeX\ 的宏包
+%    \begin{macrocode}
+\RequirePackage{amsthm}
+\RequirePackage{thmtools}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/06}{补回 \pkg{aliasctr} 覆盖 \cs{@addtoreset} 时丢掉的
+%   \cs{theH} 定义（\issue[183]）}
+% \pkg{thmtools} 依赖的 \pkg{aliasctr} 用 \cs{renewcommand*} 平覆盖了内核的
+% \cs{@addtoreset}，只保留计数器清零链，丢掉了内核同时生成的 \cs{theH} 定义。
+% LaTeX 2024-11-01 起 \pkg{hyperref} 不再自己打这个补丁（\cs{hyper@nopatch@counter}
+% 恒定义），于是 \pkg{subfigure}、\pkg{lstlisting} 和定理环境的 PDF 锚点都丢了章号
+% 前缀。这里在保留 \pkg{aliasctr} 别名跟随行为的前提下把 \cs{theH} 补回去。
+%    \begin{macrocode}
+\cs_set_eq:NN \hit@original@add@to@reset \@addtoreset
+\cs_set:Npn \@addtoreset ##1##2
+  {
+    \hit@original@add@to@reset {##1} {##2}
+    \cs_gset:cpx { theH ##1 }
+      { \exp_not:c { theH ##2 } . \exp_not:N \the \exp_not:N \value {##1} }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{定理环境的样式与声明收进 \cs{hit@theorem@style} 与
+%   \cs{hit@theorem@list}，为 \issue[183] 换 \pkg{thmtools} 做准备}
+% 定理环境的内部接口。样式与声明分散在三处（全局样式、\file{cfg} 里的
+% \env{proof}、十几个编号环境），换实现时要改的地方太多，先收到这里。
+% \cs{hit@theorem@style} 的键名按 \pkg{thmtools} 的叫法取，将来换实现只改这一处的
+% 映射；\cs{hit@theorem@list} 接一张「环境名 = 标题」的表，顺序即声明顺序。
+% \cs{hit@theorem@declare@star@list} 是不编号那批的同款入口。
+%
+% 三个都从 \cs{hitsetup} 的 \option{thm} 族有键可达（样式键、\option{list}、
+% \option{star}），配置文件因此不必直接调命令。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_theorem_option:nn ##1##2
+  {
+    \prop_if_in:NnF \g__hit_theorem_option_prop {##1}
+      { \seq_gput_right:Nn \g__hit_theorem_order_seq {##1} }
+    \prop_gput:Nnn \g__hit_theorem_option_prop {##1} {##2}
+  }
+\cs_new_protected:Npn \__hit_theorem_build:
+  {
+    \tl_gclear:N \g__hit_theorem_option_list_tl
+    \seq_map_inline:Nn \g__hit_theorem_order_seq
+      {
+        \prop_get:NnN \g__hit_theorem_option_prop {####1} \l__hit_theorem_temporary_tl
+        \tl_gput_right:Nx \g__hit_theorem_option_list_tl
+          { ####1 = { \exp_not:V \l__hit_theorem_temporary_tl } , }
+      }
+  }
+%    \end{macrocode}
+%
+% \pkg{thmtools} 的样式键只认 \cs{declaretheoremstyle}，\cs{declaretheorem} 不吃。
+% 所以每次改样式就生成一个新样式名，声明环境时引用它。名字带序号是因为
+% \pkg{amsthm} 的 \cs{newtheoremstyle} 重名会报错。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_theorem_new_style:
+  {
+    \__hit_theorem_build:
+    \int_gincr:N \g__hit_theorem_style_int
+    \tl_gset:Nx \g__hit_theorem_style_tl { hitthm \int_use:N \g__hit_theorem_style_int }
+    \use:x
+      {
+        \exp_not:N \declaretheoremstyle
+          [ \exp_not:V \g__hit_theorem_option_list_tl ] { \g__hit_theorem_style_tl }
+      }
+    \use:x { \exp_not:N \theoremstyle { \g__hit_theorem_style_tl } }
+  }
+\cs_new_protected:Npn \hit@theorem@set@auto@ref@name ##1##2
+  { \cs_gset:cpn { ##1 autorefname } {##2} }
+\cs_new_protected:Npn \hit@theorem@declare ##1##2
+  {
+    % \pkg{amsthm} 自带 proof，重名的先撤掉再声明
+    \cs_undefine:c {##1} \cs_undefine:c { end ##1 }
+    \use:x
+      {
+        \exp_not:N \declaretheorem
+          [
+            style = \g__hit_theorem_style_tl ,
+            name = { \exp_not:n {##2} } ,
+            \tl_if_empty:NF \g__hit_theorem_within_tl
+              { numberwithin = \exp_not:V \g__hit_theorem_within_tl , }
+          ]
+          {##1}
+      }
+    \hit@theorem@set@auto@ref@name {##1} {##2}
+  }
+\cs_new_protected:Npn \hit@theorem@declare@star ##1##2
+  {
+    \cs_undefine:c {##1} \cs_undefine:c { end ##1 }
+    \use:x
+      {
+        \exp_not:N \declaretheorem
+          [ style = \g__hit_theorem_style_tl , name = { \exp_not:n {##2} } , numbered = no ]
+          {##1}
+      }
+    \hit@theorem@set@auto@ref@name {##1} {##2}
+  }
+\keys_define:nn { hit / thm }
+  {
+    body-font   .code:n = { \__hit_theorem_option:nn { bodyfont }   {##1} } ,
+    head-font   .code:n = { \__hit_theorem_option:nn { headfont }   {##1} } ,
+    qed         .code:n = { \__hit_theorem_option:nn { qed }        {##1} } ,
+    head-punct  .code:n = { \__hit_theorem_option:nn { headpunct }  {##1} } ,
+    note-braces .code:n = { \__hit_theorem_option:nn { notebraces } {##1} } ,
+    note-font   .code:n = { \__hit_theorem_option:nn { notefont }   {##1} } ,
+    space-above .code:n = { \__hit_theorem_option:nn { spaceabove } {##1} } ,
+    space-below .code:n = { \__hit_theorem_option:nn { spacebelow } {##1} } ,
+    head-space  .code:n = { \__hit_theorem_option:nn { postheadspace } {##1} } ,
+    head-indent .code:n = { \__hit_theorem_option:nn { headindent } {##1} } ,
+    within .code:n = { \tl_gset:Nn \g__hit_theorem_within_tl {##1} } ,
+    list .code:n = { \hit@theorem@list {##1} } ,
+    star .code:n = { \hit@theorem@declare@star@list {##1} } ,
+  }
+\cs_new_protected:Npn \hit@theorem@style ##1
+  { \hit@keys@set:nn { hit / thm } {##1} \__hit_theorem_new_style: }
+\cs_new_protected:Npn \hit@theorem@list ##1
+  { \keyval_parse:nnn { \use_none:n } { \hit@theorem@declare } {##1} }
+\cs_new_protected:Npn \hit@theorem@declare@star@list ##1
+  { \keyval_parse:nnn { \use_none:n } { \hit@theorem@declare@star } {##1} }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/06}{为 \pkg{ntheorem} 专有命令加兼容层（\issue[183]）}
+% \pkg{ntheorem} 专有命令的兼容层。前四条能一一对应到 \cs{hitsetup} 的
+% \option{theorem} 键，转发过去；后面几条 \pkg{thmtools} 没有对应写法，报个警告
+% 后忽略。\cs{theoremstyle} 不动，那是 \pkg{amsthm} 自己的命令。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_theorem_legacy:nnn ##1##2##3
+  {
+    \__hit_warn_once:nnn {##1} { deprecated-ntheorem } {##2}
+    \hit@theorem@style { ##2 = {##3} }
+  }
+\cs_new_protected:Npn \__hit_theorem_dropped:nn ##1##2
+  { \__hit_warn_once:nnn {##1} { removed-ntheorem } {##2} }
+\cs_new_protected:Npn \theorembodyfont ##1
+  { \__hit_theorem_legacy:nnn { theorembodyfont } { body-font } {##1} }
+\cs_new_protected:Npn \theoremheaderfont ##1
+  { \__hit_theorem_legacy:nnn { theoremheaderfont } { head-font } {##1} }
+\cs_new_protected:Npn \theoremsymbol ##1
+  { \__hit_theorem_legacy:nnn { theoremsymbol } { qed } {##1} }
+\cs_new_protected:Npn \theoremseparator ##1
+  { \__hit_theorem_legacy:nnn { theoremseparator } { head-punct } {##1} }
+\cs_new_protected:Npn \theoremnumbering ##1
+  { \__hit_warn_once:nnn { theoremnumbering } { removed-ntheorem-numbering } { } }
+\cs_new_protected:Npn \theoremprework ##1
+  { \__hit_theorem_dropped:nn { theoremprework } { declaretheorem } }
+\cs_new_protected:Npn \theorempostwork ##1
+  { \__hit_theorem_dropped:nn { theorempostwork } { declaretheorem } }
+\cs_new_protected:Npn \theoremclass ##1
+  { \__hit_theorem_dropped:nn { theoremclass } { declaretheorem } }
+\cs_new_protected:Npn \theoremlisttype ##1
+  { \__hit_theorem_dropped:nn { theoremlisttype } { listoftheorems } }
+\cs_new_protected:Npn \listtheorems ##1
+  {
+    \__hit_theorem_dropped:nn { listtheorems } { listoftheorems }
+    \listoftheorems [ ignoreall , show = {##1} ]
+  }
+\cs_new_protected:Npn \thref ##1
+  {
+    \__hit_theorem_dropped:nn { thref } { autoref }
+    \autoref {##1}
+  }
+%    \end{macrocode}
+%
+% 删除 \pkg{newtxtext}，由于最新一次更新 (\texttt{revision 62369}) 中与 \pkg{ctex} 宏包冲突，且无法解决，将正文字体替换为 TG TermesX 与 TG Heros.
+% \changes{v3.0.18}{2022/05/02}{删除 \pkg{newtxtext}，由于最新一次更新 (\texttt{revision 62369}) 中与 \pkg{ctex} 宏包冲突，且无法解决，将正文字体替换为 TG Termes 与 TG Heros}
+% \changes{v3.0.19}{2022/05/05}{将 TG Termes 字体替换为 TG TermesX 字体，与 \pkg{newtxmath} 宏包更适配，删除 \option{Scale} 选项}
+% \changes{v3.2a}{2026/08/06}{英文字体三件套设置从 bookcls 拆出至 book-fonts 模块（与 art-fonts / artplus-fonts 保持一致）}
+%
+% 单独使用 \pkg{newtxmath} 宏包改变数学字体时，会使 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令使用 CM 字体，根据 \href{https://github.com/sjtug/SJTUThesis/blob/b164d0f5b3087ed86c1038b5a85014b47a92c6f2/texmf/tex/latex/sjtuthesis/fd/sjtu-math-font-termes.def#L52-L65}{SJTUThesis 的字体设置} 进行调整
+% \changes{v3.0.19}{2022/05/05}{对 \pkg{newtxmath} 宏包打补丁，修复 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令的字体问题}
+%    \begin{macrocode}
+% \changes{v3.2a}{2026/08/15}{\option{fontset-math} 的 \texttt{auto} 默认从
+%   \texttt{xits} 改 \texttt{termes}}
+% \texttt{auto} 走 \texttt{termes}（TeX Gyre Termes Math）而不是 \texttt{xits}：
+% 学校要的正文西文是 Times，Termes 是 Times 的克隆，数学与正文同一血统；
+% XITS 源自 STIX，空心体那批字形是几何化的圆头，跟 Times 摆在一起不像一家。
+% 代价是覆盖面窄一些——Termes 1112 个码位、XITS 2423 个，缺口在冷门运算符、
+% 箭头与杂项技术符号（2300 段 51 对 90）。常用符号两边都全。
+% 要覆盖面就写 \option{fontset-math}\texttt{=stix}，STIX~Two 有 3607 个码位，
+% 比 XITS 还多。
+%
+% \changes{v3.2a}{2026/08/15}{\option{math-style} 默认改 \texttt{auto}，
+%   显式写了又走 \texttt{newtx} 时提示}
+% \option{math-style} 默认 \texttt{auto}，行为与从前的 \texttt{GB} 一致。
+% 改成 \texttt{auto} 是为了能分辨「用户显式写过」——那组选项只对
+% \pkg{unicode-math} 那几档有效，\texttt{newtx} 走 8~位路径，希腊字母正斜体由
+% \pkg{newtxmath} 自己决定。两者撞上时发一条提示，默认值撞上则不打扰。
+\str_set:Nx \l__hit_math_font_str { \hit@mathfont }
+\str_if_eq:VnT \l__hit_math_font_str { } { \str_set:Nn \l__hit_math_font_str { auto } }
+\str_if_eq:VnT \l__hit_math_font_str { auto }
+  {
+    \bool_if:NTF \g__hit_newtxmath_bool
+      { \str_set:Nn \l__hit_math_font_str { newtx } }
+      { \str_set:Nn \l__hit_math_font_str { termes } }
+  }
+%    \end{macrocode}
+%
+% 数学排版风格。\texttt{TeX} 是 \hologo{TeX} 传统写法（大写希腊字母直立、小写倾斜），
+% \texttt{ISO} 按 ISO 80000-2（希腊字母一律倾斜、粗体同理），\texttt{GB} 在 ISO
+% 的基础上把偏导符号 \cs{partial} 改直立，这是国标的要求。
+%
+% 五个 \texttt{math*=sym} 是为了照顾旧文档。\pkg{unicode-math} 默认让
+% \cs{mathrm}、\cs{mathbf} 这几个走正文字体，正文字体里没有数学希腊字母，
+% \cs{mathbf} 套希腊字母这种写法会静悄悄掉字；改成 \texttt{sym} 就跟原先的
+% 8~位数学字体一样从数学字体取字。
+%    \begin{macrocode}
+\str_set:Nx \l__hit_math_style_str { \hit@mathstyle }
+\bool_new:N \l__hit_math_style_explicit_bool
+\str_if_eq:VnTF \l__hit_math_style_str { }
+  { \str_set:Nn \l__hit_math_style_str { auto } }
+  { \bool_set_true:N \l__hit_math_style_explicit_bool }
+\str_if_eq:VnT \l__hit_math_style_str { auto }
+  {
+    \bool_set_false:N \l__hit_math_style_explicit_bool
+    \str_set:Nn \l__hit_math_style_str { GB }
+  }
+\bool_lazy_and:nnT
+  { \bool_if_p:N \l__hit_math_style_explicit_bool }
+  { \str_if_eq_p:Vn \l__hit_math_font_str { newtx } }
+  { \msg_warning:nn { hithesis } { math-style-with-newtx } }
+\str_case:VnF \l__hit_math_style_str
+  {
+    { TeX } { \clist_set:Nn \l__hit_math_options_clist { math-style=TeX , bold-style=TeX , mathrm=sym , mathit=sym , mathbf=sym , mathsf=sym , mathtt=sym } }
+    { ISO } { \clist_set:Nn \l__hit_math_options_clist { math-style=ISO , bold-style=ISO , mathrm=sym , mathit=sym , mathbf=sym , mathsf=sym , mathtt=sym } }
+    { GB }
+      { \clist_set:Nn \l__hit_math_options_clist
+          { math-style=ISO , bold-style=ISO , partial=upright , mathrm=sym , mathit=sym , mathbf=sym , mathsf=sym , mathtt=sym } }
+  }
+  { \msg_error:nnx { hithesis } { math-style-unknown } { \l__hit_math_style_str } }
+%    \end{macrocode}
+%
+% \pkg{unicode-math} 各档对应的字体文件。第二个参数是粗体数学版本，
+% \pkg{amsmath} 的 \cs{boldsymbol} 要用它；没有独立粗体的字体就填回常规体，
+% 不填会报 \texttt{Font shape .../b/n undefined} 并掉字。\texttt{newtx} 与
+% \texttt{none} 不走 \pkg{unicode-math}，单列在后面。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_set_math_font:nn ##1##2
+  {
+    \bool_gset_true:N \g__hit_unicodemath_bool
+    \exp_args:NV \PassOptionsToPackage \l__hit_math_options_clist { unicode-math }
+    \RequirePackage { unicode-math }
+    \setmathfont {##1}
+    \setmathfont {##2} [ version = bold ]
+%    \end{macrocode}
+%
+% \pkg{unicode-math} 的 \cs{symbf} 跟着 \texttt{bold-style} 走，ISO 下是粗斜体，
+% 而 \cs{mathbf} 在传统 \hologo{TeX} 里一直是粗正体。把 \cs{mathbf} 单独接到
+% \cs{symbfup} 上，旧文档里的 \cs{mathbf} 才不会变成斜体。\pkg{unicode-math}
+% 在 \cs{begin\{document\}} 时会重新安排一遍数学字母表，所以要挂在钩子里。
+%    \begin{macrocode}
+    \AddToHook { begindocument/end } { \cs_set_eq:NN \mathbf \symbfup }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/10}{\pkg{unicode-math} 路径上加一道 \pkg{bm} 的补救钩子。
+%   v3.1e 的 \file{hithesis.sty} 无条件 \cs{RequirePackage}\marg{bm}，用户自己改过的
+%   那份升级后照旧优先加载，完整示例实测 70 个 Extended mathchar used as mathchar}
+% \pkg{bm} 跟 \pkg{unicode-math} 不兼容：它把 \cs{boldsymbol} 换成只认 8~位
+% mathchar 的版本，公式里一出现希腊字母就报 \texttt{Extended mathchar used as
+% mathchar}。模板自己不装 \pkg{bm}，但用户的导言区或者自己那份 \file{hithesis.sty}
+% 会装，所以挂个钩子：它真被装上时，把 \cs{bm} 与 \cs{boldsymbol} 接回
+% \pkg{unicode-math} 自己的 \cs{symbf}，并说明一句。\pkg{bm} 没被装就什么也不做。
+%    \begin{macrocode}
+    \AddToHook { package/bm/after }
+      {
+        \cs_set_eq:NN \bm \symbf
+        \cs_set_eq:NN \boldsymbol \symbf
+        \msg_warning:nn { hithesis } { bm-with-unicode-math }
+      }
+  }
+\cs_new_protected:Npn \__hit_set_math_xits:
+  { \__hit_set_math_font:nn { XITSMath-Regular.otf } { XITSMath-Bold.otf } }
+\cs_new_protected:Npn \__hit_set_math_stix:
+  { \__hit_set_math_font:nn { STIXTwoMath-Regular.otf } { STIXTwoMath-Regular.otf } }
+\cs_new_protected:Npn \__hit_set_math_termes:
+  { \__hit_set_math_font:nn { texgyretermes-math.otf } { texgyretermes-math.otf } }
+\cs_new_protected:Npn \__hit_set_math_libertinus:
+  { \__hit_set_math_font:nn { libertinusmath-regular.otf } { libertinusmath-bold.otf } }
+\cs_new_protected:Npn \__hit_set_math_newcm:
+  { \__hit_set_math_font:nn { NewCMMath-Regular.otf } { NewCMMath-Bold.otf } }
+\cs_new_protected:Npn \__hit_set_math_latinmodern:
+  { \__hit_set_math_font:nn { latinmodern-math.otf } { latinmodern-math.otf } }
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{直接修改编码，而不引入新的宏包}
+% \changes{v3.2a}{2026/08/08}{newtxmath 的加载分支迁到 expl3}
+% \pkg{newtxmath} 是 8~位字体路径，加载时得临时把三件套换成 \pkg{newtx} 自己的
+% 编码与字族，否则 \texttt{operators}、\cs{mathrm}、\cs{mathit}、\cs{mathbf}
+% 会退回 CM。做法取自
+% \href{https://github.com/sjtug/SJTUThesis/blob/b164d0f5b3087ed86c1038b5a85014b47a92c6f2/texmf/tex/latex/sjtuthesis/fd/sjtu-math-font-termes.def#L52-L65}{SJTUThesis 的字体设置}。
+%
+% \changes{v3.2a}{2026/08/15}{\texttt{newtx} 那档补上 \cs{symbf} 一组的等价写法}
+% \pkg{unicode-math} 的 \cs{symbf}、\cs{symup}、\cs{symit} 在 8~位路径上不存在，
+% 同一份文档从别的档切到 \texttt{newtx}，正文里每一处 \cs{symbf} 都会报未定义。
+% 这里接出三个等价写法，让文档在两条路径上都编得过：
+% \begin{center}
+% \begin{tabular}{ll}
+% \toprule
+% \pkg{unicode-math} & \texttt{newtx} 这边接到 \\\midrule
+% \cs{symbf} & \cs{bm} \\
+% \cs{symup} & \cs{mathrm} \\
+% \cs{symit} & \cs{mathit} \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+%
+% 不是逐字等价：\cs{symbf} 在 \pkg{unicode-math} 那边跟着 \option{bold-style}
+% 走（ISO 下是粗斜体），\cs{bm} 不跟。要的是「切过去能编、观感接近」，
+% 不是两条路径排出同一个 PDF——那本来也做不到，两套字体的字形不一样。
+%
+% 接在 \texttt{begindocument/end} 上：\cs{bm} 由用户的 \cs{usepackage}\marg{bm}
+% 提供，类加载时还不存在，那时候接等于把 \cs{symbf} 定义成一个未定义的东西。
+% 用户没装 \pkg{bm} 时 \cs{symbf} 退到 \cs{mathbf}——粗体是有的，只是不跟着
+% \option{bold-style} 走。已经有定义就不动，用户自己定义过的优先。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_math_sym_shim:
+  {
+    \AddToHook { begindocument/end }
+      {
+        \cs_if_exist:NF \symbf
+          {
+            \cs_if_exist:NTF \bm
+              { \cs_new_eq:NN \symbf \bm }
+              { \cs_new_eq:NN \symbf \mathbf }
+          }
+        \cs_if_exist:NF \symup { \cs_new_eq:NN \symup \mathrm }
+        \cs_if_exist:NF \symit { \cs_new_eq:NN \symit \mathit }
+      }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_set_math_newtx:
+  {
+    \cs_set_eq:NN \oldencodingdefault \encodingdefault
+    \cs_set_eq:NN \oldrmdefault \rmdefault
+    \cs_set_eq:NN \oldsfdefault \sfdefault
+    \cs_set_eq:NN \oldttdefault \ttdefault
+    \tl_set:Nn \encodingdefault { T1 }
+    \tl_set:Nn \rmdefault { ntxtlf }
+    \tl_set:Nn \sfdefault { qhv }
+    \tl_set:Nn \ttdefault { ntxtt }
+    \RequirePackage { newtxmath }
+    \cs_set_eq:NN \encodingdefault \oldencodingdefault
+    \cs_set_eq:NN \rmdefault \oldrmdefault
+    \cs_set_eq:NN \sfdefault \oldsfdefault
+    \cs_set_eq:NN \ttdefault \oldttdefault
+    \__hit_math_sym_shim:
+  }
+\cs_new_protected:Npn \__hit_set_math_none: { }
+%    \end{macrocode}
+%
+% \pkg{amssymb} 与 \pkg{unicode-math} 冲突，只在 8~位路径上加载；走
+% \pkg{unicode-math} 时它提供的符号由数学字体自带。它要排在 \pkg{newtxmath}
+% 前面，两者都定义 \cs{Bbbk}，反过来会报重复定义。
+%    \begin{macrocode}
+\cs_if_exist:cTF { __hit_set_math_ \l__hit_math_font_str : }
+  {
+    \bool_lazy_or:nnT
+      { \str_if_eq_p:Vn \l__hit_math_font_str { newtx } }
+      { \str_if_eq_p:Vn \l__hit_math_font_str { none } }
+      { \RequirePackage { amssymb } }
+    \use:c { __hit_set_math_ \l__hit_math_font_str : }
+  }
+  { \msg_error:nnx { hithesis } { math-font-unknown } { \l__hit_math_font_str } }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/06}{新增 \env{eqdenote} 环境，公式的物理量注释}
+% \env{eqdenote} 排公式下面那张「式中……」注释表。规范要求注释的转行与破折号后
+% 第一个字对齐，所以底下是一个 \pkg{tabularx}，说明列取 \texttt{X}。
+%
+% 排出来是三列：引导词、符号、说明。用户只写后两列，第二行起那个空的引导词格子
+% 由环境自己补。可选参数换引导词，传空则留出等宽的空位，拆成两段接排时左缘对得上。
+%    \begin{macrocode}
+\dim_new:N \l__hit_eqdenote_depth_dim
+\box_new:N \l__hit_eqdenote_box
+\seq_new:N \l__hit_eqdenote_seq
+\tl_new:N \l__hit_eqdenote_tl
+\cs_new:Npn \hit@eqdenote@label
+  {
+    \bool_if_exist:NTF \g__hit_en_bool
+      {
+        \bool_if:NTF \g__hit_en_bool
+          { \hit@eqdenote@label@en } { \hit@eqdenote@label@zh }
+      }
+      { \hit@eqdenote@label@zh }
+  }
+%    \end{macrocode}
+%
+% 表格要用 \cs{begin}\marg{tabularx} 与 \cs{end}\marg{tabularx} 成对写在一条命令
+% 里。\pkg{tabularx} 会把正文反复排好几遍来定 \texttt{X} 列宽度，直接在环境的开始
+% 代码里写 \cs{tabularx}，收尾那几句也会被卷进去重排，\cs{prevdepth} 在受限水平
+% 模式下会报错。
+%    \begin{macrocode}
+\tl_new:N \l__hit_eqdenote_font_tl
+%    \end{macrocode}
+%
+% \pkg{longtable} 被模板改成了五号（\cs{LT@array} 里加了 \cs{wuhao}），那是给插表
+% 用的。式中注释是正文的一部分，字号要跟正文一样，所以进表格前用 \cs{ltfontsize}
+% 把当前字号还回去。字号对了，\cs{ccwd}、\cs{strutbox} 与行距也就都跟正文一致。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_eqdenote_keep_font:
+  {
+    \tl_set:Nx \l__hit_eqdenote_font_tl
+      {
+        \exp_not:N \fontsize { \f@size } { \f@baselineskip }
+        \exp_not:N \selectfont
+      }
+    \exp_args:NV \ltfontsize \l__hit_eqdenote_font_tl
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/06}{\env{eqdenote} 底下从 \pkg{tabularx} 换成
+%   \pkg{xltabular}，注释表放不下时自动转页接排，不必手动拆成两个环境}
+% \pkg{xltabular} 是 \pkg{longtable} 加 \texttt{X} 列，表格能自动跨页接排。
+% \cs{LTleft} 与 \cs{LTright} 让表格靠左，\cs{LTpost} 去掉 \pkg{longtable} 默认在
+% 表格后面加的 \cs{bigskipamount}。
+%
+% \changes{v3.2a}{2026/08/07}{\env{eqdenote} 的段前距离补上 \pkg{longtable} 漏掉的
+%   行距胶，之前接正文比正常行距紧 4.4pt}
+% \cs{LTpre} 不能简单置零。\pkg{longtable} 把首块排在一个新 vbox 里
+%（\cs{LT@bchunk} 的 \cs{setbox}\cs{z@}\cs{vbox}），vbox 开头 \cs{prevdepth} 是
+% \texttt{-1000pt}，TeX 不给首行插行距胶；\cs{unvbox} 出来时也不补。于是表首行的基线
+% 与上一行正文之间只隔「上一行的深度加首行的高度」，比正常行距紧。量出来是 4.4278pt，
+% 而 \cs{baselineskip} 减去这两项正好是这个数，可见缺的就是那份胶。
+%
+% \cs{\_\_hit\_eqdenote\_pre\_skip:} 把它算出来放进 \cs{LTpre}。先 \cs{par}，
+% 否则 \cs{prevdepth} 还是上一段的。算出来比 \cs{lineskiplimit} 小时改用
+% \cs{lineskip}，与 TeX 自己的规则一致。\cs{prevdepth} 是 \texttt{-1000pt}（页首、
+% 紧跟标题）时本来就不该有胶，置零。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/18}{\env{eqdenote} 关段时停掉段末撑竿钩子：公式后
+%   的空续段被撑竿撑成一行幽灵行，段前多一个行距，断页时还抢走页首基线}
+% \emph{关段要避开撑竿钩子。} \cs{end}\marg{equation} 之后段落还开着（行间
+% 公式属于所在段落），紧跟 \env{eqdenote} 时这个续段是空的。\hologo{TeX} 对
+% 空续段的 \cs{par} 本不产生任何行，但 \texttt{para/end} 钩子里的段落撑竿把
+% 它撑成一行只有零宽 rule 的幽灵行：行中形态下公式到「式中」多出一个行距
+% （实测 48 对范例 22），表被推到新页时幽灵行抢走 \cs{topskip} 基线，
+% 「式中」首行比正文页首低一行（实测 140.5 对 119.9）。关段那一下把
+% \cs{hit@format@strut:} 临时置空，空续段不再成行；前一行真正文的撑竿在
+% 各自成行时已经排进去了，不受影响。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_eqdenote_pre_skip:
+  {
+    \group_begin:
+    \cs_if_exist:NT \hit@format@strut:
+      { \cs_set_eq:NN \hit@format@strut: \prg_do_nothing: }
+    \par
+    \group_end:
+    \dim_compare:nNnTF { \tex_prevdepth:D } < { -999pt }
+      { \skip_zero:N \LTpre }
+      {
+        \skip_set:Nn \LTpre
+          { \baselineskip - \tex_prevdepth:D - \arraystretch \ht \strutbox }
+        \dim_compare:nNnT { \LTpre } < { \lineskiplimit }
+          { \skip_set_eq:NN \LTpre \lineskip }
+      }
+  }
+\cs_new_protected:Npn \__hit_eqdenote_table:nn #1#2
+  {
+    \__hit_eqdenote_keep_font:
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/18}{\env{eqdenote} 的行撑竿缩到 0.9 倍：撑竿恰好等于
+%   行距时 \hologo{TeX} 退到 lineskip 堆叠，行距多出约 1\,pt，换页后首行基线也
+%   不落在 \cs{topskip} 上}
+% 行撑竿要\emph{小于}行距。\cs{strutbox} 的高深加起来正好一个 \cs{baselineskip}，
+% \cs{arraystretch} 取 1 时表格行高不小于行距，基线间距放不下，\hologo{TeX} 退到
+% 按 \cs{lineskip} 堆叠，行距变成「行高加 1\,pt」（实测 20.9 对正文 19.45）；
+% 换页后首行的基线取行高而不是 \cs{topskip}，比正文页首低约 22\,bp——1--7 页版
+% 实测正文页首基线 119.9，注释表首行 141.8。缩到 0.89 后撑竿高 12.16 低于
+% 正文撑竿 12.22，行盒尺寸由格内段落撑竿接管，恰为一个 \cs{baselineskip}，
+% 行距与页首基线两处一起归位（0.9 时撑竿高 12.30 仍比上限多 0.08\,pt，
+% 还是掉进 lineskip 堆叠）。
+%    \begin{macrocode}
+    \cs_set:Npn \arraystretch { 0.89 }
+    \skip_zero:N \LTleft
+    \skip_set:Nn \LTright { 0pt~plus~1fill }
+    \__hit_eqdenote_pre_skip:
+    \skip_zero:N \LTpost
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/18}{清空 \pkg{longtable} 的表头盒。零高的空表头盒
+%   恰好落在新页页顶时会吃掉 \cs{topskip} 基线，注释表首行比正文页首低一行}
+% 表头盒要清成 void 而不是留个空盒。\pkg{longtable} 没写 \cs{endhead} 时表头
+% 是零高空盒，仍会作为盒子进主竖列；断页恰好断在它前面时，新页第一个盒子
+% 就是它，\cs{topskip} 的基线给了它，真正的首行再往下一个行距。清成 void
+% 后 \pkg{longtable} 的 \cs{ifvoid} 守卫直接跳过，不再有这只盒子。
+%
+% \changes{v3.2a}{2026/08/18}{\env{eqdenote} 里局部关掉 \pkg{hyperref} 给
+%   \pkg{longtable} 加的锚点：锚点自成一个带撑竿的空段落，表被推到新页时这个
+%   空段落占住页首基线，注释首行比正文页首低一行}
+% \pkg{longtable} 的 \cs{LT@start} 给每张表排一个链接锚
+% （\cs{MakeLinkTarget}，\cs{LTcaptype} 为空时也照排一个
+% \texttt{LT@tables} 的），锚变成一个只装撑竿的空段落（\cs{showoutput} 里
+% 是 12.2+7.3 的空行盒，内容只有段落撑竿那根零宽 rule，后跟
+% \texttt{dest (table.1.1)}）。表整个被推到新页时，空段落抢走 \cs{topskip}
+% 基线，「式中」首行低一个行距（1--7 页版实测 140.5 对正文页首 119.9）。
+% 注释表不是编号插表，锚没有用处，环境组内把 \cs{MakeLinkTarget} 换成
+% 吞参数的空操作，空段落连同锚一起消失。
+%    \begin{macrocode}
+    \box_gclear:N \LT@head
+    \box_gclear:N \LT@firsthead
+    \cs_if_exist:NT \MakeLinkTarget
+      { \cs_set_eq:NN \MakeLinkTarget \use_none:n }
+    \begin{xltabular} { \textwidth }
+      { @{} l @{ \hspace { \ccwd } } r @{ \hit@eqdenote@dash } X @{} }
+      #1 & #2 \\
+    \end{xltabular}
+  }
+%    \end{macrocode}
+%
+% 每条注释一个 \cs{item}，不必自己写 \cs{\textbackslash\textbackslash}，也不必记着
+% 末条不加。做法是把环境正文按 \cs{item} 切开，再用「\cs{\textbackslash
+% \textbackslash} 加一个空格子」接起来。切分只认顶层的 \cs{item}，嵌在花括号里的
+% 不算。正文里一个 \cs{item} 都没有时会给出警告，因为那样第二行起缺一个空格子，
+% 表格会错位。
+%
+% 收尾的三句是给后面的元素定位用的。整张表是段落里的一个高盒子，深度取自表格行的
+% strut，比正文行深，\hologo{TeX} 只好退到 \cs{lineskip}，末行会与后面的正文挨得比正文
+% 行距近；而标题的 \cs{addvspace} 是从盒子底量的，又会偏松。把盒子底与
+% \cs{prevdepth} 都收到正文行的深度，接正文和接标题就都跟正文一致。
+%    \begin{macrocode}
+\NewDocumentEnvironment { eqdenote } { O{\hit@eqdenote@label} +b }
+  {
+    \seq_set_split:Nnn \l__hit_eqdenote_seq { \item } {#2}
+    \seq_get_left:NN \l__hit_eqdenote_seq \l__hit_eqdenote_tl
+    \tl_if_blank:VTF \l__hit_eqdenote_tl
+      { \seq_pop_left:NN \l__hit_eqdenote_seq \l__hit_eqdenote_tl }
+      { \msg_warning:nn { hithesis } { eqdenote-no-item } }
+    \tl_set:Nn \l__hit_eqdenote_tl {#1}
+    \tl_if_blank:nT {#1}
+      { \tl_set:Nn \l__hit_eqdenote_tl { \hphantom { \hit@eqdenote@label } } }
+    \exp_args:NV \__hit_eqdenote_table:nn \l__hit_eqdenote_tl
+      { \seq_use:Nn \l__hit_eqdenote_seq { \\ & } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/18}{\env{eqdenote} 收尾从「中」字形深度改成段落撑竿
+%   深度，后接任何元素的间距与正文相同}
+% 收尾要把表底整理成「一行正文的底」。正文行靠段落撑竿把高深撑成正好一个
+% \cs{baselineskip}（高 12.22、深 7.30），后面的行距胶、标题的
+% \cs{addvspace} 都按这个深度记账。原来按「中」字形深度收，与撑竿体系
+% 对不上：接正文 20.9（应 19.45），接小节标题 26.3（应 31.0）。现在量一只
+% 段落撑竿的盒子，把 \cs{prevdepth}（此刻等于末行行深）kern 到撑竿深度，
+% 再把 \cs{prevdepth} 设成撑竿深度——之后不管接段落、标题还是公式，
+% 几何上与接在一段正文后面完全相同。撑竿宏不存在时不动，保持原样。
+%    \begin{macrocode}
+    \par
+    \cs_if_exist:NT \hit@format@strut:
+      {
+        \hbox_set:Nn \l__hit_eqdenote_box { \hit@format@strut: }
+        \dim_gset:Nn \g__hit_eqdenote_dp_dim
+          { \box_dp:N \l__hit_eqdenote_box }
+        \group_insert_after:N \__hit_eqdenote_finish:
+      }
+  }
+  { }
+%    \end{macrocode}
+%
+% 修正必须推迟到环境组外，而且只设 \cs{prevdepth} 不补 kern。
+% \cs{prevdepth} 是组内状态，组一关就被还原，组内设的那份白设；表格行的
+% X 列 parbox 里段落撑竿照常生效，行盒的深度本来就是正文行深 7.30，不需要
+% kern 找齐（先补过一道 kern，间距反而多出约 7\,bp）。表格收尾后
+% \cs{prevdepth} 被 \pkg{longtable} 留成别的值（实测 0.42），所以还是要把
+% 撑竿深度存进全局量，\cs{group\_insert\_after:N} 在 \cs{end}\marg{eqdenote}
+% 关组之后设回去。
+%    \begin{macrocode}
+\dim_new:N \g__hit_eqdenote_dp_dim
+\cs_new_protected:Npn \__hit_eqdenote_finish:
+  { \tex_prevdepth:D \g__hit_eqdenote_dp_dim }
+%</shared-math>
+%    \end{macrocode}
+%
+%
+% \Finale

@@ -1,0 +1,66 @@
+% 依赖的 xeCJK/ctex 内部接口。
+%
+% 标点与字符网格那套机器扒了 xeCJK 的字符类接口，其中三个是双下划线的私有
+% 名字。这些不是 xeCJK 的公开 API，改版就可能改名。源码里已经用六重存在性
+% 检查把着门，缺任何一个就整块不发并报 xecjk-punct-grid，不会静默出错。
+%
+% 这个测试把必需的那批钉进基线。CI 的 TeX Live 矩阵跑 2022 到 2026 五个
+% 版本，哪个版本上少了哪一个，这里会直接差出来，不必等到肉眼看排版走样。
+% 接口清单见 src/utils/hit-format.dtx 的 \hit@format@punct@grid:。
+%
+% \ccwd 一并报：它是汉字步进，等于网格格宽说明网格真的装上了。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=bachelor,campus=harbin]{hit-thesis}
+\ExplSyntaxOn
+\cs_new_protected:Npn \hitshowcs #1
+  {
+    \iow_term:x
+      { #1 = \cs_if_exist:cTF {#1} { 在 } { 缺 } }
+  }
+% 必需的七个：缺任何一个，\hit@format@punct@grid: 整块不发并报
+% xecjk-punct-grid。这里断言它们都在，将来上游改名会在这里先红。
+\cs_new_protected:Npn \hitshowiface
+  {
+    \clist_map_inline:nn
+      {
+        xeCJK_pre_inter_class_toks:nnn ,
+        xeCJK_copy_inter_class_toks:nnnn ,
+        xeCJK_replace_inter_class_toks:nnnn ,
+        xeCJK_new_class:n ,
+        xeCJK_class_num:n ,
+        __xeCJK_save_CJK_class:n ,
+        g__xeCJK_class_seq
+      }
+      { \hitshowcs {##1} }
+  }
+% 可选的三个：有就打补丁，没有就跳过，各自单独 \cs_if_exist 兜着。
+% 它们在不在跟 TeX Live 版本有关（实测 \__xeCJK_use_ecglue_skip: 在
+% TL2022 上没有，TL2026 上有），所以只列名不断言状态——断言了基线在
+% 旧版本上必红，而那并不是坏事发生。
+\cs_new_protected:Npn \hitshowoptional
+  {
+    \clist_map_inline:nn
+      { __xeCJK_use_ecglue_skip: , ctex_update_ccglue: , l__ctex_ccglue_skip }
+      { \iow_term:x { 可选~ ##1 } }
+  }
+\cs_new_protected:Npn \hitshowgrid
+  {
+    \iow_term:x { ccwd = \dim_use:N \ccwd }
+    \iow_term:x { 格宽 = \dim_use:N \g_hit_msword_char_dim }
+  }
+\ExplSyntaxOff
+\begin{document}
+\START
+\makeatletter
+\TEST{必需的内部接口都在}{
+  \hitshowiface
+}
+\TEST{可选的内部接口（在不在随版本，只记名）}{
+  \hitshowoptional
+}
+\TEST{网格装上了：汉字步进等于格宽}{
+  \hitshowgrid
+}
+\makeatother
+\END
+\end{document}

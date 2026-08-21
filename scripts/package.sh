@@ -146,7 +146,7 @@ fi
 
 echo "Generating package files..."
 make cls
-make doc
+make manual
 
 if [[ ! -f hithesis.pdf ]]; then
   echo "error: hithesis.pdf was not generated" >&2

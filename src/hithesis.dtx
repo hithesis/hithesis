@@ -16,6 +16,285 @@
 
 
 %
+% ^^A ======================================================================
+% ^^A Module internal: 自解压引导（plain TeX 跑本文件时选中 install 块）
+% ^^A ======================================================================
+% ^^A 同一份 dtx 走两条路：
+% ^^A   tex   src/hithesis.dtx  -> \fmtname 不是 LaTeX2e，执行下面的 install 块
+% ^^A   latex src/hithesis.dtx  -> \fmtname 是 LaTeX2e，跳过 install 块去排手册
+% ^^A
+% ^^A 跳过靠 \csname fi\endcsname：TeX 跳过条件分支时不展开 \csname，那一句
+% ^^A 因此不算作 \fi，一直跳到 install 块之后那个真的 \fi 为止。
+% ^^A 走 install 那条路时它展开成 \fi 收掉 \ifx，末尾的 \endbatchfile 先结束
+% ^^A 运行，后面那个 \fi 读不到。
+%<*internal>
+\begingroup
+  \def\temp{LaTeX2e}
+\expandafter\endgroup\ifx\temp\fmtname\else
+\csname fi\endcsname
+%</internal>
+%<*install>
+\input docstrip
+
+\askforoverwritefalse
+\showprogress
+\keepsilent
+
+\usedir{tex/latex/hithesis}
+
+\preamble
+
+This is a generated file.
+
+Copyright (C) 2017- by Chu Yanshuo <yanshuoc@gmail.com>
+
+This file may be distributed and/or modified under the
+conditions of the LaTeX Project Public License, either version 1.3a
+of this license or (at your option) any later version.
+The latest version of this license is in:
+
+http://www.latex-project.org/lppl.txt
+
+and version 1.3a or later is part of all distributions of LaTeX
+version 2004/10/01 or later.
+
+To produce the documentation run the original source files ending with `.dtx'
+through LaTeX.
+
+\endpreamble
+
+\declarepreamble\cfgpreamble
+
+This is a generated file.
+
+Copyright (C) 2017- by Chu Yanshuo <yanshuoc@gmail.com>
+
+This file may be distributed and/or modified under the
+conditions of the LaTeX Project Public License, either version 1.3a
+of this license or (at your option) any later version.
+The latest version of this license is in:
+
+http://www.latex-project.org/lppl.txt
+
+and version 1.3a or later is part of all distributions of LaTeX
+version 2004/10/01 or later.
+
+This is the configuration file of the hithesis package with LaTeX2e.
+
+\endpreamble
+\declarepreamble\istpreamble
+
+This is a generated file.
+
+Copyright (C) 2017- by Chu Yanshuo <yanshuoc@gmail.com>
+
+This file may be distributed and/or modified under the
+conditions of the LaTeX Project Public License, either version 1.3a
+of this license or (at your option) any later version.
+The latest version of this license is in:
+
+http://www.latex-project.org/lppl.txt
+
+and version 1.3a or later is part of all distributions of LaTeX
+version 2004/10/01 or later.
+
+This is the configuration file of the hithesis package with LaTeX2e.
+
+\endpreamble
+%</install>
+%
+% ^^A ---------------------------------------------------------------------
+% ^^A 先把 hithesis.ins 自己生成出来。它是给拿到源码包的人用的：
+% ^^A latex hithesis.ins 与 tex src/hithesis.dtx 结果一样。开发时走后者。
+% ^^A ---------------------------------------------------------------------
+%<*install>
+\generate{\file{hithesis.ins}{\from{\jobname.dtx}{install}}}
+%</install>
+%
+% ^^A ---------------------------------------------------------------------
+% ^^A 两个真正的类。模块按运行期顺序内联进 cls，\from 的书写顺序就是它们在
+% ^^A cls 里出现的顺序，与守卫块在各 dtx 里的位置无关。
+% ^^A
+% ^^A 三条顺序约束，改动时照着来：
+% ^^A
+% ^^A 一、共用文件排在每个块的最前面。docstrip 的输入文件表是全局只增的，
+% ^^A     一个被多份输出共用的文件只有排在最前，各份输出要求的先后才彼此相容，
+% ^^A     否则报 Incompatible order of input files。hit-defaults.dtx 因此排第二，
+% ^^A     虽然按分层它是配置不是机制。代价是配置「早读晚生效」——\hitpresetup
+% ^^A     先记进队列，各个类在原先配置所在的位置调 \hit@apply@presetup 回放。
+% ^^A
+% ^^A 二、加载第三方宏包那一段是 *-geometry -> *-deps -> *-hyperlink 三步。
+% ^^A     硬约束只有一条：hyperref 落到所有包之后，那是它的惯例，所以
+% ^^A     *-hyperlink 收尾。geometry 提前是稳妥起见，让版心在任何按 \textwidth
+% ^^A     算尺寸的包之前定下来；fancyhdr 其实由更早的 *-pagestyle 加载，
+% ^^A     不受这一步影响。deps 内部的包彼此没有约束，一块装完。
+% ^^A
+% ^^A 三、另外两个模块的位置有具体理由：
+% ^^A     report-toc  排在 report-deps 之后，否则 enumitem 会覆盖 cft* 类长度
+% ^^A     thesis-toc  排在最后，避免布局参数被后加载的宏包改掉
+% ^^A ---------------------------------------------------------------------
+%<*install>
+\generate{
+    \file{hit-thesis.cls}{
+    \from{\jobname.dtx}{thesiscls}
+    \from{hit-defaults.dtx}{shared-defaults,thesis-defaults}
+    \from{hit-messages.dtx}{shared-messages}
+    \from{hit-lang.dtx}{shared-lang}
+    \from{hit-fonts.dtx}{shared-fonts}
+    \from{hit-math.dtx}{shared-math}
+    \from{hit-table.dtx}{shared-table}
+    \from{hit-footnote.dtx}{shared-footnote}
+    \from{hit-list.dtx}{shared-list}
+    \from{hit-hyperlink.dtx}{shared-hyperlink}
+    \from{hit-title.dtx}{shared-title}
+    \from{hit-spread.dtx}{shared-spread}
+    \from{hit-date.dtx}{shared-date}
+    \from{hit-msword.dtx}{shared-msword}
+    \from{hit-format.dtx}{shared-format}
+    \from{hit-caption.dtx}{shared-caption}
+    \from{hit-subfigure.dtx}{shared-subfigure}
+    \from{hit-key-engine.dtx}{shared-key-engine}
+    \from{hit-option-engine.dtx}{shared-option-engine}
+    \from{hit-bibstyle.dtx}{shared-bibstyle}
+    \from{hit-structure.dtx}{shared-structure}
+    \from{hit-keylist.dtx}{shared-keylist,thesis-keylist}
+    \from{hit-thesis-options.dtx}{thesis-options}
+    \from{hit-thesis.dtx}{thesiscls-load}
+    \from{hit-thesis-fonts.dtx}{thesis-fonts}
+    \from{hit-thesis-pagestyle.dtx}{thesis-pagestyle}
+    \from{hit-thesis-cover.dtx}{thesis-cover}
+    \from{hit-thesis-abstract.dtx}{thesis-abstract}
+    \from{hit-thesis-toc.dtx}{thesis-toc-lists}
+    \from{hit-thesis-heading.dtx}{thesis-chapter}
+    \from{hit-thesis-bib.dtx}{thesis-bib}
+    \from{hit-thesis-appendix.dtx}{thesis-appendix}
+    \from{hit-thesis-backmatter.dtx}{thesis-backmatter}
+    \from{hit-thesis-statement.dtx}{thesis-statement}
+    \from{hit-thesis-resolution.dtx}{thesis-resolution}
+    \from{hit-thesis-geometry.dtx}{thesis-geometry}
+    \from{hit-thesis-deps.dtx}{thesis-deps}
+    \from{hit-thesis-hyperlink.dtx}{thesis-hyperlink}
+    \from{hit-thesis-glossary.dtx}{thesis-glossary}
+    \from{hit-thesis-matter.dtx}{thesis-mainmatter}
+    \from{hit-thesis-paragraph.dtx}{thesis-paragraph}
+    \from{hit-thesis-footnote.dtx}{thesis-footnote}
+    \from{hit-thesis-math.dtx}{thesis-math}
+    \from{hit-thesis-float.dtx}{thesis-floats}
+    \from{hit-thesis-toc.dtx}{thesis-toc}
+    \from{hit-thesis.dtx}{thesiscls-tail}
+    \from{hit-thesis.dtx}{thesiscfg}
+    }
+    \file{hit-report.cls}{
+    \from{\jobname.dtx}{reportcls}
+    \from{hit-defaults.dtx}{shared-defaults,report-defaults}
+    \from{hit-messages.dtx}{shared-messages}
+    \from{hit-lang.dtx}{shared-lang}
+    \from{hit-fonts.dtx}{shared-fonts}
+    \from{hit-math.dtx}{shared-math}
+    \from{hit-table.dtx}{shared-table}
+    \from{hit-footnote.dtx}{shared-footnote}
+    \from{hit-list.dtx}{shared-list}
+    \from{hit-hyperlink.dtx}{shared-hyperlink}
+    \from{hit-title.dtx}{shared-title}
+    \from{hit-spread.dtx}{shared-spread}
+    \from{hit-date.dtx}{shared-date}
+    \from{hit-msword.dtx}{shared-msword}
+    \from{hit-format.dtx}{shared-format}
+    \from{hit-caption.dtx}{shared-caption}
+    \from{hit-subfigure.dtx}{shared-subfigure}
+    \from{hit-key-engine.dtx}{shared-key-engine}
+    \from{hit-option-engine.dtx}{shared-option-engine}
+    \from{hit-bibstyle.dtx}{shared-bibstyle}
+    \from{hit-structure.dtx}{shared-structure}
+    \from{hit-keylist.dtx}{shared-keylist,report-keylist}
+    \from{hit-report-options.dtx}{report-options}
+    \from{hit-report.dtx}{reportcls-load}
+    \from{hit-report-fonts.dtx}{report-fonts}
+    \from{hit-report-float.dtx}{report-floats}
+    \from{hit-report-pagestyle.dtx}{report-pagestyle}
+    \from{hit-report-cover.dtx}{report-cover}
+    \from{hit-report-heading.dtx}{report-chapter}
+    \from{hit-report-bib.dtx}{report-bib}
+    \from{hit-report-geometry.dtx}{report-geometry}
+    \from{hit-report-deps.dtx}{report-deps}
+    \from{hit-report-hyperlink.dtx}{report-hyperlink}
+    \from{hit-report-subfig.dtx}{report-subfig}
+    \from{hit-report-toc.dtx}{report-toc}
+    \from{hit-report-matter.dtx}{report-matter}
+    \from{hit-report.dtx}{reportcfg}
+    \from{hit-report.dtx}{reportcls-tail}
+    }
+    \usepreamble\istpreamble
+    \file{\jobname.ist}{\from{hit-ist.dtx}{ist}}
+    \usepreamble\defaultpreamble\usepostamble\defaultpostamble
+    \file{\jobname.cls}{\from{\jobname.dtx}{dispatch}}
+    \file{\jobname book.cls}{\from{\jobname.dtx}{book-stub}}
+    \file{\jobname art.cls}{\from{\jobname.dtx}{art-stub}}
+    \file{\jobname artplus.cls}{\from{\jobname.dtx}{artplus-stub}}
+    \file{\jobname.sty}{\from{hit-sty.dtx}{hit-sty}}
+    \file{dtx-style.sty}{\from{hit-dtx-style.dtx}{dtx-style}}
+}
+%</install>
+%
+% ^^A ---------------------------------------------------------------------
+% ^^A 两份 bst 与五个 eps。bst 不要 postamble，docstrip 的 %% 结尾行 bibtex 不认；
+% ^^A eps 的第一行必须是 %!PS-Adobe，所以 preamble 换成那一行。
+% ^^A golfer.eps 是 2.0 版，其余四个是 3.0 版，不能合成一个 \generate。
+% ^^A ---------------------------------------------------------------------
+%<*install>
+\generate{
+    \usepostamble\empty
+    \file{\jobname.bst}{\from{hit-bst.dtx}{bst}}
+}
+
+\edef\epspreamble{\perCent!PS-Adobe-3.0 EPSF-3.0}
+\generate{\usepreamble\epspreamble
+	\usepostamble\empty
+	\file{hit-logo.eps}{\from{hit-eps.dtx}{hit-logo}}
+	\file{zfb.eps}{\from{hit-eps.dtx}{zfb}}
+  \file{hit-bachelor-report-bottommark.eps}{\from{hit-eps.dtx}{hit-bachelor-report-bottommark}}
+}
+
+\edef\epspreamble{\perCent!PS-Adobe-2.0 EPSF-1.2}
+\generate{\usepreamble\epspreamble
+	\usepostamble\empty
+	\file{golfer.eps}{\from{hit-eps.dtx}{golfer}}
+}
+
+\ifToplevel{%
+  \Msg{***********************************************************}
+  \Msg{*}
+  \Msg{* To finish the installation you have to move the following}
+  \Msg{* files into a directory searched by TeX:}
+  \Msg{*}
+  \Msg{* The recommended directory is TEXMF/tex/latex/hithesis}
+  \Msg{*}
+  \Msg{* \space\space hit-thesis.cls}
+  \Msg{* \space\space hit-report.cls}
+  \Msg{* \space\space hithesis.cls}
+  \Msg{* \space\space hithesisbook.cls}
+  \Msg{* \space\space hithesisart.cls}
+  \Msg{* \space\space hithesisartplus.cls}
+  \Msg{* \space\space hithesis.sty}
+  \Msg{* \space\space hithesis.ist}
+  \Msg{* \space\space hithesis.bst}
+  \Msg{* \space\space hit-logo.pdf}
+  \Msg{* \space\space golfer.pdf}
+  \Msg{* \space\space zfb.pdf}
+  \Msg{* \space\space hit-bachelor-report-bottommark.pdf}
+  \Msg{*}
+  \Msg{* To produce the documentation run the files ending with}
+  \Msg{* `.dtx' through LaTeX.}
+  \Msg{*}
+  \Msg{* Happy TeXing!}
+  \Msg{***********************************************************}}
+
+\endbatchfile
+%</install>
+%<*internal>
+\fi
+%</internal>
+%
 % \iffalse
 % ^^A ======================================================================
 % ^^A Module driver: 手册渲染驱动（latex hithesis.dtx 时由它驱动）
@@ -30,11 +309,71 @@
 \RecordChanges
 
 \begin{document}
-  \DocInput{src/hithesis-doc.dtx}
-  \DocInput{src/\jobname.dtx}
-  \DocInput{src/hithesis-bst.dtx}
-  \DocInput{src/hithesis-art.dtx}
-  \DocInput{src/hithesis-book.dtx}
+  \DocInput{src/manual/hit-manual.dtx}
+  % 写死文件名不写 \jobname：换个 -jobname 编时 \jobname 指的是输出名，
+  % 不是源文件名
+  \DocInput{src/hithesis.dtx}
+  \DocInput{src/hit-bst.dtx}
+  \DocInput{src/hit-ist.dtx}
+  \DocInput{src/hit-dtx-style.dtx}
+  \DocInput{src/hit-sty.dtx}
+  \DocInput{src/hit-report.dtx}
+  \DocInput{src/hit-thesis.dtx}
+  \DocInput{src/setup/hit-thesis-options.dtx}
+  \DocInput{src/setup/hit-report-options.dtx}
+  \DocInput{src/flow/hit-thesis-deps.dtx}
+  \DocInput{src/flow/hit-report-deps.dtx}
+  \DocInput{src/flow/hit-thesis-glossary.dtx}
+  \DocInput{src/flow/hit-thesis-fonts.dtx}
+  \DocInput{src/flow/hit-thesis-hyperlink.dtx}
+  \DocInput{src/flow/hit-thesis-footnote.dtx}
+  \DocInput{src/flow/hit-thesis-math.dtx}
+  \DocInput{src/flow/hit-report-fonts.dtx}
+  \DocInput{src/flow/hit-report-hyperlink.dtx}
+  \DocInput{src/flow/hit-report-subfig.dtx}
+  \DocInput{src/setup/hit-keylist.dtx}
+  \DocInput{src/pages/hit-thesis-cover.dtx}
+  \DocInput{src/pages/hit-thesis-abstract.dtx}
+  \DocInput{src/pages/hit-thesis-toc.dtx}
+  \DocInput{src/pages/hit-thesis-appendix.dtx}
+  \DocInput{src/pages/hit-thesis-backmatter.dtx}
+  \DocInput{src/pages/hit-thesis-statement.dtx}
+  \DocInput{src/pages/hit-thesis-resolution.dtx}
+  \DocInput{src/pages/hit-thesis-bib.dtx}
+  \DocInput{src/pages/hit-report-cover.dtx}
+  \DocInput{src/pages/hit-report-toc.dtx}
+  \DocInput{src/pages/hit-report-bib.dtx}
+  \DocInput{src/flow/hit-thesis-geometry.dtx}
+  \DocInput{src/flow/hit-thesis-pagestyle.dtx}
+  \DocInput{src/flow/hit-thesis-heading.dtx}
+  \DocInput{src/flow/hit-thesis-paragraph.dtx}
+  \DocInput{src/flow/hit-thesis-float.dtx}
+  \DocInput{src/flow/hit-thesis-matter.dtx}
+  \DocInput{src/flow/hit-report-geometry.dtx}
+  \DocInput{src/flow/hit-report-pagestyle.dtx}
+  \DocInput{src/flow/hit-report-heading.dtx}
+  \DocInput{src/flow/hit-report-float.dtx}
+  \DocInput{src/flow/hit-report-matter.dtx}
+  \DocInput{src/setup/hit-defaults.dtx}
+  \DocInput{src/utils/hit-messages.dtx}
+  \DocInput{src/utils/hit-lang.dtx}
+  \DocInput{src/setup/hit-option-engine.dtx}
+  \DocInput{src/setup/hit-key-engine.dtx}
+  \DocInput{src/utils/hit-fonts.dtx}
+  \DocInput{src/utils/hit-math.dtx}
+  \DocInput{src/utils/hit-table.dtx}
+  \DocInput{src/utils/hit-list.dtx}
+  \DocInput{src/utils/hit-footnote.dtx}
+  \DocInput{src/utils/hit-hyperlink.dtx}
+  \DocInput{src/utils/hit-title.dtx}
+  \DocInput{src/utils/hit-spread.dtx}
+  \DocInput{src/utils/hit-date.dtx}
+  \DocInput{src/utils/hit-msword.dtx}
+  \DocInput{src/utils/hit-format.dtx}
+  \DocInput{src/utils/hit-caption.dtx}
+  \DocInput{src/utils/hit-subfigure.dtx}
+  \DocInput{src/utils/hit-bibstyle.dtx}
+  \DocInput{src/utils/hit-structure.dtx}
 \end{document}
 %</driver>
 % \fi
@@ -82,289 +421,256 @@
 %
 % \subsection{基本信息}
 %
-% 我工要求的索引格式。
-% \changes{v1.0.10}{2018/02/19}{修改了索引的间距，使其更符合规范中的示例}
-% ^^A ======================================================================
-% ^^A Module ist: 索引排序样式
-% ^^A ======================================================================
-%
-% \changes{v3.2a}{0000/00/00}{内核下限提到 2022-06-01，为改用 l3keys 做准备：
+% \changes{v3.2a}{2026/08/04}{内核下限提到 2022-06-01，为改用 l3keys 做准备：
 %   \cs{ProcessKeyOptions} 出自该次内核发布，早于它的 TeX Live 没有这个接口}
+% \changes{v3.2a}{2026/08/07}{各个类改用 \cs{ProvidesExplClass} 声明，整份类文件
+%   常开 expl3 语法，不再有成对的 \cs{ExplSyntaxOn} 与 \cs{ExplSyntaxOff}}
+% \changes{v3.2a}{2026/08/06}{不再预载 \pkg{tikz} 的 \texttt{calc} 库，因为
+%   \cs{usetikzlibrary} 走裸 \cs{input} 不恢复 catcode，会逼类文件退出 expl3}
+% \changes{v3.2a}{2026/08/09}{索引排序样式挪到 \file{src/hit-ist.dtx}，
+%   手册样式挪到 \file{src/hit-dtx-style.dtx}}
 %    \begin{macrocode}
-%<*ist>
-headings_flag 1
-heading_prefix "\{\\vskip -\\baselineskip\\centering\\normalsize\\textbf\{"
-heading_suffix "\}\\par\}\\nopagebreak\\wuhao\n"
-delim_0 "\\hspace*{\\fill}"
-delim_1 "\\hspace*{\\fill}"
-%</ist>
-%<bookcls|artcls|artpluscls>\NeedsTeXFormat{LaTeX2e}[2022/06/01]
-%<bookcls>\ProvidesClass{hithesisbook}
-%<artcls>\ProvidesClass{hithesisart}
-%<artpluscls>\ProvidesClass{hithesisartplus}
-%<bookcfg>\ProvidesFile{hithesisbook.cfg}
-%<artcfg>\ProvidesFile{hithesisart.cfg}
-%<artpluscls|artcls|bookcls|bookcfg|artcfg>[0000/00/00 v3.2a Harbin Institute of Technology Thesis Template]
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% artpluscls
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%<thesiscls|reportcls>\NeedsTeXFormat{LaTeX2e}[2022/06/01]
+%<thesiscls>\ProvidesExplClass{hit-thesis}{0000/00/00}{3.2a}{Harbin Institute of Technology Thesis Template}
+%<reportcls>\ProvidesExplClass{hit-report}{0000/00/00}{3.2a}{Harbin Institute of Technology Thesis Template}
+%<thesiscfg>\ProvidesExplFile{hit-thesis.cfg}{0000/00/00}{3.2a}{Harbin Institute of Technology Thesis Template}
+%<reportcfg>\ProvidesExplFile{hit-report.cfg}{0000/00/00}{3.2a}{Harbin Institute of Technology Thesis Template}
 %    \end{macrocode}
 %
 % \subsection{其它}
 % \label{sec:other}
 % 在模板文档结束时即装入配置文件，这样用户就能在导言区进行相应的修改。
-% \changes{v3.2a}{0000/00/00}{杂项从 bookcls 拆出至 misc-book 模块}
-%    \begin{macrocode}
-%    \end{macrocode}
+% \changes{v3.2a}{2026/08/03}{杂项从 bookcls 拆出至 misc-book 模块}
 %
-% \subsection{\textsc{DocStrip} 的样式文件}
-%    \begin{macrocode}
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% dtx-style
-% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%    \end{macrocode}
-% ^^A ======================================================================
-% ^^A Module dtx-style: dtx 自身排版样式
-% ^^A ======================================================================
-%    \begin{macrocode}
-%<*dtx-style>
-\ProvidesPackage{dtx-style}
-\RequirePackage{hypdoc}
-%    \end{macrocode}
-%
-% 默认字体为fandol
-% \changes{v3.0.02}{2020/06/11}{默认字体为fandol}
-%    \begin{macrocode}
-\RequirePackage[UTF8,scheme=chinese,fontset=fandol]{ctex}
-  % \RequirePackage{newpxtext}
-  % \RequirePackage{newpxmath}
-  \setmainfont{TeXGyrePagellaX}[
-    Extension   = .otf,
-    UprightFont = *-Regular,
-    BoldFont    = *-Bold,
-    ItalicFont  = *-Italic,
-    BoldItalicFont = *-BoldItalic,
-  ]
-\setsansfont{IBMPlexSansCondensed}[%
-    Extension      = .otf,
-    UprightFont    = *-Regular,
-    BoldFont       = *-Bold,
-    ItalicFont     = *-Italic,
-    BoldItalicFont = *-BoldItalic
-  ]
-\IfFontExistsTF{Iosevka Slab}{
-  \setmonofont{Iosevka Slab}
-}{
-  \IfFontExistsTF{Latin Modern Mono}{
-    \setmonofont{Latin Modern Mono}
-  }{}
-}
-%    \end{macrocode}
-%
-% 添加fallback字体，这样无论本机/CI/Debian/macOS都不会炸
-% \changes{v3.1e}{2026/01/08}{添加fallback字体，这样无论本机/CI/Debian/macOS都不会炸}
-% \changes{v3.2a}{0000/00/00}{修复Latin Modern Mono fallback缺少\cs{IfFontExistsTF}防护导致CI编译文档失败的问题}
-%    \begin{macrocode}
-\RequirePackage[
-  top=2.5cm, bottom=2.5cm,
-  left=4cm, right=2cm,
-  headsep=3mm]{geometry}
-\RequirePackage{array,longtable,booktabs}
-%    \end{macrocode}
-%
-% 重定义 \pkg{booktabs} 宏包的默认线宽，绘制三线表时不再需要显式设置，以实现更好的内容与格式分离
-% \changes{v3.0.20}{2022/05/06}{重定义 \pkg{booktabs} 宏包的默认线宽，绘制三线表时不再需要显式设置，以实现更好的内容与格式分离}
-%    \begin{macrocode}
-\heavyrulewidth=1.5pt
-\lightrulewidth=1pt
-\cmidrulewidth=0.5pt
-\RequirePackage{listings}
-\RequirePackage{fancyhdr}
-\RequirePackage{xcolor}
-\RequirePackage{enumitem}
-\RequirePackage{etoolbox}
-\RequirePackage{metalogo}
-\RequirePackage{hyperref}
-%    \end{macrocode}
-% 增加 \pkg{ninecolors} 宏包来使用更多颜色。
-%    \begin{macrocode}
-\RequirePackage{ninecolors}
-
-\colorlet{hit@macro}{blue!60!black}
-\colorlet{hit@env}{blue!70!black}
-\colorlet{hit@option}{purple}
-\patchcmd{\PrintMacroName}{\MacroFont}{\MacroFont\bfseries\color{hit@macro}}{}{}
-\patchcmd{\PrintDescribeMacro}{\MacroFont}{\MacroFont\bfseries\color{hit@macro}}{}{}
-\patchcmd{\PrintDescribeEnv}{\MacroFont}{\MacroFont\bfseries\color{hit@env}}{}{}
-\patchcmd{\PrintEnvName}{\MacroFont}{\MacroFont\bfseries\color{hit@env}}{}{}
-
-\def\DescribeOption{%
-  \leavevmode\@bsphack\begingroup\MakePrivateLetters%
-  \Describe@Option}
-\def\Describe@Option#1{\endgroup
-  \marginpar{\raggedleft\PrintDescribeOption{#1}}%
-  \hit@special@index{option}{#1}\@esphack\ignorespaces}
-\def\PrintDescribeOption#1{\strut \MacroFont\bfseries\sffamily\color{hit@option} #1\ }
-\def\hit@special@index#1#2{\@bsphack
-  \begingroup
-    \HD@target
-    \let\HDorg@encapchar\encapchar
-    \edef\encapchar usage{%
-      \HDorg@encapchar hdclindex{\the\c@HD@hypercount}{usage}%
-    }%
-    \index{#2\actualchar{\string\ttfamily\space#2}
-           (#1)\encapchar usage}%
-    \index{#1:\levelchar#2\actualchar
-           {\string\ttfamily\space#2}\encapchar usage}%
-  \endgroup
-  \@esphack}
-
-\lstdefinestyle{lstStyleBase}{%
-   basicstyle=\small\ttfamily,
-   aboveskip=\medskipamount,
-   belowskip=\medskipamount,
-   lineskip=0pt,
-   boxpos=c,
-   showlines=false,
-   extendedchars=true,
-   upquote=true,
-   tabsize=2,
-   showtabs=false,
-   showspaces=false,
-   showstringspaces=false,
-   numbers=none,
-   linewidth=\linewidth,
-   xleftmargin=4pt,
-   xrightmargin=0pt,
-   resetmargins=false,
-   breaklines=true,
-   breakatwhitespace=false,
-   breakindent=0pt,
-   breakautoindent=true,
-   columns=flexible,
-   keepspaces=true,
-   gobble=2,
-   framesep=3pt,
-   rulesep=1pt,
-   framerule=1pt,
-   backgroundcolor=\color{gray!5},
-   stringstyle=\color{green!40!black!100},
-   keywordstyle=\bfseries\color{blue!50!black},
-   commentstyle=\slshape\color{black!60}}
-
-%    \end{macrocode}
-% 修改抄录环境的高亮，使代码更易阅读。
-% \changes{v3.1a}{2022/05/17}{修改抄录环境的高亮，使代码更易阅读。}
-%    \begin{macrocode}
-   \lstdefinestyle{lstStyleShell}{%
-   style=lstStyleBase,
-   frame=l,
-   rulecolor=\color{purple},
-   language=bash,
-   morekeywords  = [1]
-   {
-     tlmgr, pdflatex, latexmk, xelatex, cd, dir, mkdir,
-     ls, del, rm, mv, move, cp, copy, code, bibtex, biber,
-     texdoc, kpsewhich, texhash, splitindex, latex, makeindex, 
-     make
-   },
-    morekeywords  = [2]{action, info, option, update, install, remove, version, restore},
-    otherkeywords  = {--, -s, -o, -xelatex},
-    morekeywords  = [3]{--, -s, -o, -xelatex},
-    keywordstyle  = [1]{\bfseries},
-    keywordstyle  = [2]{\color{azure4}},
-    keywordstyle  = [3]{\color{green5}}
-    % moredelim     = [s][\color{green5}]{\ -}{\ },
-   }
-
-\lstdefinestyle{lstStyleLaTeX}{%
-    style=lstStyleBase,
-    frame=l,
-    rulecolor=\color{violet},
-    language=[LaTeX]TeX,
-    texcsstyle  =*[1]{\color{azure4}\bfseries},
-    texcsstyle   =*[2]{\color{red3}\bfseries},
-    moretexcs   = [1]
-      {
-        LaTeX, LaTex, label, ref, 
-        tableofcontents, bibliography, bibliographystyle, 
-        cite, NeedsTeXFormat, ProvidesPackage, newcommand, mycmd, 
-        addbibresource, printbibliography, graphicspath, 
-        frontmatter, mainmatter, backmatter, printsubindex,
-        makecover, authorization, hitsetup, dachu,
-        chuhao, xiaochu, yihao, xiaoyi, erhao, xiaoer, sanhao, 
-        xiaosan, sihao, banxiaosi, xiaosi, dawu, wuhao, xiaowu, liuhao, xiaoliu, qihao, bahao,
-        bicaption, caption, ltfontsize, longbionenumcaption, subfigure, includegraphics,
-        toprule, midrule, bottomrule, endhead, endfirsthead, endfoot
-      },
-    deletetexcs  = [1]{documentclass, usepackage, begin, end},
-    moretexcs    = [2]{usepackage, documentclass, begin, end},
-  }
-
-\lstnewenvironment{latex}{\lstset{style=lstStyleLaTeX}}{}
-\lstnewenvironment{shell}{\lstset{style=lstStyleShell}}{}
-
-\setlist{nosep}
-
-\DeclareDocumentCommand{\option}{}{\meta}
-\DeclareDocumentCommand{\env}{m}{\textbf{\texttt{#1}}}
-\DeclareDocumentCommand{\pkg}{s m}{%
-  \textsf{#2}\IfBooleanF#1{\hit@special@index{package}{#2}}}
-\DeclareDocumentCommand{\cls}{s m}{%
-  \textsf{#2}\IfBooleanF#1{\hit@special@index{class}{#2}}}
-\DeclareDocumentCommand{\file}{s m}{%
-  \texttt{#2}\IfBooleanF#1{\hit@special@index{file}{#2}}}
-\newcommand{\myentry}[1]{%
-  \marginpar{\raggedleft\color{purple}\bfseries\strut #1}}
-\newcommand{\note}[2][Note]{{%
-  \color{magenta}{\bfseries #1}\emph{#2}}}
-%    \end{macrocode}
-%
-% \changes{v3.1b}{2022/06/06}{增加 \cs{issue} 命令，来方便 issue 的引用。}
-%    \begin{macrocode}
-\NewDocumentCommand\issue{o}{%
-  \IfValueTF{#1}
-    {\href{https://github.com/hithesis/hithesis/issues/#1}{issue: \##1}}
-    {\href{https://github.com/hithesis/hithesis/issues}{issues}}
-}
-%    \end{macrocode}
-%
-% 增加 \cs{hitszthesis} 来使参考 \hitszthesis{} 更加方便。
-% \begin{macro}{\hitszthesis}
-% % \changes{v3.1b}{2022/06/06}{增加 \cs{hitszthesis} 来使参考 \hitszthesis{} 更加方便。}
-%    \begin{macrocode}
-\def\hitszthesis{\href{https://github.com/YangLaTeX/hitszthesis}{\textsc{Hitsz}\-\textsc{Thesis}}{}}
-%    \end{macrocode}
-% \end{macro}
-%    \begin{macrocode}
-%</dtx-style>
-%    \end{macrocode}
-%
-%    \begin{macrocode}
-%<bookcfg-tail|dtx-style>\newcommand{\pozhehao}{——}
-%<bookcfg-tail|dtx-style>\def\hithesis{\textsc{hi}\-\textsc{Thesis}}
-%<bookcfg-tail|dtx-style>\def\hit{哈尔滨工业大学}
-%<bookcfg-tail|dtx-style>\def\PGR{\href{http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm}
-%<bookcfg-tail|dtx-style>{《\hit 研究生学位论文撰写规范》}}
-%<bookcfg-tail|dtx-style>\def\UGR{\href{http://jwc.hit.edu.cn/2566/list.htm}
-%<bookcfg-tail|dtx-style>{《\hit 本科生毕业论文撰写规范》}}
-%<bookcfg-tail>\def\hit@inline@sep{，}
-%    \end{macrocode}
-%
-% \changes{v2.0.06}{2018/12/05}{在\cs{inlinecite}内添加空格}
-%    \begin{macrocode}
-%<*dtx-style>
-  \NewDocumentEnvironment{hitrgu}{o o}
-  { \IfNoValueTF{#1}{\PGR,\UGR}{#1}\IfNoValueF{#2}{#2中}%
-\color{red}规定：“}{”}
-%</dtx-style>
-%    \end{macrocode}
 % \iffalse
-% ^^A EPS asset bundle (hitlogo / zfb / shenzhenbthesistitle / bthesistitle /
-% ^^A golfer / hrb-bachelor-bottommark) lives in hithesis-eps.dtx;
+% ^^A EPS asset bundle (hit-logo / zfb / golfer /
+% ^^A hit-bachelor-report-bottommark) lives in hit-eps.dtx;
 % ^^A docstrip reads it via hithesis.ins.
 % \fi
 %
+%
+% \section{派发类 \file{hithesis.cls}}
+%
+% \changes{v3.2a}{2026/08/09}{加派发类 \file{hithesis.cls}，
+%   \option{kind} 选交付物种类，用户目录不必再按类分开}
+% 「这是学位论文还是开题报告」原先编码在类名里。\option{type}、\option{campus}、
+% \option{lang} 都是选项，只有这一条不是，于是主文件第一行不一样，用户目录只能分开。
+% 派发类把它也降成选项：
+% \begin{latex}
+% \documentclass[kind=thesis,  degree-level=doctor, campus=harbin]{hithesis}
+% \documentclass[kind=proposal, degree-level=doctor, campus=harbin]{hithesis}
+% \documentclass[kind=interim, degree-level=doctor, campus=harbin]{hithesis}
+% \end{latex}
+% \option{kind} 不写按 \texttt{thesis} 算。\texttt{proposal} 与 \texttt{interim}
+% 交给报告类，其余选项原样转发。
+%
+% \changes{v3.2a}{2026/08/11}{\option{degree-level}\texttt{!=postdoc} 定死
+%   \option{kind}\texttt{!=thesis}。博士后只有研究报告一种交付物，没有开题与中期，
+%   原先写了别的 \option{kind} 会一路炸到丢掉 \cs{begin\{document\}}，共 7 个错误}
+% \option{degree-level}\texttt{=postdoc} 是个例外。博士后不写开题与中期，报告类的
+% \option{degree-level} 也没有这个取值，所以只要扫到它就按学位论文类派发，\option{kind}
+% 写什么都不看，不写也行。旧名 \option{type}\texttt{=postdoc} 一样管用。显式写了别的
+% \option{kind} 时在日志里说一句，不写就静默。
+%
+% \option{kind} 只能写在 \cs{documentclass} 上，挪不进导言区：\cs{LoadClass} 得在
+% 类文件里执行完，而 \cs{hitsetup} 是导言区的事，那时候基础类早装上了。
+%
+% \cs{documentclass}\marg{hit-thesis} 与 \cs{documentclass}\marg{hit-report}
+% 照旧能用，它们才是真正的类，派发类只是转发。
+%
+% 读 \option{kind} 得赶在 \cs{LoadClass} 之前，所以自己扫一遍
+% \cs{@classoptionslist}，不走 \pkg{l3keys}。
+%
+% \changes{v3.2a}{2026/08/11}{\option{kind} 原样转给报告类，派发类不再翻译成
+%   \option{stage}}
+% 扫到的 \option{kind} 原样转给 \file{hit-report}，它认这个键；
+% \file{hit-thesis} 不认，转发时剔掉。
+%    \begin{macrocode}
+%<*dispatch>
+\NeedsTeXFormat{LaTeX2e}[2022/06/01]
+\ProvidesClass{hithesis}
+  [2026/08/07 v3.2a Harbin Institute of Technology Thesis Template]
+\ExplSyntaxOn
+\tl_new:N \g__hit_kind_tl
+\tl_gset:Nn \g__hit_kind_tl { thesis }
+\bool_new:N \g__hit_kind_report_bool
+\bool_new:N \g__hit_kind_given_bool
+\bool_new:N \g__hit_degree_postdoc_bool
+\cs_new_protected:Npn \__hit_kind_scan:w #1 = #2 = #3 \q_stop
+  {
+    \str_if_eq:eeT { \tl_trim_spaces:n {#1} } { kind }
+      {
+        \bool_gset_true:N \g__hit_kind_given_bool
+        \tl_gset:Nx \g__hit_kind_tl { \tl_trim_spaces:n {#2} }
+      }
+    \str_if_eq:eeT { \tl_trim_spaces:n {#1} } { degree-level } { \__hit_degree_scan:n {#2} }
+    \str_if_eq:eeT { \tl_trim_spaces:n {#1} } { type }  { \__hit_degree_scan:n {#2} }
+  }
+\cs_new_protected:Npn \__hit_degree_scan:n #1
+  {
+    \str_if_eq:eeT { \tl_trim_spaces:n {#1} } { postdoc }
+      { \bool_gset_true:N \g__hit_degree_postdoc_bool }
+  }
+\cs_if_exist:NT \@classoptionslist
+  {
+    \exp_args:NV \clist_map_inline:nn \@classoptionslist
+      { \__hit_kind_scan:w #1 = = \q_stop }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/11}{\option{kind}\texttt{!=mid-term} 作为
+%   \option{kind}\texttt{!=interim} 的别名}
+% \option{kind}\texttt{=mid-term} 与 \option{kind}\texttt{=interim} 等价。
+% 「中期」的英文两种拼法都常见，认哪个都行，不必让用户去记我们选了哪个。
+% 这是别名不是废弃名，两个都是正式写法，写哪个都不提示。
+%
+% \changes{v3.2a}{2026/08/11}{\option{degree-level}\texttt{!=postdoc} 直接定死
+%   \option{kind}\texttt{!=thesis}。博士后只有研究报告一种交付物，没有开题与中期，
+%   写了别的 \option{kind} 原先会一路炸到丢掉 \cs{begin\{document\}}}
+% 博士后不写开题与中期，所以 \option{degree-level}\texttt{=postdoc} 一出现就按学位论文类
+% 派发，\option{kind} 写什么都不看。显式写了别的取值时在日志里说一句，不写就静默。
+%    \begin{macrocode}
+\msg_new:nnn { hithesis } { postdoc-forces-thesis }
+  {
+    degree-level=postdoc~与~kind=#1~冲突，按~kind=thesis~处理。 \\
+    博士后只有研究报告一种交付物，没有开题与中期。
+  }
+\bool_if:NT \g__hit_degree_postdoc_bool
+  {
+    \bool_lazy_and:nnT
+      { \bool_if_p:N \g__hit_kind_given_bool }
+      { ! \str_if_eq_p:Vn \g__hit_kind_tl { thesis } }
+      { \msg_warning:nnV { hithesis } { postdoc-forces-thesis } \g__hit_kind_tl }
+    \tl_gset:Nn \g__hit_kind_tl { thesis }
+  }
+\msg_new:nnn { hithesis } { unknown-kind }
+  {
+    kind~只能取~thesis、proposal~或~interim，收到的是~#1。 \\
+    这一份按~kind=thesis~处理。
+  }
+\str_case:VnF \g__hit_kind_tl
+  {
+    { thesis } { }
+    { proposal } { \bool_gset_true:N \g__hit_kind_report_bool }
+    { interim }  { \bool_gset_true:N \g__hit_kind_report_bool }
+    { mid-term } { \bool_gset_true:N \g__hit_kind_report_bool }
+  }
+  { \msg_warning:nnV { hithesis } { unknown-kind } \g__hit_kind_tl }
+\cs_new_protected:Npn \__hit_forward_option:w #1 = #2 = #3 \q_stop #4
+  {
+    \bool_if:NTF \g__hit_kind_report_bool
+      { \PassOptionsToClass {#4} { hit-report } }
+      {
+        \str_if_eq:eeF { \tl_trim_spaces:n {#1} } { kind }
+          { \PassOptionsToClass {#4} { hit-thesis } }
+      }
+  }
+\cs_new_protected:Npn \__hit_forward_option:n #1
+  { \__hit_forward_option:w #1 = = \q_stop {#1} }
+\cs_new_protected:Npn \hit@forward@option
+  { \exp_args:NV \__hit_forward_option:n \CurrentOption }
+\cs_new_protected:Npn \hit@load@target
+  {
+    \bool_if:NTF \g__hit_kind_report_bool
+      { \LoadClass { hit-report } }
+      { \LoadClass { hit-thesis } }
+  }
+\ExplSyntaxOff
+\DeclareOption*{\hit@forward@option}
+\ProcessOptions\relax
+\hit@load@target
+%</dispatch>
+%    \end{macrocode}
+%
+% \subsection{三个旧类名的空壳}
+% \changes{v3.2a}{2026/08/07}{类改名 \file{hit-thesis.cls} 与 \file{hit-report.cls}，
+%   与源文件同名。旧名 \file{hithesisbook.cls}、\file{hithesisart.cls} 降为空壳，
+%   v4 移除}
+% 类文件与源文件同名：\file{src/hit-thesis.dtx} 出 \file{hit-thesis.cls}，
+% \file{src/hit-report.dtx} 出 \file{hit-report.cls}。原先叫 \texttt{book} 与
+% \texttt{art}，跟着 \pkg{ctex} 的 \file{ctexbook}、\file{ctexart} 起的名，
+% 但用户看到的是「学位论文」和「开题中期报告」，两套叫法对不上。
+%
+% 三个旧名都留了空壳，把选项原样转给新类：
+%
+% \begin{longtable}{ll}
+% \toprule
+% 旧写法 & 现在等价于 \\\midrule
+% \endfirsthead
+% \toprule
+% 旧写法 & 现在等价于 \\\midrule
+% \endhead
+% \cs{documentclass}\marg{hithesisbook} & \cs{documentclass}\marg{hit-thesis} \\
+% \cs{documentclass}\marg{hithesisart} & \cs{documentclass}\marg{hit-report} \\
+% \cs{documentclass}\marg{hithesisartplus} &
+%   \cs{documentclass}\oarg{degree-level=doctor,campus=shenzhen,kind=interim}\marg{hit-report} \\\bottomrule
+% \end{longtable}
+%
+% \changes{v3.2a}{2026/08/07}{深圳博士中期并回报告类，\file{hithesisartplus.cls} 降为空壳}
+% \file{hithesisartplus.cls} 那个还要补齐三个选项，所以
+% \cs{documentclass}\marg{hithesisartplus} 不带选项也能编。用户写的选项排在后面，
+% 照旧覆盖。
+%
+% 三个空壳都在 v4（预计 2027 年发布）移除。
+%
+% \subsection{\file{hithesisbook.cls} 的空壳}
+%    \begin{macrocode}
+%<*book-stub>
+\NeedsTeXFormat{LaTeX2e}[2022/06/01]
+\ProvidesClass{hithesisbook}
+  [2026/08/07 v3.2a hithesisbook compatibility stub]
+\ClassWarningNoLine{hithesisbook}
+  {%
+    类已改名 hit-thesis，与源文件 src/hit-thesis.dtx 同名。\MessageBreak
+    请把 \string\documentclass 里的 hithesisbook 改成 hit-thesis。\MessageBreak
+    旧名将在 v4（预计 2027 年发布）中移除，\MessageBreak
+    届时不改的文档会直接编不过，请及时改%
+  }
+\DeclareOption*{\PassOptionsToClass{\CurrentOption}{hit-thesis}}
+\ProcessOptions\relax
+\LoadClass{hit-thesis}
+%</book-stub>
+%    \end{macrocode}
+%
+% \subsection{\file{hithesisart.cls} 的空壳}
+%    \begin{macrocode}
+%<*art-stub>
+\NeedsTeXFormat{LaTeX2e}[2022/06/01]
+\ProvidesClass{hithesisart}
+  [2026/08/07 v3.2a hithesisart compatibility stub]
+\ClassWarningNoLine{hithesisart}
+  {%
+    类已改名 hit-report，与源文件 src/hit-report.dtx 同名。\MessageBreak
+    请把 \string\documentclass 里的 hithesisart 改成 hit-report。\MessageBreak
+    旧名将在 v4（预计 2027 年发布）中移除，\MessageBreak
+    届时不改的文档会直接编不过，请及时改%
+  }
+\DeclareOption*{\PassOptionsToClass{\CurrentOption}{hit-report}}
+\ProcessOptions\relax
+\LoadClass{hit-report}
+%</art-stub>
+%    \end{macrocode}
+%
+% \subsection{\file{hithesisartplus.cls} 的空壳}
+%    \begin{macrocode}
+%<*artplus-stub>
+\NeedsTeXFormat{LaTeX2e}[2022/06/01]
+\ProvidesClass{hithesisartplus}
+  [2026/08/07 v3.2a hithesisartplus compatibility stub]
+\ClassWarningNoLine{hithesisartplus}
+  {%
+    深圳博士中期已并入 hit-report，这个空壳只是转发。\MessageBreak
+    请把 \string\documentclass 改成：\MessageBreak
+    \space\space\string\documentclass[degree-level=doctor,campus=shenzhen,kind=interim]{hit-report}\MessageBreak
+    空壳将在 v4（预计 2027 年发布）中移除，\MessageBreak
+    届时不改的文档会直接编不过，请及时改%
+  }
+\PassOptionsToClass{degree-level=doctor,campus=shenzhen,kind=interim}{hit-report}
+\DeclareOption*{\PassOptionsToClass{\CurrentOption}{hit-report}}
+\ProcessOptions\relax
+\LoadClass{hit-report}
+%</artplus-stub>
+%    \end{macrocode}
 %
 % \Finale
 %

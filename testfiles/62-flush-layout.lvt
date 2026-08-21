@@ -1,0 +1,121 @@
+% 毫米版的默认表：layout = { bottom = flush } 那一档。
+%
+% 依据是写作指南 3.8 节，给的是“上、下行距”，指标题与前后两块之间那条看得见
+% 的空白：章 10mm，节 7~8mm，条 6~7mm，款项与正文 3~4mm。区间的小端做自然值，
+% 大端减小端做伸量。
+%
+% 这里把段前段后回推成视觉白印出来，印出来该正好是区间的小端：章 10mm、
+% 节 7mm、条 6mm、款项 3mm。回推的式子与 61-format-white-skip 那一份同一条，
+% 排一份 master 的 PDF 用 mutool 逐行量过，八处间距一处不差。
+%
+% 倍数版那一档在 58-bachelor-layout 里。两档之间没有继承关系，值全不一样。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master,campus=harbin]{hit-thesis}
+\hitsetup{ layout = { bottom = flush } }
+\begin{document}
+\START
+\makeatletter
+\ExplSyntaxOn
+\tl_const:Nn \c__hit_test_up_tl { 0.8123 }
+\tl_const:Nn \c__hit_test_down_tl { 0.0927 }
+\dim_new:N \l__hit_test_dim
+\dim_new:N \l__hit_test_base_dim
+% 回推：段前段后 → 块间基线距 → 视觉白。
+% \meta{间距}\meta{上块字号}\meta{上块行距}\meta{下块字号}
+\cs_new_protected:Npn \__hit_test_white:NNNN #1#2#3#4
+  {
+    \dim_set:Nn \l__hit_test_base_dim
+      {
+        #3 - \c__hit_format_ascent_tl #2 - \c__hit_format_ascent_dim
+        + \c__hit_format_ascent_tl #4 + \c__hit_format_ascent_dim
+      }
+    \dim_compare:nNnT { \l__hit_test_base_dim } < { \g_hit_body_lead_dim }
+      { \dim_set_eq:NN \l__hit_test_base_dim \g_hit_body_lead_dim }
+    \dim_set:Nn \l__hit_test_dim
+      {
+        #1 + \l__hit_test_base_dim
+        - \c__hit_test_down_tl #2 - \c__hit_test_up_tl #4
+      }
+  }
+\cs_new:Npn \__hit_test_mm:
+  {
+    \fp_to_decimal:n
+      { round ( \dim_to_fp:n { \l__hit_test_dim } / \dim_to_fp:n { 1mm } , 3 ) }
+  }
+\cs_new_protected:Npn \LEVEL #1
+  {
+    \hit@format@compute:n {#1}
+    \iow_term:x
+      {
+        #1 ~ 行距 = \dim_use:N \l_hit_format_lead_dim
+        ~ 伸 = \dim_use:N \l_hit_format_stretch_dim
+      }
+    \__hit_test_white:NNNN \l_hit_format_before_dim
+      \g_hit_body_size_dim \g_hit_body_lead_dim \l_hit_format_size_dim
+    \iow_term:x { #1 ~ 上白 = \__hit_test_mm: ~ mm }
+    \dim_add:Nn \l_hit_format_before_dim \l_hit_format_before_plus_dim
+    \__hit_test_white:NNNN \l_hit_format_before_dim
+      \g_hit_body_size_dim \g_hit_body_lead_dim \l_hit_format_size_dim
+    \iow_term:x { #1 ~ 上白拉满 = \__hit_test_mm: ~ mm }
+    \__hit_test_white:NNNN \l_hit_format_after_dim
+      \l_hit_format_size_dim \l_hit_format_lead_dim \g_hit_body_size_dim
+    \iow_term:x { #1 ~ 下白 = \__hit_test_mm: ~ mm }
+    \dim_add:Nn \l_hit_format_after_dim \l_hit_format_after_plus_dim
+    \__hit_test_white:NNNN \l_hit_format_after_dim
+      \l_hit_format_size_dim \l_hit_format_lead_dim \g_hit_body_size_dim
+    \iow_term:x { #1 ~ 下白拉满 = \__hit_test_mm: ~ mm }
+  }
+% 章标题另起一页，上面没有块，参照物是版心顶
+\cs_new_protected:Npn \CHAPTER
+  {
+    \hit@format@compute:n { chapter }
+    \iow_term:x
+      {
+        chapter ~ 行距 = \dim_use:N \l_hit_format_lead_dim
+        ~ 伸 = \dim_use:N \l_hit_format_stretch_dim
+        ~ 段前伸 = \dim_use:N \l_hit_format_before_plus_dim
+      }
+    \dim_set:Nn \l__hit_test_dim
+      {
+        \l_hit_format_before_dim
+        + \c__hit_format_ascent_tl \l_hit_format_size_dim
+        + \c__hit_format_ascent_dim
+        - \c__hit_test_up_tl \l_hit_format_size_dim
+      }
+    \iow_term:x { chapter ~ 版心顶到墨迹 = \__hit_test_mm: ~ mm }
+    \__hit_test_white:NNNN \l_hit_format_after_dim
+      \l_hit_format_size_dim \l_hit_format_lead_dim \g_hit_body_size_dim
+    \iow_term:x { chapter ~ 下白 = \__hit_test_mm: ~ mm }
+  }
+\cs_new_protected:Npn \BODY
+  {
+    \iow_term:x
+      {
+        正文行距 = \dim_use:N \g_hit_body_lead_dim
+        ~ 伸 = \dim_use:N \g_hit_body_stretch_dim
+      }
+    \dim_set:Nn \l__hit_test_dim
+      {
+        \g_hit_body_lead_dim
+        - \c__hit_test_up_tl \g_hit_body_size_dim
+        - \c__hit_test_down_tl \g_hit_body_size_dim
+      }
+    \iow_term:x { 正文行白 = \__hit_test_mm: ~ mm }
+    \dim_add:Nn \l__hit_test_dim \g_hit_body_stretch_dim
+    \iow_term:x { 正文行白拉满 = \__hit_test_mm: ~ mm }
+  }
+\ExplSyntaxOff
+
+% 正文：3~4mm 的视觉白落在行距上
+\TEST{flush~body}{ \BODY }
+
+% 章标题：上下各 10mm，原文只给一个数，所以刚性
+\TEST{flush~chapter}{ \CHAPTER }
+
+% 节 7mm、条 6mm、款项 3mm，各带一毫米的伸量
+\TEST{flush~headings}{
+  \LEVEL{section} \LEVEL{subsection} \LEVEL{subsubsection}
+}
+\makeatother
+\END
+\end{document}

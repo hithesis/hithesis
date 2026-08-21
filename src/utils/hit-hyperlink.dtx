@@ -1,0 +1,92 @@
+% \iffalse meta-comment
+%
+% hit-hyperlink.dtx 是各个类共用的 hyperref 配置
+%
+% \fi
+%
+% \section{共享超链接配置}
+%
+% \changes{v3.2a}{2026/08/07}{hyperref 的配置抽出来给各个类共用，原先每个类各写
+%   一遍，十三行逐字节相同}
+% PDF 书签、链接边框、url 字体这些跟学校规范无关，是模板整体的取舍，三个类原先
+% 各写一遍且一字不差。
+%
+% \cs{hit@setup@hyperlink} 只做配置，由各个类在原来那段代码所在的位置调用，
+% 所以生成物里的加载顺序不变。\pkg{natbib} 的引用样式补丁没有一起搬——那是
+% \file{hit-thesis.cls} 独有的，也不属于超链接。
+%
+%    \begin{macrocode}
+%<*shared-hyperlink>
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@setup@hyperlink}
+% \texttt{colorlinks=false} 加 \texttt{pdfborder=0 0 0}：屏幕上不上色也不画框，
+% 打印出来与正文一致。\texttt{CJKbookmarks} 让中文书签不乱码，
+% \texttt{bookmarksopenlevel=1} 只展开到章。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@hyperlink
+  {
+\RequirePackage{hyperref}
+\hypersetup{%
+  CJKbookmarks=true,
+  linktoc=all,
+  bookmarksnumbered=true,
+  bookmarksopen=true,
+  bookmarksopenlevel=1,
+  breaklinks=true,
+  colorlinks=false,
+  plainpages=false,
+  pdfborder=0~0~0
+}
+\urlstyle{same}
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@setup@pdf@metadata}
+% \changes{v3.2a}{2026/08/07}{把题目、作者、关键词写进 PDF 属性。原先一条都没设，
+%   PDF 阅读器的文档属性里是空的，检索也搜不到}
+% 元信息什么时候齐要看用户怎么写：示例里 \cs{input}\marg{front/cover} 在
+% \cs{begin}\marg{document} 之后，所以挂 \cs{AtEndPreamble} 太早，字段还是空的。
+% 挂在 \cs{makecover} 上最稳：封面要用的正是这几个字段，跑到那里一定齐了。
+% 取的是 \cs{hit@title@cover@zh} 而不是 \cs{hit@title@flat@zh}：
+% 后者为了屏蔽 \cs{\textbackslash\textbackslash} 包了一层 \cs{begingroup}，而
+% \cs{begingroup} 进不了 PDF 字符串，\pkg{hyperref} 会逐个报警告。
+%
+% \changes{v3.2a}{2026/08/08}{\cs{enskip} 也在 \cs{pdfstringdefDisableCommands} 里
+%   换成空格。英文版章名是 \texttt{Chapter\string\enskip,}，进书签时
+%   \pkg{hyperref} 认不出这个记号，每份英文文档都报一条 Token not allowed}
+% \cs{pdfstringdefDisableCommands} 是 \pkg{hyperref} 给的钩子，在把记号转成 PDF
+% 字符串时生效，把 \cs{\textbackslash\textbackslash} 与 \cs{enskip} 换成空格。
+% 后者出现在英文版的章名里（\option{chapter-name} 取 \texttt{Chapter\string\enskip,}），
+% 不声明的话 \pkg{hyperref} 照样会换成空格，但要报一条警告。关键词取的是
+% \cs{hit@keywords@zh@plain}——那一份没有 \cs{ignorespaces}，词之间只有分隔符，
+% 与排出来的版面一致。关键词只有 \file{hit-thesis.cls} 有，所以先探一下。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@pdf@metadata
+  {
+    \pdfstringdefDisableCommands
+      {
+        \cs_set:Npn \\ { ~ }
+        \cs_set:Npn \enskip { ~ }
+      }
+  }
+\cs_new_protected:Npn \hit@write@pdf@metadata
+  {
+    \hypersetup
+      {
+        pdftitle  = { \hit@title@cover@zh } ,
+        pdfauthor = { \hit@author@zh } ,
+      }
+    \cs_if_exist:cT { hit@keywords@zh }
+      { \hypersetup { pdfkeywords = { \use:c { hit@keywords@zh@plain } } } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+%</shared-hyperlink>
+%    \end{macrocode}
+%
+%
+% \Finale

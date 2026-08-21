@@ -1,0 +1,162 @@
+% hit/format 的换算层：键值按 Word 的行盒模型算成行距与段前段后。
+%
+% 断言的数都是从 Word 对照文档里量出来的，来路记在 src/utils/hit-msword.dtx。
+% 网格行距先用 \hit@msword@layout:n 定成范例的 19.55bp，不然没有网格可对齐。
+% 同样走旧版面，免得新版面那份默认配置先把各个目标填上。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master,campus=harbin,
+               v2-layout={graduate=two}]{hit-thesis}
+\makeatletter
+\ExplSyntaxOn
+\hit@msword@layout:n
+  {
+    margin-top = 3.8cm , margin-bottom = 3cm ,
+    margin-left = 3cm , margin-right = 3cm ,
+    header = 3cm , footer = 2.3cm ,
+    line-pitch = 19.55bp , char-pitch = 12.45bp , size = 12bp ,
+  }
+\ExplSyntaxOff
+\makeatother
+\begin{document}
+\START
+\makeatletter
+\ExplSyntaxOn
+\cs_new_protected:Npn \SHOW #1
+  {
+    \hit@format@compute:n {#1}
+    \iow_term:x
+      {
+        #1 ~ 行距 = \dim_use:N \l_hit_format_lead_dim
+        ~ 首行 = \dim_use:N \l_hit_format_first_dim
+        ~ 段前 = \dim_use:N \l_hit_format_before_dim
+        ~ 段后 = \dim_use:N \l_hit_format_after_dim
+        ~ 伸 = \dim_use:N \l_hit_format_stretch_dim
+        ~ 段前伸 = \dim_use:N \l_hit_format_before_plus_dim
+      }
+  }
+\cs_new_protected:Npn \RAGGED { \bool_gset_true:N  \g__hit_raggedbottom_bool }
+\cs_new_protected:Npn \FLUSH  { \bool_gset_false:N \g__hit_raggedbottom_bool }
+\ExplSyntaxOff
+
+% 正文：小四，单倍，对齐到网格。行距该是一个格 19.55bp
+\TEST{body~on~grid}{
+  \hitsetup{ format = { section = { size = xiaosi , line-spacing = single ,
+                                    snap-to-grid = true } } }
+  \SHOW{section}
+}
+
+% 三号黑体单倍：自然行高 1.297*16 = 20.75 装不下一个格，占两格 39.10bp
+\TEST{heading~spans~two~cells}{
+  \hitsetup{ format = { chapter = { size = sanhao , font-zh = heiti ,
+                                    line-spacing = single ,
+                                    snap-to-grid = true } } }
+  \SHOW{chapter}
+}
+
+% M1 那一组：小二黑体 1.5 倍，段前段后各一行。1.5 格 29.325 仍装不下 23.35，
+% 所以取两格 39.10；“一行”是网格行距 19.55
+\TEST{M1~real~heading}{
+  \hitsetup{ format = { chapter = { size = xiaoer , font-zh = heiti ,
+                                    line-spacing = 1.5 ,
+                                    space-before = 1 line ,
+                                    space-after = 1 line } } }
+  \SHOW{chapter}
+}
+
+% 关掉对齐到网格：行距变成自然行高的倍数，“一行”仍是网格行距
+\TEST{off~grid~follows~natural}{
+  \hitsetup{ format = { subsection = { size = xiaosi , line-spacing = 1.5 ,
+                                       snap-to-grid = false ,
+                                       space-before = 1 line ,
+                                       space-after = 12bp } } }
+  \SHOW{subsection}
+}
+
+% 范例的两份摘要：同一个设置，中文那份按中易 1.297 算，英文那份没有汉字，
+% 按西文 1.15 算。量出来是 19.455bp 与 17.25bp
+\TEST{abstract~zh~vs~en}{
+  \hitsetup{ format = { toc-chapter = { size = xiaosi , line-spacing = 1.25 ,
+                                        snap-to-grid = false } ,
+                        toc-section = { size = xiaosi , line-spacing = 1.25 ,
+                                        snap-to-grid = false ,
+                                        font-zh = none } } }
+  \SHOW{toc-chapter}
+  \SHOW{toc-section}
+}
+
+% 固定值原样生效，基线落在盒顶下方 0.8 倍盒高；最小值不足时退回网格行距
+\TEST{exactly~and~atleast}{
+  \hitsetup{ format = { subsubsection = { size = xiaosi ,
+                                          line-spacing = 25bp! } } }
+  \SHOW{subsubsection}
+  \hitsetup{ format = { caption-figure = { size = xiaosi ,
+                                           line-spacing = 10bp+ } } }
+  \SHOW{caption-figure}
+}
+% 区间：小端做自然值，大端减小端做伸量。两个端点不分先后，
+% 一头长度一头倍数也能比大小
+\TEST{range~gives~glue}{
+  \hitsetup{ format = { section = { size = xiaosi , line-spacing = 1.2 1.25 ,
+                                    snap-to-grid = false } } }
+  \SHOW{section}
+  \hitsetup{ format = { subsection = { size = xiaosi , line-white = 4mm 3mm ,
+                                       snap-to-grid = false } } }
+  \SHOW{subsection}
+  \hitsetup{ format = { subsubsection = { size = xiaosi ,
+                                          line-spacing = 3mm 2 ,
+                                          snap-to-grid = false } } }
+  \SHOW{subsubsection}
+}
+
+% 分档：算的时候按版心底那个开关挑一档，两档之间没有继承
+\TEST{compute~picks~the~layer}{
+  \hitsetup{ format = {
+    caption-sub = { size = xiaosi , snap-to-grid = false } ,
+    caption-sub/if-raggedbottom = { line-spacing = 1.25 , space-before = 1 line } ,
+    caption-sub/if-flushbottom  = { line-white = 3mm 4mm , white-before = 7mm } } }
+  \RAGGED
+  \SHOW{caption-sub}
+  \FLUSH
+  \SHOW{caption-sub}
+  \RAGGED
+}
+
+% 发给 ctex 的那串排版命令
+\ExplSyntaxOn
+\cs_new_protected:Npn \EMIT #1
+  {
+    \hit@format@compute:n {#1}
+    \__hit_format_build:n {#1}
+    \iow_term:x { #1 ~ 发出 }
+    \iow_term:x { \tl_to_str:N \l__hit_format_out_tl }
+  }
+\ExplSyntaxOff
+
+\TEST{emitted~format~tokens}{
+  \hitsetup{ format = { chapter = { size = sanhao , font-zh = heiti ,
+                                    bold = true , alignment = centered ,
+                                    line-spacing = 1.5 } } }
+  \EMIT{chapter}
+  \hitsetup{ format = { caption-table = { size = wuhao , font-zh = none ,
+                                          font-en = sans ,
+                                          line-spacing = 1.25 ,
+                                          snap-to-grid = false } } }
+  \EMIT{caption-table}
+}
+
+% 横轴关掉时 \CJKglue 只剩 char-spacing，纵轴不受影响；这是章标题在 Word 里的
+% 情形：snapToGrid=0 把网格字距关掉，run 上的 w:spacing=-4 照样生效
+\TEST{horizontal~axis~off~keeps~char~spacing}{
+  \hitsetup{ format = { subsection = { size = sihao , font-zh = heiti ,
+                                       snap-to-grid = { vertical = true ,
+                                                        horizontal = false } ,
+                                       char-spacing = -0.2bp } } }
+  \EMIT{subsection}
+  \hitsetup{ format = { subsubsection = { size = sihao , font-zh = heiti ,
+                                          snap-to-grid = { horizontal = true } ,
+                                          char-spacing = -0.2bp } } }
+  \EMIT{subsubsection}
+}
+\makeatother
+\END
+\end{document}

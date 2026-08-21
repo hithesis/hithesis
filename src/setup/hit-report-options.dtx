@@ -1,0 +1,368 @@
+% \iffalse meta-comment
+%
+% Copyright (C) 2017- by Yanshuo Chu <yanshuoc@gmail.com>
+%
+% This file may be distributed and/or modified under the
+% conditions of the LaTeX Project Public License, either version 1.3a
+% of this license or (at your option) any later version.
+% The latest version of this license is in:
+%
+% http://www.latex-project.org/lppl.txt
+%
+% and version 1.3a or later is part of all distributions of LaTeX
+% version 2004/10/01 or later.
+%
+% \fi
+%
+% \section{开题中期报告类的文档类选项}
+%
+% 报告类 \cls{hit-report} 在 \cs{documentclass} 上接受的选项：声明、默认值，
+% 以及 \cs{ProcessKeyOptions} 之后的校验与归一化（\option{kind} 的旧取值、
+% 深圳博士中期那一格的默认关）。
+%
+% 与学位论文类那份是一对，见 \file{src/setup/hit-thesis-options.dtx}。
+%
+% ^^A ======================================================================
+% ^^A Module report-options: 文档类选项的声明与后处理（type/campus/fontset 等）（hit-report）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*report-options>
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{引擎检查从 deps 挪到选项最前。它是先决条件，
+%   不是宏包加载；引擎不对就不必再往下走}
+% 这个模板只能用 \texttt{xelatex} 编。别的引擎排不出中文，早点说清楚，
+% 免得用户看着一屏字体错误猜原因。
+%    \begin{macrocode}
+\sys_if_engine_xetex:F
+  { \ClassError { hithesis } { Please~use:~\MessageBreak~xelatex } { } }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{加通用选择器 \cs{hit@if@option@TF}，与 \file{hit-thesis.cls}
+%   一致}
+% 读标志位的那族判断函数（\cs{hit@if@option@TF} 等）定义在
+% \file{src/setup/hit-option-engine.dtx}，各个类共用。这里只写本类特有的两个：
+% \cs{hit@stage@name} 取「开题」或「中期」；按校区、学位、阶段组合出来的判断由
+% \cs{hit@define@condition} 生成，一条一行，见下。参数从 expl3 之外传进来，
+% 里面的空格照原样保留；替换旧写法时注意 \cs{fi} 后面被跳过的那个空格。
+%
+% \changes{v3.2a}{2026/08/12}{补上 \option{style/glue} 与 \cs{hit@glue@skip}、
+%   \cs{hit@glue@font@size}，与 \file{hit-thesis.cls} 对齐。默认关，版面不变}
+% \option{glue} 开时给标题前后距与行距一个伸缩量，关时是固定值。
+%    \begin{macrocode}
+\cs_new:Npn \hit@stage@name
+  {
+    \bool_if:NTF \g__hit_proposal_bool
+      { \hit@stage@proposal } { \hit@if@option@T { interim } { \hit@stage@interim } }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{加 \cs{hit@if@not@shenzhen}，本科开题/中期报告
+%   哈尔滨与威海统一之后由它替掉原先的 \texttt{harbin} 与 \texttt{weihai} 两支}
+% \cs{hit@if@not@shenzhen} 是「哈尔滨与威海一样、深圳另有一套」的意思。本科的
+% 开题与中期报告现在就是这个局面：论文模板三个校区已经统一，报告只统一了两个。
+% 名字要说清谁跟谁一样，所以不叫 \texttt{universal}。哪天深圳也并进来，
+% 把这一条连同调用处一并去掉就是，改动一眼可见。
+%
+% 名字里写成 \texttt{not@shenzhen} 而不是 \texttt{!shenzhen}：控制序列的名字只收
+% catcode~11 的字母，\texttt{!} 是 catcode~12，\cs{hit@if@!shenzhen} 会在
+% \texttt{@} 处断开，后半截当正文排出来。表达式里倒是能用 \texttt{!}，见下面这一条。
+%    \begin{macrocode}
+\hit@define@condition{not@shenzhen}{ ! \g__hit_shenzhen_bool }
+\hit@define@condition{weihai@or@shenzhen@master}{ ( \g__hit_weihai_bool || \g__hit_shenzhen_bool ) && \g__hit_master_bool }
+\hit@define@condition{shenzhen@master@proposal}{ \g__hit_shenzhen_bool && \g__hit_master_bool && \g__hit_proposal_bool }
+\hit@define@condition{harbin@master@proposal@or@interim}{ \g__hit_harbin_bool && \g__hit_master_bool
+     && ( \g__hit_proposal_bool || \g__hit_interim_bool ) }
+\hit@define@condition{harbin@master@proposal}{ \g__hit_harbin_bool && \g__hit_proposal_bool && \g__hit_master_bool }
+\hit@define@condition{shenzhen@doctor@interim}{ \g__hit_shenzhen_bool && \g__hit_doctor_bool && \g__hit_interim_bool }
+%    \end{macrocode}
+%
+% 处理文档类选项
+%    \begin{macrocode}
+
+%% 处理文档类选项
+%    \end{macrocode}
+%
+% 键名与变量名不同的字符串选项，\option{cjk-font} 这种带连字符的键要走这个。
+%
+% \changes{v3.2a}{2026/08/12}{\option{type} 改名 \option{degree-level}，旧名走废弃期。
+%   派发类的 \option{kind} 进来之后两个名字都像「种类」，分不清谁管学位谁管交付物}
+% \option{degree-level} 是学位层次。原先叫 \option{type}，v3.2a 加了派发类的 \option{kind}
+% 之后两个名字都读作「种类」，一个管学位一个管交付物，谁也说不清哪个是哪个。
+%
+% 旧名 \option{type} 照旧生效，转发到 \option{degree-level}，并提示一次。取值判断看的是
+% \cs{g\_\_hit\_}\meta{取值}\cs{\_bool}，跟键名无关，所以内部代码一处不用改。
+% \changes{v3.2a}{2026/08/12}{加一对类身份标志位，让 \cs{hitsetup} 的条件能写
+%   \texttt{[kind!=thesis]} 与 \texttt{[kind!=report]}。共用一份配置时用得上}
+% 两个都声明，缺一个的话条件求值会撞上不存在的标志位。
+%    \begin{macrocode}
+\bool_new:N \g__hit_report_bool
+\bool_new:N \g__hit_thesis_bool
+\bool_gset_true:N \g__hit_report_bool
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\hit@define@boolean@option { raggedbottom } { true }
+\bool_new:N \g__hit_raggedbottom_given_bool
+\keys_define:nn { hit / class }
+  {
+    raggedbottom .code:n =
+      {
+        \bool_gset_true:N \g__hit_raggedbottom_given_bool
+        \str_if_eq:nnTF {#1} { false }
+          { \bool_gset_false:N \g__hit_raggedbottom_bool }
+          { \bool_gset_true:N \g__hit_raggedbottom_bool }
+      } ,
+    raggedbottom .default:n = { true } ,
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{\option{toc} 改成写 \option{struct} 的
+%   \option{contents}，两条排目录的路合成一条}
+% \option{toc} 排不排目录。它与 \option{struct}~=~\{~\option{frontmatter}~=~
+% \{~\option{contents}~\}~\} 说的是同一件事，原先各走各的，两个都写会排两遍目录。
+% 现在只有 \option{contents} 一个开关，\option{toc} 是它的别名，写哪个都行。
+%
+% 目录是在 \cs{makecover} 里排的，包在 \env{titlepage} 之内，跟封面一起算不编号的
+% 前置页；挪到骨架宏里页码与页眉都会变，所以由 \cs{makecover} 去读那个键。
+%
+% 报告不写就有目录，所以 \option{contents} 在这里先置 \texttt{true}，
+% 用户之后设的照常覆盖。\cs{g\_\_hit\_toc\_given\_bool} 记的是用户显式写过没有，
+% 深圳博士中期靠它决定默认关不关。
+%    \begin{macrocode}
+\bool_new:N \g__hit_toc_given_bool
+\tl_gset:cn { g__hit_structure_contents_tl } { true }
+\keys_define:nn { hit / class }
+  {
+    toc .code:n =
+      {
+        \bool_gset_true:N \g__hit_toc_given_bool
+        \tl_gset:cn { g__hit_structure_contents_tl } {#1}
+      } ,
+    toc .default:n = { true } ,
+  }
+\clist_map_inline:nn { debug , glue , print , newtxmath }
+  { \hit@define@boolean@option {#1} { false } }
+
+\hit@define@choice@option{degree-level}{}{bachelor,master,doctor}{}
+\keys_define:nn { hit / class }
+  { type .code:n = { \keys_set:nn { hit / class } { degree-level = #1 } } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{加 \option{degree-type}，分学术学位与专业学位}
+% \option{degree-type} 分学术学位与专业学位，默认 \texttt{academic}。学位层次与
+% 学位类型是两个维度，所以跟 \option{degree-level} 分开。报告类目前没有按它分岔的版式，
+% 声明它是为了两件事：一份配置供两个类共用时条件写得出
+% \texttt{[degree-type=professional]}，以及以后规范真分岔时有地方挂。
+%    \begin{macrocode}
+\hit@define@choice@option{degree-type}{}{academic,professional}{academic}
+
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{报告类加 \option{lang}，封面标签有英文版。
+%   原先只有学位论文类有这个选项，报告类写了英文取值会被静默忽略}
+% 正文语言。取值与 \file{hit-thesis.cls} 相同，共用 \cs{c\_\_hit\_lang\_clist}。
+%
+% 原先报告类没有这个选项，用户写 \texttt{lang=en} 会落进 \texttt{unknown} 分支被转给
+% \pkg{ctexart}，那边认识这个名字，于是既不报错也不生效，排出来还是中文。
+%    \begin{macrocode}
+\exp_args:NnnV \hit@define@choice@option {lang} {} \c__hit_lang_clist {}
+\bool_if:NF \g__hit_en_bool { \bool_gset_true:N \g__hit_zh_bool }
+\hit@define@choice@option{campus}{}{shenzhen,weihai,harbin}{}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/13}{加 \option{cover-script}，决定封面上那两处美术字
+%   排字体还是贴图}
+% \option{cover-script} 管封面上那两处美术字：本科报告封面底下的
+% 「哈尔滨工业大学教务处制」（隶书）与威海本科封面的「毕业设计（论文）」（华文新魏）。
+% \texttt{auto}（默认）有字体就排字体、没有就贴事先转好的 PDF，\texttt{font} 与
+% \texttt{image} 各自钉死。两条路排出来逐像素一致，见 \file{src/utils/hit-fonts.dtx}。
+%    \begin{macrocode}
+\hit@declare@class@key{cover-script}
+\cs_gset_nopar:Npn \hit@cover@script { auto }
+\cs_gset_protected:cpn { cover-script } #1
+  { \cs_gset_nopar:Npn \hit@cover@script {#1} }
+\bool_lazy_or:nnF
+  { \bool_if_p:N \g__hit_weihai_bool }
+  { \bool_if_p:N \g__hit_shenzhen_bool }
+  { \bool_gset_true:N \g__hit_harbin_bool }
+
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{\option{stage} 改名 \option{kind}，与派发类同名。
+%   原先派发类把 \option{kind} 拦下来再注入一个 \option{stage}，同一件事两个名字
+%   靠一层翻译粘着}
+% \option{kind} 是交付物种类。原先这个选项叫 \option{stage}，而派发类 \file{hithesis.cls}
+% 用的是 \option{kind}，于是派发类要把 \option{kind} 从转发里剔除、再注入一个
+% \option{stage}。标志位是按取值造的（\cs{g\_\_hit\_proposal\_bool}），跟选项名无关，
+% 所以两边统一叫 \option{kind} 之后那层翻译整个不需要了。
+%
+% 取值只有 \texttt{proposal}、\texttt{interim} 与别名 \texttt{mid-term}：报告类不排
+% 学位论文，写 \option{kind}\texttt{=thesis} 会报「取值不接受」，这是对的。
+%
+% 旧取值 \texttt{opening} 与 \texttt{midterm} 一并声明进来，解析完再归一化，见下。
+%    \begin{macrocode}
+\hit@define@choice@option{kind}{}{proposal,interim,mid-term,opening,midterm}{}
+\keys_define:nn { hit / class }
+  {
+    stage .code:n =
+      {
+        \msg_warning:nnnn { hithesis } { renamed-load-option } { stage } { kind }
+        \keys_set:nn { hit / class } { kind = #1 }
+      } ,
+  }
+%    \end{macrocode}
+
+% \changes{v3.1c}{2023/04/16}{增加用于打印的选项 \meta{print}.\issue[138]}
+%    \begin{macrocode}
+
+
+\hit@define@string@option{fontset}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{西文字体独立成 \option{font} 选项}
+% 西文字体，取值与 \file{hit-thesis.cls} 相同。
+%    \begin{macrocode}
+\hit@define@string@option@as{fontset-en}{font@en}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{中文字体独立成 \option{cjk-font} 选项}
+% 中文字体。留空时照旧把 \option{fontset} 转给 \pkg{ctex}，给了值就由模板自己设置。
+%    \begin{macrocode}
+\hit@define@string@option@as{fontset-zh}{font@zh}
+\tl_gset:cn { hit@font@zh } { auto }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{加 \option{windows-font-dir}，供
+%   \option{fontset-zh}\texttt{!=windows-local} 按路径找中易字体}
+% 中易字体所在的目录，给「字体文件在、但系统没登记」的场合用。默认当前目录，
+% 也就是把 \file{Simsun.ttc} 之类拷在文稿旁边即可。
+%    \begin{macrocode}
+\hit@define@string@option@as{windows-font-dir}{windows@font@dir}
+\tl_gset:cn { hit@windows@font@dir } { . }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{\option{font} 与 \option{cjk-font} 改名
+%   \option{font-en} 与 \option{font-zh}，与模板其余选项的中英后缀一致。旧名仍
+%   生效，只在日志里提示}
+% \changes{v3.2a}{2026/08/15}{三个字体选项再改名 \option{fontset-en}、
+%   \option{fontset-zh}、\option{fontset-math}。它们收的是「哪一套」的名字
+%   （\texttt{windows}、\texttt{fandol}、\texttt{termes}），不是字体名，
+%   与顶层 \option{fontset} 同一个词根才看得出是一组。前两轮的名字都还认}
+% 三个分项与顶层 \option{fontset} 是默认值链：分项不写就是 \texttt{auto}，
+% \texttt{auto} 去查 \option{fontset}，查不到按平台猜。写了具体值就以分项为准。
+% 与 \option{format} 族的 \option{font-zh}/\option{font-en} 不是一回事——
+% 那两个选的是「这个元素用哪种字形」，这三个选的是「整篇文档用哪套字体文件」。
+%    \begin{macrocode}
+\keys_define:nn { hit / class }
+  {
+    font       .tl_gset:c = { hit@font@en } ,
+    cjk-font   .tl_gset:c = { hit@font@zh } ,
+    font-en    .tl_gset:c = { hit@font@en } ,
+    font-zh    .tl_gset:c = { hit@font@zh } ,
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{新增 \option{math-font} 与 \option{math-style} 选项}
+% 数学字体与数学排版风格，取值与 \file{hit-thesis.cls} 相同。
+%    \begin{macrocode}
+\hit@define@string@option@as{fontset-math}{mathfont}
+\keys_define:nn { hit / class }
+  { math-font .tl_gset:c = { hit@mathfont } , }
+\hit@define@string@option@as{math-style}{mathstyle}
+\keys_define:nn { hit / class }
+  {
+    unknown .code:n = { \hit@pass@or@warn { ctexart } {#1} } ,
+  }
+\PassOptionsToPackage{no-math}{fontspec}
+
+\cs_new_protected:Npn \__hit_stage_migrate:nn #1#2
+  {
+    \bool_if:cT { g__hit_#1_bool }
+      {
+        \msg_warning:nnnn { hithesis } { renamed-value } {#1} {#2}
+        \bool_gset_false:c { g__hit_#1_bool }
+        \bool_gset_true:c  { g__hit_#2_bool }
+      }
+  }
+\ProcessKeyOptions [~hit~/~class~]
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{\option{stage} 的两个取值改名 \texttt{proposal} 与
+%   \texttt{interim}，v3.1e 的 \texttt{opening} 与 \texttt{midterm} 走废弃期}
+% 旧取值一并声明进选择项，解析完再归一化成新取值。子键的写法不行：
+% \cs{hit@define@choice@option} 生成的是一个整体的 \texttt{stage~.code:n}，
+% 它自己查取值表，\texttt{stage/opening} 这样的子键根本不会被查到。
+%    \begin{macrocode}
+\clist_map_inline:nn { { opening } { proposal } , { midterm } { interim } }
+  { \__hit_stage_migrate:nn #1 }
+\bool_if:cT { g__hit_mid-term_bool }
+  {
+    \bool_gset_false:c { g__hit_mid-term_bool }
+    \bool_gset_true:N  \g__hit_interim_bool
+  }
+
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{art-options 的三段选项校验改用 \cs{bool\_lazy\_any:nF}、
+%   \cs{bool\_lazy\_or:nnF} 与 \cs{bool\_lazy\_all:nT}，嵌套的 \cs{relax}\cs{else}
+%   链换成显式判断。报错文本含英文与空格，按 CONTRIBUTING §4.7 留在 expl3 之外}
+% 三段报错文本原样留在 expl3 之外，里面的空格与花括号都有意义。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@report@error@type
+  {
+    \ClassError { hit-report }
+      {
+        \MessageBreak Please~specify~thesis~type~in~option:~
+        \MessageBreak type=[bachelor~|~master~|~doctor]~
+      }
+  }
+\cs_new_protected:Npn \hit@report@error@stage
+  {
+    \ClassError { hit-report }
+      {
+        \MessageBreak Please~specify~stage~in~option:~
+        \MessageBreak stage=<proposal|interim>~
+      }
+  }
+\bool_lazy_any:nF
+  {
+    { \bool_if_p:N \g__hit_bachelor_bool }
+    { \bool_if_p:N \g__hit_master_bool }
+    { \bool_if_p:N \g__hit_doctor_bool }
+  }
+  { \hit@report@error@type }
+\bool_lazy_or:nnF
+  { \bool_if_p:N \g__hit_proposal_bool }
+  { \bool_if_p:N \g__hit_interim_bool }
+  { \hit@report@error@stage }
+\hit@if@shenzhen@doctor@interim
+  {
+    \bool_if:NF \g__hit_toc_given_bool
+      { \tl_gset:cn { g__hit_structure_contents_tl } { false } }
+    \bool_if:NF \g__hit_raggedbottom_given_bool
+      { \bool_gset_false:N \g__hit_raggedbottom_bool }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{选项后处理（AutoFakeBold 与 fontset 透传）从 artcls 移入 art-options 模块}
+%    \begin{macrocode}
+\RequirePackage{ifthen}
+\bool_lazy_and:nnT
+  { \str_if_eq_p:Vn \hit@font@zh { auto } }
+  { ! \tl_if_empty_p:N \hit@fontset }
+  { \tl_gclear:N \hit@font@zh }
+\tl_if_empty:NTF \hit@font@zh
+  {
+    \PassOptionsToPackage { AutoFakeBold=2 } { xeCJK }
+    \tl_if_empty:NF \hit@fontset
+      { \PassOptionsToClass { fontset=\hit@fontset } { ctexart } }
+  }
+  { \PassOptionsToClass { fontset=none } { ctexart } }
+%</report-options>
+%    \end{macrocode}
+%
+% \Finale

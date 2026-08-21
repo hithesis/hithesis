@@ -1,0 +1,75 @@
+% bib 族的 backend 键：biber 一线的装载、按后端分组的配置、装载之后再改键的守卫。
+%
+% biblatex 在 \START 之前装载，横幅与 begindocument 的日志都不进 tlg；
+% \START 之后只看模板自己的状态与消息。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master,campus=harbin]{hit-thesis}
+% biblatex 当 biber 的别名认；通用键与 biber 透传跟 backend 同组，先后随意
+\hitsetup{ bib = { max-bib-names = 5 , max-cite-names = 2 , biber = { gbannote = true } , backend = biblatex } }
+\begin{document}
+\START
+\ExplSyntaxOn
+
+% 装载状态：biblatex 进来了，gbt7714 被侦测挡在门外
+\TEST{backend~records}{
+  \iow_term:x { backend ~ = ~ \g__hit_bib_backend_str }
+  \IfPackageLoadedTF { biblatex }
+    { \iow_term:n { biblatex ~ loaded } } { \iow_term:n { biblatex ~ missing } }
+  \IfPackageLoadedTF { gbt7714 }
+    { \iow_term:n { gbt7714 ~ loaded } } { \iow_term:n { gbt7714 ~ skipped } }
+}
+
+% compress-min 走 gbrefcompress 计数器，是加载后命令通道，设晚了照样生效
+\TEST{cite~compress~post~load~works}{
+  \hitsetup { bib = { compress-min = 3 } }
+  \iow_term:x { gbrefcompress ~ = ~ \arabic { gbrefcompress } }
+}
+
+% bibtex 子组的 style 排版时才读，什么时候设都行，不响
+\TEST{bibtex~style~anytime~silent}{
+  \hitsetup { bib = { bibtex = { style = {gbt7714-2025-numeric} } } }
+  \iow_term:x { bst ~ = ~ \tl_use:N \g__hit_bib_style_tl }
+}
+
+% 装载时换算的键设晚了：bib-key-locked
+\TEST{late~uppercase-family~warns}{
+  \hitsetup { bib = { uppercase-family = true } }
+}
+
+% bib-punct 两线都不锁时机，随设随生效，不响
+\TEST{bib-punct~anytime~silent}{
+  \hitsetup { bib = { bib-punct = by-lang } }
+  \iow_term:x { punct ~ = ~ \g__hit_bib_punct_str }
+  \hitsetup { bib = { bib-punct = full } }
+}
+
+% comma-in-cite 与 brackets-in-cite 两线都不锁时机，不响
+\TEST{cite~format~keys~anytime~silent}{
+  \hitsetup { bib = { comma-in-cite = half-with-space , brackets-in-cite = full } }
+  \iow_term:x { comma-in-cite ~ = ~ \g__hit_bib_cite_punct_str }
+  \iow_term:x { brackets-in-cite ~ = ~ \g__hit_bib_cite_brackets_str }
+  \hitsetup { bib = { comma-in-cite = half , brackets-in-cite = half } }
+}
+
+% 六个显示开关是装载时换算的，设晚了走同一句守卫
+\TEST{late~show-mark~warns}{
+  \hitsetup { bib = { show-mark = false } }
+}
+
+% biber 透传是装载选项，设晚了同一句守卫
+\TEST{late~biber~options~warn}{
+  \hitsetup { bib = { biber = { gbannote = false } } }
+}
+
+% show-sl-sn 也是装载时换算（gbpub），设晚了同一句守卫
+\TEST{late~show-sl-sn~warns}{
+  \hitsetup { bib = { show-sl-sn = false } }
+}
+
+% biblatex 已装载还要 backend=bibtex：矛盾，报错
+\TEST{late~backend~bibtex~conflicts}{
+  \hitsetup { bib = { backend = bibtex } }
+}
+
+\ExplSyntaxOff
+\END

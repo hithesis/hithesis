@@ -1,0 +1,602 @@
+% \iffalse meta-comment
+%
+% hit-thesis-cover.dtx 是封面与扉页
+%
+% \fi
+%
+% \section{封面与扉页}
+%
+%    \begin{macrocode}
+%<*thesis-cover>
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{\pkg{xeCJKfntef} 由本文件自己加载。整个类里只有下面
+%   \cs{hit@put@title} 的 \env{CJKfilltwosides} 调它}
+% 封面标题定宽两端对齐用的 \env{CJKfilltwosides} 由 \pkg{xeCJKfntef} 提供。
+% 它还能避开 \cs{makebox}\oarg{width}\oarg{s} 可能产生的 underfull box。
+%    \begin{macrocode}
+\skip_new:N \hit@title@width
+\NewDocumentCommand \hit@put@title { O{\hit@title@width} m }
+  { \hit@spread@to:nn {#1} {#2} }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/11}{封面上的学生类别按 \option{degree-type} 取
+%   \option{student-type-academic} 或 \option{student-type-professional}，
+%   \option{student-type} 降为覆盖用}
+% 封面上那行学生类别排什么。学术与专业各有一条文本，按 \option{degree-type} 选；
+% 用户在 \option{student-type} 里写了东西就以他写的为准。
+%
+% 判空要跟一个建法完全相同的空宏比，不能用 \cs{tl\_if\_empty:NTF}。元信息字段是
+% \cs{cs\_gset\_nopar:cpn} 建的，不带 \cs{long}，而 \cs{c\_empty\_tl} 的
+% \cs{long} 与否不由这边决定，比意义会错。同样的坑在 \cs{hit@after@number:nnn}
+% 那里踩过一次，症状是本该走默认值的地方静悄悄地什么都不排。
+%    \begin{macrocode}
+\cs_gset_nopar:cpn { hit@student@type@unset } { }
+\cs_new:Npn \hit@student@type@text:n #1
+  {
+    \cs_if_eq:cNTF { hit@student@type@#1 } \hit@student@type@unset
+      {
+        \bool_if:NTF \g__hit_professional_bool
+          { \use:c { hit@student@type@professional@#1 } }
+          { \use:c { hit@student@type@academic@#1 } }
+      }
+      { \use:c { hit@student@type@#1 } }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{删掉 \cs{hit@cover@row} 与它的两个量
+%   \cs{hit@cover@field@width}、\cs{hit@cover@field@alignment}}
+% 这三个是“字段名加一条下划线”那种封面行型，本科三校区统一之后没有调用者了。
+% 内封不画下划线，走的是下面的 \cs{hit@cover@line}。
+%
+% \begin{macro}{\hit@cover@line}
+% \changes{v3.2a}{2026/08/08}{第二封面上“字段名加值”的行型抽成
+%   \cs{hit@cover@line}}
+% 第二封面的信息表不画下划线，字段名走黑体。哈尔滨本科那张七行、其余那张九行，
+% 行型完全一样。带星号的不出 \cs{\textbackslash\textbackslash}，给最后一行用。
+%    \begin{macrocode}
+\NewDocumentCommand \hit@cover@line { s m m }
+  { {\heiti \hit@put@title{#2}}~&~#3 \IfBooleanF {#1} { \\ ~ } }
+%    \end{macrocode}
+% \end{macro}
+%
+% \changes{v3.1d}{2025/03/03}{将哈尔滨本科的第一封面替换为 \cmd{\hit@first@title@page@other}。\issue[172]}
+% 将哈尔滨本科的第一封面替换为 \cmd{\hit@first@title@page@other}。之后应该会逐步替换掉, 看学校又会怎么改吧。
+%
+% \changes{v3.2a}{2026/08/08}{两张封面的分派与“哈尔滨本科”这个反复出现的判断
+%   迁到 expl3}
+% \changes{v3.2a}{2026/08/07}{去掉 \cs{end}\{tabular\}
+%   之后多出来的词间空格。\issue[294]}
+% \changes{v3.2a}{2026/08/16}{本科封面三校区统一，非本部本科那一套外封删掉，
+%   第一张封面剩两套版式}
+% 第一张封面有两套版式：博后一套，其余都走 \cs{hit@first@title@page@other}。
+% 本科三个校区已经统一，不再按校区分。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@first@title@page
+  {
+    \bool_if:NTF \g__hit_postdoc_bool
+      { \hit@first@title@page@postdoc }
+      { \hit@first@title@page@other }
+  }
+
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{增加哈尔滨本科的第二封面。\issue[172]}
+% \changes{v3.2a}{2026/08/16}{本科内封三校区统一，威海那一套删掉，
+%   \cs{hit@second@title@page@harbin@bachelor} 改名 \cs{hit@second@title@page@bachelor}}
+% 继深圳之后，本部的本科模板又开始整新活了，大改一通，醉好的结局就是都统一吧。
+% 现在统一了。
+%
+% 第二张封面有三套版式：博后、本科、其余。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@second@title@page
+  {
+    \bool_if:NTF \g__hit_postdoc_bool
+      { \hit@second@title@page@postdoc }
+      {
+        \bool_if:NTF \g__hit_bachelor_bool
+          { \hit@second@title@page@bachelor }
+          { \hit@second@title@page@other }
+      }
+  }
+%    \end{macrocode}
+%
+% 添加博后封皮选项
+% \changes{v3.0.12}{2020/11/02}{添加博后封皮选项}
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@first@title@page@postdoc
+  {
+~
+ {\songti\sihao\cs_set:Npn \arraystretch {2}\ %
+ \begin{tabular}{@{}r@{}l@{\hspace{7\ccwd}}r@{}l@{\hspace{3em}}r}~
+ \hit@postdoc@classified@index@field@label&\underline{\makebox[6\ccwd]{\hit@classified@index@national}}&\hit@postdoc@secret@level@field@label&\underline{\makebox[6\ccwd]{\hit@secret@level}}&\\~
+ \hit@postdoc@udc@field@label&\underline{\makebox[6\ccwd]{\hit@classified@index@international}}&\hit@postdoc@number@field@label&\underline{\makebox[6\ccwd]{\hit@report@number}}&\\~
+ \end{tabular}\cs_set:Npn \arraystretch {1}}~
+ \parbox[t][5cm][b]{\textwidth}{\begin{center}\heiti\xiaoer[2]\hit@school@zh\par
+ \hit@spread@by:nn{0.58\ccwd}{\hit@postdoc@report}\end{center}}~
+ \parbox[b][4cm][b]{\textwidth}{~
+ \songti\xiaosan[2]\cs_set:Npn \arraystretch {1.5}~
+ \begin{center}~
+ \begin{tabular}{c}~
+ \makebox[9cm]{\hit@title@line@one@zh}\\~
+ \hline
+ \makebox[9cm]{\hit@title@line@two@zh}\\~
+ \hline
+ \end{tabular}\cs_set:Npn \arraystretch {1}
+ \end{center}}~
+ \begin{center}~
+ \songti\sihao[2]\centering\hit@author@zh
+ \end{center}~
+ \parbox[b][4.5cm][b]{\textwidth}{~
+ \songti\sihao[2]\cs_set:Npn \arraystretch {1.5}~
+ \begin{center}~
+ \begin{tabular}{rl}~
+ \hit@postdoc@work@finish@date@field@label &~\underline{\makebox[6cm]{\hit@work@finish@date@zh}}\\~
+ \hit@postdoc@report@submit@date@field@label &~\underline{\makebox[6cm]{\hit@report@submit@date@zh\hfill}}\\~
+ \end{tabular}\cs_set:Npn \arraystretch {1}
+ \end{center}~
+ }~
+ \vfill
+ {\songti\sihao[2]~
+ \begin{center}~
+ \hit@school@zh%
+ （\hit@campus）%
+ \end{center}~
+ \begin{center}~
+ \hit@date@zh
+ \end{center}}~
+  }
+
+
+
+\cs_new_protected:Npn \hit@second@title@page@postdoc
+  {
+~
+ \xiaosi[1]\songti\textcolor[rgb]{1,1,1}{{\hit@hi}}%
+ \vspace*{1.2cm}~
+ \begin{center}~
+ \parbox[t][8cm][t]{\textwidth}{~
+ \begin{center}\songti\sanhao[2]\hit@title@cover@zh\end{center}~
+ \vspace*{16bp}~
+ \begin{center}\sihao[2]\MakeUppercase{\hit@title@cover@en}\end{center}~
+ }~
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/08}{博后封面那两张字段表改用 \cs{makebox} 定宽，
+%   不再借 \pkg{tabularx}。两张表要左边缘对齐，靠的是同一个 0.6\cs{linewidth}；
+%   \pkg{tabularx} 没有 X 列时也会把盒子撑到指定宽度，效果一样但每张表报一条
+%   Overfull，日志里两条噪音}
+% 两张表的第一列宽度不同（上表标签撑到 7 个字，下表是八个字的「研究工作起始时间」），
+% 各自按自然宽度居中就会错开。所以两张都装进同宽的 \cs{makebox} 里左对齐，
+% 左边缘落在同一处。
+%    \begin{macrocode}
+ \parbox[t][5cm][t]{\textwidth}{~
+ \begin{center}\songti\sihao[2]~
+ \makebox[0.6\linewidth][l]{\begin{tabular}{l@{\hit@postdoc@separator}l}~
+ \hit@postdoc@author@field@label &~\hit@author@zh \\~
+ \hit@postdoc@co@supervisor@field@label &~\hit@supervisor@zh \\~
+ \hit@postdoc@station@field@label &~\hit@station@zh \\~
+ \hit@postdoc@major@field@label &~\hit@major@zh \\~
+ \end{tabular}}~
+ \makebox[0.6\linewidth][l]{\begin{tabular}{l@{\hit@postdoc@separator}l}~
+ \hit@postdoc@research@start@date@field@label &~\hit@research@start@date@zh \\~
+ \hit@postdoc@research@end@date@field@label &~\hit@research@end@date@zh \\~
+ \end{tabular}}
+ \end{center}
+ }
+ \end{center}~
+ \vfill
+ {\songti\sihao[2]~
+ \begin{center}~
+ \hit@school@zh%
+ （\hit@campus）%
+ \end{center}~
+ \begin{center}~
+ \hit@date@zh
+ \end{center}}
+  }
+%    \end{macrocode}
+%
+% 添加博后封皮
+% \changes{v3.0.0}{2020/05/21}{添加博后封皮}
+%
+% \changes{v3.2a}{2026/08/16}{删掉 \cs{hit@first@title@page@bachelor} 与
+%   \cs{hit@second@title@page@bachelor} 两套非本部本科封面}
+% 本科三个校区已经统一，这里的两套本科封面连同它们专用的
+% \cs{hit@cover@title@weihai} 与 \file{hit-weihai-bachelor-title.eps} 一并删了。
+%
+% \changes{v3.2a}{2026/08/07}{第一封面上按变体调的四段间距做成具名长度，
+%   与原有的 \cs{hit@cover@school@name@to@date@padding} 放在一处}
+% \changes{v3.2a}{2026/08/16}{这一组间距的判断从“哈尔滨本科”改成“本科”}
+% 第一封面的版式各变体是同一套，只有几段间距与顶上那行叫法不同。以前这几处写成
+% \cs{hit@if@both@options@TF}\texttt{\{harbin\}\{bachelor\}} 夹在排版内容中间，要看本科
+% 与研究生差在哪，得把整个函数读一遍。现在都收在这里，函数体里只剩版式。
+%
+% 零值的那几段不出 \cs{vspace}，与原先的空分支严格一样，所以走
+% \cs{hit@cover@vertical@space} 判一下。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@cover@vertical@space #1
+  { \dim_compare:nNnF {#1} = { 0pt } { \vspace {#1} } }
+\dim_new:N \hit@cover@top@padding
+\dim_new:N \hit@cover@type@padding
+\dim_new:N \hit@cover@english@title@padding
+\dim_new:N \hit@cover@author@padding
+\skip_new:N \hit@cover@school@name@to@date@padding
+\dim_set:Nn \hit@cover@top@padding {1.2cm}
+\dim_set:Nn \hit@cover@type@padding {0pt}
+\dim_set:Nn \hit@cover@english@title@padding {0pt}
+\dim_set:Nn \hit@cover@author@padding {0pt}
+\dim_set:Nn \hit@cover@school@name@to@date@padding {1.4cm}
+\cs_set_nopar:Npn \hit@cover@thesis@name { \hit@degree@level@zh \hit@document@type }
+\hit@if@option@TF{bachelor}
+  {
+    \cs_set_nopar:Npn \hit@cover@thesis@name
+      { \hit@bachelor@degree@level \hit@bachelor@document@type }
+    \dim_set:Nn \hit@cover@top@padding {8.5mm}
+    \dim_set:Nn \hit@cover@type@padding {-3.5mm}
+    \dim_set:Nn \hit@cover@english@title@padding {1.27cm}
+    \dim_set:Nn \hit@cover@author@padding {-12.5mm}
+    \dim_set:Nn \hit@cover@school@name@to@date@padding {10.8mm}
+  }
+  { }
+
+\skip_new:N \hit@etitlelength
+%    \end{macrocode}
+%    \begin{macro}{\hit@first@title@page@other}
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@first@title@page@other
+  {
+~
+ % 封面一
+\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}%
+\vspace*{\hit@cover@top@padding}~
+\begin{center}~
+ \begin{center}\xiaoyi[1]\songti\textbf{%
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{修改哈尔滨本科的第一封面，看起来和研究生的要统一起来了。\issue[172]}
+% 修改哈尔滨本科的第一封面，看起来和研究生的要统一起来了。
+%    \begin{macrocode}
+ \hit@cover@thesis@name~
+ }\end{center}~
+%    \end{macrocode}
+%
+% 修改第二行标题
+% \changes{v3.0.15}{2021/05/06}{修改第二行标题}
+% \changes{v3.1c}{2023/04/16}{删除全日制第一封面中的 \cs{student-type-zh}, \issue[149]}
+% \changes{v3.1c}{2023/04/16}{根据 \issue[97] 再修改深圳硕士的第一封面，加上 \cs{student-type-zh}}
+% 根据 \issue[97] 看来，\issue[149] 的情报并不完全准确，深圳硕士还要加上这个 \cs{student-type-zh}
+% \changes{v3.2a}{2026/08/10}{删掉 \cs{pozhehao}。它只是个排「——」的宏，
+%   正文里直接打「——」就行，没必要占一个公开名字。副标题前的破折号改成字面}
+%    \begin{macrocode}
+ \begin{center}\xiaoer[1]\songti\bfseries
+ \hit@if@show@student@type
+ {~
+ \hit@brace@left@zh\hit@student@type@text:n{zh}\hit@brace@right@zh
+ }
+ \end{center}~
+ \hit@cover@vertical@space{\hit@cover@type@padding}~
+ \parbox[t][7.8cm][t]{\textwidth}{%
+ \begin{center}\erhao\heiti\hit@title@cover@zh\end{center}~
+\hit@if@subtitle@T{\begin{center}\hspace{-4em}\xiaoer\heiti——\hit@title@subtitle@zh\end{center}}~
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{根据 \issue[227] 修改英文标题不能换行的问题}
+%    \begin{macrocode}
+ \settowidth{\hit@etitlelength}{\erhao\hit@title@cover@en\hit@if@subtitle@T{\hit@title@separator@en\hit@title@subtitle@en}}%
+ \begin{center}%
+ \dim_compare:nNnTF{\hit@etitlelength}>{250mm}{\xiaoer}{\erhao}%
+ \hit@cover@vertical@space{\hit@cover@english@title@padding}~
+ \textbf{\MakeUppercase{\hit@title@cover@en}%
+ \hit@if@subtitle@T{\hit@title@separator@en\MakeUppercase{\hit@title@subtitle@en}}}\end{center}}~
+\par
+ \parbox[t][7.4cm][t]{\textwidth}{~
+ \begin{center}\xiaoer\songti\textbf{\hit@author@zh}\end{center}}\\~
+ \hit@cover@vertical@space{\hit@cover@author@padding}~
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{修改首页日期的实现方式，\issue[226]}
+%    \begin{macrocode}
+ \parbox[t][\hit@cover@school@name@to@date@padding][t]{\textwidth}{\centering\kaishu\xiaoer\textbf{\hit@school@zh}}~
+ {\songti\xiaoer\textbf{\hit@cover@date@zh}}
+\end{center}~
+  }
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macro}{\hit@empty@box}
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@empty@box
+  {
+    {
+      \dim_set:Nn \fboxsep { 0pt } \dim_set:Nn \fboxrule { 0.5pt }
+      \raisebox { 0.5pt } { \framebox [8pt] [c] { \raisebox { 0pt } [7pt] [0pt] { } } }
+    }
+  }
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macro}{\hit@checked@box}
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@checked@box
+  {
+    {
+      \dim_set:Nn \fboxsep { 0pt } \dim_set:Nn \fboxrule { 0.5pt }
+      \raisebox { 0.5pt }
+        {
+          \framebox [8pt] [c]
+            {
+              \raisebox { 0pt } [7pt] [0pt]
+                {
+                  \makebox [0pt] [c]
+                    { \raisebox { 1.2pt } { \resizebox { 6.5pt } { 6.5pt } { $ \checkmark $ } } }
+                }
+            }
+        }
+    }
+  }
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macro}{\hit@second@title@page@bachelor}
+% \changes{v3.2a}{2026/08/07}{本科生内封上方文字添加毕业论文或设计的选择框，由于目前hitheis不支持毕业设计，因此对勾写死在毕业论文上}
+% \changes{v3.2a}{2026/08/07}{schrb: 同步为哈工深官方设计的样式}
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@second@title@page@bachelor
+  {
+~
+ \begin{center}~
+ \vspace*{-3mm}~
+ \begin{flushleft}~
+ \makebox[\textwidth]{\xiaosi\hit@if@option@TF{design}{\hit@empty@box}{\hit@checked@box}\nobreakspace{}毕业论文\quad\hit@if@option@TF{design}{\hit@checked@box}{\hit@empty@box}\nobreakspace{}毕业设计\hfill\hit@secret@level@field@label：公开\hspace{0mm}}
+ \end{flushleft}~
+ % \begin{flushleft}
+ %   \makebox[\textwidth]{\xiaosi$\square$~毕业论文\quad$\square$~毕业设计\hfill\hit@secret@level@field@label：公开\hspace{0mm}}
+ % \end{flushleft}
+ \vspace{2.1cm}~
+ {\songti\bfseries\xiaoer \hit@bachelor@degree@level \hit@bachelor@document@type}\\[0.8cm]~
+ \parbox[t][5cm][t]{\textwidth}{%
+ \erhao
+ \begin{center}~
+ \heiti
+ \hit@title@cover@zh%
+ \end{center}~
+ \hit@if@subtitle@T%
+ {\begin{center}\hspace{-4em}\xiaoer\heiti——\hit@title@subtitle@zh\end{center}}%
+ }~
+ \vspace{16mm}~
+ {\sihao
+ \dim_set:Nn \hit@title@width {6em}~
+ \begin{center}~\cs_set:Npn \arraystretch {1.62}~\songti
+ \begin{tabular}{l@{\hit@title@separator@zh}l}~
+ \hit@cover@line{\hit@author@field@label@zh}{\hit@author@zh}
+ \hit@cover@line{\hit@bachelor@student@id@field@label}{\hit@student@id~}
+ \hit@cover@line{\hit@bachelor@supervisor@field@label}{\hit@supervisor@zh}
+ \hit@cover@line{\hit@bachelor@major@field@label}{\hit@major@zh~}
+ \hit@cover@line{\hit@bachelor@affiliation@field@label}{\hit@affiliation@zh}
+ \hit@cover@line{\hit@date@field@label@zh}{\hit@date@zh}
+ \hit@cover@line*{\hit@school@field@label@zh}{\hit@school@zh}
+ \end{tabular}\cs_set:Npn \arraystretch {1}
+ \end{center}~}
+ \end{center}~
+  }
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macro}{\hit@second@title@page@other}
+%    \begin{macrocode}
+
+%内封
+\cs_new_protected:Npn \hit@second@title@page@other
+  {
+~
+ \begin{center}~
+%    \end{macrocode}
+%
+% 生成头部信息，使用 \cs{hfill} 将第二列信息推到右侧。
+% \changes{v3.1b}{2022/06/06}{修改本部硕士第二封面的信息的对齐方式}
+% 本部硕士第二封面的信息的对齐方式不同。
+%    \begin{macrocode}
+ {~
+ \songti \xiaosi
+ \hit@if@both@options@TF{harbin}{master}~
+ {~
+ \begin{tabular}{l}~
+ \hit@classified@index@national@field@label@zh：~\hit@classified@index@national\\~
+ \hit@classified@index@international@field@label@zh：~\hit@classified@index@international
+ \end{tabular}\hfill
+ \begin{tabular}{l}~
+ \hit@school@id@field@label：\hit@school@id\\~
+ \hit@secret@level@field@label：\hit@secret@level
+ \end{tabular}
+ }%
+ {~
+ \begin{tabular}{@{}r@{：}l@{}}~
+ \hit@classified@index@national@field@label@zh &~\hit@classified@index@national\\~
+ \hit@classified@index@international@field@label@zh &~\hit@classified@index@international
+ \end{tabular}\hfill
+ \begin{tabular}{@{}r@{：}l@{}}~
+ \hit@school@id@field@label &~\hit@school@id\\~
+ \hit@secret@level@field@label &~\hit@secret@level
+ \end{tabular}
+ }%
+ }~
+ \parbox[t][3.2cm][t]{\textwidth}{\begin{center}~\end{center}~}~
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{本部硕/博士第二页““”学硕/博士学位论文”中删除““”学”}
+% \changes{v3.1c}{2023/04/16}{修正本部硕(博)士(这里的空格)学位论文}
+% \changes{v3.1b}{2022/06/06}{深圳硕士第二页““”学硕士学位论文”中删除““”学”}
+% 本部硕/博士第二页设置为“硕/博士学位论文”。深圳的我把博士也一块改了，要不然要重写一下判断，如果发现博士不需要改的话再重写吧…
+% 博士在 \issue[222] 还是需要改...
+% \changes{v3.1d}{2025/03/03}{修改深圳博士第二封面，\issue[222]}
+%    \begin{macrocode}
+ \parbox[t][2.4cm][t]{\textwidth}{~
+ \xiaoer[1]~
+ \begin{center}~
+ \songti\bfseries
+ \hit@if@harbin@master@or@doctor@or@shenzhen@master@TF{\hit@degree@level@zh}{\hit@degree@of@discipline@format@zh}\hit@document@type
+ \end{center}}~
+ \parbox[t][5cm][t]{\textwidth}{\erhao
+ \begin{center}\heiti\hit@title@cover@zh\end{center}~
+\hit@if@subtitle@T{\begin{center}\hspace{-4em}\xiaoer\heiti——\hit@title@subtitle@zh\end{center}}}~
+ \parbox[t][9.8cm][b]{\textwidth}~
+ {\sihao
+ \dim_set:Nn \hit@title@width {6em}~
+ \begin{center}~\cs_set:Npn \arraystretch {1.62}~\songti
+ \begin{tabular}{l@{\hit@title@separator@zh}l}~
+ \hit@cover@line{\hit@author@field@label@zh}{\hit@author@zh}
+ \hit@cover@line{\hit@supervisor@field@label@zh}{\hit@supervisor@zh}
+ \tl_if_empty:NF\hit@associate@supervisor@zh{%
+ {\heiti \hit@put@title{\hit@associate@supervisor@field@label@zh}}&~\hit@associate@supervisor@zh\\~
+ }%
+ \tl_if_empty:NF\hit@co@supervisor@zh{%
+ \hit@cover@line{\hit@co@supervisor@field@label@zh}{\hit@co@supervisor@zh}
+ }%
+ \hit@cover@line{\hit@degree@field@label@zh}{\hit@degree@of@discipline@format@zh}
+ \hit@cover@line{\hit@major@field@label@zh}{\hit@major@zh}
+ \hit@cover@line{\hit@affiliation@field@label@zh}{\hit@affiliation@zh}
+ \hit@cover@line{\hit@date@field@label@zh}{\hit@date@zh}
+ \hit@cover@line*{\hit@school@field@label@zh}{\hit@school@zh}
+ \end{tabular}\cs_set:Npn \arraystretch {1}
+ \end{center}~}
+ \end{center}~
+  }
+
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macro}{\hit@english@cover}
+%    \begin{macrocode}
+
+% 英文封面
+\NewDocumentCommand \emultiline { O{c} m }
+  {
+    \cs_set:Npn \arraystretch { 1 }
+    \begin { tabular } [#1] { @{}l@{} } #2 \end { tabular }~
+    \cs_set:Npn \arraystretch { 1.3 }
+  }
+\cs_new_protected:Npn \hit@english@cover
+  {
+~
+ {%
+ \xiaosi[1.667]\noindent {\hit@classified@index@national@field@label@en}:~\hit@classified@index@national \\[8pt]~
+ {\hit@classified@index@international@field@label@en}:~\hit@classified@index@international %
+ }~
+ \vspace*{1em}~
+ \begin{center}~
+ %    \end{macrocode}
+%
+% 深圳硕士英文封面第一行文字不同，修改。又要修改啦，哈哈。
+% 本部硕博英文封面第一行不包含学科类别。\issue[123]
+% \changes{v3.0.09}{2020/10/17}{深圳硕士英文封面第一行文字不同，修改}
+% \changes{v3.1b}{2022/06/06}{修改本部硕博英文封面第一行。\issue[123]}
+% \changes{v3.1c}{2023/04/16}{深圳硕士模板会同时出现两个英文标题}
+% \changes{v3.1c}{2023/04/16}{修改深圳硕士模板的 Engineering 为 \cs{hit@exueke}}
+% \changes{v3.1c}{2023/04/16}{按照 \issue[97] 修改深圳硕士的英文封面}
+%    \begin{macrocode}
+ \parbox[t][1.6cm][t]{\textwidth}{\begin{center}~\end{center}~}~
+ \parbox[t][3.5cm][t]{\textwidth}{\xiaoer[1]~
+ \begin{center}~
+ \hit@if@both@options@TF{shenzhen}{master}~
+ {%
+ Dissertation~for~the~Master~Degree~
+ }~
+ {%
+ \hit@if@harbin@master@or@doctor@TF
+ {Dissertation~for~the~{\hit@degree@level@attribute}~Degree}~
+ {Dissertation~for~the~{\hit@degree@level@attribute}~Degree~in~\hit@discipline@en}
+ }
+ \end{center}~
+ \hit@if@option@TF{fulltime}{}%
+ {\begin{center}\hit@brace@left@en\hit@student@type@text:n{en}\hit@brace@right@en\end{center}}%
+ }~%与中文保持一致，删除in {\hit@discipline@en}
+ \parbox[t][7cm][t]{\textwidth}{%
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{根据 \issue[227] 修改英文标题不能换行的问题}
+%    \begin{macrocode}
+ \settowidth{\hit@etitlelength}{\erhao\hit@title@cover@en\hit@if@subtitle@T{\hit@title@separator@en\hit@title@subtitle@en}}%
+ \begin{center}%
+% \changes{v3.2a}{2026/08/07}{英文内封标题默认二号字，可通过etitleauto选项启用自动调整}
+ \hit@if@option@TF{etitleauto}%
+ {\dim_compare:nNnTF{\hit@etitlelength}>{450mm}{\xiaoer}{\erhao}}%
+ {\erhao}%
+ \textbf{\MakeUppercase{\hit@title@cover@en}%
+\hit@if@subtitle@T{\hit@title@separator@en\MakeUppercase{\hit@title@subtitle@en}}}\end{center}}~
+ %★★★★若信息内容不太长，不会引起信息内容分行时，使用tabular环境，否则使用下面的tabularx环境。
+ {\sihao\cs_set:Npn \arraystretch {1.3}~
+ \begin{tabular}{@{}l@{\nobreakspace{}}l@{}}~
+ \textbf{\hit@author@field@label@en\hit@title@separator@en}~&~\hit@author@en\\~
+ \textbf{\hit@supervisor@field@label@en\hit@title@separator@en}~&~\hit@supervisor@en\\~
+ \tl_if_empty:NF\hit@associate@supervisor@en{%
+ \textbf{\hit@associate@supervisor@field@label@en\hit@title@separator@en}~&~\hit@associate@supervisor@en\\~
+ }%
+ \tl_if_empty:NF\hit@co@supervisor@en{%
+ \textbf{\hit@co@supervisor@field@label@en\hit@title@separator@en}~&~\hit@co@supervisor@en\\~
+ }%
+ \textbf{\hit@degree@field@label@en\hit@title@separator@en}~&~\hit@degree@of@discipline@format@en\\~
+ \textbf{\hit@major@field@label@en\hit@title@separator@en}~&\hit@major@en\\~
+ \textbf{\hit@affiliation@field@label@en\hit@title@separator@en}~&\hit@affiliation@en\\~
+ \textbf{\hit@date@field@label@en\hit@title@separator@en}~&~\hit@date@en\\~
+ \textbf{\hit@school@field@label@en\hit@title@separator@en}~&~\hit@school@en
+ \end{tabular}\cs_set:Npn \arraystretch {1}}
+ \end{center}~
+  }
+
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macro}{\makecover}
+%    \begin{macrocode}
+
+%    \end{macrocode}
+%
+% \changes{v2.0.10}{2019/06/25}{此处添加提交图书馆电子版的逻辑}
+% \changes{v3.0.0}{2020/05/21}{博后没有英文封皮}
+% \changes{v3.2a}{2026/08/07}{\cs{makecover} 的分派逻辑迁到 expl3；换页动作
+%   抽成 \cs{\_\_hit\_cover\_break:}}
+% \changes{v3.2a}{2026/08/16}{删掉“威海本科不排第一封面”那段判断，威海本科现在也排外封}
+% 封面分派。前两张封面人人都排；博后与本科没有英文封皮。翻页动作取决于
+% \option{style/library}，交图书馆电子版时用 \cs{clearpage}，否则 \cs{cleardoublepage}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@clear@page
+  { \bool_if:NTF \g__hit_openright_bool { \cleardoublepage } { \clearpage } }
+\cs_new_protected:Npn \__hit_cover_break:
+  { \bool_if:NTF \g__hit_library_bool { \clearpage } { \cleardoublepage } }
+\cs_set_protected:Npn \makecover
+  {
+    \hit@write@pdf@metadata
+    \phantomsection
+    \pdfbookmark [0] { \hit@title@cover@zh } { ctitle }  % ^^A PDF 目标名，保持稳定
+    \xiaosi [1]
+    \begin { titlepage }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/08}{封面里放宽 \cs{hfuzz}，不再报几个点的 Overfull}
+% 封面上的宽度大多写成 \cs{ccwd} 的倍数（\cs{hspace}\marg{7\cs{ccwd}}、
+% \cs{makebox}\oarg{6\cs{ccwd}}），而 \cs{frontmatter} 里的 \cs{ziju} 让 \cs{ccwd}
+% 比一个字宽大 5.6\%，凑出来的表格因此会超出版心几个点。超出去的是空列的留白，
+% 版面上什么都没被裁，但每份博后文档要为此报一条 Overfull。这里把容差放宽到
+% 一个字宽，纯粹是不报，排版一点不动。
+%    \begin{macrocode}
+      \dim_set:Nn \hfuzz { 1em }
+      \hit@first@title@page
+      \__hit_cover_break:
+      \hit@second@title@page
+      \__hit_cover_break:
+      \bool_lazy_or:nnF
+        { \bool_if_p:N \g__hit_postdoc_bool }
+        { \bool_if_p:N \g__hit_bachelor_bool }
+        {
+          \phantomsection
+          \pdfbookmark [0] { \hit@title@cover@en } { etitle }  % ^^A 同上
+          \hit@english@cover
+          \__hit_cover_break:
+        }
+    \end { titlepage }
+    \normalsize
+    \hit@make@abstract
+  }
+%    \end{macrocode}
+%    \end{macro}
+%
+%    \begin{macrocode}
+%</thesis-cover>
+%    \end{macrocode}
+%
+% \Finale

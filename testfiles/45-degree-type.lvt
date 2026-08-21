@@ -1,0 +1,60 @@
+% degree-type：学术学位与专业学位。
+%
+% degree-level 管的是学士硕士博士，学术还是专业是另一个维度，所以分成两个选项，不是往
+% degree-level 的取值表里再塞两个。
+%
+% 取值造出 \g__hit_academic_bool 与 \g__hit_professional_bool，于是
+% \hitsetup[degree-type=professional] 这样的条件也写得出来。
+%
+% 封面上那行学生类别按它选文本：学术排 student-type-academic，专业排
+% student-type-professional，两条各自是常量。student-type 这个元信息字段降为覆盖用，
+% 不写就是空的。
+%
+% 这两条默认文本一度是往 student-type 里写的，那是个错：模板给的默认值与用户自己
+% 写的值挤在同一个槽里，分不出字段是空着还是被默认值填过，于是示例里那句
+% student-type={学术学位论文} 把 degree-type=professional 整个盖掉，选项看着像坏的。
+% 中间三条钉的就是“默认值与覆盖入口分开”这件事。
+%
+% 注意 \makeatletter：文档体里 @ 不是字母，\hit@if@condition:nT 会被拆成 \hit 加一
+% 串普通字符，条件根本不求值，两个分支都当正文执行，看着像“条件全命中”。
+% 元信息字段要写在 zh={} 里，顶层裸名字不认，这也钉一条。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master,campus=shenzhen]{hithesis}
+\begin{document}
+\START
+\makeatletter
+\TEST{默认学术学位}{
+  \typeout{academic=\hit@if@option@TF{academic}{yes}{no}}
+  \typeout{professional=\hit@if@option@TF{professional}{yes}{no}}
+  \typeout{zh=[\hit@student@type@zh]}
+  \typeout{en=[\hit@student@type@en]}
+}
+\ExplSyntaxOn
+\TEST{条件按标志位求值，不是见到就命中}{
+  \hit@if@condition:nT { degree-type=academic }     { \typeout{命中academic} }
+  \hit@if@condition:nT { degree-type=professional } { \typeout{命中professional} }
+  \hit@if@condition:nT { degree-level=master }            { \typeout{命中master} }
+  \hit@if@condition:nT { degree-level=doctor }            { \typeout{命中doctor} }
+}
+\TEST{取值写错要报错}{
+  \hitsetup{degree-type=quan}
+}
+\TEST{两条文本各自成常量，按 degree-type 选}{
+  \typeout{academic-zh=[\hit@student@type@academic@zh]}
+  \typeout{professional-zh=[\hit@student@type@professional@zh]}
+  \typeout{选中=[\hit@student@type@text:n{zh}]}
+  \typeout{选中en=[\hit@student@type@text:n{en}]}
+}
+\TEST{student-type 不写就是空的，只作覆盖}{
+  \typeout{字段=[\hit@student@type@zh]}
+  \hitsetup{info={zh={student-type={同等学力人员}}}}
+  \typeout{覆盖后=[\hit@student@type@text:n{zh}]}
+}
+\TEST{改常量本身也管用}{
+  \hitsetup{const={zh={student-type-academic={甲}}}}
+  \typeout{academic-zh=[\hit@student@type@academic@zh]}
+}
+\ExplSyntaxOff
+\makeatother
+\END
+\end{document}

@@ -41,7 +41,7 @@ LEGACY_MAX = "3.1e"
 
 def dtx_files() -> list[Path]:
     r"""\changes 散落在 hithesis.dtx / -doc.dtx / -eps.dtx，全都要扫。"""
-    return sorted((ROOT / "src").glob("*.dtx"))
+    return sorted((ROOT / "src").glob("*.dtx")) + sorted((ROOT / "src").glob("*/*.dtx"))
 
 HEAD = re.compile(r"\\changes\{([^}]*)\}\{([^}]*)\}\{")
 
@@ -83,7 +83,10 @@ def collect() -> list[tuple[str, str, str]]:
 
 
 def stamp(version: str, date: str) -> int:
-    """把指定版本的占位日期就地填成 date，返回改动条数。"""
+    """把指定版本还留着的占位日期就地填成 date，返回改动条数。
+
+    只动占位符。已经写了实际日期的条目是这条改动做出来的那天，发版不该抹掉。
+    """
     old = f"\\changes{{{version}}}{{{PLACEHOLDER}}}"
     new = f"\\changes{{{version}}}{{{date}}}"
     total = 0
@@ -109,49 +112,37 @@ def normalize(date: str) -> str:
 def audit(items: list[tuple[str, str, str]], latest: str) -> list[str]:
     """返回问题清单，只查 LEGACY_MAX 之后的版本。
 
-    对这些版本要求两条：同一版本的日期必须统一，格式必须是 YYYY/MM/DD。
-    “统一”既涵盖开发中（全是占位符），也涵盖已 stamp（全是同一个真实日期），
-    所以发版当天不会误报。混着写就是有人手填了日期，正是要抓的情况。
+    日期是每条改动自己的日子，同一版本里各不相同是正常的，不再要求统一。
+    这里查三样：格式是不是 YYYY/MM/DD、有没有写到将来、还剩几条占位符。
+    占位符只提醒，不算错——发版前 --stamp 会兜底填掉。
     """
     problems = []
-    by_version: dict[str, list[tuple[str, str]]] = {}
+    today = datetime.date.today().strftime("%Y/%m/%d")
     for version, date, body in items:
         if version_key(version) <= version_key(LEGACY_MAX):
             continue
-        by_version.setdefault(version, []).append((date, body))
-
-    for version, entries in by_version.items():
-        dates = {d for d, _ in entries}
-        if len(dates) > 1:
-            problems.append(
-                f"v{version} 的 {len(entries)} 条日期不统一：{', '.join(sorted(dates))}\n"
-                f"    同一版本要么全是 {PLACEHOLDER}（开发中），要么全是发布日期")
-
-        if PLACEHOLDER not in dates:
-            problems.append(
-                f"v{version} 还没发布，却写了实际日期 {', '.join(sorted(dates))}\n"
-                f"    未发布版本的日期该留 {PLACEHOLDER}，发版时由 --stamp 统一填")
-
-        for date, body in entries:
-            if date != PLACEHOLDER and normalize(date) != date:
-                problems.append(f"v{version} 的日期 {date} 不是 YYYY/MM/DD，应为 {normalize(date)}")
-
+        if date == PLACEHOLDER:
+            continue
+        if normalize(date) != date:
+            problems.append(f"v{version} 的日期 {date} 不是 YYYY/MM/DD，应为 {normalize(date)}")
+        elif date > today:
+            problems.append(f"v{version} 的日期 {date} 在将来，写的该是动手那天")
     return problems
 
 
 def fix(latest: str) -> int:
-    """能自动修的就地修掉：补零，以及把未发布版本的实际日期打回占位符。"""
-    # 超过 LEGACY_MAX 的版本按定义都还没发布，日期一律打回占位符；
-    # LEGACY_MAX 及更早的是封闭集，不碰。
+    """能自动修的就地修掉：日期补零。
+
+    不再把实际日期打回占位符——那是旧约定，现在日期就该是动手那天。
+    还留着的占位符交给 --stamp，那一步要人挑日子，不该在这儿替他决定。
+    """
     changed = 0
     for f in dtx_files():
         text = original = f.read_text(encoding="utf-8")
 
         def repl(m: re.Match) -> str:
             version, date = m.group(1), m.group(2)
-            if version_key(version.lstrip("v")) > version_key(LEGACY_MAX):
-                date = PLACEHOLDER
-            elif date != PLACEHOLDER:
+            if date != PLACEHOLDER:
                 date = normalize(date)
             return f"\\changes{{{version}}}{{{date}}}{{"
 

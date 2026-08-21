@@ -1,0 +1,79 @@
+% \iffalse meta-comment
+%
+% hit-table.dtx 是各个类共用的表格层
+%
+% \fi
+%
+% \section{共享表格层}
+%
+% \changes{v3.2a}{2026/08/07}{长表格的字号机制抽出来给各个类共用}
+% \pkg{longtable} 不是浮动体，不会跟着 \cs{caption} 自动调字号，得自己把默认字号
+% 压到五号。这套机制原来只在学位论文类里，而 \env{eqdenote} 各个类
+% 都有、里面又要用 \cs{ltfontsize} 把字号调回正文大小，报告类用
+% \env{eqdenote} 会报 \cs{ltfontsize} 未定义。
+%
+% 位置与 \file{hit-fonts.dtx}、\file{hit-math.dtx} 一样，排在类自己的 dtx 之前，
+% 所以只放定义，改 \cs{LT@array} 的部分放进 \cs{hit@setup@table}，由各个类在
+% \pkg{longtable} 加载之后调用。
+%
+%    \begin{macrocode}
+%<*shared-table>
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@setup@table}
+% \changes{v3.2a}{2026/08/21}{改到 \texttt{begindocument} 才包。原先在宏包加载
+%   期就换掉 \cs{LT@array}，一是被后加载的 \pkg{caption} 整个重定义掉、补丁其实
+%   一直没生效，二是旧版 \pkg{hyperref} 给 \cs{LT@array} 打补丁时按原参数文本
+%   匹配，撞上我们的包装会报错并把组留在栈上}
+% 存一份原来的 \cs{LT@array}，再把默认字号换成五号。
+%
+% \emph{要等所有宏包都打完补丁。} \pkg{longtable} 的 \cs{LT@array} 是好几个宏包
+% 抢着改的地方：\pkg{caption} 换成自己的 \cs{caption@LT@array}，\pkg{hyperref}
+% 也插一手。在加载期包，后面谁再重定义一次就把我们的包装冲掉了——TL2022 与
+% TL2026 上实测都是 \texttt{caption@LT@array}，也就是这个五号一直没排上。更糟的是
+% 旧版 \pkg{hyperref} 打这个补丁时按原来的参数文本匹配，看到我们的包装会报
+% \texttt{Use of \string\x doesn't match its definition}，出错时手里的组关不掉，
+% 类加载完组深从 1 变成 6，报告类的宏级测试整批报差（在 TL2022 容器里复现）。
+%
+% 挪到 \texttt{begindocument/end}：\pkg{caption} 自己也是在 \texttt{begindocument}
+% 里换 \cs{LT@array} 的，挂在同一个钩子上会被它接着冲掉（实测），要挂到
+% 所有 \cs{AtBeginDocument} 之后那一档。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@table
+  {
+    \AddToHook { begindocument / end }
+      {
+        \cs_set_eq:NN \hit@original@longtable@array \LT@array
+        \cs_set:Npn \LT@array { \wuhao \hit@original@longtable@array }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@setup@table@rules}
+% \changes{v3.2a}{2026/08/12}{三线表的线宽从 deps 挪到这里。那边只管加载宏包，
+%   线宽是排版取值，归表格这一处}
+% 三线表的线宽。规范里三条线粗细不同，\pkg{booktabs} 的默认值细一档。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@table@rules
+  {
+    \dim_set:Nn \heavyrulewidth { 1.5pt }
+    \dim_set:Nn \lightrulewidth { 1pt }
+    \dim_set:Nn \cmidrulewidth { 0.5pt }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\ltfontsize}
+% 用法 \cs{ltfontsize}\marg{字号命令}，改某一张长表格内部的字号与行距。
+%    \begin{macrocode}
+\NewDocumentCommand \ltfontsize { m }
+  { \cs_set:Npn \LT@array { #1 \hit@original@longtable@array } }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+%</shared-table>
+%    \end{macrocode}
+%
+% \Finale

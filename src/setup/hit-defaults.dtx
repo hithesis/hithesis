@@ -1,0 +1,1509 @@
+% \iffalse meta-comment
+%
+% hit-defaults.dtx 是各个类常量的默认值，用户的 \hitsetup 会盖掉它
+%
+% \fi
+%
+% \section{常量的默认值（defaults）}
+%
+% \changes{v3.2a}{2026/08/10}{各个类的配置集中到 \file{src/hit-defaults.dtx}，
+%   写法改成与用户一致的 \cs{hitpresetup}}
+% 模板自己要设的东西——固定词汇、各类的默认取值——原先散在三处：
+% \file{hit-thesis.dtx} 与 \file{hit-report.dtx} 里的 cfg 段、
+% 以及各个功能模块里零星的赋值。而且写法与用户的不一样：用户写
+% \cs{hitsetup}\{const=\{school-zh=…\}\}，模板自己写
+% \cs{hit@set@constant}\{school-zh=…\}，两套语言。
+%
+% 这个文件把它们收在一处，并且改用与用户完全相同的写法。
+%
+% \begin{macro}{\hit@presetup}
+% \cs{hitpresetup}\oarg{条件}\marg{键值表} 记一条配置。键值表就是 \cs{hitsetup}
+% 接受的那套，一字不差。条件按选项取值写，逗号是且、竖线是或：
+% \begin{latex}
+% \hit@presetup[degree-level=doctor]{ const = { degree-level-zh = 博士 } }
+% \hit@presetup[degree-level=doctor|master]{ ... }        % 博士或硕士
+% \hit@presetup[degree-level=master,campus=harbin]{ ... } % 哈尔滨的硕士
+% \hit@presetup{ ... }                            % 无条件
+% \end{latex}
+%
+% \textbf{记下来不立即执行。} 这个文件在每个 \cs{file} 块里排在最前面读——
+% \pkg{docstrip} 的输入文件表是全局只增的，一个被多份输出共用的文件只有排在最前
+% 才能让各份输出的顺序彼此相容，排在末尾会报 \texttt{Incompatible order of input
+% files}（这堵墙撞过两次）。而配置要等选项解析完才能生效，所以先记进队列，
+% 由各个类在原先配置所在的位置调用 \cs{hit@apply@presetup} 回放。
+%
+% 回放走的是 \cs{hitsetup} 本身，与用户在导言区写的完全同一条路径，只是先后不同：
+% 类文件里先设默认值，用户后设的覆盖它。
+%
+% \begin{macro}{\hit@preconfig}
+% \cs{hitpreconfig}\marg{代码} 记一段原样的代码，同样排队、同样延后回放。它是迁移
+% 用的过渡入口：配置从旧写法搬过来时先整段包进它，输出逐字节不变，再逐块改写成
+% \cs{hitpresetup}。两者共用一个队列，所以混着写也不会打乱先后。
+% \end{macro}
+% \changes{v3.2a}{2026/08/10}{说明这套机制为什么不在 engine 层}
+% 按分层这套排队回放是机制，该在 \file{hit-key-engine.dtx}。放不过去：本文件在
+% \file{hithesis.ins} 里排在第二位，自己就调用了一百多次 \cs{hit@presetup}，而 engine
+% 排在一百多行之后，定义必须早于调用。
+%    \begin{macrocode}
+%<*shared-defaults>
+\seq_new:N \g__hit_presetup_seq
+\seq_new:N \l__hit_presetup_value_seq
+\seq_new:N \l__hit_presetup_group_seq
+\bool_new:N \l__hit_presetup_all_bool
+\bool_new:N \l__hit_presetup_any_bool
+\bool_new:N \l__hit_presetup_hit_bool
+\NewDocumentCommand \hit@presetup { O{} +m }
+  { \seq_gput_right:Nn \g__hit_presetup_seq { { keys } {#1} {#2} } }
+\NewDocumentCommand \hit@preconfig { +m }
+  { \seq_gput_right:Nn \g__hit_presetup_seq { { code } { } {#1} } }
+%    \end{macrocode}
+%
+% 文件全程在 \pkg{expl3} 语境里——\cs{ProvidesExplClass} 已经开好了，这里不要再写
+% \cs{ExplSyntaxOn}/\cs{ExplSyntaxOff}：多写一对 \texttt{Off} 会把后面所有共享模块
+% 的语境一起关掉，踩过一次，症状是 \cs{bool\_new:N} 未定义。
+%
+% 条件求值。每个子句形如 \texttt{选项=取值}，取值可以用竖线并列。选项名只用来给
+% 人读，判断看的是取值对应的标志位 \cs{g\_\_hit\_}\meta{取值}\cs{\_bool}——
+% \option{degree-level}、\option{campus}、\option{kind}、\option{lang} 四族的取值都是
+% 这么存的，名字全局唯一。
+%
+% \changes{v3.2a}{2026/08/14}{条件里的取值认连字符，查标志位时折成下划线}
+% 取值里的连字符折成下划线再去查：选项取值一律用连字符分词，\pkg{expl3} 的
+% 变量名一律用下划线，折一下两边就能对上，条件写出来跟别处的选项取值一个样。
+%
+% \changes{v3.2a}{2026/08/15}{取值带数字的另立一张对照表：数字接不进控制序列名}
+% 取值里带数字的（\option{v2-layout}）得另查一张表。
+% \hologo{TeX} 的控制序列名只收字母，\cs{g\_\_hit\_v4\_layout\_bool} 读到
+% \texttt{4} 就断了，前半截 \cs{g\_\_hit\_v} 成了命令、后半截成了普通文字，
+% 既不报错也不生效。所以标志位那一头把数字写成词，两头由这张表接上。
+%    \begin{macrocode}
+\tl_new:N \l__hit_presetup_name_tl
+\tl_new:N \l__hit_presetup_alias_tl
+\bool_new:N \l__hit_presetup_not_bool
+\prop_const_from_keyval:Nn \c__hit_presetup_alias_prop
+  {
+    v2-layout = layout-two ,
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{条件的取值收前缀 \texttt{!!} 表示取反}
+% 取值前面加 \texttt{!} 就是取反：\option{layout}\texttt{=!v2-layout} 读作
+% 「不是旧版面」。新版面是默认，不该为它另立一个名字——从前写
+% \option{layout}\texttt{=v4-layout}，背后那个 \cs{g\_\_hit\_layout\_four\_bool}
+% 只是 \cs{g\_\_hit\_layout\_two\_bool} 的取反，给默认值编了个版本号当名字。
+%
+% \texttt{!} 在这里是被解析的文本，不是控制序列的名字，所以不受
+% 「名字只收 catcode 11 的字母」那条限制。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_presetup_negate:n #1
+  {
+    \tl_if_head_eq_charcode:nNTF {#1} !
+      {
+        \bool_set_true:N \l__hit_presetup_not_bool
+        \tl_set:Nx \l__hit_presetup_name_tl { \tl_tail:n {#1} }
+      }
+      { \bool_set_false:N \l__hit_presetup_not_bool }
+  }
+\cs_new_protected:Npn \__hit_presetup_clause:w #1 = #2 \q_stop
+  {
+    \bool_set_false:N \l__hit_presetup_any_bool
+    \seq_set_split:Nnn \l__hit_presetup_value_seq { | } {#2}
+    \seq_map_inline:Nn \l__hit_presetup_value_seq
+      {
+        \tl_set:Nx \l__hit_presetup_name_tl { \tl_trim_spaces:n {##1} }
+        \exp_args:NV \__hit_presetup_negate:n \l__hit_presetup_name_tl
+        \prop_get:NVNT \c__hit_presetup_alias_prop \l__hit_presetup_name_tl
+          \l__hit_presetup_alias_tl
+          { \tl_set_eq:NN \l__hit_presetup_name_tl \l__hit_presetup_alias_tl }
+        \tl_put_left:Nn  \l__hit_presetup_name_tl { g__hit_ }
+        \tl_put_right:Nn \l__hit_presetup_name_tl { _bool }
+        \tl_replace_all:Nnn \l__hit_presetup_name_tl { - } { _ }
+        \bool_if_exist:cTF { \l__hit_presetup_name_tl }
+          {
+            \bool_if:cTF { \l__hit_presetup_name_tl }
+              {
+                \bool_if:NF \l__hit_presetup_not_bool
+                  { \bool_set_true:N \l__hit_presetup_any_bool }
+              }
+              {
+                \bool_if:NT \l__hit_presetup_not_bool
+                  { \bool_set_true:N \l__hit_presetup_any_bool }
+              }
+          }
+          { \msg_warning:nnn { hithesis } { unknown-condition } {##1} }
+      }
+    \bool_if:NF \l__hit_presetup_any_bool
+      { \bool_set_false:N \l__hit_presetup_all_bool }
+  }
+\cs_new_protected:Npn \hit@if@condition:nT #1#2
+  {
+    \bool_set_false:N \l__hit_presetup_hit_bool
+    \seq_set_split:Nnn \l__hit_presetup_group_seq { ; } {#1}
+    \seq_map_inline:Nn \l__hit_presetup_group_seq
+      {
+        \bool_set_true:N \l__hit_presetup_all_bool
+        \clist_map_inline:nn {##1} { \__hit_presetup_clause:w ####1 \q_stop }
+        \bool_if:NT \l__hit_presetup_all_bool
+          { \bool_set_true:N \l__hit_presetup_hit_bool }
+      }
+    \bool_if:NT \l__hit_presetup_hit_bool {#2}
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hitusepackage}
+% \changes{v3.2a}{2026/08/11}{加 \cs{hitusepackage}，按交付物加载宏包}
+% \cs{hitusepackage}\oarg{条件}\marg{宏包表}：条件成立才加载，条件写法与
+% \cs{hitsetup} 的那个可选参数完全一样。
+% \begin{latex}
+% \hitusepackage[kind=proposal]{lipsum, siunitx={per-mode=symbol, detect-all}}
+% \end{latex}
+% 宏包表里带选项的写成 \meta{包名}\texttt{=}\marg{选项}。选项用花括号不用方括号：
+% 外层是逗号表，方括号里的逗号会被外层拆开，花括号护得住。
+%
+% \textbf{按写的顺序加载。} 宏包之间的先后常常有讲究，这里不排序、不去重，
+% 用户写什么顺序就是什么顺序。
+%
+% 一份主文件管几种交付物时，导言区是共用的，\cs{usepackage} 对谁都生效。
+% 只有某一种要的包就写进这个命令。
+%
+% 只能在导言区用。\cs{usepackage} 本身就是导言区限定，而 \cs{hitsetup} 正文里也能用，
+% 两者混在一起用户迟早写错位置，所以单开一个命令，进正文就报错说清该挪到哪。
+%    \begin{macrocode}
+\NewDocumentCommand \hitusepackage { O{} +m }
+  { \hit@if@condition:nT {#1} { \clist_map_inline:nn {#2} { \__hit_usepackage:n {##1} } } }
+\cs_new_protected:Npn \__hit_usepackage:n #1
+  {
+    \tl_if_in:nnTF {#1} { = }
+      { \__hit_usepackage_with_options:w #1 \q_stop }
+      { \exp_args:Nx \usepackage { \tl_trim_spaces:n {#1} } }
+  }
+\cs_new_protected:Npn \__hit_usepackage_with_options:w #1 = #2 \q_stop
+  {
+    \use:x
+      {
+        \exp_not:N \usepackage [ \exp_not:n {#2} ]
+          { \tl_trim_spaces:n {#1} }
+      }
+  }
+\AtBeginDocument
+  {
+    \RenewDocumentCommand \hitusepackage { O{} +m }
+      { \msg_error:nn { hithesis } { usepackage-in-body } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_presetup_one:nnn #1#2#3
+  {
+    \str_if_eq:nnTF {#1} { code }
+      {#3}
+      { \hit@if@condition:nT {#2} { \hitsetup {#3} } }
+  }
+\cs_new_protected:Npn \hit@apply@presetup
+  {
+    \bool_gset_true:N \g__hit_format_presetup_bool
+    \seq_map_inline:Nn \g__hit_presetup_seq { \__hit_presetup_one:nnn ##1 }
+    \bool_gset_false:N \g__hit_format_presetup_bool
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/08}{校区名只留校区两个字，括号与“校区”两个字挪到用它的
+%   地方拼。原先值里带着括号，深圳本科新规范要“深圳校区”而不是“（深圳）”，
+%   只能再加一个 \texttt{shenzhen-campus-postdoc} 保住博后封面要的旧值，
+%   同一系列的四个键从此对不上}
+% 校区名。值只有校区两个字，「（威海）」的括号、「深圳校区」的「校区」都在用的地方
+% 拼——同一个校区名在封面上带括号、在深圳本科页眉上跟着「校区」，那是版式的事，
+% 不是这个值的事。三个类共用一份。
+%    \begin{macrocode}
+\ExplSyntaxOff
+\hit@presetup[campus=harbin]{ const = { campus = {哈尔滨} } }
+\hit@presetup[campus=weihai]{ const = { campus = {威海} } }
+\hit@presetup[campus=shenzhen]{ const = { campus = {深圳} } }
+\hit@presetup{ const = { campus-full = {<campus>校区} } }
+\ExplSyntaxOn
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/11}{\option{after-*-number} 一批常量显式设成空值}
+% 编号之后排什么，默认一律空，空的含义是「用各处原有的取值」，见
+% \cs{hit@after@number:nnn}。这十二条不能省：常量是用到才 \cs{cs\_gset} 出来的，
+% 不设的话名字根本不存在，取值时会被当成 \cs{relax}、判成非空，间距静悄悄地消失。
+%    \begin{macrocode}
+\clist_map_inline:nn
+  {
+    after-chapter-number , after-section-number ,
+    after-subsection-number , after-subsubsection-number ,
+    after-figure-caption-number , after-table-caption-number
+  }
+  {
+    \hit@presetup{ const = { #1-zh = { } , #1-en = { } } }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/10}{\cs{PGR} 与 \cs{UGR} 改成两个类共用。
+%   原先只有学位论文类有，报告类那边是未定义的}
+% \cs{hithesis}、\cs{hit}、\cs{PGR}、\cs{UGR} 是模板与学校的固定名字，不是可配置
+% 的词汇，所以直接定义，不进 \texttt{hit/const} 族：进了族用户就能改，改出来的
+% 「哈尔滨工业大学」不叫哈尔滨工业大学。
+%
+% 这一段要退出 \pkg{expl3} 的 catcode 写。\cs{def}\cs{PGR} 的值里有
+% \verb|\hit 研究生|，那个空格是控制词的终止符；\pkg{expl3} 下空格被忽略，
+% 后面的汉字又是 letter，整串会粘成一个控制序列。
+%    \begin{macrocode}
+\ExplSyntaxOff
+\def\hithesis{\textsc{hi}\-\textsc{Thesis}}
+\def\hit{哈尔滨工业大学}
+\def\PGR{\href{http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm}{《\hit 研究生学位论文撰写规范》}}
+\def\UGR{\href{http://jwc.hit.edu.cn/2566/list.htm}{《\hit 本科生毕业论文撰写规范》}}
+\ExplSyntaxOn
+%</shared-defaults>
+%    \end{macrocode}
+% \end{macro}
+%
+% \section{学位论文类的默认值}
+%
+% \changes{v3.2a}{2026/08/08}{整份配置改写完毕：\cs{hit@set@constant} 与
+%   \cs{hit@if@option@T} 的嵌套全部换成带条件的 \cs{hitpresetup}，
+%   \cs{hitpreconfig} 只剩两处一句话的调用}
+% 整份文件只有取值。造轮子的部分都在别处：常量的存法与转发在
+% \file{src/setup/hit-key-engine.dtx}，日期排法在 \file{src/utils/hit-date.dtx}，
+% 字间距撑开在 \file{src/utils/hit-spread.dtx}。\cs{hitpreconfig} 只在两处出现，
+% 都是一句 \cs{hit@setup@date}。
+%    \begin{macrocode}
+%<*thesis-defaults>
+%    \end{macrocode}
+%
+% \subsection{本科的版面}
+%
+% \changes{v3.2a}{2026/08/14}{本科的新版面写进配置队列：页面设置从
+%   「本科毕业论文书写范例（理工类）」解出来，字号行距间距照
+%   「本科毕业论文（设计）写作指南（理工类）」3.2 节}
+% \changes{v3.2a}{2026/08/14}{网格字距改回 249 缇，款项标题的段前段后改回零，
+%   两处都按写作指南 3.2 节与研究生范例定}
+% \changes{v3.2a}{2026/08/14}{硕博与本科共用这一份，条件从学位放宽到
+%   \option{layout}\texttt{!=!!v2-layout}}
+% 下面这一份本科与硕博共用。硕博不另解范例：两边的页面设置量出来一样，
+% 字号行距也照同一份写作指南，只有图题表题的间距有出入，那一处等接
+% \option{caption-figure} 与 \option{caption-table} 时再补。
+%
+% 页面设置来自学校发的
+% 「本科毕业论文书写范例（理工类）」，解法是拆开 \file{.docx} 读
+% \texttt{w:sectPr} 与各个 \texttt{w:pPr}，再拿导出的 PDF 逐条基线核对，
+% 量法记在 \file{src/utils/hit-msword.dtx}；字号、行距、段前段后照
+% 「本科毕业论文（设计）写作指南（理工类）」3.2 节的原话。
+% 威海本科没有对照文档，跟着这一份走。
+%
+% 条件写 \option{layout}\texttt{=!v2-layout}，也就是「没要旧版面」：本科写了
+% \option{v2-layout}\texttt{=\{bachelor=true\}} 就回到 v3.1e 那套硬编码尺寸，
+% 这一整段都不发，见 \file{src/flow/hit-thesis-geometry.dtx}。
+%
+% \emph{页面设置。} 缇是 Word 的内部单位，一缇是 $1/20$\,bp：上边距 2155 缇、
+% 左下右各 1701 缇、页眉距边界 1701 缇、页脚距边界 1304 缇、文档网格行跨度
+% 383 缇。
+%
+% \emph{网格那两个数不是摆设。} Word 里「一行」「一字」这两个单位取的就是该节
+% 文档网格的行跨度与字跨度：段前段后写「1 行」，存盘时折成
+% 「系数乘行跨度」向下取整到缇；首行缩进写「2 字」，折成 2 倍字跨度。
+% 范例里每个章标题的段前都精确等于它所在那一节的 \texttt{w:linePitch}——
+% 391 缇那一节的章标题写 391，383 缇那两节写 383，一个不差。所以
+% \option{line-pitch} 与 \option{char-pitch} 改一个数，标题间距与首行缩进
+% 跟着全变，配置里那些「1 行」「2 字」一个字都不用动。
+%
+% 范例这一份文档十二节的网格并不统一：行跨度 391 缇八节、383 缇两节、
+% 395 缇两节；字跨度 \texttt{w:charSpace} 1861 九节、2752 两节。取 383 与 1861，
+% 因为正文那一章（书写规范）在这一档：那一节的章标题段前 383 缇、段后
+% $0.8 \times 383 = 306.4$ 截成 306 缇、节条标题 $0.5 \times 383 = 191.5$
+% 截成 191 缇，正文首行缩进 \texttt{w:ind~firstLine="498"}，都对得上。
+%
+% 字距由 \texttt{w:charSpace} 定，那个数是字距超出字号的部分，单位是
+% $1/4096$\,bp：1861 折成小四的 12\,bp 加 $1861/4096 = 0.4543$ 得 12.4543\,bp，
+% 一行 34 字，首行缩进 2 字 24.91\,bp。另外两节写 2752（12.6719\,bp、一行
+% 33 字、缩进 507 缇），结论那一章还写过 37928，那是「每行 20 字」的排版示范。
+%
+% \option{head} 是 \cs{headheight}，也就是页眉块的高度。这个量直接压在页眉
+% 基线上：\hologo{LaTeX} 把页眉盒顶放在页眉距边界处，基线落在页眉距边界加
+% \option{head} 再减去基线以下那一段的位置。基线以下是 7.4827\,bp——小五那
+% 一行的深度 2.5326，加边框间距 1\,bp，加那条粗细双线的 2.25\,bp
+% （\texttt{w:sz="18"} 是八分之一磅），加 \cs{headrule} 前后的零头。
+% Word 那边页眉基线在页眉距边界下方一个 ascent 处，即 $1.0156 \times 9 =
+% 9.1404$\,bp，所以 \option{head} 取 $9.1404 + 7.4827 = 16.6231$\,bp，量出来
+% 页眉基线 94.19\,bp。范例是 94.08，它的坐标量化到 300\,dpi，一格 0.24\,bp，
+% 读数本身就有半格的出入。16.6231 同时是 \pkg{fancyhdr} 要的最小值，再小就
+% 报 \texttt{headheight is too small}。
+% 写作指南 3.4 节说双线「宽 0.8\,mm」，与 \cs{headrule} 里那条 2.276208\,pt
+% 对得上。
+% \changes{v3.2a}{2026/08/15}{\option{foot-baseline} 由 2\,bp 改 2.48\,bp，页码
+%   基线上移 300\,ppi 下的两个像素}
+% \changes{v3.2a}{2026/08/15}{\option{foot-baseline} 改 1.52\,bp。上一次的两个
+%   像素改反了方向，这次连同改回来一起往下 0.96\,bp}
+% \option{foot-baseline} 的 1.52\,bp 是量出来的：页码基线在页脚线上方
+% 1.52\,bp 处。范例的页码不是页脚段落，是个文本框
+% （\texttt{<w:framePr w:hAnchor="margin" w:xAlign="center"/>}），位置由文本框
+% 自己定，推不出闭式，只能量。
+%
+% 这个值越大页码越靠上：\file{src/utils/hit-msword.dtx} 里
+% \option{footskip} $=$ \option{margin-bottom} $-$ \option{footer} $-$
+% \option{foot-baseline}，页脚基线在版心底下方 \option{footskip} 处。
+% 先前取 2\,bp，改 2.48 是把它往上挪了两个像素，方向反了；现在退回来再往下
+% 两个像素，净往下 0.96\,bp。
+%
+% \emph{标题。} 写作指南给了两份，一份按行数与多倍值（3.2 节），一份按毫米
+% （3.8 节）。两份是并列的，不是一份加另一份的余量，所以这里也存成两套完整的
+% 表，由 \option{layout}/\option{bottom} 挑。
+%
+% \changes{v3.2a}{2026/08/15}{标题与正文的默认值拆成倍数版与毫米版两套，
+%   由 \option{bottom} 挑}
+% \option{bottom}\texttt{=ragged} 走倍数版，也就是 3.2 节那一份，逐条写死了，
+% 照抄：
+% \begin{center}
+% \begin{tabular}{llll}
+% \toprule
+% & 字体字号 & 行距 & 段前段后 \\\midrule
+% 章标题 & 黑体小二 & 多倍 1.2 & 1 行 / 0.8 行 \\
+% 节标题 & 黑体小三 & 多倍 1.25 & 0.5 行 / 0.5 行 \\
+% 条标题 & 黑体四号 & 多倍 1.2 & 0.5 行 / 0.5 行 \\
+% 款项标题 & 黑体小四 & 多倍 1.25 & 0 / 0 \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+% 四级都不对齐网格，量出来章标题行距 $1.2 \times 1.296875 \times 18 =
+% 28.01$\,bp，与本科、博士两份范例都对得上。系数的来路见
+% \file{src/utils/hit-format.dtx}。这一档全是确切值，没有可拉的东西，
+% 所以版心底只能取 \texttt{ragged}。
+%
+% \option{bottom}\texttt{=flush} 走毫米版，也就是 3.8 节那一份。那里给的是
+% 「上、下行距」，指标题与前后两块之间那条看得见的空白，不是标题内部的行距：
+% \begin{center}
+% \begin{tabular}{lll}
+% \toprule
+% & 上、下行距 & 行距 \\\midrule
+% 章标题 & 10\,mm & 多倍 1.2\,--\,1.25 \\
+% 节标题 & 7\,--\,8\,mm & 多倍 1.2\,--\,1.25 \\
+% 条标题 & 6\,--\,7\,mm & 多倍 1.2\,--\,1.25 \\
+% 款项标题 & 3\,--\,4\,mm & 多倍 1.2\,--\,1.25 \\
+% 正文 & 3\,--\,4\,mm & —— \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+% 区间本身就是伸缩范围：小端做自然值，大端减小端做伸量，页面要撑到版心底
+% 就往上拉。章标题原文只给一个数，没有区间，所以那一级的上下白是刚性的。
+%
+% 内部行距 3.8 节没给，四级一律沿用 3.2 节那两个值合成的区间 1.2\,--\,1.25，
+% 不钉死其中一个。款项标题的 3\,--\,4\,mm 落在上下白上：它的段前段后本来就是
+% 零，与前后正文之间那条白就是普通行距那一条。正文的 3\,--\,4\,mm 是
+% \option{line-white}，量的也是行与行之间那条白。
+%
+% \emph{正文的倍数版与标题一样，多倍 1.25 加不对齐网格}，行距
+% $1.25 \times 1.296875 \times 12 = 19.453$\,bp，首行基线落在版心顶下方
+% $1.008 \times 12 + 0.082 = 12.18$\,bp。本科与研究生这一条不同，别拿研究生
+% 那边的范例来对：研究生是单倍加对齐网格，行距一格 19.55\,bp、首行落点
+% 14.18\,bp，两个数只差半个百分点，一页三十三行下来差 3\,bp，看着像整体
+% 偏了一点。
+%
+% \option{snap-to-grid} 关掉时，横向的字也不贴格子。Word 的这个开关管的是
+% 「对齐到网格」整件事，不只是行：本科的正文行是拉满版心的（范例满行末端
+% 落在版心右边界 510.17\,bp），研究生那边贴格子，一行 34 个格占 423.45\,bp，
+% 右边空着 1.73\,bp。这段余量由 \cs{g\_hit\_msword\_slack\_dim} 算出来，
+% 只在对齐网格时才发给 \cs{rightskip}，见 \file{src/utils/hit-format.dtx}。
+%
+% 范例有几处没照这一份排，都不取：前置部分两节的行跨度是 395 缇，摘要与目录
+% 那几节的字跨度是 2752；结论那一章是「每行 20 字」的排版示范，字距 21.26\,bp，
+% 正文也改成了对齐网格；致谢那一段也对齐网格。
+%    \begin{macrocode}
+\ExplSyntaxOff
+\hit@presetup[layout=!v2-layout]{
+  layout = {
+    bottom = auto,
+    margin = { top = 107.75bp, bottom = 85.05bp,
+               left = 85.05bp, right = 85.05bp },
+    header = { from-edge = 85.05bp,
+               rule = { width = 2.25bp, from-text = 1bp } },
+    footer = { from-edge = 65.2bp,
+               shift = { vertical = -1.52bp, horizontal = 0.24bp } },
+    grid = { lines = { pitch = 19.15bp },
+             chars = { pitch = 12.4543bp, latin = true } },
+  },
+}
+\hit@presetup[layout=!v2-layout]{
+  format = {
+    header = {
+      font-zh = songti, size = xiaowu, line-spacing = 0,
+      snap-to-grid = { horizontal = false },
+    },
+    footer = {
+      size = xiaowu, snap-to-grid = { horizontal = false },
+    },
+    body = {
+      font-zh = songti, size = xiaosi,
+      snap-to-grid = { vertical = auto , horizontal = true },
+      indent-special = first-line 2 chars,
+    },
+    body/if-raggedbottom = { line-spacing = 1.25 },
+    body/if-flushbottom  = { line-white = 3mm 4mm },
+    chapter = {
+      font-zh = heiti, size = xiaoer, alignment = centered,
+      snap-to-grid = { horizontal = false }, char-spacing = 0.0543bp,
+    },
+    chapter/if-raggedbottom = { line-spacing = 1.2, space-before = 1 line, space-after = 0.8 line },
+    chapter/if-flushbottom  = { line-spacing = 1.2 1.25, white-before = 10mm, white-after = 10mm },
+    section = {
+      font-zh = heiti, size = xiaosan,
+      snap-to-grid = { horizontal = false }, char-spacing = 0.4543bp,
+    },
+    section/if-raggedbottom = { line-spacing = 1.25, space-before = 0.5 line, space-after = 0.5 line },
+    section/if-flushbottom  = { line-spacing = 1.2 1.25, white-before = 7mm 8mm, white-after = 7mm 8mm },
+    subsection = {
+      font-zh = heiti, size = sihao,
+      snap-to-grid = { horizontal = false }, char-spacing = 0.4543bp,
+    },
+    subsection/if-raggedbottom = { line-spacing = 1.2, space-before = 0.5 line, space-after = 0.5 line },
+    subsection/if-flushbottom  = { line-spacing = 1.2 1.25, white-before = 6mm 7mm, white-after = 6mm 7mm },
+    subsubsection = {
+      font-zh = heiti, size = xiaosi,
+      snap-to-grid = { horizontal = false }, char-spacing = 0.4543bp,
+    },
+    subsubsection/if-raggedbottom = { line-spacing = 1.25, space-before = 0bp, space-after = 0bp },
+    subsubsection/if-flushbottom  = { line-spacing = 1.2 1.25, white-before = 3mm 4mm, white-after = 3mm 4mm },
+  },
+}
+\ExplSyntaxOn
+%    \end{macrocode}
+%
+% \subsection{定理与固定词汇}
+%
+%    \begin{macrocode}
+\ExplSyntaxOff
+\hit@presetup{ thm = {
+  body-font  = {\normalfont},
+  qed        = {\ensuremath{\square}},
+  head-punct = {},
+} }
+\hit@presetup[lang=en]{
+  thm = { head-font = {\normalfont\bfseries}, star = { proof = Proof } },
+}
+\hit@presetup[lang=zh]{
+  thm = { head-font = {\normalfont\heiti}, star = { proof = 证明 } },
+}
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%
+% 英文版黑体加粗
+% \changes{v3.0.0}{2020/05/21}{英文版黑体加粗}
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup{ thm = { qed = {} } }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%
+% 此处去除了冒号，（如果需要在加上这个冒号？），反正规范中没有。
+% \changes{v2.0.02}{2018/06/28}{取出了定理冒号}
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup{ thm = { head-punct = {}, within = {chapter} } }
+
+
+\hit@presetup[lang=en]{ thm = { list = {
+  assumption   = Assumption,
+  definition   = Definition,
+  proposition  = Proposition,
+  lemma        = Lemma,
+  theorem      = Theorem,
+  axiom        = Axiom,
+  corollary    = Corollary,
+  exercise     = exercise,
+  example      = Example,
+  remark       = Remark,
+  problem      = Problem,
+  conjecture   = Conjecture,
+  fact         = Fact,
+} } }
+\hit@presetup[lang=zh]{ thm = { list = {
+  assumption   = 假设,
+  definition   = 定义,
+  proposition  = 命题,
+  lemma        = 引理,
+  theorem      = 定理,
+  axiom        = 公理,
+  corollary    = 推论,
+  exercise     = 练习,
+  example      = 例,
+  remark       = 注释,
+  problem      = 问题,
+  conjecture   = 猜想,
+  fact         = 事实,
+} } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/08}{固定词汇改成常量键。原先一半走 \cs{ctexset}、
+%   一半靠 \cs{cs\_new:Npn} 直接定义命令，配置里等于自己造轮子；现在两条路都由
+%   \file{hit-key-engine.dtx} 提供，配置只出取值}
+% 中英文的固定词汇。\option{chapter-name} 到 \option{indexname} 那几个归 \pkg{ctex} 管，
+% 设值时转给 \cs{ctexset}；其余几个是对外可见的命令名，设值时直接写进同名命令。
+% 两类都在 \file{hit-key-engine.dtx} 里声明，这里只给值。
+%    \begin{macrocode}
+\hit@presetup[lang=en]{ const = {
+  chapter-name      = {Chapter\enskip,},
+  appendixname      = {Appendix},
+  contentsname      = {Contents},
+  listfigurename    = {List of Figures},
+  listtablename     = {List of Tables},
+  figurename        = {Figure},
+  tablename         = {Table},
+  algorithm-name-en = {Algorithm},
+  equationname      = {Equation},
+} }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{答辩决议那一页的表头文案，中英各一份。
+%   原先那一页是贴扫描件，没有文案可言}
+% 答辩决议表的表头。带 \verb|\\| 的几条是要在格子里换行的：评阅人那格三行，
+% 「答辩委员会成员」与「委员」在纸质表上是竖排，逐字一行。
+%    \begin{macrocode}
+\hit@presetup[lang=en]{ const = {
+  defense-reviewer-label    = {Reviewers},
+  defense-name-label        = {Name},
+  defense-title-label       = {Title\\(Doctoral\\Supervisor?)},
+  defense-affiliation-label = {Affiliation},
+  defense-discipline-label  = {Discipline},
+  defense-role-label        = {Role},
+  defense-committee-label   = {\rotatebox{90}{Defense Committee}},
+  defense-chair-label       = {Chair},
+  defense-member-label      = {\rotatebox{90}{Member}},
+  defense-secretary-label   = {Secretary},
+  defense-resolution-label  = {Resolution of the defense committee (comments on the dissertation and whether the doctoral degree is recommended):},
+} }
+%    \end{macrocode}
+%    \begin{macrocode}
+\hit@presetup[lang=zh]{ const = {
+  chapter-name      = {第,章},
+  appendixname      = {附录},
+  contentsname      = {目录},
+  listfigurename    = {插图索引},
+  listtablename     = {表格索引},
+  figurename        = {图},
+  tablename         = {表},
+  algorithm-name-zh = {算法},
+  equationname      = {公式},
+} }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/09}{参考文献与索引的标题改成成对的常量，
+%   \option{bibname} 与 \option{indexname} 由这一对按语言接出来}
+% 参考文献与索引各有两处要用：排出来的那条章标题跟文档语言走，英文目录里的条目
+% 永远是英文。原先中文那半借用 \pkg{ctex} 的 \option{bibname}，英文那半自己存成
+% \option{bibliography-heading-en}，名字不成对，看着像同一个词存了两遍。
+%
+% 现在两半都写成常量，\pkg{ctex} 那两个键由它们接出来。样板跟 \option{resume-heading}、
+% \option{publication-heading} 一致。
+%    \begin{macrocode}
+\hit@presetup{ const = {
+  bibliography-heading-zh = {参考文献},
+  bibliography-heading-en = {References},
+  index-heading-zh        = {索引},
+  index-heading-en        = {Index},
+} }
+\hit@presetup[lang=zh]{ const = {
+  bibname   = {<bibliography-heading-zh>},
+  indexname = {<index-heading-zh>},
+} }
+\hit@presetup[lang=en]{ const = {
+  bibname   = {<bibliography-heading-en>},
+  indexname = {<index-heading-en>},
+} }
+\hit@presetup{ const = {
+  listfigureename   = {Index of figure},
+  listtableename    = {Index of table},
+  listequationename = {Index of equation},
+  listequationname  = {公式索引},
+  cabstractcname    = {摘要},
+  cabstractename    = {Abstract (In Chinese)},
+  eabstractcname    = {Abstract},
+  eabstractename    = {Abstract (In English)},
+} }
+\hit@presetup{ const = {
+  keywords-field-label-zh = {关键词：},
+  keywords-field-label-en = {Keywords:},
+} }
+\hit@presetup{ const = {
+  keywords-separator-zh = {；},
+  keywords-separator-en = {,\space},
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{英文图表名收进 \option{const} 族，\cs{bicaption}
+%   不必再由用户手写负细空格}
+% 双语题注里英文那条用的图表名。\cs{fnum@figure} 会在名字和编号之间放一个
+% \cs{nobreakspace}，中文要这个空格、英文不要，所以默认值末尾带一个负细空格把它
+% 抵掉。要换成别的写法直接覆盖这两个键。
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  figure-prefix-en = {Fig.$\!$},
+  table-prefix-en  = {Table$\!$},
+} }
+\ExplSyntaxOn
+\hit@preconfig{ \hit@setup@date }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/08}{日期的四种排法与英文月份名迁到
+%   \file{src/utils/hit-date.dtx}，这里只留取值}
+% \changes{v3.2a}{2026/08/13}{日期默认值改成编译当天的 ISO 串，排法交给
+%   \file{src/utils/hit-date.dtx} 那一层}
+% 不写日期就取编译当天。这里存的是 \texttt{yyyy-mm-dd} 三段数字，中文封面还是英文
+% 封面、排到年月还是年月日，由字段声明时的样式与精度定，见
+% \file{src/setup/hit-keylist.dtx}。
+%
+% 外面套一层 \cs{use:x} 是要把今天固化成字面数字：留着 \cs{int\_use:N} 不展开，
+% 解析那头拿到的是这几个记号本身，认不出是 ISO。
+%
+% 用 \pkg{expl3} 的 \cs{c\_sys\_year\_int} 而不是 \file{src/utils/hit-date.dtx} 里的
+% \cs{hit@today@iso}：这个文件排在那个之前，那时它还没定义。
+%    \begin{macrocode}
+\use:x
+  {
+    \exp_not:N \hit@presetup
+      {
+        info =
+          {
+            date-zh = { \int_use:N \c_sys_year_int -
+              \int_use:N \c_sys_month_int -
+              \int_use:N \c_sys_day_int } ,
+            date-en = { \int_use:N \c_sys_year_int -
+              \int_use:N \c_sys_month_int -
+              \int_use:N \c_sys_day_int } ,
+          }
+      }
+  }
+\ExplSyntaxOff
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/11}{学生类别的两条文本各自成常量，不再往
+%   \option{student-type} 这个元信息字段里塞默认值}
+% 封面上那行学生类别，学术与专业各有一条文本，各自是一个常量。
+%
+% 原先这两句默认值是往 \option{student-type} 字段里写的，那是个错：模板给的默认值
+% 与用户自己写的值挤在同一个槽里，谁也分不出这个字段现在是空着还是被默认值填过，
+% 结果是用户写了 \option{degree-type}\texttt{=professional} 却看不出变化——示例文件
+% 里正好有一句 \option{student-type}\texttt{=\{学术学位论文\}}，把它盖掉了。
+%
+% 现在两条文本是两个常量，\option{student-type} 只作覆盖用，不写就是空的。
+%    \begin{macrocode}
+\hit@presetup{ const = {
+  student-type-academic-zh     = {学术学位论文},
+  student-type-academic-en     = {Academic Degree},
+  student-type-professional-zh = {专业学位论文},
+  student-type-professional-en = {Professional Degree},
+} }
+\hit@presetup[degree-level=postdoc]{ const = {
+  degree-level-zh           = {博士},
+  degree-level-en           = {Doctor},
+  degree-level-attribute = {Doctoral},
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%
+% 添加博后选项
+% \changes{v3.0.0}{2020/05/21}{添加博后选项}
+% \changes{v3.1d}{2025/03/03}{统一将一堆 \cmd{\gdef} 放到了一起}
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup[degree-level=doctor]{ const = {
+  degree-level-zh           = {博士},
+  degree-level-en           = {Doctor},
+  degree-level-attribute = {Doctoral},
+} }
+\hit@presetup[degree-level=master]{ const = {
+  degree-level-zh           = {硕士},
+  degree-level-en           = {Master},
+  degree-level-attribute = {Master's},
+} }
+\ExplSyntaxOn
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  degree-of-discipline-format-zh               = {<discipline-zh><degree-level-zh>},
+  degree-of-discipline-format-en               = {<degree-level-en> of <discipline-en>},
+  author-field-label-zh                        = {<degree-level-zh>研究生},
+  postdoc-classified-index-field-label      = {分类号},
+  postdoc-secret-level-field-label          = {密级},
+  postdoc-udc-field-label                      = {\hit@spread@by{0.4\ccwd}{UDC}},
+  stage-proposal                                = {开题},
+  stage-interim                                = {中期},
+  stage-document-type                          = {报告},
+  postdoc-number-field-label                = {编号},
+  postdoc-report                            = {博士后研究工作报告},
+  postdoc-work-finish-date-field-label      = {工作完成日期},
+  postdoc-report-submit-date-field-label    = {报告提交日期},
+  postdoc-author-field-label                = {\hit@spread@to{7em}{博士后姓名}},
+  postdoc-co-supervisor-field-label         = {\hit@spread@to{7em}{合作导师}},
+  postdoc-station-field-label               = {\hit@spread@to{7em}{流动站名称}},
+  postdoc-major-field-label             = {\hit@spread@to{7em}{专业名称}},
+  postdoc-research-start-date-field-label   = {研究工作起始时间},
+  postdoc-research-end-date-field-label     = {研究工作期满时间},
+  postdoc-separator                            = {：},
+  bachelor-degree-level                     = {本科},
+  bachelor-document-type                    = {毕业论文（设计）},
+  bachelor-affiliation-field-label          = {学院 },
+  bachelor-student-id-field-label           = {学号},
+  bachelor-major-field-label                = {专业},
+  bachelor-supervisor-field-label           = {指导教师},
+  bachelor-thesis-field-label               = {题目},
+} }
+\hit@presetup[degree-level=bachelor]{ const = {
+  degree-level-zh                     = {学士 },
+  author-field-label-zh               = {本科生},
+} }
+\ExplSyntaxOn
+%    \end{macrocode}
+%
+% 更改博后封皮中字间距
+% \changes{v3.0.12}{2020/11/02}{更改博后封皮中字间距}
+%
+% 添加博后选项
+% \changes{v3.0.0}{2020/05/21}{添加博后选项}
+% \changes{v3.1d}{2025/03/03}{删了一些没用的定义，更改哈尔滨本科的论文名。\issue[172]}
+%
+% 添加本科开题封皮中title定义
+% \changes{v3.0.0}{2020/05/21}{添加本科开题封皮中title定义}
+% \changes{v3.1d}{2025/03/03}{哈尔滨本科由院系改成了学院。\issue[172]}
+%
+% \changes{v3.2a}{2026/08/07}{本科的学位名、作者称谓、毕业论文叫法、院系叫法
+%   从值里的 \cs{hit@if@option@TF} 改成覆盖表}
+% \changes{v3.2a}{2026/08/16}{三个校区的本科论文模板已统一，毕业论文叫法与院系叫法
+%   的校区覆盖表删掉，本部那两个值提成本科默认值}
+% 本科没有“学位简称加士”这套说法，几个词都要单独给。三个校区已经统一，
+% 毕业论文与院系的叫法都只剩一份。\texttt{bachelor-affiliation-field-label-weihai}
+% 一起删了，排版代码从来没用过它。
+%
+% \changes{v3.1b}{2022/06/06}{修改深圳校区本科生第二封面中“学生”为“姓名”}
+% \changes{v3.2a}{2026/08/16}{删掉深圳本科第二封面把“学生”改成“姓名”的覆盖表}
+%    \begin{macrocode}
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  bachelor-student-field-label = {学生},
+  document-type                = {学位论文},
+  bachelor-date-field-label    = {\hit@spread@to{4em}{日期}},
+} }
+\hit@presetup{ const = {
+  bachelor-teacher-comment-field-label = {指导教师评语：},
+} }
+\hit@presetup{ const = {
+  bachelor-teacher-signature-field-label = {指导教师签字：},
+} }
+\hit@presetup{ const = {
+  bachelor-check-date-field-label = {检查日期：},
+} }
+\ExplSyntaxOn
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  thesis-title-prefix                    = {\hit@spread@to{3em}{题目}},
+  graduate-affiliation-field-label       = {院\hspace{3\ccwd}（系）},
+  graduate-major-field-label             = {学\hspace{4\ccwd}科},
+  graduate-supervisor-field-label        = {\hit@spread@to{6em}{导师}},
+  graduate-student-field-label           = {\hit@spread@to{6em}{研究生}},
+  graduate-student-id-field-label        = {\hit@spread@to{6em}{学号}},
+  graduate-date-field-label              = {\hit@if@option@TF{proposal}{<stage-proposal>}%
+{\hit@if@option@T{interim}{<stage-interim>}}<stage-document-type>日期},
+  graduate-enroll-date-field-label       = {\hit@spread@to{6em}{入学时间}},
+  graduate-thesis-field-label            = {\hit@spread@to{6em}{论文题目}},
+  graduate-affiliation-major-field-label = {\hit@spread@to{6em}{学科专业}},
+  school-zh                                 = {哈尔滨工业大学},
+  school-field-label-zh                     = {授予学位单位},
+  date-field-label-zh                       = {答辩日期},
+  affiliation-field-label-zh                = {所在单位},
+} }
+\ExplSyntaxOn
+%    \end{macrocode}
+%
+% \cs{hit@stage@proposal} 这条留在值里判断，不能提到覆盖表。\option{kind} 是报告类
+% 的选项，\file{hit-thesis.cls} 里没有 \cs{g\_\_hit\_interim\_bool}，提到外面
+% 加载期就会报 \texttt{Missing number}。留在值里则只有真的排到这一项时才求值，
+% 而 book 从不用它。
+%
+% 添加哈尔滨校区选项
+% \changes{v3.0.0}{2020/05/21}{添加哈尔滨校区选项}
+% \changes{v3.1d}{2025/03/03}{哈尔滨本科多了一个“学校”。\issue[172]}
+%
+% \changes{v3.2a}{2026/08/07}{哈尔滨本科的“学校”从值里的 \cs{hit@if@option@TF} 改成覆盖表}
+% \changes{v3.2a}{2026/08/16}{“学校”这一条去掉校区限定，三个校区的本科内封已统一}
+%    \begin{macrocode}
+\ExplSyntaxOff
+\hit@presetup[degree-level=bachelor]{ const = {
+  school-field-label-zh = {学校},
+} }
+\ExplSyntaxOn
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  major-field-label-zh            = {学科},
+  degree-field-label-zh               = {申请学位},
+  supervisor-field-label-zh           = {导师},
+  associate-supervisor-field-label-zh = {副导师},
+  co-supervisor-field-label-zh        = {合作导师},
+  title-separator-zh                  = {：},
+  author-field-label-en               = {Candidate},
+  supervisor-field-label-en           = {Supervisor},
+  associate-supervisor-field-label-en = {Associate Supervisor},
+  co-supervisor-field-label-en        = {Co-Supervisor off Campus},
+  degree-field-label-en               = {Academic Degree Applied for},
+  major-field-label-en            = {Specialty},
+  affiliation-field-label-en          = {Affiliation},
+} }
+\ExplSyntaxOn
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{本部研究生第二封面按照书写指南进行修改}
+% 本部研究生第二封面按照书写指南进行修改。学科”改为“学科或类别”。
+% 虽然只是深圳的要求，但是懒得写判断了，我估计用到的人不多，还有我怕明年深圳再改一波又白写了。
+% \changes{v3.1c}{2023/04/16}{根据 \issue[97] 修改合作导师的名称}
+%
+% \changes{v3.1c}{2023/04/16}{根据 \issue[97] 修改合作导师的英文}
+%
+% \changes{v3.2a}{2026/08/07}{本部硕士的“学科或类别”改成覆盖表里的一条，
+%   原先是 \cs{cs\_set\_nopar:Npn} 直接改宏，绕过了 \texttt{hit/const} 族}
+%    \begin{macrocode}
+\ExplSyntaxOff
+\hit@presetup[campus=harbin,degree-level=master]{ const = {
+  major-field-label-zh = {学科或类别},
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{修改深圳硕士英文封面的 Defence 为 Defense.\issue[97]}
+% 深圳硕士英文封面是 Defense，其他为 Defence.
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  date-field-label-en                           = {Date of Defence},
+  school-field-label-en                         = {Degree-Conferring-Institution},
+  school-en                                     = {Harbin Institute of Technology},
+  title-separator-en                            = {:},
+  classified-index-national-field-label-zh      = {国内图书分类号},
+  classified-index-international-field-label-zh = {国际图书分类号},
+  classified-index-national-field-label-en      = {Classified Index},
+  classified-index-international-field-label-en = {U.D.C},
+  nomenclature-heading                       = {Nomenclature},
+  contents-page-heading                           = {Page},
+  contents-table-heading                          = {Table},
+  contents-figure-heading                         = {Figure},
+  secret-level-field-label                   = {密级},
+  school-id-field-label                      = {学校代码},
+  school-id                                     = {10213},
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{深圳硕士的 Defense 改成覆盖表里的一条}
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup[campus=shenzhen,degree-level=master]{ const = {
+  date-field-label-en = {Date of Defense},
+} }
+\hit@presetup{ const = {
+  heading-spread             = {1em},
+  conclusion-heading-zh      = {结论},
+  conclusion-heading-en      = {Conclusions},
+  acknowledgement-heading-zh = {致谢},
+  acknowledgement-heading-en = {Acknowledgements},
+  resume-heading-zh          = {个人简历},
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{博后的三处标题合成一张覆盖表，原先是三段
+%   \cs{hit@if@option@TF}\texttt{\{postdoc\}} 各带两张单键的表}
+% 博后这三个标题与别的学位不同：正文标题不加字距，简历要写明是博士后的。
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup[degree-level=postdoc]{ const = {
+  heading-spread    = {},
+  resume-heading-zh = {博士后个人简历},
+} }
+\ExplSyntaxOn
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  corresponding-address-heading-zh = {永久通讯地址},
+  corresponding-address-heading-en = {Corresponding Address},
+  resume-heading-en                = {Resume},
+  declarations-heading-zh          = {哈尔滨工业大学学位论文原创性声明和使用权限},
+  declarations-heading-en          = {Statement of copyright and Letter of authorization},
+  defense-heading-zh            = {学位论文评阅人、答辩委员会名单及答辩决议},
+  defense-heading-en            = {List of Dissertation Reviewers and Defense Committee and Defense Resolution},
+  defense-reviewer-label        = {评阅人\\（根据实际\\人数填写）},
+  defense-name-label            = {姓名},
+  defense-title-label           = {职称（是否博导）},
+  defense-affiliation-label     = {工作单位},
+  defense-discipline-label      = {所在学科},
+  defense-role-label            = {职务},
+  defense-committee-label       = {答\\辩\\委\\员\\会\\成\\员},
+  defense-chair-label           = {主席},
+  defense-member-label          = {委\\员},
+  defense-secretary-label       = {秘书},
+  defense-resolution-label      = {答辩委员会决议（对论文的评语及是否建议授予博士学位等）：},
+} }
+\ExplSyntaxOn
+%    \end{macrocode}
+%
+% 添加博后封皮title的选项
+% \changes{v3.0.0}{2020/05/21}{添加博后封皮title的选项}
+%    \begin{macrocode}
+
+
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{增加博士的学位论文评阅人、答辩委员会名单及答辩决议 \issue[247]}
+%    \begin{macrocode}
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  author-signature-field-label = {作者签名：},
+} }
+\hit@presetup{ const = {
+  supervisor-signature-field-label = {导师签名：},
+} }
+\hit@presetup{ const = {
+  date-field-label-front = {日期：},
+} }
+\hit@presetup{ const = {
+  denotation-heading-zh = {物理量名称及符号表},
+} }
+\hit@presetup{ const = {
+  denotation-heading-en = {List of physical quantity and symbol},
+} }
+\hit@presetup{ const = {
+  eqdenote-label-zh = {式中},
+} }
+\hit@presetup{ const = {
+  eqdenote-label-en = {where},
+} }
+\hit@presetup{ const = {
+  eqdenote-dash = {——},
+} }
+\hit@presetup{ const = {
+  authorization-heading = {学位论文使用权限},
+} }
+%    \end{macrocode}
+%
+% \changes{v3.0.22}{2022/05/16}{深圳校区中期模板封面范例中没有“哈工大（深圳）制”字样。\issue[126]}
+% 深圳校区的封面底部没有「哈工大（深圳）制」这一行。另外三个校区学位档次的底部标记
+% 都在下面，唯独深圳这个不排，2022 年按 \issue[126] 去掉的，别再补回来。
+%    \begin{macrocode}
+\hit@presetup{ const = {
+  harbin-school-bottom-mark = { 
+   \begin{center} 
+     \songti\sanhao\textbf{研究生院制} 
+   \end{center} 
+   \begin{center} 
+     \songti\sanhao\textbf{二〇一四年九月} 
+   \end{center} 
+},
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%
+% \changes{v3.1c}{2023/04/16}{根据 \issue[151] 将本部本科开题下方的标识更换为 \texttt{.eps} 文件}
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  bachelor-school-bottom-mark = { 
+   \begin{center} 
+     \hit@cover@bottommark 
+   \end{center} 
+},
+} }
+\hit@presetup{ const = {
+  shenzhen-doctor-interim-note = {
+\thispagestyle{empty}
+{\begin{center}
+\songti\sanhao\textbf{\hit@spread@to{6em}{说明}}
+\end{center}
+}
+\vspace{1cm}\songti\sihao[2]
+\begin{enumerate}[itemsep=-4bp]
+\item 博士研究生学位论文中期报告一般在入学后的第五学期末完成。
+\item 此报告由学生本人填写，请导师签字后提交一份给检查小组。答辩结束后由检查组长签署意见。
+\item 报告经中期报告检查组长签字同意后，由学科部保存，以备论文答辩时参考。研究生院学生培养处将对研究生的学位论文中期报告进行抽查。
+\item 报告统一用A4纸打印。
+\end{enumerate}
+},
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%
+% 添加深圳中期报告内容
+% \changes{v3.0.0}{2020/05/21}{添加深圳中期报告内容}
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  authorization-text = {%
+学位论文是研究生在哈尔滨工业大学攻读学位期间完成的成果，知识产权归属哈尔滨工业大学。学位论文的使用权限如下： 
+\par
+（1）学校可以采用影印、缩印或其他复制手段保存研究生上交的学位论文，并向国家图书馆报送学位论文；（2）学校可以将学位论文部分或全部内容编入有关数据库进行检索和提供相应阅览服务；（3）研究生毕业后发表与此学位论文研究成果相关的学术论文和其他成果时，应征得导师同意，且第一署名单位为哈尔滨工业大学。 
+\par
+保密论文在保密期内遵守有关保密规定，解密后适用于此使用权限规定。 
+\par
+本人知悉学位论文的使用权限，并将遵守有关规定。},
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%
+% 添加威海校区原创性声明内容
+% \changes{v3.0.16}{2021/11/29}{添加威海校区原创性声明内容}
+% \changes{v3.1d}{2025/03/03}{哈尔滨本科的原创性声明的标题也改了。\issue[172]}
+%    \begin{macrocode}
+
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{更改深圳校区本科生原创性声明标题}
+% \changes{v3.2a}{2026/08/07}{本科原创性声明的标题从值里的嵌套 \cs{hit@if@option@TF}
+%   改成默认值加两张校区覆盖表}
+% \changes{v3.2a}{2026/08/16}{本科原创性声明的标题三个校区统一，两张校区覆盖表删掉}
+% 三个校区已经统一，标题只剩这一个，分成两行排。
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  bachelor-declarations-heading-line-one = {哈尔滨工业大学本科毕业论文（设计）},
+  bachelor-declarations-heading-line-two = {原创性声明和使用权限},
+  bachelor-declarations-heading = {<bachelor-declarations-heading-line-one><bachelor-declarations-heading-line-two> },
+  bachelor-declarations-heading-short = {原创性声明},
+  bachelor-copyright-heading = {本科毕业论文（设计）原创性声明},
+  bachelor-authorization-heading = {本科毕业论文（设计）使用权限},
+} }
+\ExplSyntaxOn
+%    \end{macrocode}
+%    \begin{macro}{\hit@bachelor@copyright@text}
+% \changes{v3.1d}{2025/03/03}{修改哈尔滨本科原创性声明的内容。\issue[172]}
+%
+% \changes{v3.2a}{2026/08/07}{本科原创性声明的正文从值里的嵌套 \cs{hit@if@option@TF}
+%   改成默认值加两张校区覆盖表}
+% \changes{v3.2a}{2026/08/16}{本科原创性声明的正文三个校区统一到本部这一份，
+%   末尾按新规范加“对使用AI工具的情况进行了明确标注”一句，两张校区覆盖表删掉}
+% 三个校区已经统一，正文只剩这一块。末尾那句 AI 工具是新规范加的，
+% 与前文同一段，不另起一段。
+%    \begin{macrocode}
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  bachelor-copyright-text = {%
+    本人郑重声明：此处所提交的本科毕业论文（设计）《<title-flat-zh>》，是本人在导师指导下，在哈尔滨工业大学攻读学士学位期间独立进行研究工作所取得的成果，且毕业论文（设计）中除已标注引用文献的部分外不包含他人完成或已发表的研究成果。对本毕业论文（设计）的研究工作做出重要贡献的个人和集体，均已在文中以明确方式注明。本毕业论文（设计）对使用AI工具的情况进行了明确标注。
+  },
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macro}{\hit@bachelor@authorization@text}
+% \changes{v3.1d}{2025/03/03}{修改哈尔滨本科知识产权的内容。\issue[172]}
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  bachelor-authorization-text = {%
+  本科毕业论文（设计）是本科生在哈尔滨工业大学攻读学士学位期间完成的成果，知识产权归属哈尔滨工业大学。本科毕业论文（设计）的使用权限如下： 
+\par
+  （1）学校可以采用影印、缩印或其他复制手段保存本科生上交的毕业论文（设计），并向有关部门报送本科毕业论文（设计）；（2）根据需要，学校可以将本科毕业论文（设计）部分或全部内容编入有关数据库进行检索和提供相应阅览服务；（3）本科生毕业后发表与此毕业论文（设计）研究成果相关的学术论文和其他成果时，应征得导师同意，且第一署名单位为哈尔滨工业大学。 
+\par
+  保密论文在保密期内遵守有关保密规定，解密后适用于此使用权限规定。 
+\par
+  本人知悉本科毕业论文（设计）的使用权限，并将遵守有关规定。 
+},
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macro}{\hit@copyright@heading}
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  copyright-heading = {学位论文原创性声明},
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macro}{\hit@copyright@text}
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  copyright-text = {%
+本人郑重声明：此处所提交的学位论文《<title-flat-zh>》，是本人在导师指导下，在哈尔滨工业大学攻读学位期间独立进行研究工作所取得的成果，且学位论文中除已标注引用文献的部分外不包含他人完成或已发表的研究成果。对本学位论文的研究工作做出重要贡献的个人和集体，均已在文中以明确方式注明。},
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%    \end{macro}
+%
+% \changes{v3.1b}{2022/06/06}{修改深圳校区硕士创新性成果的标题。\issue[97]}
+% \changes{v3.1d}{2025/03/03}{修改哈尔滨校区本科创新性成果的标题。\issue[220]}
+% \changes{v3.2a}{2026/08/07}{成果附录的标题从三层嵌套的 \cs{hit@if@option@TF} 拆成
+%   默认值加三张覆盖表}
+% 成果附录的标题。默认是发表的论文，深圳硕士与哈尔滨本科按各自规范叫创新性成果，
+% 博后和英文版另有叫法。四条按覆盖顺序排，后面的盖前面的。
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  publication-heading-zh = {攻读<degree-level-zh>学位期间发表的论文及其他成果},
+} }
+
+
+\hit@presetup[campus=shenzhen,degree-level=master ; degree-level=bachelor]{ const = {
+  publication-heading-zh = {攻读<degree-level-zh>学位期间取得创新性成果},
+} }
+\hit@presetup[degree-level=postdoc]{ const = {
+  publication-heading-zh = {博士后期间的研究成果},
+} }
+\hit@presetup[lang=en]{ const = {
+  publication-heading-zh = {Author's Publications},
+} }
+\hit@presetup{ const = {
+  doctor-publication-heading-zh = {博士生期间的研究成果},
+  doctor-publication-heading-en = {Publications During Doctoral Study},
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%
+% 博后和英文版附录title
+% \changes{v3.0.0}{2020/05/21}{博后和英文版附录title}
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  date-blank = {\hspace{2.5em}年\hspace{1.5em}月\hspace{1.5em}日},
+} }
+\ExplSyntaxOn
+
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{修正英文目录中的硕士期间发表文章。\issue[97]}
+%    \begin{macrocode}
+
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  publication-heading-en = {Papers published in the period of Ph.D. education},
+} }
+\ExplSyntaxOn
+\ExplSyntaxOff
+\hit@presetup[degree-level=master]{ const = {
+  publication-heading-en = {Papers published in the period of master education},
+} }
+\hit@presetup[campus=shenzhen,degree-level=master]{ const = {
+  publication-heading-en = {Innovative achievements for Master},
+} }
+\ExplSyntaxOn
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  hi               = {嗨！thesis},
+  brace-left-zh    = {（},
+  brace-right-zh   = {）},
+  brace-left-en    = {(},
+  brace-right-en   = {)},
+} }
+\ExplSyntaxOn
+%</thesis-defaults>
+%    \end{macrocode}
+%
+% \section{报告类的默认值}
+%
+% \changes{v3.2a}{2026/08/07}{\texttt{reportcfg} 从 \file{hit-report.dtx} 迁进来}
+% 两个报告类共用这一份，与迁移前一致。同样先整段包在 \cs{hitpreconfig} 里。
+%    \begin{macrocode}
+%<*report-defaults>
+\ExplSyntaxOff
+\hit@presetup{ thm = {
+  body-font   = {\normalfont},
+  head-font   = {\normalfont\heiti},
+  qed         = {\ensuremath{\square}},
+  head-punct  = {},
+  note-braces = {}{},
+  note-font   = {},
+} }
+\hit@presetup{ thm = { star = { proof = 证明 } } }
+\hit@presetup{ thm = { qed = {}, head-punct = {} } }
+\hit@presetup{ thm = { list = {
+  assumption   = 假设,
+  definition   = 定义,
+  proposition  = 命题,
+  lemma        = 引理,
+  theorem      = 定理,
+  axiom        = 公理,
+  corollary    = 推论,
+  exercise     = 练习,
+  example      = 例,
+  remark       = 注释,
+  problem      = 问题,
+  conjecture   = 猜想,
+} } }
+\ExplSyntaxOn
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/08}{报告类的三个 \pkg{ctex} 词汇也改成常量键}
+%    \begin{macrocode}
+\ExplSyntaxOff
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/09}{报告页眉整句原先硬写在 \file{hit-report-pagestyle.dtx} 里，
+%   改成按变体给值的常量}
+% 报告的页眉原先是三句写死的中文，而学位论文那边是用 \option{school-zh} 加
+% \option{degree-level-zh} 这些常量拼出来的。同样的东西两个类两种做法，
+% 报告这边用户还改不了。改成常量，取值按变体给。
+%
+% 深圳硕士的前置页面与正文页眉不一样，所以有两个键。其余变体只用
+% \option{report-header}。
+%    \begin{macrocode}
+\hit@presetup[campus=weihai,degree-level=master]{ const = {
+  report-header = {<school-zh>（<campus>）<degree-level-zh>学位论文开题报告},
+} }
+\hit@presetup[campus=shenzhen,degree-level=master,kind=proposal]{ const = {
+  report-header = {<school-zh>（<campus>）<degree-level-zh>学位论文开题报告},
+} }
+\hit@presetup[campus=shenzhen,degree-level=master,kind=interim]{ const = {
+  report-header = {<school-zh>（<campus>）<stage-interim>报告},
+} }
+\hit@presetup[campus=shenzhen,degree-level=master]{ const = {
+  report-front-header = {<school-zh>（<campus>）<degree-level-zh>学位论文开题报告},
+} }
+\hit@presetup{ const = { bibliography-heading-zh = {参考文献} } }
+\hit@presetup{ const = {
+  contentsname = {\hit@spread@by{1em}{目录}},
+  figurename   = {图},
+  tablename    = {表},
+} }
+\ExplSyntaxOn
+\hit@preconfig{ \hit@setup@date }
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{根据 \issue[220] 去掉本部答辩日期中的“日”}
+%
+% \changes{v3.2a}{2026/08/08}{日期的四种排法迁到 \file{src/utils/hit-date.dtx}，
+%   这里只留取值}
+% 不写日期就取编译当天，写成 ISO 交给格式化那一层；排到年月还是年月日
+% 由字段声明时的精度定，见 \file{src/setup/hit-keylist.dtx}。
+%    \begin{macrocode}
+\use:x
+  {
+    \exp_not:N \hit@presetup
+      { info = { date-zh = { \int_use:N \c_sys_year_int -
+              \int_use:N \c_sys_month_int -
+              \int_use:N \c_sys_day_int } } }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{删了一些没用的定义，更改哈尔滨本科的论文名。\issue[172]}
+% 咱也不知道谁想的，其他校区的本科毕设叫“毕业设计（论文）”，哈尔滨的叫“毕业论文（设计）”
+%
+% \changes{v3.1d}{2025/03/03}{之前一口气删多了，恢复一下}
+%
+% \changes{v3.1c}{2023/04/16}{修改深圳硕士开题封面“学科”}
+%
+% \changes{v3.2a}{2026/08/08}{修改本部硕士开题、中期封面“学院（部）”和“学科/学位专业类别”}
+%
+% \changes{v3.2a}{2026/08/08}{修改本部硕士开题封面“学位”}
+%
+% \changes{v3.2a}{2026/08/07}{封面上按校区、学位、阶段变的六条词汇从值里的
+%   \cs{hit@if@option@TF} 改成默认值加覆盖表}
+% 上面那张表只放默认值，下面按条件覆盖。后设的盖先设的，所以条件从宽到窄排。
+%    \begin{macrocode}
+\ExplSyntaxOff
+\hit@presetup[degree-level=doctor]{ const = {
+  degree-level-zh                = {博士},
+  degree-of-discipline-format-zh = {<discipline-zh><degree-level-zh>},
+  author-field-label-zh          = {<degree-level-zh>研究生},
+} }
+\hit@presetup[degree-level=master]{ const = {
+  degree-level-zh                = {硕士},
+  degree-of-discipline-format-zh = {<discipline-zh><degree-level-zh>},
+  author-field-label-zh          = {<degree-level-zh>研究生},
+} }
+\hit@presetup[degree-level=bachelor]{ const = {
+  degree-level-zh = {学士},
+} }
+\hit@presetup{ const = {
+  figure-prefix-en                              = {Fig.$\!$},
+  table-prefix-en                               = {Table$\!$},
+  stage-proposal                                 = {开题},
+  stage-interim                                 = {中期},
+  stage-document-type                           = {报告},
+  bachelor-degree-level                      = {本科},
+  bachelor-document-type                     = {毕业设计（论文）},
+  bachelor-class-field-label                 = {班号},
+  bachelor-major-field-label                 = {\hit@spread@to{4em}{专业}},
+  bachelor-student-field-label               = {\hit@spread@to{4em}{学生}},
+  bachelor-student-id-field-label            = {\hit@spread@to{4em}{学号}},
+  bachelor-affiliation-field-label           = {学院},
+  bachelor-supervisor-field-label            = {指导教师},
+  bachelor-date-field-label                  = {\hit@spread@to{4em}{日期}},
+  bachelor-teacher-comment-field-label       = {指导教师评语：},
+  bachelor-teacher-signature-field-label     = {指导教师签字：},
+  bachelor-check-date-field-label            = {检查日期：},
+  thesis-title-prefix                        = {\hit@spread@to{3em}{题目}},
+  graduate-affiliation-field-label           = {\hit@spread@to{6\ccwd}{院（系}）},
+  graduate-major-field-label                 = {\hit@spread@to{6em}{学科}},
+  graduate-supervisor-field-label            = {\hit@spread@to{6em}{导师}},
+  graduate-student-field-label               = {\hit@spread@to{6em}{研究生}},
+  graduate-student-id-field-label            = {\hit@spread@to{6em}{学号}},
+  graduate-date-field-label                  = {\hit@stage@proposal\hit@stage@document@type 日期},
+  graduate-enroll-date-field-label           = {\hit@spread@to{6em}{入学时间}},
+  graduate-thesis-field-label                = {\hit@spread@to{6em}{论文题目}},
+  graduate-affiliation-major-field-label     = {\hit@spread@to{6em}{学科专业}},
+  school-zh                                     = {哈尔滨工业大学},
+  document-type                              = {学位论文},
+  thesis-interim-check                       = {\hit@spread@to{13.375em}{博士学位论文中期检查报告}},
+  school-field-label-zh                         = {授予学位单位},
+  date-field-label-zh                           = {答辩日期},
+  affiliation-field-label-zh                    = {所在单位},
+  major-field-label-zh                      = {学科},
+  degree-field-label-zh                         = {申请学位},
+  supervisor-field-label-zh                     = {导师},
+  associate-supervisor-field-label-zh           = {副导师},
+  co-supervisor-field-label-zh                  = {联合导师},
+  title-separator-zh                            = {：},
+  classified-index-national-field-label-zh      = {国内图书分类号},
+  classified-index-international-field-label-zh = {国际图书分类号},
+  secret-level-field-label                   = {密级},
+  school-id-field-label                      = {学校代码},
+  school-id                                     = {10213},
+} }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{报告类里“毕业论文（设计）”的选择器由 \texttt{harbin}
+%   改成 \texttt{harbin|weihai}，威海本科的开题与中期跟着本部走；深圳本科仍是
+%   “毕业设计（论文）”，它的开题与中期还没并过来}
+%    \begin{macrocode}
+\hit@presetup[campus=harbin|weihai]{ const = {
+  bachelor-document-type = {毕业论文（设计）},
+} }
+\hit@presetup[campus=harbin,degree-level=bachelor]{ const = {
+  school-field-label-zh = {学校},
+} }
+\hit@presetup[kind=interim]{ const = {
+  graduate-date-field-label = {\hit@stage@interim\hit@stage@document@type 日期},
+} }
+\ExplSyntaxOn
+\ExplSyntaxOff
+\hit@presetup[campus=shenzhen,degree-level=master,kind=proposal]{ const = {
+  graduate-major-field-label = {\hit@spread@to{6\ccwd}{学科\,/\,专业}},
+} }
+\hit@presetup[campus=harbin,degree-level=master,kind=proposal|interim]{ const = {
+  graduate-affiliation-field-label = {\hit@spread@to{6\ccwd}{学院（部}）},
+  % 这一处是压不是拉，九个字进八个字宽。\hit@spread@to 底层是 minipage 会折行，
+  % 压不了，所以留 \makebox[s]。别处的分散对齐一律走 \hit@spread@to。
+  graduate-major-field-label       = {\makebox[8\ccwd][s]{学科/专业学位类别}},
+} }
+\hit@presetup[campus=harbin,degree-level=master,kind=proposal]{ const = {
+  document-type = {学位},
+} }
+\ExplSyntaxOn
+\ExplSyntaxOff
+\hit@presetup{ const = {
+  eqdenote-label-zh = {式中},
+} }
+\hit@presetup{ const = {
+  eqdenote-label-en = {where},
+} }
+\hit@presetup{ const = {
+  eqdenote-dash = {——},
+} }
+\hit@presetup{ const = {
+  author-signature-field-label = {作者签名：},
+} }
+\hit@presetup{ const = {
+  supervisor-signature-field-label = {导师签名：},
+} }
+\hit@presetup{ const = {
+  date-field-label-front = {日期：},
+} }
+\hit@presetup{ const = {
+  authorization-heading = {学位论文使用权限},
+} }
+\hit@presetup{ const = {
+  harbin-school-bottom-mark = { 
+   \begin{center} 
+     \songti\sanhao\textbf{研究生院制} 
+   \end{center} 
+},
+} }
+\hit@presetup{ const = {
+  bachelor-school-bottom-mark = { 
+   \begin{center} 
+     \hit@cover@bottommark 
+   \end{center} 
+},
+} }
+\hit@presetup{ const = {
+  shenzhen-master-school-bottom-mark = { 
+   \begin{center} 
+     \songti\sanhao\textbf{深圳校区教务部\nobreakspace{}制} 
+   \end{center} 
+},
+} }
+\hit@presetup{ const = {
+  shenzhen-doctor-interim-note = { 
+\thispagestyle{empty} 
+{\begin{center} 
+\songti\sanhao\textbf{\hit@spread@to{6em}{说明}} 
+\end{center} 
+} 
+\vspace{1cm}\songti\sihao[2] 
+\begin{enumerate}[itemsep=-4bp] 
+\item 博士研究生学位论文中期报告一般在入学后的第五学期末完成。 
+\item 此报告由学生本人填写，请导师签字后提交一份给检查小组。答辩结束后由检查组长签署意见。 
+\item 报告经中期报告检查组长签字同意后，由学科部保存，以备论文答辩时参考。研究生院学生培养处将对研究生的学位论文中期报告进行抽查。 
+\item 报告统一用A4纸打印。 
+\end{enumerate} 
+},
+} }
+\hit@presetup{ const = {
+  date-blank = {\hspace{2.5em}年\hspace{1.5em}月\hspace{1.5em}日},
+} }
+\hit@presetup{ const = {
+  hi = {嗨！thesis},
+} }
+\ExplSyntaxOn
+%    \end{macrocode}
+%
+% \changes{v3.0.22}{2022/05/16}{深圳校区中期模板封面范例中没有“哈工大（深圳）制”字样。\issue[126]}
+%    \begin{macrocode}
+% \newcommand{\hit@shenzhen@school@bottom@mark}{
+%    \begin{center}
+%      \songti\sanhao\textbf{哈工大（深圳）制}
+%    \end{center}
+%    \begin{center}
+%      \songti\sanhao\textbf{二〇一二年三月}
+%    \end{center}
+% }
+%    \end{macrocode}
+%
+% 此处删除了时间
+% \changes{v3.0.06}{2020/09/13}{此处删除了时间}
+%
+% \changes{v3.1c}{2023/04/16}{根据 \issue[151] 将本部本科开题下方的标识更换为 \texttt{.eps} 文件}
+%
+% \changes{v3.1c}{2023/04/16}{深圳校区硕士开题模板含有“深圳校区教务处 制”。\issue[141]}
+%
+%    \begin{macrocode}
+%</report-defaults>
+%    \end{macrocode}
+%
+% \Finale

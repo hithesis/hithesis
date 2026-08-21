@@ -1,0 +1,1120 @@
+% \iffalse meta-comment
+%
+% hit-bibstyle.dtx 是各个类共用的参考文献选项与样式
+%
+% \fi
+%
+% \section{共享参考文献样式}
+%
+% \changes{v3.2a}{2026/08/09}{参考文献里两个类原样相同的那几段抽出来共用}
+% 两个类底下的文献宏包不是一个：学位论文走 \pkg{gbt7714}，报告走 \pkg{natbib}。
+% 但三个选项、引用样式、\cs{inlinecite}、著录列表的排版参数这几件事两边写的是
+% 同一份代码，原先各抄一遍。
+%
+% 本文件排在共享层，也就是类骨架之前。\pkg{docstrip} 逼的：它给同一个输出里
+% 重复出现的输入文件改名（原名后面添空格），并要求每个输出的输入文件表是全局表的
+% 子序列。一个输出一旦用上自己独有的文件，扫描位置就落到全局表尾部，再回头引用
+% 排在前面的共享文件就找不到了。所以共享文件只能全部排在类骨架第一次出现之前，
+% 这也是页面模块必须按类分文件的原因。
+%
+% 排得早就带来两条限制，都体现在留在各个类里的那几行上：
+% \cs{citestyle} 要等文献宏包加载完才能调用，所以那一行留在各个类的文献模块里；
+% \cs{bibauthor} 与 \cs{g\_bib\_author\_cs:n} 用 \cs{exp\_args:NNe} 在定义时就把
+% \option{bibauthorupper} 的取值展开定死，得排在 \cs{ProcessKeyOptions} 之后，
+% 比这里晚，所以两个类各留一份。
+%
+% \subsection{选项}
+%
+% \changes{v3.2a}{2026/08/09}{设置参考文献列表中的作者是否全大写和最大显示数量}
+% \changes{v3.2a}{2026/08/09}{设置参考文献列表标号的对齐方式}
+% \DescribeMacro{bibauthorupper}
+% \DescribeMacro{bibmaxauthor}
+% \DescribeMacro{biblabelalign}
+% \option{bibauthorupper} 取 \texttt{full} 时作者姓名全大写；\option{bibmaxauthor}
+% 是列表里最多显示几位作者，取 \texttt{0} 表示不限；\option{biblabelalign} 取
+% \texttt{left} 时标号左对齐。
+%    \begin{macrocode}
+%<*shared-bibstyle>
+
+%    \end{macrocode}
+% \changes{v3.2a}{2026/08/16}{西文姓氏默认全大写。\file{.bst} 换官方底座后
+%   跟官方 \texttt{uppercasefamily!=true} 的默认走，biblatex 一线的
+%   \texttt{gbnamefmt} 映射随标志位一起翻}
+%    \begin{macrocode}
+\str_new:N \g__hit_bib_cite_punct_str
+\str_gset:Nn \g__hit_bib_cite_punct_str { half }
+\str_new:N \g__hit_bib_cite_brackets_str
+\str_gset:Nn \g__hit_bib_cite_brackets_str { half }
+\bool_new:N \g_bib_authorupper_bool
+\bool_gset_true:N \g_bib_authorupper_bool
+\keys_define:nn { hit / class }
+  {
+    bibauthorupper .code:n =
+      {
+        \str_if_eq:nnT {#1} {full}
+          { \bool_gset_true:N \g_bib_authorupper_bool }
+      } ,
+  }
+
+\int_new:N \g_bib_maxauthor_int
+\int_gset:Nn \g_bib_maxauthor_int {3}
+\int_new:N \g__hit_bib_maxcite_int
+\int_gset:Nn \g__hit_bib_maxcite_int { -2 }
+\keys_define:nn { hit / class }
+  {
+    bibmaxauthor .code:n =
+      {
+        \int_gset:Nn \g_bib_maxauthor_int {#1}
+        \int_if_zero:nT { \g_bib_maxauthor_int }
+          { \int_gdecr:N \g_bib_maxauthor_int }
+      } ,
+  }
+
+\str_new:N \g_bib_labelalign_str
+\keys_define:nn { hit / class }
+  { biblabelalign .code:n = { \str_gset:Nn \g_bib_labelalign_str {#1} } }
+
+%    \end{macrocode}
+%
+% \subsection{引用样式}
+%
+% \begin{macro}{\bibstyle@numerical}
+% \changes{v3.0.15}{2021/05/06}{删除 inline 等定义，此命令与 \pkg{gbt7714} 冲突}
+% 数字上标式引用。\cs{bibstyle@inline} 两个类不一样：报告自己定义一份，
+% 学位论文用 \pkg{gbt7714} 带的那份，所以它不在这里。
+%
+% \changes{v3.2a}{2026/08/16}{序号间的分隔按 \option{comma-in-cite} 分发、
+%   方括号按 \option{brackets-in-cite} 分发。\cs{bibpunct} 收的是三个转接宏，
+%   \pkg{natbib} 存宏名不存展开，键随设随生效，不必重跑 \cs{citestyle}}
+% 括号与分隔都从转接宏取：\cs{bibpunct} 存进 \pkg{natbib} 的是宏名，
+% 每次引用展开的都是键的现值。
+%    \begin{macrocode}
+\cs_new:Npn \hit@bib@cite@open:
+  { \str_if_eq:VnTF \g__hit_bib_cite_brackets_str { full } {［} {[} }
+\cs_new:Npn \hit@bib@cite@close:
+  { \str_if_eq:VnTF \g__hit_bib_cite_brackets_str { full } {］} {]} }
+\cs_new:Npn \hit@bib@cite@sep:
+  {
+    \str_case:VnF \g__hit_bib_cite_punct_str
+      { { half-with-space } { ,~ } { full } { ，} } { , }
+  }
+\cs_set_protected:Npn \bibstyle@numerical
+  {
+    \bibpunct { \hit@bib@cite@open: } { \hit@bib@cite@close: }
+      { \hit@bib@cite@sep: } {s} {,} { \textsuperscript {,} }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\inlinecite,\onlinecite}
+% \changes{v2.0.06}{2018/12/05}{在 \cs{inlinecite} 内添加空格}
+% \cs{inlinecite}\marg{键} 把引用排成正文里的样子，不上标。
+%    \begin{macrocode}
+\DeclareRobustCommand\inlinecite{\@inlinecite}
+\cs_set:Npn \@inlinecite #1
+  {
+    \group_begin:
+      \citestyle { inline }
+      \cs_set_eq:NN \@cite \NAT@citenum
+      \citep {#1}
+    \group_end:
+  }
+\cs_set_eq:NN \onlinecite \inlinecite
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{著录列表}
+%
+% \begin{macro}{\hit@bib@list:nn}
+% \changes{v3.2a}{2026/08/09}{设置参考文献列表标号的对齐方式}
+% \cs{hit@bib@list:nn}\marg{最宽的标号}\marg{标号与正文的间距} 开一个著录列表。
+% 两个类的 \env{thebibliography} 前后差得多，标题怎么排、分页惩罚怎么给都不一样，
+% 中间这段 \cs{list} 的参数是一样的，只有间距要各传各的。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@list:nn #1#2
+  {
+    \list { \@biblabel { \@arabic \c@enumiv } }
+      {
+        \str_if_eq:VnT \g_bib_labelalign_str { left }
+          { \RenewDocumentCommand \makelabel { m } { ##1 \hfill } }
+        \settowidth { \labelwidth } { \@biblabel {#1} }
+        \dim_set:Nn \labelsep {#2}
+        \dim_set:Nn \itemindent { 0pt }
+        \dim_set:Nn \leftmargin { \labelsep + \labelwidth }
+        \dim_add:Nn \itemsep { -0.8em }
+        \usecounter { enumiv }
+        \cs_set_eq:NN \p@enumiv \@empty
+        \cs_set:Npn \theenumiv { \@arabic \c@enumiv }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{后端}
+%
+% \changes{v3.2a}{2026/08/16}{加 \option{bib}/\option{backend}，参考文献分
+%   \texttt{bibtex} 与 \texttt{biber} 两条路线，biblatex 一线由类自己装载配置}
+% \DescribeMacro{backend}
+% \option{bib}/\option{backend} 选参考文献走哪条路线，取值按「要跑哪个程序」起名：
+% \texttt{bibtex} 是传统一线（\pkg{gbt7714}/\pkg{natbib} 加 \file{.bst}，默认），
+% \texttt{biber} 是 \pkg{biblatex} 一线（样式走 \pkg{biblatex-gb7714-2015}）；
+% \texttt{biblatex} 当 \texttt{biber} 的别名也认。默认 \texttt{auto}——没写就走
+% 传统一线，但用户要是自己在导言区装了 \pkg{biblatex}，模板会侦测到并且不再装
+% \pkg{gbt7714}/\pkg{natbib}（侦测在导言区末尾，见各类的 bib 模块），效果等同
+% \texttt{biber}。这一招照抄 thuthesis。
+%
+% \pkg{biblatex} 的装载不能拖到导言区末尾（它自己就在装载时挂
+% \texttt{begindocument} 一族的钩子，晚了赶不上趟），所以在 \option{backend}
+% 所在的那组 \option{bib}\texttt{=\{...\}} 处理完的当口就装。这样
+% \option{style}、\option{author-case} 这些「装载时就得定死」的键只要跟
+% \option{backend} 写在同一组里，先后随意；分开写则必须先键后 \option{backend}，
+% 写反了有中文提示（见 \file{hit-messages.dtx} 的 bib-key-locked 一族）。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \begin{macro}{bib-punct}
+% \changes{v3.2a}{2026/08/16}{加 \option{bib-punct}\texttt{!=half|full|by-lang}，
+%   默认 \texttt{full}：不分语种一律全角逗号冒号圆括号（句点恒半角带空格），
+%   照学校规范的示例；旧深圳版就是这个排法}
+% \option{bib-punct} 管著录表的标点宽度，三档：\texttt{full}（默认，不分语种
+% 一律全角逗号冒号圆括号方括号，句点恒半角带空格，学校规范的示例与旧深圳版
+% 都是这个排法）、\texttt{half}（一律半角，旧哈尔滨版的排法）、
+% \texttt{by-lang}（按条目语言，中文全角西文半角）。传统一线映射官方
+% \file{.bst} 的 \texttt{bibpunct} 三档（\texttt{GB}/\texttt{half}/%
+% \texttt{bylanguage}，控制通道在 \cs{bibliography} 当口才读）；biblatex
+% 一线的方括号由下面的补丁按此键分发。两条线都随设随生效，不锁时机。
+%    \begin{macrocode}
+\str_new:N \g__hit_bib_punct_str
+\str_gset:Nn \g__hit_bib_punct_str { full }
+\keys_define:nn { hit / bib }
+  {
+    bib-punct .choices:nn = { half , full , by-lang }
+      { \str_gset:NV \g__hit_bib_punct_str \l_keys_choice_tl } ,
+    bib-punct .value_required:n = true ,
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+\str_new:N \g__hit_bib_backend_str
+\str_gset:Nn \g__hit_bib_backend_str { auto }
+\tl_new:N \g__hit_bib_style_used_tl
+\keys_define:nn { hit / bib }
+  {
+    backend .choices:nn = { auto , bibtex , biber , biblatex }
+      {
+        \str_gset:NV \g__hit_bib_backend_str \l_keys_choice_tl
+        \str_if_eq:VnT \g__hit_bib_backend_str { biblatex }
+          { \str_gset:Nn \g__hit_bib_backend_str { biber } }
+      } ,
+    backend .value_required:n = true ,
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@bib@backend@apply:}
+% \changes{v3.2a}{2026/08/16}{挂到 \cs{hitsetup} 末尾，不再挂在根族的
+%   \option{bib} 路由上}
+% 每处理完一次 \cs{hitsetup} 就照 \option{backend} 的现值行动一次。
+%
+% \emph{挂在 \cs{hitsetup} 末尾，不能挂在根族的 \option{bib} 路由上。} l3keys 认
+% \option{bib}/\option{backend} 这种写路径的形式，它直接送进 \texttt{hit\,/\,bib}
+% 族，根族那一层的 \option{bib} 键根本不经过，挂在那里的动作也就不执行。用户
+% 在导言区写 \cs{hitsetup}\{bib/backend=biber\} 会照编不误，然后收到一句
+% 「设晚了」——因为装载动作被推到了别处触发，那时导言期已经过了。
+%
+% 也不能挪进 \option{backend} 那个键自己的键码：整组 \option{bib}\texttt{=\{...\}}
+% 里 \option{biber}\texttt{=\{...\}} 那些子选项要等读完才齐，在 \option{backend}
+% 当场装载会漏掉它们。挂在 \cs{hitsetup} 末尾两头都顾上：整组读完了，
+% 而且不管用哪种写法进来都会经过。重复调用幂等。
+%
+% 行动是：\texttt{biber} 而 \pkg{biblatex} 未装就装；
+% \texttt{bibtex} 而 \pkg{biblatex} 已装是矛盾，报错；\texttt{auto} 不动。
+% 重复设同一个值幂等。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@backend@apply:
+  {
+    \str_case:Vn \g__hit_bib_backend_str
+      {
+        { biber }
+          { \@ifpackageloaded { biblatex } { } { \hit@bib@load@biblatex: } }
+        { bibtex }
+          {
+            \@ifpackageloaded { biblatex }
+              { \msg_error:nn { hithesis } { bib-backend-conflict } } { }
+          }
+        { auto } { }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@bib@load@biblatex:}
+% 装载 \pkg{biblatex}。样式锁死 \pkg{biblatex-gb7714-2015} 的
+% \texttt{gb7714-2015}：规范就是国标，biblatex 一线不开挑样式的口子——
+% \file{.bst} 一线让挑（\option{bibtex}/\option{style}）是因为 \hologo{BibTeX}
+% 能力有限，得靠换 \file{.bst} 微调；biblatex 自己的选项够用，细调走
+% \option{biber}\texttt{=\{...\}} 透传。
+%
+% 有一道时机护栏：demo 的主文件把 \cs{hitsetup} 全写在
+% \cs{begin}\marg{document} 之后，元信息那样设没问题，可 \pkg{biblatex}
+% 过了导言区就装不进去了。设晚了给一条说清怎么挪的警告然后照旧走传统一线，
+% 不让内核那句 Can~be~used~only~in~preamble 把用户晾在原地。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bib_preamble_bool
+\bool_gset_true:N \g__hit_bib_preamble_bool
+\AddToHook { begindocument }
+  { \bool_gset_false:N \g__hit_bib_preamble_bool }
+\cs_new_protected:Npn \hit@bib@load@biblatex:
+  {
+    \bool_if:NTF \g__hit_bib_preamble_bool
+      {
+        \use:e
+          {
+            \exp_not:N \RequirePackage
+              [
+                backend = biber , style = gb7714-2015
+                \tl_if_empty:NF \g__hit_bib_biber_opts_tl
+                  { , \exp_not:V \g__hit_bib_biber_opts_tl }
+              ] { biblatex }
+          }
+      }
+      { \msg_warning:nn { hithesis } { bib-backend-in-body } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@bib@key@guard:n}
+% 「设晚了」的守卫。\option{uppercase-family} 这些键在 \pkg{biblatex} 装载时换算成
+% 它的选项，装载之后再设不生效，键码前面搭一句守卫提示。
+% 传统一线不受影响——那边的取值到排版时才读。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@key@guard:n #1
+  {
+    \@ifpackageloaded { biblatex }
+      { \msg_warning:nnn { hithesis } { bib-key-locked } {#1} } { }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{bibtex,biber}
+% \changes{v3.2a}{2026/08/16}{\option{bib} 族按后端各开一个子组：
+%   \option{bibtex}/\option{style} 挑 \file{.bst}，\option{biber} 原封透传
+%   \pkg{biblatex} 的装载选项}
+% 后端专属的配置各归各的子组。\option{bibtex}/\option{style} 是
+% \cs{bibliographystyle} 的参数（\texttt{hithesis}（默认）或
+% \hologo{TeX} 树里任何 \file{.bst} 名），排版时才读，什么时候设都行。
+% \option{biber} 收一张键值表，原封并进 \pkg{biblatex} 的装载选项——
+% \pkg{biblatex-gb7714-2015} 的几十个选项（\texttt{gbpub}、\texttt{gbtype}、
+% \texttt{gbannote}……）都从这儿过，模板不逐个转译；装载选项自然要在装载前
+% 给，跟 \option{backend} 同组或在其之前，设晚了同一句守卫提示。
+%    \begin{macrocode}
+\tl_new:N \g__hit_bib_biber_opts_tl
+\keys_define:nn { hit / bib }
+  {
+    bibtex .code:n = { \hit@keys@set:nn { hit / bib / bibtex } {#1} } ,
+    biber .code:n =
+      {
+        \hit@bib@key@guard:n { biber }
+        \tl_gset:Nn \g__hit_bib_biber_opts_tl {#1}
+      } ,
+  }
+\keys_define:nn { hit / bib / bibtex }
+  { style .code:n = { \tl_gset:Nn \g__hit_bib_style_tl {#1} } }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{show-sl-sn}
+% \changes{v3.2a}{2026/08/16}{加 \option{show-sl-sn}：出版地或出版者缺失时
+%   补不补「不详」占位，默认补。biblatex 一线原先跟着 gbpub 的默认不补，
+%   与 \file{.bst} 一线对不上，顺带扯平}
+% \option{show-sl-sn}（\texttt{true}／\texttt{false}）：文献缺出版地或出版者时补不补
+% ［出版地不详］（sine~loco）与［出版者不详］（sine~nomine）。国标要补，
+% 默认 \texttt{true}。名字取自 kebab-biblatex-gb7714 的同义键。
+%
+% 落实分两线：biblatex 一线在装载时换算成 \pkg{biblatex-gb7714-2015} 的
+% \texttt{gbpub}——注意那边默认是 \texttt{false}（不补），跟 \file{.bst}
+% 一线的「按国标补」对不上，所以这里无论用户设没设都显式发一次，两线默认
+% 才一致。
+%
+% \changes{v3.2a}{2026/08/16}{\file{.bst} 换官方底座后传统一线也可关：走
+%   \texttt{unknownpublisher} 控制通道下发，见 \cs{hit@bib@forward@ctl:}}
+% 传统一线走官方 gbt7714~v3 的 \texttt{unknownpublisher}（控制通道，见
+% \cs{hit@bib@forward@ctl:}），两线都真实可开可关。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bib_slsn_bool
+\bool_gset_true:N \g__hit_bib_slsn_bool
+\keys_define:nn { hit / bib }
+  {
+    show-sl-sn .choices:nn = { true , false }
+      {
+        \hit@bib@key@guard:n { show-sl-sn }
+        \str_if_eq:VnTF \l_keys_choice_tl { true }
+          { \bool_gset_true:N  \g__hit_bib_slsn_bool }
+          { \bool_gset_false:N \g__hit_bib_slsn_bool }
+      } ,
+    show-sl-sn .default:n = true ,
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{show-mark,show-medium,link-title,show-url,show-doi,show-eprint}
+% \changes{v3.2a}{2026/08/16}{六个显示开关：类型标、载体标、题名超链接、
+%   URL、DOI、eprint，两条线同名同义}
+% 六个布尔开关，两边的官方机制一一对应（\file{.bst} 的 CTL 键 ↔
+% \pkg{biblatex} 的 gb 系或核心选项）：\option{show-mark}（类型标 ［J］，
+% \texttt{entrytypeid}↔\texttt{gbtype}）、\option{show-medium}（载体标
+% \texttt{/OL}，\texttt{entrymediumid}↔\texttt{gbmedium}）、
+% \option{link-title}（题名加超链接，\texttt{linktitle}↔\texttt{gbtitlelink}）、
+% \option{show-url}/\option{show-doi}/\option{show-eprint}
+% （\texttt{url}/\texttt{doi}/\texttt{eprint}，biblatex 核心同名）。
+% 默认取 \file{.bst} 的内置默认：前两个开、后面 \texttt{link-title} 关、
+% \texttt{url}/\texttt{doi} 开、\texttt{eprint} 关——biblatex 核心的
+% \texttt{eprint} 本来默认开，跟 \file{.bst} 扯平成关。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bib_showmark_bool
+\bool_gset_true:N \g__hit_bib_showmark_bool
+\bool_new:N \g__hit_bib_showmedium_bool
+\bool_gset_true:N \g__hit_bib_showmedium_bool
+\bool_new:N \g__hit_bib_linktitle_bool
+\bool_new:N \g__hit_bib_showurl_bool
+\bool_gset_true:N \g__hit_bib_showurl_bool
+\bool_new:N \g__hit_bib_showdoi_bool
+\bool_gset_true:N \g__hit_bib_showdoi_bool
+\bool_new:N \g__hit_bib_showeprint_bool
+\cs_new_protected:Npn \__hit_bib_show_key:nN #1#2
+  {
+    \keys_define:nn { hit / bib }
+      {
+        #1 .choices:nn = { true , false }
+          {
+            \hit@bib@key@guard:n {#1}
+            \str_if_eq:VnTF \l_keys_choice_tl { true }
+              { \bool_gset_true:N #2 }
+              { \bool_gset_false:N #2 }
+          } ,
+        #1 .default:n = true ,
+      }
+  }
+\__hit_bib_show_key:nN { show-mark }   \g__hit_bib_showmark_bool
+\__hit_bib_show_key:nN { show-medium } \g__hit_bib_showmedium_bool
+\__hit_bib_show_key:nN { link-title }  \g__hit_bib_linktitle_bool
+\__hit_bib_show_key:nN { show-url }    \g__hit_bib_showurl_bool
+\__hit_bib_show_key:nN { show-doi }    \g__hit_bib_showdoi_bool
+\__hit_bib_show_key:nN { show-eprint } \g__hit_bib_showeprint_bool
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{cite-punct,correct-punct}
+% \changes{v3.2a}{2026/08/16}{加 \option{comma-in-cite}\texttt{!=half|half-with-space|full}
+%   与 \option{brackets-in-cite}\texttt{!=half|full}：正文引用序号间的分隔与
+%   方括号各自的全半角（中途用过的 \option{cite-punct} 撤销改名）}
+% \option{comma-in-cite} 管正文引用序号之间的分隔：\texttt{half}（默认，
+% \texttt{[3,5]}）、\texttt{half-with-space}（\texttt{[3,~5]}）、
+% \texttt{full}（全角逗号）。\option{brackets-in-cite} 管引用的方括号：
+% \texttt{half}（默认）或 \texttt{full}（［3,5］）。传统一线经
+% \cs{bibstyle@numerical} 里的转接宏落到 \pkg{natbib} 上；biblatex 一线
+% 分隔落在 gb 系 cbx 的三个分隔宏、方括号落在 \cs{gbleftbracket} 的引用侧
+% 分支（见 \cs{hit@bib@patch@punct:}），全部排版时读值。两条线都不锁时机。
+%
+% \changes{v3.2a}{2026/08/16}{加 \option{correct-punct}：\file{.bib} 数据里的
+%   标点按 \option{bib-punct} 的档位清洗，名字取 omni 的同义键}
+% \changes{v3.2a}{2026/08/16}{\option{correct-punct} 默认改关}
+% \option{correct-punct}（默认关）管数据清洗：字段里写的标点按
+% \option{bib-punct} 的档位归一（全角档把 \texttt{,~:~;~!~?~()} 换成全角，
+% 半角档反向）。传统一线是 \file{.bst} 的 \texttt{convertpunct}；biblatex
+% 一线用 biber 的 sourcemap 镜像同一套替换（见
+% \cs{hit@bib@declare@sourcemaps:}），姓名字段除外——author 里的半角逗号是
+% 姓名分隔语法，装载前动它会毁解析，这一点与 \file{.bst}（排版期才转）不同。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bib_correct_punct_bool
+\bool_gset_false:N \g__hit_bib_correct_punct_bool
+\keys_define:nn { hit / bib }
+  {
+    comma-in-cite .choices:nn = { half , half-with-space , full }
+      { \str_gset:NV \g__hit_bib_cite_punct_str \l_keys_choice_tl } ,
+    comma-in-cite .value_required:n = true ,
+    brackets-in-cite .choices:nn = { half , full }
+      { \str_gset:NV \g__hit_bib_cite_brackets_str \l_keys_choice_tl } ,
+    brackets-in-cite .value_required:n = true ,
+    correct-punct .choices:nn = { true , false }
+      {
+        \hit@bib@key@guard:n { correct-punct }
+        \str_if_eq:VnTF \l_keys_choice_tl { true }
+          { \bool_gset_true:N  \g__hit_bib_correct_punct_bool }
+          { \bool_gset_false:N \g__hit_bib_correct_punct_bool }
+      } ,
+    correct-punct .default:n = true ,
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@bib@print:,\hit@bib@forward@ctl:}
+% 排文献表的总出口，两个类的 \cs{hitbackmatter} 流程都走它：\pkg{biblatex}
+% 装了就 \cs{printbibliography}，没装就是原来那两句 \cs{bibliographystyle} 加
+% \cs{bibliography}。判据直接看宏包在不在，不看 \option{backend} 的字面值，
+% 免得「用户自己装了 biblatex 而没写键」这一档跟状态记录对不上。
+%
+% \changes{v3.2a}{2026/08/16}{传统一线的键改走官方 \pkg{gbt7714} 的控制通道下发，
+%   \file{.bst} 换底座后 \cs{bibauthor} 那套回调不再被调用}
+% \changes{v3.2a}{2026/08/16}{下发前先探一句键在不在。TeX Live 2025 带的
+%   \pkg{gbt7714} 是 v2.1.8，没有这条 l3keys 通道}
+% \emph{下发前先探键在不在。} 这条通道是官方 \pkg{gbt7714} v3（2026-07）才有的。
+% TeX Live 2025 带的是 v2.1.8，\cs{@ifpackageloaded} 照样为真，但族里没有这些键，
+% 12 个键会各报一次「Can be used only in preamble」，键名还被原样排进文档
+% （v2 那边同名的是 \pkg{natbib} 的 \cs{bibpunct} 一族，都是导言区专用命令，
+% 禁用之后参数没人吃，落进正文）。所以改成探 \option{bibpunct} 在不在：
+% 在就下发，不在就整段跳过，键不生效但文档照排。
+%
+% 传统一线排之前先把键下发给官方通道：\pkg{gbt7714.sty} 把这些选项写成一个
+% \texttt{-BSTcontrol} 控制文件、挂进 \cs{bibliography} 的库表，官方底座的
+% \file{.bst} 从那里读。控制文件在 \cs{bibliography} 执行的当口才写，所以这些
+% 键在传统一线什么时候设都来得及，不用锁。\texttt{0}（不限）换成 999。
+% 报告类只装 \pkg{natbib} 没有这条通道，吃 \file{.bst} 内置默认。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_bib_ctl_suffix_tl { -BSTcontrol }
+\tl_const:Nn \c__hit_bib_ctl_type_tl { GBT7714BSTCTL }
+\tl_const:Nn \c__hit_bib_ctl_key_tl { GBT7714:BSTcontrol }
+\iow_new:N \l__hit_bib_ctl_iow
+\prop_new:N \l__hit_bib_ctl_prop
+\cs_new_protected:Npn \__hit_bib_ctl_bool:nN #1#2
+  { \prop_put:Nnx \l__hit_bib_ctl_prop {#1} { \bool_if:NTF #2 { true } { false } } }
+\cs_new_protected:Npn \__hit_bib_ctl_names:nN #1#2
+  {
+    \prop_put:Nnx \l__hit_bib_ctl_prop {#1}
+      { \int_compare:nNnTF #2 < 0 { 999 } { \int_use:N #2 } }
+  }
+\cs_new_protected:Npn \hit@bib@forward@ctl:
+  {
+    \prop_clear:N \l__hit_bib_ctl_prop
+    \prop_put:Nnx \l__hit_bib_ctl_prop { CTL_bib_punct }
+      {
+        \str_case:VnF \g__hit_bib_punct_str
+          { { half } { half } { by-lang } { bylanguage } } { GB }
+      }
+    \__hit_bib_ctl_bool:nN { CTL_convert_punct }     \g__hit_bib_correct_punct_bool
+    \__hit_bib_ctl_bool:nN { CTL_entry_type_id }     \g__hit_bib_showmark_bool
+    \__hit_bib_ctl_bool:nN { CTL_entry_medium_id }   \g__hit_bib_showmedium_bool
+    \__hit_bib_ctl_bool:nN { CTL_link_title }        \g__hit_bib_linktitle_bool
+    \__hit_bib_ctl_bool:nN { CTL_url }               \g__hit_bib_showurl_bool
+    \__hit_bib_ctl_bool:nN { CTL_doi }               \g__hit_bib_showdoi_bool
+    \__hit_bib_ctl_bool:nN { CTL_eprint }            \g__hit_bib_showeprint_bool
+    \__hit_bib_ctl_bool:nN { CTL_uppercase_family }  \g_bib_authorupper_bool
+    \__hit_bib_ctl_bool:nN { CTL_unknown_publisher } \g__hit_bib_slsn_bool
+    \__hit_bib_ctl_names:nN { CTL_max_bib_names } \g_bib_maxauthor_int
+    \__hit_bib_ctl_names:nN { CTL_min_bib_names } \g_bib_maxauthor_int
+    \int_compare:nNnF \g__hit_bib_maxcite_int = { -2 }
+      {
+        \__hit_bib_ctl_names:nN { CTL_max_cite_names } \g__hit_bib_maxcite_int
+        \__hit_bib_ctl_names:nN { CTL_min_cite_names } \g__hit_bib_maxcite_int
+      }
+    \iow_open:Nn \l__hit_bib_ctl_iow
+      { \jobname \c__hit_bib_ctl_suffix_tl .bib }
+      \iow_now:Nx \l__hit_bib_ctl_iow
+        {
+          @ \c__hit_bib_ctl_type_tl \c_left_brace_str
+          \c__hit_bib_ctl_key_tl ,
+        }
+      \prop_map_inline:Nn \l__hit_bib_ctl_prop
+        {
+          \iow_now:Nx \l__hit_bib_ctl_iow
+            { \c_space_tl \c_space_tl ##1 \c_space_tl = \c_space_tl {##2} , }
+        }
+      \iow_now:Nx \l__hit_bib_ctl_iow { \c_right_brace_str }
+    \iow_close:N \l__hit_bib_ctl_iow
+    \legacy_if:nT { @filesw }
+      {
+        \iow_now:Nx \@auxout
+          { \token_to_str:N \citation { \c__hit_bib_ctl_key_tl } }
+      }
+  }
+\cs_new_protected:Npn \hit@bib@print:
+  {
+    \@ifpackageloaded { biblatex }
+      { \printbibliography }
+      {
+        \exp_args:NV \bibliographystyle \g__hit_bib_style_tl
+        \exp_args:Nv \bibliography { g__hit_structure_bibliography_tl }
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{下发挂到 \cs{bibliography} 自己身上，不再只在
+%   \cs{hit@bib@print:} 里调}
+% \emph{下发要挂在 \cs{bibliography} 上，不能只挂在 \cs{hit@bib@print:} 里。}
+% v3.1 时代的文档在正文里直接写 \cs{bibliographystyle}\marg{hithesis} 加
+% \cs{bibliography}\marg{reference}，走不到 \cs{hit@bib@print:}。下发只写在那里的话，
+% 这类文档编得过、但 \option{bib} 底下的键一个都不落地，用户也收不到任何提示——
+% 实测老文档里 \option{max-bib-names}\texttt{=1} 无效，同一个键在新范例上是好的。
+%
+% 所以改成包住 \cs{bibliography}：谁调都先下发一次。\cs{hit@bib@print:} 里那一句
+% 因此撤掉，两条路合成一条。下发本身是 \cs{keys\_set:nn}，重复调用无害。
+%
+% 挂的时机是 \cs{AtBeginDocument}：\pkg{natbib} 与 \pkg{gbt7714} 都在导言区加载，
+% 太早包会包到还没被它们改过的那一版。\pkg{biblatex} 一线没有 \cs{bibliography}
+% 这条路，所以只在传统一线包。
+%    \begin{macrocode}
+\AtBeginDocument
+  {
+    \@ifpackageloaded { biblatex } { }
+      {
+        \cs_if_exist:NT \bibliography
+          {
+            \cs_set_eq:NN \hit@bib@inner@bibliography \bibliography
+            \cs_set_protected:Npn \bibliography #1
+              {
+                \hit@bib@forward@ctl:
+                \use:e
+                  {
+                    \exp_not:N \hit@bib@inner@bibliography
+                      { \jobname \c__hit_bib_ctl_suffix_tl , \exp_not:n {#1} }
+                  }
+              }
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@bib@biblatex@common:}
+% \pkg{biblatex} 装载完立刻要做的、两个类相同的那部分（挂在下面那个
+% \texttt{package/biblatex/after} 钩子上，类专属的排版配置由各类的
+% \cs{hit@bib@biblatex@setup:} 接着做）。
+%
+% 三个选项键换算成 \pkg{biblatex} 的选项：\option{author-case} 对
+% \texttt{gbnamefmt}（\texttt{full} 是全大写，即国标默认；不设则保持
+% \file{.bib} 里写的样子，与 \file{.bst} 一线的默认一致）、
+% \option{maximum-author} 对 \texttt{maxbibnames}/\texttt{minbibnames}
+% （\texttt{0} 表示不限，换成 999）、\option{label-align} 对
+% \texttt{gbalign}。标点宽度 \option{bib-punct} 在 biblatex 一线全靠
+% 运行时补丁：方括号圆括号走 \cs{bibleftbracket} 一族的领口，逗号冒号分号
+% 走 \cs{abx@puncthook} 单点（2015 样式没有 2025 代的
+% \texttt{gbpunctwidth} 旋钮，能力用补丁补齐），见下方两个 patch 宏。
+% gb 系选项认准 \cs{mkgbnumlabel} 在不在——用户点名
+% 别家样式（比如 apa）时这些选项不存在，塞过去要报错。
+%
+% 这些换算必须在装载当口做：gb 系样式把选项码挂进了每个条目的选项链，
+% 排版时逐条重放，导言区后半再 \cs{ExecuteBibliographyOptions} 会被
+% 重放盖掉（实测）。所以对应的键设晚了只能提示，见上面的守卫。
+%
+% \cs{inlinecite} 的接法：gb7714-2015 的 cbx 自己用 \cs{newcommand} 定义一个
+% \cs{inlinecite}（就是 \cs{parencite}），类里先定义的那份会让它装载报错，
+% 所以装载前先把类的定义撤掉、让 cbx 的进来；点名的样式没带
+% \cs{inlinecite} 的（比如 apa），装完再把 robust 外壳补回去，里面换成
+% \cs{parencite}。\cs{onlinecite} 重新对齐到成品上。\cs{supercite} 也归一：
+% \pkg{biblatex} 核心那份是裸上标数字不带括号，改指 gb 系 cbx 的 \cs{cite}
+% （上标带方括号），与传统一线补的别名同义。
+% \cs{bibliographystyle} 降级成一条提示，老文档里残留这一句不至于炸。
+%
+% 正文里的老写法也要接住：报告类的示例正文就是两句
+% \cs{bibliographystyle} 加 \cs{bibliography}。\pkg{biblatex} 一线把正文的
+% \cs{bibliography} 映射成 \cs{printbibliography}（文献库那时早该注册完了，
+% 参数吞掉不用），\cs{bibliographystyle} 无论导言区还是正文都降级成提示。
+% 映射挂 \texttt{begindocument/end}：\pkg{biblatex} 把这两个名字登进内核的
+% \cs{@onlypreamble} 表，内核在 \cs{document} 收尾处统一禁用
+% （\cs{@preamblecmds}，晚于 \texttt{begindocument} 钩子），要排在那之后
+% 才盖得回来。
+%
+% \begin{macro}{\hit@bib@patch@brackets:}
+% \changes{v3.2a}{2026/08/16}{biblatex 一线不 fork 样式文件，运行时补丁把
+%   著录里的方括号接到 \option{bib-punct} 上}
+% biblatex 一线的方括号补丁。gb7714-2015 的 bbx 把著录里所有方括号（类型标、
+% 访问日期、序号标签的缺省形）都收口在 \pkg{biblatex} 内核的
+% \cs{bibleftbracket}/\cs{bibrightbracket} 一对宏上，补丁只动这两个名字，
+% 不动样式文件。分发看 \option{bib-punct} 的现值：\texttt{full} 全角、
+% \texttt{half} 走存下来的原定义、\texttt{by-lang} 按条目语言（bbx 用
+% biber 的 sourcemap 把语言标进 \texttt{userd} 域，排版时逐条可查）。
+% 现值是排版时才读的，键随设随生效。引用标签的方括号（\cs{gbleftbracket}
+% 一族）不动——传统一线的引用标签也是半角，两边一致。
+% 句点不用补：2015 样式本来就是半角加空格。圆括号与方括号同款，走
+% \cs{bibleftparen}/\cs{bibrightparen} 领口。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@if@cjk@entry:TF #1#2
+  {
+    \ifboolexpr
+      {
+        test { \iffieldequalstr { userd } { chinese } } or
+        test { \iffieldequalstr { userd } { japanese } } or
+        test { \iffieldequalstr { userd } { korean } }
+      }
+      {#1} {#2}
+  }
+\cs_new_protected:Npn \hit@bib@patch@brackets:
+  {
+    \cs_if_exist:NF \__hit_bib_lbracket_std:
+      {
+        \cs_new_eq:NN \__hit_bib_lbracket_std: \bibleftbracket
+        \cs_new_eq:NN \__hit_bib_rbracket_std: \bibrightbracket
+      }
+    \cs_set_protected:Npn \bibleftbracket
+      {
+        \str_if_eq:VnTF \g__hit_bib_punct_str { half }
+          { \__hit_bib_lbracket_std: }
+          {
+            \str_if_eq:VnTF \g__hit_bib_punct_str { full }
+              { \blx@postpunct ［ }
+              {
+                \hit@bib@if@cjk@entry:TF
+                  { \blx@postpunct ［ } { \__hit_bib_lbracket_std: }
+              }
+          }
+      }
+    \cs_set_protected:Npn \bibrightbracket
+      {
+        \str_if_eq:VnTF \g__hit_bib_punct_str { half }
+          { \__hit_bib_rbracket_std: }
+          {
+            \str_if_eq:VnTF \g__hit_bib_punct_str { full }
+              { \blx@postpunct ］ \midsentence }
+              {
+                \hit@bib@if@cjk@entry:TF
+                  { \blx@postpunct ］ \midsentence }
+                  { \__hit_bib_rbracket_std: }
+              }
+          }
+      }
+    \cs_if_exist:NF \__hit_bib_lparen_std:
+      {
+        \cs_new_eq:NN \__hit_bib_lparen_std: \bibleftparen
+        \cs_new_eq:NN \__hit_bib_rparen_std: \bibrightparen
+      }
+    \cs_set_protected:Npn \bibleftparen
+      {
+        \str_if_eq:VnTF \g__hit_bib_punct_str { half }
+          { \__hit_bib_lparen_std: }
+          {
+            \str_if_eq:VnTF \g__hit_bib_punct_str { full }
+              { \blx@postpunct （ }
+              {
+                \hit@bib@if@cjk@entry:TF
+                  { \blx@postpunct （ } { \__hit_bib_lparen_std: }
+              }
+          }
+      }
+    \cs_set_protected:Npn \bibrightparen
+      {
+        \str_if_eq:VnTF \g__hit_bib_punct_str { half }
+          { \__hit_bib_rparen_std: }
+          {
+            \str_if_eq:VnTF \g__hit_bib_punct_str { full }
+              { \blx@postpunct ）\midsentence }
+              {
+                \hit@bib@if@cjk@entry:TF
+                  { \blx@postpunct ）\midsentence }
+                  { \__hit_bib_rparen_std: }
+              }
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@bib@patch@punct:}
+% \changes{v3.2a}{2026/08/16}{逗号冒号分号也接上 \option{bib-punct}：
+%   \pkg{biblatex} 缓冲的标点全走 \cs{abx@puncthook} 单点，2025 代的
+%   \texttt{gbpunctwidth} 干的事在 2015 代用运行时补丁补齐}
+% 逗号冒号分号的补丁，把 2025 代 \texttt{gbpunctwidth} 的能力补到 2015 代上。
+% \pkg{biblatex} 的标点缓冲（重复合并、句点让位那套语义）最终从
+% \cs{abx@puncthook}\marg{字符} 这一个口打出字形，补丁在这里按
+% \option{bib-punct} 换成全角，缓冲语义原封不动；句点问号叹号照旧半角。
+% 全角标点后原样式还会发一个 \cs{addspace}（写在几十处调用点里），全角后
+% 不该再空，打全角时立一个旗子，\cs{addspace}/\cs{addthinspace} 先照原样
+% 冲刷缓冲（冲刷才会打出标点、立起旗子），再见旗吞空格、用后即清；旗子
+% 每次进钩子先清一遍，不会窜到别的空格上。姓名之间的分隔符默认写的是裸
+% \cs{space}（不走 \cs{addspace}，吞不到），把
+% \texttt{multinamedelim}/\texttt{finalnamedelim} 重声明、
+% \cs{pubdatadelim}/\cs{locnopubdelim} 重定义、期刊宏里那处内联的
+% 卷号分隔用 \cs{patchcmd} 点补，全部换成走 \cs{addspace} 的写法，
+% 半角档下排出来与原样一致。
+%
+% 标点缓冲在正文引用里也会走这条钩子（比如页码注的冒号），那边的全半角归
+% \option{cite-punct} 管，所以钩子带 \cs{ifbibliography} 判据，只在文献表里
+% 分发，引用侧走原样。
+%
+% 类型标与「不详」补白的方括号走的是 \cs{gbleftbracket} 一族——它同时也是
+% 引用标签的括号，所以补丁带一道 \cs{ifbibliography} 判据：文献表里按
+% \option{bib-punct} 分发，引用侧按 \option{brackets-in-cite} 分发，
+% 两个键各管各的。
+%
+% 挂载时机有讲究：\cs{abx@puncthook} 会被 \pkg{biblatex} 的语言初始化在
+% \texttt{begindocument} 里重设（法文间距那套），补丁挂
+% \texttt{begindocument/end}、注册在 \pkg{biblatex} 装载之后，排它后面。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bib_gobble_bool
+\cs_new_protected:Npn \hit@bib@punct@full:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        { , } { ，\allowbreak \bool_gset_true:N \g__hit_bib_gobble_bool }
+        { : } { ：\allowbreak \bool_gset_true:N \g__hit_bib_gobble_bool }
+        { ; } { ；\allowbreak \bool_gset_true:N \g__hit_bib_gobble_bool }
+      }
+      { \__hit_bib_puncthook_std:n {#1} }
+  }
+\cs_new_protected:Npn \hit@bib@patch@punct:
+  {
+    \cs_if_exist:NF \__hit_bib_puncthook_std:n
+      {
+        \cs_new_eq:NN \__hit_bib_puncthook_std:n \abx@puncthook
+        \cs_new_eq:NN \__hit_bib_addspace_std: \addspace
+        \cs_new_eq:NN \__hit_bib_addthinspace_std: \addthinspace
+      }
+    \cs_set_protected:Npn \abx@puncthook ##1
+      {
+        \bool_gset_false:N \g__hit_bib_gobble_bool
+        \ifbibliography
+          {
+            \str_if_eq:VnTF \g__hit_bib_punct_str { half }
+              { \__hit_bib_puncthook_std:n {##1} }
+              {
+                \str_if_eq:VnTF \g__hit_bib_punct_str { full }
+                  { \hit@bib@punct@full:n {##1} }
+                  {
+                    \hit@bib@if@cjk@entry:TF
+                      { \hit@bib@punct@full:n {##1} }
+                      { \__hit_bib_puncthook_std:n {##1} }
+                  }
+              }
+          }
+          { \__hit_bib_puncthook_std:n {##1} }
+      }
+    \cs_set_protected:Npn \addspace
+      {
+        \unspace \blx@postpunct
+        \bool_if:NTF \g__hit_bib_gobble_bool
+          { \bool_gset_false:N \g__hit_bib_gobble_bool }
+          { \space }
+        \blx@imc@resetpunctfont
+      }
+    \cs_set_protected:Npn \addthinspace
+      {
+        \unspace \blx@postpunct
+        \bool_if:NTF \g__hit_bib_gobble_bool
+          { \bool_gset_false:N \g__hit_bib_gobble_bool }
+          { \hskip 0.16667 em \relax }
+        \blx@imc@resetpunctfont
+      }
+    \DeclareDelimFormat { multinamedelim } { \addcomma \addspace }
+    \DeclareDelimFormat { finalnamedelim } { \addcomma \addspace }
+    \cs_if_exist:NT \compcitedelim
+      {
+        \cs_set_protected:Npn \compcitedelim  { \hit@bib@cite@delim: }
+        \cs_set_protected:Npn \supercitedelim { \hit@bib@cite@delim: }
+        \DeclareDelimFormat { multicitedelimiter } { \hit@bib@cite@delim: }
+        \DeclareDelimFormat [ parencite ] { multicitedelimiter }
+          { \hit@bib@cite@delim: }
+      }
+    \cs_if_exist:NT \pubdatadelim
+      { \cs_set:Npn \pubdatadelim { \setunit* { \addcomma \addspace } } }
+    \cs_if_exist:NT \locnopubdelim
+      { \cs_set:Npn \locnopubdelim { \setunit* { \addcomma \addspace } } }
+    \cs_if_exist:cT { abx@macro@journal+issuetitle }
+      {
+        \exp_args:Nc \patchcmd { abx@macro@journal+issuetitle }
+          { \setunit* { \addcomma \space } }
+          { \setunit* { \addcomma \addspace } }
+          { } { }
+      }
+    \cs_if_exist:NF \__hit_bib_gblbracket_std:
+      {
+        \cs_new_eq:NN \__hit_bib_gblbracket_std: \gbleftbracket
+        \cs_new_eq:NN \__hit_bib_gbrbracket_std: \gbrightbracket
+      }
+    \cs_set_protected:Npn \gbleftbracket
+      {
+        \ifbibliography
+          { \hit@bib@punct@bracket:nN { ［ } \__hit_bib_gblbracket_std: }
+          {
+            \str_if_eq:VnTF \g__hit_bib_cite_brackets_str { full }
+              { ［ } { \__hit_bib_gblbracket_std: }
+          }
+      }
+    \cs_set_protected:Npn \gbrightbracket
+      {
+        \ifbibliography
+          { \hit@bib@punct@bracket:nN { ］ } \__hit_bib_gbrbracket_std: }
+          {
+            \str_if_eq:VnTF \g__hit_bib_cite_brackets_str { full }
+              { ］ } { \__hit_bib_gbrbracket_std: }
+          }
+      }
+  }
+\cs_new_protected:Npn \hit@bib@punct@bracket:nN #1#2
+  {
+    \str_if_eq:VnTF \g__hit_bib_punct_str { half }
+      {#2}
+      {
+        \str_if_eq:VnTF \g__hit_bib_punct_str { full }
+          {#1}
+          { \hit@bib@if@cjk@entry:TF {#1} {#2} }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@bib@cite@delim:,\hit@bib@declare@sourcemaps:}
+% 引用序号分隔（biblatex 一线）：gb 系 cbx 把分隔收在 \cs{compcitedelim}、
+% \cs{supercitedelim} 与 \texttt{multicitedelimiter} 三处，全指到这一个
+% 分发宏，按 \option{cite-punct} 现值排，随设随生效。
+%
+% 数据清洗（biblatex 一线）：\file{.bst} 的 \texttt{convertpunct} 在排版期
+% 对字段值做字符串替换，biber 这边同一层的东西是 sourcemap——装载时按
+% \option{bib-punct} 的档位声明一批替换步骤，替换对照表照抄 \file{.bst}。
+% \texttt{by-lang} 档按条目判语言：题名含 CJK 判中文（正则与 gb 的 bbx 判
+% \texttt{userd} 用的同一条），\texttt{final} 步骤不中就跳过整张 map。
+% 只清洗文本字段，姓名字段不动（见键的说明）。步骤表先在配平的暂存
+% token 表里攒好，再用 e 展开一次性组装进 \cs{DeclareSourcemap}。
+% 装载时的档位定死，之后改 \option{bib-punct} 只影响模板排的标点、
+% 不重洗数据。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@cite@delim:
+  {
+    \str_case:VnF \g__hit_bib_cite_punct_str
+      {
+        { half-with-space } { \addcomma \addspace }
+        { full } { \mbox{，} \allowbreak }
+      }
+      { \addcomma }
+  }
+\tl_new:N \l__hit_bib_steps_tl
+\tl_new:N \l__hit_bib_maps_tl
+\clist_const:Nn \c__hit_bib_map_fields_clist
+  {
+    title , subtitle , titleaddon , booktitle , journaltitle ,
+    publisher , location , address , eventtitle , series
+  }
+\cs_new_protected:Npn \__hit_bib_full_steps:n #1
+  {
+    \tl_put_right:Nn \l__hit_bib_steps_tl
+      {
+        \step [ fieldsource = #1 , match = \regexp {．} , replace = \regexp {.~} ]
+        \step [ fieldsource = #1 , match = \regexp {,\s+} , replace = \regexp {，} ]
+        \step [ fieldsource = #1 , match = \regexp {:\s+} , replace = \regexp {：} ]
+        \step [ fieldsource = #1 , match = \regexp {;\s+} , replace = \regexp {；} ]
+        \step [ fieldsource = #1 , match = \regexp {!\s*} , replace = \regexp {！} ]
+        \step [ fieldsource = #1 , match = \regexp {\?\s*} , replace = \regexp {？} ]
+        \step [ fieldsource = #1 , match = \regexp {\s*\(} , replace = \regexp {（} ]
+        \step [ fieldsource = #1 , match = \regexp {\)\s*} , replace = \regexp {）} ]
+      }
+  }
+\cs_new_protected:Npn \__hit_bib_half_steps:n #1
+  {
+    \tl_put_right:Nn \l__hit_bib_steps_tl
+      {
+        \step [ fieldsource = #1 , match = \regexp {．\s*} , replace = \regexp {.~} ]
+        \step [ fieldsource = #1 , match = \regexp {，\s*} , replace = \regexp {,~} ]
+        \step [ fieldsource = #1 , match = \regexp {：\s*} , replace = \regexp {:~} ]
+        \step [ fieldsource = #1 , match = \regexp {；\s*} , replace = \regexp {;~} ]
+        \step [ fieldsource = #1 , match = \regexp {！\s*} , replace = \regexp {!~} ]
+        \step [ fieldsource = #1 , match = \regexp {？\s*} , replace = \regexp {?~} ]
+        \step [ fieldsource = #1 , match = \regexp {\s*（} , replace = \regexp {~(} ]
+        \step [ fieldsource = #1 , match = \regexp {）\s*} , replace = \regexp {)~} ]
+      }
+  }
+\cs_new_protected:Npn \__hit_bib_add_map:n #1
+  {
+    \tl_put_right:Nx \l__hit_bib_maps_tl
+      { \exp_not:N \map [ overwrite ] { \exp_not:n {#1} \exp_not:V \l__hit_bib_steps_tl } }
+  }
+\cs_new_protected:Npn \hit@bib@declare@sourcemaps:
+  {
+    \tl_clear:N \l__hit_bib_maps_tl
+    \str_case:VnF \g__hit_bib_punct_str
+      {
+        { half }
+          {
+            \tl_clear:N \l__hit_bib_steps_tl
+            \clist_map_function:NN \c__hit_bib_map_fields_clist
+              \__hit_bib_half_steps:n
+            \__hit_bib_add_map:n { }
+          }
+        { by-lang }
+          {
+            \tl_clear:N \l__hit_bib_steps_tl
+            \clist_map_function:NN \c__hit_bib_map_fields_clist
+              \__hit_bib_full_steps:n
+            \__hit_bib_add_map:n
+              {
+                \step [ fieldsource = title ,
+                         match = \regexp { [\x{2FF0}-\x{9FA5}] } , final ]
+              }
+            \tl_clear:N \l__hit_bib_steps_tl
+            \clist_map_function:NN \c__hit_bib_map_fields_clist
+              \__hit_bib_half_steps:n
+            \__hit_bib_add_map:n
+              {
+                \step [ fieldsource = title ,
+                         notmatch = \regexp { [\x{2FF0}-\x{9FA5}] } , final ]
+              }
+          }
+      }
+      {
+        \tl_clear:N \l__hit_bib_steps_tl
+        \clist_map_function:NN \c__hit_bib_map_fields_clist
+          \__hit_bib_full_steps:n
+        \__hit_bib_add_map:n { }
+      }
+    \use:e
+      {
+        \exp_not:N \DeclareSourcemap
+          {
+            \exp_not:N \maps [ datatype = bibtex ]
+              { \exp_not:V \l__hit_bib_maps_tl }
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_bib_body_bibliography:n #1 { \printbibliography }
+\cs_new_protected:Npn \__hit_bib_body_style:n #1
+  { \msg_warning:nn { hithesis } { bib-style-ignored } }
+\AddToHook { package / biblatex / before }
+  { \cs_undefine:N \inlinecite }
+\cs_new_protected:Npn \hit@bib@biblatex@common:
+  {
+    \cs_set:Npn \@inlinecite ##1 { \parencite {##1} }
+    \cs_if_exist:NF \inlinecite
+      { \DeclareRobustCommand \inlinecite { \@inlinecite } }
+    \cs_set_eq:NN \onlinecite \inlinecite
+    \cs_set:Npn \supercite { \cite }
+    \cs_set_eq:NN \bibliographystyle \__hit_bib_body_style:n
+    \AddToHook { begindocument / end }
+      {
+        \cs_set_eq:NN \bibliography \__hit_bib_body_bibliography:n
+        \cs_set_eq:NN \bibliographystyle \__hit_bib_body_style:n
+        \hit@bib@patch@punct:
+      }
+    \cs_if_exist:NT \mkgbnumlabel
+      {
+        \bool_if:NTF \g_bib_authorupper_bool
+          { \ExecuteBibliographyOptions { gbnamefmt = uppercase } }
+          { \ExecuteBibliographyOptions { gbnamefmt = lowercase } }
+        \str_if_eq:VnT \g_bib_labelalign_str { left }
+          { \ExecuteBibliographyOptions { gbalign = left } }
+        \bool_if:NTF \g__hit_bib_slsn_bool
+          { \ExecuteBibliographyOptions { gbpub = true } }
+          { \ExecuteBibliographyOptions { gbpub = false } }
+        \bool_if:NTF \g__hit_bib_showmark_bool
+          { \ExecuteBibliographyOptions { gbtype = true } }
+          { \ExecuteBibliographyOptions { gbtype = false } }
+        \bool_if:NTF \g__hit_bib_showmedium_bool
+          { \ExecuteBibliographyOptions { gbmedium = true } }
+          { \ExecuteBibliographyOptions { gbmedium = false } }
+        \bool_if:NTF \g__hit_bib_linktitle_bool
+          { \ExecuteBibliographyOptions { gbtitlelink = true } }
+          { \ExecuteBibliographyOptions { gbtitlelink = false } }
+        \hit@bib@patch@brackets:
+      }
+    \bool_if:NTF \g__hit_bib_showurl_bool
+      { \ExecuteBibliographyOptions { url = true } }
+      { \ExecuteBibliographyOptions { url = false } }
+    \bool_if:NTF \g__hit_bib_showdoi_bool
+      { \ExecuteBibliographyOptions { doi = true } }
+      { \ExecuteBibliographyOptions { doi = false } }
+    \bool_if:NTF \g__hit_bib_showeprint_bool
+      { \ExecuteBibliographyOptions { eprint = true } }
+      { \ExecuteBibliographyOptions { eprint = false } }
+    \bool_if:NT \g__hit_bib_correct_punct_bool
+      { \hit@bib@declare@sourcemaps: }
+    \int_compare:nNnTF \g_bib_maxauthor_int < 0
+      { \ExecuteBibliographyOptions { maxbibnames = 999 , minbibnames = 999 } }
+      {
+        \use:e
+          {
+            \exp_not:N \ExecuteBibliographyOptions
+              {
+                maxbibnames = \int_use:N \g_bib_maxauthor_int ,
+                minbibnames = \int_use:N \g_bib_maxauthor_int
+              }
+          }
+      }
+    \int_compare:nNnF \g__hit_bib_maxcite_int = { -2 }
+      {
+        \int_compare:nNnTF \g__hit_bib_maxcite_int < 0
+          { \ExecuteBibliographyOptions { maxcitenames = 999 , mincitenames = 999 } }
+          {
+            \use:e
+              {
+                \exp_not:N \ExecuteBibliographyOptions
+                  {
+                    maxcitenames = \int_use:N \g__hit_bib_maxcite_int ,
+                    mincitenames = \int_use:N \g__hit_bib_maxcite_int
+                  }
+              }
+          }
+      }
+  }
+\AddToHook { package / biblatex / after }
+  {
+    \hit@bib@biblatex@common:
+    \cs_if_exist_use:N \hit@bib@biblatex@setup:
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{包冲突守卫}
+%
+% \changes{v3.2a}{2026/08/16}{biblatex 与 natbib 一族的有序冲突守卫，
+%   照 thuthesis 的 \cs{thu@package@conflict} 用内核钩子重写}
+% 「先装了 A 再装 B」才报错，所以一对包要两个方向各登记一条。用内核的
+% \texttt{package/.../before} 与 \texttt{.../after} 钩子，不引 \pkg{filehook}。
+% 类自己的装载不会撞上守卫：传统一线的装载在导言区末尾，且探过
+% \pkg{biblatex} 不在才装。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_bib_conflict:nn #1#2
+  {
+    \AddToHook { package / #1 / after }
+      {
+        \AddToHook { package / #2 / before }
+          { \msg_error:nnnn { hithesis } { package-conflict } {#1} {#2} }
+      }
+  }
+\__hit_bib_conflict:nn { biblatex } { natbib }
+\__hit_bib_conflict:nn { biblatex } { gbt7714 }
+\__hit_bib_conflict:nn { biblatex } { cite }
+\__hit_bib_conflict:nn { biblatex } { bibunits }
+\__hit_bib_conflict:nn { biblatex } { chapterbib }
+\__hit_bib_conflict:nn { biblatex } { multibib }
+\__hit_bib_conflict:nn { natbib } { biblatex }
+\__hit_bib_conflict:nn { gbt7714 } { biblatex }
+\__hit_bib_conflict:nn { cite } { biblatex }
+%    \end{macrocode}
+%
+% \subsection{文献库文件}
+%
+% \changes{v3.2a}{2026/08/16}{\option{struct} 的 \option{bibliography} 在
+%   biblatex 一线换算成 \cs{addbibresource}}
+% \option{struct} 里的 \option{bibliography} 写的是给 \cs{bibliography} 的
+% 文件名表（不带后缀）。\pkg{biblatex} 一线改喂 \cs{addbibresource}，一个
+% 文件一句、后缀补上 \file{.bib}（写了后缀的不重复补）。挂导言区末尾做，
+% \option{struct} 与 \option{backend} 谁先谁后都行。开关型取值
+% （\texttt{false}/\texttt{true}/\texttt{auto}）不是文件名，跳过。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_bib_add_resource:n #1
+  {
+    \str_if_eq:eeTF { \str_range:nnn {#1} {-4} {-1} } { .bib }
+      { \addbibresource {#1} }
+      { \addbibresource { #1.bib } }
+  }
+\cs_new_protected:Npn \__hit_bib_resources:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        { }      { \msg_warning:nn { hithesis } { bib-no-resource } }
+        { false } { }
+        { true }  { \msg_warning:nn { hithesis } { bib-no-resource } }
+        { auto }  { \msg_warning:nn { hithesis } { bib-no-resource } }
+      }
+      { \clist_map_inline:nn {#1} { \__hit_bib_add_resource:n {##1} } }
+  }
+\AddToHook { begindocument / before }
+  {
+    \@ifpackageloaded { biblatex }
+      { \exp_args:Nv \__hit_bib_resources:n { g__hit_structure_bibliography_tl } }
+      { }
+  }
+%</shared-bibstyle>
+%    \end{macrocode}
+%
+% \Finale

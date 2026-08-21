@@ -1,0 +1,187 @@
+% \iffalse meta-comment
+%
+% hit-thesis-matter.dtx 是前置、正文与后置的切换
+%
+% \fi
+%
+% \section{前置、正文与后置的切换}
+%
+% ^^A ======================================================================
+% ^^A Module thesis-mainmatter: 正文与前后文切换（frontmatter/mainmatter/backmatter）（hit-thesis）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*thesis-mainmatter>
+%    \end{macrocode}
+% \begin{macro}{\cleardoublepage}
+% 对于 \textsl{openright} 选项，必须保证章首页右开，且如果前章末页无内容须
+% 清空其页眉页脚。
+% 如果\textsl{library}为真，则强制设置\textsl{openright}为真。
+% \changes{v2.0.10}{2019/06/25}{添加\textsl{openright}和\textsl{library}逻辑}
+% \changes{v3.0.0}{2020/05/20}{将glossaries移动到这里}
+% \changes{v3.2a}{2026/08/07}{book-mainmatter 模块改用 expl3 实现。标志位仍由
+%   kvoptions 声明，读用 \cs{legacy\_if:nTF}，写用 \cs{legacy\_if\_set\_false:n}（现已换成 expl3 布尔）}
+%    \begin{macrocode}
+\bool_if:NT \g__hit_library_bool { \bool_gset_false:N \g__hit_openright_bool }
+\cs_set_eq:NN \hit@clear@double@page \cleardoublepage
+\cs_new:Npn \hit@clear@empty@double@page
+  { \clearpage { \pagestyle { hit@empty } \hit@clear@double@page } }
+\cs_set_eq:NN \cleardoublepage \hit@clear@empty@double@page
+%    \end{macrocode}
+%
+% \end{macro}
+% \begin{macro}{\frontmatter}
+% 我们的单面和双面模式与常规的不太一样。
+%    \begin{macrocode}
+\cs_set:Npn \frontmatter
+  {
+    \bool_if:NTF \g__hit_openright_bool { \cleardoublepage } { \clearpage }
+    \@mainmatterfalse
+    \pagenumbering { Roman }
+    \pagestyle { hit@empty }
+%    \end{macrocode}
+%
+% 窝工深圳模板范例，一行34个字
+% \changes{v3.0.11}{2020/10/29}{窝工深圳模板范例，一行34个字}
+% 添加33行字选项
+% \changes{v3.0.13}{2020/11/10}{添加33行字选项}
+%
+% \changes{v3.2a}{2026/08/16}{新版面下不再发 \cs{ziju}，它会把字符网格算出来的
+%   \cs{CJKglue} 与 \cs{ccwd} 整个盖掉}
+% \cs{ziju} 是旧版面把一行凑成 34 个字的手段，靠的是给每个汉字后面加一段
+% 与字号成比例的空隙。新版面这活儿由字符网格干，两者不能叠。
+%
+% 而且不是「叠了偏大」这么简单：\cs{ziju} 底层走 \pkg{ctex} 的
+% \cs{ctex\_update\_ccglue:}，那一句是 \cs{cs\_set\_protected:Npn} \cs{CJKglue}，
+% 把 \cs{hit@format@apply@body:} 设好的网格字距整个换掉，还顺手给 \cs{ccwd}
+% 加了 5.58\%。\cs{mainmatter} 不复原，所以一发就是全文。本科那一档实测
+% \cs{ccwd} 从 12.50099\,pt 变成 12.71\,pt，字距从规范的 12.4543\,bp
+% 变成 12.658\,bp，一行 34 个字累计差 6.9\,bp。
+%
+% 判据取 \cs{g\_hit\_msword\_char\_dim}：它非零就说明 \cs{hit@msword@layout:n}
+% 走过，字符网格立起来了，与 \file{src/utils/hit-format.dtx} 里那几处同一个判据。
+%    \begin{macrocode}
+    \bool_if:NTF \g__hit_openright_bool { \cleardoublepage } { \clearpage }
+    \dim_compare:nNnT { \g_hit_msword_char_dim } = { 0pt }
+      {
+        \bool_if:NTF \g__hit_ziju_word_bool
+          { \ziju { 0.05416667 } }
+          { \bool_if:NT \g__hit_ziju_regu_bool { \ziju { 0.05580808 } } }
+      }
+  }
+%    \end{macrocode}
+%
+% \end{macro}
+% \begin{macro}{\mainmatter}
+% 根据打印店（伪官方）的猛虎式操作，\cs{mainmatter}命令的逻辑是，双面打印时第一章必须在奇数页
+% （不看文档别怪我）。
+% \changes{v2.0.11}{2018/06/27}{设置第一章必须在奇数页}
+%
+% \changes{v3.2a}{2026/08/11}{目录里第一章之前不再插空行，\option{tocblank} 废弃}
+% 原先目录里第一章之前会空一行，由 \option{tocblank} 控制。规范中没有这一条，
+% 整段去掉，\option{tocblank} 写了也不起作用。
+%    \begin{macrocode}
+\cs_set:Npn \mainmatter
+  {
+%    \end{macrocode}
+%
+% 添加英文版限制
+% \changes{v3.0.0}{2020/05/21}{添加英文版限制}
+%    \begin{macrocode}
+    \bool_if:NTF \g__hit_doctor_bool
+      { \bool_if:NTF \g__hit_library_bool { \clearpage } { \cleardoublepage } }
+      { \clearpage }
+    \@mainmattertrue
+    \pagenumbering { arabic }
+    \pagestyle { hit@headings }
+  }
+%    \end{macrocode}
+%
+% \end{macro}
+% \begin{macro}{\backmatter}
+%    \begin{macrocode}
+\cs_set:Npn \backmatter
+  {
+    \bool_if:NTF \g__hit_openright_bool { \cleardoublepage } { \clearpage }
+    \@mainmattertrue
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hitfrontmatter,\hitbackmatter}
+% \changes{v3.2a}{2026/08/09}{学位论文的骨架宏，排列顺序照规范写死}
+% 规范定死的顺序，各部件由 \option{struct} 族声明，没声明的不排。
+% 键的声明与存取在 \file{src/utils/hit-structure.dtx}。
+%
+% \changes{v3.2a}{2026/08/11}{摘要与正文各章也进 \option{struct} 族：
+%   \option{abstract} 与 \option{mainmatter}，加骨架宏 \cs{hitmainmatter}}
+% \option{cover} 与 \option{abstract} 两个文件排在最前面读，跟别的部件「读到哪里
+% 排到哪里」不是一回事。这两个文件本身不排任何东西：封面那个只设元信息，摘要那个
+% 里的 \env{abstract-zh} 与 \env{abstract-en} 只把正文收起来。真正排版的是
+% \cs{makecover}，它接着封面一起排摘要，所以两个文件都得赶在它之前读到。
+%    \begin{macrocode}
+\cs_set_protected:Npn \hitfrontmatter
+  {
+    \bool_gset_true:N \g__hit_matter_front_bool
+    \hit@structure@input:n { cover }
+    \hit@structure@input:n { abstract }
+    \frontmatter
+    \makecover
+    \hit@structure@input:n { denotation }
+    \hit@structure@part:nn { contents } { \tableofcontents }
+    \hit@structure@here:nnn { acknowledgements } { front }
+      { \exp_args:Nv \include { g__hit_structure_acknowledgements_tl } }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hitmainmatter}
+% \cs{hitmainmatter} 起正文，再按 \option{mainmatter} 逐个 \cs{include}。
+% \option{mainmatter} 是唯一取一串文件名的部件，其余都是一个部件一个文件。
+%
+% 不写 \option{mainmatter} 也行，\cs{hitmainmatter} 照样起正文，章节自己 \cs{include}，
+% 跟以前一样。
+%    \begin{macrocode}
+\cs_set_protected:Npn \hitmainmatter
+  {
+    \bool_gset_true:N \g__hit_matter_main_bool
+    \mainmatter
+    \hit@structure@include@list:n { mainmatter }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \changes{v3.2a}{2026/08/16}{文献表那一格改调总出口 \cs{hit@bib@print:}，
+%   按后端分发（biblatex 一线是 \cs{printbibliography}），见
+%   \file{hit-bibstyle.dtx}}
+%    \begin{macrocode}
+\cs_set_protected:Npn \hitbackmatter
+  {
+    \bool_gset_true:N \g__hit_matter_back_bool
+    \backmatter
+    \hit@structure@part:nn { bibliography } { \hit@bib@print: }
+    \hit@structure@part:nn { appendix }
+      {
+        \begin { appendix }
+          \hit@structure@input:n { appendix }
+        \end { appendix }
+      }
+    \hit@structure@include:n { publications }
+    \hit@structure@scanned:nnn { defense } { hit@resolution@place }
+      {
+        \str_if_eq:eeTF { \tl_use:c { g__hit_structure_defense_tl } } { auto }
+          { \hit@if@option@T { doctor } { \hit@resolution@place } }
+          { \hit@resolution@place }
+      }
+    \hit@structure@include:n { index }
+    \hit@structure@scanned:nnn { declarations } { hit@declarations@place }
+      { \hit@declarations@place }
+    \hit@structure@here:nnn { acknowledgements } { back }
+      { \exp_args:Nv \include { g__hit_structure_acknowledgements_tl } }
+    \hit@structure@include:n { resume }
+  }
+%    \end{macrocode}
+% \end{macro}
+%    \begin{macrocode}
+%</thesis-mainmatter>
+%    \end{macrocode}
+%
+% \Finale

@@ -1,0 +1,2761 @@
+% \iffalse meta-comment
+%
+% hit-format.dtx 是照 Word 的字体与段落对话框描述一个元素怎么排
+%
+% \fi
+%
+% \section{元素格式（format）}
+%
+% \changes{v3.2a}{2026/08/13}{加 \texttt{hit/format} 族，按 Word 的字体与段落
+%   对话框描述章节标题、图题表题、目录条目的排法}
+% 规范里说的是 Word 的话：「章标题小二黑体居中，段前段后各一行，多倍行距 1.5」。
+% 这些话现在落在代码里是这个样子：
+% \begin{latex}
+% chapter={ beforeskip={28.34646bp}, afterskip={28.74646bp}, ... }
+% %          ^ 注释写着「一个空行 1.57481 × 18」
+% \end{latex}
+% 那个 \texttt{1.57481 × 18} 是有人拿 Word 的设置手算了一遍留下的。校区与学位之间
+% 标题格式差别很大，这样的手算散在五份 \cs{ctexset} 里，改一处要连带重算三四个数。
+%
+% \texttt{format} 族收 Word 对话框上的原话，换算交给代码：
+% \begin{latex}
+% \hitpresetup[campus=harbin,degree-level=bachelor]
+%   {
+%     format =
+%       {
+%         chapter = { font-zh = heiti , size = xiaoer , bold = true ,
+%                     alignment = centered , line-spacing = 1.5 ,
+%                     space-before = 1 line , space-after = 1 line } ,
+%         caption = { size = wuhao , alignment = centered } ,
+%       }
+%   }
+% \end{latex}
+%
+% \subsection{键}
+%
+% 键名与取值尽量照抄 Word 英文界面的原词，这样对着对话框逐格抄不用翻译。
+% 只有 \option{line-spacing} 的取值做了归并：Word 下拉框里的单倍、1.5 倍、2 倍、
+% 多倍是同一个机制的四个预设，这里合成「一个数就是倍数」，
+% 只有固定值与最小值是另外两种模式。
+%
+% 读起来是名词的键跟一个值，读起来是形容词或动词短语的键只收真假。
+%
+% \begin{center}
+% \begin{tabular}{lll}
+% \toprule
+% 键 & Word 界面 & 取值 \\\midrule
+% \option{font-zh} & Chinese text font & \texttt{songti} \texttt{heiti} \texttt{kaishu} \texttt{fangsong} \texttt{none} \\
+% \option{font-en} & Latin text font & \texttt{serif} \texttt{sans} \texttt{mono} \\
+% \option{size} & Size & \texttt{sanhao}，或 \texttt{16bp} \\
+% \option{alignment} & Alignment & \texttt{left} \texttt{centered} \texttt{right} \texttt{justified} \\
+%  & & \texttt{distributed} \texttt{last-line-centered} \\
+% \option{indent-left} & Indentation: Left & \texttt{2 chars}，或 \texttt{12bp} \\
+% \option{indent-right} & Indentation: Right & 同上 \\
+% \option{indent-special} & Indentation: Special + By & \texttt{none}、\texttt{first-line 2 chars}、\texttt{hanging 4 chars} \\
+% \option{line-spacing} & Line spacing + At & \texttt{single} \texttt{double} \texttt{1.5} \\
+%  & & \texttt{exactly 25bp} \texttt{at-least 25bp} \\
+% \option{space-before} & Spacing: Before & \texttt{1 line}，或 \texttt{12bp} \\
+% \option{space-after} & Spacing: After & 同上 \\
+% \option{bold} & Font style: Bold & 真假 \\
+% \option{all-caps} & Effects: All caps & 真假 \\
+% \option{snap-to-grid} & Snap to grid when document grid is defined & 真假 \\
+% \option{keep-with-next} & Keep with next & 真假 \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+%
+% \option{alignment} 的 \texttt{last-line-centered}（末行居中）是模板的扩展，Word 里
+% 没有这一项，别去对话框里找。词形跟着 Word 那几个走：那几个都是过去分词，
+% 描述「排成什么样」这个状态。
+%
+% \texttt{1 line}、\texttt{hanging 4 chars}、\texttt{exactly 25bp} 这几种写法里的空格
+% 是有意义的，解析器按空格切词。用户文档里照写就行；写在类源码里要把空格改成
+% \pkg{expl3} 的空格记号，那里在 \cs{ExplSyntaxOn} 之内，字面空格会被吃掉，
+% 规矩见 CONTRIBUTING §4.6。
+%
+% \subsection{目标}
+%
+% 目标名就是被排的那个元素：\option{body}、\option{chapter}、\option{section}、
+% \option{subsection}、\option{subsubsection}、\option{caption-figure}、
+% \option{caption-table}、\option{caption-sub}、\option{abstract-heading}，
+% 以及四级目录条目 \option{toc-chapter} 到 \option{toc-subsubsection}。
+%
+% \changes{v3.2a}{2026/08/14}{加 \option{body} 目标，正文的字号、行距、首行缩进
+%   与首行基线落点都从它算}
+% \option{body} 是正文，也就是 Word 里的「正文」样式。它管的东西比别的目标多一层：
+% 除了字号行距，\cs{parindent} 与 \cs{topskip} 也从它算，见下面「接到正文上」一节。
+%
+% 另有两个伞：\option{heading} 一次写四级标题，\option{caption} 一次写图题表题。
+% 伞展开成逐个写一遍，所以伞后面再单设某一个仍然管用。
+%
+% \subsection{这一轮做到哪}
+%
+% \changes{v3.2a}{2026/08/14}{\option{body} 与四级标题都接上了，剩下题注与目录}
+% 换算齐了，见下面的「换算」小节：\cs{hit@format@compute:n} 把键值算成
+% \cs{baselineskip}、基线落点、段前段后与缩进。接出去的有两处：四级标题走
+% \cs{ctexset}（见「接到标题上」），正文走 \cs{normalsize} 那一批长度
+% （见「接到正文上」）。题注与目录条目那六个目标只存不用，得先把
+% \pkg{caption} 与 \pkg{titletoc} 那边的手算值反推回 Word 设置才好接。
+%
+% 原先散在类选项里的六个开关已经接上。它们本来就只有真假两态，不需要换算：
+% \begin{center}
+% \begin{tabular}{ll}
+% \toprule
+% 新写法 & 原先的标志位 \\\midrule
+% \option{chapter} = \{ \option{bold} \} & \option{chapterbold} \\
+% \option{chapter} = \{ \option{indent-special} = \texttt{hanging} \} & \option{chapterhang} \\
+% \option{caption-figure} = \{ \option{alignment} = \texttt{last-line-centered} \} & \option{capcenterlast} \\
+% \option{caption-sub} = \{ \option{alignment} = \texttt{last-line-centered} \} & \option{subcapcenterlast} \\
+% \option{abstract-heading} = \{ \option{all-caps} \} & \option{absupper} \\
+% \option{heading} = \{ \option{font-en} = \texttt{sans} \} & \option{arialtitle} \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+%
+% 这六条写的是同一个标志位，排版那边一个字没动，所以生成物不变。
+%
+% 最后两条只认伞：\option{font-en} 只在 \option{heading} 上生效，\option{all-caps}
+% 只在 \option{abstract-heading} 上生效。标志位本身是全局的，写在单个层级上会
+% 越界影响另外三级，与其装作能分级不如先不认。
+%
+% ^^A ======================================================================
+% ^^A Module shared-format: 元素格式（各个类共用）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*shared-format>
+%    \end{macrocode}
+%
+% 目标清单与每个目标的存储。取值存进 \cs{g\_\_hit\_format\_}\meta{目标}\cs{\_prop}，
+% 带单位的键存两条：值一条、单位一条。
+%    \begin{macrocode}
+\clist_const:Nn \c__hit_format_target_clist
+  {
+    body ,
+    chapter , section , subsection , subsubsection ,
+    caption-figure , caption-table , caption-sub , abstract-heading ,
+    toc-chapter , toc-section , toc-subsection , toc-subsubsection ,
+    header , footer
+  }
+\clist_map_inline:Nn \c__hit_format_target_clist
+  {
+    \clist_map_inline:nn { { } , { _ragged } , { _flush } }
+      {
+        \prop_new:c { g__hit_format_#1##1_prop }
+        \prop_new:c { g__hit_format_#1##1_default_prop }
+      }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\str_new:N \l__hit_format_target_str
+\seq_new:N \l__hit_format_word_seq
+\int_new:N \l__hit_format_count_int
+\tl_new:N \l__hit_format_head_tl
+\tl_new:N \l__hit_format_tail_tl
+\tl_new:N \l__hit_format_rest_tl
+%    \end{macrocode}
+%
+% \cs{\_\_hit\_format\_put:nn}\marg{键}\marg{值} 写进当前目标的存储。
+%
+% 值当场展开再存。解析器交过来的是 \cs{dim\_eval:n} 与 \cs{fp\_to\_decimal:n} 这种
+% 还没算的式子，里面读着 \cs{l\_\_hit\_format\_head\_tl} 这些临时变量；原样存下去，
+% 等到取用时才算，那几个临时变量早被下一条键覆盖了。
+% \changes{v3.2a}{2026/08/15}{所有 \option{format} 键都收 \texttt{auto}，
+%   含义是「这一项交给模板决定」，实现是把条目从表里删掉}
+% 存一项。取值写 \texttt{auto} 时不存，反而把已有的条目删掉——读取那一头
+% \cs{\_\_hit\_format\_read:nnnN} 每一项都带着内建默认，条目不在表里就用那个默认，
+% 而那个默认正是模板自己的规矩。所以\texttt{auto} 与「没写这一项」等价，
+% 这也正是它该有的含义。
+%
+% 举一个：\option{snap-to-grid} 的内建默认是 \texttt{true} 且要求文档网格已经
+% 立起来，所以写 \texttt{auto} 就是「有网格就贴，没有就不贴」，跟着当前选项走。
+%
+% 数值类的键照样收 \texttt{auto}，含义一样，只是那些键本来就不太用得上。
+%
+% \changes{v3.2a}{2026/08/15}{\option{format} 的每个元素分档存，\option{bottom}
+%   的两档各一份，读的时候先看当前档}
+% \emph{分档。} 同一个元素在版心底两种排法下要两套完全不同的取值：
+% \option{bottom}\texttt{=ragged} 按写作指南 3.2 节的行数与多倍值排，
+% \texttt{flush} 按 3.8 节的毫米区间排。两套之间没有继承关系，不是在一套值上
+% 加伸缩胶。
+%
+% 所以每个元素有三份存储：不分档的一份，两个档各一份。写进
+% \option{目标/if-raggedbottom} 的键进 \texttt{ragged} 那一份，写进
+% \option{目标} 的进不分档那一份。读的时候先看当前档，没有再看不分档的，
+% 还没有就用内建默认。限定词的来路见后面 \cs{\_\_hit\_format\_layer:nnn}。
+%
+% 分档的取值压过不分档的，所以用户在外头写一条普通的键时，还要把两个档里同名的
+% 条目抹掉——不然默认表在档里写的值会盖住用户刚写的。默认表自己写的时候不抹，
+% 它就是在往各档里填。
+%
+% 这套存储不进 \cs{hitsetup} 的方括号：方括号里只接受类选项，而 \option{bottom}
+% 是排版选项，导言区随时能改，类选项那会儿还不知道它是什么。
+%    \begin{macrocode}
+\cs_generate_variant:Nn \prop_gput:Nnn { cnx }
+\bool_new:N \g__hit_format_presetup_bool
+\tl_new:N \l__hit_format_layer_tl
+\clist_const:Nn \c__hit_format_layer_clist { ragged , flush }
+\cs_new:Npn \__hit_format_name:nnn #1#2#3
+  { g__hit_format_ #1 \tl_if_empty:nF {#2} { _ #2 } #3 _prop }
+\cs_new_protected:Npn \__hit_format_new:nnn #1#2#3
+  {
+    \prop_if_exist:cF { \__hit_format_name:nnn {#1} {#2} {#3} }
+      { \prop_new:c { \__hit_format_name:nnn {#1} {#2} {#3} } }
+  }
+%    \end{macrocode}
+%
+% 当前是哪一档，看版心底那个开关。取值只有 \texttt{ragged} 与 \texttt{flush}
+% 两种，与 \option{layout}/\option{bottom} 的取值同名。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_format_layer_now:
+  { \bool_if:NTF \g__hit_raggedbottom_bool { ragged } { flush } }
+%    \end{macrocode}
+%
+% 取一条：先看当前档，没有再看不分档的那一份。
+%    \begin{macrocode}
+\prg_new_protected_conditional:Npnn \__hit_format_get:nnN #1#2#3 { T , F , TF }
+  {
+    \prop_get:cnNTF
+      { \__hit_format_name:nnn {#1} { \__hit_format_layer_now: } { } } {#2} #3
+      { \prg_return_true: }
+      {
+        \prop_get:cnNTF { \__hit_format_name:nnn {#1} { } { } } {#2} #3
+          { \prg_return_true: } { \prg_return_false: }
+      }
+  }
+\prg_generate_conditional_variant:Nnn \__hit_format_get:nnN { VnN }
+  { T , F , TF }
+\prg_new_conditional:Npnn \__hit_format_if_blank:n #1 { T , F }
+  {
+    \bool_lazy_and:nnTF
+      {
+        \prop_if_empty_p:c
+          { \__hit_format_name:nnn {#1} { \__hit_format_layer_now: } { } }
+      }
+      { \prop_if_empty_p:c { \__hit_format_name:nnn {#1} { } { } } }
+      { \prg_return_true: } { \prg_return_false: }
+  }
+\cs_new_protected:Npn \__hit_format_put:nn #1#2
+  {
+    \str_if_eq:nnTF {#2} { auto }
+      { \__hit_format_restore:n {#1} }
+      {
+        \__hit_format_store:VVnn \l__hit_format_target_str
+          \l__hit_format_layer_tl {#1} {#2}
+        \bool_if:NTF \g__hit_format_presetup_bool
+          {
+            \__hit_format_store:VVnnn \l__hit_format_target_str
+              \l__hit_format_layer_tl { _default } {#1} {#2}
+          }
+          { \__hit_format_shadow:n {#1} }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_store:nnnnn #1#2#3#4#5
+  {
+    \__hit_format_new:nnn {#1} {#2} {#3}
+    \prop_gput:cnx { \__hit_format_name:nnn {#1} {#2} {#3} } {#4} {#5}
+  }
+\cs_new_protected:Npn \__hit_format_store:nnnn #1#2#3#4
+  { \__hit_format_store:nnnnn {#1} {#2} { } {#3} {#4} }
+\cs_generate_variant:Nn \__hit_format_store:nnnnn { VVnnn }
+\cs_generate_variant:Nn \__hit_format_store:nnnn { VVnn }
+%    \end{macrocode}
+%
+% 用户在档外头写一条键时，把两个档里同名的条目抹掉。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_shadow:n #1
+  {
+    \tl_if_empty:NT \l__hit_format_layer_tl
+      {
+        \clist_map_inline:Nn \c__hit_format_layer_clist
+          {
+            \prop_gremove:cn
+              { \__hit_format_name:nnn { \l__hit_format_target_str } {##1} { } }
+              {#1}
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{加 \cs{\_\_hit\_format\_drop:n}，写单值时把区间那
+%   第二个端点从表里抹掉，不留空条目}
+% 删一项。区间的第二个端点只在写了两个词时才有，写一个词就得把上一次留下的抹掉。
+% 存一个空值也能起同样的作用，但表里会多出永远读不到东西的条目，
+% \file{testfiles/56-format-keys.lvt} 把整张表印出来对，一眼就看得见。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_drop:n #1
+  {
+    \__hit_format_erase:VVn \l__hit_format_target_str
+      \l__hit_format_layer_tl {#1}
+    \bool_if:NTF \g__hit_format_presetup_bool
+      {
+        \__hit_format_erase:VVnn \l__hit_format_target_str
+          \l__hit_format_layer_tl { _default } {#1}
+      }
+      { \__hit_format_shadow:n {#1} }
+  }
+\cs_new_protected:Npn \__hit_format_erase:nnnn #1#2#3#4
+  {
+    \__hit_format_new:nnn {#1} {#2} {#3}
+    \prop_gremove:cn { \__hit_format_name:nnn {#1} {#2} {#3} } {#4}
+  }
+\cs_new_protected:Npn \__hit_format_erase:nnn #1#2#3
+  { \__hit_format_erase:nnnn {#1} {#2} { } {#3} }
+\cs_generate_variant:Nn \__hit_format_erase:nnnn { VVnn }
+\cs_generate_variant:Nn \__hit_format_erase:nnn { VVn }
+%    \end{macrocode}
+%
+% \texttt{auto} 退回默认表里这一项的取值。不分档地写 \texttt{auto} 时，两个档
+% 里的那一项也一起退回去，不然用户刚才写的那条还留在档外压着。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_restore:n #1
+  {
+    \__hit_format_restore:VVn \l__hit_format_target_str
+      \l__hit_format_layer_tl {#1}
+    \tl_if_empty:NT \l__hit_format_layer_tl
+      {
+        \clist_map_inline:Nn \c__hit_format_layer_clist
+          {
+            \__hit_format_restore:Vnn \l__hit_format_target_str {##1} {#1}
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_restore:nnn #1#2#3
+  {
+    \__hit_format_new:nnn {#1} {#2} { _default }
+    \__hit_format_new:nnn {#1} {#2} { }
+    \prop_get:cnNTF { \__hit_format_name:nnn {#1} {#2} { _default } } {#3}
+      \l__hit_format_value_tl
+      {
+        \prop_gput:cnV { \__hit_format_name:nnn {#1} {#2} { } } {#3}
+          \l__hit_format_value_tl
+      }
+      { \prop_gremove:cn { \__hit_format_name:nnn {#1} {#2} { } } {#3} }
+  }
+\cs_generate_variant:Nn \__hit_format_restore:nnn { VVn , Vnn }
+%    \end{macrocode}
+%
+% 把取值按空格切开，留下四样东西：词数、头一个词、末一个词、头一个词之后的全部。
+% 带单位的写法有两种词序，\texttt{2 chars} 是数在前，\texttt{exactly 25bp} 是词在前，
+% 各个解析器按自己的词序挑用。\texttt{hanging 4 chars} 是三个词，模式在头上，
+% 数量在「其余」里，那一段再交给收数量的解析器切一次。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_split:n #1
+  {
+    \seq_set_split:Nnn \l__hit_format_word_seq { ~ } { #1 }
+    \seq_remove_all:Nn \l__hit_format_word_seq { }
+    \int_set:Nn \l__hit_format_count_int
+      { \seq_count:N \l__hit_format_word_seq }
+    \seq_get_left:NN  \l__hit_format_word_seq \l__hit_format_head_tl
+    \seq_get_right:NN \l__hit_format_word_seq \l__hit_format_tail_tl
+    \seq_pop_left:NN  \l__hit_format_word_seq \l__hit_format_rest_tl
+    \tl_set:Nx \l__hit_format_rest_tl
+      { \seq_use:Nn \l__hit_format_word_seq { ~ } }
+  }
+%    \end{macrocode}
+%
+% 取值只有一个词时没有单位，整段当长度看。
+%    \begin{macrocode}
+\prg_new_conditional:Npnn \__hit_format_one_word: { TF }
+  {
+    \int_compare:nNnTF { \l__hit_format_count_int } = { 1 }
+      { \prg_return_true: } { \prg_return_false: }
+  }
+%    \end{macrocode}
+%
+% 取值不在名单里就报一句，键名与取值都印出来。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_enum:nnn #1#2#3
+  {
+    \clist_if_in:nnTF {#2} {#3}
+      { \__hit_format_put:nn {#1} {#3} }
+      { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {#3} }
+  }
+\cs_new_protected:Npn \__hit_format_bool:nn #1#2
+  { \__hit_format_enum:nnn {#1} { true , false , auto } {#2} }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{加 \option{char-spacing}，收一个带符号的长度}
+% \option{char-spacing} 是 Word「字体」对话框「高级」页里的字符间距，
+% 对应 \texttt{w:rPr/w:spacing}。Word 那边分成「标准／加宽／紧缩」加一个磅值，
+% 这里合成一个带符号的长度：正数加宽、负数紧缩、零是标准。
+% \texttt{+0.2bp} 与 \texttt{0.2bp} 一样，前缀正号写不写都行。
+%
+% 标准没有专门的词，写任何等于零的长度就是。它与 \texttt{auto} 不同：
+% \texttt{auto} 是「这一项不设，跟着外层的字距走」，\texttt{0bp} 是
+% 「明确设成不加不减」，会把外层的字距挡住，见 \cs{\_\_hit\_format\_hglue\_cc:}。
+%
+% \emph{与 \option{line-spacing} 那个加号不是一回事。} \texttt{20bp+} 的加号
+% 在\emph{后面}，意思是「至少」；这里的加号在\emph{前面}，是数的正负号。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_char_spacing:n #1
+  {
+    \str_if_eq:nnTF {#1} { auto }
+      { \__hit_format_put:nn { char-spacing } { auto } }
+      { \__hit_format_put:nn { char-spacing } { \dim_eval:n {#1} } }
+  }
+%    \end{macrocode}
+%
+% \option{size} 收字号名或长度。名字查 \file{src/utils/hit-fonts.dtx} 存下的常量，
+% 那张表是字号命令自己那份，不会走样。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_size:n #1
+  {
+    \str_if_eq:nnTF {#1} { auto }
+      { \__hit_format_put:nn { size } { auto } }
+      {
+        \dim_if_exist:cTF { c__hit_font_size_#1_dim }
+          {
+            \__hit_format_put:nn { size }
+              { \dim_use:c { c__hit_font_size_#1_dim } }
+          }
+          { \__hit_format_put:nn { size } { \dim_eval:n {#1} } }
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{\texttt{exactly~25bp} 改写 \texttt{25bp!!}，
+%   \texttt{at-least~10bp} 改写 \texttt{10bp+}，为的是把「两个词」这个形状
+%   让给区间写法}
+% \changes{v3.2a}{2026/08/15}{\option{line-spacing} 与 \option{line-white} 收下
+%   一个词或两个词，两个词是区间；两个键量的是同一件事，同时写要报错}
+% \emph{\cs{\_\_hit\_format\_measure:nnn}。}
+% 行距的取值。写一个词是刚性，写两个词是区间，两个词不分先后，谁大谁小由代码判。
+%
+% 一个词有五种写法：
+% \begin{center}
+% \begin{tabular}{lll}
+% \toprule
+% 写法 & 存下来的单位 & 意思 \\\midrule
+% \texttt{single}、\texttt{double} & \texttt{multiple} & Word 下拉框里的词，折成 1 与 2 \\
+% \texttt{1.25} & \texttt{multiple} & 倍数 \\
+% \texttt{25bp!} & \texttt{exactly} & Word 的固定值 \\
+% \texttt{10bp+} & \texttt{at-least} & Word 的最小值 \\
+% \texttt{19bp} & \texttt{length} & 就是这么长，不设下限 \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+% 末一个字符定归属：\texttt{!} 与 \texttt{+} 是模式记号，数字与小数点收尾是倍数，
+% 字母收尾是长度（\hologo{TeX} 的单位一律是字母）。所以
+% \texttt{line-spacing~=~3mm~2} 这种一头长度一头倍数的写法也收。
+%
+% \texttt{length} 与 \texttt{at-least} 差一条下限，\texttt{length} 与
+% \texttt{exactly} 差一处基线落点，三者不能合并。
+%
+% \option{line-white} 走同一个解析器，只是每个端点的单位都记成 \texttt{white}：
+% 它量的是\emph{视觉白}，换算成基线距要加一个字面高，见后面的「换算」一节。
+% 两个键量的是同一件事的两种度量，所以存进同一批条目，同一次
+% \cs{hitsetup} 里都写了就报错，按后写的算。
+%    \begin{macrocode}
+\seq_new:N \l__hit_format_end_seq
+\tl_new:N \l__hit_format_last_tl
+\prop_new:N \l__hit_format_claim_prop
+\prg_generate_conditional_variant:Nnn \str_if_in:nn { nV } { TF }
+\cs_new_protected:Npn \__hit_format_claim:nn #1#2
+  {
+    \prop_get:NnNT \l__hit_format_claim_prop {#1} \l__hit_format_last_tl
+      {
+        \str_if_eq:VnF \l__hit_format_last_tl {#2}
+          {
+            \msg_error:nnVn { hithesis } { measure-clash }
+              \l__hit_format_last_tl {#2}
+          }
+      }
+    \prop_put:Nnn \l__hit_format_claim_prop {#1} {#2}
+  }
+\cs_new_protected:Npn \__hit_format_measure:nnnn #1#2#3#4
+  {
+    \__hit_format_claim:nn {#2} {#1}
+    \str_if_eq:nnTF {#4} { auto }
+      {
+        \clist_map_inline:nn { , -unit , -2 , -2-unit }
+          { \__hit_format_put:nn { #2 ##1 } { auto } }
+      }
+      {
+        \seq_set_split:Nnn \l__hit_format_end_seq { ~ } {#4}
+        \seq_remove_all:Nn \l__hit_format_end_seq { }
+        \int_case:nnF { \seq_count:N \l__hit_format_end_seq }
+          {
+            { 1 }
+              {
+                \__hit_format_end:nnne {#2} { } {#3}
+                  { \seq_item:Nn \l__hit_format_end_seq { 1 } }
+                \__hit_format_drop:n { #2 -2 }
+                \__hit_format_drop:n { #2 -2-unit }
+              }
+            { 2 }
+              {
+                \__hit_format_end:nnne {#2} { } {#3}
+                  { \seq_item:Nn \l__hit_format_end_seq { 1 } }
+                \__hit_format_end:nnne {#2} { -2 } {#3}
+                  { \seq_item:Nn \l__hit_format_end_seq { 2 } }
+              }
+          }
+          { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {#4} }
+      }
+  }
+%    \end{macrocode}
+%
+%
+% 一个端点。\meta{槽}\meta{后缀}\meta{度量}\meta{词}。量视觉白的键不必再认词，
+% 端点只能是长度。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_end:nnnn #1#2#3#4
+  {
+    \str_if_eq:nnTF {#3} { white }
+      { \__hit_format_end_put:nnnn {#1} {#2} { white } {#4} }
+      { \__hit_format_end_word:nnn {#1} {#2} {#4} }
+  }
+\cs_generate_variant:Nn \__hit_format_end:nnnn { nnne }
+\cs_new_protected:Npn \__hit_format_end_word:nnn #1#2#3
+  {
+    \str_case:nnF {#3}
+      {
+        { single } { \__hit_format_end_put:nnnn {#1} {#2} { multiple } { 1 } }
+        { double } { \__hit_format_end_put:nnnn {#1} {#2} { multiple } { 2 } }
+      }
+      { \__hit_format_end_mark:nnn {#1} {#2} {#3} }
+  }
+\cs_new_protected:Npn \__hit_format_end_mark:nnn #1#2#3
+  {
+    \str_set:Nx \l__hit_format_last_tl { \str_item:nn {#3} { -1 } }
+    \str_case:VnF \l__hit_format_last_tl
+      {
+        { ! }
+          {
+            \__hit_format_end_put:nnne {#1} {#2} { exactly }
+              { \str_range:nnn {#3} { 1 } { -2 } }
+          }
+        { + }
+          {
+            \__hit_format_end_put:nnne {#1} {#2} { at-least }
+              { \str_range:nnn {#3} { 1 } { -2 } }
+          }
+      }
+      {
+        \str_if_in:nVTF { 0123456789. } \l__hit_format_last_tl
+          { \__hit_format_end_put:nnnn {#1} {#2} { multiple } {#3} }
+          { \__hit_format_end_put:nnnn {#1} {#2} { length } {#3} }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_end_put:nnnn #1#2#3#4
+  {
+    \__hit_format_put:nn { #1 #2 -unit } {#3}
+    \__hit_format_put:nn { #1 #2 } {#4}
+  }
+\cs_generate_variant:Nn \__hit_format_end_put:nnnn { nnne }
+\cs_generate_variant:Nn \str_case:nnF { VnF }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{加 \option{white-before} 与 \option{white-after}，
+%   与 \option{space-before}、\option{space-after} 存进同一个槽}
+% \option{space-before} 与 \option{white-before} 说的是同一段间距：前者按行数或
+% 长度给，后者按视觉白给。所以两个键存进同一个槽，同一个目标里都写了就报错，
+% 按后写的算。\option{space-after} 与 \option{white-after} 同理。
+%
+% 走 \option{space-before} 这一路时把区间的第二个端点抹掉：\texttt{1~line} 是
+% 「数加单位词」两个词，不是两个端点。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_space:nn #1#2
+  {
+    \__hit_format_claim:nn {#1} {#1}
+    \str_if_eq:nnTF {#2} { auto }
+      {
+        \clist_map_inline:nn { , -unit , -2 , -2-unit }
+          { \__hit_format_put:nn { #1 ##1 } { auto } }
+      }
+      {
+        \__hit_format_amount:nnn {#1} { line } {#2}
+        \__hit_format_drop:n { #1 -2 }
+        \__hit_format_drop:n { #1 -2-unit }
+      }
+  }
+%    \end{macrocode}
+%
+% \option{indent-left}、\option{indent-right} 收 \texttt{2 chars} 或长度，
+% \option{space-before} 那一路收 \texttt{1 line} 或长度。两种都是数在前、单位词
+% 在后，只有单位词不同，所以走同一个解析器。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_amount:nnn #1#2#3
+  {
+    \str_if_eq:nnTF {#3} { auto }
+      {
+        \__hit_format_put:nn {#1} { auto }
+        \__hit_format_put:nn { #1 -unit } { auto }
+      }
+      { \__hit_format_amount_aux:nnn {#1} {#2} {#3} }
+  }
+\cs_new_protected:Npn \__hit_format_amount_aux:nnn #1#2#3
+  {
+    \__hit_format_split:n {#3}
+    \__hit_format_one_word:TF
+      {
+        \__hit_format_put:nn { #1 -unit } { length }
+        \__hit_format_put:nn {#1} { \dim_eval:n {#3} }
+      }
+      {
+        \str_if_eq:VnTF \l__hit_format_tail_tl {#2}
+          {
+            \__hit_format_put:nn { #1 -unit } {#2}
+            \__hit_format_put:nn {#1} { \fp_to_decimal:n { \l__hit_format_head_tl } }
+          }
+          { \msg_error:nnnn { hithesis } { bad-option-value } {#1} {#3} }
+      }
+  }
+%    \end{macrocode}
+%
+% \option{indent-special} 是「下拉框加数值框」，头一个词是模式，其余是数量。
+% \texttt{none} 后面不跟数量。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_indent_special:n #1
+  {
+    \__hit_format_split:n {#1}
+    \str_case:VnF \l__hit_format_head_tl
+      {
+        { auto }
+          {
+            \__hit_format_put:nn { indent-special-mode } { auto }
+            \__hit_format_amount:nnn { indent-special } { chars } { auto }
+          }
+        { none } { \__hit_format_put:nn { indent-special-mode } { none } }
+        { first-line }
+          { \__hit_format_special_put:nV { first-line } \l__hit_format_rest_tl }
+        { hanging }
+          { \__hit_format_special_put:nV { hanging } \l__hit_format_rest_tl }
+      }
+      { \msg_error:nnnn { hithesis } { bad-option-value }
+          { indent-special } {#1} }
+  }
+\cs_new_protected:Npn \__hit_format_special_put:nn #1#2
+  {
+    \__hit_format_put:nn { indent-special-mode } {#1}
+    \__hit_format_amount:nnn { indent-special } { chars } {#2}
+  }
+\cs_generate_variant:Nn \__hit_format_special_put:nn { nV }
+%    \end{macrocode}
+%
+% 属性族。
+%    \begin{macrocode}
+\keys_define:nn { hit / format / property }
+  {
+    font-zh .code:n =
+      { \__hit_format_enum:nnn { font-zh }
+          { songti , heiti , kaishu , fangsong , none } {#1} } ,
+    font-en .code:n =
+      { \__hit_format_enum:nnn { font-en } { serif , sans , mono } {#1} } ,
+    size .code:n = { \__hit_format_size:n {#1} } ,
+    alignment .code:n =
+      { \__hit_format_enum:nnn { alignment }
+          { left , centered , right , justified , distributed ,
+            last-line-centered } {#1} } ,
+    indent-left  .code:n = { \__hit_format_amount:nnn { indent-left } { chars } {#1} } ,
+    indent-right .code:n = { \__hit_format_amount:nnn { indent-right } { chars } {#1} } ,
+    indent-special .code:n = { \__hit_format_indent_special:n {#1} } ,
+    line-spacing .code:n =
+      { \__hit_format_measure:nnnn { line-spacing } { line-spacing }
+          { spacing } {#1} } ,
+    line-white .code:n =
+      { \__hit_format_measure:nnnn { line-white } { line-spacing }
+          { white } {#1} } ,
+    space-before .code:n = { \__hit_format_space:nn { space-before } {#1} } ,
+    space-after  .code:n = { \__hit_format_space:nn { space-after } {#1} } ,
+    white-before .code:n =
+      { \__hit_format_measure:nnnn { white-before } { space-before }
+          { white } {#1} } ,
+    white-after .code:n =
+      { \__hit_format_measure:nnnn { white-after } { space-after }
+          { white } {#1} } ,
+    bold           .code:n = { \__hit_format_bool:nn { bold } {#1} } ,
+    bold           .default:n = { true } ,
+    all-caps       .code:n = { \__hit_format_bool:nn { all-caps } {#1} } ,
+    all-caps       .default:n = { true } ,
+    snap-to-grid   .code:n = { \__hit_format_snap:n {#1} } ,
+    snap-to-grid   .default:n = { true } ,
+    char-spacing   .code:n = { \__hit_format_char_spacing:n {#1} } ,
+    keep-with-next .code:n = { \__hit_format_bool:nn { keep-with-next } {#1} } ,
+    keep-with-next .default:n = { true } ,
+    unknown .code:n =
+      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{分档从元素的子块 \option{bottom} 改成目标名后面的
+%   限定词 \option{目标/if-raggedbottom}、\option{目标/if-flushbottom}}
+% \emph{分档挂在目标上，不是挂在元素的属性里。} 从前写成
+% \option{chapter}\texttt{=\{bottom=\{if-ragged=\{\ldots\}\}\}}，
+% 那等于说「档」是章标题的一个属性；可档是整份文档的事，由
+% \option{layout}/\option{bottom} 定，一个元素说了不算。现在写成
+%
+% \begin{quote}\ttfamily
+% chapter\qquad\qquad\qquad = \{ font-zh = heiti , size = xiaoer \} \\
+% chapter/if-raggedbottom = \{ line-spacing = 1.2 \} \\
+% chapter/if-flushbottom\phantom{o} = \{ line-white = 3mm 4mm \}
+% \end{quote}
+%
+% 被配置的东西是「flushbottom 那一档下的章标题」，它与「章标题」是两个目标，
+% 就像 \option{caption-figure} 与 \option{caption-table} 是两个目标。
+% \option{format} 底下因此再没有 \option{bottom} 这个键。
+%
+% 名字带着 \texttt{bottom} 那一截，因为限定词离开 \option{bottom} 子块之后
+% 就没有上下文了：单写 \option{if-ragged} 说不清 ragged 的是什么。
+%
+% 分档用 \cs{group\_begin:} 圈起来，出了组当前档自动复原。存储那一头全是全局
+% 赋值，不受组的影响。判重的表在 \cs{\_\_hit\_format\_target:nn} 里清，
+% 所以每个目标各判各的，档内写 \option{line-white}、档外写 \option{line-spacing}
+% 不算冲突。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_layer:nnn #1#2#3
+  {
+    \group_begin:
+      \tl_set:Nn \l__hit_format_layer_tl {#1}
+      \__hit_format_target:nn {#2} {#3}
+    \group_end:
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{\option{snap-to-grid} 拆成纵横两轴，写布尔时两轴一起设，
+%   也可以写 \texttt{\{vertical!=\ldots,horizontal!=\ldots\}} 分开设}
+% \emph{网格分两个方向。} Word 的 \texttt{docGrid} 同时定行距与字距，
+% 但一个段落要不要吃这两样是分开的：范例的正文吃字距（每字 0.4543\,bp），
+% 行距却按自然行高排（实测 19.44\,bp，不是一格 19.55\,bp）。所以这里拆成两轴。
+%
+% 写成布尔或 \texttt{auto} 是两轴的简写，两轴一起设；要分开设就写子块。
+% 两种写法都收，因为绝大多数场合两轴同进同退，为了少数场合逼所有人写子块不划算。
+%
+% \emph{横轴的 \texttt{auto} 是「跟着正文走」。} 纵轴的 \texttt{auto} 求值成假，
+% 与写 \texttt{false} 同义；横轴不一样，它取 \option{body} 那一档的横轴取值。
+% 没写 \option{char-spacing} 时这一档一个字也不发 \cs{CJKglue}，靠继承拿到
+% 正文的字距，结果一样；写了 \option{char-spacing} 就得发，发的时候网格那一截
+% 照样按正文的来，只是再加上本档的字距增减。
+%
+% \changes{v3.2a}{2026/08/16}{横轴的 \texttt{auto} 改成回查 \option{body} 的取值，
+%   从前写了 \option{char-spacing} 会把网格那一截连带关掉}
+% 从前 \texttt{auto} 是靠「不发」来实现「跟着走」的，一旦 \option{char-spacing}
+% 逼着发，网格那一截就按假算，等于悄悄关掉了网格。章标题正是这个情形：写着
+% \texttt{char-spacing = -0.4bp}，字距因此比范例窄了一整格网格余量。
+%
+% \emph{标题吃横向网格。} 范例里 \texttt{heading} 各级样式都写着
+% \texttt{snapToGrid=0}，但逐页量下来，同一页上节标题与正文的每字增量总是相同：
+% 前半那几页都是 $+0.6720$，后半那几页都是 $+0.4536$，正好是两节
+% \texttt{docGrid} 的 \texttt{charSpace} 除以 4096。章标题也跟着换档，
+% 只是每档都比正文低 $0.400$，那是它自己的 \texttt{w:spacing}。
+% 所以 \texttt{snapToGrid=0} 在那个渲染里只关掉了纵轴。
+%    \begin{macrocode}
+\clist_const:Nn \c__hit_format_axis_clist { vertical , horizontal }
+\keys_define:nn { hit / format / snap }
+  {
+    vertical .code:n =
+      { \__hit_format_bool:nn { snap-to-grid-vertical } {#1} } ,
+    vertical .default:n = { true } ,
+    horizontal .code:n =
+      { \__hit_format_bool:nn { snap-to-grid-horizontal } {#1} } ,
+    horizontal .default:n = { true } ,
+    unknown .code:n =
+      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
+  }
+\cs_new_protected:Npn \__hit_format_snap:n #1
+  {
+    \clist_if_in:nnTF { true , false , auto } {#1}
+      {
+        \clist_map_inline:Nn \c__hit_format_axis_clist
+          { \__hit_format_bool:nn { snap-to-grid-##1 } {#1} }
+      }
+      { \hit@keys@set:nn { hit / format / snap } {#1} }
+  }
+%    \end{macrocode}
+%
+% 目标族。每个目标一个键，值是属性的键值表。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_target:nn #1#2
+  {
+    \str_set:Nn \l__hit_format_target_str {#1}
+    \prop_clear:N \l__hit_format_claim_prop
+    \hit@keys@set:nn { hit / format / property } {#2}
+    \__hit_format_legacy:n {#1}
+  }
+\clist_map_inline:Nn \c__hit_format_target_clist
+  {
+    \keys_define:nn { hit / format }
+      {
+        #1 .code:n = { \__hit_format_target:nn {#1} {##1} } ,
+        #1 / if-raggedbottom .code:n =
+          { \__hit_format_layer:nnn { ragged } {#1} {##1} } ,
+        #1 / if-flushbottom .code:n =
+          { \__hit_format_layer:nnn { flush } {#1} {##1} } ,
+      }
+  }
+\keys_define:nn { hit / format }
+  {
+    heading .meta:n =
+      {
+        chapter = {#1} , section = {#1} ,
+        subsection = {#1} , subsubsection = {#1} ,
+      } ,
+    heading / if-raggedbottom .meta:n =
+      {
+        chapter/if-raggedbottom = {#1} , section/if-raggedbottom = {#1} ,
+        subsection/if-raggedbottom = {#1} ,
+        subsubsection/if-raggedbottom = {#1} ,
+      } ,
+    heading / if-flushbottom .meta:n =
+      {
+        chapter/if-flushbottom = {#1} , section/if-flushbottom = {#1} ,
+        subsection/if-flushbottom = {#1} ,
+        subsubsection/if-flushbottom = {#1} ,
+      } ,
+    caption .meta:n = { caption-figure = {#1} , caption-table = {#1} } ,
+    caption / if-raggedbottom .meta:n =
+      {
+        caption-figure/if-raggedbottom = {#1} ,
+        caption-table/if-raggedbottom = {#1} ,
+      } ,
+    caption / if-flushbottom .meta:n =
+      {
+        caption-figure/if-flushbottom = {#1} ,
+        caption-table/if-flushbottom = {#1} ,
+      } ,
+    unknown .code:n =
+      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
+  }
+%    \end{macrocode}
+%
+% 兼容桥：六条已经能接上排版的属性写回原来的标志位。整个目标设完再过一遍，
+% 因为 \option{alignment} 那两条要看最终值，中途改来改去不必每次都写。
+%
+% 六个标志位都只有学位论文类有。报告类是 \pkg{ctexart}，没有章，也没有子图题与
+% 摘要标题那两处开关，所以写回之前先看标志位在不在，不在就什么也不做，
+% 免得凭空造出一个没人读的布尔。
+%
+% \option{font-en} 与 \option{all-caps} 的标志位是全局的，所以只在伞上认。伞展开成
+% 四个层级，四次都写同一个标志位，结果一样。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_flag_set:nn #1#2
+  {
+    \bool_if_exist:cT { g__hit_#1_bool }
+      {
+        \bool_if:nTF {#2}
+          { \bool_gset_true:c  { g__hit_#1_bool } }
+          { \bool_gset_false:c { g__hit_#1_bool } }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_flag:nn #1#2
+  {
+    \__hit_format_get:VnNT \l__hit_format_target_str {#2} \l__hit_format_head_tl
+      {
+        \__hit_format_flag_set:nn {#1}
+          { \str_if_eq_p:Vn \l__hit_format_head_tl { true } }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_flag_eq:nnn #1#2#3
+  {
+    \__hit_format_get:VnNT \l__hit_format_target_str {#2} \l__hit_format_head_tl
+      {
+        \__hit_format_flag_set:nn {#1}
+          { \str_if_eq_p:Vn \l__hit_format_head_tl {#3} }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_legacy:n #1
+  {
+    \str_case:nn {#1}
+      {
+        { chapter }
+          {
+            \__hit_format_flag:nn { chapterbold } { bold }
+            \__hit_format_flag_eq:nnn { chapterhang }
+              { indent-special-mode } { hanging }
+            \__hit_format_flag_eq:nnn { heading_latin_sans } { font-en } { sans }
+          }
+        { section }       { \__hit_format_heading_latin: }
+        { subsection }    { \__hit_format_heading_latin: }
+        { subsubsection } { \__hit_format_heading_latin: }
+        { caption-figure }
+          {
+            \__hit_format_flag_eq:nnn { capcenterlast }
+              { alignment } { last-line-centered }
+          }
+        { caption-table }
+          {
+            \__hit_format_flag_eq:nnn { capcenterlast }
+              { alignment } { last-line-centered }
+          }
+        { caption-sub }
+          {
+            \__hit_format_flag_eq:nnn { subcapcenterlast }
+              { alignment } { last-line-centered }
+          }
+        { abstract-heading }
+          { \__hit_format_flag:nn { absupper } { all-caps } }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_heading_latin:
+  { \__hit_format_flag_eq:nnn { heading_latin_sans } { font-en } { sans } }
+%    \end{macrocode}
+%
+% \cs{hit@format@get:nnN}\marg{目标}\marg{键}\meta{记号列表} 取一条设置，没设过就
+% 让记号列表为空。排版那边接进来时用它。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@get:nnN #1#2#3
+  { \__hit_format_get:nnNF {#1} {#2} #3 { \tl_clear:N #3 } }
+%    \end{macrocode}
+%
+% \subsection{换算}
+%
+% \changes{v3.2a}{2026/08/13}{加 \cs{hit@format@compute:n}，把键值按 Word 的行盒
+%   模型算成 \cs{baselineskip} 与段前段后}
+% 把收下来的键算成排版参数。规则是从 Word 里量出来的，四轮对照文档、三十组、
+% 一百六十多条基线，量法与来路记在 \file{src/utils/hit-msword.dtx}。
+%
+% \emph{字体常数。} 自然行高与字号成正比，系数只跟字体有关：中易那一系
+% （宋、黑、楷、仿、隶）是字号的 1.296875 倍，华文新魏是 1.35，
+% Times~New~Roman 是 1.15。苹方是 1.82，差了四成，所以这个系数必须按字体查，
+% 不能当通用常数。1.296875 是 $332/256$，中易宋体的 \texttt{unitsPerEm} 正好
+% 是 256。这个数是拿一份逐项写死设置的 \texttt{docx} 标定出来的：九个字号各排
+% 一页、每页十几到三十几行，回归出来的行距全部落在
+% $1.25 \times 1.296875 \times 字号$ 上，最大偏差 0.008\,bp。
+%
+% \emph{上升部不是纯比例。} 是 $1.008 \times 字号 + 0.082$\,bp。同一份标定文档
+% 里换了十八个字号（9 到 60\,bp）量首行基线，每个读数有正负 0.12\,bp 的量化
+% 窗口（Word 输出坐标是 $1/300$ 英寸的整数倍），在这十八个约束下扫参数平面，
+% 「上升部 = 系数乘字号」这个模型无解——小五要求系数不超过 1.0067，小四要求
+% 不低于 1.0155。加上那个常数项就只剩唯一解，其中五个字号正好卡在窗口边界。
+%
+% 那 0.082\,bp 与「版心顶下移 0.082」在数学上不可分：段间距的算式里前后两段的
+% 常数项相消，它只在每页第一条基线上露面。这里记成上升部的一部分，是因为页首
+% 那一段落在哪由 \cs{topskip} 定，写在这里改一处就够。
+%
+% 模板一律按中易排，不问实际加载的是哪一个宋体，这样各 \option{fontset} 之间
+% 版面一致。
+%
+% \emph{纯西文的段落行距比中文小。} Word 里一行的行高取这一行\emph{实际用到}的
+% 各个字体的最大值，所以同一个设置下，有汉字的行按中易的 1.297 算，纯英文的行
+% 只有 Times 参与，按 1.15 算。范例的两份摘要就是这样：中英文摘要的段落设置相同
+% （多倍行距 1.25、不对齐到网格），中文那份量出行距 19.455\,bp，英文那份 17.25\,bp，
+% 正好是 $1.25 \times 1.297 \times 12$ 与 $1.25 \times 1.15 \times 12$。
+%
+% \hologo{LaTeX} 静态看不出一段里有没有汉字，所以要配置说一声：
+% \option{font-zh} 取 \texttt{none} 表示这一处没有中文，行高按西文字体算。
+% 英文摘要、英文目录这类地方写它。
+%
+% \emph{行盒高。} 也就是 \cs{baselineskip}。倍数写法在对齐到网格时是网格行距的
+% 倍数，关掉时是自然行高的倍数；一行装不下就往上取整到整数个格。固定值原样生效，
+% 网格与字号都不介入，比字号小也照给（字会叠）。最小值是设定值与「网格开看网格
+% 行距、网格关看自然行高」两者取大。
+%
+% \emph{基线在盒里的位置。} 对齐到网格时行盒居中，基线在盒顶下方
+% 「行盒高减自然行高的一半，再加上升部」；关掉时顶对齐，倍数多出来的量全落在基线之下，
+% 基线就在上升部处。固定值是另一套，基线在盒顶下方 0.8 倍盒高，与网格开关无关。
+%
+% \emph{段前段后。} 「行」这个单位恒指网格行距，与该段自己的行距无关，也与这一段
+% 对不对齐网格无关；磅数原样加，不吸到网格。相邻两段取段后与段前的较大者，
+% 不相加。页首的段前与页尾的段后由 \hologo{TeX} 自己在分页处丢弃，与 Word 一致。
+%
+% 折成长度以后要向下取整到整缇。Word 的 \texttt{w:beforeLines} 是百分之一行，
+% 存盘时它把「系数乘网格行距」截断成整缇写进 \texttt{w:before}：网格行距 391 缇
+% 时，1 行是 391，0.8 行 312.8 截成 312，0.5 行 195.5 截成 195。范例的
+% \texttt{docx} 里章标题写的正是
+% \texttt{before="391" after="312"}，节条标题是 195，与这条规则一致；标定文档里
+% 把同一种间距重复二十遍回归，也是这三个数。
+%    \begin{macrocode}
+\prop_const_from_keyval:Nn \c__hit_format_natural_prop
+  {
+    songti = 1.296875 , heiti = 1.296875 , kaishu = 1.296875 ,
+    fangsong = 1.296875 , lishu = 1.296875 , xinwei = 1.35 , none = 1.15 ,
+  }
+\tl_const:Nn \c__hit_format_natural_tl { 1.296875 }
+\tl_const:Nn \c__hit_format_ascent_tl { 1.008 }
+\dim_const:Nn \c__hit_format_ascent_dim { 0.082bp }
+\tl_const:Nn \c__hit_format_exact_tl { 0.8 }
+%    \end{macrocode}
+%
+% \emph{缩进。} \option{indent-special} 的三种模式折成一个带正负号的量：
+% \texttt{first-line} 为正、\texttt{hanging} 为负、\texttt{none} 为零，正好是
+% \hologo{LaTeX} 里 \cs{parindent} 与 \cs{hangindent} 的符号约定。
+% 「一字」这个单位指网格字距，与该段自己的字号无关，与「一行」指网格行距同理。
+%
+% 算出来的八个量。调用方读这几个，不直接碰存储。
+%    \begin{macrocode}
+\dim_new:N \l_hit_format_size_dim
+\dim_new:N \l_hit_format_natural_dim
+\dim_new:N \l_hit_format_lead_dim
+\dim_new:N \l_hit_format_first_dim
+\dim_new:N \l_hit_format_before_dim
+\dim_new:N \l_hit_format_before_plus_dim
+\dim_new:N \l_hit_format_after_dim
+\dim_new:N \l_hit_format_after_plus_dim
+\dim_new:N \l_hit_format_indent_dim
+\dim_new:N \l_hit_format_stretch_dim
+\dim_new:N \l_hit_format_char_spacing_dim
+\bool_new:N \l_hit_format_snap_vertical_bool
+\bool_new:N \l_hit_format_snap_horizontal_bool
+\bool_new:N \l_hit_format_hglue_set_bool
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\tl_new:N \l__hit_format_value_tl
+\tl_new:N \l__hit_format_unit_tl
+\tl_new:N \l__hit_format_value_ii_tl
+\tl_new:N \l__hit_format_unit_ii_tl
+\tl_new:N \l__hit_format_coef_tl
+\dim_new:N \l__hit_format_floor_dim
+\dim_new:N \l__hit_format_span_dim
+\cs_generate_variant:Nn \prop_get:NnNF { NVNF }
+%    \end{macrocode}
+%
+% 取一条设置，没设过就用给的默认值。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_read:nnnN #1#2#3#4
+  { \__hit_format_get:nnNF {#1} {#2} #4 { \tl_set:Nn #4 {#3} } }
+%    \end{macrocode}
+%
+% 带单位的键：\meta{值}加\meta{单位}两条。\texttt{line} 折成网格行距的倍数，
+% \texttt{chars} 折成网格字距的倍数，\texttt{white} 是视觉白，其余当长度。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_amount_use:nnN #1#2#3
+  {
+    \str_case:nnF {#1}
+      {
+        { line }
+          {
+            \dim_set:Nn #3
+              {
+                \fp_to_dim:n
+                  {
+                    floor
+                      (
+                        \dim_to_fp:n { #2 \g_hit_msword_lead_dim }
+                        / \dim_to_fp:n { 0.05bp } + 0.0001
+                      )
+                    * \dim_to_fp:n { 0.05bp }
+                  }
+              }
+          }
+        { chars } { \dim_set:Nn #3 { #2 \g_hit_msword_char_dim } }
+        { white }
+          {
+            \dim_set:Nn #3 { #2 + \l__hit_format_block_dim }
+            \dim_compare:nNnT { #3 } < { 0pt } { \dim_zero:N #3 }
+          }
+      }
+      { \dim_set:Nn #3 {#2} }
+  }
+\cs_generate_variant:Nn \__hit_format_amount_use:nnN { VVN }
+%    \end{macrocode}
+%
+% 四条一起读出来：\option{space-before} 这个槽还要收区间，第二个端点没写就是空的。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_amount_read:nn #1#2
+  {
+    \__hit_format_read:nnnN {#1} {#2} { 0pt } \l__hit_format_value_tl
+    \__hit_format_read:nnnN {#1} { #2 -unit } { length } \l__hit_format_unit_tl
+    \__hit_format_read:nnnN {#1} { #2 -2 } { } \l__hit_format_value_ii_tl
+    \__hit_format_read:nnnN {#1} { #2 -2-unit } { } \l__hit_format_unit_ii_tl
+  }
+\cs_new_protected:Npn \__hit_format_amount_pick:nnN #1#2#3
+  {
+    \__hit_format_amount_read:nn {#1} {#2}
+    \__hit_format_amount_use:VVN \l__hit_format_unit_tl
+      \l__hit_format_value_tl #3
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{块白换算成段前段后，四处间距逐个量过}
+% \emph{\cs{\_\_hit\_format\_block:n}。}
+% \emph{块白。} \option{white-before} 与 \option{white-after} 量的是上下两块之间
+% 那条看得见的空白：上一块末行的墨迹底，到下一块首行的墨迹顶。段前段后是
+% \hologo{TeX} 那边的量，两者之间隔着两块的行盒，所以要换。
+%
+% 量出来的关系是（\file{testfiles/61-format-white-skip.lvt} 逐条对着）
+% \begin{quote}
+%   块间基线距 = max（正文行距，上块深度 + 下块上升部）+ 段前段后
+% \end{quote}
+% 上块深度是上块行距减上块上升部，上升部用的是排版这一头的
+% $1.008 \times 字号 + 0.082$\,bp，不是墨迹那一头。
+%
+% 里头那个 \texttt{max} 是 \hologo{TeX} 的行间胶：两块的行盒接起来还不够正文
+% 的 \cs{baselineskip} 高时，它把差额补上。标题的行盒一般比正文高，补不上，
+% 所以多数时候取的是后一项；款、项标题的行距比正文小，它的下距就要扣掉这一段。
+% 定行间胶的是外层那个 \cs{baselineskip}，也就是正文的，不是标题自己的——
+% 节标题上距那一处量出来是 22.477\,bp 而不是节标题行距 24.316\,bp，就是这个缘故。
+%
+% 视觉白与基线距差两块的墨迹：
+% \begin{quote}
+%   视觉白 = 块间基线距 − 0.0927 × 上块字号 − 0.8123 × 下块字号
+% \end{quote}
+% 0.8123 与 0.0927 是中易宋体全字符集 20992 个汉字的墨迹上伸与下伸的实测平均，
+% 两个加起来是前面那个 0.9050。行内的白只跟一个字号有关，所以那里用合数；
+% 块间的上下两块字号不同，得拆开。
+%
+% 两式相减，段前段后就是视觉白加上下两块各自的一项：上块那一项是
+% （0.0927 + 1.008）× 上块字号 + 0.082\,bp − 上块行距，下块那一项是
+% （0.8123 − 1.008）× 下块字号 − 0.082\,bp。
+% 上块与下块是谁看方向：\option{white-before} 的上块是正文、下块是这个元素，
+% \option{white-after} 反过来。正文的字号与行距取 \cs{g\_hit\_body\_size\_dim}
+% 与 \cs{g\_hit\_body\_lead\_dim}，\cs{hit@format@apply@body:} 先跑，所以标题
+% 这边读得到。
+%
+% 相邻两级标题（章下面紧接着节）的上块不是正文，这一档不管，按正文算。
+%
+% 章标题总是另起一页，上面没有块，参照物换成版心顶：那一档的上块两项全归零，
+% 量出来基线正好落在版心顶下方一个上升部处。
+%
+% 换出来是负的就取零。\hologo{LaTeX} 的 \cs{@startsection} 把负的段前读成
+% 「后一段不缩进」、把负的段后读成「标题与正文串行」，都不是「往上挪一点」的
+% 意思，发过去会改掉排版而不是改掉间距。要的白比两块行盒自带的还窄时，只能
+% 就着行盒，那点差在零点几毫米上。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_format_ink_ascent_tl { 0.8123 }
+\tl_const:Nn \c__hit_format_ink_descent_tl { 0.0927 }
+\clist_const:Nn \c__hit_format_pagetop_clist { chapter }
+\dim_new:N \l__hit_format_block_dim
+\dim_new:N \l__hit_format_base_dim
+\cs_new_protected:Npn \__hit_format_block_up:nn #1#2
+  {
+    \dim_add:Nn \l__hit_format_block_dim { \c__hit_format_ink_descent_tl #1 }
+    \dim_add:Nn \l__hit_format_base_dim
+      { #2 - \c__hit_format_ascent_tl #1 - \c__hit_format_ascent_dim }
+  }
+\cs_new_protected:Npn \__hit_format_block_down:n #1
+  {
+    \dim_add:Nn \l__hit_format_block_dim { \c__hit_format_ink_ascent_tl #1 }
+    \dim_add:Nn \l__hit_format_base_dim
+      { \c__hit_format_ascent_tl #1 + \c__hit_format_ascent_dim }
+  }
+\cs_new_protected:Npn \__hit_format_block_lead:
+  {
+    \dim_compare:nNnT { \l__hit_format_base_dim } < { \g_hit_body_lead_dim }
+      { \dim_set_eq:NN \l__hit_format_base_dim \g_hit_body_lead_dim }
+  }
+\cs_new_protected:Npn \__hit_format_block:nn #1#2
+  {
+    \dim_zero:N \l__hit_format_block_dim
+    \dim_zero:N \l__hit_format_base_dim
+    \str_if_eq:nnTF {#2} { before }
+      {
+        \clist_if_in:NnTF \c__hit_format_pagetop_clist {#1}
+          { \__hit_format_block_down:n { \l_hit_format_size_dim } }
+          {
+            \__hit_format_block_up:nn
+              { \g_hit_body_size_dim } { \g_hit_body_lead_dim }
+            \__hit_format_block_down:n { \l_hit_format_size_dim }
+            \__hit_format_block_lead:
+          }
+      }
+      {
+        \__hit_format_block_up:nn
+          { \l_hit_format_size_dim } { \l_hit_format_lead_dim }
+        \__hit_format_block_down:n { \g_hit_body_size_dim }
+        \__hit_format_block_lead:
+      }
+    \dim_sub:Nn \l__hit_format_block_dim { \l__hit_format_base_dim }
+  }
+%    \end{macrocode}
+%
+%
+% 段前段后也收区间：写作指南 3.8 节给节标题的是 7\,--\,8\,mm，条标题
+% 6\,--\,7\,mm。小端做自然值，大端减小端做伸量，与行距那边同一个规矩。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_space_get:nnnNN #1#2#3#4#5
+  {
+    \__hit_format_amount_read:nn {#1} {#2}
+    \__hit_format_block:nn {#1} {#3}
+    \__hit_format_amount_use:VVN \l__hit_format_unit_tl
+      \l__hit_format_value_tl #4
+    \dim_zero:N #5
+    \tl_if_empty:NF \l__hit_format_value_ii_tl
+      {
+        \__hit_format_amount_use:VVN \l__hit_format_unit_ii_tl
+          \l__hit_format_value_ii_tl \l__hit_format_span_dim
+        \dim_compare:nNnT { \l__hit_format_span_dim } < { #4 }
+          {
+            \dim_set_eq:NN \l__hit_format_floor_dim #4
+            \dim_set_eq:NN #4 \l__hit_format_span_dim
+            \dim_set_eq:NN \l__hit_format_span_dim \l__hit_format_floor_dim
+          }
+        \dim_set:Nn #5 { \l__hit_format_span_dim - #4 }
+      }
+  }
+%    \end{macrocode}
+%
+% 首行缩进与悬挂缩进是同一个量的两个方向，算完折成一个带符号的长度。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_indent:n #1
+  {
+    \__hit_format_read:nnnN {#1} { indent-special-mode } { none }
+      \l__hit_format_coef_tl
+    \str_if_eq:VnTF \l__hit_format_coef_tl { none }
+      { \dim_zero:N \l_hit_format_indent_dim }
+      {
+        \__hit_format_amount_pick:nnN {#1} { indent-special }
+          \l_hit_format_indent_dim
+        \str_if_eq:VnT \l__hit_format_coef_tl { hanging }
+          { \dim_set:Nn \l_hit_format_indent_dim { - \l_hit_format_indent_dim } }
+      }
+  }
+%    \end{macrocode}
+%
+% \cs{hit@format@compute:n}\marg{目标} 把上面那几个量算出来。
+%
+% 网格行距为零说明没走过 \cs{hit@msword@layout:n}，那时候不存在网格，
+% \option{snap-to-grid} 勾了也没有可对齐的东西，按关掉算。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@compute:n #1
+  {
+    \__hit_format_read:nnnN {#1} { size } { } \l__hit_format_value_tl
+    \tl_if_empty:NTF \l__hit_format_value_tl
+      { \dim_set:Nn \l_hit_format_size_dim { \f@size pt } }
+      { \dim_set:Nn \l_hit_format_size_dim { \l__hit_format_value_tl } }
+    \__hit_format_read:nnnN {#1} { font-zh } { songti } \l__hit_format_value_tl
+    \prop_get:NVNF \c__hit_format_natural_prop \l__hit_format_value_tl
+      \l__hit_format_coef_tl { \tl_set_eq:NN \l__hit_format_coef_tl
+        \c__hit_format_natural_tl }
+    \dim_set:Nn \l_hit_format_natural_dim
+      { \l__hit_format_coef_tl \l_hit_format_size_dim }
+    \__hit_format_read:nnnN {#1} { snap-to-grid-vertical } { false }
+      \l__hit_format_value_tl
+    \bool_set:Nn \l_hit_format_snap_vertical_bool
+      {
+        \str_if_eq_p:Vn \l__hit_format_value_tl { true }
+        && ! \dim_compare_p:nNn { \g_hit_msword_lead_dim } = { 0pt }
+      }
+    \__hit_format_read:nnnN {#1} { snap-to-grid-horizontal } { auto }
+      \l__hit_format_value_tl
+    \bool_set:Nn \l_hit_format_hglue_set_bool
+      { ! \str_if_eq_p:Vn \l__hit_format_value_tl { auto } }
+    \str_if_eq:VnT \l__hit_format_value_tl { auto }
+      {
+        \__hit_format_read:nnnN { body } { snap-to-grid-horizontal } { false }
+          \l__hit_format_value_tl
+      }
+    \bool_set:Nn \l_hit_format_snap_horizontal_bool
+      {
+        \str_if_eq_p:Vn \l__hit_format_value_tl { true }
+        && ! \dim_compare_p:nNn { \g_hit_msword_char_dim } = { 0pt }
+      }
+    \__hit_format_read:nnnN {#1} { char-spacing } { auto } \l__hit_format_value_tl
+    \str_if_eq:VnTF \l__hit_format_value_tl { auto }
+      { \dim_zero:N \l_hit_format_char_spacing_dim }
+      {
+        \dim_set:Nn \l_hit_format_char_spacing_dim { \l__hit_format_value_tl }
+        \bool_set_true:N \l_hit_format_hglue_set_bool
+      }
+    \__hit_format_read:nnnN {#1} { line-spacing } { 1 } \l__hit_format_value_tl
+    \__hit_format_read:nnnN {#1} { line-spacing-unit } { multiple }
+      \l__hit_format_unit_tl
+    \__hit_format_read:nnnN {#1} { line-spacing-2 } { } \l__hit_format_value_ii_tl
+    \__hit_format_read:nnnN {#1} { line-spacing-2-unit } { }
+      \l__hit_format_unit_ii_tl
+    \__hit_format_lead:
+    \__hit_format_space_get:nnnNN {#1} { space-before } { before }
+      \l_hit_format_before_dim \l_hit_format_before_plus_dim
+    \__hit_format_space_get:nnnNN {#1} { space-after } { after }
+      \l_hit_format_after_dim \l_hit_format_after_plus_dim
+    \__hit_format_indent:n {#1}
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{行距的两个端点在算的时候才折成长度，一头长度一头
+%   倍数也能比大小；区间的下端做自然值，上端减下端做伸量}
+% 一个端点折成一段基线距。倍数没有单位，光看写下来的字不知道是多长，所以端点
+% 一直存着原样，到这里才折——字号、自然行高、网格行距这时候才齐。
+%
+% \emph{视觉白折基线距。} 写作指南 3.8 节给的全是视觉白，也就是两行之间那条
+% 看得见的空白：正文与款、项标题 3\,--\,4\,mm，条标题 6\,--\,7\,mm。它与基线距
+% 差一个字面高，中易宋体全字符集 20992 个汉字的墨迹高度实测平均 0.9050 em
+% （中位数 0.9102），所以
+% \begin{quote}
+%   基线距 = 视觉白 + 0.9050 × 字号
+% \end{quote}
+%
+% 键名里是 \texttt{white} 不是 \texttt{gap}，这一条不要改回去。OpenType 的
+% \texttt{hhea.lineGap} 与 OS/2 的 \texttt{sTypoLineGap} 早就占了后一个词，
+% 定义是基线距减去 ascent 加 descent，量的是 em 框而不是墨迹。中易宋体的
+% ascent 是 220/256、descent 是 −36/256，加起来正好 1.0 em，所以同一行
+% 12\,bp 正文、基线距 19.453\,bp，按字体度量算是 7.45\,bp（2.63\,mm），
+% 按这里的墨迹算是 8.59\,bp（3.03\,mm）。差 0.4\,mm，而规范给的区间总共
+% 才 1\,mm 宽，够让人按错的定义去核对，然后得出不合规的结论。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_format_ink_tl { 0.9050 }
+\cs_new_protected:Npn \__hit_format_endpoint:nnN #1#2#3
+  {
+    \str_case:nnF {#1}
+      {
+        { multiple } { \__hit_format_multiple:nN {#2} #3 }
+        { white }
+          {
+            \dim_set:Nn #3
+              { #2 + \c__hit_format_ink_tl \l_hit_format_size_dim }
+          }
+        { at-least }
+          {
+            \dim_set:Nn #3 {#2}
+            \dim_set:Nn \l__hit_format_floor_dim
+              { \bool_if:NTF \l_hit_format_snap_vertical_bool
+                  { \g_hit_msword_lead_dim } { \l_hit_format_natural_dim } }
+            \dim_compare:nNnT { #3 } < { \l__hit_format_floor_dim }
+              { \dim_set_eq:NN #3 \l__hit_format_floor_dim }
+          }
+      }
+      { \dim_set:Nn #3 {#2} }
+  }
+\cs_generate_variant:Nn \__hit_format_endpoint:nnN { VVN }
+%    \end{macrocode}
+%
+% 倍数写法。对齐到网格时是网格行距的倍数，装不下就往上取整到整数个格；
+% 关掉时是自然行高的倍数。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_multiple:nN #1#2
+  {
+    \bool_if:NTF \l_hit_format_snap_vertical_bool
+      {
+        \dim_set:Nn #2 { #1 \g_hit_msword_lead_dim }
+        \dim_set:Nn \l__hit_format_floor_dim
+          {
+            \fp_to_decimal:n
+              {
+                ceil
+                  (
+                    \dim_to_decimal:n { \l_hit_format_natural_dim }
+                    / \dim_to_decimal:n { \g_hit_msword_lead_dim }
+                  )
+              }
+            \g_hit_msword_lead_dim
+          }
+        \dim_compare:nNnT { #2 } < { \l__hit_format_floor_dim }
+          { \dim_set_eq:NN #2 \l__hit_format_floor_dim }
+      }
+      { \dim_set:Nn #2 { #1 \l_hit_format_natural_dim } }
+  }
+%    \end{macrocode}
+%
+% 行盒高与基线落点。
+%
+% 只写一个端点是刚性。写两个就是区间，两端各折一次，小的做自然值，大的减小的
+% 做伸量。自然值取小端有实测撑着：范例正文是多倍 1.25、基线距 19.453\,bp，
+% 减去 0.9050 × 12 得视觉白 3.03\,mm，正好压在 3\,--\,4\,mm 这个区间的下端。
+% 缩量恒为零，跟着这个选择走——低于小端就出了规范。
+%
+% 端点不分先后，谁大谁小到这里才知道：\texttt{3mm~2} 这种一头长度一头倍数的
+% 写法，解析的时候没有字号，比不了。
+%
+% 基线落点看第一个端点的模式：\texttt{exactly} 是 Word 的固定值，基线在盒顶
+% 下方 0.8 倍盒高，与网格开关无关；其余三种走 \cs{\_\_hit\_format\_first:}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_lead:
+  {
+    \__hit_format_endpoint:VVN \l__hit_format_unit_tl \l__hit_format_value_tl
+      \l_hit_format_lead_dim
+    \dim_zero:N \l_hit_format_stretch_dim
+    \tl_if_empty:NF \l__hit_format_value_ii_tl
+      {
+        \__hit_format_endpoint:VVN \l__hit_format_unit_ii_tl
+          \l__hit_format_value_ii_tl \l__hit_format_span_dim
+        \dim_compare:nNnT
+          { \l__hit_format_span_dim } < { \l_hit_format_lead_dim }
+          {
+            \dim_set_eq:NN \l__hit_format_floor_dim \l_hit_format_lead_dim
+            \dim_set_eq:NN \l_hit_format_lead_dim \l__hit_format_span_dim
+            \dim_set_eq:NN \l__hit_format_span_dim \l__hit_format_floor_dim
+          }
+        \dim_set:Nn \l_hit_format_stretch_dim
+          { \l__hit_format_span_dim - \l_hit_format_lead_dim }
+      }
+    \str_if_eq:VnTF \l__hit_format_unit_tl { exactly }
+      {
+        \dim_set:Nn \l_hit_format_first_dim
+          { \c__hit_format_exact_tl \l_hit_format_lead_dim }
+      }
+      { \__hit_format_first: }
+  }
+%    \end{macrocode}
+%
+% 基线落点：对齐到网格时行盒居中，关掉时顶对齐。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_first:
+  {
+    \dim_set:Nn \l_hit_format_first_dim
+      { \c__hit_format_ascent_tl \l_hit_format_size_dim
+        + \c__hit_format_ascent_dim }
+    \bool_if:NT \l_hit_format_snap_vertical_bool
+      {
+        \dim_add:Nn \l_hit_format_first_dim
+          {
+            0.5 \l_hit_format_lead_dim - 0.5 \l_hit_format_natural_dim
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{接到标题上}
+%
+% \changes{v3.2a}{2026/08/13}{加 \cs{hit@format@apply@heading:n}，把算出来的量
+%   发给 \cs{ctexset}}
+% 四级标题由 \pkg{ctex} 排，所以算完之后发一条 \cs{ctexset} 过去。字体字号行距用
+% \texttt{format+=} 追加，不覆盖：各个类原有的 \texttt{format} 里还有居中、
+% 编号后的间距这些东西，整条换掉会连它们一起丢。
+%
+% 只发用户真写过的键。一个目标一条键都没设过就整条不发，所以没人写
+% \texttt{format} 时生成物与从前逐字节相同。
+%
+% 时机是 \cs{AfterPreamble}：\cs{hitsetup} 可以写在导言区任何位置，早于它发就读不到。
+%    \begin{macrocode}
+\tl_new:N \l__hit_format_out_tl
+\tl_new:N \l__hit_format_keys_tl
+\prop_const_from_keyval:Nn \c__hit_format_align_prop
+  {
+    left = \raggedright , centered = \centering ,
+    right = \raggedleft , last-line-centered = \centering ,
+  }
+\prop_const_from_keyval:Nn \c__hit_format_latin_prop
+  { serif = \rmfamily , sans = \sffamily , mono = \ttfamily }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/14}{加 \cs{hit@format@strut:}，把每一行的行盒撑成
+%   Word 的高度}
+% \cs{hit@format@strut:} 是一根零宽的撑杆，把它所在那一行的行盒撑成 Word 的尺寸。
+%
+% Word 的行盒高度由字体的上升部与下降部定，与这一行实际写了什么字无关；
+% \hologo{TeX} 的行高是这一行各个字形外框的最大值。汉字的字形外框比字体的上升部
+% 矮一截，小二黑体差 3.4\,bp，小四宋体差 2.3\,bp。段内看不出来——段内的行距由
+% \cs{baselineskip} 定死——差别全落在段与段的接缝上：
+% \hologo{TeX} 那里两段之间是「上段末行的深度加间距加下段首行的高度」，
+% 三项里有两项是字形量出来的，比 Word 的窄。页首那一行也一样，
+% \cs{topskip} 拦不住比它高的行。
+%
+% \changes{v3.2a}{2026/08/14}{撑杆认对齐网格：行盒高取 \cs{baselineskip} 与自然
+%   行高的较大者，基线落点按对齐与否分两支}
+% 撑杆按当时的字号与 \cs{baselineskip} 现算，一根走遍正文、标题、页眉：
+% \begin{itemize}
+% \item 自然行高 $H = 1.297$ 倍字号，上升部 $A = 1.0156$ 倍字号；
+% \item 行盒高 $L$ 取 \cs{baselineskip} 与 $H$ 的较大者。取大这一步是为页眉设的：
+%   页眉那一行的 \cs{baselineskip} 是零，光看它撑出来的盒子没有深度，
+%   页眉横线会整块上移 2\,bp；
+% \item 基线在盒里的落点，不对齐网格时是 $A$（顶对齐），对齐时是
+%   $(L-H)/2+A$（居中）。这一支由 \cs{l\_hit\_format\_line\_snap\_bool} 决定，
+%   正文的取值由 \cs{hit@format@apply@body:} 全局设好，标题在自己的
+%   \option{format} 里临时改，出了标题那个组就复原。
+% \end{itemize}
+%
+% 改这个标志位的是两个不带参数的命令 \cs{hit@format@snap@true:} 与
+% \cs{hit@format@snap@false:}，不是一个收真假值的命令。收值那种写法要在标题
+% 排版的当口解析一个布尔表达式，而那时候 \pkg{expl3} 的 catcode 已经关了，
+% 解析器读不出 \cs{\_\_bool\_f\_0:} 这类内部名字，报 \texttt{Missing number}。
+%
+% 自然行高一律按中易那一系的 1.297 算，不查 \option{font-zh}。纯西文的段落
+% 因此会比 Word 宽一点点，英文摘要与英文目录受影响，先记着。
+%
+% 字号要先落进一个长度再乘系数。\cs{f@size} 是个数字串不是长度寄存器，
+% \texttt{1.0156\cs{f@size}pt} 在 \cs{dimexpr} 里读成两个数并排，报
+% \texttt{Illegal unit of measure}。
+%    \begin{macrocode}
+\bool_new:N \l_hit_format_line_snap_bool
+\dim_new:N \l__hit_format_strut_dim
+\dim_new:N \l__hit_format_nat_dim
+\dim_new:N \l__hit_format_box_dim
+\dim_new:N \l__hit_format_asc_dim
+\cs_new_protected:Npn \hit@format@snap@true:
+  { \bool_set_true:N \l_hit_format_line_snap_bool }
+\cs_new_protected:Npn \hit@format@snap@false:
+  { \bool_set_false:N \l_hit_format_line_snap_bool }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{加 \cs{hit@format@hglue:nn}，横轴的两道胶按元素发}
+% 横轴的两道胶。\cs{CJKglue} 是汉字之间的空隙，\cs{CJKecglue} 是汉字与西文之间的。
+% 从前这两道只在 \cs{hit@format@apply@body:} 里全局设一次，标题跟着吃了正文的
+% 字距；Word 那边三级标题写着 \texttt{snapToGrid=0}，不吃。所以改成按元素发，
+% 发的位置是 \cs{\_\_hit\_format\_build:n} 拼的那串排版命令，被 \pkg{ctex} 限制
+% 在该级标题里。
+%
+% \changes{v3.2a}{2026/08/16}{字距胶的伸量从 0.08 降到 0.01\cs{baselineskip}}
+% \emph{伸量给多少。} \pkg{xeCJK} 原样给 0.08\cs{baselineskip}，一行 33 缝合计
+% 约 51\,bp，两端对齐时行就靠拉汉字间距填满。Word 不这样：网格是刚的，填行靠压
+% 本行的标点，汉字之间纹丝不动。范例声明页那种整行 34 字自然宽 423.01\,bp、
+% 行尾离版心还差 2.2\,bp，就是没拉伸的样子。
+%
+% 伸量太大会少装字：\hologo{TeX} 断行取全局最优，拉伸比压缩便宜得多，于是宁可
+% 少放一个字去把行拉开。伸量为零又会走到另一头：\pkg{xeCJK} 自带的标点压缩被
+% 全逼出来，实测有标点被压到 5.98\,bp 以下，比 Word 的下限半格还窄，行里因此
+% 多塞进本不该有的字。
+%
+% 取 0.01：每缝约 0.195\,bp，一行合计 6.4\,bp，也就是一行最多靠拉伸吸收半格，
+% 再多就该另起一行。demo 实测 1018 处标点里只剩 1 处压过半格，页数 58。
+% 0.02 与 0.04 都太松，该并回本行的字并不回来。
+%
+% \changes{v3.2a}{2026/08/16}{同时设 \pkg{ctex} 的 \cs{l\_\_ctex\_ccglue\_skip}，
+%   \TeX~Live 2025 上光设 \cs{CJKglue} 会被 \pkg{ctex} 盖掉}
+% \emph{两处都设。} \pkg{ctex} 的 \cs{CJKglue} 是
+% \cs{skip\_horizontal:N} \cs{l\_\_ctex\_ccglue\_skip}，它在字号变化时由
+% \cs{\_\_ctex\_update\_stretch\_auxi:} 重设，重设前先问
+% \cs{ctex\_if\_ccglue\_touched:}——这个判断比的是 \cs{CJKglue} 与
+% \cs{\_\_ctex\_ccglue:} 的 meaning。\TeX~Live 2026 的
+% \cs{ctex\_update\_ccglue:} 会把 \cs{\_\_ctex\_ccglue:} 同步过去，判断准；
+% 2025 的不同步，判断不准，于是我们设的定义在 \cs{begin\{document\}} 里被盖回
+% \pkg{ctex} 自己那份。实测 2025 下整篇字距都是裸字号，字符网格等于没开。
+%
+% 定义与寄存器一起设，\pkg{ctex} 那份定义读的就是这个寄存器，谁赢都是同一个值。
+% \cs{CJKecglue} 没有对应的 \pkg{ctex} 寄存器，它走 \pkg{xeCJK}，不受影响。
+%
+% 试过再把比对基准 \cs{\_\_ctex\_ccglue:} 一并换掉，好让
+% \cs{ctex\_if\_ccglue\_touched:} 一律答「改过了」。不行：\TeX~Live 2025 仍是
+% 裸字号，2026 反而从 12.6720 变成 12.7320。记在这里省得重来。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_format_ccstretch_tl { 0.02 }
+\tl_const:Nn \c__hit_format_ecstretch_tl { 0.08 }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/18}{西文标点与乘除号并入半角标点类，旁边不发中西文胶}
+% \emph{中西文胶只该发给字母和数字。} 1--5 页版实测 \texttt{即→×} 是 12.32、
+% \texttt{“→,} 是 12.35、\texttt{汉→,} 约一格——Word 的中西文空隙只加在汉字与
+% 字母数字之间，西文标点、乘除号这类符号旁没有。按字符豁免不走窥探（试过：
+% \cs{CJKecglue} 的调用点后面时常跟着 \cs{scan\_stop:} 或 \pkg{xeCJK} 的内部宏，
+% \cs{peek\_after:Nw} 读不到真字符），走字符类：这些字符声明进 \pkg{xeCJK}
+% 本来就为半角标点准备的 \texttt{HalfLeft}/\texttt{HalfRight} 类，与
+% \texttt{Default} 拆开之后，边界规则在 \cs{hit@format@punct@grid:} 里按类各配。
+%    \begin{macrocode}
+\dim_new:N \l__hit_format_ecglue_dim
+\cs_new_protected:Npn \__hit_format_ecglue_emit:
+  {
+    \hskip \l__hit_format_ecglue_dim
+      \@plus \c__hit_format_ecstretch_tl \baselineskip
+  }
+\cs_new_protected:Npn \hit@format@hglue:nn #1#2
+  {
+    \cs_set:Npx \CJKglue
+      {
+        \exp_not:N \hskip \dim_eval:n {#1}
+        \exp_not:N \@plus \c__hit_format_ccstretch_tl \exp_not:N \baselineskip
+      }
+    \cs_if_exist:NT \l__ctex_ccglue_skip
+      { \skip_set:Nn \l__ctex_ccglue_skip { \dim_eval:n {#1} } }
+    \dim_set:Nn \l__hit_format_ecglue_dim { \dim_eval:n {#2} }
+    \cs_set_eq:NN \CJKecglue \__hit_format_ecglue_emit:
+  }
+\cs_new_protected:Npn \hit@format@strut:
+  {
+    \leavevmode
+    \dim_set:Nn \l__hit_format_strut_dim { \f@size pt }
+    \dim_set:Nn \l__hit_format_nat_dim
+      { \c__hit_format_natural_tl \l__hit_format_strut_dim }
+    \dim_set:Nn \l__hit_format_box_dim
+      { \dim_max:nn { \baselineskip } { \l__hit_format_nat_dim } }
+    \dim_set:Nn \l__hit_format_asc_dim
+      { \c__hit_format_ascent_tl \l__hit_format_strut_dim
+        + \c__hit_format_ascent_dim }
+    \bool_if:NT \l_hit_format_line_snap_bool
+      {
+        \dim_add:Nn \l__hit_format_asc_dim
+          { 0.5 \l__hit_format_box_dim - 0.5 \l__hit_format_nat_dim }
+      }
+    \vrule ~ width ~ \c_zero_dim
+      ~ height ~ \l__hit_format_asc_dim
+      ~ depth ~ \dim_eval:n
+          { \l__hit_format_box_dim - \l__hit_format_asc_dim }
+    \scan_stop:
+  }
+%    \end{macrocode}
+%
+% 把字体、字号、行距、加粗、对齐拼成一串排版命令。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{\option{format} 接管标题时改成覆盖，不再追加}
+% 标题的格式是\emph{覆盖}旧的 \cs{ctexset}，不是追加。追加的话新版面算出来的
+% 格式后面还跟着旧版面那一串，旧的写了什么就甩不掉——本科章标题的
+% \cs{bfseries} 就是这么漏过来的：新版面的 \option{format} 里没写
+% \option{bold}，排出来却还是粗的。
+%
+% 覆盖之后旧版面与新版面彻底分家：旧的那套 \cs{ctexset} 只在 \option{v2-layout}
+% 下生效，新版面这边字体、字号、行距、对齐、字重、段前段后全从 \option{format}
+% 算，一处说了算。旧版面那一档迟早要废，废的时候删掉即可，不牵连这边。
+%
+% 有两样旧格式里有、这边有意不要的。
+%
+% \emph{一是行距的伸缩量。} 旧版面各级标题的行距经 \cs{hit@glue@font@size}
+% 发出来是 \texttt{21bp~plus~1.677267bp~minus~1.157391bp} 这种可伸缩的值，
+% 由 \option{style}/\option{glue} 控制。Word 的行距是刚性的，新版面照 Word
+% 建模，所以这边只发 \cs{fontsize}\marg{字号}\marg{行距}，没有伸缩量，
+% \option{format} 族也不打算加表达伸缩的键。这是有意的，不是漏了。
+%
+% \emph{二是各级标题的 \cs{bfseries}。} 旧格式里章、节、条都带着它，
+% 新版面一律不加粗——黑体本身够重，规范也没要求。要加粗就在
+% \option{format} 里写 \option{bold}\texttt{=true}，一处说了算。
+%
+% 覆盖就得把旧格式里\emph{该有}的补齐。旧的 \cs{hit@title@font} 是「西文无衬线开着就
+% \cs{sffamily}，否则 \cs{heiti}」，这边 \option{font-zh} 已经发了 \cs{heiti}，
+% 再补一个无衬线的条件——两个一起发是对的，汉字用黑体、西文用无衬线，
+% 与目录条目那边的 \cs{hit@chapter@entry@font} 同一个写法。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{\cs{hit@format@latin@sans:} 只发给四级标题}
+% 这一句是 \option{heading}/\option{font-en}\texttt{=sans} 那个兼容桥，读的标志位
+% 是标题专用的。从前 \cs{\_\_hit\_format\_build:n} 无条件发，四级标题之外的目标
+% 也会跟着变西文字体；页眉页脚进了 \option{format} 之后这一条就会串味，所以限制到
+% 四级标题。
+%    \begin{macrocode}
+\cs_new:Npn \hit@format@latin@sans:
+  { \bool_if:NT \g__hit_heading_latin_sans_bool { \sffamily } }
+\cs_new_protected:Npn \__hit_format_build:n #1
+  {
+    \tl_clear:N \l__hit_format_out_tl
+    \__hit_format_read:nnnN {#1} { font-zh } { } \l__hit_format_value_tl
+    \bool_lazy_and:nnT
+      { ! \tl_if_empty_p:N \l__hit_format_value_tl }
+      { ! \str_if_eq_p:Vn \l__hit_format_value_tl { none } }
+      {
+        \tl_put_right:Nx \l__hit_format_out_tl
+          { \exp_not:c { \l__hit_format_value_tl } }
+      }
+    \clist_if_in:nnT { chapter , section , subsection , subsubsection } {#1}
+      { \tl_put_right:Nn \l__hit_format_out_tl { \hit@format@latin@sans: } }
+    \__hit_format_pick:nnN {#1} { font-en } \c__hit_format_latin_prop
+    \__hit_format_read:nnnN {#1} { size } { } \l__hit_format_value_tl
+    \tl_if_empty:NF \l__hit_format_value_tl
+      {
+        \tl_put_right:Nx \l__hit_format_out_tl
+          {
+            \exp_not:N \fontsize
+              { \dim_use:N \l_hit_format_size_dim }
+              { \dim_use:N \l_hit_format_lead_dim }
+            \exp_not:N \selectfont
+          }
+      }
+    \__hit_format_read:nnnN {#1} { bold } { false } \l__hit_format_value_tl
+    \str_if_eq:VnT \l__hit_format_value_tl { true }
+      { \tl_put_right:Nn \l__hit_format_out_tl { \bfseries } }
+    \__hit_format_pick:nnN {#1} { alignment } \c__hit_format_align_prop
+    \tl_put_right:Nx \l__hit_format_out_tl
+      {
+        \exp_not:c
+          {
+            hit@format@snap@
+            \bool_if:NTF \l_hit_format_snap_vertical_bool { true } { false } :
+          }
+        \bool_if:NT \l_hit_format_hglue_set_bool
+          {
+            \exp_not:N \hit@format@hglue:nn
+              { \dim_eval:n { \__hit_format_hglue_cc: } }
+              { \dim_eval:n { \__hit_format_hglue_ec: } }
+          }
+        \exp_not:N \hit@format@strut:
+      }
+  }
+%    \end{macrocode}
+%
+% 两道胶的取值。\cs{CJKglue} 是汉字之间的：吃网格就取网格那一份，不吃就取零，
+% 再加上 \option{char-spacing}。两项相加是 Word 的算法，\texttt{docGrid} 的字距被
+% \texttt{snapToGrid=0} 关掉，run 上的 \texttt{w:spacing} 照样生效，
+% 章标题正是这个情形（\texttt{snapToGrid=0} 且 \texttt{w:spacing=-4}）。
+%
+% \cs{CJKecglue} 是汉字与西文之间的，它是两截相加：网格那一份，加上 Word 的
+% 「自动调整中文与西文的间距」那一份（\texttt{w:autoSpaceDE}/\texttt{DN}，
+% \cs{g\_hit\_msword\_ecglue\_dim} 里算好的 0.225 格）。关掉网格只该去掉前一截，
+% 后一截跟网格无关，去掉了中西文之间就一点空隙都没有了。
+%
+% \changes{v3.2a}{2026/08/18}{中西文间距那一截由 0.261 改 0.246：按 1--5 页版
+%   汉字接数字实测 15.52 反推}
+% 0.246 由 1--5 页版反推：\texttt{汉→数字} 松行实测 15.52，减掉一整格 12.4543
+% 得 3.07，除以格宽即 0.246。旧值 0.261 是按伪影文档定的，总步进会到 15.70，
+% 宽 0.18。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_format_ecglue_tl { 0.246 }
+\dim_new:N \g_hit_msword_slack_dim
+\cs_new:Npn \__hit_format_grid_glue:
+  { \g_hit_msword_char_dim - \g_hit_body_size_dim }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{网格余量的算法从 \file{src/utils/hit-msword.dtx}
+%   挪过来，字号取当前元素的}
+% 整数格除不尽的那点余量。一行放得下 $n$ 个格（\cs{g\_hit\_msword\_cells\_int}，
+% 只跟版心宽与字距有关，由版面那层算），$n$ 个字连着排占 $n$ 个字号加 $n-1$ 段
+% 字距胶，版心宽减掉它就是余量。字号是元素的量，所以算法在这一层。
+%    \begin{macrocode}
+\int_new:N \l__hit_format_gaps_int
+\dim_new:N \l__hit_format_glue_dim
+\cs_new_protected:Npn \hit@format@slack:
+  {
+    \dim_set:Nn \l__hit_format_glue_dim { \__hit_format_grid_glue: }
+    \int_set:Nn \l__hit_format_gaps_int { \g_hit_msword_cells_int - 1 }
+    \dim_gset:Nn \g_hit_msword_slack_dim
+      {
+        \textwidth
+        - \g_hit_msword_cells_int \g_hit_body_size_dim
+        - \l__hit_format_gaps_int \l__hit_format_glue_dim
+      }
+  }
+\cs_new:Npn \__hit_format_hglue_cc:
+  {
+    \bool_if:NT \l_hit_format_snap_horizontal_bool
+      { \__hit_format_grid_glue: + }
+    \l_hit_format_char_spacing_dim
+  }
+\cs_new:Npn \__hit_format_hglue_ec:
+  {
+    \bool_if:NT \l_hit_format_snap_horizontal_bool
+      { \__hit_format_grid_glue: + }
+    \__hit_format_ecglue_base:
+    + \l_hit_format_char_spacing_dim
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{中西文间距的基准由固定格宽改成按本级字号缩放的格宽}
+% \cs{\_\_hit\_format\_ecglue\_base:} 是那 0.225 乘的东西。从前直接乘
+% \cs{g\_hit\_msword\_char\_dim}，也就是正文那一格的宽度，于是不论多大的字号，
+% 中西文之间都只留正文那一格的 0.225。Word 不是这样，这段间距跟着字号走。
+%
+% 章标题实测最明显。范例里 18\,bp 的汉字接数字是 22.28\,bp，减掉汉字 18 得 4.28；
+% 固定格宽给的是 $0.225 \times 12.6719 = 2.851$，差 1.37\,bp，「第\,1\,章」的 1
+% 因此贴得太近。改成按字号缩放，$0.225 \times 18 \times 12.6719 / 12 = 4.2768$，
+% 与实测同位。正文那一档本级字号等于正文字号，算出来仍是原值，不受影响。
+%
+% 正文字号为零时（旧版面没走 \cs{hit@msword@layout:n}）退回固定格宽，不做除法。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_format_ecglue_base:
+  {
+    \dim_compare:nNnTF { \g_hit_body_size_dim } = { 0pt }
+      { \c__hit_format_ecglue_tl \g_hit_msword_char_dim }
+      {
+        \fp_to_dim:n
+          {
+            \c__hit_format_ecglue_tl
+            * \dim_to_fp:n { \l_hit_format_size_dim }
+            * \dim_to_fp:n { \g_hit_msword_char_dim }
+            / \dim_to_fp:n { \g_hit_body_size_dim }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_format_pick:nnN #1#2#3
+  {
+    \__hit_format_read:nnnN {#1} {#2} { } \l__hit_format_value_tl
+    \prop_get:NVNT #3 \l__hit_format_value_tl \l__hit_format_coef_tl
+      { \tl_put_right:NV \l__hit_format_out_tl \l__hit_format_coef_tl }
+  }
+\cs_generate_variant:Nn \prop_get:NnNT { NVNT }
+%    \end{macrocode}
+%
+% 发给 \pkg{ctex}。段前段后只在用户设过时才发，没设过就让各个类原有的取值留着。
+%
+% \changes{v3.2a}{2026/08/15}{段前段后写区间时发可伸的胶给 \pkg{ctex}}
+% 段前段后写了区间就带一段伸量发过去。\pkg{ctex} 的 \option{beforeskip} 与
+% \option{afterskip} 收的是胶不是长度，写 \texttt{10bp~plus~3bp} 它照收。
+% 伸量为零时一个字也不发，生成物与从前逐字节相同。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_format_plus:N #1
+  {
+    \dim_compare:nNnF { #1 } = { 0pt }
+      { ~ plus ~ \dim_use:N #1 }
+  }
+\cs_new_protected:Npn \hit@format@apply@heading:n #1
+  {
+    \__hit_format_if_blank:nF {#1}
+      {
+        \hit@format@compute:n {#1}
+        \__hit_format_build:n {#1}
+        \tl_set:Nx \l__hit_format_keys_tl
+          { format ~ = { \exp_not:V \l__hit_format_out_tl } , }
+        \__hit_format_get:nnNT {#1} { space-before } \l__hit_format_coef_tl
+          {
+            \tl_put_right:Nx \l__hit_format_keys_tl
+              {
+                beforeskip =
+                  {
+                    \dim_use:N \l_hit_format_before_dim
+                    \__hit_format_plus:N \l_hit_format_before_plus_dim
+                  } ,
+              }
+          }
+        \__hit_format_get:nnNT {#1} { space-after } \l__hit_format_coef_tl
+          {
+            \tl_put_right:Nx \l__hit_format_keys_tl
+              {
+                afterskip =
+                  {
+                    \dim_use:N \l_hit_format_after_dim
+                    \__hit_format_plus:N \l_hit_format_after_plus_dim
+                  } ,
+              }
+          }
+        \use:x
+          {
+            \exp_not:N \ctexset
+              { #1 = { \exp_not:V \l__hit_format_keys_tl } }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 四级各发一次。报告类是 \pkg{ctexart}，没有 \texttt{chapter}，发过去会报不认识的键，
+% 所以按类的实有层级发。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@apply@headings:n #1
+  { \clist_map_inline:nn {#1} { \hit@format@apply@heading:n {##1} } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/16}{加 \cs{hit@format@apply@font:nN}，把一个目标算出来的
+%   排版命令存进一个宏}
+% \cs{hit@format@apply@font:nN}\marg{目标}\meta{宏} 把目标算出来的那串排版命令
+% 存进宏里，供不走 \pkg{ctex} 标题机制的地方用——页眉页脚就是这样，它们由
+% \pkg{fancyhdr} 排，收不到 \cs{ctexset}。目标是空的就不动那个宏，
+% 旧版面因此原样保留原有定义。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@apply@font:nN #1#2
+  {
+    \__hit_format_if_blank:nF {#1}
+      {
+        \hit@format@compute:n {#1}
+        \__hit_format_build:n {#1}
+        \cs_set_eq:NN #2 \l__hit_format_out_tl
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{接到正文上}
+%
+% \changes{v3.2a}{2026/08/14}{加 \cs{hit@format@apply@body:}，正文的字号、行距、
+%   首行缩进、首行基线落点与汉字间距都由 \option{body} 目标算出来}
+% 正文不归 \pkg{ctex} 管，四个量各有各的去处：
+% \begin{center}
+% \begin{tabular}{lll}
+% \toprule
+% 量 & 存在哪 & 谁读它 \\\midrule
+% 字号 & \cs{g\_hit\_body\_size\_dim} & \cs{normalsize} \\
+% 行距 & \cs{g\_hit\_body\_lead\_dim} & \cs{normalsize} \\
+% 首行基线落点 & \cs{g\_hit\_body\_first\_dim} & \cs{topskip} \\
+% 首行缩进 & \cs{g\_hit\_body\_indent\_dim} & \cs{parindent} \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+%
+% 四个都是全局长度而不是直接写死的数：\cs{normalsize} 每次执行都重读，所以
+% \cs{hitsetup} 写在导言区哪里都来得及，写进正文也能改。默认值由各个类在
+% \file{src/flow/hit-*-fonts.dtx} 里给，没写 \option{body} 就一直是那一份。
+%
+% 改完长度要再调一次 \cs{normalsize}。\hologo{LaTeX} 选定正文字体是在类加载完那一刻，
+% 早于 \cs{AfterPreamble}，只改长度不重选的话这一页排出来的还是旧行距。
+%
+% \cs{parindent} 要排在 \cs{normalsize} 之后设，还要顺手关掉 \pkg{ctex} 的
+% \option{autoindent}。\option{autoindent} 是「首行缩进跟着字号走，恒为两个汉字宽」，
+% 每次换字号都重设一遍 \cs{parindent}，写在前面会被 \cs{normalsize} 抹掉。
+% 关掉它也是照 Word：Word 那边「首行缩进 2 字符」在存盘时就折算成了绝对长度
+% （范例里是 507 缇），换字号不跟着变。
+%
+% \changes{v3.2a}{2026/08/15}{设完 \cs{CJKglue} 补一句 \cs{ccwd}，堵掉开头那一段
+%   读到旧值的窗口}
+% 末尾那句 \cs{ccwd} 是补 \pkg{ctex} 的一个时序缺口。\pkg{ctex} 把 \cs{ccwd} 定义成
+% 「字号 $+$ \cs{CJKglue} 的宽度」，也就是字符网格的步进，每次换字号重算一次
+% （\file{ctex-engine-xetex.def} 的 \cs{ctex\_update\_ccwd:}）。但本函数是先调
+% \cs{normalsize} 再改 \cs{CJKglue} 的，那一次重算读到的还是 \pkg{ctex} 自己的
+% 字距，于是从这里到下一次换字号之间 \cs{ccwd} 停在纯字号上，少了 0.45\,bp。
+% 换过字号之后就自己对了，封面那十几处 \verb|n\ccwd| 都在那之后排，本来没受影响；
+% 补这一句是为了不留这么一段说不清的窗口。
+%
+% \cs{topskip} 是版心顶到首行基线的距离，跟 Word 的算法对得上：Word 那边这个距离
+% 就等于首行基线在自己行盒里的落点，见前面的换算一节。\hologo{TeX} 取的是
+% \cs{topskip} 与首行盒高度的较大者，所以行里有比正文高的东西时首行会往下走，
+% 这一条 Word 也一样。
+%
+% \changes{v3.2a}{2026/08/14}{\cs{rightskip} 收下字符网格的余量，行宽按整数个字算}
+% \cs{CJKglue} 是汉字之间的空隙，取值是网格字距减字号，由
+% \file{src/utils/hit-msword.dtx} 算好。伸缩量照 \pkg{xeCJK} 原样保留：Word 的
+% 字距是自然宽度，两端对齐时照样要再拉开。
+%
+% \changes{v3.2a}{2026/08/14}{\cs{CJKecglue} 按网格算，汉字与西文之间的间距跟
+%   Word 对齐}
+% \cs{CJKecglue} 是汉字与西文之间的空隙，取值两侧合计 0.45 格。9、12、18、24\,bp
+% 四个字号量下来两侧合计分别是 4.281、5.632、8.335、11.037，除以格都是 0.451
+% 上下，除以字号则从 0.476 漂到 0.460——是格的比例，不是 em 的比例。单侧实测
+% 汉字到西文 0.25 格、西文到汉字 0.20 格，\pkg{xeCJK} 只给一个值，取一半 0.225
+% 格，合计对得上，单侧位置差 0.3\,bp 以内。
+%
+% \cs{rightskip} 扣掉行末那一段不该有的空隙，扣多少要看对不对齐网格，两种情形的
+% 值不一样。
+%
+% \emph{对齐网格时扣整数格的余量。} 行宽是整数个格，不是整个版心：范例版心宽
+% 425.18\,bp、字距 12.4544\,bp，一行 34 个格占 423.45\,bp，右边空着 1.73\,bp
+% 不管。这一段不扣掉的话，\hologo{TeX} 会把 34 个字拉满整个版心，每个字缝多
+% 0.066\,bp，末字右移 2.25\,bp。扣掉之后连拉开的行也对得上——范例里首行缩进
+% 两格、只有 31 个字的那一行，被拉开填满剩下的 32 格，末字落点与满行分毫不差。
+%
+% \emph{不对齐网格时扣一个字距增量。} 这一档的行宽是「版心宽减一个增量」：
+% 行末那个字不带字距增量，Word 把行拉到 $425.20 - 0.4543 = 424.75$。标定文档里
+% 三段纯汉字满行，两端对齐的两段末字原点都落在 424.751，左对齐那段是自然的
+% 423.00，范例正文页量出来也是 424.751。不扣的话每行右端多出 0.45\,bp。
+%
+% 两个数看着像，来路完全不同：一个是整数格除不尽的零头，一个是末字省掉的增量。
+% 早先的合成文档里两者混过一次——那份 \file{settings.xml} 没写
+% \texttt{compatibilityMode}，Word 退到旧版行为，对齐目标正好是整数个格，
+% 与网格开的那一档撞上了。范例写的是 15，也就是 Word 2013 以后的算法。
+%
+% 撑杆挂在段落的首尾两个钩子上，段间的接缝就都按 Word 的行盒算。首尾各挂一根：
+% 首行那根定这一段的高，末行那根定这一段的深，只挂一根管不到另一头。标题那边
+% 另有一根写在 \option{format} 里，两根重了也没事，行盒取的是最大值。
+%
+% 页眉还要单接一次。\pkg{fancyhdr} 把页眉排在 \cs{parbox} 里，
+% \cs{@parboxrestore} 清掉了 \cs{everypar}，段落钩子发不到那里，所以
+% \file{src/flow/hit-thesis-pagestyle.dtx} 在页眉的字体命令里留了一个空位，
+% 这里把它换成真的撑杆。报告类没有这个空位，所以先看在不在。
+%    \begin{macrocode}
+\dim_new:N \g_hit_body_size_dim
+\dim_new:N \g_hit_body_lead_dim
+\dim_new:N \g_hit_body_stretch_dim
+\dim_new:N \g_hit_body_first_dim
+\dim_new:N \g_hit_body_indent_dim
+\dim_new:N \hit@body@depth
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@latin@pitch:}，字距增量也加到
+%   西文字母上，由 \option{layout}/\option{grid}/\option{chars}/\option{latin} 决定}
+% \changes{v3.2a}{2026/08/16}{西文那份改成网格增量的一半，从前取整份}
+% 西文那半。Word 把西文也排进字符网格，但半角字只占半格，所以每个西文字符后面
+% 多的是网格增量的\emph{一半}，不是整份。
+%
+% 依据是范例逐字量的：\texttt{charSpace=2752} 那一节格宽 12.6720\,bp，数字步进
+% 6.3360\,bp，正是半格；\texttt{charSpace=1861} 那一节格宽 12.4536\,bp，数字
+% 步进 6.2500\,bp，字母比字体自然宽多 0.24\,bp 上下，都落在半份 0.227\,bp 附近。
+% 两节的增量不同而结论一致，所以是半份，不是某个定值。
+%
+% \pkg{fontspec} 的字体特性只能在声明字体时给，而这个键要到导言区才知道，
+% 所以在这儿把选中的那一档西文字体原样再调一次——入口是
+% \cs{hit@fonts@redo@en:}，见 \file{src/utils/hit-fonts.dtx}，不抄那三句
+% \cs{setmainfont}，免得两处漂移。\cs{defaultfontfeatures} 的加号形式是追加，
+% 原有的特性都留着。
+%
+% \option{LetterSpace} 的单位是百分之一个 em，所以要把增量换算成字号的百分比。
+%
+% \changes{v3.2a}{2026/08/17}{空格的自然宽先用 \cs{dim\_eval:n} 收口，
+%   不然伸缩量连符号一起被减掉}
+% \emph{自然宽必须先收口。} 原先直接写
+% \enquote{\cs{fontdimen}2\cs{font} $+$ 格宽 $-$ 字号 \texttt{plus} \ldots
+% \texttt{minus} \ldots}，\cs{glueexpr} 把 \enquote{$-$ 字号 \texttt{plus} 伸量}
+% 整个当成「减去一个带伸量的胶」，算出来是
+% \texttt{3.69522pt plus -6.47845pt minus -0.8098pt}——伸缩量连符号一起被减掉了。
+% 负伸量等于不能伸，英文段落完全无法两端对齐，demo 第 8 页的英文摘要有 10 行越出
+% 版心 15 到 34\,bp。自然宽那一截套上 \cs{dim\_eval:n} 就断开了这个粘连。
+%
+% 空格也跟着改。\hologo{XeTeX} 的字间距只落在词内，词尾那一份没有，缺的补进
+% 空格，于是空格 = 字体空格 + 两份增量。可压量取自然宽的四分之一——实测 Word
+% 的上限落在 0.78 与 0.97 之间（12\,bp），四分之一在窗口内。可伸量 Word 不设
+% 上限，实测拉到自然宽的 3.17 倍照拉，这里给两倍。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@latin@pitch:
+  {
+    \bool_lazy_and:nnT
+      { \bool_if_p:N \g__hit_layout_pitch_en_bool }
+      { \cs_if_exist_p:N \hit@fonts@redo@en: }
+      {
+        \use:x
+          {
+            \exp_not:N \defaultfontfeatures + [ \exp_not:N \rmfamily ,
+              \exp_not:N \sffamily , \exp_not:N \ttfamily ]
+              {
+                LetterSpace =
+                  \fp_eval:n
+                    {
+                      50 * \dim_to_fp:n
+                        { \g_hit_msword_char_dim - \g_hit_body_size_dim }
+                      / \dim_to_fp:n { \g_hit_body_size_dim }
+                    }
+              }
+          }
+        \hit@fonts@redo@en:
+        \normalsize
+        % 汉字段里的西文空格:Word 按东亚字体空格加两侧字距加宽排(实测有效
+        % 词隙 3.6~3.9),fd2+加宽 的 3.70 恰在此档,回归验证通过。
+        % 拉丁段落(英文摘要等)不走 spaceskip——贪心 latin 模式自发 kern,
+        % 词隙自然值另按拉丁档实测(见 latin 分支)
+        \skip_set:Nn \spaceskip
+          {
+            \dim_eval:n
+              {
+                \fontdimen 2 \font
+                + \g_hit_msword_char_dim - \g_hit_body_size_dim
+              }
+            plus 2 \fontdimen 2 \font
+            minus 0.25 \fontdimen 2 \font
+          }
+        \frenchspacing
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@reserve@depth:}，版心底留出一个
+%   正文行深，换页的判据从「末行基线」改成「末行盒底」，与 Word 一致}
+% \begin{macro}{\hit@format@reserve@depth:}
+% 换页的判据两边不一样。Word 要末行的\emph{行盒底}不越版心底；\hologo{TeX} 的
+% 页面构建器比的是 \cs{pagetotal} 与 \cs{pagegoal}，末行的深度挂在
+% \cs{pagedepth} 里不算进去，等于只要末行的\emph{基线}不越版心底就行。差的正是
+% 一个行深，范例里 7.30\,bp，所以底下常常比 Word 多排一行。
+%
+% 动的是「一栏还能装多少」，也就是 \cs{@colroom} 与 \cs{vsize}，两个都减掉一个
+% 行深。\cs{maxdepth} 同时设成行深：深度不超过行深的东西正好落在留出的那一段里，
+% 一分不占；更深的东西超出多少算多少。图表公式这类比正文深的块也就一并算对了。
+%
+% \cs{textheight} 与 \cs{@colht} 一个不动。这两个说的是「版心多高」与
+% 「页面盒子多高」，Word 那边这两个数就是整个版心：范例的 \texttt{sectPr} 里
+% 页高 841.90、上边距 107.75、下边距 85.05，版心 649.10\,bp，合 22.899\,cm。
+% 留出来的那一段是换页时不许末行盒底越过的边界，不是版心矮了一截。
+%
+% 分开这两件事还有个好处：页面盒子仍按整个版心打包，封面上的 \cs{vfill}、
+% 整页浮动体两头的 \texttt{1fil} 分到的量都不变，位置一点不动，页脚也不用挪。
+% 留出来的那一段在 \texttt{ragged} 一档由 \cs{@textbottom} 那道 fil 吸掉；
+% \texttt{flush} 一档 \hologo{LaTeX} 原本把 \cs{@textbottom} 设成 \cs{relax}，
+% 页面会被拉开去补这一段，所以改发一个刚性的行深，见 \cs{hit@format@flush@bottom:}。
+%
+% \cs{maxdepth} 单独设成零是不够的。行盒的深度是墨迹深度，汉字只有 1.32\,pt；
+% 撑杆挂在 \texttt{para/begin} 与 \texttt{para/end} 两个钩子上，段落中间那些行
+% 两头都不挨，撑不到。范例正文第 17 页的 \cs{tracingpages}：
+% \texttt{maxdepth=6.0} 时 \texttt{t=648.68}，\texttt{maxdepth=0.0} 时
+% \texttt{t=650.00}，只多算了 1.32\,pt，离 \texttt{g=651.52} 还差着，那一行照样
+% 留在这一页。
+%
+% 正常满页的容量没有变：版心 649.09\,bp、首行基线在版心顶下 12.18\,bp、行距
+% 19.45\,bp，留之前末行基线的上限是 756.84，留之后 749.57，两种算法都是 33 行。
+% 只有末行基线落在底下那 7.3\,bp 带子里的页面才会少排一行，而那正是 Word 不许
+% 的位置。
+%
+% \cs{@colroom} 每页由 \hologo{LaTeX} 从 \cs{@colht} 重设，所以要补两句，见
+% \cs{hit@format@patch@colroom:}。\cs{vsize} 不用补，它在 \cs{output} 末尾从
+% \cs{@colroom} 取。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@reserve@depth:
+  {
+    \dim_gset:Nn \hit@body@depth
+      { \g_hit_body_lead_dim - \g_hit_body_first_dim }
+    \dim_compare:nNnT { \hit@body@depth } > { \c_zero_dim }
+      {
+        \dim_gset_eq:NN \maxdepth \hit@body@depth
+        \dim_gset_eq:NN \@maxdepth \hit@body@depth
+        \dim_gsub:Nn \@colroom { \hit@body@depth }
+        \dim_gset_eq:NN \vsize \@colroom
+        \AddToHook { begindocument/end }
+          {
+            \hit@format@patch@colroom:
+            \bool_if:NF \g__hit_raggedbottom_bool
+              { \hit@format@flush@bottom: }
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@patch@colroom:}，把每页重设
+%   \cs{@colroom} 的两句改成扣掉行深}
+% \begin{macro}{\hit@format@patch@colroom:}
+% \cs{@colroom} 是「这一栏还剩多少地方」，每页开头由 \cs{@startcolumn} 从
+% \cs{@colht} 重设，\cs{clearpage} 那条路上 \cs{@doclearpage} 也重设一次。
+% 留出来的那一段每页都会被这两句填回去，所以两处都要补。
+% 单栏用不到 \cs{twocolumn} 里那一句，不补。
+%
+% 补丁里\emph{不能出现 \pkg{expl3} 的变量名}。\cs{patchcmd} 是把宏体反切分再重扫
+% 一遍，重扫时的 catcode 是打补丁那一刻的，\pkg{etoolbox} 只替你把 \texttt{@}
+% 设成字母，下划线与冒号不管。写 \cs{g\_hit\_body\_lead\_dim} 那种名字进去，
+% 出版时会断成 \cs{g} 加一串下标，报「Undefined control sequence」。所以行深
+% 存在 \cs{hit@body@depth} 里，名字只带 \texttt{@}，跟这一族别的量不同款是有意的。
+%
+% 三个记号之间没有空格记号：控制词后面的空格在切分时就被吞掉了，
+% \verb|\global \@colroom \@colht| 与 \verb|\global\@colroom\@colht| 是同一串，
+% 所以这一段不必退出 \pkg{expl3} 写（CONTRIBUTING §4.7）。
+%
+% 打不上就报警告：那时留白只在第一页有效，第二页起换页的位置会跟 Word 差回一行，
+% 不该无声无息。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_patch_room:N #1
+  {
+    \patchcmd #1
+      { \global\@colroom\@colht }
+      { \global\@colroom\dimexpr\@colht-\hit@body@depth\relax }
+      { }
+      { \msg_warning:nnn { hithesis } { page-patch-failed } {#1} }
+  }
+\cs_new_protected:Npn \hit@format@patch@colroom:
+  {
+    \__hit_format_patch_room:N \@startcolumn
+    \__hit_format_patch_room:N \@doclearpage
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@flush@bottom:}，\option{bottom}
+%   \texttt{!=flush} 时页底那一段留白改成刚性，不摊到行间}
+% \begin{macro}{\hit@format@flush@bottom:}
+% \cs{flushbottom} 把 \cs{@textbottom} 设成 \cs{relax}，页面盒子按 \cs{@colht}
+% 打包时缺的那一段就摊到行间去了。留出来的行深本来就该空着，摊掉等于白留，
+% 所以换成一个刚性的行深：盒子照样填满 \cs{@colht}，末行基线仍然停在
+% 版心底减一个行深的地方。
+%
+% 可压量也给一个行深。整页装的是压不动的东西时，页面盒子会比 \cs{@colht} 高出
+% 几个点，报 Overfull；给了可压量，\hologo{TeX} 先把这一段压回去，最坏退回原先
+% 那种「末行基线压在版心底」的样子，不会更差。
+%
+% 参考文献那两处环境里也各发一次 \cs{flushbottom}，所以要改的是 \cs{flushbottom}
+% 本身，不是发过之后再补一句。改法是打补丁不是重定义：\cs{flushbottom} 是内核的
+% 名字，重定义等于把它算进模板的公开面；打补丁只换掉 \cs{@textbottom} 那一句，
+% 别人往里加过什么都留着，加不上还会报出来。
+%
+% 它是 \cs{DeclareRobustCommand} 建的，宏体在带一个空格的那个名字里，所以用
+% \cs{exp\_args:Nc} 把 \texttt{flushbottom\textvisiblespace} 拼出来再打。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_patch_flush:N #1
+  {
+    \patchcmd #1
+      { \let\@textbottom\relax }
+      { \def\@textbottom{\vskip\hit@body@depth minus \hit@body@depth} }
+      { }
+      { \msg_warning:nnn { hithesis } { page-patch-failed } { \flushbottom } }
+  }
+\cs_new_protected:Npn \hit@format@flush@bottom:
+  {
+    \exp_args:Nc \__hit_format_patch_flush:N { flushbottom ~ }
+    \flushbottom
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@penalties:}，孤行寡行的四个罚分
+%   归零，与 Word 的\enquote{孤行控制关闭}一致}
+% \begin{macro}{\hit@format@penalties:}
+% 范例的 Normal 样式写着 \texttt{<w:widowControl w:val="0"/>}，全文 566 个段落
+% 没有一个在段级覆盖它，也就是孤行寡行控制全程关闭：段首一行单独留在页底、
+% 段末一行单独跑到下页页顶，Word 都不拦。
+%
+% \hologo{TeX} 这边管这件事的是四个罚分，含义各不相同：\cs{clubpenalty} 是在段落
+% 第一行之后断页，\cs{widowpenalty} 是在段落最后一行之前断页，
+% \cs{displaywidowpenalty} 是公式前那几行的寡行，\cs{brokenpenalty} 是在一个
+% 断字的行之后断页。后两个 Word 根本没有对应的概念。四个一律归零。
+%
+% \cs{clubpenalty} 其实早就对齐了。\hologo{LaTeX} 内核的 \cs{@afterheading} 写的是
+% \cs{clubpenalty}\cs{@M}，标题后头一行之后禁止断页；
+% \file{src/flow/hit-thesis-heading.dtx} 把它改成了 1，第一个标题之后就一直是 1。
+% 那句是 \cs{everypar} 里的局部赋值，而那一层组就是 document，所以设完不还原。
+% 这里再设一次零只管第一个标题之前那一段，1 与 0 实际没有分别。不去动
+% \cs{@afterheading} 里那个 1，是因为旧版面也走同一条路，改了会把旧版面一起动了。
+%
+% 范例上实测这一步不改变任何一页：\cs{tracingpages} 里带 \texttt{p=150} 的候选
+% 断点有 110 个，罚分是真加上去了，但一次都没改变最终选中的那个断点——页面通常
+% 有几个点可伸，badness 落在几十的量级，150 顶不过后面那个不带罚分的候选。
+% 归零是为了别人的稿子：范例没炸不等于用户的稿子不炸。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@penalties:
+  {
+    \int_set:Nn \clubpenalty { 0 }
+    \int_set:Nn \@clubpenalty { 0 }
+    \int_set:Nn \widowpenalty { 0 }
+    \int_set:Nn \displaywidowpenalty { 0 }
+    \int_set:Nn \brokenpenalty { 0 }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \changes{v3.2a}{2026/08/16}{加 \cs{hit@format@punct@grid:}，把全角标点缺的那一格
+%   网格胶补上}
+% \emph{全角标点少一格网格胶。} Word 的字符网格里，每个全角字符占整整一格，标点
+% 不例外。\pkg{xeCJK} 只在标点\emph{空白的那一侧}发 \cs{CJKglue}：\texttt{，} 的
+% 空白在右，于是 \texttt{点→汉} 有胶而 \texttt{汉→点} 没有；\texttt{（} 的空白在
+% 左，于是 \texttt{汉→开} 有胶而 \texttt{开→汉} 没有。结果每个标点恰好少一格胶，
+% \texttt{汉，汉} 排出来是 $12.0 + 12.672 = 24.672$，Word 是 $2 \times 12.672
+% = 25.344$。
+%
+% 补的办法是往 \pkg{xeCJK} 的字符类记号表里前置一道 \cs{CJKglue}。用的是
+% \cs{xeCJK\_pre\_inter\_class\_toks:nnn}，单下划线前缀，是 \pkg{xeCJK} 给别的
+% 宏包用的模块级接口，不是 \cs{\_\_xeCJK\_} 那种私有件。发的是 \cs{CJKglue} 本身
+% 而不是某个定值，所以每一级标题各自的字距都跟得上。
+%
+% 追加版 \cs{xeCJK\_app\_inter\_class\_toks:nnn} 不行，实测三处纹丝不动：
+% \pkg{xeCJK} 自己那串记号会把后面的东西吃掉，必须前置。
+%
+% \changes{v3.2a}{2026/08/16}{补的那道胶前面加 \cs{nobreak}，不然禁则被破坏}
+% \emph{前面那句 \cs{nobreak} 不能省。} 胶在 \hologo{TeX} 眼里是合法断点，补进去
+% 就等于在汉字与后置标点之间、以及前置标点与汉字之间各开了一个可断处，于是
+% 「、」「。」这类点号会被断到下一行行首，「（」会被留在行尾。实测第一版补完
+% 全文出现 13 处行首点号。\cs{nobreak} 就是 \cs{penalty10000}，摆在胶前面把这个
+% 断点的代价抬到禁止。
+%
+% \emph{版本断言。} 用到的几个接口——\cs{xeCJK\_pre\_inter\_class\_toks:nnn}、
+% \cs{xeCJK\_class\_num:n}、\cs{xeCJK\_new\_class:n}、
+% \cs{\_\_xeCJK\_save\_CJK\_class:n}、\cs{xeCJK\_copy\_inter\_class\_toks:nnnn}——
+% 在 \pkg{xeCJK} 3.9.1（\TeX~Live 2025）与 3.10.5（2026）上都验过。够不着时报错
+% 而不是静默少一格——静默走样比报错难查得多。能挡住改名，挡不住保名改行为，
+% 后者只能靠每年跟着上游复验。
+%    \begin{macrocode}
+\msg_new:nnnn { hithesis } { xecjk-punct-grid }
+  { xeCJK~缺少字符类接口。 }
+  {
+    全角标点每个会比 Word 少一格字符网格的字距，引号、省略号、
+    破折号、波浪线的宽度也不会按 Word 的规则排。\\
+    用到的接口在 xeCJK 3.9.1（TeX~Live~2025）与 3.10.5（2026）上验过，
+    你装的版本缺其中一个。\\
+    换回上述版本，或者忽略本条——排版仍能完成，只是标点走样。
+  }
+%    \end{macrocode}
+% \changes{v3.2a}{2026/08/17}{相邻标点前一个缩到半格}
+% \changes{v3.2a}{2026/08/18}{标点规则改按范例第 18 页实测重排；
+%   引号、波浪线单列字符类，省略号、破折号并入汉字类}
+% \changes{v3.2a}{2026/08/18}{压缩由定值 kern 改成按需的可压胶；引号类并回
+%   \texttt{FullLeft}}
+% \emph{Word 的标点压缩是按需的排版资源，不是定值。} 修正过字体提示的测试文档
+% （\file{标点压缩测试2}）把同一标点对铺在各个行位上，结果是双态分布：
+% \texttt{汉→“} 松行 12.49、紧行 8.24；\texttt{汉→《} 12.49 与 9.00；
+% \texttt{；→”} 12.49 与 11.24；\texttt{、→汉} 12.50 与 6.74。1--5 页版同一行里
+% \texttt{；→”} 压满 6.25 而 \texttt{用→“} 只压 1.0。合起来的模型很短：
+% \emph{每个全角字符自然占一格（字身加网格增量），行紧时排版器从标点的空白侧
+% 按需扣，扣的上限约是空白的大小}。范例第 18 页「、→“」的 1.50 是两侧上限同时
+% 扣满的极端（$12.45-5.77-4.73$），同页「用→《」的 12.50 是松行一点不扣。
+% v3.2a 早先按定值 kern 实现，松行也在扣，用户看出「引号有时贴得过近」。
+%
+% 照搬「自然宽=整格、可压量=空白」在 \hologo{TeX} 里走不通，断行会漂：Word 的
+% 断行器把标点压缩当免费资源，挤一挤也要把「探讨”」塞进第 18 页那行；
+% \hologo{TeX} 的 shrink 带 badness，同样的行宁可提前断也不肯压，实测那行
+% 「探讨”」被推去下一行。所以标点对写成\emph{反方向}：自然宽取压紧值
+% （kern，断行器看到的宽度与 Word 压完一致，断点因此对齐），后面补一道
+% 只伸不缩的胶，行松时把间隙撑回去。紧行伸长率为零，数值自动落在压紧值上。
+% 上限沿用实测：闭号右空白半格（$0.5$\cs{ccwd}），开号左侧削 0.38 格，
+% 后接开双方相加 0.88 格。松行的撑开是按伸量比例分的，撑不满 Word 的全格，
+% 这是两家分配器的固有差距，记档。
+%
+% 胶是合法断点，所以每道胶前的断行语义都要点名：禁则处（汉→后置、开→汉、
+% 开→开、开→后置）压胶前置 \cs{nobreak}；可断处（汉→开）让胶裸着；
+% 「后置→汉」的断点用 \pkg{xeCJK} 原生胶自带的那一个，行末减半由字符突出
+% 负责（见下）；「后置→开」「后置→引」的断点是各自折处里的，断行分支把
+% pair~kern 退回去，标点回整格再由突出挂半。
+%
+% \changes{v3.2a}{2026/08/18}{行末减半的折处在盒内不发：\pkg{ulem} 的收词盒
+%   遇到 \cs{discretionary} 会拆坏分组}
+% 折处与标点对的胶只在能断行的地方发。盒子里（\cs{hbox}、表格格子、
+% \pkg{ulem} 的收词盒）不断行，胶的伸缩不参与，一律换等宽或压紧 kern；
+% \pkg{ulem} 遇到分组内的胶和罚分会把分组拆坏（实测报 Too~many~\}'s），
+% kern 无害。\texttt{p} 型表列里的段落是普通水平模式，不受影响。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@punct@oshrink:
+  { \skip_horizontal:n { 0pt ~ minus ~ 0.38 \ccwd } }
+\cs_new_protected:Npn \hit@format@punct@cshrink:
+  { \skip_horizontal:n { 0pt ~ minus ~ 0.46 \ccwd } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/18}{标点对之间的胶盒内换成等宽 kern：\pkg{ulem}
+%   按胶分段，而这些记号落在 \pkg{xeCJK} 的标点类分组里，分组没闭合就切段，
+%   报 Too~many~\}'s}
+% \emph{标点与标点之间的胶，盒内要换成 kern。} \pkg{ulem} 收词时按胶和罚分
+% 切段，而标点对的记号表在 \pkg{xeCJK} 的标点类分组\emph{内部}执行，组还没
+% 闭合就切段，直接拆坏分组（demo 里 \cs{uline} 内的「？】」实测报
+% Too~many~\}'s；同位置 v3.2a 之前的定值 kern 就没事）。盒内不断行、胶的
+% 伸缩也不参与，等宽 kern 与自然宽的胶输出相同，于是每对做两个分支：
+% 盒内发一格增量的 kern，盒外发 \cs{nobreak} 加可压胶。汉字与标点之间的
+% 三对（汉→后、开→汉、汉→开）在分组外执行，v3.2a 以来一直发胶且
+% \cs{uline} 实测无恙，不用换。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_punct_pair_kern:
+  { \tex_kern:D \dim_eval:n { 0.5 \ccwd - 1em } \scan_stop: }
+\cs_new_protected:Npn \hit@format@punct@ngap:
+  {
+    \mode_if_inner:TF
+      { \tex_kern:D \dim_eval:n { \ccwd - 1em } \scan_stop: }
+      { \nobreak \CJKglue }
+  }
+\cs_new_protected:Npn \hit@format@punct@qtrim:
+  {
+    \discretionary { } { } { \tex_kern:D \dim_eval:n { -0.38 \ccwd } \scan_stop: }
+    \mode_if_inner:F
+      { \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.38 \ccwd } }
+  }
+\cs_new_protected:Npn \hit@format@punct@opair:
+  {
+    \mode_if_inner:TF
+      { \tex_kern:D \dim_eval:n { \ccwd - 1em } \scan_stop: }
+      {
+        \nobreak
+        \skip_horizontal:n
+          { \dim_eval:n { \ccwd - 1em } ~ minus ~ 0.38 \ccwd }
+      }
+  }
+\cs_new_protected:Npn \hit@format@punct@cpair:
+  {
+    \__hit_format_punct_pair_kern:
+    \mode_if_inner:F
+      { \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.5 \ccwd } }
+  }
+\cs_new_protected:Npn \hit@format@punct@bpair:
+  {
+    \__hit_format_punct_pair_kern:
+    \mode_if_inner:F
+      { \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.5 \ccwd } }
+    \mode_if_inner:TF
+      { \tex_kern:D \dim_eval:n { -0.38 \ccwd } \scan_stop: }
+      {
+        \discretionary
+          { \tex_kern:D \dim_eval:n { 1em - 0.5 \ccwd } \scan_stop: }
+          { }
+          { \tex_kern:D \dim_eval:n { -0.38 \ccwd } \scan_stop: }
+        \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.38 \ccwd }
+      }
+  }
+\cs_new_protected:Npn \hit@format@punct@cbreak:
+  {
+    \__hit_format_punct_pair_kern:
+    \mode_if_inner:F
+      {
+        \discretionary
+          { \tex_kern:D \dim_eval:n { 1em - 0.5 \ccwd } \scan_stop: }
+          { } { }
+        \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.5 \ccwd }
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{波浪线进场补半格。} 数字侧的西文字距是按字符加的，\pkg{fontspec} 会删掉
+% 一段西文末字的尾距，\texttt{3→～} 那半格就丢在这里。出场方向（\texttt{～→6}）
+% 提示修正后的测试文档实测 12.50，一整格增量，直接用 \cs{CJKglue}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@punct@xtra:
+  { \tex_kern:D \dim_eval:n { ( \ccwd - 1em ) / 2 } \scan_stop: }
+%    \end{macrocode}
+%
+% \emph{行末闭号 Word 恒压半格，这边不追了，记下为什么。} 试过三条路：
+% 封掉原生胶断点逼断行走折处，断点集一变全文断行漂移；折处与原生胶并存让
+% \hologo{TeX} 按代价挑，行末闭号时半时全；字符突出（\cs{XeTeXprotrudechars=2}
+% 加 \cs{rpcode}，挂 \cs{xeCJK\_select\_font:} 逐字体设，机制本身可用）——
+% 突出量在断行账本上不是免费的，挂半格的行要多撑半格，与折处减半同价，
+% \hologo{TeX} 照样不选；行末闭号后面还跟着类记号的节点，突出常被挡住。
+% Word 的断行是逐行贪心、压缩不计代价，\hologo{TeX} 是全段最优、伸缩都算钱，
+% 这半格是两个模型的固有差距。
+%
+% \emph{开引号与波浪线各单开一类。} 开引号「“」「‘」进 \texttt{HITQuote}：
+% 行中左侧削 0.38 格（压紧值做进 \cs{discretionary} 的不断分支，断行处与行首
+% 自动不削），行松时靠 \cs{hit@format@punct@qtrim:} 里那道只伸的胶撑回来。
+% 书名号括号不削（范例 \texttt{用→《} 12.50），所以引号不能与 \texttt{FullLeft}
+% 同类。「～」单开 \texttt{HITTilde}：不参与压缩，与数字相邻也不发中西文胶。
+% 建类照抄 \pkg{xeCJK} 处理破折号的 \texttt{PoZheHao} 三步：
+% \cs{xeCJK\_new\_class:n} 建类、\cs{\_\_xeCJK\_save\_CJK\_class:n} 注册类号
+% （漏这步字体查类号报 Missing number，早先自建类失败就败在这里）、
+% \cs{xeCJK\_copy\_inter\_class\_toks:nnnn} 逐对克隆素表（引号克隆
+% \texttt{FullLeft}，波浪线克隆 \texttt{FullRight}）。克隆要在发规则之前做；
+% 对象类清单用 \cs{g\_\_xeCJK\_class\_seq} 的快照，不写死——2025 的
+% \pkg{xeCJK} 3.9.1 还没有 \texttt{PoZheHao}。
+%
+% 「……」「——」并入汉字类：范例里它们与汉字步进完全相同，整格、可断、
+% 不压缩，连「、→…」「。→…」也是整格（Word 的压缩不作用于非标点邻位）。
+% \cs{xeCJKDeclareCharClass} 在 \cs{begin\{document\}} 时刻改已有类照样生效，
+% 早先「导言区后定型」的结论是在 shell 转义污染期得出的，不对。
+%
+% \emph{源码在后置标点后换行会丢配对。} 「、」后换行，行尾换行符变成空格记号，
+% \pkg{xeCJK} 吞掉它之后「“」是从 \texttt{Boundary} 类入场的，上面按类配的
+% 规则一条都轮不上——demo 里同一行的两处「”、“」曾一处 1.49 一处 12.00，就是
+% 这么来的。开 \texttt{CheckFullRight} 让 \pkg{xeCJK} 在记号层直接删掉后置标点
+% 后的空格，两个字符恢复相邻，配对保住。代价是「。~A」这种全角标点后手打的
+% 西文空格也会被删；中文标点后本不该打空格，真要空可以写 \verb|~|。
+%
+% 「后置→西文」的中西文胶直接前置发胶原语：字母数字要那道空隙，
+% 西文标点如今在半角类里，不从这对走，不会错发。
+%
+% \emph{半角标点类的三处修正。} 西文句读、括号、乘除号声明进
+% \texttt{HalfLeft}/\texttt{HalfRight} 后，它们与字母数字分了家，三处按
+% 1--5 页版实测配平：汉与开引号到半角标点，补一格网格增量（\texttt{汉→,}
+% 与 \texttt{“→,} 都是一格出头）；\pkg{xeCJK} 原生在「半角标点→汉」方向
+% 发一道 \cs{CJKecglue}，Word 没有（\texttt{,→汉} 实测裸宽），用
+% \cs{xeCJK\_replace\_inter\_class\_toks:nnnn} 从素表里摘掉；
+% 「汉→半角开号」原生也发 \cs{CJKecglue}，按实测降格成 \cs{CJKglue}。
+% 「(→x」「3×4」这类西文互邻的边界两类之间没有记号表，天然裸排，
+% 英文正文里的逗号句号不受影响。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@punct@grid:
+  {
+    \bool_lazy_all:nTF
+      {
+        { \cs_if_exist_p:N \xeCJK_pre_inter_class_toks:nnn }
+        { \cs_if_exist_p:N \xeCJK_class_num:n }
+        { \cs_if_exist_p:N \xeCJK_new_class:n }
+        { \cs_if_exist_p:N \__xeCJK_save_CJK_class:n }
+        { \seq_if_exist_p:N \g__xeCJK_class_seq }
+        { \cs_if_exist_p:N \xeCJK_copy_inter_class_toks:nnnn }
+        { \cs_if_exist_p:N \xeCJK_replace_inter_class_toks:nnnn }
+      }
+      {
+        \xeCJKsetup { PunctStyle = plain , CheckFullRight = true }
+        \exhyphenpenalty = -5 \scan_stop:
+        \hyphenpenalty = 85 \scan_stop:
+        \cs_if_exist:NT \__xeCJK_use_ecglue_skip:
+          {
+            \cs_set_protected:Npn \__xeCJK_use_ecglue_skip:
+              {
+                \hskip \dim_eval:n
+                  { \l__hit_format_ecglue_dim - ( \ccwd - 1 em ) }
+                  \@plus \c__hit_format_ecstretch_tl \baselineskip
+              }
+          }
+        \xeCJKDeclareCharClass { CJK } { "2026 }
+        \seq_set_eq:NN \l_tmpa_seq \g__xeCJK_class_seq
+        \xeCJK_new_class:n { HITQuote }
+        \__xeCJK_save_CJK_class:n { HITQuote }
+        \xeCJK_new_class:n { HITTilde }
+        \__xeCJK_save_CJK_class:n { HITTilde }
+        \seq_map_inline:Nn \l_tmpa_seq
+          {
+            \xeCJK_copy_inter_class_toks:nnnn { ##1 } { HITQuote }
+              { ##1 } { FullLeft }
+            \xeCJK_copy_inter_class_toks:nnnn { HITQuote } { ##1 }
+              { FullLeft } { ##1 }
+            \xeCJK_copy_inter_class_toks:nnnn { ##1 } { HITTilde }
+              { ##1 } { FullRight }
+            \xeCJK_copy_inter_class_toks:nnnn { HITTilde } { ##1 }
+              { FullRight } { ##1 }
+          }
+        \xeCJK_copy_inter_class_toks:nnnn { HITQuote } { HITQuote }
+          { FullLeft } { FullLeft }
+        \xeCJK_copy_inter_class_toks:nnnn { HITTilde } { HITTilde }
+          { FullRight } { FullRight }
+        \xeCJK_copy_inter_class_toks:nnnn { HITQuote } { HITTilde }
+          { FullLeft } { FullRight }
+        \xeCJK_copy_inter_class_toks:nnnn { HITTilde } { HITQuote }
+          { FullRight } { FullLeft }
+        \xeCJKDeclareCharClass { HITQuote } { "201C , "2018 }
+        \xeCJKDeclareCharClass { HITTilde } { "FF5E , "2014 , "2015 }
+        \xeCJK_pre_inter_class_toks:nnn { CJK } { FullRight }
+          { \nobreak \CJKglue }
+        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { CJK }
+          { \nobreak \CJKglue }
+        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { Default }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { FullRight }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { FullLeft }
+          { \hit@format@punct@cpair: }
+        \xeCJK_pre_inter_class_toks:nnn { CJK } { FullLeft }
+          { \hit@format@punct@oshrink: }
+        \xeCJK_pre_inter_class_toks:nnn { FullRight } { CJK }
+          {
+            \mode_if_inner:F
+              {
+                \tex_kern:D \dim_eval:n { -0.5 \ccwd } \scan_stop:
+                \discretionary { } { }
+                  { \kern \dim_eval:n { 0.5 \ccwd } }
+                \nobreak \hit@format@punct@cshrink:
+              }
+          }
+        \xeCJK_pre_inter_class_toks:nnn { FullRight } { FullRight }
+          { \hit@format@punct@cpair: }
+        \xeCJK_pre_inter_class_toks:nnn { FullRight } { FullLeft }
+          { \hit@format@punct@cbreak: }
+        \xeCJK_pre_inter_class_toks:nnn { FullRight } { Default }
+          {
+            % 闭号接西文:Word 全宽加约 0.25bp 微隙(关键词行「；t」实测
+            % 12.30 对我们旧式减半+文数隙的 9.74),不减半不加文数隙
+            \tex_kern:D 0.25 bp \scan_stop:
+          }
+        \xeCJK_pre_inter_class_toks:nnn { CJK } { HITQuote }
+          { \hit@format@punct@oshrink: }
+        \xeCJK_pre_inter_class_toks:nnn { FullRight } { HITQuote }
+          { \hit@format@punct@bpair: }
+        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { HITQuote }
+          { \hit@format@punct@cpair: }
+        \xeCJK_pre_inter_class_toks:nnn { HITQuote } { HITQuote }
+          { \hit@format@punct@cpair: }
+        \xeCJK_pre_inter_class_toks:nnn { Default } { HITQuote }
+          { }
+        \xeCJK_pre_inter_class_toks:nnn { HITQuote } { CJK }
+          { \nobreak \CJKglue }
+        \xeCJK_pre_inter_class_toks:nnn { HITQuote } { FullLeft }
+          { \hit@format@punct@cpair: }
+        \xeCJK_pre_inter_class_toks:nnn { HITQuote } { FullRight }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { HITQuote } { Default }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { CJK } { HITTilde }
+          { \nobreak \CJKglue }
+        \xeCJK_pre_inter_class_toks:nnn { HITTilde } { Default }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { Default } { HITTilde }
+          { \hit@format@punct@xtra: }
+        \xeCJK_pre_inter_class_toks:nnn { FullRight } { HITTilde }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { HITTilde } { FullRight }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { HITTilde } { HITTilde }
+          {
+            \mode_if_inner:TF
+              { \tex_kern:D \dim_eval:n { \ccwd - 1em } \scan_stop: }
+              { \CJKglue }
+          }
+        \xeCJK_pre_inter_class_toks:nnn { HITQuote } { HITTilde }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { HITTilde } { HITQuote }
+          { \hit@format@punct@ngap: }
+        \xeCJKDeclareCharClass { HalfRight }
+          { "21 , "29 , "2C , "2E , "3A , "3B , "3F , "5D , "D7 , "F7 }
+        \xeCJKDeclareCharClass { HalfLeft } { "28 , "5B }
+        \xeCJK_pre_inter_class_toks:nnn { CJK } { HalfRight }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { FullLeft } { HalfRight }
+          { \hit@format@punct@ngap: }
+        \xeCJK_pre_inter_class_toks:nnn { HITQuote } { HalfRight }
+          { \hit@format@punct@ngap: }
+        \xeCJK_replace_inter_class_toks:nnnn { HalfRight } { CJK }
+          { \CJKecglue } { }
+        \xeCJK_replace_inter_class_toks:nnnn { HalfLeft } { CJK }
+          { \CJKecglue } { }
+        \xeCJK_replace_inter_class_toks:nnnn { CJK } { HalfLeft }
+          { \CJKecglue } { \CJKglue }
+      }
+      { \msg_error:nn { hithesis } { xecjk-punct-grid } }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@apply@body:
+  {
+    \__hit_format_if_blank:nF { body }
+      {
+        \hit@format@compute:n { body }
+        \dim_gset_eq:NN \g_hit_body_size_dim \l_hit_format_size_dim
+        \dim_gset_eq:NN \g_hit_body_lead_dim \l_hit_format_lead_dim
+        \dim_gset_eq:NN \g_hit_body_stretch_dim \l_hit_format_stretch_dim
+        \dim_gset_eq:NN \g_hit_body_first_dim \l_hit_format_first_dim
+        \dim_gset_eq:NN \g_hit_body_indent_dim \l_hit_format_indent_dim
+        \bool_set_eq:NN \l_hit_format_line_snap_bool \l_hit_format_snap_vertical_bool
+        \dim_set_eq:NN \topskip \g_hit_body_first_dim
+        \hit@format@reserve@depth:
+        \hit@format@penalties:
+        \normalsize
+        \ctexset { autoindent = false }
+        \dim_set_eq:NN \parindent \g_hit_body_indent_dim
+        \hit@format@latin@pitch:
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/17}{设字距前先停掉 \pkg{ctex} 的 \cs{ctex\_update\_ccglue:}，
+%   \TeX~Live 2025 上不停它整篇网格都不生效}
+% \emph{先停掉 \pkg{ctex} 的重置。} \pkg{ctex} 把 \cs{CJKglue} 挂在字号变化上，
+% 由 \cs{\_\_ctex\_update\_stretch\_auxi:} 调 \cs{ctex\_update\_ccglue:} 重设，
+% 重设前先问 \cs{ctex\_if\_ccglue\_touched:}。那个判断比的是 \cs{CJKglue} 与
+% \cs{\_\_ctex\_ccglue:} 的 meaning：\TeX~Live 2026 的
+% \cs{ctex\_update\_ccglue:} 会同步后者，判得准；2025 的不同步，判不准，于是我们
+% 设的字距被冲回 \pkg{ctex} 自己那份。实测 2025 下整篇字距都是裸字号 12.0，
+% 字符网格等于没开。
+%
+% 先前试过三条都不行，记下省得重来：同时设 \cs{l\_\_ctex\_ccglue\_skip}（重置那条
+% 路把定义和寄存器一起冲）；把设字距挪到 \cs{normalsize} 之后（还有别处在重置）；
+% 把比对基准 \cs{\_\_ctex\_ccglue:} 换掉逼它一直判「已改过」（2025 仍没救回，
+% 2026 反而从 12.6720 变成 12.7320）。
+%
+% 直接把 \cs{ctex\_update\_ccglue:} 停成空操作，两版都稳，实测汉字步进都是
+% 12.5040。停它不影响别的：\cs{ccwd} 由 \cs{ctex\_update\_ccwd:} 单独管，我们也
+% 自己设一次。只在新版面下停——旧版面的 \cs{ziju} 还要靠 \pkg{ctex} 这套，所以
+% 这一句摆在 \cs{g\_hit\_msword\_char\_dim} 非零的那个分支里。
+%
+% \changes{v3.2a}{2026/08/16}{字距那一段挪到 \cs{hit@format@latin@pitch:} 后面，
+%   它里面那句 \cs{normalsize} 会让 \pkg{ctex} 把字距重置掉}
+% \emph{顺序要紧。} \cs{hit@format@latin@pitch:} 末尾要发一次 \cs{normalsize}
+% 好让重新声明的西文字体生效，而 \pkg{ctex} 挂在字号变化上的
+% \cs{\_\_ctex\_update\_stretch\_auxi:} 会重设 \cs{CJKglue}。它重设前先问
+% \cs{ctex\_if\_ccglue\_touched:}，那个判断在 \TeX~Live 2026 上准、2025 上不准
+% （见 \cs{hit@format@hglue:nn} 处的说明），于是 2025 下我们先设的字距被这句
+% \cs{normalsize} 冲掉，整篇排出来都是裸字号。字距改到最后设，两版都稳。
+%    \begin{macrocode}
+        \dim_compare:nNnF { \g_hit_msword_char_dim } = { 0pt }
+          {
+            \cs_if_exist:NT \ctex_update_ccglue:
+              { \cs_set_eq:NN \ctex_update_ccglue: \prg_do_nothing: }
+            \hit@format@hglue:nn
+              { \__hit_format_hglue_cc: } { \__hit_format_hglue_ec: }
+            \bool_if:NT \l_hit_format_snap_horizontal_bool
+              {
+                \bool_if:NTF \l_hit_format_snap_vertical_bool
+                  {
+                    \hit@format@slack:
+                    \skip_set_eq:NN \rightskip \g_hit_msword_slack_dim
+                  }
+                  { \skip_set:Nn \rightskip { \__hit_format_grid_glue: } }
+              }
+            \dim_set_eq:NN \ccwd \g_hit_msword_char_dim
+            \hit@format@punct@grid:
+          }
+        \AddToHook { para / begin } { \hit@format@strut: }
+        \AddToHook { para / end }   { \hit@format@strut: }
+        \cs_if_exist:NT \hit@header@strut:
+          { \cs_set_eq:NN \hit@header@strut: \hit@format@strut: }
+      }
+  }
+%    \end{macrocode}
+%
+%
+% \subsection{拉丁段落制度与空行}
+%
+% \begin{macro}{\hit@format@latin@par:}
+% 拉丁段落制度:Word 对中西文只有一套参数,差异全由「按行内字体自然行高
+% 乘 1.25」自动派生。纯西文段的四件套在此收口,订阅方(英文摘要、英文版
+% 规范章、英文致谢等)一行接入:
+% 行距 1.432em = Word 自动行距在 Times New Roman 上的实测比(hhea 行高
+% 1.147em × 1.25,12bp 字号排 17.27bp,随字号缩放);字符网格的行末余量
+% \cs{rightskip} 只属于汉字网格行;汉字行撑竿会把行距顶回网格,停用;
+% 范例导出勾了不断字。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@latin@par:
+  {
+    \skip_zero:N \rightskip
+    \cs_set_eq:NN \hit@format@strut: \prg_do_nothing:
+    \dim_set:Nn \baselineskip { \hit@format@latin@line: }
+    \int_set:Nn \hyphenpenalty { 10000 }
+    \int_set:Nn \exhyphenpenalty { 10000 }
+  }
+% 拉丁空段高(关键词前距等):一个空段按同一条自动行距规则。数值来源
+% 收口在 \hitenter 的自然行高常量上(1.25 × 1.1472 = 1.4340),别处不抄
+\cs_new:Npn \hit@format@latin@line:
+  { \dim_eval:n { \fp_eval:n { 1.25 * \c__hit_enter_natural_serif_fp } em } }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hitenter}
+% \changes{v3.2a}{2026/08/19}{新增 \cs{hitenter}：模拟 Word 空回车段的公开命令}
+% \changes{v3.2a}{2026/08/19}{星号版由整段 \cs{vspace*} 改为逐行空行盒}
+% 模拟 Word 里单独按一次回车留下的空段。高度走版面制度的同一条自动行距
+% 规则（空段行高 = 段落标记字体的自然行高 $\times$ 1.25，Word 的段落标记
+% 是西文字符，故取西文档 1.434\,em，随字号缩放），不写死数值。可选参数是
+% 回车几次。
+%
+% 恰逢换页时默认随页首丢弃（学位论文版式里页首空行无意义）。星号版与
+% Word 的空段同构：每行发一个真实的空行盒，盒不可弃、盒间行距胶是合法
+% 断点，所以页底装得下几行装几行，剩下的落到新页页首照常占位——整段
+% \cs{vspace*} 只能整体保留，劈不开。中页几何两版相同：盒高深为零，局部
+% \cs{baselineskip} 设成空段行高，基线步进恰为每行一份。
+% \changes{v3.2a}{2026/08/19}{可选参数除行数外收下新版面词汇：\option{lines}、
+%   \option{size}、\option{line-spacing}、\option{font-en}、\option{font-zh}}
+% 可选参数含等号时按键值读，与新版面属性族同词汇：\option{size} 收
+% \texttt{wuhao} 这类字号名或长度；\option{line-spacing} 收一个词，文法同
+% 版面制度（\texttt{single}、\texttt{double}、倍数、\texttt{25bp!} 固定值、
+% \texttt{10bp+} 最小值、裸长度）；\option{font-en}/\option{font-zh} 指定段落
+% 标记字体，自然行高只认实测值（serif~1.1472、songti~1.29333），没量过的
+% 字体报错不瞎给。纯整数是 \option{lines} 的简写。
+%
+% 空段行高的算法与 Word 同构：倍数乘在指定字体字号的自然行高上；固定值
+% 就是那么高；最小值取「自然行高与给定值的较大者」。
+%    \begin{macrocode}
+\int_new:N \l__hit_enter_lines_int
+\dim_new:N \l__hit_enter_size_dim
+\dim_new:N \l__hit_enter_base_dim
+\dim_new:N \l__hit_enter_natural_dim
+\dim_new:N \l__hit_enter_ht_dim
+\fp_new:N \l__hit_enter_ratio_fp
+\tl_new:N \l__hit_enter_mode_tl
+\tl_new:N \l__hit_enter_val_tl
+\tl_new:N \l__hit_enter_last_tl
+\fp_const:Nn \c__hit_enter_natural_serif_fp { 1.1472 }
+\fp_const:Nn \c__hit_enter_natural_songti_fp { 1.2933333 }
+\str_const:Nn \c__hit_enter_alpha_str { abcdefghijklmnopqrstuvwxyz }
+\prg_generate_conditional_variant:Nnn \str_if_in:Nn { NV } { TF }
+\cs_new_protected:Npn \__hit_enter_size:n #1
+  {
+    \dim_if_exist:cTF { c__hit_font_size_#1_dim }
+      { \dim_set_eq:Nc \l__hit_enter_size_dim { c__hit_font_size_#1_dim } }
+      { \dim_set:Nn \l__hit_enter_size_dim { #1 } }
+  }
+\cs_new_protected:Npn \__hit_enter_font:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        { serif }
+          { \fp_set_eq:NN \l__hit_enter_ratio_fp \c__hit_enter_natural_serif_fp }
+        { songti }
+          { \fp_set_eq:NN \l__hit_enter_ratio_fp \c__hit_enter_natural_songti_fp }
+      }
+      { \msg_error:nnn { hithesis } { enter-font-unmeasured } {#1} }
+  }
+% 行距一个词的文法与版面制度同款:末字符定归属,! 固定值、+ 最小值、
+% 字母收尾是长度、数字收尾是倍数
+\cs_new_protected:Npn \__hit_enter_spacing:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        { single } { \tl_set:Nn \l__hit_enter_mode_tl { multiple }
+                     \tl_set:Nn \l__hit_enter_val_tl { 1 } }
+        { double } { \tl_set:Nn \l__hit_enter_mode_tl { multiple }
+                     \tl_set:Nn \l__hit_enter_val_tl { 2 } }
+      }
+      {
+        \tl_set:Nx \l__hit_enter_last_tl { \str_item:nn {#1} { -1 } }
+        \str_case:VnF \l__hit_enter_last_tl
+          {
+            { ! }
+              {
+                \tl_set:Nn \l__hit_enter_mode_tl { exactly }
+                \tl_set:Nx \l__hit_enter_val_tl { \str_range:nnn {#1} { 1 } { -2 } }
+              }
+            { + }
+              {
+                \tl_set:Nn \l__hit_enter_mode_tl { atleast }
+                \tl_set:Nx \l__hit_enter_val_tl { \str_range:nnn {#1} { 1 } { -2 } }
+              }
+          }
+          {
+            \str_if_in:NVTF \c__hit_enter_alpha_str \l__hit_enter_last_tl
+              { \tl_set:Nn \l__hit_enter_mode_tl { exactly } }
+              { \tl_set:Nn \l__hit_enter_mode_tl { multiple } }
+            \tl_set:Nn \l__hit_enter_val_tl {#1}
+          }
+      }
+  }
+\keys_define:nn { hit / enter }
+  {
+    lines .int_set:N = \l__hit_enter_lines_int ,
+    size .code:n = { \__hit_enter_size:n {#1} } ,
+    line-spacing .code:n = { \__hit_enter_spacing:n {#1} } ,
+    font-en .code:n = { \__hit_enter_font:n {#1} } ,
+    font-zh .code:n = { \__hit_enter_font:n {#1} } ,
+    unknown .code:n =
+      { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
+  }
+\cs_new_protected:Npn \__hit_enter_height:
+  {
+    \dim_compare:nNnTF \l__hit_enter_size_dim > { 0pt }
+      { \dim_set_eq:NN \l__hit_enter_base_dim \l__hit_enter_size_dim }
+      { \dim_set:Nn \l__hit_enter_base_dim { 1 em } }
+    \dim_set:Nn \l__hit_enter_natural_dim
+      { \fp_to_decimal:N \l__hit_enter_ratio_fp \l__hit_enter_base_dim }
+    \str_case:VnF \l__hit_enter_mode_tl
+      {
+        { multiple }
+          {
+            \dim_set:Nn \l__hit_enter_ht_dim
+              { \l__hit_enter_val_tl \l__hit_enter_natural_dim }
+          }
+        { exactly }
+          { \dim_set:Nn \l__hit_enter_ht_dim { \l__hit_enter_val_tl } }
+        { atleast }
+          {
+            \dim_set:Nn \l__hit_enter_ht_dim
+              {
+                \dim_max:nn { \l__hit_enter_val_tl }
+                  { \l__hit_enter_natural_dim }
+              }
+          }
+      }
+      { }
+  }
+\NewDocumentCommand \hitenter { s O{1} }
+  {
+    \par
+    \group_begin:
+    \int_set:Nn \l__hit_enter_lines_int { 1 }
+    \dim_zero:N \l__hit_enter_size_dim
+    \fp_set_eq:NN \l__hit_enter_ratio_fp \c__hit_enter_natural_serif_fp
+    \tl_set:Nn \l__hit_enter_mode_tl { multiple }
+    \tl_set:Nn \l__hit_enter_val_tl { 1.25 }
+    \tl_if_in:nnTF {#2} { = }
+      { \keys_set:nn { hit / enter } {#2} }
+      { \int_set:Nn \l__hit_enter_lines_int {#2} }
+    \__hit_enter_height:
+    \IfBooleanTF {#1}
+      {
+        \dim_set_eq:NN \baselineskip \l__hit_enter_ht_dim
+        \prg_replicate:nn { \l__hit_enter_lines_int } { \hbox:n { } }
+      }
+      {
+        \vspace
+          { \dim_eval:n { \l__hit_enter_ht_dim * \l__hit_enter_lines_int } }
+      }
+    \group_end:
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%
+%    \begin{macrocode}
+%</shared-format>
+%    \end{macrocode}
+%
+% \Finale

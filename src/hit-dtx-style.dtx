@@ -1,0 +1,623 @@
+% \iffalse meta-comment
+%
+% hit-dtx-style.dtx 是排手册用的样式宏包
+%
+% \fi
+%
+% \changes{v3.2a}{2026/08/09}{手册样式从 \file{hithesis.dtx} 单独成文件}
+% 生成 \file{dtx-style.sty}，只在排这本手册时用，不随模板发布给用户。
+% 原先跟类文件的骨架挤在 \file{hithesis.dtx} 里，两者没有关系。
+%
+% \section{\textsc{DocStrip} 的样式文件}
+% ^^A ======================================================================
+% ^^A Module dtx-style: dtx 自身排版样式
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*dtx-style>
+\ProvidesPackage{dtx-style}
+\RequirePackage{hypdoc}
+%    \end{macrocode}
+%
+% 默认字体为fandol
+% \changes{v3.0.02}{2020/06/11}{默认字体为fandol}
+% \changes{v3.2a}{2026/08/09}{手册西文改用 Noto Serif 与 Noto Sans，装了才用，
+%   没有就回退到原来的 TeX Gyre Pagella 与 IBM Plex Sans}
+% 西文用 Noto Serif 与 Noto Sans，两者都在 \hologo{TeX}~Live 里，CI 上也有。
+%
+% 中文没有跟着换 Noto CJK。\pkg{ctex} 的 \texttt{ubuntu} fontset 楷体取
+% \texttt{AR~PL~KaitiM~GB}，装了 Noto 也未必有这一支；直接写
+% \texttt{Noto~Serif~CJK~SC} 又只能拿到 \file{NotoSerifCJK.ttc} 的默认字面，
+% 也就是日文那面，\texttt{Language=Chinese~Simplified} 不起作用，排出来是
+% 日文字形。所以中文仍旧用 fandol，简体字形正确，\hologo{TeX}~Live 自带。
+%    \begin{macrocode}
+\RequirePackage[UTF8,scheme=chinese,fontset=fandol]{ctex}
+\IfFontExistsTF{NotoSerif-Regular.ttf}{
+  \setmainfont{NotoSerif}[
+    Extension   = .ttf,
+    UprightFont = *-Regular,
+    BoldFont    = *-Bold,
+    ItalicFont  = *-Italic,
+    BoldItalicFont = *-BoldItalic,
+  ]
+}{\IfFontExistsTF{Noto Serif}{
+  \setmainfont{Noto Serif}
+}{
+  \setmainfont{TeXGyrePagellaX}[
+    Extension   = .otf,
+    UprightFont = *-Regular,
+    BoldFont    = *-Bold,
+    ItalicFont  = *-Italic,
+    BoldItalicFont = *-BoldItalic,
+  ]
+}}
+\IfFontExistsTF{NotoSans-Regular.ttf}{
+  \setsansfont{NotoSans}[
+    Extension   = .ttf,
+    UprightFont = *-Regular,
+    BoldFont    = *-Bold,
+    ItalicFont  = *-Italic,
+    BoldItalicFont = *-BoldItalic,
+  ]
+}{\IfFontExistsTF{Noto Sans}{
+  \setsansfont{Noto Sans}
+}{
+  \setsansfont{IBMPlexSansCondensed}[%
+    Extension      = .otf,
+    UprightFont    = *-Regular,
+    BoldFont       = *-Bold,
+    ItalicFont     = *-Italic,
+    BoldItalicFont = *-BoldItalic
+  ]
+}}
+%    \end{macrocode}
+%
+% 手册里代码块的字体。首选霞鹜文楷等宽，它的中西文等宽，中文注释与西文代码能对齐；
+% 中西文一起设，否则 \cs{ttfamily} 下的中文仍走 \pkg{ctex} 的仿宋，宽度对不上。
+% 字体名与文件名两种写法都试一次：前者靠 fontconfig 找已装字体，后者给把
+% \file{.ttf} 直接放在工程目录的人用。找不到就退回原来那条链。
+%
+% \changes{v3.2a}{2026/08/21}{文件名那一档补上 \file{.ttf} 扩展名，不带扩展名的
+%   裸名字在没装这个字体的机器上会被当成 \file{.tfm} 去找}
+% \emph{文件名一定要带扩展名。} 不带扩展名的裸名字，\hologo{XeTeX} 找不到同名
+% 系统字体就退回去找 \file{.tfm}，kpathsea 跟着起 \texttt{mktextfm} 造字，
+% metafont 报 \texttt{I can't find file} 之后整份手册停在那里——Linux 上没有这个
+% 字体，手册就编不出来（在 \texttt{texlive/texlive} 容器里复现）。带上扩展名之后
+% 判定走的是文件查找，找不到就干净地返回假。
+%
+% \changes{v3.2a}{2026/08/21}{Noto 两族先按 \TeX~Live 的字体文件找，再按
+%   fontconfig 名字找}
+% \emph{先按字体文件找，再按名字找。} \texttt{texlive/texlive} 容器里按名字找
+% 会解析到 Type1 的 \file{.pfb}，\texttt{xdvipdfmx} 嵌入时直接 fatal，整份手册
+% 编不出来（实测）。第一档走文件、带扩展名，判定与嵌入都是确定的；第二档给
+% 装了系统 Noto 但没装 \TeX~Live \pkg{noto} 宏包的人用；再退 \pkg{tex-gyre}。
+%
+% 添加fallback字体，这样无论本机/CI/Debian/macOS都不会炸
+% \changes{v3.1e}{2026/01/08}{添加fallback字体，这样无论本机/CI/Debian/macOS都不会炸}
+% \changes{v3.2a}{2026/08/09}{修复Latin Modern Mono fallback缺少\cs{IfFontExistsTF}防护导致CI编译文档失败的问题}
+% \changes{v3.2a}{2026/08/09}{手册的代码字体首选霞鹜文楷等宽，中西文等宽，
+%   中文注释与西文代码能对齐。装了才用，CI 上没有就按原来的链回退}
+%    \begin{macrocode}
+\newif\ifhit@doc@mono
+\IfFontExistsTF{LXGW WenKai Mono}{
+  \setmonofont{LXGW WenKai Mono}
+  \setCJKmonofont{LXGW WenKai Mono}
+  \hit@doc@monotrue
+}{
+  \IfFontExistsTF{LXGWWenKaiMono-Regular.ttf}{
+    \setmonofont{LXGWWenKaiMono-Regular.ttf}
+    \setCJKmonofont{LXGWWenKaiMono-Regular.ttf}
+    \hit@doc@monotrue
+  }{}
+}
+\ifhit@doc@mono\else
+  \IfFontExistsTF{Iosevka Slab}{
+    \setmonofont{Iosevka Slab}
+  }{
+    \IfFontExistsTF{Latin Modern Mono}{
+      \setmonofont{Latin Modern Mono}
+    }{}
+  }
+\fi
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/09}{代码块里的中文跟着走等宽字体。\cs{MacroFont} 用
+%   \cs{fontfamily} 直接设西文族，而 \pkg{xeCJK} 钩的是 \cs{ttfamily} 这个命令，
+%   所以中文一直留在宋体上}
+% \cs{MacroFont} 末尾补一句 \cs{ttfamily}，让中文注释跟着切到等宽字体。
+%    \begin{macrocode}
+\g@addto@macro\MacroFont{\ttfamily}
+\RequirePackage[
+  top=2.5cm, bottom=2.5cm,
+  left=4cm, right=2cm,
+  headsep=3mm]{geometry}
+\RequirePackage{array,longtable,booktabs}
+%    \end{macrocode}
+%
+% 重定义 \pkg{booktabs} 宏包的默认线宽，绘制三线表时不再需要显式设置，以实现更好的内容与格式分离
+% \changes{v3.0.20}{2022/05/06}{重定义 \pkg{booktabs} 宏包的默认线宽，绘制三线表时不再需要显式设置，以实现更好的内容与格式分离}
+%    \begin{macrocode}
+\heavyrulewidth=1.5pt
+\lightrulewidth=1pt
+\cmidrulewidth=0.5pt
+\RequirePackage{listings}
+\RequirePackage{fancyhdr}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/09}{显式加载 \pkg{multicol}。原先靠 \pkg{doc} 为了排
+%   两栏索引顺带加载，是隐式依赖}
+% 双栏目录用。\pkg{doc} 自己也会加载 \pkg{multicol}，但那是它排索引的需要，
+% 不该指望。分栏线与栏间距留在目录那个 \env{multicols} 的可选参数里：写在这里
+% 就成了全局设置，末尾的索引也是双栏排的，会跟着多出一条分栏线。
+%    \begin{macrocode}
+\RequirePackage{multicol}
+\RequirePackage{xcolor}
+\RequirePackage{enumitem}
+\RequirePackage{etoolbox}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{记号改用 \pkg{hologo}，\pkg{metalogo} 撤掉。
+%   原先 \cs{LaTeX} 一族是内核那套按 CM 字形调好的 kern，换到 Noto Serif 上凑不准；
+%   \pkg{hologo} 按当前字体调，还把 \pkg{metalogo} 只管的 \cs{XeTeX} 一族一并覆盖}
+% 记号一律写 \cs{hologo}\marg{名字}，不裸写 \cs{LaTeX} 这类。内核的 \cs{LaTeX}
+% 用的是照 Computer Modern 量好的固定 kern，本手册西文是 Noto Serif，凑不准；
+% \pkg{hologo} 按当前字体现算。\pkg{metalogo} 原先只是为了 \cs{XeLaTeX} 与
+% \cs{XeTeX}，那两个 \pkg{hologo} 也有，所以撤掉，一套就够。
+%    \begin{macrocode}
+\RequirePackage{hologo}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{显式加载 \pkg{graphicx}。手册第 2293 行的
+%   \cs{includegraphics} 原先靠 \pkg{metalogo} 顺带把它拉进来，撤掉 \pkg{metalogo}
+%   才发现这层隐式依赖}
+% 手册里插图要它。原先没写，是 \pkg{metalogo} 为了 \cs{XeTeX} 那个反转的 E 用
+% \cs{reflectbox} 而加载了 \pkg{graphicx}，我们白捡了一个。跟 \pkg{multicol} 那条
+% 一个道理，自己要用的就自己装。
+%    \begin{macrocode}
+\RequirePackage{graphicx}
+\RequirePackage{ruby}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{手册的数学字体钉成 XITS，与文档类 \option{math-font}
+%   \texttt{auto} 档下的默认一致；\pkg{siunitx} 也装上，手册里的数字示例才排得出}
+% 数学字体。手册里有数学示例，原先走 \hologo{LaTeX} 默认的 Computer Modern，
+% 与文档类实际排出来的不是一回事。文档类的 \option{math-font} 取 \texttt{auto}
+% 时落到 XITS（见 \file{src/utils/hit-math.dtx} 的 \cs{\_\_hit\_set\_math\_xits:}），
+% 这里钉成同一套，手册里的公式与用户拿到的一致。选项也照抄那边 \texttt{ISO} 那档。
+%
+% 直接复用 \file{src/utils/hit-math.dtx} 是做不到的：那是 \pkg{expl3} 写的类内代码，
+% 读 \cs{g\_\_hit\_} 开头的标志位决定走哪一档，脱开文档类跑不起来。所以这里只取
+% 它 \texttt{auto} 档的结论，两边一致靠注释与这一条 \cs{changes} 盯着。
+%
+% 字体名两种写法都试：\file{XITSMath-Regular.otf} 是 \pkg{xits} 宏包带的，
+% \file{xits-math.otf} 是旧发行版里的名字。
+%    \begin{macrocode}
+\RequirePackage{amsmath}
+\RequirePackage[math-style=ISO,bold-style=ISO]{unicode-math}
+\RequirePackage{siunitx}
+\IfFontExistsTF{XITSMath-Regular.otf}{
+  \setmathfont{XITSMath-Regular}[Extension=.otf, BoldFont=XITSMath-Bold]
+}{
+  \IfFontExistsTF{xits-math.otf}{
+    \setmathfont{xits-math}[Extension=.otf, BoldFont=*bold]
+  }{}
+}
+\RequirePackage{hyperref}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{补上手册 PDF 的元数据。原先标题、作者、主题、
+%   关键词、语言五项全是空的，PDF 阅读器的属性栏什么都读不到}
+% 手册 PDF 的元数据。抄的 \pkg{thuthesis} 手册样式那一段：本模板是它的 fork，
+% 那边早就设了，我们一直空着。\option{pdfdisplaydoctitle} 让阅读器的窗口标题
+% 显示 \option{pdftitle} 而不是文件名。
+%    \begin{macrocode}
+\hypersetup{
+  pdflang     = zh-CN,
+  pdftitle    = {hiThesis：哈尔滨工业大学学位论文模板},
+  pdfauthor   = {hithesis 开发者},
+  pdfsubject  = {哈尔滨工业大学学位论文模板使用说明},
+  pdfkeywords = {论文模板; 哈尔滨工业大学; 学位论文; 开题报告; 中期报告; 使用说明},
+  pdfdisplaydoctitle = true,
+}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{长链接允许在任意字母数字后断行。同 \pkg{thuthesis}}
+% 长链接允许在任意字母数字之后断行。手册里最长的一条是 130 个字符的百分号编码
+% 地址，不给断点就整条压出版心。\cs{Urlmuskip} 给链接内部一点点可伸缩量，
+% 断不开时也不至于把整行撑坏。
+%    \begin{macrocode}
+\g@addto@macro\UrlBreaks{%
+  \do0\do1\do2\do3\do4\do5\do6\do7\do8\do9%
+  \do\A\do\B\do\C\do\D\do\E\do\F\do\G\do\H\do\I\do\J\do\K\do\L\do\M
+  \do\N\do\O\do\P\do\Q\do\R\do\S\do\T\do\U\do\V\do\W\do\X\do\Y\do\Z
+  \do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j\do\k\do\l\do\m
+  \do\n\do\o\do\p\do\q\do\r\do\s\do\t\do\u\do\v\do\w\do\x\do\y\do\z
+}
+\Urlmuskip=0mu plus 0.1mu
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{\cs{file} 的路径允许在分隔符处断行。
+%   \file{src/pages/hit-thesis-backmatter.dtx} 这种 40 多字符的路径原先是一个
+%   不可断的整体，行尾遇上就压出版心}
+% \cs{file} 排的路径允许在 \texttt{/}、\texttt{-}、\texttt{.} 之后断行。
+% \pkg{thuthesis} 那边用的是 \cs{nolinkurl}，我们用不了：它要 verbatim 抓参数，
+% 而本仓库在 \cs{changes} 的文本里写 \cs{file}，那里参数早已记号化，
+% 换上去手册直接塌成 4 页、100 个错。试过了。
+%
+% 所以自己插断点：逐个记号扫过去，遇上三个分隔符之一就补一个 \cs{allowbreak}。
+% 全仓 306 处 \cs{file} 的参数都是字面路径，没有宏，扫得动。
+%    \begin{macrocode}
+\newcommand*\hit@file@breakable[1]{%
+  \@tfor\hit@file@tok:=#1\do{%
+    \hit@file@tok
+    \expandafter\hit@file@sep\expandafter{\hit@file@tok}}}
+\newcommand*\hit@file@sep[1]{%
+  \ifcat\noexpand#1\relax\else
+    \if/#1\allowbreak\else
+    \if-#1\allowbreak\else
+    \if.#1\allowbreak\fi\fi\fi
+  \fi}
+%    \end{macrocode}
+% 增加 \pkg{ninecolors} 宏包来使用更多颜色。
+%    \begin{macrocode}
+\RequirePackage{ninecolors}
+%    \end{macrocode}
+%
+% \subsection{色板}
+%
+% \changes{v3.2a}{2026/08/14}{手册配色收成一处：主色 \texttt{\#285172}，
+%   宏名、环境名、封面底色、代码块的框线与关键字都从它派生。原先蓝、紫、
+%   品红各写各的，散在四个小节里}
+% 手册的颜色一律从这里取，正文各处不再写死。想换配色只动 \cs{hit@main}
+% 与 \cs{hit@accent} 两行，其余是按它们算出来的。
+%
+% \cs{hit@main} 是主色，深藏青。\cs{hit@accent} 是配色，一支偏暗的赭红，
+% 与主色成冷暖对照，专门留给需要跟主色分开的东西——选项名、页边记号、
+% shell 代码块的框线。同一族里再分深浅，读者只会看出「深一点浅一点」，
+% 分不出是两类，所以配色必须换个色相。
+%
+% \cs{hit@cover@seal} 比原来的 \texttt{\#B5352B} 亮了一档。印色本身没有跟着
+% 主色走的道理，朱文方印就该是朱砂；但封面底色从 \texttt{\#22303F} 换成主色
+% 之后底子亮了，原来那支暗红压在上面对比度只剩 1.4，方印糊在底色里。提亮到
+% \texttt{\#D2422E} 回到原先 1.9 左右，与旧封面的观感一致。
+%
+% 米白的 \cs{hit@cover@ink} 没动，压在主色上对比度约 6.8:1，够。
+%    \begin{macrocode}
+\definecolor{hit@main}{HTML}{285172}
+\definecolor{hit@accent}{HTML}{9C4A2E}
+\colorlet{hit@macro}{hit@main}
+\colorlet{hit@env}{hit@main!82!black}
+\colorlet{hit@option}{hit@accent}
+\colorlet{hit@rule}{hit@main!85!black}
+\colorlet{hit@codeback}{hit@main!5!white}
+\colorlet{hit@string}{teal!70!black}
+\colorlet{hit@comment}{hit@main!35!black!55}
+\hypersetup{
+  colorlinks = true,
+  linkcolor  = hit@main,          % 交叉引用、目录
+  urlcolor   = hit@main!75!black, % 外链，原先的 magenta
+  citecolor  = hit@accent,        % 文献引用
+  filecolor  = hit@main!75!black,
+}
+%    \end{macrocode}
+%
+% \subsection{\pkg{doc} 的标记}
+%
+%    \begin{macrocode}
+\patchcmd{\PrintMacroName}{\MacroFont}{\MacroFont\bfseries\color{hit@macro}}{}{}
+\patchcmd{\PrintDescribeMacro}{\MacroFont}{\MacroFont\bfseries\color{hit@macro}}{}{}
+\patchcmd{\PrintDescribeEnv}{\MacroFont}{\MacroFont\bfseries\color{hit@env}}{}{}
+\patchcmd{\PrintEnvName}{\MacroFont}{\MacroFont\bfseries\color{hit@env}}{}{}
+
+\def\DescribeOption{%
+  \leavevmode\@bsphack\begingroup\MakePrivateLetters%
+  \Describe@Option}
+\def\Describe@Option#1{\endgroup
+  \marginpar{\raggedleft\PrintDescribeOption{#1}}%
+  \hit@special@index{option}{#1}\@esphack\ignorespaces}
+\def\PrintDescribeOption#1{\strut \MacroFont\bfseries\sffamily\color{hit@option} #1\ }
+\def\hit@special@index#1#2{\@bsphack
+  \begingroup
+    \HD@target
+    \let\HDorg@encapchar\encapchar
+    \edef\encapchar usage{%
+      \HDorg@encapchar hdclindex{\the\c@HD@hypercount}{usage}%
+    }%
+    \index{#2\actualchar{\string\ttfamily\space#2}
+           (#1)\encapchar usage}%
+    \index{#1:\levelchar#2\actualchar
+           {\string\ttfamily\space#2}\encapchar usage}%
+  \endgroup
+  \@esphack}
+%    \end{macrocode}
+%
+% \subsection{代码块}
+%
+% \changes{v3.2a}{2026/08/14}{代码块的底色、框线、关键字色改从色板取。
+%   底色原是中性的 \texttt{gray!!5}，换成主色 5\% 的淡染，与页面其余部分同一族}
+%    \begin{macrocode}
+\lstdefinestyle{lstStyleBase}{%
+   basicstyle=\small\ttfamily,
+   aboveskip=\medskipamount,
+   belowskip=\medskipamount,
+   lineskip=0pt,
+   boxpos=c,
+   showlines=false,
+   extendedchars=true,
+   upquote=true,
+   tabsize=2,
+   showtabs=false,
+   showspaces=false,
+   showstringspaces=false,
+   numbers=none,
+   linewidth=\linewidth,
+   xleftmargin=4pt,
+   xrightmargin=0pt,
+   resetmargins=false,
+   breaklines=true,
+   breakatwhitespace=false,
+   breakindent=0pt,
+   breakautoindent=true,
+   columns=flexible,
+   keepspaces=true,
+   gobble=2,
+   framesep=3pt,
+   rulesep=1pt,
+   framerule=1pt,
+   backgroundcolor=\color{hit@codeback},
+   stringstyle=\color{hit@string},
+   keywordstyle=\bfseries\color{hit@main},
+   commentstyle=\slshape\color{hit@comment}}
+
+%    \end{macrocode}
+% 修改抄录环境的高亮，使代码更易阅读。
+% \changes{v3.1a}{2022/05/17}{修改抄录环境的高亮，使代码更易阅读}
+%
+% \changes{v3.2a}{2026/08/14}{两个抄录环境的框线改从色板取：shell 走配色，
+%   \hologo{LaTeX} 走主色，一眼分得出是哪一类代码块}
+% 两种代码块靠左侧那条竖线区分：命令行是赭红，\hologo{LaTeX} 源码是藏青。
+% 多级关键字里 \texttt{azure4} 换成主色，\texttt{red3} 换成配色，
+% \texttt{green5} 留着——它标的是命令行选项，那是第三类东西，得有第三个颜色。
+%    \begin{macrocode}
+   \lstdefinestyle{lstStyleShell}{%
+   style=lstStyleBase,
+   frame=l,
+   rulecolor=\color{hit@accent},
+   language=bash,
+   morekeywords  = [1]
+   {
+     tlmgr, pdflatex, latexmk, xelatex, cd, dir, mkdir,
+     ls, del, rm, mv, move, cp, copy, code, bibtex, biber,
+     texdoc, kpsewhich, texhash, splitindex, latex, makeindex, 
+     make
+   },
+    morekeywords  = [2]{action, info, option, update, install, remove, version, restore},
+    otherkeywords  = {--, -s, -o, -xelatex},
+    morekeywords  = [3]{--, -s, -o, -xelatex},
+    keywordstyle  = [1]{\bfseries},
+    keywordstyle  = [2]{\color{hit@main}},
+    keywordstyle  = [3]{\color{green5}}
+    % moredelim     = [s][\color{green5}]{\ -}{\ },
+   }
+
+\lstdefinestyle{lstStyleLaTeX}{%
+    style=lstStyleBase,
+    frame=l,
+    rulecolor=\color{hit@rule},
+    language=[LaTeX]TeX,
+    texcsstyle  =*[1]{\color{hit@main}\bfseries},
+    texcsstyle   =*[2]{\color{hit@accent}\bfseries},
+    moretexcs   = [1]
+      {
+        LaTeX, LaTex, label, ref, 
+        tableofcontents, bibliography, bibliographystyle, 
+        cite, NeedsTeXFormat, ProvidesPackage, newcommand, mycmd, 
+        addbibresource, printbibliography, graphicspath, 
+        frontmatter, mainmatter, backmatter, printsubindex,
+        makecover, authorization, hitsetup,
+        chuhao, xiaochu, yihao, xiaoyi, erhao, xiaoer, sanhao, 
+        xiaosan, sihao, xiaosi, wuhao, xiaowu, liuhao, xiaoliu, qihao, bahao,
+        bicaption, caption, ltfontsize, longbionenumcaption, subfigure, includegraphics,
+        toprule, midrule, bottomrule, endhead, endfirsthead, endfoot
+      },
+    deletetexcs  = [1]{documentclass, usepackage, begin, end},
+    moretexcs    = [2]{usepackage, documentclass, begin, end},
+  }
+
+\lstnewenvironment{latex}{\lstset{style=lstStyleLaTeX}}{}
+\lstnewenvironment{shell}{\lstset{style=lstStyleShell}}{}
+
+\setlist{nosep}
+
+\DeclareDocumentCommand{\option}{}{\meta}
+\DeclareDocumentCommand{\env}{m}{\textbf{\texttt{#1}}}
+\DeclareDocumentCommand{\pkg}{s m}{%
+  \textsf{#2}\IfBooleanF#1{\hit@special@index{package}{#2}}}
+\DeclareDocumentCommand{\cls}{s m}{%
+  \textsf{#2}\IfBooleanF#1{\hit@special@index{class}{#2}}}
+\DeclareDocumentCommand{\file}{s m}{%
+  \texttt{\hit@file@breakable{#2}}\IfBooleanF#1{\hit@special@index{file}{#2}}}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/14}{\cs{myentry} 的页边记号改用配色，与 \cs{DescribeOption}
+%   一致——两者都排在页边，本就该是一个颜色}
+%    \begin{macrocode}
+\newcommand{\myentry}[1]{%
+  \marginpar{\raggedleft\color{hit@accent}\bfseries\strut #1}}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/09}{封面作者项的辅助宏 \cs{hitauthor} 放进
+%   \file{dtx-style.sty}，与同类辅助宏一处}
+% \cs{hitgh}\marg{账号} 排一个指向 GitHub 主页的昵称，\cs{hitmail}\marg{地址}
+% 排一个邮件链接。
+%
+% \cs{hitauthor}\oarg{称号}\marg{姓名}\marg{邮箱}\marg{GitHub 账号} 排封面上的
+% 一位作者，脚注给出「昵称（邮箱）」。邮箱一栏收的是排好的内容，多个邮箱就写多个
+% \cs{hitmail}。
+%
+% \changes{v3.2a}{2026/08/12}{\cs{hitauthor}}
+% \changes{v3.2a}{2026/08/12}{\cs{hitauthor} 加可选的称号，用 \pkg{ruby} 排在名字
+%   头上。三位主要维护者各标一代}
+% 可选参数是称号，用 \pkg{ruby} 排在名字头上，读作「注音」那个位置。没写就只排名字。
+%
+% \cs{hitref}\marg{账号} 在正文里排一个跳回封面的昵称。落点是封面整页而不是脚注
+% 那一行：\pkg{hypdoc} 与 \pkg{hyperref} 在 \cs{maketitle} 的时机放不了锚点，
+% \cs{hypertarget} 与 \cs{phantomsection}\cs{label} 写在 \cs{thanks} 里或作者名上
+% 都会报 \cs{HyperLocalCurrentHref} 未定义而编不过，所以退一步用页锚点。
+%    \begin{macrocode}
+\newcommand*\hitgh[1]{\href{https://github.com/#1}{\texttt{@#1}}}
+\newcommand*\hitmail[1]{\href{mailto:#1}{\texttt{#1}}}
+\newcommand*\hitref[1]{\hyperlink{page.1}{\texttt{@#1}}}
+\NewDocumentCommand\hitauthor{o m m m}
+  {%
+    \IfNoValueTF{#1}{#2}{\ruby{#2}{\hit@rank@font #1}}%
+    \thanks{\hitgh{#4}（#3）}%
+  }
+\newcommand*\hit@rank@font{\normalfont\sffamily\color{hit@option}}
+%    \end{macrocode}
+%
+% \cs{note} 留在品红。它是作者写给作者看的批注，本来就该从正文里跳出来，
+% 跟着主色走就跳不出来了。
+%    \begin{macrocode}
+\newcommand{\note}[2][Note]{{%
+  \color{hit@accent}{\bfseries #1}\emph{#2}}}
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{增加 \cs{issue} 命令，来方便 issue 的引用}
+%    \begin{macrocode}
+\NewDocumentCommand\issue{o}{%
+  \IfValueTF{#1}
+    {\href{https://github.com/hithesis/hithesis/issues/#1}{issue: \##1}}
+    {\href{https://github.com/hithesis/hithesis/issues}{issues}}
+}
+%    \end{macrocode}
+%
+% 增加 \cs{hitszthesis} 来使参考 \hitszthesis{} 更加方便。
+% \begin{macro}{\hitszthesis}
+% % \changes{v3.1b}{2022/06/06}{增加 \cs{hitszthesis} 来使参考 \hitszthesis{} 更加方便}
+%    \begin{macrocode}
+\def\hitszthesis{\href{https://github.com/YangLaTeX/hitszthesis}{\textsc{Hitsz}\-\textsc{Thesis}}{}}
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{封面}
+%
+% \changes{v3.2a}{2026/08/12}{手册加封面：满版底色、双线框里的竖排书名、
+%   框外的作者列、朱文方印}
+% \changes{v3.2a}{2026/08/14}{封面底色改用主色，印色相应提亮一档。三支颜色
+%   都挪去了前面的色板一节}
+% \DescribeMacro{\hitcoverpage}
+% \cs{hitcoverpage}\marg{书名}\marg{版次}\marg{作者甲}\marg{作者乙}\marg{脚注}
+% 排手册的封面。版式是中文书封的常见路数：满版底色，右侧一个双线框，框里竖排书名，
+% 框外左侧两列作者，框下钤一枚朱文方印，左下角是模板名与版本。
+%
+% 两列作者按竖排的规矩从右往左读，\meta{作者甲} 在右。方印的四个字按回文读序排，
+% 右上、右下、左上、左下，读作「哈工大印」。
+%
+% 底色、字色、印色三个在前面的色板一节，想换配色改那里。
+%
+% \textbf{要编两遍。} \pkg{tikz} 的 \texttt{remember~picture} 靠 \file{.aux} 传
+% \texttt{current~page} 的坐标，头一遍拿不到，整幅会缩在左上角。\texttt{make~doc}
+% 本来就编三遍，不必额外处理。
+%    \begin{macrocode}
+\RequirePackage{tikz}
+\usetikzlibrary{calc}
+\colorlet{hit@cover@ground}{hit@main}
+\definecolor{hit@cover@ink}{HTML}{EDE6D6}
+\definecolor{hit@cover@seal}{HTML}{D2422E}
+%    \end{macrocode}
+%
+% 竖排一列：\marg{tikz 坐标}\marg{字号}\marg{行距}\marg{文本}。逐字放一个
+% \cs{node}，每字往下挪一个行距。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\cs_new_protected:Npn \hit_cover_column:nnnn #1#2#3#4
+  {
+    \int_zero:N \l_tmpa_int
+    \tl_map_inline:nn {#4}
+      {
+        \node [ anchor = north , inner~sep = 0pt , text = hit@cover@ink ]
+          at ( $ #1 + ( 0 , - \fp_eval:n { \l_tmpa_int * #3 } pt ) $ )
+          { \fontsize {#2} {#2} \selectfont ##1 } ;
+        \int_incr:N \l_tmpa_int
+      }
+  }
+\cs_new_eq:NN \hit@cover@column \hit_cover_column:nnnn
+\ExplSyntaxOff
+%    \end{macrocode}
+%
+% 满版底色，往里 30\,pt 一圈细线。
+%    \begin{macrocode}
+\newcommand\hitcoverpage[5]{%
+  \thispagestyle{empty}%
+  \begin{tikzpicture}[remember picture,overlay,
+      every node/.style={font=\kaishu}]
+    \fill[hit@cover@ground]
+      (current page.south west) rectangle (current page.north east);
+    \draw[hit@cover@ink,line width=0.4pt]
+      ($(current page.south west)+(30pt,30pt)$)
+        rectangle ($(current page.north east)+(-30pt,-30pt)$);
+%    \end{macrocode}
+%
+% 书名块。坐标从 \texttt{current~page.north} 起算，往右 112\,pt、往下 210\,pt，
+% 于是整块落在版面右侧、竖直方向的视觉中心稍上。
+%    \begin{macrocode}
+    \coordinate (hit@tc) at ($(current page.north)+(112pt,-210pt)$);
+    \draw[hit@cover@ink,line width=0.6pt]
+      ($(hit@tc)+(-52pt,30pt)$) rectangle ($(hit@tc)+(52pt,-348pt)$);
+    \draw[hit@cover@ink,line width=2.4pt]
+      ($(hit@tc)+(-59pt,37pt)$) rectangle ($(hit@tc)+(59pt,-355pt)$);
+    \hit@cover@column{(hit@tc)}{54pt}{54}{#1}
+    \hit@cover@column{($(hit@tc)+(34pt,-10pt)$)}{16pt}{18}{#2}
+    \hit@cover@column{($(hit@tc)+(-96pt,-42pt)$)}{17pt}{19}{#3}
+    \hit@cover@column{($(hit@tc)+(-126pt,-42pt)$)}{17pt}{19}{#4}
+%    \end{macrocode}
+%
+% 朱文方印，四个字按回文读序：右上、右下、左上、左下。
+%    \begin{macrocode}
+    \begin{scope}[shift={($(hit@tc)+(0pt,-386pt)$)}]
+      \draw[hit@cover@seal,line width=2pt]
+        (-21pt,-21pt) rectangle (21pt,21pt);
+      \node[text=hit@cover@seal] at ( 10pt, 10pt){\fontsize{16}{16}\selectfont 哈};
+      \node[text=hit@cover@seal] at ( 10pt,-10pt){\fontsize{16}{16}\selectfont 工};
+      \node[text=hit@cover@seal] at (-10pt, 10pt){\fontsize{16}{16}\selectfont 大};
+      \node[text=hit@cover@seal] at (-10pt,-10pt){\fontsize{16}{16}\selectfont 印};
+    \end{scope}
+    \node[anchor=south west,text=hit@cover@ink,font=\rmfamily]
+      at ($(current page.south west)+(60pt,74pt)$)
+      {\fontsize{30}{30}\selectfont hi\kern-.5pt Thesis};
+    \node[anchor=south west,text=hit@cover@ink]
+      at ($(current page.south west)+(62pt,52pt)$)
+      {\fontsize{12}{12}\selectfont #5};
+  \end{tikzpicture}%
+  \null\newpage}
+%    \end{macrocode}
+%    \begin{macrocode}
+%</dtx-style>
+%    \end{macrocode}
+%
+% 这几条类文件和 \file{dtx-style.sty} 都要。类文件整份在 expl3 语法里，
+% \file{dtx-style.sty} 不是，所以两边各写一份。类文件那一份在
+% \file{src/setup/hit-defaults.dtx}，这里只留 \file{dtx-style.sty} 用的。
+%    \begin{macrocode}
+%<dtx-style>\newcommand{\pozhehao}{——}
+%<dtx-style>\def\hithesis{\textsc{hi}\-\textsc{Thesis}}
+%<dtx-style>\def\hit{哈尔滨工业大学}
+%<dtx-style>\def\PGR{\href{http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm}
+%<dtx-style>{《\hit 研究生学位论文撰写规范》}}
+%<dtx-style>\def\UGR{\href{http://jwc.hit.edu.cn/2566/list.htm}
+%<dtx-style>{《\hit 本科生毕业论文撰写规范》}}
+%    \end{macrocode}
+%
+% \changes{v2.0.06}{2018/12/05}{在\cs{inlinecite}内添加空格}
+%
+% \changes{v3.2a}{2026/08/14}{\env{hitrgu} 引规范的那一句改用配色。原先是纯
+%   \texttt{red}，正文里最扎眼的就是它，比封面的印色还跳}
+%    \begin{macrocode}
+%<*dtx-style>
+  \NewDocumentEnvironment{hitrgu}{o o}
+  { \IfNoValueTF{#1}{\PGR,\UGR}{#1}\IfNoValueF{#2}{#2中}%
+\color{hit@accent}规定：“}{”}
+%</dtx-style>
+%    \end{macrocode}
+%
+% \Finale

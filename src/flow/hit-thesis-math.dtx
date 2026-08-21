@@ -1,0 +1,115 @@
+% \iffalse meta-comment
+%
+% Copyright (C) 2017- by Yanshuo Chu <yanshuoc@gmail.com>
+%
+% This file may be distributed and/or modified under the
+% conditions of the LaTeX Project Public License, either version 1.3a
+% of this license or (at your option) any later version.
+% The latest version of this license is in:
+%
+% http://www.latex-project.org/lppl.txt
+%
+% and version 1.3a or later is part of all distributions of LaTeX
+% version 2004/10/01 or later.
+%
+% \fi
+%
+% \section{学位论文类的数学配置}
+% ^^A ======================================================================
+% ^^A Module thesis-math: 数学公式断行（hit-thesis）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*thesis-math>
+%    \end{macrocode}
+%
+% 以下为原模板的核心公式断行设置。
+%    \begin{macrocode}
+\allowdisplaybreaks[4]
+\predisplaypenalty=0%公式之前可以换页，公式出现在页面顶部
+\postdisplaypenalty=0
+\cs_set:Npn \theequation
+  { \int_compare:nNnT{\c@chapter}>{0}{\thechapter-} \@arabic \c@equation }
+%    \end{macrocode}
+%
+% \changes{v2.0.03}{2018/10/08}{设置公式前后随意断页}
+% 公式距前后文的距离由 4 个参数控制，参见 \cs{normalsize} 的定义。
+% 同时为了让 \pkg{amsmath} 的 \cs{tag*} 命令得到正确的格式，我们必须修改这些代
+% 码。\cs{make@df@tag} 是定义 \cs{tag*} 和 \cs{tag} 内部命令的。
+% \cs{make@df@tag@@} 处理 \cs{tag*}，我们就改它！
+% \begin{latex}
+% \def\make@df@tag{\@ifstar\make@df@tag@@\make@df@tag@@@}
+% \def\make@df@tag@@#1{%
+%   \gdef\df@tag{\maketag@@@{#1}\def\@currentlabel{#1}}}
+% \end{latex}
+%    \begin{macrocode}
+\cs_set:Npn \make@df@tag { \@ifstar \hit@make@starred@tag \make@df@tag@@@ }
+\cs_set:Npn \hit@make@starred@tag #1
+  { \cs_gset:Npn \df@tag { \hit@make@tag {#1} \cs_set:Npn \@currentlabel {#1} } }
+\cs_set:Npn \hit@make@tag #1
+  {
+    \maketag@@@
+      { \hit@equation@paren@left \ignorespaces #1 \unskip \@@italiccorr
+        \hit@equation@paren@right }
+  }
+\cs_set:Npn \tagform@ #1
+  {
+    \maketag@@@
+      { \hit@equation@paren@left \ignorespaces #1 \unskip \@@italiccorr
+        \hit@equation@paren@right \equcaption {#1} }
+  }
+%    \end{macrocode}
+%
+% 修改 \cs{tagform} 会影响 \cs{eqref}。
+%    \begin{macrocode}
+\RenewDocumentCommand \eqref { m }
+  { \textup { \hit@equation@paren@left \ref {#1} \hit@equation@paren@right } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{公式编号两边的括号默认改成全角，
+%   \option{math/numbering-parenthesis-style} 可以选回半角}
+% 公式编号两边的括号。中文论文默认全角，取 \texttt{half} 换半角。
+% 英文论文（\option{language} 取 \texttt{english}）不受这个键影响，一律半角，
+% 所以判断是两个条件相与，而不是只看键。
+%
+% 判断放在这两个宏里、而不是在设键时就把括号定死，是因为 \cs{hitsetup} 在导言区
+% 才调用，那时 \cs{tagform@} 早就定义完了。宏体里现取现判，键写在哪儿都跟得上。
+%
+% 挑括号那一步可展开，两个包装宏 protected。全角括号在 \pkg{xeCJK} 下是活动字符，
+% 包装宏留在 protected 里，排版时才展开到它。
+%    \begin{macrocode}
+\bool_new:N \g__hit_equation_paren_full_bool
+\bool_gset_true:N \g__hit_equation_paren_full_bool
+\cs_new:Npn \__hit_equation_paren:nn #1#2
+  {
+    \bool_lazy_and:nnTF
+      { ! \bool_if_p:N \g__hit_en_bool }
+      { \bool_if_p:N \g__hit_equation_paren_full_bool }
+      {#1} {#2}
+  }
+\cs_new_protected:Npn \hit@equation@paren@left  { \__hit_equation_paren:nn { （ } { ( } }
+\cs_new_protected:Npn \hit@equation@paren@right { \__hit_equation_paren:nn { ） } { ) } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{ntheorem 全局样式（\cs{renewtheoremstyle}/\cs{theorembodyfont}/\cs{theoremheaderfont}/\cs{theoremsymbol}/\cs{theoremXXskipamount}）与 \cs{arraycolsep} 从 book-floats 迁入 book-math（归位至数学/定理职责）}
+% ntheorem 定理全局样式与公式数组列间距。
+%    \begin{macrocode}
+\hit@theorem@style{
+  body-font~~~=~{\songti\rmfamily},
+  head-font~~~=~{\heiti\rmfamily},
+  qed~~~~~~~~~=~{$\square$},
+  note-braces~=~{}{},
+  note-font~~~=~{},
+  head-space~~=~{6pt},
+  space-above~=~{1pt},
+  space-below~=~{-2pt},
+}
+\arraycolsep=1.6pt
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{\env{eqdenote} 的定义挪到 \file{src/utils/hit-math.dtx}}
+% \env{eqdenote} 见 \file{src/utils/hit-math.dtx}。
+%    \begin{macrocode}
+%</thesis-math>
+%    \end{macrocode}
+%
+% \Finale

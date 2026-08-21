@@ -1,0 +1,34 @@
+% eqdenote 段前该补多少行距胶。
+% longtable 把首块排在一个新 vbox 里，vbox 开头 \prevdepth 是 -1000pt，TeX 不给
+% 首行插行距胶，\unvbox 出来时也不补。结果表首行与上一行正文之间只隔「上一行的
+% 深度加首行的高度」，比正常行距紧。补的就是 TeX 本该插的那份：
+%
+%   \baselineskip - \prevdepth - \arraystretch\ht\strutbox
+%
+% 版面上量不出来（l3build 只看日志），所以这里直接钉 \LTpre 算出来的值。
+% 造两个已知深度的 \prevdepth 各算一次，确认它跟着上一行的深度走而不是常数。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master,campus=harbin]{hit-thesis}
+\makeatletter
+\ExplSyntaxOn
+%% \ExplSyntaxOn 写进 \TEST 的花括号参数是空操作，所以先在这里包好。
+\cs_new_protected:Npn \hitshowpreskip #1
+  {
+    \tex_prevdepth:D #1
+    \__hit_eqdenote_pre_skip:
+    \iow_term:x { LTpre= \skip_use:N \LTpre }
+    \iow_term:x { 应为= \dim_to_decimal:n
+      { \baselineskip - #1 - \arraystretch \ht \strutbox } pt }
+  }
+\ExplSyntaxOff
+\makeatother
+\begin{document}
+\START
+\TEST{上一行深度为零时}{
+  \hitshowpreskip{0pt}
+}
+\TEST{上一行有下伸部时，补的胶相应变少}{
+  \hitshowpreskip{5pt}
+}
+\END
+\end{document}

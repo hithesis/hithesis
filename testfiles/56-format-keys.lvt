@@ -1,0 +1,219 @@
+% hit/format 族：照 Word 的字体与段落对话框描述一个元素怎么排。
+%
+% 四件事：各种取值写法都解析得对；伞展开成逐级；六个兼容桥写回原来的标志位；
+% 取值不认识时报错。
+%
+% 走旧版面，好让 format 的各个目标一开始都是空的：新版面会先发一整份默认配置
+% 进去，混在一起就看不出这里设的是哪几条了。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master,campus=harbin,
+               v2-layout={graduate=two}]{hit-thesis}
+\begin{document}
+\START
+\ExplSyntaxOn
+\cs_new_protected:Npn \DUMP #1
+  {
+    \iow_term:x { [#1] }
+    \prop_map_inline:cn { g__hit_format_#1_prop }
+      { \iow_term:x { ~~ ##1 ~ = ~ ##2 } }
+  }
+\cs_new_protected:Npn \FLAG #1
+  { \iow_term:x { #1 ~ = ~ \bool_if:cTF { g__hit_#1_bool } { true } { false } } }
+\cs_new_protected:Npn \DUMPALL #1
+  {
+    \clist_map_inline:nn { { } , { _ragged } , { _flush } }
+      {
+        \iow_term:x { [#1##1] }
+        \prop_map_inline:cn { g__hit_format_#1##1_prop }
+          { \iow_term:x { ~~ ####1 ~ = ~ ####2 } }
+      }
+  }
+\ExplSyntaxOff
+
+% 字号收名字也收长度；行距三种模式；间距与缩进的两种单位
+\TEST{value~parsing}{
+  \hitsetup
+    {
+      format =
+        {
+          chapter = { font-zh = heiti , size = xiaoer , bold = true ,
+                      alignment = centered , line-spacing = 1.5 ,
+                      space-before = 1 line , space-after = 12bp ,
+                      indent-special = hanging 4 chars ,
+                      snap-to-grid = false , keep-with-next = true } ,
+          section = { size = 15bp , line-spacing = 25bp! ,
+                      indent-left = 2 chars , indent-right = 0pt } ,
+          subsection = { line-spacing = single } ,
+          subsubsection = { line-spacing = 20bp+ ,
+                            indent-special = none } ,
+        }
+    }
+  \DUMP{chapter}
+  \DUMP{section}
+  \DUMP{subsection}
+  \DUMP{subsubsection}
+}
+
+% 伞展开成四级，写完伞再单设某一级仍然管用
+\TEST{umbrella~expands}{
+  \hitsetup
+    {
+      format =
+        {
+          heading = { size = sanhao } ,
+          subsection = { size = sihao } ,
+          caption = { alignment = centered } ,
+        }
+    }
+  \DUMP{chapter}
+  \DUMP{subsection}
+  \DUMP{caption-figure}
+  \DUMP{caption-table}
+}
+
+% 六个兼容桥：写新键，读旧标志位
+\TEST{legacy~bridge}{
+  \hitsetup
+    {
+      format =
+        {
+          chapter = { bold = false , indent-special = none } ,
+          caption = { alignment = last-line-centered } ,
+          caption-sub = { alignment = last-line-centered } ,
+          abstract-heading = { all-caps = true } ,
+          heading = { font-en = sans } ,
+        }
+    }
+  \FLAG{chapterbold}
+  \FLAG{chapterhang}
+  \FLAG{capcenterlast}
+  \FLAG{subcapcenterlast}
+  \FLAG{absupper}
+  \FLAG{heading_latin_sans}
+}
+
+% 反向：换成别的取值，标志位跟着回去
+\TEST{legacy~bridge~back}{
+  \hitsetup
+    {
+      format =
+        {
+          chapter = { bold = true , indent-special = hanging 2 chars } ,
+          caption = { alignment = justified } ,
+          heading = { font-en = serif } ,
+        }
+    }
+  \FLAG{chapterbold}
+  \FLAG{chapterhang}
+  \FLAG{capcenterlast}
+  \FLAG{heading_latin_sans}
+}
+
+% 区间：两个词就是区间，两个端点各存各的单位，可以一头长度一头倍数
+\TEST{measure~range}{
+  \hitsetup
+    {
+      format =
+        {
+          chapter = { line-spacing = 1.2 1.25 } ,
+          section = { line-white = 8mm 7mm } ,
+          subsection = { line-spacing = 3mm 2 } ,
+        }
+    }
+  \DUMP{chapter}
+  \DUMP{section}
+  \DUMP{subsection}
+}
+
+% 写回一个词，上一次留下的第二个端点要抹掉
+\TEST{range~back~to~single}{
+  \hitsetup{ format = { chapter = { line-spacing = single } } }
+  \DUMP{chapter}
+}
+
+% 两个键量的是同一件事，同一个目标里都写了要报错，按后写的算
+\TEST{measure~clash}{
+  \hitsetup
+    { format = { subsubsection = { line-spacing = 1.5 , line-white = 3mm } } }
+  \DUMP{subsubsection}
+}
+
+% 分档：限定词挂在目标名后面，写进哪一档就进哪一份存储
+\TEST{bottom~layers}{
+  \hitsetup
+    {
+      format =
+        {
+          caption-sub = { font-zh = heiti } ,
+          caption-sub/if-raggedbottom =
+            { line-spacing = 1.2 , space-before = 1 line } ,
+          caption-sub/if-flushbottom =
+            { line-spacing = 1.2 1.25 , white-before = 10mm } ,
+        }
+    }
+  \DUMPALL{caption-sub}
+}
+
+% 档外再写一条同名的键，两个档里那一条要让位，不然默认表会盖住用户刚写的
+\TEST{plain~key~shadows~layers}{
+  \hitsetup{ format = { caption-sub = { line-spacing = single } } }
+  \DUMPALL{caption-sub}
+}
+
+% 档外写 line-spacing、档里写 line-white 不算冲突，判重的表每个目标各一份
+\TEST{layer~clash~is~scoped}{
+  \hitsetup
+    {
+      format =
+        {
+          toc-chapter = { line-spacing = 1.25 } ,
+          toc-chapter/if-flushbottom = { line-white = 3mm 4mm } ,
+        }
+    }
+  \DUMPALL{toc-chapter}
+}
+
+% 伞也带限定词，一次发四级
+\TEST{umbrella~with~layer}{
+  \hitsetup
+    { format = { heading/if-flushbottom = { white-before = 5mm } } }
+  \DUMPALL{subsubsection}
+}
+
+% snap-to-grid 写布尔或 auto 是两轴的简写，两轴一起落
+\TEST{snap~scalar~sets~both~axes}{
+  \hitsetup{ format = { toc-section = { snap-to-grid = true } } }
+  \DUMP{toc-section}
+}
+
+% 写子块只落写到的那一轴，另一轴保持原样
+\TEST{snap~subblock~sets~one~axis}{
+  \hitsetup{ format = { toc-section = { snap-to-grid = { horizontal = false } } } }
+  \DUMP{toc-section}
+}
+
+% auto 与别的键一样是“删掉这一条”，两轴一起删
+\TEST{snap~auto~clears~both~axes}{
+  \hitsetup{ format = { toc-section = { snap-to-grid = auto } } }
+  \DUMP{toc-section}
+}
+
+% char-spacing 是带符号的长度：负数紧缩、正数加宽、零是标准。正号写不写都行
+\TEST{char~spacing~signed~length}{
+  \hitsetup{ format = { toc-subsection = { char-spacing = -0.2bp } } }
+  \DUMP{toc-subsection}
+  \hitsetup{ format = { toc-subsection = { char-spacing = +1bp } } }
+  \DUMP{toc-subsection}
+  \hitsetup{ format = { toc-subsection = { char-spacing = 1bp } } }
+  \DUMP{toc-subsection}
+  \hitsetup{ format = { toc-subsection = { char-spacing = 0bp } } }
+  \DUMP{toc-subsection}
+}
+
+% 子块里写不认识的轴要报警告
+\TEST{snap~unknown~axis}{
+  \hitsetup{ format = { toc-subsubsection = { snap-to-grid = { sideways = true } } } }
+  \DUMP{toc-subsubsection}
+}
+\END
+\end{document}

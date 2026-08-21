@@ -1,0 +1,216 @@
+% \iffalse meta-comment
+%
+% hit-title.dtx 是各个类共用的论文标题解析
+%
+% \fi
+%
+% \section{共享标题解析}
+%
+% \changes{v3.2a}{2026/08/07}{论文标题合并成一个 \option{title} 键，
+%   原先的 \option{ctitlecover}、\option{ctitleone}、\option{ctitletwo}、
+%   \option{csubtitle} 四个合而为一}
+% 同一个标题要出现在好几个地方，而各处需要的断行位置不一样：本科第二封面、博后第一
+% 封面、深圳博士中期封面的题目栏是两条固定宽度的线，一行一条；其余各封面自由排；
+% 原创性声明的《\ldots》与 PDF 书签要一整行。
+%
+% 所以 \option{title} 的取值带两套断点，互不干扰：
+% \begin{latex}
+% title={第一行}{第二行}[副标题]
+% \end{latex}
+% 花括号分组管两条线那种版式，一组一条线；\cs{\textbackslash\textbackslash} 管自由排
+% 的封面；方括号是副标题。三样都可以不写，\texttt{title=\{题目\}} 是最常见的写法。
+%
+% 举例：\texttt{title=\{局部多孔质气体静压\cs{\textbackslash\textbackslash}轴承关键\}\{技术的研究\}}
+% 在自由排的封面上断在 \cs{\textbackslash\textbackslash} 处，在两条线的封面上断在两组
+% 之间，两处各断各的。
+%
+%    \begin{macrocode}
+%<*shared-title>
+%    \end{macrocode}
+%
+% 解析结果分三格存着，取用时再按场景拼装。
+%    \begin{macrocode}
+\tl_new:N \l__hit_title_language_tl
+\tl_new:N \l__hit_title_source_tl
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@title@set@first,\hit@title@set@second,\hit@title@set@subtitle}
+% 三格各自的写入口。旧键 \option{ctitleone}、\option{ctitletwo}、\option{csubtitle}
+% 在兼容期里各写一格，互不覆盖。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@title@set@first #1#2
+  { \cs_gset_nopar:cpn { hit@title@first@#1 } {#2} }
+\cs_new_protected:Npn \hit@title@set@second #1#2
+  { \cs_gset_nopar:cpn { hit@title@second@#1 } {#2} }
+\cs_new_protected:Npn \hit@title@set@subtitle #1#2
+  { \cs_gset_nopar:cpn { hit@title@subtitle@#1 } {#2} }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@title@parse}
+% keyval 会把 \texttt{title=\{题目\}} 最外层的花括号剥掉，所以「取值的第一个记号是不是
+% 花括号组」正好用来区分单段与多段。多段交给 \cs{hit@title@grab} 按
+% \marg{第一段}\oarg{第二段}\oarg{副标题}的形状抓，最后一个参数收剩下的记号：剩不空
+% 就说明这不是多段写法，最常见的是标题本身以花括号组开头，这时报一条提示并整条当
+% 单段，不会把后面的字悄悄丢掉。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@title@parse #1#2
+  {
+    \tl_set:Nn \l__hit_title_language_tl {#1}
+    \tl_set:Nn \l__hit_title_source_tl {#2}
+    \hit@title@set@first    {#1} { }
+    \hit@title@set@second   {#1} { }
+    \hit@title@set@subtitle {#1} { }
+    \tl_if_head_is_group:nTF {#2}
+      { \hit@title@grab #2 \q_nil \q_stop }
+      { \hit@title@set@first {#1} {#2} }
+  }
+\cs_new_protected:Npn \hit@title@grab #1#2 \q_stop
+  {
+    \exp_args:NV \hit@title@set@first \l__hit_title_language_tl {#1}
+    \__hit_title_after_first:n {#2}
+  }
+\cs_new_protected:Npn \__hit_title_after_first:n #1
+  {
+    \tl_if_eq:nnF {#1} { \q_nil }
+      {
+        \tl_if_head_is_group:nTF {#1}
+          { \hit@title@grab@second #1 \q_stop }
+          { \__hit_title_after_second:n {#1} }
+      }
+  }
+\cs_new_protected:Npn \hit@title@grab@second #1#2 \q_stop
+  {
+    \exp_args:NV \hit@title@set@second \l__hit_title_language_tl {#1}
+    \__hit_title_after_second:n {#2}
+  }
+\cs_new_protected:Npn \__hit_title_after_second:n #1
+  {
+    \tl_if_eq:nnF {#1} { \q_nil }
+      {
+        \tl_if_head_eq_charcode:nNTF {#1} [
+          { \hit@title@grab@subtitle #1 \q_stop }
+          { \__hit_title_fallback: }
+      }
+  }
+\cs_new_protected:Npn \hit@title@grab@subtitle [#1] #2 \q_stop
+  {
+    \exp_args:NV \hit@title@set@subtitle \l__hit_title_language_tl {#1}
+    \tl_if_eq:nnF {#2} { \q_nil } { \__hit_title_fallback: }
+  }
+\cs_new_protected:Npn \__hit_title_fallback:
+  {
+    \msg_warning:nnV { hithesis } { title-unparsed } \l__hit_title_language_tl
+    \exp_args:NVV \hit@title@set@first
+      \l__hit_title_language_tl \l__hit_title_source_tl
+    \exp_args:NV \hit@title@set@second   \l__hit_title_language_tl { }
+    \exp_args:NV \hit@title@set@subtitle \l__hit_title_language_tl { }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@title@cover,\hit@title@flat,\hit@title@line}
+% 三种取用。自由排的封面把两段直接接起来，\cs{\textbackslash\textbackslash} 照常换行；
+% 声明书与 PDF 书签要一整行，把 \cs{\textbackslash\textbackslash} 屏蔽掉；两条线的封面
+% 一次取一段，那种版式里每段都在一个 \cs{makebox} 里，断不了行，同样屏蔽。
+% 屏蔽放在分组里，出了这一处不影响别人。
+%    \begin{macrocode}
+\cs_new:Npn \hit@title@cover #1
+  { \use:c { hit@title@first@#1 } \use:c { hit@title@second@#1 } }
+\cs_new:Npn \hit@title@flat #1
+  {
+    \begingroup
+      \cs_set:Npn \\ { }
+      \use:c { hit@title@first@#1 } \use:c { hit@title@second@#1 }
+    \endgroup
+  }
+\cs_new:Npn \hit@title@line #1#2
+  {
+    \begingroup
+      \cs_set:Npn \\ { }
+      \use:c { hit@title@#2@#1 }
+    \endgroup
+  }
+%    \end{macrocode}
+%
+% 每种语言各造一组零参的名字，排版代码直接写这些，不必每处都带语言参数。
+% \cs{hit@title@line@one@zh} 与 \cs{hit@title@line@two@zh} 沿用合并前的名字，
+% 两条线那几个封面因此一个字都不用改。
+%    \begin{macrocode}
+\clist_map_inline:Nn \c__hit_lang_clist
+  {
+    \cs_new:cpn { hit@title@cover@#1 }    { \hit@title@cover {#1} }
+    \cs_new:cpn { hit@title@flat@#1 }     { \hit@title@flat {#1} }
+    \cs_new:cpn { hit@title@line@one@#1 } { \hit@title@line {#1} { first } }
+    \cs_new:cpn { hit@title@line@two@#1 } { \hit@title@line {#1} { second } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@title@warn@wide}
+% \changes{v3.2a}{2026/08/07}{题目排不进题目栏时报警告。原先是静默溢出：那一栏是
+%   \cs{makebox} 加 \cs{hss}，撑不下就顶出去压着下划线，连 Overfull 都不报}
+% 两条线那种版式里，题目栏的宽度是版式定死的。本科第二封面会先按小二量，超了降到
+% 三号，降完还超就没别的办法了——\cs{makebox} 里塞不下的部分直接顶出去压着下划线，
+% 而 \cs{hss} 把 Overfull 警告也吃掉了，用户编译全绿却排出一页错版。这里补一条。
+%    \begin{macrocode}
+\box_new:N \l__hit_title_box
+\cs_new_protected:Npn \hit@title@warn@wide #1#2#3
+  {
+    \hbox_set:Nn \l__hit_title_box {#3}
+    \dim_compare:nNnT { \box_wd:N \l__hit_title_box } > {#2}
+      {
+        \msg_warning:nnnxx { hithesis } { title-too-wide } {#1}
+          { \dim_to_decimal_in_unit:nn { \box_wd:N \l__hit_title_box } { 1cm } cm }
+          { \dim_to_decimal_in_unit:nn {#2} { 1cm } cm }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@define@legacy@title}
+% 合并前的四个旧键各写一格：\option{ctitlecover} 与 \option{ctitleone} 写第一段，
+% \option{ctitletwo} 写第二段，\option{csubtitle} 与 \option{esubtitle} 写副标题。
+% 走通用的 \cs{hit@define@legacy@terms} 不行，那个是整键别名，会互相覆盖。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@define@legacy@title #1#2#3
+  {
+    \cs_gset_protected_nopar:cpn {#1} ##1
+      { \use:c { hit@title@set@#3 } {#2} {##1} }
+    \hit@declare@class@key {#1}
+    \prop_gput:Nnn \g__hit_renamed_option_prop {#1} { info={title-#2=...} }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@if@subtitle@T}
+% 排不排副标题。\option{subtitle} 是三态：\texttt{auto} 时看 \option{title} 里有没有
+% 写方括号，写死 \texttt{true}/\texttt{false} 则以选项为准。语言取中文那一格——
+% 中英文封面是同开同关的，与合并前 \option{subtitle} 一个布尔管两边一致。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@if@subtitle@T #1
+  {
+    \__hit_tristate_if:NnT \g__hit_subtitle_tl
+      { ! \tl_if_empty_p:c { hit@title@subtitle@zh } } {#1}
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@define@title}
+% 把 \option{title-}\meta{语言} 注册成键，处理器走解析。与 \cs{hit@define@term} 并列，
+% 区别只在存值方式：那个原样存一格，这个拆成三格。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@define@title #1
+  {
+    \hit@declare@class@key { title-#1 }
+    \cs_gset_protected_nopar:cpn { title-#1 } ##1 { \hit@title@parse {#1} {##1} }
+    \use:c { title-#1 } { }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+%</shared-title>
+%    \end{macrocode}
+%
+% \Finale

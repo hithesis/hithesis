@@ -1,0 +1,212 @@
+% \iffalse meta-comment
+%
+% hit-caption.dtx 是各个类共用的双语题注
+%
+% \fi
+%
+% \section{共享双语题注}
+%
+% \changes{v3.2a}{2026/08/07}{双语题注抽出来给各个类共用，原先每个类各写一遍}
+% \changes{v3.2a}{2026/08/07}{英文题注改成 \cs{caption} 的尾随可选参数，
+%   \cs{bicaption} 降为兼容写法}
+% 中英文对照的题注原先要换一个命令 \cs{bicaption}，用户得记住「这张图要不要双语」
+% 并挑命令。现在写法只有一个：
+% \begin{latex}
+% \caption{中文题}
+% \caption{中文题}[English caption]
+% \caption[目录用短标题]{中文题}[English caption]
+% \end{latex}
+% 给了尾随的 \oarg{英文题} 就排双语，不给就单语。目录用的短标题仍是 \cs{caption}
+% 原本那个前置可选参数，两者位置不同，不会混。
+%
+% \option{style/bilingual-caption} 是一键关掉所有双语题注的开关，默认开。关掉之后
+% 英文题一概不排，同一份稿子投不同用途时不必逐条删。没做成按学位给默认值：写了就出、
+% 不写就不出已经够用，多一层默认反而要用户去猜自己这一档是开是关。
+%
+% 键自己声明，没走 \cs{\_\_hit\_style\_pair:nn}：那个在 \file{hit-key-engine.dtx} 里，
+% 而本模块在 \file{hithesis.ins} 的名单里排在它前面。
+%
+% \cs{bicaption} 仍然可用：\pkg{ccaption} 的五参数原形与本模板之前的三、四参数写法
+% 都接得住，只是各提示一次，v4 移除。
+%
+%    \begin{macrocode}
+%<*shared-caption>
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/10}{浮动体的四个间距统一，题注间距交给 \pkg{caption} 的
+%   \cs{captionsetup}，并补上内核那个前后不对称的补丁。原先三个间距互不相同、题注
+%   与图表之间的空白要用户在正文里手写 \cs{vspace}，同一份文档里几张表能差出几个磅}
+% 浮动体的间距照 \pkg{thuthesis} 的办法收进类里。三件事：
+%
+% 一、四个位置同一个值。浮动体落在正文中间、页顶页底、两个浮动体之间、整页浮动，
+% 原先 \cs{intextsep} 与 \cs{textfloatsep} 是 8.5pt、\cs{floatsep} 是 12pt、
+% \cs{@fpsep} 是 10pt，四种位置四个样。
+%
+% 二、题注与图表之间的空白由 \cs{captionsetup} 的 \texttt{skip} 给，配上
+% \texttt{tableposition} 与 \texttt{figureposition}，\pkg{caption} 自己知道表题在上
+% 该把空白放下面、图题在下该放上面。取 6bp，跟原先示例里手写的 \cs{vspace}\{0.5em\}
+% 等价（正文 12bp 时 0.5em 是 6.02pt），所以表格那边版面不变，图那边补上原先没有的
+% 那道空白。\pkg{caption} 由 \pkg{subcaption} 带进来，一直都在。
+%
+% 三、\hologo{LaTeX} 内核里浮动体与正文的前后距离本身不对称，光把长度设成一样没用，要打
+% 三个补丁。出处见 \pkg{thuthesis} 的 \texttt{tuna/thuthesis\#614}。这段必须退出
+% \pkg{expl3} 写：\cs{patchcmd} 把宏体按当前 catcode 重扫，\texttt{\string\vskip\space
+% \string\intextsep} 里那个空格在 \pkg{expl3} 下会被吞，补丁就对不上（CONTRIBUTING §4.7）。
+%
+% 放在 \cs{AtBeginDocument} 里。\cs{AtEndOfClass} 那个时机太早：\cs{@addtocurcol}
+% 那时还不是最终那一版，三个补丁全都找不到目标（实测报「没打上」），到
+% \cs{begin\{document\}} 时 \cs{ifpatchable} 才为真。长度也一样，晚设才不会被覆盖。
+%    \begin{macrocode}
+\ExplSyntaxOff
+\AtBeginDocument{%
+  \setlength{\floatsep}{12bp \@plus 2bp \@minus 2bp}%
+  \setlength{\textfloatsep}{12bp \@plus 2bp \@minus 2bp}%
+  \setlength{\intextsep}{12bp \@plus 2bp \@minus 2bp}%
+  \setlength{\@fptop}{0bp \@plus 1fil}%
+  \setlength{\@fpsep}{12bp \@plus 2fil}%
+  \setlength{\@fpbot}{0bp \@plus 1fil}%
+  \captionsetup{skip=6bp,tableposition=top,figureposition=bottom}%
+  \patchcmd{\@addtocurcol}%
+    {\vskip \intextsep}%
+    {\edef\hit@save@first@penalty{\the\lastpenalty}\unpenalty
+     \ifnum \lastpenalty = \@M
+       \unpenalty
+     \else
+       \penalty \hit@save@first@penalty \relax
+     \fi
+     \ifnum\outputpenalty <-\@Mii
+       \addvspace\intextsep
+       \vskip\parskip
+     \else
+       \addvspace\intextsep
+     \fi}%
+    {}{\ClassWarningNoLine{hithesis}{补丁 \string\@addtocurcol 之一没打上}}%
+  \patchcmd{\@addtocurcol}%
+    {\vskip\intextsep \ifnum\outputpenalty <-\@Mii \vskip -\parskip\fi}%
+    {\ifnum\outputpenalty <-\@Mii
+       \aftergroup\vskip\aftergroup\intextsep
+       \aftergroup\nointerlineskip
+     \else
+       \vskip\intextsep
+     \fi}%
+    {}{\ClassWarningNoLine{hithesis}{补丁 \string\@addtocurcol 之二没打上}}%
+  \patchcmd{\@getpen}{\@M}{\@Mi}%
+    {}{\ClassWarningNoLine{hithesis}{补丁 \string\@getpen 没打上}}%
+}
+\ExplSyntaxOn
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@setup@caption}
+% 接管 \cs{caption} 要等到 \texttt{begindocument/end}。\pkg{caption}（由
+% \pkg{subcaption} 带进来）和 \pkg{ccaption} 都在 \cs{AtBeginDocument} 里重定义
+% \cs{caption}，在类文件里接管会被它们覆盖掉——踩过一次，接管看似成功，
+% \cs{meaning}\cs{caption} 到了正文里已经是 \pkg{caption} 的定义了。
+% \texttt{begindocument/end} 排在所有 \cs{AtBeginDocument} 之后。
+%
+% \cs{\_\_hit\_bicaption:w} 存的是 \pkg{ccaption} 的原形，这个在类文件里存就行；
+% \cs{hit@original@caption} 存的是接管前那条完整的 \cs{caption} 链。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bilingual_caption_bool
+\bool_gset_true:N \g__hit_bilingual_caption_bool
+\keys_define:nn { hit / style }
+  {
+    bilingual-caption .bool_gset:N = \g__hit_bilingual_caption_bool ,
+    bilingual-caption .default:n = { true } ,
+  }
+%    \end{macrocode}
+%
+% 排双语题注：走 \pkg{ccaption} 的原形，英文图表名取 \option{const} 族里的
+% \option{figure-prefix-en} 与 \option{table-prefix-en}，用户不必每次手写
+% \texttt{Fig.} 加负细空格去抵 \cs{fnum@figure} 插的那个空格。
+%
+% \changes{v3.2a}{2026/08/08}{双语题注的短标题接到 \pkg{ccaption} 的第二个参数上。
+%   原先接的是可选参数，而 \cs{bicaption} 的可选参数是 \cs{label} 不是短标题，
+%   于是 \cs{caption}\oarg{短标题} 在双语时被悄悄当成了标签}
+% 短标题给 \cs{bicaption} 的\emph{第二个必选参数}，不是可选参数。ccaption 的
+% \cs{bicaption}\oarg{标签}\marg{短标题}\marg{题注}\marg{英文图表名}\marg{英文题注}
+% 里，可选参数是 \cs{label}：
+% \begin{latex}
+% \newcommand{\bicaption}[5][\@empty]{%
+%   \@if@contemptyarg{#2}{\caption{#3}}{\caption[#2]{#3}}
+%   \ifx\@empty#1\else \label{#1} \fi
+% \end{latex}
+% 接错了的后果是同一个 \cs{caption}\oarg{短标题} 两条路径含义不同：单语时进插图索引，
+% 双语时变成一个标签，索引里排的还是完整题注。
+%
+% \changes{v3.2a}{2026/08/08}{双语题注之后补上 \cs{@currentlabel}，
+%   \cs{label} 写在 \cs{caption} 后面才能拿到图表号}
+% \pkg{ccaption} 之所以提供「可选参数当标签」这条路，是因为 \cs{bicaption} 把整段
+% 包在 \cs{begingroup}\ldots\cs{endgroup} 里，\cs{caption} 设的 \cs{@currentlabel}
+% 是局部的，出了组就没了——写在后面的 \cs{label} 只能拿到章节号。所以排完之后
+% 按计数器重建一次 \cs{@currentlabel}，让 \cs{label} 与普通 \hologo{LaTeX} 一样写在
+% \cs{caption} 后面。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bilingual@caption #1#2#3
+  {
+    \tl_if_novalue:nTF {#1}
+      { \__hit_bicaption:w {} {#2} { \use:c { hit@ \@captype @prefix@en } } {#3} }
+      { \__hit_bicaption:w {#1} {#2} { \use:c { hit@ \@captype @prefix@en } } {#3} }
+    \protected@edef \@currentlabel
+      { \use:c { p@ \@captype } \use:c { the \@captype } }
+  }
+\cs_new_protected:Npn \hit@single@caption #1#2
+  {
+    \tl_if_novalue:nTF {#1}
+      { \hit@original@caption {#2} }
+      { \hit@original@caption [#1] {#2} }
+  }
+%    \end{macrocode}
+%
+% \cs{caption} 的接管。给了尾随的英文题、并且开关没关死，才走双语。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@caption
+  {
+    \cs_set_eq:NN \__hit_bicaption:w \bicaption
+    \AddToHook { begindocument/end }
+      {
+    \cs_set_eq:NN \hit@original@caption \caption
+    \RenewDocumentCommand \caption { o +m o }
+      {
+        \IfNoValueTF {##3}
+          { \hit@single@caption {##1} {##2} }
+          {
+            \bool_if:NTF \g__hit_bilingual_caption_bool
+              { \hit@bilingual@caption {##1} {##2} {##3} }
+              { \hit@single@caption {##1} {##2} }
+          }
+      }
+%    \end{macrocode}
+%
+% \cs{bicaption} 的兼容层。三种写法靠「后面还跟不跟一个花括号组」区分：跟着的是
+% \pkg{ccaption} 的五参数原形，抓走那一组照原形排；不跟就是本模板之前的三、四参数
+% 写法。探之前先跳空格，与 \cs{@ifnextchar} 的惯例一致——旧示例里那五个参数是连着
+% 写的，但用户可能换了行。题注后面正常不会紧跟花括号组。
+%    \begin{macrocode}
+    \RenewDocumentCommand \bicaption { o +m +m +g }
+      {
+        \peek_meaning_ignore_spaces:NTF \c_group_begin_token
+          { \__hit_bicaption_legacy:nnnn {##1} {##2} {##3} {##4} }
+          {
+            \msg_warning:nn { hithesis } { bicaption-deprecated }
+            \IfNoValueTF {##4}
+              { \hit@bilingual@caption {##1} {##2} {##3} }
+              { \hit@bilingual@caption {##1} {##3} {##4} }
+          }
+      }
+      }
+  }
+\cs_new_protected:Npn \__hit_bicaption_legacy:nnnn #1#2#3#4#5
+  {
+    \msg_warning:nn { hithesis } { bicaption-five-args }
+    \tl_if_novalue:nTF {#1}
+      { \__hit_bicaption:w {#2} {#3} {#4} {#5} }
+      { \__hit_bicaption:w [#1] {#2} {#3} {#4} {#5} }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+%</shared-caption>
+%    \end{macrocode}
+%
+% \Finale

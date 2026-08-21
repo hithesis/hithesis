@@ -1,0 +1,119 @@
+% \iffalse meta-comment
+%
+% hit-spread.dtx 是字间距撑开
+%
+% \fi
+%
+% \section{字间距撑开}
+%
+% \changes{v3.2a}{2026/08/07}{加 \cs{hit@spread@by:nn}，把标题的字间距从常量取值里
+%   抽出来。原先撑开是写进取值的，同一个值还要供目录条目与 PDF 书签用，
+%   那两处不该有这个空隙}
+% 规范里「结论」「致谢」「目录」这类两字标题要撑开排。原先撑开是直接写进常量取值的：
+% \begin{latex}
+% conclusion-heading-zh = {结\hspace{\ccwd}论}
+% \end{latex}
+% 这样一个值供三处用，只有标题那处想要这个空隙。目录条目与 PDF 书签拿到的也是带空隙
+% 的版本，书签里读出来是「结 论」。
+%
+% \cs{hit@spread@by:nn}\marg{字间距}\marg{文本} 在文本的每两个字之间插一段
+% \cs{hspace}，与手写的写法逐个记号相同。常量里只留内容，撑开由排标题的地方做：
+% \begin{latex}
+% \hit@spread@by:nn { \ccwd } { \hit@conclusion@heading@zh }
+% \end{latex}
+%
+% 参数二可以是文本，也可以是存着文本的宏，展开一次取到内容。只展开一次是有意的：
+% 取值里若有 \cs{kaishu} 这类字体命令，全展开会出事。
+%
+% 参数一展开后是空的就原样输出，一个记号都不插。撑开多少是按变体定的
+% （\option{heading-spread}），博士后那一档三个标题都不撑开，取的就是空值。
+%
+% \option{heading-spread} 的默认值是 \texttt{1em}，也就是一个全角字宽：Word 版
+% 模板里「结论」两字之间是两个半角空格，宋体的半角空格是半个字宽，两个正好一个字。
+% 不用 \cs{ccwd}——那是「字宽加字距」，\cs{frontmatter} 里的
+% \cs{ziju}\marg{0.05580808} 一开，它就比一个字宽多 5.6\%。
+%
+%    \begin{macrocode}
+%<*shared-spread>
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\tl_new:N \l__hit_spread_tl
+\bool_new:N \l__hit_spread_first_bool
+\cs_new_protected:Npn \hit@spread@by:nn #1#2
+  {
+    \tl_if_blank:oTF {#1} { #2 } { \__hit_spread_by:nn {#1} {#2} }
+  }
+\cs_new_protected:Npn \__hit_spread_by:nn #1#2
+  {
+    \tl_set:No \l__hit_spread_tl {#2}
+    \bool_set_true:N \l__hit_spread_first_bool
+    \tl_map_inline:Nn \l__hit_spread_tl
+      {
+        \bool_if:NTF \l__hit_spread_first_bool
+          { \bool_set_false:N \l__hit_spread_first_bool }
+          { \hspace {#1} }
+        ##1
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{加 \cs{hit@spread@to:nn}，封面字段标签改成分散对齐到
+%   固定宽度，不再手算字间距}
+% \cs{hit@spread@to:nn}\marg{宽度}\marg{文本} 把文本分散对齐到固定宽度。封面上
+% 成组的字段标签要对齐到同一列宽，规范给的是那个列宽，不是字间距：
+% \begin{latex}
+% graduate-supervisor-field-label = {\hit@spread@to:nn{6em}{导师}}
+% \end{latex}
+% 原先写的是算完之后的字间距，四个字的那几个还要写成 \texttt{0.6666666} 倍，
+% 改一次列宽得把同组的每一条重算一遍。
+%
+% \textbf{列宽用 \texttt{em} 不用 \cs{ccwd}。} 一个汉字的宽度是 \texttt{em}；
+% \cs{ccwd} 是「字宽加字距」，开了 \option{zijv} 就比字宽大一截（本模板的
+% \cs{frontmatter} 里有 \cs{ziju}\marg{0.05580808}，那之后 \cs{ccwd} 是字宽的
+% 1.0558 倍）。标签里的字之间隔着别的东西，不走字距，所以按字宽算。
+%
+% 混用这两个单位正是原先那批取值出错的地方：\texttt{博\dots 姓名} 写成
+% 「5 个字 + 4 段 0.5\cs{ccwd}」，\texttt{合作导师} 写成「4 个字 + 3 段 \cs{ccwd}」，
+% 字算的是字宽、间距算的是 \cs{ccwd}，两条式子把同一个差额放大成不同的量，
+% 一个 99.94bp、一个 100.72bp，值那一列对不齐。
+%
+% \changes{v3.2a}{2026/08/12}{分散对齐的三套实现并成一套，底层统一走
+%   \pkg{xeCJKfntef} 的 \env{CJKfilltwosides}}
+% \textbf{底层是 \env{CJKfilltwosides}。} 原先这里自己写了一遍：\cs{hbox\_to\_wd:nn}
+% 套 \cs{tl\_map\_inline:Nn}，每两个记号之间塞一个 \cs{hfill}。那个写法在纯汉字上
+% 与现在等价（45 变体逐字节相同），碰上标点就不对：\texttt{学院（部} 会被排成
+% 「学\ 院\ （\ 部」，左括号后面多出一格。\env{CJKfilltwosides} 撑开的是 xeCJK 的
+% \cs{CJKglue}，标点前后本来就没有这段胶，所以不会。
+%
+% 同一个道理，封面上原先还有第三套写法 \cs{makebox}\oarg{宽度}\oarg{s}，也并到
+% 这里了。它撑开的同样是 \cs{CJKglue}，结果一致，只是内容撑不满时会报
+% underfull box。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@spread@to:nn #1#2
+  { \begin { CJKfilltwosides } [b] {#1} #2 \end { CJKfilltwosides } }
+%    \end{macrocode}
+%
+% \env{CJKfilltwosides} 是个 \env{minipage}，内容比给的宽度宽就折行。要的是「压进
+% 这个宽度、不折行」的话它做不到，那种情况仍写 \cs{makebox}\oarg{宽度}\oarg{s}。
+% \file{src/setup/hit-defaults.dtx} 里 \option{graduate-major-field-label} 的
+% \texttt{学科/专业学位类别} 是唯一一处：九个字压进八个字宽。
+%
+% \changes{v3.2a}{2026/08/08}{两个宏各加一个不带冒号的名字，给 expl3 之外的取值用}
+% 配置层的取值是在 \pkg{expl3} 之外记号化的（见 CONTRIBUTING §4.7），那里 \texttt{:}
+% 不是字母，\cs{hit@spread@to:nn} 会被拆成 \cs{hit@spread@to} 加 \texttt{:nn}，
+% 报 Undefined control sequence。所以两个宏各留一个不带冒号的名字，取值里写这个：
+% \begin{latex}
+% graduate-supervisor-field-label = {\hit@spread@to{6em}{导师}}
+% \end{latex}
+% 与 \cs{hit@if@option@TF} 同一个路数——凡是要在排版内容里出现的，名字里都不带冒号。
+%    \begin{macrocode}
+\cs_new_eq:NN \hit@spread@to \hit@spread@to:nn
+\cs_new_eq:NN \hit@spread@by \hit@spread@by:nn
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</shared-spread>
+%    \end{macrocode}
+%
+% \Finale

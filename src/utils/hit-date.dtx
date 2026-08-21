@@ -1,0 +1,276 @@
+% \iffalse meta-comment
+%
+% hit-date.dtx 是日期格式
+%
+% \fi
+%
+% \section{日期格式}
+%
+% \changes{v3.2a}{2026/08/10}{日期格式的定义从 \file{hit-defaults.dtx} 抽出来。
+%   配置里只留取值，造轮子的部分放这里}
+% 封面与声明页上的日期有几种排法：\texttt{2026 年 8 月}、\texttt{2026 年 8 月 7 日}、
+% \texttt{二〇二六年八月}、\texttt{二〇二六年八月七日}。这里把四种都定义好，
+% 配置里按变体挑一种。
+%
+% \cs{CJKtoday}\oarg{0\textbar 1\textbar 2} 换 \cs{today} 的排法：\texttt{0} 是
+% 基础类原本的，\texttt{1} 是阿拉伯数字，\texttt{2} 是汉字数字。默认 \texttt{1}。
+%
+%    \begin{macrocode}
+%<*shared-date>
+%    \end{macrocode}
+%
+% 四种排法与英文月份名。都是纯定义，放在顶层。
+%    \begin{macrocode}
+\cs_set:Npn \CJK@todaysmall@short { \the \year 年~\the \month 月 }
+\cs_set:Npn \CJK@todaysmall { \the \year 年~\the \month 月~\the \day 日 }
+\cs_set:Npn \CJK@todaybig@short
+  { \zhdigits { \the \year } 年 \zhnumber { \the \month } 月 }
+\cs_set:Npn \CJK@todaybig
+  {
+    \zhdigits { \the \year } 年 \zhnumber { \the \month } 月
+    \zhnumber { \the \day } 日
+  }
+\cs_set:Npn \CJK@today { \CJK@todaysmall }
+\NewDocumentCommand \CJKtoday { O{1} }
+  {
+    \int_case:nnF {#1}
+      {
+        { 0 } { \cs_set:Npn \CJK@today { \CJK@todaysave } }
+        { 1 } { \cs_set:Npn \CJK@today { \CJK@todaysmall } }
+        { 2 } { \cs_set:Npn \CJK@today { \CJK@todaybig } }
+      }
+      { }
+  }
+\cs_new:Npn \hit@month@en
+  {
+    \int_case:nn { \month }
+      {
+        { 1 } { January }   { 2 } { February } { 3 }  { March }
+        { 4 } { April }     { 5 } { May }      { 6 }  { June }
+        { 7 } { July }      { 8 } { August }   { 9 }  { September }
+        { 10 } { October }  { 11 } { November } { 12 } { December }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{ISO 日期}
+%
+% \changes{v3.2a}{2026/08/13}{日期字段改收 ISO 数字，各处按自己的语言与精度排；
+%   写得不够精细报警告，写成非 ISO 就原样排并报警告}
+% \textbf{日期字段填数字，排法交给模板。} 封面上中文写「2026 年 6 月」、英文写
+% 「June, 2026」，同一个日期两处写法不同，本科还要带日。让填表的人各写一遍容易
+% 写岔，所以字段一律收 \texttt{yyyy}、\texttt{yyyy-mm} 或 \texttt{yyyy-mm-dd}，
+% 用到的地方按自己的语言与精度排出来。
+%
+% 三种情形：
+%
+% \begin{longtable}{ll}
+% \toprule
+% 写的 & 结果 \\\midrule
+% \endfirsthead
+% 合 ISO，精度够 & 按用处的语言与精度排 \\
+% 合 ISO，精度不够 & 有多少排多少，另报一句缺了什么 \\
+% 不合 ISO & 原样排，另报一句让填表的人自己负责 \\\bottomrule
+% \end{longtable}
+%
+% 精度只嫌少不嫌多：封面要年月，写了年月日照样排成年月，不报警告。
+%    \begin{macrocode}
+\tl_new:N \l__hit_date_year_tl
+\tl_new:N \l__hit_date_month_tl
+\tl_new:N \l__hit_date_day_tl
+\bool_new:N \l__hit_date_iso_bool
+\bool_new:N \l__hit_date_digit_bool
+\seq_new:N \l__hit_date_seq
+\str_new:N \l__hit_date_str
+%    \end{macrocode}
+%
+% 一段是不是纯数字、位数对不对。空串不算。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_date_digits:nnn #1#2#3
+  {
+    \bool_set_true:N \l__hit_date_digit_bool
+    \bool_lazy_and:nnF
+      { \int_compare_p:nNn { \str_count:n {#1} } > { #2 - 1 } }
+      { \int_compare_p:nNn { \str_count:n {#1} } < { #3 + 1 } }
+      { \bool_set_false:N \l__hit_date_digit_bool }
+    \str_map_inline:nn {#1}
+      {
+        \tl_if_in:nnF { 0123456789 } {##1}
+          { \bool_set_false:N \l__hit_date_digit_bool }
+      }
+  }
+%    \end{macrocode}
+%
+% 拆成年月日。先转成字符串再拆：值里可能有汉字，汉字在 \pkg{xeCJK} 下是活动符，
+% 直接拿记号比对会走岔。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_date_parse:n #1
+  {
+    \tl_clear:N \l__hit_date_year_tl
+    \tl_clear:N \l__hit_date_month_tl
+    \tl_clear:N \l__hit_date_day_tl
+    \bool_set_true:N \l__hit_date_iso_bool
+    \str_set:Nx \l__hit_date_str { \tl_to_str:n {#1} }
+    \seq_set_split:NnV \l__hit_date_seq { - } \l__hit_date_str
+    \int_compare:nNnTF { \seq_count:N \l__hit_date_seq } > { 3 }
+      { \bool_set_false:N \l__hit_date_iso_bool }
+      {
+        \__hit_date_take:nnnN { 1 } { 4 } { 4 } \l__hit_date_year_tl
+        \__hit_date_take:nnnN { 2 } { 1 } { 2 } \l__hit_date_month_tl
+        \__hit_date_take:nnnN { 3 } { 1 } { 2 } \l__hit_date_day_tl
+      }
+  }
+\cs_new_protected:Npn \__hit_date_take:nnnN #1#2#3#4
+  {
+    \int_compare:nNnT { \seq_count:N \l__hit_date_seq } > { #1 - 1 }
+      {
+        \exp_args:Nx \__hit_date_digits:nnn
+          { \seq_item:Nn \l__hit_date_seq {#1} } {#2} {#3}
+        \bool_if:NTF \l__hit_date_digit_bool
+          { \tl_set:Nx #4 { \int_eval:n { \seq_item:Nn \l__hit_date_seq {#1} } } }
+          { \bool_set_false:N \l__hit_date_iso_bool }
+      }
+  }
+%    \end{macrocode}
+%
+% 月与日经 \cs{int\_eval:n} 走一趟，\texttt{06} 会变成 \texttt{6}：中文排「6 月」，
+% 英文取月份名，两边都用不上前导零。年份四位，走一趟不受影响。
+%
+% 排出来。中文是数字加汉字单位，英文是月份名；\texttt{zh-big} 那一款用汉字数字，
+% 目前没有哪一处用它，留着备用。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_date_zh:n #1
+  {
+    \l__hit_date_year_tl 年
+    \str_if_eq:nnF {#1} { year }
+      {
+        ~ \l__hit_date_month_tl 月
+        \str_if_eq:nnT {#1} { day } { ~ \l__hit_date_day_tl 日 }
+      }
+  }
+\cs_new:Npn \__hit_date_zh_big:n #1
+  {
+    \zhdigits { \l__hit_date_year_tl } 年
+    \str_if_eq:nnF {#1} { year }
+      {
+        \zhnumber { \l__hit_date_month_tl } 月
+        \str_if_eq:nnT {#1} { day }
+          { \zhnumber { \l__hit_date_day_tl } 日 }
+      }
+  }
+\cs_new:Npn \__hit_date_en:n #1
+  {
+    \str_if_eq:nnTF {#1} { year }
+      { \l__hit_date_year_tl }
+      {
+        \hit@month@name:n { \l__hit_date_month_tl }
+        \str_if_eq:nnT {#1} { day } { ~ \l__hit_date_day_tl }
+        ,~ \l__hit_date_year_tl
+      }
+  }
+\cs_new:Npn \hit@month@name:n #1
+  {
+    \int_case:nn {#1}
+      {
+        { 1 } { January }   { 2 }  { February } { 3 }  { March }
+        { 4 } { April }     { 5 }  { May }      { 6 }  { June }
+        { 7 } { July }      { 8 }  { August }   { 9 }  { September }
+        { 10 } { October }  { 11 } { November } { 12 } { December }
+      }
+  }
+%    \end{macrocode}
+%
+% 有多少排多少：精度不够时按实际有的那一档排，不要排出空的月和日。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_date_have:
+  {
+    \tl_if_empty:NTF \l__hit_date_month_tl
+      { year }
+      { \tl_if_empty:NTF \l__hit_date_day_tl { month } { day } }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@date@use:nnnn}
+% \meta{字段名}\marg{样式}\marg{精度}\marg{值}。样式取 \texttt{zh}、\texttt{zh-big}
+% 或 \texttt{en}；精度取 \texttt{year}、\texttt{month}、\texttt{day}，
+% 或者 \texttt{auto}——那是「写多少排多少，不挑」。
+%
+% 空值原样放过：字段没填就是没填，不是格式问题，不该报警告。
+%    \begin{macrocode}
+\tl_new:N \l__hit_date_want_tl
+\tl_new:N \l__hit_date_got_tl
+\tl_new:N \l__hit_date_raw_tl
+\cs_new_protected:Npn \hit@date@use:nnnn #1#2#3#4
+  {
+    \tl_if_empty:nF {#4}
+      {
+        \__hit_date_parse:n {#4}
+        \bool_if:NTF \l__hit_date_iso_bool
+          { \__hit_date_render:nnnn {#1} {#2} {#3} {#4} }
+          {
+            \__hit_date_warn:nnn {#1} { date-not-iso } {#4}
+            #4
+          }
+      }
+  }
+\cs_new:Npn \__hit_date_rank:n #1
+  { \str_case:nn {#1} { { year } { 1 } { month } { 2 } { day } { 3 } } }
+%    \end{macrocode}
+%
+% 一个字段一种毛病只报一次。去重的键要把毛病也带上：同一个字段先写得不够细、
+% 后来又改成非 ISO，是两回事，只报头一条会把后一条盖掉。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_date_warn:nnn #1#2#3
+  {
+    \prop_if_in:NnF \g__hit_warned_options_prop { #1 / #2 }
+      {
+        \prop_gput:Nnn \g__hit_warned_options_prop { #1 / #2 } { }
+        \msg_warning:nnnn { hithesis } {#2} {#1} {#3}
+      }
+  }
+\cs_generate_variant:Nn \hit@date@use:nnnn { nnnV }
+\cs_generate_variant:Nn \__hit_date_rank:n { V }
+\cs_new_protected:Npn \__hit_date_render:nnnn #1#2#3#4
+  {
+    \str_set:Nx \l__hit_date_want_tl {#3}
+    \str_set:Nx \l__hit_date_got_tl { \__hit_date_have: }
+    \str_if_eq:VnT \l__hit_date_want_tl { auto }
+      { \tl_set_eq:NN \l__hit_date_want_tl \l__hit_date_got_tl }
+%    \end{macrocode}
+%
+% 要得比有的细就报一句，然后按有的那一档排。
+%    \begin{macrocode}
+    \int_compare:nNnT
+      { \__hit_date_rank:V \l__hit_date_want_tl }
+      > { \__hit_date_rank:V \l__hit_date_got_tl }
+      {
+        \__hit_date_warn:nnn {#1} { date-too-coarse } {#4}
+        \tl_set_eq:NN \l__hit_date_want_tl \l__hit_date_got_tl
+      }
+    \str_case:nn {#2}
+      {
+        { zh }     { \exp_args:NV \__hit_date_zh:n     \l__hit_date_want_tl }
+        { zh-big } { \exp_args:NV \__hit_date_zh_big:n \l__hit_date_want_tl }
+        { en }     { \exp_args:NV \__hit_date_en:n     \l__hit_date_want_tl }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@setup@date}
+% 两件事要等基础类加载完：把基础类的 \cs{today} 存下来给 \cs{CJKtoday}\oarg{0} 用，
+% 再把 \cs{today} 接过来。共享层排在基础类之前，写在顶层会被基础类盖掉。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@date
+  {
+    \cs_set_eq:NN \CJK@todaysave \today
+    \cs_set:Npn \today { \CJK@today }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+%</shared-date>
+%    \end{macrocode}
+%
+% \Finale

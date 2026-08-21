@@ -1,0 +1,81 @@
+% \iffalse meta-comment
+%
+% hit-list.dtx 是各个类共用的列表环境
+%
+% \fi
+%
+% \section{共享列表环境}
+%
+% 列表相关的东西都收在这里：\pkg{enumitem} 的加载、默认列表环境的全局间距、
+% 以及 \env{publist}。
+%
+% \changes{v3.2a}{2026/08/07}{\pkg{enumitem} 的加载与列表间距从各个类迁进来，
+%   间距的取值改成变量，由各个类赋值}
+% \begin{macro}{\hit@setup@list@packages,\hit@setup@list@spacing}
+% 分成两个函数是因为时机不同：宏包要早加载（\pkg{tocloft} 之类会跟它抢 \cs{cft*}
+% 长度，顺序动不得），间距设置要晚一步。各个类在原来那两段代码所在的位置分别调用。
+%
+% 间距的取值不写死在这里，三个变量由各个类自己赋值：不赋就是 \hologo{LaTeX} 的默认间距，
+% 赋了就按赋的来。这样三个类走同一条代码路径，「这个类要不要调整列表间距」是一次
+% 显式的赋值，而不是靠某个类少调了一个函数来体现。
+%    \begin{macrocode}
+%<*shared-list>
+\bool_new:N \g__hit_list_nosep_bool
+\clist_new:N \g__hit_list_itemize_clist
+\clist_new:N \g__hit_list_enumerate_clist
+\cs_new_protected:Npn \hit@setup@list@packages
+  { \RequirePackage{enumitem} }
+\cs_new_protected:Npn \hit@setup@list@spacing
+  {
+    \bool_if:NT \g__hit_list_nosep_bool { \setlist { nosep } }
+    \clist_if_empty:NF \g__hit_list_itemize_clist
+      { \exp_args:NV \setitemize \g__hit_list_itemize_clist }
+    \clist_if_empty:NF \g__hit_list_enumerate_clist
+      { \exp_args:NV \setenumerate \g__hit_list_enumerate_clist }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \changes{v3.2a}{2026/08/10}{\env{publist} 抽出来给各个类共用。原先只有
+%   \file{hithesisbook.cls} 定义，开题中期那边写不了这个列表}
+% \DescribeEnv{publist} 发表文章、专利、科研项目的编号列表，用法是
+% \cs{begin}\marg{publist} 里逐条 \cs{item}。
+% \changes{v3.2a}{2026/08/06}{\env{publist} 改用 \pkg{enumitem} 的 \cs{newlist}
+%   实现，不再自己 \cs{newcounter}。用法与版面不变}
+% 参数照搬原来那个 \env{list} 的设置。计数器由 \pkg{enumitem} 内部管，模板这边
+% 就不必再造一个 LaTeX 计数器了。\cs{labelwidth} 原来没显式设过，靠的是
+% \cs{leftmargin}\texttt{-}\cs{itemindent}\texttt{-}\cs{labelsep}，这里写明。
+%
+%
+% \begin{macro}{\hit@setup@publist}
+% 标号的排法照搬内核 \env{list} 的 \cs{@mklab}：装进一个 \cs{labelwidth} 宽的盒子、
+% 用 \cs{hfil} 顶到右边。\pkg{enumitem} 自带的 \texttt{align=right} 用的是 \cs{hss}，
+% 标号超宽时会往左溢出，与原来相反。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@publist
+  {
+\SetLabelAlign{hit@pubright}{\hb@xt@\labelwidth{\hfil##1}}
+\newlist{publist}{enumerate}{1}
+\setlist[publist]{%
+  label={[\arabic*]},
+  leftmargin=1.7em,
+  itemindent=0em,
+  labelsep=0.5em,
+  labelwidth=24pt,
+  align=hit@pubright,
+  rightmargin=0em,
+  topsep=0ex,
+  parsep=0ex,
+  itemsep=0ex,
+  listparindent=0pt,
+  partopsep=3pt plus 1pt minus 1pt,
+}
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+%</shared-list>
+%    \end{macrocode}
+%
+% \Finale

@@ -1,0 +1,83 @@
+% \hit@msword@layout:n 把 Word 的页面设置换算成版面参数。
+%
+% 四件事：行距原样收；每页行数按缇往下截推出行距；两个都给以行距为准；
+% 上一次调用的键不留到下一次。
+%
+% 命令里调 \geometry，那个是导言区专用的，所以五次调用都在导言区做，
+% 结果先存进记号列表，正文里 \START 之后再打出来。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master,campus=harbin]{hit-thesis}
+\makeatletter
+\ExplSyntaxOn
+\cs_new_protected:Npn \RUN #1#2
+  {
+    \hit@msword@layout:n {#2}
+    \tl_new:c { l__test_#1_tl }
+    \tl_set:cx { l__test_#1_tl }
+      {
+        行距 = \dim_use:N \g_hit_msword_lead_dim
+        ~ 字距 = \dim_use:N \g_hit_msword_char_dim
+        ~ 格数 = \int_use:N \g_hit_msword_cells_int
+      }
+  }
+\cs_new_protected:Npn \SHOW #1
+  { \iow_term:x { #1 ~ \tl_use:c { l__test_#1_tl } } }
+
+% 范例的设置：行距与字距都直接给
+\RUN { given }
+  {
+    margin-top = 3.8cm , margin-bottom = 3cm ,
+    margin-left = 3cm , margin-right = 3cm ,
+    header = 3cm , footer = 2.3cm ,
+    line-pitch = 19.55bp , char-pitch = 12.45bp , size = 12bp ,
+  }
+
+% 只给每页行数：版心高 229mm = 12982.68 缇，除以 30 往下截得 432 缇 = 21.6bp；
+% 版心宽 150mm = 8503.94 缇，除以 34 得 250 缇 = 12.5bp
+\RUN { derived }
+  {
+    margin-top = 3.8cm , margin-bottom = 3cm ,
+    margin-left = 3cm , margin-right = 3cm ,
+    header = 3cm , footer = 2.3cm ,
+    lines-per-page = 30 , chars-per-line = 34 , size = 12bp ,
+  }
+
+% 两个都给且对不上，以行距为准
+\RUN { conflict }
+  {
+    margin-top = 3.8cm , margin-bottom = 3cm ,
+    margin-left = 3cm , margin-right = 3cm ,
+    header = 3cm , footer = 2.3cm ,
+    lines-per-page = 30 , line-pitch = 19.55bp , char-pitch = 12.45bp , size = 12bp ,
+  }
+
+% 换字号，字距胶跟着变
+\RUN { bigsize }
+  {
+    margin-top = 3.8cm , margin-bottom = 3cm ,
+    margin-left = 3cm , margin-right = 3cm ,
+    header = 3cm , footer = 2.3cm ,
+    line-pitch = 19.55bp , char-pitch = 12.45bp , size = 24bp ,
+  }
+
+% 上一次调用的键不该留到下一次：这里只给行距与每行字数，字距该重新推
+\RUN { reset }
+  {
+    margin-top = 3.8cm , margin-bottom = 3cm ,
+    margin-left = 3cm , margin-right = 3cm ,
+    header = 3cm , footer = 2.3cm ,
+    line-pitch = 19.55bp , chars-per-line = 34 ,
+  }
+\ExplSyntaxOff
+\makeatother
+\begin{document}
+\START
+\ExplSyntaxOn
+\TEST{pitch~given}{ \SHOW { given } }
+\TEST{lines~derive~pitch}{ \SHOW { derived } }
+\TEST{pitch~beats~lines}{ \SHOW { conflict } }
+\TEST{size~shifts~glue}{ \SHOW { bigsize } }
+\TEST{keys~reset~between~calls}{ \SHOW { reset } }
+\ExplSyntaxOff
+\END
+\end{document}

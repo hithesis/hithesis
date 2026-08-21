@@ -1,0 +1,222 @@
+% \iffalse meta-comment
+%
+% hit-footnote.dtx 是各个类共用的脚注层
+%
+% \fi
+%
+% \section{共享脚注层}
+%
+% \changes{v3.2a}{2026/08/07}{脚注层抽出来给各个类共用，art 与 artplus 的脚注
+%   由此改成带圈编号、小五号宋体}
+% 我工规范对脚注的要求各个类是一样的：编号带圈、按页重编、宋体小五、悬挂 1.5 字符。
+% 原来这套只写在学位论文类里，报告类用的还是 \hologo{LaTeX} 默认的
+% 上标阿拉伯数字。
+%
+% 分成两截。\cs{hit@setup@footnote@packages} 只管加载 \pkg{footmisc}，位置要留在依赖模块
+% 里不能动；\cs{hit@setup@footnote} 管余下的样式，得排在 \pkg{footmisc} 与字号都就位
+% 之后调用，因为它要接管 \cs{@makefntext} 并存一份当时的 \cs{footnotesize}。
+%
+%    \begin{macrocode}
+%<*shared-footnote>
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@setup@footnote@packages}
+% \changes{v3.2a}{2026/08/15}{\option{layout}/\option{bottom}\texttt{!=flush}
+%   补发 \cs{flushbottom}，并推迟到 \texttt{begindocument}，好让 \cs{hitsetup}
+%   改得动。原先只在 \texttt{ragged} 一支发 \cs{raggedbottom}，另一支什么也不做，
+%   页底该拉齐时没拉}
+% 脚注按页编号。页底策略分两支：\texttt{ragged} 不填补页底空白，脚注仍要压在
+% 底部，所以 \pkg{footmisc} 要带 \texttt{bottom}；\texttt{flush} 把空白摊到
+% 行间，脚注自然就在底部，不用带。
+%
+% 发命令的时机与加载宏包的时机不一样。宏包选项只能在加载时定，而
+% \cs{raggedbottom} 与 \cs{flushbottom} 是随时可改的，所以推迟到
+% \texttt{begindocument}——不然 \cs{hitsetup} 里写的 \option{bottom} 比这里晚，
+% 改了标志位却已经来不及。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@footnote@packages
+  {
+    \bool_if:NTF \g__hit_raggedbottom_bool
+      { \RequirePackage [ bottom , perpage , hang ] { footmisc } }
+      { \RequirePackage [ perpage , hang ] { footmisc } }
+    \AtBeginDocument
+      {
+        \bool_if:NTF \g__hit_raggedbottom_bool
+          { \raggedbottom }
+          { \flushbottom }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@setup@footnote}
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@footnote
+  {
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/06}{带圈脚注号改用 \pkg{circledsteps} 的 \cs{Circled}}
+% 带圈脚注号原来用 \cs{textcircled}，它是拿字体里的组合用圈套上数字，圈偏、数字
+% 也不居中。改用 \pkg{circledsteps} 的 \cs{Circled}，圈是 Ti\emph{k}Z 画的，位置
+% 正、两位数还会自动加宽。
+%    \begin{macrocode}
+\RequirePackage{circledsteps}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/06}{带圈数字支持多位数，圈保持正圆}
+% \cs{Circled} 里字数一多圈就拉成椭圆。量一下内容比一位数宽多少，按这个比例横向
+% 压回去，圈就始终是正圆。原来那个模板用的是固定的 \texttt{0.45}，那是因为它的
+% 西文数字取自 SimSun、是全宽的；这里西文是比例宽度，固定常数不适用，改成算出来。
+%
+% \cs{quan} 一到两位、\cs{Quan} 任意位数、\cs{quansplit} 按位数分派——三个都保留，
+% 但压缩比例自动算，所以实际走的是同一条路。
+%    \begin{macrocode}
+\box_new:N \l__hit_quan_content_box
+\box_new:N \l__hit_quan_mark_box
+\int_new:N \l__hit_quan_slot_int
+\dim_new:N \l__hit_quan_diameter_dim
+\fp_new:N \l__hit_quan_scale_fp
+\fp_new:N \l__hit_quan_squeeze_fp
+%    \end{macrocode}
+%
+% 圈里数字的横向压缩比例，与圈线的粗细（相对 em）。两个常数都是拿
+% \option{fontset}\texttt{=windows}（SimSun）的自带带圈字符量出来的：数字压到
+% 0.45 倍看着与字形版一致；字形的圈线粗细约为 0.034 em，而
+% \cs{linethickness} 的默认值是绝对长度，字号一放大就明显偏细，所以改成跟着 em 走。
+%    \begin{macrocode}
+\fp_const:Nn \c__hit_quan_fill_fp { 0.5 }
+\dim_const:Nn \c__hit_quan_rule_dim { 0.045em }
+%    \end{macrocode}
+%
+% 把当前 CJK 字体设成当前字体。\cs{songti} 只是选 CJK 家族，西文数字仍走西文字体；
+% 圈号里的数字要跟正文宋体一致，得真的切过去。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_use_cjk_font:
+  { \usefont { \f@encoding } { \CJK@family } { m } { n } }
+%    \end{macrocode}
+%
+% \texttt{n} 对应的带圈数字码位：1--20 在 \texttt{U+2460}，21--35 在
+% \texttt{U+3251}，36--50 在 \texttt{U+32B1}，超出范围返回 0。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_quan_slot:n ##1
+  {
+    \int_compare:nNnTF {##1} < { 1 } { 0 }
+      {
+        \int_compare:nNnTF {##1} < { 21 } { \int_eval:n { ##1 - 1 + "2460 } }
+          {
+            \int_compare:nNnTF {##1} < { 36 } { \int_eval:n { ##1 - 21 + "3251 } }
+              {
+                \int_compare:nNnTF {##1} < { 51 }
+                  { \int_eval:n { ##1 - 36 + "32B1 } } { 0 }
+              }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 当前宋体有现成的带圈字符就直接用，字形比画出来的规整；没有才画。
+%
+% 画的几何按字体自带的 \texttt{U+2460} 定：量出它的直径，数字缩到直径的一半（字形
+% 版里数字大致就占这个比例），剩下的补成 \pkg{circledsteps} 的内边距，圈就与字形版
+% 一样大、数字也一样大。位数多了只在横向压，圈保持正圆。圈线粗细跟 em 走——圈线粗细
+% 取 0.045~em，是拿 SimSun 的字形量出来的；\cs{linethickness} 的默认值是绝对长度，
+% 字号一放大就偏细，所以跟着 em 走。
+% \changes{v3.2a}{2026/08/06}{\cs{quan} 重做：先取当前宋体的带圈字符，超出字体
+%   可用范围才画圈；画出来的几何按字体自带的 \texttt{U+2460} 定，圈线粗细跟 em 走。
+%   原先的 \cs{Quan} 一并去掉，两种写法合成一个}
+%    \begin{macrocode}
+\NewDocumentCommand \quan { m }
+  {
+    \group_begin:
+      \__hit_use_cjk_font:
+      \int_set:Nn \l__hit_quan_slot_int { \__hit_quan_slot:n {##1} }
+      \bool_lazy_and:nnTF
+        { \int_compare_p:nNn \l__hit_quan_slot_int > { 0 } }
+        { \int_compare_p:nNn { \XeTeXcharglyph \l__hit_quan_slot_int } > { 0 } }
+        { \tex_char:D \l__hit_quan_slot_int }
+        { \__hit_quan_draw:n {##1} }
+    \group_end:
+  }
+\cs_new_protected:Npn \__hit_quan_draw:n ##1
+  {
+    \hbox_set:Nn \l__hit_quan_mark_box { \tex_char:D "2460 }
+    \hbox_set:Nn \l__hit_quan_content_box { ##1 }
+    \dim_set:Nn \l__hit_quan_diameter_dim
+      { \box_ht:N \l__hit_quan_mark_box + \box_dp:N \l__hit_quan_mark_box }
+    \dim_compare:nNnT { \l__hit_quan_diameter_dim } = { 0pt }
+      { \dim_set:Nn \l__hit_quan_diameter_dim { 1em } }
+%    \end{macrocode}
+%
+% 数字缩到直径的一半；横向如果还塞不进内圈，再按比例压窄。
+%    \begin{macrocode}
+    \fp_set:Nn \l__hit_quan_scale_fp
+      {
+        \c__hit_quan_fill_fp * \dim_to_fp:n { \l__hit_quan_diameter_dim }
+        / \dim_to_fp:n { \box_ht:N \l__hit_quan_content_box + \box_dp:N \l__hit_quan_content_box }
+      }
+    \fp_set:Nn \l__hit_quan_squeeze_fp
+      {
+        \fp_min:nn { 1 }
+          {
+            \c__hit_quan_fill_fp * \dim_to_fp:n { \l__hit_quan_diameter_dim }
+            / ( \l__hit_quan_scale_fp * \dim_to_fp:n { \box_wd:N \l__hit_quan_content_box } )
+          }
+      }
+    \group_begin:
+      \linethickness { \c__hit_quan_rule_dim }
+      \pgfkeys
+        {
+          /csteps/inner~ysep =
+            \fp_to_dim:n
+              { \dim_to_fp:n { \l__hit_quan_diameter_dim } * ( 1 - \c__hit_quan_fill_fp ) } ,
+          /csteps/inner~xsep =
+            \fp_to_dim:n
+              { \dim_to_fp:n { \l__hit_quan_diameter_dim } * ( 1 - \c__hit_quan_fill_fp ) } ,
+        }
+      \Circled
+        {
+          \scalebox { \fp_eval:n { \l__hit_quan_scale_fp * \l__hit_quan_squeeze_fp } }
+            [ \fp_use:N \l__hit_quan_scale_fp ] { \box_use:N \l__hit_quan_content_box }
+        }
+    \group_end:
+  }
+\cs_new_protected:Npn \hit@text@circled ##1 { \quan { \arabic {##1} } }
+\cs_set:Npn \thefootnote   { \hit@text@circled { footnote } }
+\cs_set:Npn \thempfootnote { \hit@text@circled { mpfootnote } }
+%    \end{macrocode}
+%
+% 定义脚注分割线，字号（宋体小五），以及悬挂缩进（1.5字符）。
+%    \begin{macrocode}
+\cs_set:Npn \footnoterule
+  { \vskip -3\p@ \hrule \@width 0.3\textwidth \@height 0.4\p@ \vskip 2.6\p@ }
+\cs_set_eq:NN \hit@original@footnote@size \footnotesize
+\cs_set:Npn \footnotesize { \hit@original@footnote@size \xiaowu [1.5] }
+\footnotemargin1.5em\relax
+%    \end{macrocode}
+%
+% \cs{@makefnmark} 默认是上标样式，而在脚注部分要求为正文大小。
+% \changes{v3.2a}{2026/08/06}{\cs{@makefntext} 改成包一层，不再用 \pkg{etoolbox}
+%   前后插码。\cs{pretocmd} 会把宏体 detokenize 后按当前 catcode 重扫，在 expl3
+%   里会吃掉 \cs{@makefntext} 体内的字面空格，脚注整块上移 4.2bp}
+% 原来是往 \cs{@makefntext} 的宏体前后各插一句 \cs{let}，效果等于在原宏体跑之前
+% 换掉 \cs{@makefnmark}、跑完再换回来。包一层做的是同一件事，位置也一样。
+%    \begin{macrocode}
+\cs_set_eq:NN \hit@original@make@footnote@mark \@makefnmark
+\cs_new:Npn \hit@footnote@mark { \hbox { { \normalfont \@thefnmark } } }
+\cs_set_eq:NN \hit@original@make@footnote@text \@makefntext
+\cs_set:Npn \@makefntext ##1
+  {
+    \cs_set_eq:NN \@makefnmark \hit@footnote@mark
+    \hit@original@make@footnote@text {##1}
+    \cs_set_eq:NN \@makefnmark \hit@original@make@footnote@mark
+  }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+%</shared-footnote>
+%    \end{macrocode}
+%
+%
+% \Finale

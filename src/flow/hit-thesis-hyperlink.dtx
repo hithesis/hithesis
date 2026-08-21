@@ -1,0 +1,89 @@
+% \iffalse meta-comment
+%
+% Copyright (C) 2017- by Yanshuo Chu <yanshuoc@gmail.com>
+%
+% This file may be distributed and/or modified under the
+% conditions of the LaTeX Project Public License, either version 1.3a
+% of this license or (at your option) any later version.
+% The latest version of this license is in:
+%
+% http://www.latex-project.org/lppl.txt
+%
+% and version 1.3a or later is part of all distributions of LaTeX
+% version 2004/10/01 or later.
+%
+% \fi
+%
+% \section{学位论文类的超链接配置}
+% ^^A ======================================================================
+% ^^A Module thesis-hyperlink: hyperref/url 配置（PDF 书签、链接颜色）（hit-thesis）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*thesis-hyperlink>
+\hit@setup@hyperlink
+\hit@setup@pdf@metadata
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/12}{删掉三处对 \pkg{natbib} 的 \cs{patchcmd}。
+%   \cs{NAT@citexnum} 与 \cs{NAT@citex} 的参数文本是 \texttt{[\#1][\#2]\#3}，
+%   带分隔符，\pkg{etoolbox} 的 \cs{patchcmd} 不支持这种宏，三处一直是失败的。
+%   补丁想要的效果（页码注排在方括号外并上标）\pkg{gbt7714} 本来就提供了}
+% \cs{NAT@citesuper} 是上标引用样式的排法，这个是真在起作用的，留着。
+%
+% \changes{v3.2a}{2026/08/12}{\option{citetwo} 的 comma 一档换个实现，从 2022 年加进来
+%   就没生效过}
+% \changes{v3.2a}{2026/08/16}{\cs{def@NAT@last@yr} 那处补丁退役：官方
+%   \pkg{gbt7714.sty}~v3 自带 \texttt{mincompress!=2|3}，\option{compress-min}
+%   直接转发（见 \file{hit-keylist.dtx}），实测 \texttt{[1-2]} 与 \texttt{[1,2]}
+%   两档都对}
+% 相邻序号的压缩原先靠自家改 \cs{def@NAT@last@yr}，官方 \pkg{gbt7714.sty}~v3
+% 有现成的 \texttt{mincompress} 选项管同一件事，补丁退役，键的转发见
+% \file{hit-keylist.dtx}。
+%
+% \changes{v3.2a}{2026/08/16}{\cs{NAT@citesuper} 的补丁挂到
+%   \texttt{package/gbt7714/after} 钩子上。\pkg{gbt7714} 挪去导言区末尾装
+%   （见 \file{hit-thesis-bib.dtx}），类加载期那个宏还不存在}
+% 留下的这处补丁改的是 \pkg{natbib} 的上标引用排法（页码注上标、两侧
+% \cs{kern}）。\pkg{gbt7714} 已挪到导言区末尾装（见 \file{hit-thesis-bib.dtx}），
+% 类加载期宏还不存在，补丁挂 \texttt{package/gbt7714/after}。
+%
+% \changes{v3.2a}{2026/08/18}{上标引文字号定为正文的 $2/3$，标号前的 kern 由
+%   1\,pt 减到 0.5\,pt}
+% 上标字号与前距按 1--7 页版实测校：Word 的上标是 8.0\,bp（正文 12 的
+% $2/3$），我们原来 8.88；「削→[」Word 是一整格 12.45（无额外间距），我们
+% \cs{unskip} 吞掉类里的胶再补 1\,pt。用户裁定两家都不好——Word 的贴太死，
+% 1\,pt 又太大——取 0.5\,pt。字号写成比例，跟着当前字号走。
+%    \begin{macrocode}
+\tl_new:N \l__hit_cite_size_tl
+\cs_new_protected:Npn \hit@cite@superscript@save:
+  { \tl_set:Nx \l__hit_cite_size_tl { \fp_eval:n { 2/3 * \f@size } } }
+\cs_new_protected:Npn \hit@cite@superscript@size:
+  {
+    \exp_args:NVV \fontsize \l__hit_cite_size_tl \l__hit_cite_size_tl
+    \selectfont
+  }
+\AddToHook { package / gbt7714 / after }
+  {
+\cs_set:Npn \NAT@citesuper #1#2#3{\ifNAT@swa
+  \if*#2*\else#2\NAT@spacechar\fi
+\unskip\kern.5\p@\hit@cite@superscript@save:
+\textsuperscript{\hit@cite@superscript@size:
+  \NAT@@open#1\NAT@@close\if*#3*\else#3\fi}%
+   \else #1\fi\endgroup}
+  }
+%    \end{macrocode}
+%
+% 根据窝工2021年的“四月革命”，引用文献标准更新到GBT2015
+% \changes{v3.0.15}{2020/05/21}{添加参考文献GBT2015}
+% \changes{v3.1c}{2023/04/16}{增加相邻两个参考文献连接符为逗号“,”的功能。\issue[137]}
+%
+% \changes{v3.2a}{2026/08/12}{\pkg{natbib} 的补丁提成一条命令，在 expl3 之外定义}
+% \cs{patchcmd} 会把目标宏体 detokenize 后按当前 catcode 重扫，所以整条调用都得
+% 在 expl3 之外写。而 \cs{ExplSyntaxOff} 塞进 \cs{bool\_if:NT} 的参数里是不生效的
+% （参数早在读到 \cs{bool\_if:NT} 时就记号化完了），只能先在外面定义好，再由条件
+% 调用。
+%    \begin{macrocode}
+%</thesis-hyperlink>
+%    \end{macrocode}
+%
+% \Finale

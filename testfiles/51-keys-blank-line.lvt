@@ -1,0 +1,100 @@
+% 键与键之间夹空行。空行在键值表里是一个 \par，不剥掉的话下一个键的名字就成了
+% "\par secretary"，对不上任何键，整条丢掉。
+%
+% 五个族各验一处：info、const、struct 的 backmatter、defense、以及一条记录里的字段。
+% 顺带验决议正文里的空行没被剥掉——那是内容，要留着分段。
+%
+% 断言一律比对，不打印取到的值，理由见 50-defense-keys.lvt 的开头。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=doctor,campus=harbin]{hit-thesis}
+\hitsetup{
+  info = {
+    title-zh = {甲},
+
+    author-zh = {张三},
+  },
+
+  const = {
+    school-zh = {哈工大},
+
+    campus = {深圳},
+  },
+  struct = {
+    backmatter = {
+      defense = auto,
+
+      declarations = true,
+    },
+  },
+  defense = {
+    reviewer = {name=李四,
+
+                title=教授},
+
+    secretary = {name=周八, title=讲师},
+    resolution = {上段。
+
+      下段。},
+  },
+}
+\begin{document}
+\START
+\makeatletter
+\ExplSyntaxOn
+% 取到的值先过一道 \tl_set:No 再比。常量存在 \cs_gset_nopar:cpn 造的宏里，
+% 不带 \long，而 \tl_set:Nn 造的带，\tl_if_eq:NN 比的是 \meaning，直接比必然不等。
+\tl_new:N \l_want_tl
+\tl_new:N \l_got_tl
+\tl_new:N \l_verdict_tl
+\cs_new_protected:Npn \CHECK #1#2#3
+  {
+    \tl_set:Nn \l_want_tl {#3}
+    \tl_set:No \l_got_tl {#2}
+    \tl_if_eq:NNTF \l_got_tl \l_want_tl
+      { \tl_set:Nn \l_verdict_tl { ok } }
+      { \tl_set:Nn \l_verdict_tl { WRONG } }
+    \iow_term:x { #1 = \l_verdict_tl }
+  }
+\cs_new_protected:Npn \CONTAINS #1#2#3
+  {
+    \tl_set:No \l_got_tl {#2}
+    \tl_if_in:NnTF \l_got_tl {#3}
+      { \tl_set:Nn \l_verdict_tl { ok } }
+      { \tl_set:Nn \l_verdict_tl { WRONG } }
+    \iow_term:x { #1 = \l_verdict_tl }
+  }
+
+\TEST{blank line inside info}{
+  \CHECK { title }  \hit@title@first@zh { 甲 }
+  \CHECK { author } \hit@author@zh { 张三 }
+}
+
+\TEST{blank line inside const}{
+  \CHECK { school } \hit@school@zh { 哈工大 }
+  \CHECK { campus } \hit@campus { 深圳 }
+}
+
+\TEST{blank line inside struct backmatter}{
+  \CHECK { defense }       \g__hit_structure_defense_tl { auto }
+  \CHECK { declarations }  \g__hit_structure_declarations_tl { true }
+}
+
+\TEST{blank line between defense keys}{
+  \iow_term:x { reviewer = \seq_count:N \g__hit_defense_reviewer_seq }
+  \iow_term:x { secretary = \seq_count:N \g__hit_defense_secretary_seq }
+}
+
+\TEST{blank line inside one record}{
+  \seq_get:NN \g__hit_defense_reviewer_seq \l_tmpa_tl
+  \exp_args:Nx \hit@defense@unpack:n { \exp_not:V \l_tmpa_tl }
+  \CHECK { name }  \l__hit_defense_name_tl { 李四 }
+  \CHECK { title } \l__hit_defense_title_tl { 教授 }
+}
+
+\TEST{blank line inside a value is content}{
+  \CONTAINS { resolution~keeps~par } \g__hit_defense_resolution_tl { \par }
+}
+\ExplSyntaxOff
+\makeatother
+\END
+\end{document}

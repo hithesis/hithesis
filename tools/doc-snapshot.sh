@@ -30,7 +30,7 @@ export SOURCE_DATE_EPOCH FORCE_SOURCE_DATE
 echo "[doc-snapshot] 重编手册……"
 rm -f hithesis.pdf
 make cls > /dev/null
-if ! make doc > /tmp/doc-snapshot.log 2>&1; then
+if ! make manual > /tmp/doc-snapshot.log 2>&1; then
   echo "手册编译失败："
   tail -30 /tmp/doc-snapshot.log
   exit 1

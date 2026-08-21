@@ -1,0 +1,59 @@
+% structure 族与两个骨架宏。
+%
+% 前置与后置的顺序是规范定死的，改由类负责排，用户只说哪个部件用哪个文件。
+% 这里断言两件事：没声明的部件一个都不排；声明了的按规范顺序排，中间该有的
+% 类自排页面（决议、授权）也在正确位置。
+%
+% 用 \include 会去读外部文件，测试里没有那些文件，所以把 \include 与 \input
+% 都换成打印文件名，只看调用顺序。类自排的几页也拦下来，同样只打印。
+%
+% 拦的是 \hit@resolution@place 与 \hit@declarations@place 而不是
+% \resolution 与 \authorization：后两个是旧写法的外壳，类自排走的是内部那对。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=doctor,campus=harbin]{hithesis}
+\makeatletter
+\renewcommand\include[1]{\typeout{[include] #1}}
+\renewcommand\input[1]{\typeout{[input] #1}}
+\renewcommand\bibliographystyle[1]{\typeout{[bibstyle] #1}}
+\renewcommand\bibliography[1]{\typeout{[bib] #1}}
+\RenewDocumentCommand\hit@resolution@place{so}{\typeout{[类自排] 决议}}
+\RenewDocumentCommand\hit@declarations@place{so}{\typeout{[类自排] 授权}}
+\renewcommand\tableofcontents{\typeout{[类自排] 目录}}
+\makeatother
+\begin{document}
+\START
+\TEST{什么都不声明时后置一片空白}{
+  \hitbackmatter
+}
+\hitsetup{ struct = {
+  denotation       = {front/denotation},
+  contents         = true,
+  bibliography     = {reference},
+  appendix         = {back/appA},
+  publications     = {back/publications},
+  defense          = true,
+  index            = {back/ceindex},
+  declarations     = true,
+  acknowledgements = {back/acknowledgements},
+  resume           = {back/resume},
+} }
+\TEST{声明齐了按规范顺序排}{
+  \hitbackmatter
+}
+\hitsetup{ struct = { resume = false, index = false },
+           bib = { bibtex = { style = {gbt7714-2025-numeric} } } }
+\TEST{取 false 的部件跳过，bib 样式可换}{
+  \hitbackmatter
+}
+\TEST{分组决定归哪一段：致谢挪进前置，后置就不排了}{
+  \hitsetup{ struct = { frontmatter = { acknowledgements = {front/ack-en} } } }
+  \hitbackmatter
+}
+\TEST{部件放进不能去的段要报错，并说清能写哪}{
+  \hitsetup{ struct = { backmatter = { cover = {x} } } }
+}
+\TEST{段里写了不认识的键只警告}{
+  \hitsetup{ struct = { frontmatter = { acknowledgments = {x} } } }
+}
+\END
+\end{document}

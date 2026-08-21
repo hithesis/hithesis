@@ -1,0 +1,504 @@
+% \iffalse meta-comment
+%
+% hit-sty.dtx 是示例文档自带的宏包，装用户自留地里的东西
+%
+% \fi
+%
+% \section{示例宏包 \file{hithesis.sty}}
+%
+% \changes{v3.2a}{2026/08/10}{\pkg{xeCJKfntef}、\pkg{xcolor}、\pkg{tikz} 三个从
+%   本文件移进文档类。类自己就要用它们排下划线与封面，不该等文档加载本宏包才有}
+%
+% v3.1e 的示例目录下有个 \file{hithesis.sty}，开头写着「此文件声明不在规范中要求的
+% 格式所使用的宏包。（所以，格式基本上是自由发挥的。）」。里面是术语词条、染色体
+% 示意图的 \pkg{tikz} 宏、九个数学记号速记、\cs{num} 的分组空格，都是示例文档自己
+% 要用的东西，用户复制一份改成自己的。
+%
+% 分界线是「类自己调不调」。\pkg{siunitx}、\pkg{bm}、\pkg{mathrsfs}、\pkg{rotating}、
+% \pkg{listings}、\pkg{algorithm2e} 这六个，类里一句都没用到，只是替文档预先装上并
+% 配好，属于自留地。原文件里的 \pkg{xeCJKfntef}、\pkg{xcolor}、\pkg{tikz} 不在这里，
+% 那三个类自己要用（下划线、封面颜色、封面图形），留在类里。
+%
+% \pkg{bm} 与 \pkg{mathrsfs} 看着像重复，其实不是。类只提供 \cs{boldsymbol}，
+% 那不是 \cs{bm} 的全等替代；\cs{mathscr} 类里虽然有，但不装 \pkg{mathrsfs} 时它
+% 跟 \cs{mathcal} 出自同一套字形，两个记号会长得一模一样，v3.1e 特意用 \pkg{rsfs}
+% 就是为了把它们分开。
+%
+% 用法是在导言区写 \verb|\usepackage{hithesis}|。文件在示例目录下，也装进了 TEXMF；
+% 当前目录优先，把示例目录那份拷进自己的项目再改就行。
+%
+%    \begin{macrocode}
+%<*hit-sty>
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{hithesis}
+  [2026/01/01 v3.2a hithesis example package]
+%    \end{macrocode}
+%
+% \subsection{填充文字}
+%
+% \changes{v3.2a}{2026/08/11}{\pkg{lipsum} 从报告类挪进示例宏包。
+%   类不该为了一份示例正文加载填充文字的宏包}
+% 深圳博士中期那份示例正文拿 \cs{lipsum} 填充。这是示例自己的需要，原先由
+% \file{hit-report.cls} 在「深圳博士中期」这个组合下加载，别的组合下同一个文件就
+% 报 \texttt{Undefined control sequence}。填充文字的宏包归示例宏包管。
+%    \begin{macrocode}
+\RequirePackage{lipsum}
+%    \end{macrocode}
+%
+% \subsection{数字与数学}
+%
+% \changes{v3.2a}{2026/08/10}{\pkg{bm} 只在 8~位数学字体下加载。\pkg{unicode-math}
+%   的符号是扩展 mathchar，\pkg{bm} 处理不了，会报 Extended mathchar used as mathchar，
+%   这时 \cs{bm} 改接 \cs{symbf}}
+% \changes{v3.2a}{2026/08/10}{\pkg{rsfs} 花体改成按尺寸区间的可缩放声明。
+%   \file{ursfs.fd} 只列了几档固定字号，模板要的 10.53937 不在其中，
+%   \hologo{LaTeX} 取最近的 10.95 顶上，花体比周围大百分之四}
+% 规范对数字书写的规定（4 位及以上每 3 位空 1/4 汉字）由 \pkg{siunitx} 落实。
+% 除这个空格以外任何空格都是错的，包括 \verb|\:| \verb|\;| \verb|\ |。
+%    \begin{macrocode}
+\RequirePackage{siunitx}
+% 分组间隔按《1-8 页》范例实测:正文号数字组间 3.27bp,\hspace{0.25em} 排出
+% 2.77(Word 的间隔两侧各带字符间距加宽,\hspace 是裸胶),校到 0.29em。
+\sisetup{group-minimum-digits=4, group-separator= \hspace{0.29em}}
+\sisetup{detect-weight,detect-mode,detect-family}
+%    \end{macrocode}
+%
+% \pkg{bm} 处理数学公式中的黑斜体。它只在 8 位数学字体下能用：\pkg{unicode-math}
+% 的符号是扩展 mathchar，\pkg{bm} 处理不了，会报 \texttt{Extended mathchar used as
+% mathchar}，这时把 \cs{bm} 接到 \pkg{unicode-math} 自己的 \cs{symbf} 上。
+% \cs{hit@if@option@TF} 由文档类提供，读的是类选项对应的标志位。
+%    \begin{macrocode}
+\hit@if@option@TF{unicodemath}
+  {\let\bm\symbf}
+  {\RequirePackage{bm}}
+%    \end{macrocode}
+%
+% \pkg{mathrsfs} 提供不同于 \cs{mathcal}、\cs{mathfrak} 的英文花体。
+%
+% 它的字形声明（\file{ursfs.fd}）只列了 5、7、8、9、10、10.95 等几档固定字号，
+% 模板要的 10.53937 不在其中，\hologo{LaTeX} 取最近的 10.95 顶上，花体因此比周围大
+% 百分之四，日志里每份文档报两条 size substituted。下面按尺寸区间重新声明，
+% 让它从 Type1 字形缩放到要的大小。三个 \file{rsfs*.pfb} 是 \hologo{TeX}~Live 自带的。
+%    \begin{macrocode}
+\RequirePackage{mathrsfs}
+\DeclareFontFamily{U}{rsfs}{\skewchar\font127 }
+\DeclareFontShape{U}{rsfs}{m}{n}{<-6>rsfs5 <6-8>rsfs7 <8->rsfs10}{}
+%    \end{macrocode}
+%
+% \begin{macro}{\theVector,\theMatrix,\theSet,\theDirected,\theUndirected,
+%   \theNetwork,\theNode,\theDirectedEdge,\theUndirectedEdge}
+% 格式和内容分离是 \hologo{LaTeX} 的长处，常用记号在这里定一次，正文里只写记号名。
+% 想换全文表示网络的符号样式，改这一行就行，不用去正文里挨个找。
+%
+% \cs{theNetwork} 走 \pkg{rsfs} 花体，那套字形只有 A 到 Z，小写字母和数字没有对应
+% 字形，写进去会被悄悄丢掉。
+%    \begin{macrocode}
+\newcommand{\theVector}[1]{\bm{#1}}
+\newcommand{\theMatrix}[1]{\mathbb{#1}}
+\newcommand{\theSet}[1]{\mathcal{#1}}
+\newcommand{\theDirected}[1]{{\overrightarrow{#1}}}
+\newcommand{\theUndirected}[1]{{\overline{#1}}}
+\newcommand{\theNetwork}[1]{\mathscr{#1}}
+\newcommand{\theNode}[1]{{\text{#1}}}
+\newcommand{\theDirectedEdge}[2]{{\overrightarrow{{#1}{#2}}}}
+\newcommand{\theUndirectedEdge}[2]{{\overline{{#1}{#2}}}}
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{排版正文常用的几个包}
+%
+% \changes{v3.2a}{2026/08/12}{\pkg{multirow} 与 \pkg{placeins} 两个从文档类挪进
+%   本文件。类里一处都不调，是替用户预装的}
+% 这两个原先由文档类装。按「类自己调不调」这条线，它们归这边：类的表格不合并
+% 单元格，也不调 \cs{FloatBarrier}。
+%
+% \pkg{xeCJKfntef} 一度也挪到了这里，是判断错误：学位论文封面的
+% \env{CJKfilltwosides} 就是它提供的，那个包由
+% \file{src/pages/hit-thesis-cover.dtx} 自己加载。
+%
+% \cs{multirow} 合并表格的纵向单元格。
+%    \begin{macrocode}
+\RequirePackage{multirow}
+%    \end{macrocode}
+%
+% \cs{FloatBarrier} 把还没排的浮动体就地排完，用来拦住图表跑进下一节。
+% \option{below} 允许上一节的浮动体落在下一节开头。这个包不传 \option{section}
+% 就不会自动在每节插栏栅，要拦得自己写 \cs{FloatBarrier}。
+%    \begin{macrocode}
+\RequirePackage[below]{placeins}
+%    \end{macrocode}
+%
+% \subsection{图表与算法}
+%
+% \changes{v3.2a}{2026/08/10}{\pkg{algorithm2e} 整段按 \cs{chapter} 存在与否分支。
+%   开题与中期报告是 \cls{article} 底子，没有 \cs{chapter} 计数器，\texttt{algochapter}
+%   会让 \cs{newcounter} 报错}
+% \changes{v3.2a}{2026/08/10}{\cs{algorithmcfname} 改成按语言取常量，
+%   原先固定是「算法」，英文文档也排中文}
+% 图形和表格的控制旋转。
+%    \begin{macrocode}
+\RequirePackage{rotating}
+%    \end{macrocode}
+%
+% 算法的宏包，注意宏包兼容性，先后顺序为 float、hyperref、algorithm2e，否则无法
+% 生成算法列表。前两个由文档类加载，所以本文件必须在 \cs{documentclass} 之后加载。
+% 我工算法混乱的问题详见手册，各个实验室的具体设置方法详见手册或示例中给出的地址。
+%
+% 下面整段按章编号。开题报告与中期报告是 \cls{article} 底子，没有 \cs{chapter}
+% 计数器，\texttt{algochapter} 会让 \cs{newcounter}\{algocf\}\oarg{chapter} 报错，
+% 所以那边整段跳过，要用算法自己 \cs{usepackage}\{algorithm2e\}。
+%    \begin{macrocode}
+\ifdefined\chapter
+\RequirePackage[algoruled,linesnumbered,algochapter]{algorithm2e}
+\SetAlCapSty{}
+%    \end{macrocode}
+%
+% \begin{macro}{\foocaption}
+%    \begin{macrocode}
+\newcommand{\foocaption}[1]{ \def\@algocf@pre@plainruled{\hrule height1.5pt depth0pt\kern\interspacetitleruled #1 \kern\interspacealgoruled\hrule height1pt depth0pt\kern\interspacetitleruled} }
+\def\@algocf@post@ruled{\kern\interspacealgoruled\hrule height1.5pt\relax}%
+%    \end{macrocode}
+% \end{macro}
+%
+% 算法列表。中文名 \cs{listalgoenname} 与 \cs{hit@algorithm@name@zh} 由文档类提供。
+%    \begin{macrocode}
+\newcommand{\algoenname}{Algo.}
+\newfloatlist[chapter]{algoen}{aen}{\listalgoenname}{\algoenname}
+\newfixedcaption{\algoencaption}{algoen}
+\renewcommand{\thealgoen}{\thechapter-\arabic{algocf}}
+\renewcommand{\@cftmakeaentitle}{\chapter*{\listalgoenname\@mkboth{\listalgoenname}{\listalgoenname}}
+}
+\hit@if@option@TF{en}
+  {\renewcommand{\algorithmcfname}{\hit@algorithm@name@en}}
+  {\renewcommand{\algorithmcfname}{\hit@algorithm@name@zh}}
+\setlength\AlCapSkip{1.2ex}
+\SetAlgoSkip{1pt}
+\renewcommand{\algocf@captiontext}[2]{\wuhao#1\algocf@typo~\AlCapFnt{}#2}
+\expandafter\ifx\csname algocf@within\endcsname\relax
+\renewcommand\thealgocf{\@arabic\c@algocf}
+\else
+\renewcommand\thealgocf{\csname the\algocf@within\endcsname-\@arabic\c@algocf}
+\fi
+%    \end{macrocode}
+%
+% 中英文双标题一定多于一行，因此去掉单行时的判断，并将 \cs{parbox} 中标题设置为居中。
+%    \begin{macrocode}
+\renewcommand{\algocf@makecaption}[2]{%
+  \addtolength{\hsize}{\algomargin}%
+  \sbox\@tempboxa{\algocf@captiontext{#1}{#2}}%
+    \hskip .5\algomargin%
+    \parbox[t]{\hsize}{\centering\algocf@captiontext{#1}{#2}}%
+  \addtolength{\hsize}{-\algomargin}%
+}
+%    \end{macrocode}
+%
+% \begin{macro}{\AlgoBiCaption}
+% 直接取出自定义的中英文标题条目加入到真正的 \cs{caption} 中。
+%    \begin{macrocode}
+\newcommand{\AlgoBiCaption}[2]{%
+   \caption[#1]{\protect\setlength{\baselineskip}{1.5em}#1 \protect \\ Algo.\thealgocf~#2}
+   \addcontentsline{aen}{algoen}{\protect\numberline{\thealgoen}{#2}}
+}
+\else
+\PackageWarningNoLine{hithesis}
+  {没有~\protect\chapter~计数器，跳过 algorithm2e 那一段。\MessageBreak
+   要排算法请自己 \protect\usepackage{algorithm2e}}
+\fi
+%    \end{macrocode}
+% \end{macro}
+%
+% 排版源码所使用的环境可以有两种，\pkg{listings} 和 \pkg{minted}。用 \pkg{minted}
+% 要在编译时加 \texttt{-shell-escape} 选项，并装 pygmentize 工具给代码高亮。
+%    \begin{macrocode}
+\RequirePackage{listings}
+\lstset{
+% basicstyle=\small\ttfamily,
+columns=flexible,
+breaklines=true
+}
+% \RequirePackage{minted}
+%    \end{macrocode}
+%
+% \subsection{术语表条目}
+%
+% 术语宏包用来处理首次全写、之后缩写的问题，由文档类加载。下面是添加术语的例子。
+%
+% 加载 \pkg{glossaries} 的只有学位论文类，报告类没有。这个宏包两个类都能
+% \cs{usepackage}，所以整段术语要看 \cs{newacronym} 在不在，不在就整段跳过；
+% 不跳的话报告类下第一条就是 \texttt{Undefined control sequence}，接着丢掉
+% \cs{begin\{document\}}，一路报到几十条。
+%    \begin{macrocode}
+\ifdefined\newacronym
+\newacronym{etssbp}{TSSBP}{Tree-structured Stick-breaking process}
+\newacronym{etse}{TSE}{Taylor Series Expansion}
+\newacronym{esvm}{SVM}{Support Vector Machine}
+\newacronym{eml}{ML}{Machine Learning}
+\newacronym{eco}{CO}{Convex Optimization}
+%    \end{macrocode}
+%
+% \begin{macro}{\gtssbp,\gscna,\gscnas}
+% 中文术语同时进中英文两份索引，各自配一个宏。
+%    \begin{macrocode}
+\newacronym{tssbp}{树结构折筷过程}{树结构折筷过程（Tree-structured Stick-breaking process）}
+\def\gtssbp{\gls{tssbp}\sindex[china]{shu!树结构折筷过程}\sindex[english]{Tree-structured Stick-breaking process}}
+\newacronym[shortplural=SCNAs,longplural={体细胞拷贝数变异（Somatic copy number alternation，SCNA）}]{scna}{SCNA}{体细胞拷贝数变异（Somatic copy number alternation，SCNA）}
+\def\gscna{\gls{scna}\sindex[china]{ti!体细胞拷贝数变异}\sindex[english]{Somatic copy number alternation}\ignorespaces}
+\def\gscnas{\glspl{scna}\sindex[china]{ti!体细胞拷贝数变异}\sindex[english]{Somatic copy number alternation}\ignorespaces}
+\fi
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{染色体示意图}
+%
+% \changes{v3.2a}{2026/08/10}{二十条样式从废弃的 \cs{tikzstyle} 改写成 \cs{tikzset}}
+% \changes{v3.2a}{2026/08/10}{各个 cell 宏里调用 \cs{gseg} 之后那 23 个分号去掉。
+%   它们落在 \env{tikzpicture} 里没有路径可收，每份文档报 23 条
+%   Missing character: There is no ; in font nullfont，排出来什么也没有}
+% \file{body/introduction.tex} 里有一张染色体示意图，下面这批样式和宏是画它用的。
+% 画的是固定内容，\cs{rcell} 直接画 A~C~T~C 四个碱基。留在这里当画图的例子看。
+%
+% \pkg{tikz} 与 \pkg{xcolor} 由文档类加载。原文件用的 \cs{tikzstyle} 已经废弃，
+% 这里改成 \cs{tikzset}。
+%
+% 四个颜色只给下面这批 \cs{tikzset} 用。
+%    \begin{macrocode}
+\definecolor{colorzero}{rgb}{0, 0, 0}
+\definecolor{colorone}{rgb}{1, 0, 0}
+\definecolor{colortwo}{rgb}{0, 0, 1}
+\definecolor{colorthree}{rgb}{0, 1, 0}
+%    \end{macrocode}
+%
+% 此处可以定义一些 \pkg{tikz} 全局样式，例如
+% \verb|\tikzset{nodestyle/.style={circle, fill=gray!60}}|、
+% \verb|\tikzset{edgestyle/.style={-latex}}|。
+%    \begin{macrocode}
+% \pkg{tikz} 也只有学位论文类加载，报告类没有，所以这批样式同样要看在不在。
+% 下面 \cs{gseg} 那批宏本身只是定义，缺 \pkg{tikz} 也定义得出来，用到才会炸。
+\ifdefined\tikzset
+\tikzset{maternal/.style={colorone}}
+\tikzset{paternal/.style={colortwo}}
+\tikzset{variant/.style={colorthree!80!colorzero}}
+\tikzset{reference/.style={colorzero}}
+\tikzset{aallele/.style={colorzero,rotate=90}}
+\tikzset{ballele/.style={colorthree!80!colorzero,rotate=90}}
+\tikzset{refseg/.style={colorzero,draw=colorzero, opacity=0.2}}
+\tikzset{mseg/.style={colorone,draw=colorone, opacity=0.2}}
+\tikzset{pseg/.style={colortwo,draw=colortwo, opacity=0.2}}
+\tikzset{vseg/.style={colorthree!80!colorzero,draw=colorthree!80!colorzero, opacity=0.6}}
+\tikzset{bncell/.style={draw=colorzero,opacity=0.2,line width=2pt, rounded corners=1pt}}
+\tikzset{btcell/.style={draw=colorone,opacity=0.6, line width=2pt, rounded corners=1pt}}
+\tikzset{tncell/.style={colorzero,opacity=0.9}}
+\tikzset{ttcell/.style={colorone,opacity=0.6}}
+\tikzset{tscell/.style={colorzero}}
+\tikzset{refcell/.style={colorzero}}
+\tikzset{evolve/.style={->,draw=colortwo,opacity=0.3,line width=1.5pt}}
+\tikzset{fakeevolve/.style={->,draw=colorzero,opacity=0.3,line width=1.5pt}}
+\tikzset{refline/.style={dashed,draw=colorzero,line width=1pt}}
+\tikzset{tnline/.style={dashed,draw=colorzero,opacity=0.3,line width=1pt}}
+\fi
+%    \end{macrocode}
+%
+% \begin{macro}{\gseg,\gsegr}
+% 一段染色体，带两端的延长线。\cs{gsegr} 是右偏移的版本。
+%
+% 下面各个 cell 宏里调用 \cs{gseg} 之后的那个分号，v3.1e 原文是有的。它落在
+% \env{tikzpicture} 里没有路径可收，每份文档报 23 条 \texttt{Missing character:
+% There is no ; in font nullfont}，排出来什么也没有。这里去掉。
+%    \begin{macrocode}
+\newcommand{\gseg}[9]{%
+  \pgfmathsetmacro{\sstartx}{#1}
+  \pgfmathsetmacro{\slengx}{#2}
+  \pgfmathsetmacro{\sy}{#3}
+  \pgfmathsetmacro{\sdy}{#4}
+  \pgfmathsetmacro{\sdx}{#5}
+  \pgfmathsetmacro{\sdxh}{#7}
+  \pgfmathsetmacro{\sdxt}{#8}
+  \fill[#6](\sstartx,\sy)--(\sstartx-\sdx,\sy+\sdy)--
+  (\slengx+\sstartx+1.5-\sdx,\sy+\sdy)--(\slengx+\sstartx+1.5,\sy)--
+  (\slengx+\sstartx+1.5-\sdx,\sy-\sdy)--(\sstartx-\sdx,\sy-\sdy)--cycle;
+  \draw[#9] (\sstartx-\sdxh,\sy) -- (\sstartx, \sy);
+  \draw[#9] (\slengx+\sstartx+1.5, \sy) -- (\slengx+\sstartx+1.5+\sdxt,\sy);
+}
+\newcommand{\gsegr}[9]{%
+  \pgfmathsetmacro{\sstartx}{#1}
+  \pgfmathsetmacro{\slengx}{#2}
+  \pgfmathsetmacro{\sy}{#3}
+  \pgfmathsetmacro{\sdy}{#4}
+  \pgfmathsetmacro{\sdx}{#5}
+  \pgfmathsetmacro{\sdxh}{#7}
+  \pgfmathsetmacro{\sdxt}{#8}
+  \fill[#6](\sstartx-0.5,\sy)--(\sstartx+\sdx-0.5,\sy+\sdy)--
+  (\slengx+\sstartx+1.5+\sdx-0.5,\sy+\sdy)--(\slengx+\sstartx+1.5-0.5,\sy)--
+  (\slengx+\sstartx+1.5+\sdx-0.5,\sy-\sdy)--(\sstartx+\sdx-0.5,\sy-\sdy)--cycle;
+  \draw[#9] (\sstartx-\sdxh-0.5,\sy) -- (\sstartx-0.5, \sy);
+  \draw[#9] (\slengx+\sstartx+1.5-0.5, \sy) -- (\slengx+\sstartx+1.5+\sdxt-0.5,\sy);
+}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\rcell,\ncell}
+% 参考序列与正常细胞。
+%    \begin{macrocode}
+\newcommand{\rcell}[2]{%
+  \pgfmathsetmacro{\x}{#1}
+  \pgfmathsetmacro{\y}{#2}
+  %\node at (\x+10, \y) {Reference};
+  \draw (\x+1,\y) node[aallele]{A};
+  \draw (\x+2,\y) node[aallele]{C};
+  \draw (\x+3,\y) node[aallele]{T};
+  \draw (\x+4,\y) node[aallele]{C};
+  \gseg{\x}{4}{\y}{0.2}{0.5}{refseg}{1.5}{1}{reference}
+}
+\newcommand{\ncell}[2]{%
+  \pgfmathsetmacro{\x}{#1}
+  \pgfmathsetmacro{\y}{#2}
+  %\node [maternal] at (\x+8, \y) {M};
+  %\node [paternal] at (\x+8, \y-0.5) {P};
+  \draw[bncell](\x-2,\y+0.5)--(\x+7,\y+0.5)--
+  (\x+7,\y-1)--(\x-2,\y-1)--cycle;
+  \draw (\x+1,\y) node[aallele]{A};
+  \draw (\x+2,\y) node[ballele]{G};
+  \draw (\x+3,\y) node[aallele]{T};
+  \draw (\x+4,\y) node[aallele]{C};
+  \gseg{\x}{4}{\y}{0.2}{0.5}{mseg}{1.5}{1}{maternal}
+  \draw (\x+1,\y-0.5) node[ballele]{T};
+  \draw (\x+2,\y-0.5) node[aallele]{C};
+  \draw (\x+3,\y-0.5) node[aallele]{T};
+  \draw (\x+4,\y-0.5) node[ballele]{A};
+  \gseg{\x}{4}{\y-0.5}{0.2}{0.5}{pseg}{1.5}{1}{paternal}
+}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\tcellone,\tcelltwo,\tcellthree,\tcellfour,\tcellfive}
+% 五种肿瘤细胞。
+%    \begin{macrocode}
+\newcommand{\tcellone}[2]{%
+  \pgfmathsetmacro{\x}{#1}
+  \pgfmathsetmacro{\y}{#2}
+  %\node [maternal] at (\x+8, \y) {M};
+  %\node [maternal] at (\x+8, \y-0.5) {M};
+  %\node [paternal] at (\x+8, \y-1) {P};
+  \draw[btcell](\x-2,\y+0.5)--(\x+7,\y+0.5)--
+  (\x+7,\y-1.5)--(\x-2,\y-1.5)--cycle;
+  \draw (\x+1,\y) node[aallele]{A};
+  \draw (\x+2,\y) node[ballele]{G};
+  \draw (\x+3,\y) node[aallele]{T};
+  \draw (\x+4,\y) node[aallele]{C};
+  \gseg{\x}{4}{\y}{0.2}{0.5}{mseg}{1.5}{1}{maternal}
+  \draw (\x+1,\y-0.5) node[aallele]{A};
+  \draw (\x+2,\y-0.5) node[ballele]{G};
+  \draw (\x+3,\y-0.5) node[aallele]{T};
+  \draw (\x+4,\y-0.5) node[aallele]{C};
+  \gseg{\x}{4}{\y-0.5}{0.2}{0.5}{mseg}{1.5}{1}{maternal}
+  \draw (\x+1,\y-1) node[ballele]{T};
+  \draw (\x+2,\y-1) node[aallele]{C};
+  \draw (\x+3,\y-1) node[aallele]{T};
+  \draw (\x+4,\y-1) node[ballele]{A};
+  \gseg{\x}{4}{\y-1}{0.2}{0.5}{pseg}{1.5}{1}{paternal}
+}
+\newcommand{\tcelltwo}[2]{%
+  \pgfmathsetmacro{\x}{#1}
+  \pgfmathsetmacro{\y}{#2}
+  %\node [maternal] at (\x+8, \y) {M};
+  %\node [maternal] at (\x+8, \y-0.5) {M};
+  %\node [paternal] at (\x+8, \y-1) {P};
+  \draw[btcell](\x-2,\y+0.5)--(\x+7,\y+0.5)--
+  (\x+7,\y-1.5)--(\x-2,\y-1.5)--cycle;
+  \draw (\x+1,\y)  node[aallele]{A};
+  \draw (\x+2,\y)  node[ballele]{G};
+  \draw (\x+3,\y)  node[aallele]{T};
+  \draw (\x+4,\y)  node[aallele]{C};
+  \gseg{\x}{4}{\y}{0.2}{0.5}{mseg}{1.5}{1}{maternal}
+  \draw (\x+1,\y-0.5) node[aallele]{A};
+  \draw (\x+2,\y-0.5) node[ballele]{G};
+  \draw (\x+3,\y-0.5) node[aallele]{T};
+  \draw (\x+4,\y-0.5) node[ballele]{G};
+  \gseg{\x}{4}{\y-0.5}{0.2}{0.5}{mseg}{1.5}{1}{maternal}
+  \draw (\x+1,\y-1) node[ballele]{T};
+  \draw (\x+2,\y-1) node[aallele]{C};
+  \draw (\x+3,\y-1) node[aallele]{T};
+  \draw (\x+4,\y-1) node[ballele]{A};
+  \gseg{\x}{4}{\y-1}{0.2}{0.5}{pseg}{1.5}{1}{paternal}
+}
+\newcommand{\tcellthree}[2]{%
+  \pgfmathsetmacro{\x}{#1}
+  \pgfmathsetmacro{\y}{#2}
+  %\node [maternal] at (\x+12, \y) {M};
+  %\node [paternal] at (\x+12, \y-0.5) {P};
+  \draw[btcell](\x-2,\y+0.5)--(\x+11,\y+0.5)--
+  (\x+11,\y-1)--(\x-2,\y-1)--cycle;
+  \draw (\x+1,\y) node[aallele]{A};
+  \draw (\x+2,\y) node[ballele]{G};
+  \gseg{\x}{2}{\y}{0.2}{0.5}{mseg}{1.5}{0}{maternal}
+  \gseg{\x+4}{0}{\y}{0.2}{0.5}{vseg}{0.5}{0.5}{variant}
+  \draw (\x+7,\y) node[aallele]{T};
+  \draw (\x+8,\y) node[aallele]{C};
+  \gseg{\x+6}{2}{\y}{0.2}{0.5}{mseg}{0}{1}{maternal}
+  \draw (\x+1,\y-0.5) node[ballele]{T};
+  \draw (\x+2,\y-0.5) node[aallele]{C};
+  \draw (\x+3,\y-0.5) node[aallele]{T};
+  \draw (\x+4,\y-0.5) node[ballele]{A};
+  \gseg{\x}{4}{\y-0.5}{0.2}{0.5}{pseg}{1.5}{1}{paternal}
+}
+\newcommand{\tcellfour}[2]{%
+  \pgfmathsetmacro{\x}{#1}
+  \pgfmathsetmacro{\y}{#2}
+  %\node [maternal] at (\x+18, \y) {M};
+  %\node [paternal] at (\x+18, \y-0.5) {P};
+  \draw[btcell](\x-2,\y+0.5)--(\x+15,\y+0.5)--
+  (\x+15,\y-1)--(\x-2,\y-1)--cycle;
+  \draw (\x+1,\y) node[aallele]{A};
+  \draw (\x+2,\y) node[ballele]{G};
+  \gseg{\x}{2}{\y}{0.2}{0.5}{mseg}{1.5}{0}{maternal}
+  \gseg{\x+4}{0}{\y}{0.2}{0.5}{vseg}{0.5}{0.5}{variant}
+  \draw (\x+7,\y) node[aallele]{T};
+  \gseg{\x+6}{1}{\y}{0.2}{0.5}{mseg}{0}{0}{maternal}
+  \gseg{\x+9}{0}{\y}{0.2}{0.5}{vseg}{0.5}{0.5}{variant}
+  \draw (\x+12,\y) node[aallele]{C};
+  \gseg{\x+11}{1}{\y}{0.2}{0.5}{mseg}{0}{1}{maternal}
+  \draw (\x+1,\y-0.5) node[ballele]{T};
+  \draw (\x+2,\y-0.5) node[aallele]{C};
+  \draw (\x+3,\y-0.5) node[aallele]{T};
+  \draw (\x+4,\y-0.5) node[ballele]{A};
+  \gseg{\x}{4}{\y-0.5}{0.2}{0.5}{pseg}{1.5}{1}{paternal}
+}
+\newcommand{\tcellfive}[2]{%
+  \pgfmathsetmacro{\x}{#1}
+  \pgfmathsetmacro{\y}{#2}
+  %\node [maternal] at (\x+8, \y) {M};
+  %\node [maternal] at (\x+8, \y-0.5) {M};
+  %\node [paternal] at (\x+8, \y-1) {P};
+  \draw[btcell](\x-2,\y+0.5)--(\x+9.5,\y+0.5)--
+  (\x+9.5,\y-1.5)--(\x-2,\y-1.5)--cycle;
+  \draw (\x+1,\y) node[aallele]{A};
+  \draw (\x+2,\y) node[ballele]{G};
+  \draw (\x+3,\y) node[aallele]{T};
+  \draw (\x+4,\y) node[aallele]{C};
+  \gseg{\x}{4}{\y}{0.2}{0.5}{mseg}{1.5}{1}{maternal}
+  \draw (\x+1,\y-0.5) node[aallele]{A};
+  \draw (\x+2,\y-0.5) node[ballele]{G};
+  \draw (\x+3,\y-0.5) node[aallele]{T};
+  \draw (\x+4,\y-0.5) node[aallele]{C};
+  \gseg{\x}{4}{\y-0.5}{0.2}{0.5}{mseg}{1.5}{1}{maternal}
+  \draw (\x+1,\y-1) node[ballele]{T};
+  \gseg{\x}{1}{\y-1}{0.2}{0.5}{pseg}{1.5}{0}{paternal}
+  \draw (\x+4.5,\y-1) node[ballele]{A};
+  \draw (\x+5.5,\y-1) node[aallele]{T};
+  \draw (\x+6.5,\y-1) node[aallele]{C};
+  \gsegr{\x+3.5}{3}{\y-1}{0.2}{0.5}{pseg}{0.5}{1.5}{paternal}
+}
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{正文里排控制序列}
+%
+% \verb|\cs{foo}| 排出 \verb|\foo|，示例正文讲命令用法时在用。
+%    \begin{macrocode}
+\def\cmd#1{\cs{\expandafter\cmd@to@cs\string#1}}
+\def\cmd@to@cs#1#2{\char\number`#2\relax}
+\DeclareRobustCommand\cs[1]{\texttt{\char`\\#1}}
+%</hit-sty>
+%    \end{macrocode}
+%
+% \Finale

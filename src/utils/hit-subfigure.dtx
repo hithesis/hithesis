@@ -1,0 +1,329 @@
+% \iffalse meta-comment
+%
+% hit-subfigure.dtx 是各个类共用的 subfigure 兼容层
+%
+% \fi
+%
+% \section{共享 subfigure 兼容层}
+%
+% \changes{v3.2a}{2026/08/07}{\pkg{subfigure} 兼容层抽出来给各个类共用，
+%   原先 \file{hithesisbook.cls} 与 \file{hithesisart.cls} 各存一份，290 行逐字节相同}
+% \pkg{subfigure} 二十多年没人维护，与 \pkg{cleveref}、\pkg{hyperref} 配合有问题，
+% v3.2a 换成了 \pkg{subcaption}。这个文件把旧接口在新实现上重做一遍，让写着
+% \cs{subfigure}、\cs{subtable}、\cs{ifsubcaphang} 的老文档继续能编。
+%
+% \textbf{整个文件是一次性的。} 里面没有一行是模板自己要用的东西——\cs{subfigure} 的
+% 六个长度、\cs{bisubcaption}、五个开关的转译、\cs{subfigure} 与 \cs{subtable} 的
+% 重定义，全都只为接住旧写法。兼容期在 v4（预计~2027~年发布）结束，那时把
+% \file{hithesis.ins} 里这三行删掉、连同本文件一起移除即可，不必去别的文件里挑拣。
+% 移除前记得把示例正文改写成 \cs{subcaptionbox}，那里现在用的还是旧写法。
+%
+% 子图题的字号与标签分隔（\cs{subcapsize}、\cs{DeclareCaptionFont}、
+% \cs{captionsetup}\oarg{sub}）不在这里：那是版式，各个类自己定，与旧接口无关。
+%
+%    \begin{macrocode}
+%<*shared-subfigure>
+%    \end{macrocode}
+%
+% 绝大部分是普通定义，直接放在文件顶层——包进一个函数的话，里面十几个带参数的
+% 定义都要把 \texttt{\#} 加倍，读起来与出错风险都不划算。
+%
+% 六个长度只在这里声明，赋值在 \cs{hit@setup@subfigure} 里。
+%    \begin{macrocode}
+\skip_new:N \subfigtopskip
+\skip_new:N \subfigcapskip
+\skip_new:N \subfigbottomskip
+\dim_new:N  \subfigcaptopadj
+\dim_new:N  \subfigcapmargin
+\skip_new:N \subfiglabelskip
+%    \end{macrocode}
+%
+% \cs{subcaptionbox} 要求 \cs{label} 写在图题里，而旧写法把它写在内容里
+% （\pkg{subfigure} 自己 \cs{let} 掉 \cs{label} 来接）。这里照样接住：内容先
+% 装箱，装箱时把 \cs{label} 的参数记下来，再塞回图题参数末尾。
+%    \begin{macrocode}
+\box_new:N \l__hit_subfloat_content_box
+\box_new:N \l__hit_subfloat_caption_box
+\box_new:N \l__hit_subfloat_measure_box
+\dim_new:N \l__hit_subfloat_total_dim
+\tl_new:N \g__hit_subfloat_label_tl
+\cs_new_eq:NN \__hit_subfloat_label:n \label
+\cs_new_protected:Npn \__hit_subfloat:nn #1#2
+  {
+    \tl_gclear:N \g__hit_subfloat_label_tl
+    \hbox_set:Nn \l__hit_subfloat_content_box
+      {
+        \cs_set_protected:Npn \label ##1 { \tl_gset:Nn \g__hit_subfloat_label_tl {##1} }
+        #2
+      }
+%    \end{macrocode}
+%
+% 图题先单独装进 \cs{vbox} 再放进竖直列表。\pkg{caption} 排图题时会先放一条零高
+% \cs{hrule}（\cs{vspace} 在竖直模式下的常规动作），\cs{hrule} 会掐掉 \hologo{TeX}\ 的
+% 行间胶，图与图题之间就少了一整个 \cs{baselineskip}。装箱之后 \cs{vbox} 的高度
+% 就是首行基线的位置，行间胶照常算，与 \pkg{subfigure} 的结果一致。
+%    \begin{macrocode}
+    \tl_if_empty:NF \g__hit_subfloat_pending_label_tl
+      {
+        \tl_gset:Nx \g__hit_subfloat_label_tl { \g__hit_subfloat_pending_label_tl }
+        \tl_gclear:N \g__hit_subfloat_pending_label_tl
+      }
+    \dim_compare:nNnT { \box_wd:N \l__hit_subfloat_content_box } = { 0pt }
+      { \box_set_wd:Nn \l__hit_subfloat_content_box { \linewidth } }
+%    \end{macrocode}
+%
+% \pkg{subfigure} 单行子图题排成裸 \cs{hbox}，高深随文字；排不下才退回
+% \cs{parbox}，那时才有 strut。\pkg{caption} 一律带 strut，深度固定，图之后的
+% 材料会高一截。照 \pkg{subfigure} 的做法先拿同样的字体量一遍宽度，装得下就
+% 关掉 strut。量的时候计数器还没走，\cs{thesubfigure} 拿到的是上一个号，宽度
+% 一样，不影响判断。
+%    \begin{macrocode}
+    \hbox_set:Nn \l__hit_subfloat_measure_box
+      {
+        \subcapsize \thesubfigure \hskip \subfiglabelskip #1
+      }
+    \tex_setbox:D \l__hit_subfloat_caption_box \tex_vbox:D
+      {
+        \hsize \box_wd:N \l__hit_subfloat_content_box
+        \linewidth \hsize
+        \captionsetup [ sub ] { strut = false }
+        \bool_if:NT \g__hit_subfloat_reuse_bool
+          {
+            \addtocounter { sub \@captype } { -1 }
+            \bool_gset_false:N \g__hit_subfloat_reuse_bool
+          }
+        \bool_gset_false:N \g__hit_subfloat_skip_label_bool
+        \subcaption
+          {
+            #1
+            \bool_if:NF \g__hit_subfloat_skip_label_bool
+              {
+                \tl_if_empty:NF \g__hit_subfloat_label_tl
+                  { \exp_args:NV \__hit_subfloat_label:n \g__hit_subfloat_label_tl }
+              }
+          }
+      }
+%    \end{macrocode}
+%
+% \pkg{subfigure} 的子表题在表上方（\cs{ifsubtabletopcap}），子图题在图下方。
+% 盒子是这里手工摆的，\pkg{caption} 的 \option{position} 管不到，按 \cs{@captype}
+% 自己分。上方时上下留白对调，并按 \pkg{subfigure} 的做法补 \cs{subfigcaptopadj}。
+%
+% \pkg{subfigure} 多行子图题用 \cs{parbox}\texttt{[t]}：高度是首行的高度，其余算深度。
+% \cs{vbox} 相反，把一切折进高度、深度为 0，放进竖直列表时参考点就错了。这里拿
+% 量宽度那个 \cs{hbox} 的高度当首行高度，把图题盒子的高深重设一遍。单行时结果与
+% \pkg{subfigure} 的裸 \cs{hbox} 逐值相同。
+%    \begin{macrocode}
+    \tl_gclear:N \g__hit_subfloat_label_tl
+    \dim_set:Nn \l__hit_subfloat_total_dim
+      { \box_ht:N \l__hit_subfloat_caption_box + \box_dp:N \l__hit_subfloat_caption_box }
+    \box_set_ht:Nn \l__hit_subfloat_caption_box { \box_ht:N \l__hit_subfloat_measure_box }
+    \box_set_dp:Nn \l__hit_subfloat_caption_box
+      { \l__hit_subfloat_total_dim - \box_ht:N \l__hit_subfloat_measure_box }
+    \leavevmode
+    \str_if_eq:eeTF { \@captype } { table }
+      {
+        \vtop
+          {
+            \hsize \box_wd:N \l__hit_subfloat_content_box
+            \vbox
+              {
+                \vskip \subfigbottomskip
+                \box_use_drop:N \l__hit_subfloat_caption_box
+              }
+            \vskip \subfigcapskip
+            \vskip \subfigcaptopadj
+            \box_use_drop:N \l__hit_subfloat_content_box
+            \vskip \subfigtopskip
+          }
+      }
+      {
+        \vtop
+          {
+            \hsize \box_wd:N \l__hit_subfloat_content_box
+            \vbox { \vskip \subfigtopskip \box_use_drop:N \l__hit_subfloat_content_box }
+            \vskip \subfigcapskip
+            \box_use_drop:N \l__hit_subfloat_caption_box
+            \vskip \subfigbottomskip
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \pkg{subcaption} 把 \texttt{subfigure} 和 \texttt{subtable} 定义成环境，而
+% \cs{begin}\marg{subfigure} 展开出来就是 \cs{subfigure}，跟旧的命令写法同名。
+% 两套语法要并存，只能在入口按 \cs{@currenvir} 分流：从 \cs{begin} 进来的走
+% \pkg{subcaption} 的环境，直接调用的走兼容壳。
+%
+% \begin{macro}{\hit@setup@subfigure}
+% 两类东西要等到调用时才做。一是接管 \cs{subfigure} 与 \cs{subtable}，那得先等
+% \pkg{subcaption} 加载完、把原定义存下来。二是六个长度的赋值：\cs{subfiglabelskip}
+% 的值是 \texttt{0.33em}，跟着字体走，在共享层加载时字体还没配好，\texttt{em} 换算
+% 基准不对——踩过一次，子图标签后面的空格没了，\texttt{(a) 打高尔夫球} 变成
+% \texttt{(a)打高尔夫球}。声明留在顶层，赋值放这里，时机与合并前一致。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@subfigure
+  {
+    \skip_set:Nn \subfigtopskip    { 5pt }
+    \skip_set:Nn \subfigcapskip    { 0pt }
+    \skip_set:Nn \subfigbottomskip { 5pt }
+    \dim_set:Nn  \subfigcaptopadj  { 3pt }
+    \dim_set:Nn  \subfigcapmargin  { 0pt }
+    \skip_set:Nn \subfiglabelskip  { 0.33em~plus~0.07em~minus~0.03em }
+    \cs_if_exist:NF \subcapsize { \cs_new:Npn \subcapsize { \wuhao } }
+    \cs_new_eq:NN \__hit_subfigure_environment: \subfigure
+    \cs_new_eq:NN \__hit_subtable_environment: \subtable
+    \cs_set_protected:Npn \subfigure
+      {
+        \str_if_eq:eeTF { \@currenvir } { subfigure }
+          { \__hit_subfigure_environment: }
+          { \__hit_subfloat_command: }
+      }
+    \cs_set_protected:Npn \subtable
+      {
+        \str_if_eq:eeTF { \@currenvir } { subtable }
+          { \__hit_subtable_environment: }
+          { \__hit_subfloat_command: }
+      }
+  }
+%    \end{macrocode}
+%
+% 旧写法有三个习惯用法，兼容期内都要接住：
+% \begin{itemize}
+% \item \cs{subfigure}\marg{\cs{label}\marg{键}}：内容是空的，只为了把标签挂到
+%   下一个编号上。这里记下标签留给下一个子图，本身什么也不排。
+% \item 紧跟其后的 \cs{addtocounter}\marg{subfigure}\marg{-2}：那是给上面那招凑
+%   计数器用的，\pkg{subcaption} 的计数器语义不同，直接吃掉。
+% \item \cs{subfigure}\oarg{英文}\marg{\cs{subfigure}\oarg{中文}\marg{图}}：双语
+%   子图题的套娃，拆开转成 \cs{bisubcaption}。
+% \end{itemize}
+%    \begin{macrocode}
+\tl_new:N \g__hit_subfloat_pending_label_tl
+\cs_new_protected:Npn \__hit_subfloat_discard:w \addtocounter #1#2
+  { \str_if_eq:nnF {#1} { subfigure } { \addtocounter {#1} {#2} } }
+\cs_new_protected:Npn \__hit_subfloat_discard_rewind:
+  {
+    \peek_remove_spaces:n
+      { \peek_meaning:NT \addtocounter { \__hit_subfloat_discard:w } }
+  }
+%    \end{macrocode}
+%
+% 双语子图题照旧写法的结构递归摆一次：内层是「图 + 中文题」，外层把它整个当内容
+% 再排一次英文题。两行之间那段 \cs{subfigbottomskip} 是这么来的，在图题文本里补
+% 不出来。外层排图题前把计数器退一格，两行才共用同一个编号，与旧写法一致。
+%    \begin{macrocode}
+\bool_new:N \g__hit_subfloat_reuse_bool
+\bool_new:N \g__hit_subfloat_skip_label_bool
+\cs_new_protected:Npn \__hit_subfloat_bicaption:nnn #1#2#3
+  {
+    \__hit_subfloat:nn {#2}
+      {
+        \bool_gset_true:N \g__hit_subfloat_skip_label_bool
+        \__hit_subfloat:nn {#1} {#3}
+        \bool_gset_true:N \g__hit_subfloat_reuse_bool
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{旧写法加废弃提示（\issue[284]）}
+% 旧写法的提示。每种只报一次，用 \cs{\_\_hit\_warn\_once:nnn} 记名。\pkg{subfigure}
+% 专有的开关与命令没有对应写法，报出来总比「未定义控制序列」强。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_subfloat_dropped:nn #1#2
+  { \__hit_warn_once:nnn {#1} { removed-subfig } {#2} }
+\cs_new_protected:Npn \__hit_subfloat_switch:nnnn #1#2#3#4
+  {
+    \cs_new_protected:cpn { #1 true }
+      {
+        \__hit_warn_once:nnn { if#1 } { mapped-subfig } { #2 = #3 }
+        \captionsetup [ sub ] { #2 = #3 }
+      }
+    \cs_new_protected:cpn { #1 false }
+      {
+        \__hit_warn_once:nnn { if#1 } { mapped-subfig } { #2 = #4 }
+        \captionsetup [ sub ] { #2 = #4 }
+      }
+  }
+\__hit_subfloat_switch:nnnn { subcaphang }
+  { format } { hang } { plain }
+\__hit_subfloat_switch:nnnn { subcapcenter }
+  { justification } { centering } { justified }
+\__hit_subfloat_switch:nnnn { subcapcenterlast }
+  { justification } { centerlast } { justified }
+\__hit_subfloat_switch:nnnn { subcapnooneline }
+  { singlelinecheck } { false } { true }
+\__hit_subfloat_switch:nnnn { subcapraggedright }
+  { justification } { raggedright } { justified }
+\cs_new_protected:Npn \listsubcaptions
+  { \__hit_subfloat_dropped:nn { listsubcaptions } { captionsetup[sub]{list=true} } }
+%    \end{macrocode}
+%
+% 拆嵌套写法之前先提示。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_subfloat_unnest:nw #1 \subfigure [#2]#3 \q_stop
+  {
+    \__hit_warn_once:nnn { nested-subfigure } { deprecated-subfig }
+      { 嵌套的~subfigure~写法已不推荐。 }
+    \__hit_subfloat_bicaption:nnn {#2} {#1} {#3}
+  }
+\cs_new_protected:Npn \__hit_subfloat_bicaption:w \bisubcaption #1#2 \q_stop #3
+  { \__hit_subfloat_bicaption:nnn {#1} {#2} {#3} }
+\cs_new_protected:Npn \__hit_subfloat_no_caption:n #1
+  {
+    \tl_gclear:N \g__hit_subfloat_label_tl
+    \hbox_set:Nn \l__hit_subfloat_content_box
+      {
+        \cs_set_protected:Npn \label ##1 { \tl_gset:Nn \g__hit_subfloat_label_tl {##1} }
+        #1
+      }
+    \dim_compare:nNnTF { \box_wd:N \l__hit_subfloat_content_box } = { 0pt }
+      {
+        \tl_gset_eq:NN \g__hit_subfloat_pending_label_tl \g__hit_subfloat_label_tl
+        \__hit_warn_once:nnn { empty-subfigure } { deprecated-subfig }
+          { 用空的~subfigure~占标签已不推荐。 }
+        \leavevmode
+        \__hit_subfloat_discard_rewind:
+      }
+      { \__hit_subfloat:nn { } { \box_use_drop:N \l__hit_subfloat_content_box } }
+  }
+\NewDocumentCommand \__hit_subfloat_command: { o m }
+  {
+    \IfNoValueTF {#1}
+      { \__hit_subfloat_no_caption:n {#2} }
+      {
+        \tl_if_head_eq_meaning:nNTF {#2} \subfigure
+          { \__hit_subfloat_unnest:nw {#1} #2 \q_stop }
+          {
+            \tl_if_head_eq_meaning:nNTF {#1} \bisubcaption
+              { \__hit_subfloat_bicaption:w #1 \q_stop {#2} }
+              {
+                \tl_if_in:nnT {#2} { \subfigure }
+                  {
+                    \__hit_warn_once:nnn { unrecognised-nesting }
+                      { deprecated-subfig }
+                      { 内容里有~subfigure，但不在最前面，认不出是双语写法。 }
+                  }
+                \__hit_subfloat:nn {#1} {#2}
+              }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/07}{加 \cs{bisubcaption}，双语子图题不再靠嵌套
+%   \cs{subfigure} 凑（\issue[284]）}
+% 双语子图题。它只是个记号，由 \cs{subfigure} 认出来自己拆：两行图题之间隔着一段
+% \cs{subfigbottomskip}，那是旧写法里内外两层子浮动体叠出来的结构，在图题文本里
+% 补不进去（\cs{vskip} 与 \cs{\\} 在量宽度的 \cs{hbox} 里都非法）。所以拆开之后
+% 照旧写法的结构递归摆一遍。
+%    \begin{macrocode}
+\cs_new_protected:Npn \bisubcaption #1#2 { }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+%</shared-subfigure>
+%    \end{macrocode}
+%
+%
+% \Finale

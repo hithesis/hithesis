@@ -8,7 +8,7 @@
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
 [![CTAN](https://img.shields.io/ctan/v/hithesis)](https://ctan.org/pkg/hithesis)
 ![GitHub repo size](https://img.shields.io/github/repo-size/hithesis/hithesis)
-<!-- [![GitHub All Releases](https://img.shields.io/github/downloads/dustincys/hithesis/total)](https://github.com/dustincys/hithesis/tags)  -->
+<!-- [![GitHub All Releases](https://img.shields.io/github/downloads/dustincys/hithesis/total)](https://github.com/hithesis/hithesis/tags)  -->
 
 <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/"><img alt="知识共享许可协议" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/88x31.png" /></a><br />本作品采用<a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">知识共享署名-非商业性使用 4.0 国际许可协议</a>进行许可。
 
@@ -34,7 +34,28 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 ~~版本号：vX.Y.Z 中，X表示重大不兼容改进，Y表示功能改进，Z表示非功能的bug补丁。~~
 由于 `\changes` 命令的排序方便，现将版本号的表示法更新，vX.Y.Z 形式的最后一版为 v3.0.22，接下来改为 v3.1a。
 
-版本号：vX.YZ 中，X 表示重大的不兼容改进，Y 表示功能改进，Z 表示非功能的 bug 补丁。其中 X, Y 为数字，Z 为小写字母。
+版本号：vX.YZ 中，X 表示重大的不兼容改进，Y 表示功能改进，Z 表示非功能的 bug 补丁。其中 X, Y 为数字，Z 为小写字母。v3 这一支到底都用这个写法，最后一版是 v3.2x。
+
+实际执行中 Y 与 Z 重叠了：每次 Z 进位都带着新功能，Y 反而一直不动，v3.1a 到 v3.1f 六个版本 Y 一次没进。**自 v4 起**改成下面这样，Y 换成服务年份。
+
+版本号（v4 起）：v**X**.**YYYY****z**
+
+| 段 | 含义 |
+| --- | --- |
+| X | 架构大版本。整体重写才进位，例如 v3 是 expl3 重构、v4 是下一次 |
+| YYYY | 这一版服务的**年份**。跟着毕业季走，2027 年的论文用 `v4.2027x` |
+| z | 该年份内的第几版，从 `a` 开始 |
+
+开发版在字母后面接月日，例如 `v4.2026a0813`。发版时去掉月日。
+
+排序（左边新）：
+
+```
+v4.2027a > v4.2026b > v4.2026a > v4.2026a0813 > v4.2026a0812 > v3.2a > v3.1f
+```
+
+好处是版本号里带着年份，拿到手就知道自己那份是不是当年的；也不耽误 `\changes` 按
+字符串排序，与 v3.2a 这类旧号仍然接得上。
 
 ## 窝工规范以及模板支持
 
@@ -216,10 +237,10 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
 | LaTeX安装包  | 是否支持非完整安装         | 平台          | 是否支持自动安装Package | 最小满足hithesis安装脚本                                                                                                           |
 | ------------ | -------------------------- | ------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| TeXLive      | 是，称为BasicTeX           | WIN/Mac/Linux | 否                      | [install-TeXLive_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TeXLive_hithesis.sh)     |
-| MiKTeX       | 是                         | WIN/Mac/Linux | 是                      | [install-MiKTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-MiKTeX_hithesis.sh)       |
-| MacTeX       | 否，MacTeX官方推荐BasicTeX | Mac           | 否                      | [install BasicTeX on Mac](https://github.com/dustincys/hithesis/blob/mac/.github/workflows/test2.yml)                              |
-| TinyTeX      | 自身就是最Mini的安装包     | Linux/Mac     | 否                      | [install-TinyTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TinyTeX_hithesis.sh)      |
+| TeXLive      | 是，称为BasicTeX           | WIN/Mac/Linux | 否                      | [install-TeXLive_hithesis.sh](https://github.com/hithesis/hithesis/blob/master/.github/workflows/install-TeXLive_hithesis.sh)     |
+| MiKTeX       | 是                         | WIN/Mac/Linux | 是                      | [install-MiKTeX_hithesis.sh](https://github.com/hithesis/hithesis/blob/master/.github/workflows/install-MiKTeX_hithesis.sh)       |
+| MacTeX       | 否，MacTeX官方推荐BasicTeX | Mac           | 否                      | [install BasicTeX on Mac](https://github.com/hithesis/hithesis/blob/mac/.github/workflows/test2.yml)                              |
+| TinyTeX      | 自身就是最Mini的安装包     | Linux/Mac     | 否                      | [install-TinyTeX_hithesis.sh](https://github.com/hithesis/hithesis/blob/master/.github/workflows/install-TinyTeX_hithesis.sh)      |
 
 <!-- 强烈推荐安装TinyTeX，只占不到300M左右，如果用开源字体集合fandol不用额外安装字体。 -->
 
@@ -238,7 +259,7 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
       docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest latex hithesis.ins
 
-- 第三步，在hithesis毕业论文文件夹hitbook或报告文件夹report下执行以下命令进行编译
+- 第三步，在示例目录 examples/demo 下执行以下命令进行编译
 
       docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make thesis
 
@@ -246,9 +267,9 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
   或者在根目录编译文档
 
-      docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make doc
+      docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make manual
 
-  或者直接在hitbook或报告文件夹report下执行
+  或者直接在 examples/demo 下执行
 
       docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest latexmk
 
@@ -277,9 +298,9 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
      这条命令只把生成物放在当前目录。示例目录是独立可用的，要把用到的那份类文件、
      配置文件、`.bst` 与 `.eps` 复制过去，例如：
 
-         cp hithesisbook.cls hithesis.ist hithesis.bst \
-            hitszthesis.bst *.eps examples/hitbook/chinese/
-         cp golfer.eps examples/hitbook/chinese/figures/
+         cp hit-thesis.cls hit-report.cls hithesis.cls hithesis.ist \
+            hithesis.bst *.eps examples/demo/
+         cp golfer.eps examples/demo/figures/
 
    - 装了 TeX Live 的话也可以用 l3build（随 TeX 发行，三平台通用）
 
@@ -290,7 +311,7 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
        examples
        ├── hitart
        │   ├── reportplus  %深圳校区博士中期报告
-       │   └── reports     %除去深圳校区博士中期报告的一校三区本硕博开题、中期报告
+       │   └── reports     %一校三区本硕博开题、中期报告
        └── hitbook
            ├── chinese     %一校三区本硕博毕业论文以及博后出站报告
            └── english     %一校三区本硕博英文版毕业论文
@@ -342,7 +363,7 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
    - 半自动精确射击（编译敲一次）
 
-         make doc
+         make manual
 
 ### 打印版、电子版
 
@@ -430,7 +451,7 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2022-10-18 | cyf       | WeChat          |
 | 2023-02-28 | hidadeng  | QQ              |
 | 2023-04-16 | Yang      | Alipay          |
-| 2023-04-28 | Lin | Alipay |
+| 2023-04-28 | Lin       | Alipay          |
 | 2023-05-11 | hzy       | WeChat          |
 | 2023-09-05 | 曹世达    | Wechat          |
 | 2023-11-30 | JerryLiu  | WeChat          |
@@ -438,9 +459,10 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2024-04-09 | 老学水    | Alipay          |
 | 2024-04-10 | csat      | WeChat          |
 | 2024-04-14 | Cen       | WeChat          |
-| 2025-01-14 | 沉梦昂志  |  WeChat         |
-| 2025-03-10 |  xw       |Alipay           |
+| 2025-01-14 | 沉梦昂志  | WeChat          |
+| 2025-03-10 |  xw       | Alipay          |
 | 2025-04-09 | Lrz       | WeChat          |
-| 2026-01-03 | 无题      |  Alipay         |
+| 2026-01-03 | 无题      | Alipay          |
 | 2026-01-26 | *新       | WeChat          |
 | 2026-03-20 | 青云      | WeChat          |
+| 2026-08-01 | w*r       | WeChat.         |

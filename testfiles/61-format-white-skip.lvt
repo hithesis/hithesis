@@ -1,0 +1,136 @@
+% white-before 与 white-after：块白换算成段前段后。
+%
+% 换算的依据是量出来的这条关系
+%
+%   块间基线距 = （上块行距 − 上块上升部）+ 下块上升部 + 段前段后
+%
+% 中间没有行间胶。上升部是 1.008 × 字号 + 0.082bp。视觉白再减去两块的墨迹：
+%
+%   视觉白 = 块间基线距 − 0.0927 × 上块字号 − 0.8123 × 下块字号
+%
+% 量法是排一份 master 的文档，正文小四、节标题黑体小三，用 mutool 取每一行的
+% 基线坐标。改 space-before 与 space-after 各二十磅，两段间距都恰好跟着走二十磅；
+% 改节标题的行距，只有下距跟着变，上距不动——所以上距与下块的行距无关。
+% 写 white-before = 7mm 时量到的节上距是 33.139bp，与
+% 7mm + 0.0927 × 12bp + 0.8123 × 15bp = 33.1394bp 对得上；章标题另起一页，
+% 基线落在版心顶下方 42.968bp，与 10mm + 0.8123 × 18bp = 42.9679bp 对得上。
+%
+% 这里把回推出来的视觉白印出来：写进去多少毫米，就该印出多少毫米。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master,campus=harbin,
+               v2-layout={graduate=two}]{hit-thesis}
+\makeatletter
+\ExplSyntaxOn
+\hit@msword@layout:n
+  {
+    margin-top = 3.8cm , margin-bottom = 3cm ,
+    margin-left = 3cm , margin-right = 3cm ,
+    header = 3cm , footer = 2.3cm ,
+    line-pitch = 19.15bp , char-pitch = 12.4543bp , size = 12bp ,
+  }
+% 正文的字号与行距是块白换算的另一半，钉死，免得跟着别处的默认值漂
+\dim_gset:Nn \g_hit_body_size_dim { 12bp }
+\dim_gset:Nn \g_hit_body_lead_dim { 19.4531bp }
+\tl_const:Nn \c__hit_test_up_tl { 0.8123 }
+\tl_const:Nn \c__hit_test_down_tl { 0.0927 }
+\dim_new:N \l__hit_test_dim
+% 回推：段前段后 → 块间基线距 → 视觉白。
+% \meta{间距}\meta{上块字号}\meta{上块行距}\meta{下块字号}
+\cs_new_protected:Npn \__hit_test_white:NNNN #1#2#3#4
+  {
+    \dim_set:Nn \l__hit_test_dim
+      {
+        #1
+        + ( #3 - \c__hit_format_ascent_tl #2 - \c__hit_format_ascent_dim )
+        + \c__hit_format_ascent_tl #4 + \c__hit_format_ascent_dim
+        - \c__hit_test_down_tl #2 - \c__hit_test_up_tl #4
+      }
+  }
+\cs_new:Npn \__hit_test_mm:
+  {
+    \fp_to_decimal:n
+      { round ( \dim_to_fp:n { \l__hit_test_dim } / \dim_to_fp:n { 1mm } , 3 ) }
+  }
+\cs_new_protected:Npn \SHOW #1
+  {
+    \hit@format@compute:n {#1}
+    \iow_term:x
+      {
+        #1 ~ 段前 = \dim_use:N \l_hit_format_before_dim
+        ~ 伸 = \dim_use:N \l_hit_format_before_plus_dim
+        ~ 段后 = \dim_use:N \l_hit_format_after_dim
+        ~ 伸 = \dim_use:N \l_hit_format_after_plus_dim
+      }
+    \__hit_test_white:NNNN \l_hit_format_before_dim
+      \g_hit_body_size_dim \g_hit_body_lead_dim \l_hit_format_size_dim
+    \iow_term:x { #1 ~ 上白 = \__hit_test_mm: ~ mm }
+    \__hit_test_white:NNNN \l_hit_format_after_dim
+      \l_hit_format_size_dim \l_hit_format_lead_dim \g_hit_body_size_dim
+    \iow_term:x { #1 ~ 下白 = \__hit_test_mm: ~ mm }
+  }
+% 章标题另起一页，上面没有块，参照物是版心顶
+\cs_new_protected:Npn \SHOWTOP #1
+  {
+    \hit@format@compute:n {#1}
+    \dim_set:Nn \l__hit_test_dim
+      {
+        \l_hit_format_before_dim
+        + \c__hit_format_ascent_tl \l_hit_format_size_dim
+        + \c__hit_format_ascent_dim
+        - \c__hit_test_up_tl \l_hit_format_size_dim
+      }
+    \iow_term:x
+      {
+        #1 ~ 段前 = \dim_use:N \l_hit_format_before_dim
+        ~ 版心顶到墨迹 = \__hit_test_mm: ~ mm
+      }
+  }
+\cs_new_protected:Npn \DUMP #1
+  {
+    \iow_term:x { [#1] }
+    \prop_map_inline:cn { g__hit_format_#1_prop }
+      { \iow_term:x { ~~ ##1 ~ = ~ ##2 } }
+  }
+\ExplSyntaxOff
+\makeatother
+\begin{document}
+\START
+
+% 写进去多少毫米就该回推出多少毫米
+\TEST{white~round~trip}{
+  \hitsetup{ format = { section = { size = xiaosan , font-zh = heiti ,
+                                    line-spacing = 1.25 ,
+                                    white-before = 7mm , white-after = 7mm } } }
+  \SHOW{section}
+  \hitsetup{ format = { subsection = { size = sihao , font-zh = heiti ,
+                                       line-spacing = 1.2 ,
+                                       white-before = 6mm ,
+                                       white-after = 6mm } } }
+  \SHOW{subsection}
+}
+
+% 区间：小端做自然值，大端减小端做伸量，两个词不分先后
+\TEST{white~range}{
+  \hitsetup{ format = { subsubsection = { size = xiaosi , font-zh = heiti ,
+                                          line-spacing = 1.25 ,
+                                          white-before = 4mm 3mm ,
+                                          white-after = 3mm 4mm } } }
+  \SHOW{subsubsection}
+}
+
+% 章标题那一档：段前加上升部就是版心顶到基线，再减墨迹上伸就是白
+\TEST{chapter~sits~at~page~top}{
+  \hitsetup{ format = { chapter = { size = xiaoer , font-zh = heiti ,
+                                    line-spacing = 1.2 ,
+                                    white-before = 10mm } } }
+  \SHOWTOP{chapter}
+}
+
+% space-before 与 white-before 量的是同一段间距，同一个目标里都写了要报错
+\TEST{space~and~white~clash}{
+  \hitsetup{ format = { caption-figure = { space-before = 1 line ,
+                                           white-before = 3mm } } }
+  \DUMP{caption-figure}
+}
+\END
+\end{document}
