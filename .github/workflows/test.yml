@@ -367,6 +367,109 @@ jobs:
   #    默认只出报告和差异 artifact，不阻断合并。要卡的话给 PR 打
   #    regression-must-match 标签。
   # ============================================================
+  # 跨 TeX Live 版本横比：2022–2026 各编一遍同一份示例，逐页比 2026。
+  #
+  # 五个版本各跑各的宏级测试只能发现“这个版本自己坏没坏”，发现不了「同一份
+  # 源码在不同版本上排出来不一样」。而排版差异恰恰是最难靠日志看出来的：
+  # \str_case:enF 在 TL2022 上不存在那件事，是整篇塌了才暴露；要是只差半个字
+  # 宽，五个版本各自都“通过”，谁也不知道。
+  #
+  # 取 2026 当基准（.tlg 基线也是按它生成的）。先只报告不拦：字体度量本来就
+  # 随版本变（fandol 在 TL2022 与 TL2026 上实测不同），差异清点清楚之前当门
+  # 会一直红。仓库变量 CROSSVER_MUST_MATCH 设成 true 就变硬门。
+  # ============================================================
+  cross-version-render:
+    name: 跨版本渲染 TL${{ matrix.tl-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tl-version: [2022, 2023, 2024, 2025, 2026]
+    env:
+      TL_REPO: ${{ matrix.tl-version == 2026
+        && 'https://mirror.ctan.org/systems/texlive/tlnet'
+        || format('https://ftp.tu-chemnitz.de/pub/tug/historic/systems/texlive/{0}/tlnet-final', matrix.tl-version) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: TeX-Live/setup-texlive-action@v4
+        with:
+          version: ${{ matrix.tl-version }}
+          repository: ${{ env.TL_REPO }}
+          package-file: |
+            .github/tl_packages
+            ${{ matrix.tl-version < 2024 && '.github/tl_packages_compat' || '' }}
+
+      - name: Install ghostscript
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ghostscript
+
+      - name: Generate cls files
+        run: make cls
+
+      # 只渲一个代表性变体就够了：横比要看的是同一份源码在不同版本上排得一不
+      # 一样，不是覆盖面。挑本科哈尔滨那份（篇幅全、图表公式索引都有）。
+      - name: Render one variant
+        run: bash tools/compile-variant.sh 01-bachelor-harbin
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: crossver-tl${{ matrix.tl-version }}
+          path: tests/current/01-bachelor-harbin-p*.png
+          retention-days: 7
+
+  cross-version-compare:
+    name: 跨版本横比（以 2026 为准）
+    runs-on: ubuntu-latest
+    needs: cross-version-render
+    if: always()
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: crossver
+
+      - name: Compare against TL2026
+        id: crossver
+        run: |
+          ref=crossver/crossver-tl2026
+          [ -d "$ref" ] || { echo "2026 那份没产出，没法当基准"; exit 1; }
+          rc=0
+          {
+            echo "### 跨 TeX Live 版本横比（以 2026 为准）"
+            echo
+            echo "| 版本 | 页数 | 与 2026 不同的页 |"
+            echo "| --- | --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          n_ref=$(ls "$ref"/*.png 2>/dev/null | wc -l | tr -d ' ')
+          for v in 2022 2023 2024 2025 2026; do
+            d=crossver/crossver-tl$v
+            if [ ! -d "$d" ]; then
+              echo "| $v | 没产出 | — |" >> "$GITHUB_STEP_SUMMARY"; rc=1; continue
+            fi
+            n=$(ls "$d"/*.png 2>/dev/null | wc -l | tr -d ' ')
+            if [ "$n" != "$n_ref" ]; then
+              echo "| $v | $n | 页数就对不上（基准 $n_ref） |" >> "$GITHUB_STEP_SUMMARY"
+              [ "$v" = 2026 ] || rc=1
+              continue
+            fi
+            diff=0
+            for f in "$d"/*.png; do
+              cmp -s "$f" "$ref/$(basename "$f")" || diff=$((diff+1))
+            done
+            echo "| $v | $n | $diff |" >> "$GITHUB_STEP_SUMMARY"
+            [ "$diff" = 0 ] || { [ "$v" = 2026 ] || rc=1; }
+          done
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          echo "横比结果见作业摘要"
+
+      - name: Fail if CROSSVER_MUST_MATCH
+        if: vars.CROSSVER_MUST_MATCH == 'true' && steps.crossver.outputs.rc != '0'
+        run: |
+          echo "跨版本横比有差异，且仓库变量 CROSSVER_MUST_MATCH=true"
+          exit 1
+
+  # ============================================================
   # 轨一：旧版面兼容回归，钉死 v3.1e，常设。
   #
   # 旧版面要长期保留，这一轨测的是「老文档在新模板的兼容层（v2-layout）下，
