@@ -56,6 +56,33 @@ typesetexe   = "xelatex"
 unpackexe    = "xetex"
 
 checkengines = {"xetex"}
+
+-- 旧版 TeX Live 上跳过的测试。
+--
+-- CI 的矩阵跑 2022 到 2026 五个版本，而 .tlg 基线只能按一个版本生成（这里是
+-- 2026）。绝大多数测试的输出与版本无关，下面这几个不是——在
+-- texlive/texlive:TL2022-historic 容器里逐个核对过，差异全在第三方的输出上，
+-- 与模板自己的行为无关：
+--
+--   53-date-iso        量排版宽度，fandol 字体的度量各版本不同（65.48 对 64.19）
+--   57-format-compute  同上，行距与段距是按字体度量算出来的
+--   42-denotation-item fontspec 的 Info 文案各版本不同
+--   52-deprecated-commands 旧版 fancyhdr 多一条 headheight 警告
+--   43-equation-paren  l3keys 拒绝非法取值时的报错措辞各版本不同
+--   56-format-keys     同上
+--   61-format-white-skip 同上
+--   63-bib-backend     旧版 gbt7714 没有 gbrefcompress 计数器
+--   64-bib-backend-late 自家 \msg_warning 的换行位置随 expl3 版本变
+--
+-- 跳过的只是逐字节比对；这些版本上的编译能力由同一轮 CI 的 make cls、
+-- make manual、示例与变体矩阵覆盖。想在旧版本上也跑，把环境变量清掉即可。
+if os.getenv("HITHESIS_TL_LEGACY") then
+  excludetests = {
+    "42-denotation-item", "43-equation-paren", "52-deprecated-commands",
+    "53-date-iso", "56-format-keys", "57-format-compute",
+    "61-format-white-skip", "63-bib-backend", "64-bib-backend-late",
+  }
+end
 stdengine    = "xetex"
 
 -- 随包发布的文件。examples/ 不交给 l3build：它的 demofiles 会把目录树拍平，
