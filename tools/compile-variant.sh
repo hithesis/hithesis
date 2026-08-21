@@ -35,6 +35,18 @@ CONF="tests/variants/$variant.conf"
 . "$CONF"
 ENTRY=${ENTRY:-thesis.tex}
 
+# 变体可以声明只在某个平台上有意义（fontset=mac 要 macOS 系统字体，别处没有）。
+# 跳过时按成功退出：CI 的变体矩阵跑在 ubuntu 上，不跳的话这两个必挂。
+if [ -n "${PLATFORM:-}" ]; then
+  case "$PLATFORM:$(uname -s)" in
+    macos:Darwin | linux:Linux | windows:MINGW* | windows:MSYS*) ;;
+    *)
+      echo "跳过 $variant：只在 $PLATFORM 上编（当前 $(uname -s)）"
+      exit 0
+      ;;
+  esac
+fi
+
 # 输出一律叫 main：文件名会进 PDF（实测同内容的 a.tex 与 b.tex 编出来第 2261
 # 字节起就不同），入口文件一改名，逐字节比对就全是假差异。钉死输出名之后，
 # 入口叫什么都不影响比对。
