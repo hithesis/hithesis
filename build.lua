@@ -80,6 +80,12 @@ local function readlist()
   local plain, subdir = {}, {}
   for line in io.lines(maindir .. "/tools/distfiles.txt") do
     line = line:gsub("#.*", ""):gsub("^%s+", ""):gsub("%s+$", "")
+    -- @ 前缀是「只随示例目录发，不进 tex/latex/hithesis/」的标记。distribute
+    -- 干的正是发到示例目录，所以剥掉前缀照发；装进 texmf 的清单是上面
+    -- installfiles 那张静态表，不走这里。scripts/products.py 那条路早就这么
+    -- 做了（removeprefix("@")），这边漏了同步，l3build distribute 一直在报
+    -- 找不到 @assets/zfb.pdf
+    line = line:gsub("^@", "")
     if line ~= "" and line:sub(1, 1) ~= "!" then
       local name, dest = line:match("^(%S+)%s*%->%s*(%S+)$")
       if name then
