@@ -73,6 +73,9 @@ checkengines = {"xetex"}
 --   61-format-white-skip 同上
 --   63-bib-backend     旧版 gbt7714 没有 gbrefcompress 计数器
 --   64-bib-backend-late 自家 \msg_warning 的换行位置随 expl3 版本变
+--   25-caption-short-title / 31-structure
+--                      同上两类：fontspec 的 Info 文案，加旧版 fancyhdr 的
+--                      headheight 警告
 --
 -- 跳过的只是逐字节比对；这些版本上的编译能力由同一轮 CI 的 make cls、
 -- make manual、示例与变体矩阵覆盖。想在旧版本上也跑，把环境变量清掉即可。
@@ -81,6 +84,7 @@ if os.getenv("HITHESIS_TL_LEGACY") then
     "42-denotation-item", "43-equation-paren", "52-deprecated-commands",
     "53-date-iso", "56-format-keys", "57-format-compute",
     "61-format-white-skip", "63-bib-backend", "64-bib-backend-late",
+    "25-caption-short-title", "31-structure",
   }
 end
 stdengine    = "xetex"
