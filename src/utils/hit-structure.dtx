@@ -40,7 +40,9 @@
 %<*shared-structure>
 \clist_const:Nn \c__hit_structure_part_clist
   {
-    cover , abstract , denotation , contents , mainmatter , bibliography ,
+    cover , abstract , denotation , table-of-contents ,
+    list-of-figures , list-of-tables , list-of-equations ,
+    mainmatter , bibliography ,
     appendix , publications , defense , index , declarations ,
     acknowledgements , resume ,
   }
@@ -126,7 +128,10 @@
 \__hit_structure_declare:nnn { cover }            { front } { front }
 \__hit_structure_declare:nnn { abstract }         { front } { front }
 \__hit_structure_declare:nnn { denotation }       { front } { front }
-\__hit_structure_declare:nnn { contents }         { front } { front }
+\__hit_structure_declare:nnn { table-of-contents } { front } { front }
+\__hit_structure_declare:nnn { list-of-figures }   { front } { front }
+\__hit_structure_declare:nnn { list-of-tables }    { front } { front }
+\__hit_structure_declare:nnn { list-of-equations } { front } { front }
 \__hit_structure_declare:nnn { bibliography }     { back }  { back }
 \__hit_structure_declare:nnn { appendix }         { back }  { back }
 \__hit_structure_declare:nnn { publications }     { back }  { back }
@@ -226,6 +231,20 @@
 % 贴扫描件走的却是 v3.1e 就有的 \cs{resolution}，两个名字对不上。
 % 星号看的是同名的星号标志位。
 %    \begin{macrocode}
+% \changes{v3.2a}{2026/08/21}{贴扫描件那两块也走三态：值是 \texttt{auto} 或没写
+%   就按默认条件定排不排}
+% \cs{hit@structure@scanned:nnnn} 比上一个多收一个默认条件：值写
+% \texttt{true} 就排、\texttt{false} 就不排、\texttt{auto} 或\emph{没写}按那个
+% 条件走，其余当文件名去贴 PDF。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@structure@scanned:nnnn #1#2#3#4
+  {
+    \hit@structure@switch:nnn {#1} {#3}
+      {
+        \exp_args:Nv \__hit_structure_scanned_aux:nnnn
+          { g__hit_structure_#1_tl } {#1} {#2} {#4}
+      }
+  }
 \cs_new_protected:Npn \hit@structure@scanned:nnn #1#2#3
   {
     \hit@structure@part:nn {#1}
@@ -255,6 +274,65 @@
       {
         \str_if_eq:eeF { \tl_use:c { g__hit_structure_#1_tl } } { false }
           {#2}
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@structure@switch:nnn}
+% \changes{v3.2a}{2026/08/21}{开关型部件收 \texttt{auto}：不写与写 \texttt{auto}
+%   都交给类与选项定，不再等同于 \texttt{true}}
+% \cs{hit@structure@switch:nnn}\marg{部件}\marg{默认条件}\marg{动作}：开关型
+% 部件专用。写 \texttt{true} 排、写 \texttt{false} 不排，\emph{不写或写
+% \texttt{auto} 就按默认条件走}——那个条件由类与选项给，比如图索引与表索引在
+% 规范里只有英文版要求排，条件就是「这本是不是英文版」。
+%
+% 从前不写等于不排、写 \texttt{auto} 等于排，两头都不对：前者让类没法给默认值，
+% 后者让 \texttt{auto} 名不副实。三态判据用共享层现成的
+% \cs{\_\_hit\_tristate\_if:NnTF}，与 \option{toc/english}、
+% \option{page-number-line} 那几个键同一套。
+%    \begin{macrocode}
+% \changes{v3.2a}{2026/08/22}{开关型部件加一次性闸门：排过的不再排}
+% \emph{每个部件各记各的，排过就不再排。} 三值化之后「没写即 auto、由类决定」
+% 与「兜底：没调骨架就在文末补」这两条会撞：老写法的文档自己在正文里排了答辩
+% 决议与原创性声明，文末兜底按 auto 又排一遍（旧版面兼容回归实测多出两页）。
+%
+% 闸门只给开关型部件——目录、三个索引、答辩决议、原创性声明，这些全书唯一。
+% 取文件名的部件不加：附录、发表论文那些由用户自己控制排几次。
+%
+% 置位的地方是「真正排它」的那个命令，不是骨架：老写法走 \cs{resolution}、
+% \cs{authorization}，新写法走骨架，两条路都要记上，所以记在共同的下游。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@structure@done:n #1
+  { \bool_gset_true:c { g__hit_structure_done_#1_bool } }
+\cs_new_protected:Npn \__hit_structure_done_new:n #1
+  {
+    \bool_new:c { g__hit_structure_done_#1_bool }
+    \tl_gset:cn { g__hit_structure_#1_tl } { auto }
+  }
+\clist_map_inline:nn
+  { table-of-contents , list-of-figures , list-of-tables , list-of-equations ,
+    defense , declarations }
+  { \__hit_structure_done_new:n {#1} }
+\tl_new:N \g__hit_structure_switch_tl
+\cs_new_protected:Npn \hit@structure@switch:nnn #1#2#3
+  {
+    % 没写就归一成 auto,而且写回部件本身:贴扫描件那条路读的是部件变量,
+    % 只把副本补成 auto 的话它会拿到空串、当文件名去 \includepdf,报的是
+    % \cs{filename@ext} 未定义,跟用户写的东西对不上
+    \tl_if_empty:cT { g__hit_structure_#1_tl }
+      { \tl_gset:cn { g__hit_structure_#1_tl } { auto } }
+    \tl_gset_eq:Nc \g__hit_structure_switch_tl { g__hit_structure_#1_tl }
+    \bool_if:cF { g__hit_structure_done_#1_bool }
+      {
+        \str_case:VnF \g__hit_structure_switch_tl
+          {
+            { true }  { \hit@structure@done:n {#1} #3 }
+            { false } { }
+            { auto }  { \bool_if:nT {#2} { \hit@structure@done:n {#1} #3 } }
+          }
+          { \hit@structure@done:n {#1} #3 }
+            % ^^A 其余取值是文件名(贴扫描件那两块),交给下游认
       }
   }
 %    \end{macrocode}

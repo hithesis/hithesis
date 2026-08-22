@@ -9,6 +9,9 @@
 %
 % 拦的是 \hit@resolution@place 与 \hit@declarations@place 而不是
 % \resolution 与 \authorization：后两个是旧写法的外壳，类自排走的是内部那对。
+%
+% 开关型部件有一次性闸门，排过就不再排，一份文档里只生效一次。这里一份文档跑
+% 好几轮，所以每轮开头把闸门复位，否则第一轮之后全被挡掉，看不出各轮的差别。
 \input{regression-test}
 \documentclass[fontset=fandol,degree-level=doctor,campus=harbin]{hithesis}
 \makeatletter
@@ -20,14 +23,37 @@
 \RenewDocumentCommand\hit@declarations@place{so}{\typeout{[类自排] 授权}}
 \renewcommand\tableofcontents{\typeout{[类自排] 目录}}
 \makeatother
+\ExplSyntaxOn
+\cs_new_protected:Npn \RESETPARTS
+  {
+    \clist_map_inline:nn
+      { table-of-contents , list-of-figures , list-of-tables , list-of-equations ,
+        defense , declarations }
+      { \bool_gset_false:c { g__hit_structure_done_##1_bool } }
+  }
+\ExplSyntaxOff
 \begin{document}
 \START
-\TEST{什么都不声明时后置一片空白}{
+\TEST{什么都不声明时只出类自排的两页}{
+  \RESETPARTS
+  \hitbackmatter
+}
+%
+% 开关型部件收三值：true 排、false 不排、不写(auto)由类按规范决定。这份文档
+% 是博士，所以 auto 下决议与授权都排；显式写 false 就都压掉。
+\hitsetup{ struct = { defense = false, declarations = false } }
+\TEST{开关部件写 false 就一页不排}{
+  \RESETPARTS
+  \hitbackmatter
+}
+\hitsetup{ struct = { defense = auto, declarations = auto } }
+\TEST{写回 auto 就退回类的规范默认}{
+  \RESETPARTS
   \hitbackmatter
 }
 \hitsetup{ struct = {
   denotation       = {front/denotation},
-  contents         = true,
+  table-of-contents = true,
   bibliography     = {reference},
   appendix         = {back/appA},
   publications     = {back/publications},
@@ -38,21 +64,26 @@
   resume           = {back/resume},
 } }
 \TEST{声明齐了按规范顺序排}{
+  \RESETPARTS
   \hitbackmatter
 }
 \hitsetup{ struct = { resume = false, index = false },
            bib = { bibtex = { style = {gbt7714-2025-numeric} } } }
 \TEST{取 false 的部件跳过，bib 样式可换}{
+  \RESETPARTS
   \hitbackmatter
 }
 \TEST{分组决定归哪一段：致谢挪进前置，后置就不排了}{
+  \RESETPARTS
   \hitsetup{ struct = { frontmatter = { acknowledgements = {front/ack-en} } } }
   \hitbackmatter
 }
 \TEST{部件放进不能去的段要报错，并说清能写哪}{
+  \RESETPARTS
   \hitsetup{ struct = { backmatter = { cover = {x} } } }
 }
 \TEST{段里写了不认识的键只警告}{
+  \RESETPARTS
   \hitsetup{ struct = { frontmatter = { acknowledgments = {x} } } }
 }
 \END
