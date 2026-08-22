@@ -172,11 +172,11 @@
 %    \begin{macrocode}
 %    \end{macrocode}
 %
-% \begin{macro}{bib-punct}
-% \changes{v3.2a}{2026/08/16}{加 \option{bib-punct}\texttt{!=half|full|by-lang}，
+% \begin{macro}{punct}
+% \changes{v3.2a}{2026/08/16}{加 \option{punct}\texttt{!=half|full|by-lang}，
 %   默认 \texttt{full}：不分语种一律全角逗号冒号圆括号（句点恒半角带空格），
 %   照学校规范的示例；旧深圳版就是这个排法}
-% \option{bib-punct} 管著录表的标点宽度，三档：\texttt{full}（默认，不分语种
+% \option{punct} 管著录表的标点宽度，三档：\texttt{full}（默认，不分语种
 % 一律全角逗号冒号圆括号方括号，句点恒半角带空格，学校规范的示例与旧深圳版
 % 都是这个排法）、\texttt{half}（一律半角，旧哈尔滨版的排法）、
 % \texttt{by-lang}（按条目语言，中文全角西文半角）。传统一线映射官方
@@ -188,9 +188,101 @@
 \str_gset:Nn \g__hit_bib_punct_str { full }
 \keys_define:nn { hit / bib }
   {
-    bib-punct .choices:nn = { half , full , by-lang }
+    punct .choices:nn = { half , full , by-lang }
       { \str_gset:NV \g__hit_bib_punct_str \l_keys_choice_tl } ,
-    bib-punct .value_required:n = true ,
+    punct .value_required:n = true ,
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{sentence-case}
+% \changes{v3.2a}{2026/08/22}{加 \option{sentence-case}：西文题名转不转句首大写，
+%   三个字段各一档，两条后端线都落实}
+% \option{sentence-case} 管西文题名要不要转成句首大写（只首字母大写，其余小写），
+% 不转就照 \file{.bib} 里写的原样出。三个字段各一档：
+% \begin{latex}
+% bib = { sentence-case = { title = true , booktitle = true , journal = false } }
+% \end{latex}
+% 也可以一次设三个：\option{sentence-case}\texttt{=true|false|auto}。
+% \texttt{auto} 退回规范默认，就是上面那一行的取值——题名与析出文献题名转，
+% 期刊名不转（期刊名的缩写形式本来就带自己的大小写，转了会毁掉）。
+%
+% 名字取自两条后端线共有的说法：\file{.bst} 那边的控制字段叫
+% \texttt{CTL\_sentence\_case\_title}，\pkg{biblatex} 那边的命令叫
+% \cs{MakeSentenceCase}。不叫 \texttt{title-case}——那在西文排版里指
+% 「每个实词首字母大写」，跟这里要的正好相反。
+%
+% 两线各自落实。\file{.bst} 一线走控制通道下发三个字段，见
+% \cs{hit@bib@forward@ctl:}；biblatex 一线改写
+% \pkg{biblatex-gb7714-2015} 留的 \cs{mktitlecase} 三个钩子，钩子里读标志位，
+% 所以也是随设随生效。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bib_sentence_title_bool
+\bool_new:N \g__hit_bib_sentence_booktitle_bool
+\bool_new:N \g__hit_bib_sentence_journal_bool
+\bool_gset_true:N  \g__hit_bib_sentence_title_bool
+\bool_gset_true:N  \g__hit_bib_sentence_booktitle_bool
+\bool_gset_false:N \g__hit_bib_sentence_journal_bool
+%    \end{macrocode}
+%
+% \meta{字段}\marg{取值}\marg{auto 档的规范默认}：规范默认写在调用点上，
+% 不另立一张表，省得两处对不上。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_bib_sentence_set:nnn #1#2#3
+  {
+    \str_case:nnF {#1}
+      {
+        { true }  { \bool_gset_true:c  { g__hit_bib_sentence_#2_bool } }
+        { false } { \bool_gset_false:c { g__hit_bib_sentence_#2_bool } }
+        { auto }
+          {
+            \str_if_eq:nnTF {#3} { true }
+              { \bool_gset_true:c  { g__hit_bib_sentence_#2_bool } }
+              { \bool_gset_false:c { g__hit_bib_sentence_#2_bool } }
+          }
+      }
+      { }
+  }
+\cs_new_protected:Npn \__hit_bib_sentence_all:n #1
+  {
+    \__hit_bib_sentence_set:nnn {#1} { title }     { true }
+    \__hit_bib_sentence_set:nnn {#1} { booktitle } { true }
+    \__hit_bib_sentence_set:nnn {#1} { journal }   { false }
+  }
+\keys_define:nn { hit / bib }
+  {
+    sentence-case .code:n =
+      {
+        \str_case:nnF {#1}
+          {
+            { true }  { \__hit_bib_sentence_all:n { true } }
+            { false } { \__hit_bib_sentence_all:n { false } }
+            { auto }  { \__hit_bib_sentence_all:n { auto } }
+          }
+          { \hit@keys@set:nn { hit / bib / sentence-case } {#1} }
+      } ,
+    sentence-case .default:n = true ,
+  }
+\keys_define:nn { hit / bib / sentence-case }
+  {
+    title .choices:nn = { true , false , auto }
+      {
+        \exp_args:NV \__hit_bib_sentence_set:nnn
+          \l_keys_choice_tl { title } { true }
+      } ,
+    title .default:n = true ,
+    booktitle .choices:nn = { true , false , auto }
+      {
+        \exp_args:NV \__hit_bib_sentence_set:nnn
+          \l_keys_choice_tl { booktitle } { true }
+      } ,
+    booktitle .default:n = true ,
+    journal .choices:nn = { true , false , auto }
+      {
+        \exp_args:NV \__hit_bib_sentence_set:nnn
+          \l_keys_choice_tl { journal } { false }
+      } ,
+    journal .default:n = true ,
   }
 %    \end{macrocode}
 % \end{macro}
@@ -417,10 +509,10 @@
 % 分支（见 \cs{hit@bib@patch@punct:}），全部排版时读值。两条线都不锁时机。
 %
 % \changes{v3.2a}{2026/08/16}{加 \option{correct-punct}：\file{.bib} 数据里的
-%   标点按 \option{bib-punct} 的档位清洗，名字取 omni 的同义键}
+%   标点按 \option{punct} 的档位清洗，名字取 omni 的同义键}
 % \changes{v3.2a}{2026/08/16}{\option{correct-punct} 默认改关}
 % \option{correct-punct}（默认关）管数据清洗：字段里写的标点按
-% \option{bib-punct} 的档位归一（全角档把 \texttt{,~:~;~!~?~()} 换成全角，
+% \option{punct} 的档位归一（全角档把 \texttt{,~:~;~!~?~()} 换成全角，
 % 半角档反向）。传统一线是 \file{.bst} 的 \texttt{convertpunct}；biblatex
 % 一线用 biber 的 sourcemap 镜像同一套替换（见
 % \cs{hit@bib@declare@sourcemaps:}），姓名字段除外——author 里的半角逗号是
@@ -499,6 +591,12 @@
     \__hit_bib_ctl_bool:nN { CTL_doi }               \g__hit_bib_showdoi_bool
     \__hit_bib_ctl_bool:nN { CTL_eprint }            \g__hit_bib_showeprint_bool
     \__hit_bib_ctl_bool:nN { CTL_uppercase_family }  \g_bib_authorupper_bool
+    \__hit_bib_ctl_bool:nN { CTL_sentence_case_title }
+      \g__hit_bib_sentence_title_bool
+    \__hit_bib_ctl_bool:nN { CTL_sentence_case_booktitle }
+      \g__hit_bib_sentence_booktitle_bool
+    \__hit_bib_ctl_bool:nN { CTL_sentence_case_journal }
+      \g__hit_bib_sentence_journal_bool
     \__hit_bib_ctl_bool:nN { CTL_unknown_publisher } \g__hit_bib_slsn_bool
     \__hit_bib_ctl_names:nN { CTL_max_bib_names } \g_bib_maxauthor_int
     \__hit_bib_ctl_names:nN { CTL_min_bib_names } \g_bib_maxauthor_int
@@ -585,7 +683,7 @@
 % \file{.bib} 里写的样子，与 \file{.bst} 一线的默认一致）、
 % \option{maximum-author} 对 \texttt{maxbibnames}/\texttt{minbibnames}
 % （\texttt{0} 表示不限，换成 999）、\option{label-align} 对
-% \texttt{gbalign}。标点宽度 \option{bib-punct} 在 biblatex 一线全靠
+% \texttt{gbalign}。标点宽度 \option{punct} 在 biblatex 一线全靠
 % 运行时补丁：方括号圆括号走 \cs{bibleftbracket} 一族的领口，逗号冒号分号
 % 走 \cs{abx@puncthook} 单点（2015 样式没有 2025 代的
 % \texttt{gbpunctwidth} 旋钮，能力用补丁补齐），见下方两个 patch 宏。
@@ -616,11 +714,11 @@
 %
 % \begin{macro}{\hit@bib@patch@brackets:}
 % \changes{v3.2a}{2026/08/16}{biblatex 一线不 fork 样式文件，运行时补丁把
-%   著录里的方括号接到 \option{bib-punct} 上}
+%   著录里的方括号接到 \option{punct} 上}
 % biblatex 一线的方括号补丁。gb7714-2015 的 bbx 把著录里所有方括号（类型标、
 % 访问日期、序号标签的缺省形）都收口在 \pkg{biblatex} 内核的
 % \cs{bibleftbracket}/\cs{bibrightbracket} 一对宏上，补丁只动这两个名字，
-% 不动样式文件。分发看 \option{bib-punct} 的现值：\texttt{full} 全角、
+% 不动样式文件。分发看 \option{punct} 的现值：\texttt{full} 全角、
 % \texttt{half} 走存下来的原定义、\texttt{by-lang} 按条目语言（bbx 用
 % biber 的 sourcemap 把语言标进 \texttt{userd} 域，排版时逐条可查）。
 % 现值是排版时才读的，键随设随生效。引用标签的方括号（\cs{gbleftbracket}
@@ -709,13 +807,13 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@bib@patch@punct:}
-% \changes{v3.2a}{2026/08/16}{逗号冒号分号也接上 \option{bib-punct}：
+% \changes{v3.2a}{2026/08/16}{逗号冒号分号也接上 \option{punct}：
 %   \pkg{biblatex} 缓冲的标点全走 \cs{abx@puncthook} 单点，2025 代的
 %   \texttt{gbpunctwidth} 干的事在 2015 代用运行时补丁补齐}
 % 逗号冒号分号的补丁，把 2025 代 \texttt{gbpunctwidth} 的能力补到 2015 代上。
 % \pkg{biblatex} 的标点缓冲（重复合并、句点让位那套语义）最终从
 % \cs{abx@puncthook}\marg{字符} 这一个口打出字形，补丁在这里按
-% \option{bib-punct} 换成全角，缓冲语义原封不动；句点问号叹号照旧半角。
+% \option{punct} 换成全角，缓冲语义原封不动；句点问号叹号照旧半角。
 % 全角标点后原样式还会发一个 \cs{addspace}（写在几十处调用点里），全角后
 % 不该再空，打全角时立一个旗子，\cs{addspace}/\cs{addthinspace} 先照原样
 % 冲刷缓冲（冲刷才会打出标点、立起旗子），再见旗吞空格、用后即清；旗子
@@ -732,7 +830,7 @@
 %
 % 类型标与「不详」补白的方括号走的是 \cs{gbleftbracket} 一族——它同时也是
 % 引用标签的括号，所以补丁带一道 \cs{ifbibliography} 判据：文献表里按
-% \option{bib-punct} 分发，引用侧按 \option{brackets-in-cite} 分发，
+% \option{punct} 分发，引用侧按 \option{brackets-in-cite} 分发，
 % 两个键各管各的。
 %
 % 挂载时机有讲究：\cs{abx@puncthook} 会被 \pkg{biblatex} 的语言初始化在
@@ -858,12 +956,12 @@
 %
 % 数据清洗（biblatex 一线）：\file{.bst} 的 \texttt{convertpunct} 在排版期
 % 对字段值做字符串替换，biber 这边同一层的东西是 sourcemap——装载时按
-% \option{bib-punct} 的档位声明一批替换步骤，替换对照表照抄 \file{.bst}。
+% \option{punct} 的档位声明一批替换步骤，替换对照表照抄 \file{.bst}。
 % \texttt{by-lang} 档按条目判语言：题名含 CJK 判中文（正则与 gb 的 bbx 判
 % \texttt{userd} 用的同一条），\texttt{final} 步骤不中就跳过整张 map。
 % 只清洗文本字段，姓名字段不动（见键的说明）。步骤表先在配平的暂存
 % token 表里攒好，再用 e 展开一次性组装进 \cs{DeclareSourcemap}。
-% 装载时的档位定死，之后改 \option{bib-punct} 只影响模板排的标点、
+% 装载时的档位定死，之后改 \option{punct} 只影响模板排的标点、
 % 不重洗数据。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@bib@cite@delim:
@@ -1004,6 +1102,30 @@
         \bool_if:NTF \g__hit_bib_linktitle_bool
           { \ExecuteBibliographyOptions { gbtitlelink = true } }
           { \ExecuteBibliographyOptions { gbtitlelink = false } }
+%    \end{macrocode}
+%
+% \option{sentence-case} 在这条线上改写 \pkg{biblatex-gb7714-2015} 留的三个钩子
+% （\cs{mktitlecase} 一组，原样定义是恒等）。标志位在钩子里读，不是在这里读，
+% 所以设得晚也照样生效，与 \file{.bst} 一线的时机对齐。
+%
+% 用带星号的 \cs{MakeSentenceCase*}：它只对判定为西文的条目动手，中文题名
+% 不受影响。
+%    \begin{macrocode}
+        \cs_set:Npn \mktitlecase ##1
+          {
+            \bool_if:NTF \g__hit_bib_sentence_title_bool
+              { \MakeSentenceCase* {##1} } {##1}
+          }
+        \cs_set:Npn \mkbooktitlecase ##1
+          {
+            \bool_if:NTF \g__hit_bib_sentence_booktitle_bool
+              { \MakeSentenceCase* {##1} } {##1}
+          }
+        \cs_set:Npn \mkjournaltitlecase ##1
+          {
+            \bool_if:NTF \g__hit_bib_sentence_journal_bool
+              { \MakeSentenceCase* {##1} } {##1}
+          }
         \hit@bib@patch@brackets:
       }
     \bool_if:NTF \g__hit_bib_showurl_bool

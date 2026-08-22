@@ -1,0 +1,59 @@
+% bib 族的 sentence-case 键：西文题名转不转句首大写。
+%
+% 三个字段各一档，收 true/false/auto；键本身也收这三个值，一次设三个。
+% auto 退回规范默认：题名与析出文献题名转，期刊名不转。
+%
+% 这里只看标志位，不看排出来的著录表——那要跑 bibtex，测试跑不动。
+% 两条后端线怎么落实各自有测试：.bst 一线的控制通道见下面最后一项。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master,campus=harbin]{hit-thesis}
+\begin{document}
+\START
+% \hit@bib@forward@ctl: 名字里带 @，ExplSyntax 不把 @ 当字母，得先 \makeatletter
+\makeatletter
+\ExplSyntaxOn
+\cs_new_protected:Npn \SHOW
+  {
+    \iow_term:x
+      {
+        title = \bool_if:NTF \g__hit_bib_sentence_title_bool { true } { false } ~
+        booktitle = \bool_if:NTF \g__hit_bib_sentence_booktitle_bool { true } { false } ~
+        journal = \bool_if:NTF \g__hit_bib_sentence_journal_bool { true } { false }
+      }
+  }
+
+\TEST{不设时是规范默认}{ \SHOW }
+
+\TEST{键本身收三值，一次设三个}{
+  \hitsetup { bib = { sentence-case = false } } \SHOW
+  \hitsetup { bib = { sentence-case = true } }  \SHOW
+  \hitsetup { bib = { sentence-case = auto } }  \SHOW
+}
+
+\TEST{子组里三个字段各设各的}{
+  \hitsetup { bib = { sentence-case = { title = false } } } \SHOW
+  \hitsetup { bib = { sentence-case = { journal = true } } } \SHOW
+  \hitsetup { bib = { sentence-case = { title = auto , journal = auto } } } \SHOW
+}
+
+\TEST{不给值时按 default 取 true}{
+  \hitsetup { bib = { sentence-case = false } }
+  \hitsetup { bib = { sentence-case } } \SHOW
+  \hitsetup { bib = { sentence-case = { title = false } } }
+  \hitsetup { bib = { sentence-case = { title } } } \SHOW
+}
+
+\TEST{控制通道下发三个字段}{
+  \hitsetup { bib = { sentence-case = { title = false , journal = true } } }
+  \hit@bib@forward@ctl:
+  \clist_map_inline:nn { title , booktitle , journal }
+    {
+      \prop_get:NnNTF \l__hit_bib_ctl_prop { CTL_sentence_case_#1 } \l_tmpa_tl
+        { \iow_term:x { CTL_sentence_case_#1 ~ = ~ \tl_use:N \l_tmpa_tl } }
+        { \iow_term:x { CTL_sentence_case_#1 ~ 没下发 } }
+    }
+}
+\ExplSyntaxOff
+\makeatother
+\END
+\end{document}
