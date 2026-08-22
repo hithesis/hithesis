@@ -82,21 +82,26 @@
 %   原先自己写表格的写法移到 \env{denotation*}}
 % 符号表。
 %
-% 原先这个环境只管标题和表号，正文要用户自己摆一张表，列宽、字号、跨页都得手调。
-% 现在环境本身就是一个 \pkg{enumitem} 的 \texttt{description} 列表，一行一个符号：
-% \cs{item}\oarg{符号}\meta{说明}。第一列宽度默认 2.5cm，
-% \env{denotation} 的可选参数改它。
+% \changes{v3.2a}{2026/08/23}{符号表提成 \env{symbols}，\env{denotation}
+%   退回 v3.1e 原样只供老文档}
+% 两个环境分工：\env{symbols} 是新写法，\env{denotation} 是 v3.1e 的老写法。
 %
-% 规范里允许把符号分成几张表、各有各的列，列表排不出来，所以保留
-% \env{denotation*}：标题和表号照旧，正文由用户自己写，跟 v3.1e 一模一样。
+% \env{symbols} 本身就是一个 \pkg{enumitem} 的 \texttt{description} 列表，
+% 一行一个符号 \cs{item}\oarg{符号}\meta{说明}。可选参数收键值：
+% \option{labelwidth} 是第一列宽度（默认 2.5\,cm），\option{subheading} 给这一段
+% 加个小标题——只在一页里排两段（符号加缩略语）时才用得着。不含等号的裸值当
+% 宽度，\cs{begin}\marg{symbols}\oarg{3cm} 照样认。
 %
-% 环境本身认不出用户想要哪一种，所以在开头探一下：正文第一个记号是 \cs{item} 就开
-% 列表，不是就当旧写法，照常编译、提示加个星号。前面的空格和空行先吃掉，不然
-% \cs{begin}\marg{denotation} 后面空一行就会被误判成旧写法。
+% 规范里允许把符号分成几张表、各有各的列，列表排不出来，所以还有
+% \env{symbols*}：标题和表号照旧，正文由用户自己写。
+%
+% \env{denotation} 不带列表机制，也没有星号版：v3.1e 的它就是「排标题、重置表号、
+% 正文随你写」，老文档里的内容是一张手写的 \env{table}。既然 \env{symbols} 全盘
+% 接手了新写法，它退回原样即可，不必现代化，也不发废弃提示。
 %    \begin{macrocode}
 \RequirePackage{enumitem}
-\newlist { hit@denotation } { description } { 1 }
-\setlist [ hit@denotation ]
+\newlist { hit@symbols } { description } { 1 }
+\setlist [ hit@symbols ]
   {
     nosep ,
     font = \normalfont ,
@@ -107,45 +112,89 @@
     labelsep* = 0.5cm ,
     itemindent = 0pt ,
   }
-\bool_new:N \g__hit_denotation_list_bool
-\tl_new:N \g__hit_denotation_width_tl
-\cs_new_protected:Npn \__hit_denotation_open:
+\tl_new:N \l__hit_symbols_width_tl
+\tl_new:N \l__hit_symbols_subheading_tl
+\keys_define:nn { hit / symbols / opt }
   {
-    \hit@clear@page
-    \hit@appendix@chapter * { \hit@denotation@heading@zh } [ \hit@denotation@heading@en ]
+    labelwidth .tl_set:N = \l__hit_symbols_width_tl ,
+    subheading .tl_set:N = \l__hit_symbols_subheading_tl ,
+  }
+\cs_new_protected:Npn \__hit_symbols_opt:n #1
+  {
+    \tl_set:Nn \l__hit_symbols_width_tl { 2.5cm }
+    \tl_clear:N \l__hit_symbols_subheading_tl
+    \tl_if_in:nnTF {#1} { = }
+      { \hit@keys@set:nn { hit / symbols / opt } {#1} }
+      { \tl_if_blank:nF {#1} { \tl_set:Nn \l__hit_symbols_width_tl {#1} } }
+  }
+%    \end{macrocode}
+%
+% 每个部件各排各的章标题。只有合并成一页的那个部件例外：它自己排一个合并
+% 标题，然后把闸门顶上，里头的 \env{symbols} 与 \cs{listofabbreviations*}
+% 就都不再排章标题了。
+%    \begin{macrocode}
+\bool_new:N \g__hit_frontlist_open_bool
+\tl_new:N \g__hit_frontlist_pending_tl
+\cs_new_protected:Npn \hit@frontlist@open:nn #1#2
+  {
+    \bool_if:NF \g__hit_frontlist_open_bool
+      {
+        \hit@clear@page
+        \hit@appendix@chapter * {#1} [#2]
+      }
+%    \end{macrocode}
+%
+% 段小标题:自己写的优先,没写就取合并部件预置的那一个,取完清掉。
+%    \begin{macrocode}
+    \tl_if_empty:NT \l__hit_symbols_subheading_tl
+      {
+        \tl_set_eq:NN \l__hit_symbols_subheading_tl
+          \g__hit_frontlist_pending_tl
+        \tl_gclear:N \g__hit_frontlist_pending_tl
+      }
+    \tl_if_empty:NF \l__hit_symbols_subheading_tl
+      { \hit@frontlist@subheading:V \l__hit_symbols_subheading_tl }
+  }
+\cs_new_protected:Npn \hit@frontlist@subheading:n #1
+  { \par \addvspace { \baselineskip } \noindent { \bfseries #1 } \par \nobreak }
+\cs_generate_variant:Nn \hit@frontlist@subheading:n { V }
+\cs_new_protected:Npn \__hit_symbols_open:
+  {
+    \hit@frontlist@open:nn
+      { \hit@symbols@heading@zh } { \hit@symbols@heading@en }
     \setcounter { table } { 0 }
     \cs_set:Npn \thetable { \arabic { table } }% 表编号为 1
   }
-\cs_new_protected:Npn \__hit_denotation_close:
+\cs_new_protected:Npn \__hit_symbols_close:
   {
     \cs_set:Npn \thetable { \arabic { chapter } - \arabic { table } }% 表编号为 7-1
     \setcounter { table } { 0 }
   }
-\cs_new_protected:Npn \__hit_denotation_peek:
+\NewDocumentEnvironment { symbols } { O{} }
   {
-    \peek_meaning_remove_ignore_spaces:NTF \par
-      { \__hit_denotation_peek: }
-      {
-        \peek_meaning_ignore_spaces:NTF \item
-          {
-            \bool_gset_true:N \g__hit_denotation_list_bool
-            \begin { hit@denotation } [ labelwidth = \g__hit_denotation_width_tl ]
-          }
-          {
-            \bool_gset_false:N \g__hit_denotation_list_bool
-            \msg_warning:nn { hithesis } { denotation-no-item }
-          }
-      }
+    \__hit_symbols_opt:n {#1}
+    \__hit_symbols_open:
+    \begin { hit@symbols } [ labelwidth = \l__hit_symbols_width_tl ]
   }
+  { \end { hit@symbols } \__hit_symbols_close: }
+\NewDocumentEnvironment { symbols* } { O{} }
+  { \__hit_symbols_opt:n {#1} \__hit_symbols_open: }
+  { \__hit_symbols_close: }
+%    \end{macrocode}
+%
+% v3.1e 的 \env{denotation}：排标题、把表号改成不带章号的形式，正文随用户写。
+%    \begin{macrocode}
 \NewDocumentEnvironment { denotation } { O{2.5cm} }
   {
-    \tl_gset:Nn \g__hit_denotation_width_tl {#1}
-    \__hit_denotation_open:
-    \__hit_denotation_peek:
+    \hit@clear@page
+    \hit@appendix@chapter *
+      { \hit@symbols@heading@zh } [ \hit@symbols@heading@en ]
+    \setcounter { table } { 0 }
+    \cs_set:Npn \thetable { \arabic { table } }
   }
   {
-    \bool_if:NT \g__hit_denotation_list_bool { \end { hit@denotation } }
-    \__hit_denotation_close:
+    \cs_set:Npn \thetable { \arabic { chapter } - \arabic { table } }
+    \setcounter { table } { 0 }
   }
 %    \end{macrocode}
 %

@@ -51,6 +51,17 @@
 % 样式代码存进 \pkg{glossaries} 时就已经记号化完了，写在里面的
 % \cs{ExplSyntaxOn} 不起作用。环境正文本来就是排版内容，直接用 2e 写法。
 %    \begin{macrocode}
+\newglossarystyle{hitabbrstyle}{%
+  \setglossarystyle{long}%
+  \RenewDocumentEnvironment{theglossary}{}%
+    {\vspace{-\intextsep}\centering
+     \begin{longtable}{@{\hskip 1cm}p{2.5cm}p{6cm}p{\glsdescwidth}}}%
+    {\end{longtable}}%
+  \renewcommand*{\glossentry}[2]{%
+    \glsentryitem{##1}\glstarget{##1}{\glossentryname{##1}} &
+    \hitabbren{##1} & \hitabbrzh{##1}\tabularnewline
+  }%
+}
 \newglossarystyle{engstyle}{%
   \setglossarystyle{long}%
   \RenewDocumentEnvironment{theglossary}{}%
@@ -178,7 +189,12 @@
     \use:x
       {
         \exp_not:N \newabbreviation
-          [ longplural = { \exp_not:V \l__hit_abbr_longpl_tl } ]
+          [
+            longplural = { \exp_not:V \l__hit_abbr_longpl_tl } ,
+            hitzh = { \exp_not:V \l__hit_abbr_zh_tl } ,
+            hiten = { \exp_not:V \l__hit_abbr_en_tl } ,
+            description = { \exp_not:V \l__hit_abbr_long_tl } ,
+          ]
           { \exp_not:V \l__hit_abbr_label_tl }
           { \exp_not:n {#1} }
           { \exp_not:V \l__hit_abbr_long_tl }
@@ -189,8 +205,38 @@
 %
 % 拼首次形式。中文版用全角括号与全角逗号，英文版用半角括号与空格。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% 括号与逗号取哪一档由 \option{abbr}/\option{punct} 定，\texttt{auto} 按语种走。
+% 排法本身仍按语种：中文版全称在前、英文版全称在前但括号里只有缩写，这个不受
+% 标点档位影响，档位只换那三个符号。
+%    \begin{macrocode}
+\tl_new:N \l__hit_abbr_lparen_tl
+\tl_new:N \l__hit_abbr_rparen_tl
+\tl_new:N \l__hit_abbr_comma_tl
+\cs_new_protected:Npn \__hit_abbr_punct_pick:
+  {
+    \bool_lazy_or:nnTF
+      { \str_if_eq_p:Vn \g__hit_abbr_punct_str { half } }
+      {
+        \bool_lazy_and_p:nn
+          { \str_if_eq_p:Vn \g__hit_abbr_punct_str { auto } }
+          { \bool_if_p:N \g__hit_en_bool }
+      }
+      {
+        \tl_set:Nn \l__hit_abbr_lparen_tl { \c_space_tl ( }
+        \tl_set:Nn \l__hit_abbr_rparen_tl { ) }
+        \tl_set:Nn \l__hit_abbr_comma_tl { ,~ }
+      }
+      {
+        \tl_set:Nn \l__hit_abbr_lparen_tl { （ }
+        \tl_set:Nn \l__hit_abbr_rparen_tl { ） }
+        \tl_set:Nn \l__hit_abbr_comma_tl { ， }
+      }
+  }
 \cs_new_protected:Npn \__hit_abbr_compose:n #1
   {
+    \__hit_abbr_punct_pick:
     \bool_if:NTF \g__hit_en_bool
       { \__hit_abbr_compose_en:n {#1} }
       { \__hit_abbr_compose_zh:n {#1} }
@@ -201,7 +247,10 @@
       { \tl_set_eq:NN \l__hit_abbr_pick_tl \l__hit_abbr_zh_tl }
       { \tl_set_eq:NN \l__hit_abbr_pick_tl \l__hit_abbr_en_tl }
     \tl_set:Nx \l__hit_abbr_long_tl
-      { \exp_not:V \l__hit_abbr_pick_tl \c_space_tl ( #1 ) }
+      {
+        \exp_not:V \l__hit_abbr_pick_tl
+        \exp_not:V \l__hit_abbr_lparen_tl #1 \exp_not:V \l__hit_abbr_rparen_tl
+      }
 %    \end{macrocode}
 %
 % 全称的复数只在它是西文时才加 \texttt{s}。英文版里引一条中文全称的条目
@@ -212,7 +261,7 @@
       {
         \exp_not:V \l__hit_abbr_pick_tl
         \bool_if:NF \l__hit_abbr_cjk_bool { s }
-        \c_space_tl ( #1 s )
+        \exp_not:V \l__hit_abbr_lparen_tl #1 s \exp_not:V \l__hit_abbr_rparen_tl
       }
   }
 \cs_new_protected:Npn \__hit_abbr_compose_zh:n #1
@@ -220,27 +269,41 @@
     \tl_if_empty:NTF \l__hit_abbr_zh_tl
       {
         \tl_set:Nx \l__hit_abbr_long_tl
-          { #1 （ \exp_not:V \l__hit_abbr_en_tl ） }
+          {
+            #1 \exp_not:V \l__hit_abbr_lparen_tl
+            \exp_not:V \l__hit_abbr_en_tl \exp_not:V \l__hit_abbr_rparen_tl
+          }
         \tl_set:Nx \l__hit_abbr_longpl_tl
-          { #1 s （ \exp_not:V \l__hit_abbr_en_tl ） }
+          {
+            #1 s \exp_not:V \l__hit_abbr_lparen_tl
+            \exp_not:V \l__hit_abbr_en_tl \exp_not:V \l__hit_abbr_rparen_tl
+          }
       }
       {
         \tl_set:Nx \l__hit_abbr_long_tl
           {
-            \exp_not:V \l__hit_abbr_zh_tl （
+            \exp_not:V \l__hit_abbr_zh_tl \exp_not:V \l__hit_abbr_lparen_tl
             \tl_if_empty:NF \l__hit_abbr_en_tl
-              { \exp_not:V \l__hit_abbr_en_tl ， }
-            #1 ）
+              {
+                \exp_not:V \l__hit_abbr_en_tl
+                \exp_not:V \l__hit_abbr_comma_tl
+              }
+            #1 \exp_not:V \l__hit_abbr_rparen_tl
           }
         \tl_set:Nx \l__hit_abbr_longpl_tl
           {
-            \exp_not:V \l__hit_abbr_zh_tl （
+            \exp_not:V \l__hit_abbr_zh_tl \exp_not:V \l__hit_abbr_lparen_tl
             \tl_if_empty:NF \l__hit_abbr_en_tl
-              { \exp_not:V \l__hit_abbr_en_tl ， }
-            #1 s ）
+              {
+                \exp_not:V \l__hit_abbr_en_tl
+                \exp_not:V \l__hit_abbr_comma_tl
+              }
+            #1 s \exp_not:V \l__hit_abbr_rparen_tl
           }
       }
   }
+\glsaddstoragekey { hitzh } { } { \hitabbrzh }
+\glsaddstoragekey { hiten } { } { \hitabbren }
 \setabbreviationstyle [ abbreviation ] { long-only-short-only }
 %    \end{macrocode}
 %
@@ -345,6 +408,76 @@
   { \IfBooleanTF {#1} { \glsentrylong {#2} } { \gls {#2} } }
 \NewDocumentCommand \abbrs { s m }
   { \IfBooleanTF {#1} { \glsentrylongpl {#2} } { \glspl {#2} } }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\listofabbreviations}
+% 排缩略语表。带星号是不排章标题，接在符号表那一页下面用，
+% 与 \cs{listoffigures} 一族同名同姓。
+%    \begin{macrocode}
+\NewDocumentCommand \listofabbreviations { s O{} }
+  {
+    \__hit_symbols_opt:n {#2}
+    \IfBooleanF {#1}
+      {
+        \hit@frontlist@open:nn
+          { \hit@abbreviations@heading@zh } { \hit@abbreviations@heading@en }
+      }
+    \IfBooleanT {#1}
+      {
+        \tl_if_empty:NF \l__hit_symbols_subheading_tl
+          { \hit@frontlist@subheading:V \l__hit_symbols_subheading_tl }
+      }
+%    \end{macrocode}
+%
+% 选项要先展开再交给 \pkg{glossaries}：\cs{glsxtrabbrvtype} 是个宏，原样传过去
+% 那边拿它当类型名去查表，查不到就静悄悄排一张空表，不报错也不警告。
+%
+% 章标题由这里自己排（要进目录、要走部件的闸门），所以把 \pkg{glossaries} 那侧的
+% 标题压掉。只给 \option{title} 一个空值不够——它照样会调 \cs{glossarysection}，
+% 那是个 \cs{chapter*}，顺手把页清了，表就掉到下一页去。
+%    \begin{macrocode}
+    \group_begin:
+    \RenewDocumentCommand \glossarysection { o m } { }
+    \use:x
+      {
+        \exp_not:N \printnoidxglossary
+          [
+            type = \glsxtrabbrvtype , sort = word ,
+            style = \bool_if:NTF \g__hit_en_bool { engstyle } { hitabbrstyle } ,
+            title = { } , nopostdot , nonumberlist
+          ]
+      }
+    \group_end:
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@structure@merged@symbols:}
+% 合并成一页的那个部件：一个章标题，符号在上、缩略语在下，两段各带小标题。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@structure@merged@symbols:
+  {
+    \hit@structure@part:nn { list-of-symbols-and-abbreviations }
+      {
+        \bool_gset_false:N \g__hit_frontlist_open_bool
+        \tl_clear:N \l__hit_symbols_subheading_tl
+        \hit@frontlist@open:nn
+          { \hit@symbols@abbreviations@heading@zh }
+          { \hit@symbols@abbreviations@heading@en }
+%    \end{macrocode}
+%
+% 章标题排过了，把闸门顶上，里头的 \env{symbols} 就不再排自己的那一个。
+% 两段各预置一个小标题：符号那段取符号表的标题，缩略语那段显式给。
+%    \begin{macrocode}
+        \bool_gset_true:N \g__hit_frontlist_open_bool
+        \tl_gset:Nn \g__hit_frontlist_pending_tl
+          { \hit@symbols@heading@zh }
+        \exp_args:Nv \input { g__hit_structure_list-of-symbols-and-abbreviations_tl }
+        \listofabbreviations * [ subheading = \hit@abbreviations@heading@zh ]
+        \bool_gset_false:N \g__hit_frontlist_open_bool
+      }
+  }
 %    \end{macrocode}
 % \end{macro}
 %</thesis-glossary>
