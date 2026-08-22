@@ -83,6 +83,10 @@ done
 # 跟着示例目录一起拷进来的，这里按分发清单从 CLS_ROOT 覆盖一遍。
 if [ "$CLS_ROOT" != "$SRC_ROOT" ]; then
   for f in $(python3 "$ROOT/scripts/products.py" --dist); do
+    # hithesis.sty 是示例宏包，属于用户自留地：术语词条、自定义宏都在里面。
+    # 真实的升级场景里用户留着自己那一份，所以这里不拿新树的去盖旧内容，
+    # 否则测的就不是“老文档能不能编”，而是“老文档配新示例包能不能编”。
+    [ "$f" = "hithesis.sty" ] && continue
     [ -f "$CLS_ROOT/$f" ] && cp "$CLS_ROOT/$f" "$WORK"/
   done
   # v3.1e 的示例按 figures/golfer 引图，新树里这份资源挪了位置，补一份进去
