@@ -66,7 +66,7 @@ checkengines = {"xetex"}
 --
 --   53-date-iso        量排版宽度，fandol 字体的度量各版本不同（65.48 对 64.19）
 --   57-format-compute  同上，行距与段距是按字体度量算出来的
---   42-denotation-item fontspec 的 Info 文案各版本不同
+--   42-symbols-env    fontspec 的 Info 文案各版本不同
 --   52-deprecated-commands 旧版 fancyhdr 多一条 headheight 警告
 --   43-equation-paren  l3keys 拒绝非法取值时的报错措辞各版本不同
 --   56-format-keys     同上
@@ -81,7 +81,7 @@ checkengines = {"xetex"}
 -- make manual、示例与变体矩阵覆盖。想在旧版本上也跑，把环境变量清掉即可。
 if os.getenv("HITHESIS_TL_LEGACY") then
   excludetests = {
-    "42-denotation-item", "43-equation-paren", "52-deprecated-commands",
+    "42-symbols-env", "43-equation-paren", "52-deprecated-commands",
     "53-date-iso", "56-format-keys", "57-format-compute",
     "61-format-white-skip", "63-bib-backend", "64-bib-backend-late",
     "25-caption-short-title", "31-structure",
