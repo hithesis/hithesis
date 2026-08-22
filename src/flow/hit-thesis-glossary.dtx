@@ -28,9 +28,18 @@
 %   后面的 \cs{newacronym} 条目含英文字面文本，留在 expl3 之外}
 % 在 \pkg{glossaries} 中表示 \cs{glossarystle} 这个命令 Deprecated in v3.08a. Removed in v4.50.
 %    \begin{macrocode}
-\bool_if:NTF \g__hit_en_bool
-  {
-    \RequirePackage [ xindy , order=letter ] { glossaries-extra }
+% \changes{v3.2a}{2026/08/23}{中英两线统一到 \pkg{glossaries-extra}，后端都走
+%   \cs{makenoidxglossaries}，\cs{setacronymstyle} 加兼容垫片}
+% 两条语言线原先各装各的包：英文装 \pkg{glossaries-extra} 用
+% \cs{setabbreviationstyle}，中文装 \pkg{glossaries} 用 \cs{setacronymstyle}，
+% 后者是上一代接口，\pkg{glossaries-extra} 里已经改成报错。要把缩略语表并成
+% 一个部件，先得统一到 extra。
+%
+% 后端两侧都用 \cs{makenoidxglossaries}，纯 \hologo{TeX} 排序，不调外部程序。
+% 中文侧原先调 \cs{makeglossaries} 却从没有任何东西 \cs{printglossary}，
+% 每次编译写出一个没人读的 \file{.glo} 再吃一条警告，一并撤掉。
+%    \begin{macrocode}
+\RequirePackage [ xindy , order=letter ] { glossaries-extra }
 %    \end{macrocode}
 %
 % 样式代码存进 \pkg{glossaries} 时就已经记号化完了，写在里面的
@@ -43,14 +52,32 @@
      \begin{longtable}{@{\hskip 1cm}p{3.5cm}p{\glsdescwidth}}}%
     {\end{longtable}}%
 }
-    \setabbreviationstyle [ acronym ] { long-short }
-  }
+%    \end{macrocode}
+%
+% \cs{newacronym} 是 v3.1e 的写法，渲染冻结在那一版：中文侧首次只排全称、
+% 之后排短形（v3.1e 靠 \cs{setacronymstyle}\marg{short-long} 再把
+% \cs{genacrfullformat} 改成只取 \cs{glsentrylong} 凑出来，上游现成的
+% \texttt{long-only-short-only} 就是这个行为）；英文侧照旧 \texttt{long-short}。
+% \cs{genacrfullformat} 那个改写在 extra 下已经不起作用，留着是误导，删掉。
+%    \begin{macrocode}
+\bool_if:NTF \g__hit_en_bool
+  { \setabbreviationstyle [ acronym ] { long-short } }
+  { \setabbreviationstyle [ acronym ] { long-only-short-only } }
+%    \end{macrocode}
+%
+% \pkg{glossaries-extra} 把 \cs{setacronymstyle} 做成了硬报错，指向
+% \cs{setabbreviationstyle}。v3.1e 的用户可能在自己的 \file{.sty} 里写过它，
+% 直接报错会让老文档编不过，所以拦下来转发，只提示一次。
+%    \begin{macrocode}
+\RenewDocumentCommand \setacronymstyle { o m }
   {
-    \RequirePackage { glossaries }
-    \setacronymstyle { short-long }
+    \hit@warn@renamed@command { setacronymstyle }
+      { setabbreviationstyle[acronym] }
+    \IfNoValueTF {#1}
+      { \setabbreviationstyle [ acronym ] {#2} }
+      { \setabbreviationstyle [ #1 ] {#2} }
   }
-\RenewDocumentCommand \genacrfullformat { m m } { \glsentrylong {#1} }
-\bool_if:NTF \g__hit_en_bool { \makenoidxglossaries } { \makeglossaries }
+\makenoidxglossaries
 %</thesis-glossary>
 %    \end{macrocode}
 %
