@@ -379,15 +379,19 @@
   {
     \cs_if_exist:cTF { c__xpinyin_ \int_value:w `#1 _tl }
       {
-        \clist_if_exist:cT { c__xpinyin_multiple_ \int_value:w `#1 _clist }
-          {
-            \msg_warning:nnxxx { hithesis } { pinyin-multiple } {#1}
-              { \use:c { c__xpinyin_ \int_value:w `#1 _tl } }
-              { \use:c { c__xpinyin_multiple_ \int_value:w `#1 _clist } }
-          }
         \exp_args:Nv \__hit_pinyin_detone:n
           { c__xpinyin_ \int_value:w `#1 _tl }
         \tl_set_eq:NN #2 \l__hit_pinyin_head_tl
+%    \end{macrocode}
+%
+% 提示里给的是排序键该写成的样子，也就是转过数字的形式，不是库里那个带调的。
+%    \begin{macrocode}
+        \clist_if_exist:cT { c__xpinyin_multiple_ \int_value:w `#1 _clist }
+          {
+            \msg_warning:nnxxx { hithesis } { pinyin-multiple } {#1}
+              { \tl_use:N \l__hit_pinyin_head_tl }
+              { \use:c { c__xpinyin_multiple_ \int_value:w `#1 _clist } }
+          }
       }
       {
         \msg_warning:nnn { hithesis } { pinyin-missing } {#1}
@@ -404,10 +408,130 @@
 %
 % 模板不暴露 \cs{gls}：概念表里没有 glossary 这一项，只有缩写、符号与索引。
 %    \begin{macrocode}
-\NewDocumentCommand \abbr { s m }
-  { \IfBooleanTF {#1} { \glsentrylong {#2} } { \gls {#2} } }
-\NewDocumentCommand \abbrs { s m }
-  { \IfBooleanTF {#1} { \glsentrylongpl {#2} } { \glspl {#2} } }
+\NewDocumentCommand \abbr { s O{} m }
+  {
+    \__hit_abbr_use:nn {#2} {#3}
+    \IfBooleanTF {#1} { \glsentrylong {#3} } { \gls {#3} }
+  }
+\NewDocumentCommand \abbrs { s O{} m }
+  {
+    \__hit_abbr_use:nn {#2} {#3}
+    \IfBooleanTF {#1} { \glsentrylongpl {#3} } { \glspl {#3} }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hitindex}
+% \changes{v3.2a}{2026/08/23}{加 \cs{hitindex} 与 \cs{abbr} 的索引挂钩}
+% 索引与缩略语是两件事：索引回答「这个词在哪几页」，缩略语回答「这个缩写是什么」。
+% 但要索引的词与要缩写的词重合度很高，所以缩写条目顺带登记索引，开关是
+% \option{abbr}/\option{indexing}，单处可用可选参数压过。
+%
+% \cs{hitindex} 给不缩写的词：\cs{hitindex}\marg{zh=乔峰, en=Qiao~Feng} 排出当前
+% 语种的那一份，两个索引都登记。裸值按有没有汉字归边。带星号只登记不排——正文里
+% 写的是「乔帮主」而索引条目要「乔峰」时用。
+%
+% 中文索引的排序键取首字的拼音，见上面的 \cs{hit@pinyin@head:nN}；写了
+% \option{pinyin} 就以写的为准。
+%    \begin{macrocode}
+\tl_new:N \l__hit_index_zh_tl
+\tl_new:N \l__hit_index_en_tl
+\tl_new:N \l__hit_index_pinyin_tl
+\bool_new:N \l__hit_index_on_bool
+\keys_define:nn { hit / index / one }
+  {
+    zh     .tl_set:N = \l__hit_index_zh_tl ,
+    en     .tl_set:N = \l__hit_index_en_tl ,
+    pinyin .tl_set:N = \l__hit_index_pinyin_tl ,
+  }
+\keys_define:nn { hit / abbr / use }
+  {
+    indexing .bool_set:N = \l__hit_index_on_bool ,
+    indexing .default:n = true ,
+  }
+%    \end{macrocode}
+%
+% 真正往两个索引里写。中文那份要排序键，缺了就不写——没有键的条目在
+% \pkg{makeindex} 里会排到莫名其妙的地方，不如不进。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_index_emit:
+  {
+    \tl_if_empty:NF \l__hit_index_zh_tl
+      {
+        \tl_if_empty:NT \l__hit_index_pinyin_tl
+          {
+            \exp_args:NV \hit@pinyin@head:nN
+              \l__hit_index_zh_tl \l__hit_index_pinyin_tl
+          }
+        \tl_if_empty:NF \l__hit_index_pinyin_tl
+          {
+            \use:x
+              {
+                \exp_not:N \sindex [ china ]
+                  {
+                    \exp_not:V \l__hit_index_pinyin_tl !
+                    \exp_not:V \l__hit_index_zh_tl
+                  }
+              }
+          }
+      }
+    \tl_if_empty:NF \l__hit_index_en_tl
+      {
+        \use:x
+          { \exp_not:N \sindex [ english ] { \exp_not:V \l__hit_index_en_tl } }
+      }
+  }
+\cs_new_protected:Npn \__hit_index_read:n #1
+  {
+    \tl_clear:N \l__hit_index_zh_tl
+    \tl_clear:N \l__hit_index_en_tl
+    \tl_clear:N \l__hit_index_pinyin_tl
+    \tl_if_in:nnTF {#1} { = }
+      { \hit@keys@set:nn { hit / index / one } {#1} }
+      {
+        \__hit_abbr_cjk_set:n {#1}
+        \bool_if:NTF \l__hit_abbr_cjk_bool
+          { \tl_set:Nn \l__hit_index_zh_tl {#1} }
+          { \tl_set:Nn \l__hit_index_en_tl {#1} }
+      }
+  }
+\NewDocumentCommand \hitindex { s m }
+  {
+    \__hit_index_read:n {#2}
+    \__hit_index_emit:
+    \IfBooleanF {#1}
+      {
+        \bool_if:NTF \g__hit_en_bool
+          {
+            \tl_if_empty:NTF \l__hit_index_en_tl
+              { \tl_use:N \l__hit_index_zh_tl }
+              { \tl_use:N \l__hit_index_en_tl }
+          }
+          {
+            \tl_if_empty:NTF \l__hit_index_zh_tl
+              { \tl_use:N \l__hit_index_en_tl }
+              { \tl_use:N \l__hit_index_zh_tl }
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \cs{abbr} 用一次就登记一次索引，索引形式直接取条目的 \option{zh} 与
+% \option{en}，不另设字段——开了 \option{indexing} 两边本来就该是同一个词。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_abbr_use:nn #1#2
+  {
+    \bool_set_eq:NN \l__hit_index_on_bool \g__hit_abbr_indexing_bool
+    \hit@keys@set:nn { hit / abbr / use } {#1}
+    \bool_if:NT \l__hit_index_on_bool
+      {
+        \tl_clear:N \l__hit_index_pinyin_tl
+        \tl_set:Nx \l__hit_index_zh_tl { \hitabbrzh {#2} }
+        \tl_set:Nx \l__hit_index_en_tl { \hitabbren {#2} }
+        \__hit_index_emit:
+      }
+  }
 %    \end{macrocode}
 % \end{macro}
 %
