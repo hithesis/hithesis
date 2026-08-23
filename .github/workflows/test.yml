@@ -374,9 +374,17 @@ jobs:
   # \str_case:enF 在 TL2022 上不存在那件事，是整篇塌了才暴露；要是只差半个字
   # 宽，五个版本各自都“通过”，谁也不知道。
   #
-  # 取 2026 当基准（.tlg 基线也是按它生成的）。先只报告不拦：字体度量本来就
-  # 随版本变（fandol 在 TL2022 与 TL2026 上实测不同），差异清点清楚之前当门
-  # 会一直红。仓库变量 CROSSVER_MUST_MATCH 设成 true 就变硬门。
+  # 取 2026 当基准（.tlg 基线也是按它生成的）。渲的是博士哈尔滨那份，走新版面。
+  #
+  # 判定分两档，对应“三年一致、五年可编译”：
+  #   2024–2026  必须逐页相同。断层在 2023/2024 之间（fancyhdr v4.1 升 v5，
+  #              页眉盒重构）与 2025/2026 之间（ctex 给 \ccwd 的重算补了
+  #              “用户动过 \CJKglue 就按它算”这条判断）。后者模板已在
+  #              src/utils/hit-format.dtx 里补给旧版，2025 与 2026 实测 0 差异。
+  #   2022–2023  只报告不拦。fancyhdr v4 的页眉盒摆法与 v5 差 8px，那是上游
+  #              大版本重构，要拉齐得自己抄一遍 fancyhdr 的核心，不划算。
+  #
+  # 仓库变量 CROSSVER_MUST_MATCH 设成 true 就把 2024–2026 那一档变成硬门。
   # ============================================================
   cross-version-render:
     name: 跨版本渲染 TL${{ matrix.tl-version }}
@@ -409,14 +417,17 @@ jobs:
         run: make cls
 
       # 只渲一个代表性变体就够了：横比要看的是同一份源码在不同版本上排得一不
-      # 一样，不是覆盖面。挑本科哈尔滨那份（篇幅全、图表公式索引都有）。
+      # 一样，不是覆盖面。挑博士哈尔滨那份：它走新版面，而新版面才是要跨版本
+      # 一致的那一套。旧版面（本科、v2-layout）冻结在 v3.1e 的效果，只保证能
+      # 编译，不保证跨版本逐像素相同——它不走格式层，\CJKglue 没被模板设过，
+      # \ccwd 因此跟着各版 ctex 的默认走，谁也拉不齐。
       - name: Render one variant
-        run: bash tools/compile-variant.sh 01-bachelor-harbin
+        run: bash tools/compile-variant.sh 13-doctor-harbin
 
       - uses: actions/upload-artifact@v7
         with:
           name: crossver-tl${{ matrix.tl-version }}
-          path: tests/current/01-bachelor-harbin-p*.png
+          path: tests/current/13-doctor-harbin-p*.png
           retention-days: 7
 
   cross-version-compare:
@@ -444,21 +455,27 @@ jobs:
           n_ref=$(ls "$ref"/*.png 2>/dev/null | wc -l | tr -d ' ')
           for v in 2022 2023 2024 2025 2026; do
             d=crossver/crossver-tl$v
+            # 2024 起要求一致，2022/2023 只报告：见上面那段说明
+            [ "$v" -ge 2024 ] && strict=1 || strict=0
             if [ ! -d "$d" ]; then
               echo "| $v | 没产出 | — |" >> "$GITHUB_STEP_SUMMARY"; rc=1; continue
             fi
             n=$(ls "$d"/*.png 2>/dev/null | wc -l | tr -d ' ')
             if [ "$n" != "$n_ref" ]; then
               echo "| $v | $n | 页数就对不上（基准 $n_ref） |" >> "$GITHUB_STEP_SUMMARY"
-              [ "$v" = 2026 ] || rc=1
+              [ "$v" = 2026 ] || [ "$strict" = 0 ] || rc=1
               continue
             fi
             diff=0
             for f in "$d"/*.png; do
               cmp -s "$f" "$ref/$(basename "$f")" || diff=$((diff+1))
             done
-            echo "| $v | $n | $diff |" >> "$GITHUB_STEP_SUMMARY"
-            [ "$diff" = 0 ] || { [ "$v" = 2026 ] || rc=1; }
+            if [ "$strict" = 0 ]; then
+              echo "| $v | $n | $diff（只报告，不拦） |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| $v | $n | $diff |" >> "$GITHUB_STEP_SUMMARY"
+              [ "$diff" = 0 ] || { [ "$v" = 2026 ] || rc=1; }
+            fi
           done
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
           echo "横比结果见作业摘要"
