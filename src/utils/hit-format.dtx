@@ -1511,6 +1511,7 @@
 % 本来就为半角标点准备的 \texttt{HalfLeft}/\texttt{HalfRight} 类，与
 % \texttt{Default} 拆开之后，边界规则在 \cs{hit@format@punct@grid:} 里按类各配。
 %    \begin{macrocode}
+\bool_new:N \g__hit_format_ccwd_patched_bool
 \dim_new:N \l__hit_format_ecglue_dim
 \cs_new_protected:Npn \__hit_format_ecglue_emit:
   {
@@ -1528,6 +1529,42 @@
       { \skip_set:Nn \l__ctex_ccglue_skip { \dim_eval:n {#1} } }
     \dim_set:Nn \l__hit_format_ecglue_dim { \dim_eval:n {#2} }
     \cs_set_eq:NN \CJKecglue \__hit_format_ecglue_emit:
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/23}{设完 \cs{CJKglue} 就地刷一次 \cs{ccwd}，并把
+%   「改过 \cs{CJKglue} 就按它重算」这条补给旧版 \pkg{ctex}}
+% \cs{ccwd} 是「\cs{CJKglue} 的宽 $+$ 字号」，由 \cs{ctex\_update\_ccwd:} 算。
+% 但 \pkg{ctex} 换字号时走的是 \cs{ctex\_update\_stretch:}，那里先调
+% \cs{ctex\_update\_em\_unit:} 把 \cs{ccwd} 设成纯字号，再按分支决定要不要重算。
+% TL2025 及以前只有 \cs{\_\_ctex\_update\_stretch\_auxi:} 那一支带
+% 「用户动过 \cs{CJKglue} 没有」的判断，默认走的 \texttt{auxii} 没有，于是我们
+% 设的 \cs{CJKglue} 被忽略，\cs{ccwd} 停在纯字号上，比正确值少 0.456\,pt。
+%
+% TL2026 的 \pkg{ctex} 给 \texttt{auxii} 也补上了同一条判断。我们正是动过
+% \cs{CJKglue} 的那一方，所以那条新逻辑就是冲这种用法来的；旧版没有就在这里
+% 补，判据与实现都照 \pkg{ctex} 自己那一段，不另起炉灶。原来的函数体存起来当
+% 兜底分支，只补一次。
+%
+% 补了之后 \cs{ccwd} 在 2024 到 2026 上取值一致。
+%    \begin{macrocode}
+    \cs_if_exist:NT \ctex_update_ccwd: { \ctex_update_ccwd: }
+    \bool_lazy_all:nT
+      {
+        { \cs_if_exist_p:N \ctex_if_ccglue_touched:TF }
+        { \cs_if_exist_p:N \__ctex_update_stretch_auxii: }
+        { ! \bool_if_p:N \g__hit_format_ccwd_patched_bool }
+      }
+      {
+        \bool_gset_true:N \g__hit_format_ccwd_patched_bool
+        \cs_new_eq:NN \__hit_format_stretch_orig:
+          \__ctex_update_stretch_auxii:
+        \cs_set_protected:Npn \__ctex_update_stretch_auxii:
+          {
+            \ctex_if_ccglue_touched:TF
+              { \ctex_update_ccwd: }
+              { \__hit_format_stretch_orig: }
+          }
+      }
   }
 \cs_new_protected:Npn \hit@format@strut:
   {
@@ -2225,9 +2262,9 @@
 % kern 无害。\texttt{p} 型表列里的段落是普通水平模式，不受影响。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@punct@oshrink:
-  { \skip_horizontal:n { 0pt ~ minus ~ 0.38 \ccwd } }
+  { \skip_horizontal:n { 0pt ~ minus ~ 0.38 \g_hit_msword_char_dim } }
 \cs_new_protected:Npn \hit@format@punct@cshrink:
-  { \skip_horizontal:n { 0pt ~ minus ~ 0.46 \ccwd } }
+  { \skip_horizontal:n { 0pt ~ minus ~ 0.46 \g_hit_msword_char_dim } }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/18}{标点对之间的胶盒内换成等宽 kern：\pkg{ulem}
@@ -2243,48 +2280,48 @@
 % \cs{uline} 实测无恙，不用换。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_punct_pair_kern:
-  { \tex_kern:D \dim_eval:n { 0.5 \ccwd - 1em } \scan_stop: }
+  { \tex_kern:D \dim_eval:n { 0.5 \g_hit_msword_char_dim - 1em } \scan_stop: }
 \cs_new_protected:Npn \hit@format@punct@ngap:
   {
     \mode_if_inner:TF
-      { \tex_kern:D \dim_eval:n { \ccwd - 1em } \scan_stop: }
+      { \tex_kern:D \dim_eval:n { \g_hit_msword_char_dim - 1em } \scan_stop: }
       { \nobreak \CJKglue }
   }
 \cs_new_protected:Npn \hit@format@punct@qtrim:
   {
-    \discretionary { } { } { \tex_kern:D \dim_eval:n { -0.38 \ccwd } \scan_stop: }
+    \discretionary { } { } { \tex_kern:D \dim_eval:n { -0.38 \g_hit_msword_char_dim } \scan_stop: }
     \mode_if_inner:F
-      { \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.38 \ccwd } }
+      { \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.38 \g_hit_msword_char_dim } }
   }
 \cs_new_protected:Npn \hit@format@punct@opair:
   {
     \mode_if_inner:TF
-      { \tex_kern:D \dim_eval:n { \ccwd - 1em } \scan_stop: }
+      { \tex_kern:D \dim_eval:n { \g_hit_msword_char_dim - 1em } \scan_stop: }
       {
         \nobreak
         \skip_horizontal:n
-          { \dim_eval:n { \ccwd - 1em } ~ minus ~ 0.38 \ccwd }
+          { \dim_eval:n { \g_hit_msword_char_dim - 1em } ~ minus ~ 0.38 \g_hit_msword_char_dim }
       }
   }
 \cs_new_protected:Npn \hit@format@punct@cpair:
   {
     \__hit_format_punct_pair_kern:
     \mode_if_inner:F
-      { \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.5 \ccwd } }
+      { \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.5 \g_hit_msword_char_dim } }
   }
 \cs_new_protected:Npn \hit@format@punct@bpair:
   {
     \__hit_format_punct_pair_kern:
     \mode_if_inner:F
-      { \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.5 \ccwd } }
+      { \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.5 \g_hit_msword_char_dim } }
     \mode_if_inner:TF
-      { \tex_kern:D \dim_eval:n { -0.38 \ccwd } \scan_stop: }
+      { \tex_kern:D \dim_eval:n { -0.38 \g_hit_msword_char_dim } \scan_stop: }
       {
         \discretionary
-          { \tex_kern:D \dim_eval:n { 1em - 0.5 \ccwd } \scan_stop: }
+          { \tex_kern:D \dim_eval:n { 1em - 0.5 \g_hit_msword_char_dim } \scan_stop: }
           { }
-          { \tex_kern:D \dim_eval:n { -0.38 \ccwd } \scan_stop: }
-        \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.38 \ccwd }
+          { \tex_kern:D \dim_eval:n { -0.38 \g_hit_msword_char_dim } \scan_stop: }
+        \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.38 \g_hit_msword_char_dim }
       }
   }
 \cs_new_protected:Npn \hit@format@punct@cbreak:
@@ -2293,9 +2330,9 @@
     \mode_if_inner:F
       {
         \discretionary
-          { \tex_kern:D \dim_eval:n { 1em - 0.5 \ccwd } \scan_stop: }
+          { \tex_kern:D \dim_eval:n { 1em - 0.5 \g_hit_msword_char_dim } \scan_stop: }
           { } { }
-        \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.5 \ccwd }
+        \nobreak \skip_horizontal:n { 0pt ~ plus ~ 0.5 \g_hit_msword_char_dim }
       }
   }
 %    \end{macrocode}
@@ -2305,7 +2342,7 @@
 % 提示修正后的测试文档实测 12.50，一整格增量，直接用 \cs{CJKglue}。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@punct@xtra:
-  { \tex_kern:D \dim_eval:n { ( \ccwd - 1em ) / 2 } \scan_stop: }
+  { \tex_kern:D \dim_eval:n { ( \g_hit_msword_char_dim - 1em ) / 2 } \scan_stop: }
 %    \end{macrocode}
 %
 % \emph{行末闭号 Word 恒压半格，这边不追了，记下为什么。} 试过三条路：
@@ -2376,7 +2413,7 @@
             \cs_set_protected:Npn \__xeCJK_use_ecglue_skip:
               {
                 \hskip \dim_eval:n
-                  { \l__hit_format_ecglue_dim - ( \ccwd - 1 em ) }
+                  { \l__hit_format_ecglue_dim - ( \g_hit_msword_char_dim - 1 em ) }
                   \@plus \c__hit_format_ecstretch_tl \baselineskip
               }
           }
@@ -2423,9 +2460,9 @@
           {
             \mode_if_inner:F
               {
-                \tex_kern:D \dim_eval:n { -0.5 \ccwd } \scan_stop:
+                \tex_kern:D \dim_eval:n { -0.5 \g_hit_msword_char_dim } \scan_stop:
                 \discretionary { } { }
-                  { \kern \dim_eval:n { 0.5 \ccwd } }
+                  { \kern \dim_eval:n { 0.5 \g_hit_msword_char_dim } }
                 \nobreak \hit@format@punct@cshrink:
               }
           }
@@ -2470,7 +2507,7 @@
         \xeCJK_pre_inter_class_toks:nnn { HITTilde } { HITTilde }
           {
             \mode_if_inner:TF
-              { \tex_kern:D \dim_eval:n { \ccwd - 1em } \scan_stop: }
+              { \tex_kern:D \dim_eval:n { \g_hit_msword_char_dim - 1em } \scan_stop: }
               { \CJKglue }
           }
         \xeCJK_pre_inter_class_toks:nnn { HITQuote } { HITTilde }
