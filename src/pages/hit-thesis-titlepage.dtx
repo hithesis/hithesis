@@ -148,6 +148,54 @@
 \dim_const:Nn \c__hit_titlepage_label_dim { 90.3bp }
 \dim_const:Nn \c__hit_titlepage_colon_dim { 15.05bp }
 \dim_const:Nn \c__hit_titlepage_value_dim { 147.55bp }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/24}{内封的三个间隔段按塞不塞得下增减，排不下时发警告}
+%
+% 题目与字段之间那三个间隔段是内封唯一可让的地方。范例那一页七个字段，而副导师、
+% 合作导师这两项有就多两行，一行 29.625，三个间隔段共 117，正好抵四行。所以先按
+% 没有间隔段排一遍量高，再看版心还剩多少、塞得下几个。
+%
+% \cs{hit@titlepage@fit:N}\meta{宏} 把\meta{宏}\marg{间隔段数}排一遍量高，
+% 算出能塞下几个，存进 \cs{l\_\_hit\_titlepage\_gap\_int}。
+%    \begin{macrocode}
+\box_new:N \l__hit_titlepage_box
+\int_new:N \l__hit_titlepage_gap_int
+\dim_const:Nn \c__hit_titlepage_gap_dim { 39bp }
+\cs_new_protected:Npn \hit@titlepage@fit:N #1
+  {
+    \vbox_set:Nn \l__hit_titlepage_box
+      {
+        \dim_set_eq:NN \hsize \textwidth
+        \dim_set_eq:NN \linewidth \textwidth
+        \dim_zero:N \parindent
+        \dim_zero:N \parskip
+        #1 { 0 }
+      }
+    \int_set:Nn \l__hit_titlepage_gap_int
+      {
+        \int_min:nn { 3 }
+          {
+            \fp_to_int:n
+              {
+                floor
+                  (
+                    \dim_to_fp:n
+                      { \textheight - \box_ht_plus_dp:N \l__hit_titlepage_box }
+                    / \dim_to_fp:n { \c__hit_titlepage_gap_dim }
+                  )
+              }
+          }
+      }
+    \int_compare:nNnT { \l__hit_titlepage_gap_int } < { 0 }
+      {
+        \msg_warning:nn { hithesis } { titlepage-overflow }
+        \int_zero:N \l__hit_titlepage_gap_int
+      }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
 \cs_new_protected:Npn \hit@titlepage@field:nn #1#2
   {
     \hit@format@par:nn { titlepage-field }
@@ -159,16 +207,8 @@
         \hbox_to_wd:nn { \c__hit_titlepage_value_dim } { #2 \hfil }
       }
   }
-\cs_new_protected:Npn \hit@titlepage@bachelor
+\cs_new_protected:Npn \hit@titlepage@bachelor@body:n #1
   {
-    \exp_args:Nx \hit@msword@layout@push:n
-      {
-        \exp_not:V \g__hit_layout_msword_tl
-        \exp_not:V \c__hit_titlepage_layout_tl
-      }
-    \group_begin:
-      \dim_zero:N \parindent
-      \dim_zero:N \parskip
       \hit@format@par:nn { titlepage-mark }
         {
           \hbox_to_wd:nn { \textwidth }
@@ -196,7 +236,7 @@
             { ——\hit@title@subtitle@zh }
         }
       \hitenter*[lines=2,size=xiaosi,font-zh=songti,line-spacing=19.75bp]
-      \hitenter*[lines=3,size=erhao,font-zh=songti,line-spacing=39bp]
+      \hitenter*[lines=#1,size=erhao,font-zh=songti,line-spacing=39bp]
       \dim_set_eq:NN \hit@title@width \c__hit_titlepage_label_dim
       \hit@titlepage@field:nn
         { \hit@author@field@label@zh } { \hit@author@zh }
@@ -212,6 +252,19 @@
         { \hit@date@field@label@zh } { \hit@date@zh }
       \hit@titlepage@field:nn
         { \hit@school@field@label@zh } { \hit@school@zh }
+  }
+\cs_new_protected:Npn \hit@titlepage@bachelor
+  {
+    \exp_args:Nx \hit@msword@layout@push:n
+      {
+        \exp_not:V \g__hit_layout_msword_tl
+        \exp_not:V \c__hit_titlepage_layout_tl
+      }
+    \hit@titlepage@fit:N \hit@titlepage@bachelor@body:n
+    \group_begin:
+      \dim_zero:N \parindent
+      \dim_zero:N \parskip
+      \exp_args:NV \hit@titlepage@bachelor@body:n \l__hit_titlepage_gap_int
     \group_end:
     \hit@msword@layout@pop:
   }
@@ -221,82 +274,92 @@
 %    \begin{macrocode}
 
 %内封
+\cs_new_protected:Npn \hit@titlepage@head@zh:nnnn #1#2#3#4
+  {
+    \hbox_to_wd:nn { \textwidth }
+      {
+        #1 \hit@title@separator@zh #2
+        \hfil
+        #3 \hit@title@separator@zh #4
+      }
+  }
+\cs_new_protected:Npn \hit@titlepage@other@body:n #1
+  {
+      \hit@format@par:nn { titlepage-mark }
+        {
+          \hit@titlepage@head@zh:nnnn
+            { \hit@classified@index@national@field@label@zh }
+            { \hit@classified@index@national }
+            { \hit@school@id@field@label } { \hit@school@id }
+        }
+      \hit@format@par:nnn { titlepage-mark } { line-spacing = 1.25 }
+        {
+          \hit@titlepage@head@zh:nnnn
+            { \hit@classified@index@international@field@label@zh }
+            { \hit@classified@index@international }
+            { \hit@secret@level@field@label } { \hit@secret@level }
+        }
+      \hitenter*[lines=1,size=xiaosi,font-zh=songti,line-spacing=19.75bp]
+      \hitenter*[lines=1,size=xiaosi,font-zh=songti,line-spacing=1.25]
+      \hitenter*[lines=3,size=xiaosi,font-zh=songti,line-spacing=19.75bp]
+      \hit@format@par:nn { titlepage-label }
+        {
+          \hit@if@harbin@master@or@doctor@or@shenzhen@master@TF
+            { \hit@degree@level@zh } { \hit@degree@of@discipline@format@zh }
+          \hit@document@type
+        }
+      \hitenter*[lines=1,size=xiaosi,font-zh=songti,line-spacing=19.75bp]
+      \hitenter*[lines=1,size=xiaosi,font-zh=songti,line-spacing=1.25]
+      \hit@format@par:nn { titlepage-title } { \hit@title@cover@zh }
+      \hit@if@subtitle@T
+        {
+          \hit@format@par:nnn { titlepage-title } { size = xiaoer }
+            { ——\hit@title@subtitle@zh }
+        }
+      \hitenter*[lines=2,size=xiaosi,font-zh=songti,line-spacing=19.75bp]
+      \hitenter*[lines=#1,size=erhao,font-zh=songti,line-spacing=39bp]
+      \dim_set_eq:NN \hit@title@width \c__hit_titlepage_label_dim
+      \hit@titlepage@field:nn
+        { \hit@author@field@label@zh } { \hit@author@zh }
+      \hit@titlepage@field:nn
+        { \hit@supervisor@field@label@zh } { \hit@supervisor@zh }
+      \tl_if_empty:NF \hit@associate@supervisor@zh
+        {
+          \hit@titlepage@field:nn
+            { \hit@associate@supervisor@field@label@zh }
+            { \hit@associate@supervisor@zh }
+        }
+      \tl_if_empty:NF \hit@co@supervisor@zh
+        {
+          \hit@titlepage@field:nn
+            { \hit@co@supervisor@field@label@zh } { \hit@co@supervisor@zh }
+        }
+      \hit@titlepage@field:nn
+        { \hit@degree@field@label@zh } { \hit@degree@of@discipline@format@zh }
+      \hit@titlepage@field:nn
+        { \hit@major@field@label@zh } { \hit@major@zh }
+      \hit@titlepage@field:nn
+        { \hit@affiliation@field@label@zh } { \hit@affiliation@zh }
+      \hit@titlepage@field:nn
+        { \hit@date@field@label@zh } { \hit@date@zh }
+      \hit@titlepage@field:nn
+        { \hit@school@field@label@zh } { \hit@school@zh }
+  }
 \cs_new_protected:Npn \hit@titlepage@other
   {
-~
- \begin{center}~
-%    \end{macrocode}
-%
-% 生成头部信息，使用 \cs{hfill} 将第二列信息推到右侧。
-% \changes{v3.1b}{2022/06/06}{修改本部硕士第二封面的信息的对齐方式}
-% 本部硕士第二封面的信息的对齐方式不同。
-%    \begin{macrocode}
- {~
- \songti \xiaosi
- \hit@if@both@options@TF{harbin}{master}~
- {~
- \begin{tabular}{l}~
- \hit@classified@index@national@field@label@zh：~\hit@classified@index@national\\~
- \hit@classified@index@international@field@label@zh：~\hit@classified@index@international
- \end{tabular}\hfill
- \begin{tabular}{l}~
- \hit@school@id@field@label：\hit@school@id\\~
- \hit@secret@level@field@label：\hit@secret@level
- \end{tabular}
- }%
- {~
- \begin{tabular}{@{}r@{：}l@{}}~
- \hit@classified@index@national@field@label@zh &~\hit@classified@index@national\\~
- \hit@classified@index@international@field@label@zh &~\hit@classified@index@international
- \end{tabular}\hfill
- \begin{tabular}{@{}r@{：}l@{}}~
- \hit@school@id@field@label &~\hit@school@id\\~
- \hit@secret@level@field@label &~\hit@secret@level
- \end{tabular}
- }%
- }~
- \parbox[t][3.2cm][t]{\textwidth}{\begin{center}~\end{center}~}~
-%    \end{macrocode}
-%
-% \changes{v3.1b}{2022/06/06}{本部硕/博士第二页““”学硕/博士学位论文”中删除““”学”}
-% \changes{v3.1c}{2023/04/16}{修正本部硕(博)士(这里的空格)学位论文}
-% \changes{v3.1b}{2022/06/06}{深圳硕士第二页““”学硕士学位论文”中删除““”学”}
-% 本部硕/博士第二页设置为“硕/博士学位论文”。深圳的我把博士也一块改了，要不然要重写一下判断，如果发现博士不需要改的话再重写吧…
-% 博士在 \issue[222] 还是需要改...
-% \changes{v3.1d}{2025/03/03}{修改深圳博士第二封面，\issue[222]}
-%    \begin{macrocode}
- \parbox[t][2.4cm][t]{\textwidth}{~
- \xiaoer[1]~
- \begin{center}~
- \songti\bfseries
- \hit@if@harbin@master@or@doctor@or@shenzhen@master@TF{\hit@degree@level@zh}{\hit@degree@of@discipline@format@zh}\hit@document@type
- \end{center}}~
- \parbox[t][5cm][t]{\textwidth}{\erhao
- \begin{center}\heiti\hit@title@cover@zh\end{center}~
-\hit@if@subtitle@T{\begin{center}\hspace{-4em}\xiaoer\heiti——\hit@title@subtitle@zh\end{center}}}~
- \parbox[t][9.8cm][b]{\textwidth}~
- {\sihao
- \dim_set:Nn \hit@title@width {6em}~
- \begin{center}~\cs_set:Npn \arraystretch {1.62}~\songti
- \begin{tabular}{l@{\hit@title@separator@zh}l}~
- \hit@titlepage@line{\hit@author@field@label@zh}{\hit@author@zh}
- \hit@titlepage@line{\hit@supervisor@field@label@zh}{\hit@supervisor@zh}
- \tl_if_empty:NF\hit@associate@supervisor@zh{%
- {\heiti \hit@put@title{\hit@associate@supervisor@field@label@zh}}&~\hit@associate@supervisor@zh\\~
- }%
- \tl_if_empty:NF\hit@co@supervisor@zh{%
- \hit@titlepage@line{\hit@co@supervisor@field@label@zh}{\hit@co@supervisor@zh}
- }%
- \hit@titlepage@line{\hit@degree@field@label@zh}{\hit@degree@of@discipline@format@zh}
- \hit@titlepage@line{\hit@major@field@label@zh}{\hit@major@zh}
- \hit@titlepage@line{\hit@affiliation@field@label@zh}{\hit@affiliation@zh}
- \hit@titlepage@line{\hit@date@field@label@zh}{\hit@date@zh}
- \hit@titlepage@line*{\hit@school@field@label@zh}{\hit@school@zh}
- \end{tabular}\cs_set:Npn \arraystretch {1}
- \end{center}~}
- \end{center}~
+    \exp_args:Nx \hit@msword@layout@push:n
+      {
+        \exp_not:V \g__hit_layout_msword_tl
+        \exp_not:V \c__hit_titlepage_layout_tl
+      }
+    \hit@titlepage@fit:N \hit@titlepage@other@body:n
+    \group_begin:
+      \dim_zero:N \parindent
+      \dim_zero:N \parskip
+      \exp_args:NV \hit@titlepage@other@body:n \l__hit_titlepage_gap_int
+    \group_end:
+    \hit@msword@layout@pop:
   }
-
 %    \end{macrocode}
 %    \end{macro}
 %    \begin{macro}{\hit@titlepage@en}
