@@ -124,43 +124,96 @@
 % \changes{v3.2a}{2026/08/07}{本科生内封上方文字添加毕业论文或设计的选择框，由于目前hitheis不支持毕业设计，因此对勾写死在毕业论文上}
 % \changes{v3.2a}{2026/08/07}{schrb: 同步为哈工深官方设计的样式}
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/24}{本科内封改照 Word 范例的段落序列排，间隔段与字段
+%   行距都从 docx 的 \texttt{w:pPr} 读出来}
+%
+% 内封那一节与封面同档，\texttt{docGrid} 的 \texttt{linePitch} 是 395 缇。
+% 序列取值（本科书写范例第三页，批注段换成同高空段）：
+% \begin{itemize}
+%   \item 标签，宋体小二加粗，不贴网格
+%   \item 中文题目，黑体二号，\emph{贴网格}
+%   \item 题目与字段之间三个间隔段，\texttt{w:line="780" w:lineRule="exact"}，
+%         即固定值 39\,bp
+%   \item 字段表，定宽三列 1806 / 301 / 2951 缇，居中、无单元格边距，
+%         行高最小 540 缇；每行 \texttt{w:line="360"} 即 1.5 倍，且贴网格，
+%         所以行距是 $1.5 \times 19.75 = 29.625$，不是 $1.5 \times$ 自然行高
+% \end{itemize}
+%
+% 范例那一页第一行是「密级：公开」，我们这一版第一行还带毕业论文与毕业设计的
+% 勾选框，两份模板不同版，所以绝对基线不对拍，对的是相对间距。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_titlepage_layout_tl { line-pitch = 19.75bp , }
+\dim_const:Nn \c__hit_titlepage_label_dim { 90.3bp }
+\dim_const:Nn \c__hit_titlepage_colon_dim { 15.05bp }
+\dim_const:Nn \c__hit_titlepage_value_dim { 147.55bp }
+\cs_new_protected:Npn \hit@titlepage@field:nn #1#2
+  {
+    \hit@format@par:nn { titlepage-field }
+      {
+        \hbox_to_wd:nn { \c__hit_titlepage_label_dim }
+          { \hit@put@title {#1} \hfil }
+        \hbox_to_wd:nn { \c__hit_titlepage_colon_dim }
+          { \hit@title@separator@zh \hfil }
+        \hbox_to_wd:nn { \c__hit_titlepage_value_dim } { #2 \hfil }
+      }
+  }
 \cs_new_protected:Npn \hit@titlepage@bachelor
   {
-~
- \begin{center}~
- \vspace*{-3mm}~
- \begin{flushleft}~
- \makebox[\textwidth]{\xiaosi\hit@if@option@TF{design}{\hit@empty@box}{\hit@checked@box}\nobreakspace{}毕业论文\quad\hit@if@option@TF{design}{\hit@checked@box}{\hit@empty@box}\nobreakspace{}毕业设计\hfill\hit@secret@level@field@label：公开\hspace{0mm}}
- \end{flushleft}~
- % \begin{flushleft}
- %   \makebox[\textwidth]{\xiaosi$\square$~毕业论文\quad$\square$~毕业设计\hfill\hit@secret@level@field@label：公开\hspace{0mm}}
- % \end{flushleft}
- \vspace{2.1cm}~
- {\songti\bfseries\xiaoer \hit@bachelor@degree@level \hit@bachelor@document@type}\\[0.8cm]~
- \parbox[t][5cm][t]{\textwidth}{%
- \erhao
- \begin{center}~
- \heiti
- \hit@title@cover@zh%
- \end{center}~
- \hit@if@subtitle@T%
- {\begin{center}\hspace{-4em}\xiaoer\heiti——\hit@title@subtitle@zh\end{center}}%
- }~
- \vspace{16mm}~
- {\sihao
- \dim_set:Nn \hit@title@width {6em}~
- \begin{center}~\cs_set:Npn \arraystretch {1.62}~\songti
- \begin{tabular}{l@{\hit@title@separator@zh}l}~
- \hit@titlepage@line{\hit@author@field@label@zh}{\hit@author@zh}
- \hit@titlepage@line{\hit@bachelor@student@id@field@label}{\hit@student@id~}
- \hit@titlepage@line{\hit@bachelor@supervisor@field@label}{\hit@supervisor@zh}
- \hit@titlepage@line{\hit@bachelor@major@field@label}{\hit@major@zh~}
- \hit@titlepage@line{\hit@bachelor@affiliation@field@label}{\hit@affiliation@zh}
- \hit@titlepage@line{\hit@date@field@label@zh}{\hit@date@zh}
- \hit@titlepage@line*{\hit@school@field@label@zh}{\hit@school@zh}
- \end{tabular}\cs_set:Npn \arraystretch {1}
- \end{center}~}
- \end{center}~
+    \exp_args:Nx \hit@msword@layout@push:n
+      {
+        \exp_not:V \g__hit_layout_msword_tl
+        \exp_not:V \c__hit_titlepage_layout_tl
+      }
+    \group_begin:
+      \dim_zero:N \parindent
+      \dim_zero:N \parskip
+      \hit@format@par:nn { titlepage-mark }
+        {
+          \hbox_to_wd:nn { \textwidth }
+            {
+              \hit@if@option@TF { design }
+                { \hit@empty@box } { \hit@checked@box }
+              \nobreakspace 毕业论文 \quad
+              \hit@if@option@TF { design }
+                { \hit@checked@box } { \hit@empty@box }
+              \nobreakspace 毕业设计
+              \hfil
+              \hit@secret@level@field@label \hit@title@separator@zh
+              \hit@secret@level
+            }
+        }
+      \hitenter*[lines=4,size=xiaosi,font-zh=songti,line-spacing=1]
+      \hit@format@par:nn { titlepage-label }
+        { \hit@bachelor@degree@level \hit@bachelor@document@type }
+      \hitenter*[lines=1,size=xiaosi,font-zh=songti,line-spacing=19.75bp]
+      \hitenter*[lines=1,size=xiaosi,font-zh=songti,line-spacing=1.25]
+      \hit@format@par:nn { titlepage-title } { \hit@title@cover@zh }
+      \hit@if@subtitle@T
+        {
+          \hit@format@par:nnn { titlepage-title } { size = xiaoer }
+            { ——\hit@title@subtitle@zh }
+        }
+      \hitenter*[lines=2,size=xiaosi,font-zh=songti,line-spacing=19.75bp]
+      \hitenter*[lines=3,size=erhao,font-zh=songti,line-spacing=39bp]
+      \dim_set_eq:NN \hit@title@width \c__hit_titlepage_label_dim
+      \hit@titlepage@field:nn
+        { \hit@author@field@label@zh } { \hit@author@zh }
+      \hit@titlepage@field:nn
+        { \hit@bachelor@student@id@field@label } { \hit@student@id }
+      \hit@titlepage@field:nn
+        { \hit@bachelor@supervisor@field@label } { \hit@supervisor@zh }
+      \hit@titlepage@field:nn
+        { \hit@bachelor@major@field@label } { \hit@major@zh }
+      \hit@titlepage@field:nn
+        { \hit@bachelor@affiliation@field@label } { \hit@affiliation@zh }
+      \hit@titlepage@field:nn
+        { \hit@date@field@label@zh } { \hit@date@zh }
+      \hit@titlepage@field:nn
+        { \hit@school@field@label@zh } { \hit@school@zh }
+    \group_end:
+    \hit@msword@layout@pop:
   }
 %    \end{macrocode}
 %    \end{macro}
