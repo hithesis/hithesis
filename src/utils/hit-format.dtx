@@ -2750,15 +2750,44 @@
     \int_set:Nn \hyphenpenalty
       { \bool_if:NTF \g_hit_format_hyphen_bool { 85 } { 10000 } }
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/24}{纯西文段的首行基线按 Times 的上升部算，
+%   不再套汉字那一档}
+% \emph{上升部按字体分。} 上升部是「系数 × 字号 $+$ 0.082\,bp」。这条早先只
+%   标定了汉字那一档（1.008），西文一直借用它，档案里记着「纯西文的段落因此会比
+%   Word 宽一点点，英文摘要与英文目录受影响，先记着」。现在把 Times 那一档量出来了。
+%
+% 量法：造一份标定 docx，每个西文行前面放一行 12\,bp 宋体做基准，八个字号各一组，
+% Word 转 PDF 后量相邻基线的步进，减掉基准行的行深（$15.5625 - (1.008 \times 12 +
+% 0.082) = 3.3845$）就是西文的上升部：
+%
+% \begin{center}
+% \begin{tabular}{lrrrrrrrr}
+% 字号   & 9 & 10.5 & 12 & 14 & 16 & 18 & 22 & 24 \\
+% 上升部 & 8.316 & 9.816 & 11.316 & 13.116 & 15.116 & 16.916 & 20.616 & 22.416 \\
+% \end{tabular}
+% \end{center}
+%
+% 常数项固定成 0.082（与汉字共用）后拟合出 0.93257，\pkg{iota-hit-thesis} 独立
+% 标定的是 0.93261，四位小数一致，取它。两个字体只有系数不同，常数项是同一个。
+%
+% 只落在 \cs{topskip} 上。纯西文段的撑竿本来就停着（上面那句
+% \cs{cs\_set\_eq:NN}），所以上升部唯一还起作用的地方是页首那一行的基线，
+% 也就是 \cs{topskip}。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_format_ascent_latin_tl { 0.93261 }
 \cs_new_protected:Npn \hit@format@latin@par:
   {
     \skip_zero:N \rightskip
     \cs_set_eq:NN \hit@format@strut: \prg_do_nothing:
     \dim_set:Nn \baselineskip { \hit@format@latin@line: }
+    \dim_set:Nn \topskip
+      { \c__hit_format_ascent_latin_tl em + \c__hit_format_ascent_dim }
     \hit@format@hyphen:
   }
 % 拉丁空段高(关键词前距等):一个空段按同一条自动行距规则。数值来源
-% 收口在 \hitenter 的自然行高常量上(1.25 × 1.1472 = 1.4340),别处不抄
+% 收口在 \hitenter 的自然行高常量上(1.25 × 1.15 = 1.4375),别处不抄
 \cs_new:Npn \hit@format@latin@line:
   { \dim_eval:n { \fp_eval:n { 1.25 * \c__hit_enter_natural_serif_fp } em } }
 %    \end{macrocode}
