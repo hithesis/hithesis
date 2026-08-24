@@ -14,7 +14,7 @@
 %
 %   \cs{hit@first@title@page}          \ttfamily→\rmfamily \cs{hit@cover}
 %   \cs{hit@first@title@page@postdoc}  \ttfamily→\rmfamily \cs{hit@cover@postdoc}
-%   \cs{hit@first@title@page@other}    \ttfamily→\rmfamily \cs{hit@cover@other}
+%   \cs{hit@first@title@page@other}    \ttfamily→\rmfamily \cs{hit@cover@universal}
 %   \cs{hit@second@title@page}         \ttfamily→\rmfamily \cs{hit@titlepage}
 %   \cs{hit@second@title@page@postdoc} \ttfamily→\rmfamily \cs{hit@titlepage@postdoc}
 %   \cs{hit@second@title@page@bachelor}\ttfamily→\rmfamily \cs{hit@titlepage@bachelor}
@@ -69,8 +69,8 @@
 % 内封不画下划线，走的是下面的 \cs{hit@titlepage@line}。
 %
 %
-% \changes{v3.1d}{2025/03/03}{将哈尔滨本科的第一封面替换为 \cmd{\hit@cover@other}。\issue[172]}
-% 将哈尔滨本科的第一封面替换为 \cmd{\hit@cover@other}。之后应该会逐步替换掉, 看学校又会怎么改吧。
+% \changes{v3.1d}{2025/03/03}{将哈尔滨本科的第一封面替换为 \cmd{\hit@cover@universal}。\issue[172]}
+% 将哈尔滨本科的第一封面替换为 \cmd{\hit@cover@universal}。
 %
 % \changes{v3.2a}{2026/08/08}{两张封面的分派与“哈尔滨本科”这个反复出现的判断
 %   迁到 expl3}
@@ -78,14 +78,14 @@
 %   之后多出来的词间空格。\issue[294]}
 % \changes{v3.2a}{2026/08/16}{本科封面三校区统一，非本部本科那一套外封删掉，
 %   第一张封面剩两套版式}
-% 第一张封面有两套版式：博后一套，其余都走 \cs{hit@cover@other}。
+% 第一张封面有两套版式：博后一套，本硕博共用 \cs{hit@cover@universal}。
 % 本科三个校区已经统一，不再按校区分。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@cover
   {
     \bool_if:NTF \g__hit_postdoc_bool
       { \hit@cover@postdoc }
-      { \hit@cover@other }
+      { \hit@cover@universal }
   }
 
 %    \end{macrocode}
@@ -183,69 +183,448 @@
   }
   { }
 
-\skip_new:N \hit@etitlelength
 %    \end{macrocode}
-%    \begin{macro}{\hit@cover@other}
+%
+% \changes{v3.2a}{2026/08/24}{封面改照 Word 范例的段落序列排，本硕博共用一套；
+%   空行组合按「校名不动、姓名居中」加权择优，排不下时按六档结构让步}
+%
+% \subsection{封面一}
+%
+% 不照旧版的 \cs{parbox} 加 \cs{vspace} 排，直接照 Word 范例那一页的段落序列
+% 排——本科取本科书写范例的第二页，研究生取研究生书写范例的第二页。范例那一页
+% 带批注，每个元素下面跟着「↑」与一行说明；真封面不是把批注段删掉，是把批注的
+% 字删掉，段落还在、高度不变，所以每处批注都换成同高的空段。
+%
+% 本硕博走同一套序列，研究生只在标签之后多插一段学位类别加它的两个空段。
+%
+% 空段的高按 \texttt{w:rFonts} 的 ascii 槽算，不是 eastAsia 槽。页顶那三段与
+% 校名前那六段都没有 \texttt{rPr}，ascii 继承 Times New Roman，一个 13.80；
+% 批注段位置上那几个显式写了宋体，一个 15.5625。
+%
+% 这一页只有中文题目那一段贴网格，别的段都显式写着 \texttt{snapToGrid=0}。
+%
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@cover@other
+\cs_new_protected:Npn \hit@cover@blank@zh:n #1
   {
-~
- % 封面一
-\xiaosi[1]\textcolor[rgb]{1,1,1}{\songti{\hit@hi}}%
-\vspace*{\hit@cover@top@padding}~
-\begin{center}~
- \begin{center}\xiaoyi[1]\songti\textbf{%
+    \int_compare:nNnT {#1} > { 0 }
+      { \hitenter*[lines=#1,size=xiaosi,font-zh=songti,line-spacing=1] }
+  }
+\cs_new_protected:Npn \hit@cover@blank@en:n #1
+  {
+    \int_compare:nNnT {#1} > { 0 }
+      { \hitenter*[lines=#1,size=xiaosi,font-en=serif,line-spacing=1] }
+  }
 %    \end{macrocode}
 %
-% \changes{v3.1d}{2025/03/03}{修改哈尔滨本科的第一封面，看起来和研究生的要统一起来了。\issue[172]}
-% 修改哈尔滨本科的第一封面，看起来和研究生的要统一起来了。
+% 姓名上面那一段是二号、1.25 倍，ascii 写着宋体，按汉字算，35.664。校名前那一段
+% 是小二、1.25 倍，eastAsia 写着黑体但 ascii 空着，继承 Times，按西文算，25.875
+% ——按黑体算成 29.18 是错的。两段都不是单倍空行，不参与增减，只有让步阶梯最后
+% 那几级才动：让一级把 1.25 改单倍，再让就整段删掉，姓名上面那个先删。
 %    \begin{macrocode}
- \hit@cover@thesis@name~
- }\end{center}~
+\cs_new_protected:Npn \hit@cover@fixed@author:n #1
+  {
+    \int_compare:nNnT {#1} < { 2 }
+      {
+        \int_compare:nNnTF {#1} = { 0 }
+          { \hitenter*[lines=1,size=erhao,font-zh=songti,line-spacing=1.25] }
+          { \hitenter*[lines=1,size=erhao,font-zh=songti,line-spacing=1] }
+      }
+  }
+\cs_new_protected:Npn \hit@cover@fixed@inst:n #1
+  {
+    \int_compare:nNnT {#1} < { 3 }
+      {
+        \int_compare:nNnTF {#1} = { 0 }
+          { \hitenter*[lines=1,size=xiaoer,font-en=serif,line-spacing=1.25] }
+          { \hitenter*[lines=1,size=xiaoer,font-en=serif,line-spacing=1] }
+      }
+  }
 %    \end{macrocode}
 %
-% 修改第二行标题
-% \changes{v3.0.15}{2021/05/06}{修改第二行标题}
-% \changes{v3.1c}{2023/04/16}{删除全日制第一封面中的 \cs{student-type-zh}, \issue[149]}
-% \changes{v3.1c}{2023/04/16}{根据 \issue[97] 再修改深圳硕士的第一封面，加上 \cs{student-type-zh}}
-% 根据 \issue[97] 看来，\issue[149] 的情报并不完全准确，深圳硕士还要加上这个 \cs{student-type-zh}
-% \changes{v3.2a}{2026/08/10}{删掉 \cs{pozhehao}。它只是个排「——」的宏，
-%   正文里直接打「——」就行，没必要占一个公开名字。副标题前的破折号改成字面}
+% 页顶到英文题目为止。\meta{挤占} 是挤掉的中英题目之间的空行数。
 %    \begin{macrocode}
- \begin{center}\xiaoer[1]\songti\bfseries
- \hit@if@show@student@type
- {~
- \hit@brace@left@zh\hit@student@type@text:n{zh}\hit@brace@right@zh
- }
- \end{center}~
- \hit@cover@vertical@space{\hit@cover@type@padding}~
- \parbox[t][7.8cm][t]{\textwidth}{%
- \begin{center}\erhao\heiti\hit@title@cover@zh\end{center}~
-\hit@if@subtitle@T{\begin{center}\hspace{-4em}\xiaoer\heiti——\hit@title@subtitle@zh\end{center}}~
+\cs_new_protected:Npn \hit@cover@upto@en:nn #1#2
+  {
+    \hit@cover@blank@en:n { 3 }
+    \hit@format@par:nn { cover-label } { \hit@cover@thesis@name }
+    \hit@cover@blank@zh:n { 2 }
+    \hit@if@show@student@type
+      {
+        \hit@format@par:nn { cover-type }
+          {
+            \hit@brace@left@zh
+            \hit@student@type@text:n { zh }
+            \hit@brace@right@zh
+          }
+        \hit@cover@blank@zh:n { 2 }
+      }
+    \hit@format@par:nn { cover-title } { \hit@title@cover@zh }
+    \hit@if@subtitle@T
+      {
+        \hit@format@par:nn { cover-subtitle }
+          { ——\hit@title@subtitle@zh }
+      }
+    \int_compare:nNnT {#2} < { 2 } { \hit@cover@blank@zh:n { 1 } }
+    \int_compare:nNnT {#2} < { 1 } { \hit@cover@blank@zh:n { 1 } }
+    \hit@format@par:nnn { cover-title-en } { size = #1 }
+      {
+        \hit@title@cover@en
+        \hit@if@subtitle@T
+          { \hit@title@separator@en \hit@title@subtitle@en }
+      }
+  }
+\cs_new_protected:Npn \hit@cover@author@line:
+  { \hit@format@par:nn { cover-author } { \hit@author@zh } }
+\cs_new_protected:Npn \hit@cover@inst@lines:
+  {
+    \hit@format@par:nn { cover-institution } { \hit@school@zh }
+    \hit@format@par:nn { cover-date } { \hit@cover@date@zh }
+  }
 %    \end{macrocode}
 %
-% \changes{v3.1d}{2025/03/03}{根据 \issue[227] 修改英文标题不能换行的问题}
+% \subsection{封面一的空行组合}
+%
+% 姓名与校名那两行的基线\emph{不钉死}，靠增减空段维持在参考位置附近：题目一长
+% 就少发一个空段把它提回来，一短就多发一个。空段有最小粒度，落点只能落在那个
+% 粒度上，所以是「大体不变」。参考位置实测自 Word 范例第二页。
+%
+% 楷体\_GB2312 一律按中易楷体算。研究生那份 docx 的封面写的是楷体\_GB2312，
+% 与中易楷体的度量本来就不一样，要分开还得单独标定一份系数，眼下两者同一档。
 %    \begin{macrocode}
- \settowidth{\hit@etitlelength}{\erhao\hit@title@cover@en\hit@if@subtitle@T{\hit@title@separator@en\hit@title@subtitle@en}}%
- \begin{center}%
- \dim_compare:nNnTF{\hit@etitlelength}>{250mm}{\xiaoer}{\erhao}%
- \hit@cover@vertical@space{\hit@cover@english@title@padding}~
- \textbf{\MakeUppercase{\hit@title@cover@en}%
- \hit@if@subtitle@T{\hit@title@separator@en\MakeUppercase{\hit@title@subtitle@en}}}\end{center}}~
-\par
- \parbox[t][7.4cm][t]{\textwidth}{~
- \begin{center}\xiaoer\songti\textbf{\hit@author@zh}\end{center}}\\~
- \hit@cover@vertical@space{\hit@cover@author@padding}~
+\dim_new:N \l__hit_cover_top_dim
+\dim_new:N \l__hit_cover_width_dim
+\dim_new:N \l__hit_cover_height_dim
+\dim_new:N \l__hit_cover_bc_dim
+\dim_new:N \l__hit_cover_be_dim
+\dim_new:N \l__hit_cover_ha_dim
+\dim_new:N \l__hit_cover_hi_dim
+\dim_new:N \l__hit_cover_iasc_dim
+\dim_new:N \l__hit_cover_inst_target_dim
+\box_new:N \l__hit_cover_box
+\int_step_inline:nnn { 0 } { 3 }
+  {
+    \dim_new:c { l__hit_cover_ba_#1_dim }
+    \dim_new:c { l__hit_cover_bi_#1_dim }
+  }
+\int_step_inline:nnn { 0 } { 2 }
+  { \dim_new:c { l__hit_cover_tu_#1_dim } }
 %    \end{macrocode}
 %
-% \changes{v3.1d}{2025/03/03}{修改首页日期的实现方式，\issue[226]}
+% 名字里带数字的那几个量只能用 \texttt{:c} 变体取——\pkg{expl3} 里数字不算字母，
+% 直接写 \cs{l\_\_hit\_cover\_tu\_0\_dim} 会被拆成 \cs{l\_\_hit\_cover\_tu\_}
+% 加上「0\_dim」三个字符。
+%
+% 量一块的高。给版心宽是必须的：不给宽的话英文题目不折行，量出来只有一行，
+% 而那正是要判的那件事。
 %    \begin{macrocode}
- \parbox[t][\hit@cover@school@name@to@date@padding][t]{\textwidth}{\centering\kaishu\xiaoer\textbf{\hit@school@zh}}~
- {\songti\xiaoer\textbf{\hit@cover@date@zh}}
-\end{center}~
+\cs_new_protected:Npn \__hit_cover_gauge:n #1
+  {
+    \vbox_set_top:Nn \l__hit_cover_box
+      {
+        \dim_set_eq:NN \hsize \l__hit_cover_width_dim
+        \dim_set_eq:NN \linewidth \l__hit_cover_width_dim
+        #1
+      }
+  }
+\cs_new_protected:Npn \__hit_cover_gauge:Nn #1#2
+  {
+    \__hit_cover_gauge:n {#2}
+    \dim_set:Nn #1 { \box_ht_plus_dp:N \l__hit_cover_box }
+  }
+\cs_new_protected:Npn \__hit_cover_gauge:cn #1#2
+  { \exp_args:Nc \__hit_cover_gauge:Nn {#1} {#2} }
+%    \end{macrocode}
+%
+% 各块的高只量一次，之后全是算术。相邻块的间距在这些切点上都是零，所以高度可加。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_cover_measure:n #1
+  {
+    \dim_set:Nn \l__hit_cover_top_dim
+      { 1in + \voffset + \topmargin + \headheight + \headsep }
+    \dim_set_eq:NN \l__hit_cover_width_dim \textwidth
+    \dim_set_eq:NN \l__hit_cover_height_dim \textheight
+    \__hit_cover_gauge:Nn \l__hit_cover_bc_dim
+      { \hit@cover@blank@zh:n { 1 } }
+    \__hit_cover_gauge:Nn \l__hit_cover_be_dim
+      { \hit@cover@blank@en:n { 1 } }
+    \int_step_inline:nnn { 0 } { 3 }
+      {
+        \__hit_cover_gauge:cn { l__hit_cover_ba_##1_dim }
+          { \hit@cover@fixed@author:n {##1} }
+        \__hit_cover_gauge:cn { l__hit_cover_bi_##1_dim }
+          { \hit@cover@fixed@inst:n {##1} }
+      }
+    \__hit_cover_gauge:n { \hit@cover@author@line: }
+    \dim_set:Nn \l__hit_cover_ha_dim { \box_ht_plus_dp:N \l__hit_cover_box }
+    \__hit_cover_gauge:n { \hit@cover@inst@lines: }
+    \dim_set:Nn \l__hit_cover_iasc_dim { \box_ht:N \l__hit_cover_box }
+    \dim_set:Nn \l__hit_cover_hi_dim { \box_ht_plus_dp:N \l__hit_cover_box }
+    \int_step_inline:nnn { 0 } { 2 }
+      {
+        \__hit_cover_gauge:cn { l__hit_cover_tu_##1_dim }
+          { \hit@cover@upto@en:nn {#1} {##1} }
+      }
+  }
+%    \end{macrocode}
+%
+% 一组取值下的几个关键量。都以磅计，存进浮点。
+%    \begin{macrocode}
+\fp_new:N \l__hit_cover_inst_fp
+\fp_new:N \l__hit_cover_span_fp
+\fp_new:N \l__hit_cover_ratio_fp
+\fp_new:N \l__hit_cover_total_fp
+\fp_new:N \l__hit_cover_ref_fp
+\fp_new:N \l__hit_cover_score_fp
+\fp_new:N \l__hit_cover_best_fp
+\int_new:N \l__hit_cover_near_int
+\int_new:N \l__hit_cover_best_near_int
+\cs_new_protected:Npn \__hit_cover_solve:nnnnn #1#2#3#4#5
+  {
+    \fp_set:Nn \l__hit_cover_span_fp
+      {
+        \dim_to_fp:n { \l__hit_cover_top_dim }
+        + \dim_to_fp:n { \use:c { l__hit_cover_tu_#1_dim } }
+      }
+    \fp_set:Nn \l__hit_cover_ratio_fp
+      {
+        \l__hit_cover_span_fp
+        + #2 * \dim_to_fp:n { \l__hit_cover_bc_dim }
+        + \dim_to_fp:n { \use:c { l__hit_cover_ba_#5_dim } }
+      }
+    \fp_set:Nn \l__hit_cover_inst_fp
+      {
+        \l__hit_cover_ratio_fp
+        + \dim_to_fp:n { \l__hit_cover_ha_dim }
+        + #3 * \dim_to_fp:n { \l__hit_cover_bc_dim }
+        + \dim_to_fp:n { \use:c { l__hit_cover_bi_#5_dim } }
+        + #4 * \dim_to_fp:n { \l__hit_cover_be_dim }
+        + \dim_to_fp:n { \l__hit_cover_iasc_dim }
+      }
+    \fp_set:Nn \l__hit_cover_total_fp
+      {
+        \l__hit_cover_inst_fp - \dim_to_fp:n { \l__hit_cover_iasc_dim }
+        - \dim_to_fp:n { \l__hit_cover_top_dim }
+        + \dim_to_fp:n { \l__hit_cover_hi_dim }
+      }
+    \fp_set:Nn \l__hit_cover_span_fp
+      {
+        \l__hit_cover_inst_fp - \dim_to_fp:n { \l__hit_cover_iasc_dim }
+        - \l__hit_cover_span_fp
+      }
+    \fp_set:Nn \l__hit_cover_ratio_fp
+      {
+        ( \l__hit_cover_ratio_fp
+          + 0.5 * \dim_to_fp:n { \l__hit_cover_ha_dim }
+          - \dim_to_fp:n { \l__hit_cover_top_dim }
+          - \dim_to_fp:n { \use:c { l__hit_cover_tu_#1_dim } } )
+        / \l__hit_cover_span_fp
+      }
+  }
+%    \end{macrocode}
+%
+% 姓名该落在什么比例上——不拍数，从范例自己算。Word 范例那一页用的是 2 / 2 / 6
+% 这组空行数，把它代进去算出来的比例就是范例的比例。题目变长变短时按这个比例
+% 去凑，姓名的视觉位置才不变。
+%    \begin{macrocode}
+\dim_new:N \l__hit_cover_keep_dim
+\cs_new_protected:Npn \__hit_cover_ref_ratio:
+  {
+    \dim_set_eq:Nc \l__hit_cover_keep_dim { l__hit_cover_tu_0_dim }
+    \dim_zero:c { l__hit_cover_tu_0_dim }
+    \__hit_cover_solve:nnnnn { 0 } { 2 } { 2 } { 6 } { 0 }
+    \fp_set_eq:NN \l__hit_cover_ref_fp \l__hit_cover_ratio_fp
+    \dim_set_eq:cN { l__hit_cover_tu_0_dim } \l__hit_cover_keep_dim
+  }
+%    \end{macrocode}
+%
+% 挑一组空行数。目标按优先级：一、校名与年月的位置尽可能不变；二、姓名在视觉上
+% 落在范例里那个比例上。两项都是长度，加权相加：
+% \[ 得分 = 3 \times |校名偏差| + |姓名偏离该在的位置| \]
+% 校名计三倍权，也就是宁可姓名偏三磅，也不让校名偏一磅。不用字典序：校名的可达
+% 落点很密，字典序下第一项几乎总能压到零点几磅，第二项就成了摆设。平局看谁离
+% Word 自己那组取值（2 / 2 / 6）近。
+%    \begin{macrocode}
+\int_new:N \l__hit_cover_na_int
+\int_new:N \l__hit_cover_nb_int
+\int_new:N \l__hit_cover_nc_int
+\bool_new:N \l__hit_cover_found_bool
+\int_new:N \l__hit_cover_ia_int
+\int_new:N \l__hit_cover_ib_int
+\int_new:N \l__hit_cover_ic_int
+\cs_new_protected:Npn \__hit_cover_best:nn #1#2
+  {
+    \bool_set_false:N \l__hit_cover_found_bool
+    \int_step_inline:nnn { 0 } { 272 }
+      {
+        \int_set:Nn \l__hit_cover_ia_int { \int_div_truncate:nn {##1} { 39 } }
+        \int_set:Nn \l__hit_cover_ib_int
+          { \int_div_truncate:nn { \int_mod:nn {##1} { 39 } } { 13 } }
+        \int_set:Nn \l__hit_cover_ic_int { \int_mod:nn {##1} { 13 } }
+        \__hit_cover_try:nn {#1} {#2}
+      }
+  }
+\cs_new_protected:Npn \__hit_cover_try:nn #1#2
+  {
+    \__hit_cover_solve:nnnnn {#1}
+      { \l__hit_cover_ia_int } { \l__hit_cover_ib_int }
+      { \l__hit_cover_ic_int } {#2}
+    \fp_compare:nNnT { \l__hit_cover_total_fp } <
+      { \dim_to_fp:n { \l__hit_cover_height_dim } }
+      {
+        \fp_set:Nn \l__hit_cover_score_fp
+          {
+            3 * abs ( \l__hit_cover_inst_fp
+              - \dim_to_fp:n { \l__hit_cover_inst_target_dim } )
+            + abs ( \l__hit_cover_ratio_fp - \l__hit_cover_ref_fp )
+              * \l__hit_cover_span_fp
+          }
+        \int_set:Nn \l__hit_cover_near_int
+          {
+            \int_abs:n { \l__hit_cover_ia_int - 2 }
+            + \int_abs:n { \l__hit_cover_ib_int - 2 }
+            + \int_abs:n { \l__hit_cover_ic_int - 6 }
+          }
+        \bool_if:nT
+          {
+            ! \l__hit_cover_found_bool
+            || \fp_compare_p:nNn { \l__hit_cover_score_fp } <
+                 { \l__hit_cover_best_fp }
+            || (
+                 \fp_compare_p:nNn { \l__hit_cover_score_fp } =
+                   { \l__hit_cover_best_fp }
+                 && \int_compare_p:nNn { \l__hit_cover_near_int } <
+                      { \l__hit_cover_best_near_int }
+               )
+          }
+          {
+            \bool_set_true:N \l__hit_cover_found_bool
+            \fp_set_eq:NN \l__hit_cover_best_fp \l__hit_cover_score_fp
+            \int_set_eq:NN \l__hit_cover_best_near_int \l__hit_cover_near_int
+            \int_set_eq:NN \l__hit_cover_na_int \l__hit_cover_ia_int
+            \int_set_eq:NN \l__hit_cover_nb_int \l__hit_cover_ib_int
+            \int_set_eq:NN \l__hit_cover_nc_int \l__hit_cover_ic_int
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 结构性让步的六档。挤占中英题目之间的空行、把那两段 1.25 倍改成单倍、再到把
+% 它们删掉——每一档都在动 Word 的段落结构，代价依次变大。第一项是挤占数，
+% 第二项是让步级。
+%    \begin{macrocode}
+\dim_const:Nn \c__hit_cover_threshold_dim { 10bp }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@cover@universal}
+% 本硕博共用的封面一。先量、再挑一组空行数、最后照挑出来的那组排。
+%
+% 字号按塞不塞得下定，不按排得好不好定。规范给的是二号，「题目太长时可用
+% 小二号」——降号是规范明写允许的一档，但也只在二号排不下时才用，不为了排得
+% 好看去缩号。所以字号是让步阶梯的最外层。旧版按宽度判（超过 250mm 就降小二），
+% 那等于英文题目一过两行就降号，可封面上排三四行英文完全放得下。
+%
+% 结构档只在排得不够好时才进来。不动结构就能排到阈值以内就不动——结构让步的
+% 本意是不为小便宜动 Word 的段落结构。
+%    \begin{macrocode}
+\fp_new:N \l__hit_cover_gbest_fp
+\int_new:N \l__hit_cover_gna_int
+\int_new:N \l__hit_cover_gnb_int
+\int_new:N \l__hit_cover_gnc_int
+\int_new:N \l__hit_cover_gsq_int
+\int_new:N \l__hit_cover_grelax_int
+\bool_new:N \l__hit_cover_gfound_bool
+\tl_new:N \l__hit_cover_size_tl
+\cs_new_protected:Npn \__hit_cover_adopt:nn #1#2
+  {
+    \bool_set_true:N \l__hit_cover_gfound_bool
+    \fp_set_eq:NN \l__hit_cover_gbest_fp \l__hit_cover_best_fp
+    \int_set_eq:NN \l__hit_cover_gna_int \l__hit_cover_na_int
+    \int_set_eq:NN \l__hit_cover_gnb_int \l__hit_cover_nb_int
+    \int_set_eq:NN \l__hit_cover_gnc_int \l__hit_cover_nc_int
+    \int_set:Nn \l__hit_cover_gsq_int {#1}
+    \int_set:Nn \l__hit_cover_grelax_int {#2}
+  }
+\cs_new_protected:Npn \__hit_cover_pick:
+  {
+    \bool_set_false:N \l__hit_cover_gfound_bool
+    \tl_set:Nn \l__hit_cover_size_tl { erhao }
+    \__hit_cover_measure:n { erhao }
+    \__hit_cover_ref_ratio:
+    \__hit_cover_best:nn { 0 } { 0 }
+    \bool_if:NF \l__hit_cover_found_bool
+      {
+        \tl_set:Nn \l__hit_cover_size_tl { xiaoer }
+        \__hit_cover_measure:n { xiaoer }
+        \__hit_cover_best:nn { 0 } { 0 }
+      }
+    \bool_if:nTF
+      {
+        \l__hit_cover_found_bool
+        && \fp_compare_p:nNn { \l__hit_cover_best_fp } <
+             { \dim_to_fp:n { \c__hit_cover_threshold_dim } }
+      }
+      { \__hit_cover_adopt:nn { 0 } { 0 } }
+      {
+        \__hit_cover_rung:nn { 0 } { 0 }
+        \__hit_cover_rung:nn { 1 } { 0 }
+        \__hit_cover_rung:nn { 2 } { 0 }
+        \__hit_cover_rung:nn { 2 } { 1 }
+        \__hit_cover_rung:nn { 2 } { 2 }
+        \__hit_cover_rung:nn { 2 } { 3 }
+      }
+  }
+\cs_new_protected:Npn \__hit_cover_rung:nn #1#2
+  {
+    \__hit_cover_best:nn {#1} {#2}
+    \bool_if:nT
+      {
+        \l__hit_cover_found_bool
+        && (
+             ! \l__hit_cover_gfound_bool
+             || \fp_compare_p:nNn { \l__hit_cover_best_fp } <
+                  { \l__hit_cover_gbest_fp }
+           )
+      }
+      { \__hit_cover_adopt:nn {#1} {#2} }
+  }
+%    \end{macrocode}
+%
+% 让步全用尽还是装不下时不拦编译，按压得最紧的一组照排，另发一条警告。为了一页
+% 封面卡住整篇文档不合适。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@cover@universal
+  {
+    \group_begin:
+      \dim_zero:N \parindent
+      \dim_zero:N \parskip
+      \bool_if:NTF \g__hit_bachelor_bool
+        { \dim_set:Nn \l__hit_cover_inst_target_dim { 634.46bp } }
+        { \dim_set:Nn \l__hit_cover_inst_target_dim { 689.36bp } }
+      \__hit_cover_pick:
+      \bool_if:NF \l__hit_cover_gfound_bool
+        {
+          \msg_warning:nn { hithesis } { cover-overflow }
+          \tl_set:Nn \l__hit_cover_size_tl { xiaoer }
+          \int_set:Nn \l__hit_cover_gsq_int { 2 }
+          \int_zero:N \l__hit_cover_gna_int
+          \int_zero:N \l__hit_cover_gnb_int
+          \int_zero:N \l__hit_cover_gnc_int
+          \int_set:Nn \l__hit_cover_grelax_int { 3 }
+        }
+      \exp_args:NV \hit@cover@upto@en:nn \l__hit_cover_size_tl
+        { \l__hit_cover_gsq_int }
+      \hit@cover@blank@zh:n { \l__hit_cover_gna_int }
+      \hit@cover@fixed@author:n { \l__hit_cover_grelax_int }
+      \hit@cover@author@line:
+      \hit@cover@blank@zh:n { \l__hit_cover_gnb_int }
+      \hit@cover@fixed@inst:n { \l__hit_cover_grelax_int }
+      \hit@cover@blank@en:n { \l__hit_cover_gnc_int }
+      \hit@cover@inst@lines:
+    \group_end:
   }
 %    \end{macrocode}
 %    \end{macro}
+
 %    \begin{macro}{\makecover}
 %    \begin{macrocode}
 
