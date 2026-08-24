@@ -1881,9 +1881,12 @@
   {
     \group_begin:
       \hit@format@apply@font:nN {#1} \l__hit_format_par_tl
-      \l__hit_format_par_tl
       \dim_zero:N \parindent
       \dim_zero:N \parskip
+      \dim_compare:nNnT { \l_hit_format_before_dim } > { \c_zero_dim }
+        { \skip_vertical:n { \l_hit_format_before_dim } }
+      \nointerlineskip
+      \l__hit_format_par_tl
       \__hit_format_read:nnnN {#1} { all-caps } { false }
         \l__hit_format_value_tl
       \str_if_eq:VnTF \l__hit_format_value_tl { true }
@@ -2892,14 +2895,24 @@
       { \dim_set_eq:Nc \l__hit_enter_size_dim { c__hit_font_size_#1_dim } }
       { \dim_set:Nn \l__hit_enter_size_dim { #1 } }
   }
+\dim_new:N \l__hit_enter_asc_dim
+\tl_new:N \l__hit_enter_ascent_tl
+\tl_set_eq:NN \l__hit_enter_ascent_tl \c__hit_format_ascent_latin_tl
 \cs_new_protected:Npn \__hit_enter_font:n #1
   {
     \str_case:nnF {#1}
       {
         { serif }
-          { \fp_set_eq:NN \l__hit_enter_ratio_fp \c__hit_enter_natural_serif_fp }
+          {
+            \fp_set_eq:NN \l__hit_enter_ratio_fp \c__hit_enter_natural_serif_fp
+            \tl_set_eq:NN \l__hit_enter_ascent_tl
+              \c__hit_format_ascent_latin_tl
+          }
         { songti }
-          { \fp_set_eq:NN \l__hit_enter_ratio_fp \c__hit_enter_natural_songti_fp }
+          {
+            \fp_set_eq:NN \l__hit_enter_ratio_fp \c__hit_enter_natural_songti_fp
+            \tl_set_eq:NN \l__hit_enter_ascent_tl \c__hit_format_ascent_tl
+          }
       }
       { \msg_error:nnn { hithesis } { enter-font-unmeasured } {#1} }
   }
@@ -2973,6 +2986,15 @@
           }
       }
       { }
+    \dim_set:Nn \l__hit_enter_asc_dim
+      {
+        \dim_min:nn
+          {
+            \l__hit_enter_ascent_tl \l__hit_enter_base_dim
+            + \c__hit_format_ascent_dim
+          }
+          { \l__hit_enter_ht_dim }
+      }
   }
 \NewDocumentCommand \hitenter { s O{1} }
   {
@@ -2989,8 +3011,17 @@
     \__hit_enter_height:
     \IfBooleanTF {#1}
       {
-        \dim_set_eq:NN \baselineskip \l__hit_enter_ht_dim
-        \prg_replicate:nn { \l__hit_enter_lines_int } { \hbox:n { } }
+        \prg_replicate:nn { \l__hit_enter_lines_int }
+          {
+            \nointerlineskip
+            \hbox:n
+              {
+                \vrule ~ width ~ \c_zero_dim
+                  ~ height ~ \l__hit_enter_asc_dim
+                  ~ depth ~ \dim_eval:n
+                    { \l__hit_enter_ht_dim - \l__hit_enter_asc_dim }
+              }
+          }
       }
       {
         \vspace
