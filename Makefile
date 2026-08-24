@@ -40,9 +40,20 @@ compat-regression:
 	bash scripts/compat-regression.sh
 
 # 行末距离：断行交给 TeX，与 Word 不会归零；--max-diff 是棘轮上限，
-# 只保证不变坏，改进之后把这个数调低
+# 只保证不变坏，改进之后把这个数调低。
+#
+# 必须先重编 demo。这个目标从前直接读 examples/demo/main.pdf，那个文件是
+# 上一次谁编过就是谁的，改了 cls 不重编就量的是陈货——2026/08/25 实测：
+# 报了好几轮的“行差 84”量的是两天前的 PDF，当天新鲜构建其实是 88。
+#
+# 字体集要钉死 fandol。main.tex 没写 fontset，装了 Office 字体的机器会自动
+# 选 SimSun，度量与基线对不上（实测行差从 88 跳到 96）。
 lineends:
-	python3 scripts/check-line-ends.py --max-diff 84
+	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -xelatex \
+	  -interaction=nonstopmode \
+	  -usepretex='\PassOptionsToClass{fontset=fandol}{hithesis}' main.tex \
+	  > /dev/null
+	python3 scripts/check-line-ends.py --max-diff 88
 
 # 解压走自解压的 dtx，不走 .ins：解压规则写在 src/hithesis.dtx 的 install 守卫里，
 # hithesis.ins 是它的产物之一（提交进仓库，随 CTAN 包发出去，供拿到源码包的人用）。
