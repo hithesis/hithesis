@@ -53,7 +53,7 @@ lineends:
 	  -interaction=nonstopmode \
 	  -usepretex='\PassOptionsToClass{fontset=fandol}{hithesis}' main.tex \
 	  > /dev/null
-	python3 scripts/check-line-ends.py --max-diff 79
+	python3 scripts/check-line-ends.py --max-diff 80
 
 # 解压走自解压的 dtx，不走 .ins：解压规则写在 src/hithesis.dtx 的 install 守卫里，
 # hithesis.ins 是它的产物之一（提交进仓库，随 CTAN 包发出去，供拿到源码包的人用）。

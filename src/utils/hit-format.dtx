@@ -2462,7 +2462,7 @@
         \cs_if_exist:NT \xeCJK_space_or_xecglue:
           { \cs_set_protected:Npn \xeCJK_space_or_xecglue: { \CJKecglue } }
         \exhyphenpenalty = -5 \scan_stop:
-        \hyphenpenalty = 85 \scan_stop:
+        \hit@format@hyphen:
         \xeCJKDeclareCharClass { CJK } { "2026 }
         \seq_set_eq:NN \l_tmpa_seq \g__xeCJK_class_seq
         \xeCJK_new_class:n { HITQuote }
@@ -2726,13 +2726,36 @@
 % \cs{rightskip} 只属于汉字网格行;汉字行撑竿会把行距顶回网格,停用;
 % 范例导出勾了不断字。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/24}{自动断字收成一个开关 \option{style}/\option{hyphenation}，
+%   正文、题注、摘要、拉丁段落一律跟随；既有连字符处断行不受它管}
+% \emph{断字全文一个开关。} 从前正文与题注是 \cs{hyphenpenalty} 85（开着），
+% 拉丁段落制度（英文摘要、英文规范章、英文致谢）硬写 10000（关着），同一份文档
+% 两套规矩。现在收成 \option{style}/\option{hyphenation}，四处一律跟随。
+%
+% 默认\emph{关}。依据三条：范例的 Word 导出勾了不断字；范例逐字量下来 Word 没有
+% 断 \texttt{Nature Communications}；中文论文里的西文通常不断字。行末基线对这个
+% 开关几乎无感——\cs{hyphenpenalty} 取 50/85/200/1000 都是行差 79，取 10000 是
+% 80，所以默认值按排版道理定，不迁就基线。
+%
+% \cs{exhyphenpenalty}（在\emph{已有}的连字符处断行，\texttt{Tree-structured}
+% 这种）不归这个开关管：GB/T~15834 允许，范例里 Word 实测也断在 \texttt{Tree-}，
+% 而且这个值现在是 $-5$，是行末闭号那套梯子调出来的。拉丁段落原先把它也设成
+% 10000，现在去掉，跟正文一致（实测行差不变）。
+%    \begin{macrocode}
+\bool_new:N \g_hit_format_hyphen_bool
+\cs_new_protected:Npn \hit@format@hyphen:
+  {
+    \int_set:Nn \hyphenpenalty
+      { \bool_if:NTF \g_hit_format_hyphen_bool { 85 } { 10000 } }
+  }
 \cs_new_protected:Npn \hit@format@latin@par:
   {
     \skip_zero:N \rightskip
     \cs_set_eq:NN \hit@format@strut: \prg_do_nothing:
     \dim_set:Nn \baselineskip { \hit@format@latin@line: }
-    \int_set:Nn \hyphenpenalty { 10000 }
-    \int_set:Nn \exhyphenpenalty { 10000 }
+    \hit@format@hyphen:
   }
 % 拉丁空段高(关键词前距等):一个空段按同一条自动行距规则。数值来源
 % 收口在 \hitenter 的自然行高常量上(1.25 × 1.1472 = 1.4340),别处不抄
