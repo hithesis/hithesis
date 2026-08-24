@@ -50,7 +50,7 @@ def stext(path):
 
 
 def rows(xml, lo=1, hi=10 ** 9, minsize=11.5):
-    """逐行返回 [(x, 字, 字体, 字号)]，滤掉脚注与题注那些小字号的行。"""
+    """逐行返回每个字的横坐标、字形、字体与字号，滤掉脚注题注那些小字号的行。"""
     for pm in PAGE_RE.finditer(xml):
         page = int(pm.group(1))
         if not lo <= page <= hi:
