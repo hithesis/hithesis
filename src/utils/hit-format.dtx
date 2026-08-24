@@ -964,6 +964,8 @@
     fangsong = 1.296875 , lishu = 1.296875 , xinwei = 1.35 , none = 1.15 ,
   }
 \tl_const:Nn \c__hit_format_natural_tl { 1.296875 }
+\tl_const:Nn \c__hit_format_natural_latin_tl { 1.15 }
+\bool_new:N \l__hit_format_latin_bool
 \tl_const:Nn \c__hit_format_ascent_tl { 1.008 }
 \dim_const:Nn \c__hit_format_ascent_dim { 0.082bp }
 \tl_const:Nn \c__hit_format_exact_tl { 0.8 }
@@ -1588,17 +1590,16 @@
           }
       }
   }
-\cs_new_protected:Npn \hit@format@strut:
+\cs_new_protected:Npn \__hit_format_strut:nn #1#2
   {
     \leavevmode
     \dim_set:Nn \l__hit_format_strut_dim { \f@size pt }
     \dim_set:Nn \l__hit_format_nat_dim
-      { \c__hit_format_natural_tl \l__hit_format_strut_dim }
+      { #1 \l__hit_format_strut_dim }
     \dim_set:Nn \l__hit_format_box_dim
       { \dim_max:nn { \baselineskip } { \l__hit_format_nat_dim } }
     \dim_set:Nn \l__hit_format_asc_dim
-      { \c__hit_format_ascent_tl \l__hit_format_strut_dim
-        + \c__hit_format_ascent_dim }
+      { #2 \l__hit_format_strut_dim + \c__hit_format_ascent_dim }
     \bool_if:NT \l_hit_format_line_snap_bool
       {
         \dim_add:Nn \l__hit_format_asc_dim
@@ -1609,6 +1610,24 @@
       ~ depth ~ \dim_eval:n
           { \l__hit_format_box_dim - \l__hit_format_asc_dim }
     \scan_stop:
+  }
+\bool_new:N \l_hit_format_strut_latin_bool
+\cs_new_protected:Npn \hit@format@latin@true:
+  { \bool_set_true:N \l_hit_format_strut_latin_bool }
+\cs_new_protected:Npn \hit@format@latin@false:
+  { \bool_set_false:N \l_hit_format_strut_latin_bool }
+\cs_new_protected:Npn \hit@format@strut:
+  {
+    \bool_if:NTF \l_hit_format_strut_latin_bool
+      {
+        \__hit_format_strut:nn
+          { \c__hit_format_natural_latin_tl }
+          { \c__hit_format_ascent_latin_tl }
+      }
+      {
+        \__hit_format_strut:nn
+          { \c__hit_format_natural_tl } { \c__hit_format_ascent_tl }
+      }
   }
 %    \end{macrocode}
 %
@@ -1657,6 +1676,8 @@
   {
     \tl_clear:N \l__hit_format_out_tl
     \__hit_format_read:nnnN {#1} { font-zh } { } \l__hit_format_value_tl
+    \bool_set:Nn \l__hit_format_latin_bool
+      { \str_if_eq_p:Vn \l__hit_format_value_tl { none } }
     \bool_lazy_and:nnT
       { ! \tl_if_empty_p:N \l__hit_format_value_tl }
       { ! \str_if_eq_p:Vn \l__hit_format_value_tl { none } }
@@ -1695,6 +1716,9 @@
               { \dim_eval:n { \__hit_format_hglue_cc: } }
               { \dim_eval:n { \__hit_format_hglue_ec: } }
           }
+        \bool_if:NTF \l__hit_format_latin_bool
+          { \exp_not:N \hit@format@latin@true: }
+          { \exp_not:N \hit@format@latin@false: }
         \exp_not:N \hit@format@strut:
       }
   }
