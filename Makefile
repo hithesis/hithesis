@@ -46,14 +46,19 @@ compat-regression:
 # 上一次谁编过就是谁的，改了 cls 不重编就量的是陈货——2026/08/25 实测：
 # 报了好几轮的“行差 84”量的是两天前的 PDF，当天新鲜构建其实是 88。
 #
-# 字体集要钉死 fandol。main.tex 没写 fontset，装了 Office 字体的机器会自动
-# 选 SimSun，度量与基线对不上（实测行差从 88 跳到 96）。
+# 字体集钉死 windows。基线来自范例的 Word 导出，那份 PDF 里嵌的是
+# TimesNewRomanPSMT 加 SimSun；我们这边 fontset=windows 嵌的是同样两个，
+# 同字体对同字体量才有意义（fandol 那档是 TeXGyreTermes 加 FandolSong，
+# 实测行差 80，windows 是 79）。
+#
+# 代价是这个目标要机器上装了 Office 字体才能跑。lineends 不进 CI（CI 只跑
+# compat-regression），是本机开发用的量具，可以这么钉。
 lineends:
 	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -xelatex \
 	  -interaction=nonstopmode \
-	  -usepretex='\PassOptionsToClass{fontset=fandol}{hithesis}' main.tex \
+	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' main.tex \
 	  > /dev/null
-	python3 scripts/check-line-ends.py --max-diff 80
+	python3 scripts/check-line-ends.py --max-diff 79
 
 # 解压走自解压的 dtx，不走 .ins：解压规则写在 src/hithesis.dtx 的 install 守卫里，
 # hithesis.ins 是它的产物之一（提交进仓库，随 CTAN 包发出去，供拿到源码包的人用）。
