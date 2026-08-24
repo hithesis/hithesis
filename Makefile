@@ -33,7 +33,7 @@ all: manual
 
 cls: $(TARGETS)
 
-# 行末回归：demo 与书写范例逐行比对（需先构建 examples/demo/main.pdf）
+# 行末回归：demo 与书写范例逐行比对（先重编 examples/demo/thesis.pdf）
 # 旧版面兼容回归：钉死 v3.1e，测 v2-layout 还原不还原得了老版面。
 # 名单与做法见 tests/compat/README.txt。
 compat-regression:
@@ -42,7 +42,7 @@ compat-regression:
 # 行末距离：断行交给 TeX，与 Word 不会归零；--max-diff 是棘轮上限，
 # 只保证不变坏，改进之后把这个数调低。
 #
-# 必须先重编 demo。这个目标从前直接读 examples/demo/main.pdf，那个文件是
+# 必须先重编 demo。这个目标从前直接读 examples/demo 的 PDF，那个文件是
 # 上一次谁编过就是谁的，改了 cls 不重编就量的是陈货——2026/08/25 实测：
 # 报了好几轮的“行差 84”量的是两天前的 PDF，当天新鲜构建其实是 88。
 #
@@ -56,7 +56,7 @@ compat-regression:
 lineends:
 	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -xelatex \
 	  -interaction=nonstopmode \
-	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' main.tex \
+	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' thesis.tex \
 	  > /dev/null
 	python3 scripts/check-line-ends.py --max-diff 79
 

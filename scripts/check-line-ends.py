@@ -6,13 +6,13 @@
 现状不许变坏，几何或标点改进把数字压下去之后再把上限调低。
 
 基线 tests/lineends-regu.tsv 来自《本科毕业论文书写范例》的 Word 导出 PDF
-（mutool stext 逐字符抽取，按段落锚定）。本脚本把 demo 的 main.pdf 用同一套
+（mutool stext 逐字符抽取，按段落锚定）。本脚本把 demo 的 thesis.pdf 用同一套
 逻辑抽行，按段首文本对齐段落，逐行比：行文本（硬性）、行首/行末 x 坐标
 （容差默认 0.6bp）。任何一行差异即失败。
 LINE 行可带第四列 waive-pos：文本仍硬性比对，只豁免坐标（用于已论证
 不可再收的 Word/TeX 断行经济学差异，豁免原因写在基线注释里）。
 
-用法：check-line-ends.py [--pdf examples/demo/main.pdf] [--fixture tests/lineends-regu.tsv]
+用法：check-line-ends.py [--pdf examples/demo/thesis.pdf] [--fixture tests/lineends-regu.tsv]
       check-line-ends.py --max-diff 84            # 棘轮：超过上限才算失败
       check-line-ends.py --gen 参考.pdf > tests/lineends-regu.tsv   # 重制基线
 """
@@ -84,7 +84,7 @@ def norm(s):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--pdf', default='examples/demo/main.pdf')
+    ap.add_argument('--pdf', default='examples/demo/thesis.pdf')
     ap.add_argument('--fixture', default='tests/lineends-regu.tsv')
     ap.add_argument('--tol', type=float, default=0.75)
     ap.add_argument('--max-diff', type=int, default=0, help='允许的行差上限（棘轮）')
