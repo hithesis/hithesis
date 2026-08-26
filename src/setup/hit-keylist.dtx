@@ -585,8 +585,50 @@
 % \file{book} 与 \file{art} 两个模块、命名也不统一（\texttt{citetwo} 看不出是
 % 控制什么的），新旧两套名字设的是同一批内部变量，所以可以混用。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/25}{\option{open-right} 从布尔改成三态，另收四个跳页点
+%   的分写形式；\option{library} 改成压总闸，不再是独立的一路判断}
+%
+% \option{style}/\option{open-right} 三种写法：
+% \begin{itemize}
+% \item \texttt{true} / \texttt{false} 定总闸，四个点一起
+% \item \texttt{auto}（默认）按学位查表，见 \file{src/setup/hit-thesis-options.dtx}
+% \item \texttt{\{titlepage=…,frontmatter=…,mainmatter=…,backmatter=…\}} 单点定，
+%       每个点也收 \texttt{auto}，含义是「我不表态，交给总闸」
+% \end{itemize}
+%
+% \option{library} 现在就是把总闸压成 \texttt{false}。交图书馆的电子版要求没有
+% 任何空白页，那正是四个点全不跳。它仍是独立的布尔键，因为除了跳页还另有用处。
+%    \begin{macrocode}
+\keys_define:nn { hit / open-right }
+  {
+    unknown .code:n =
+      {
+        \clist_if_in:NoTF \c__hit_openright_points_clist \l_keys_key_str
+          { \tl_gset:cn { g__hit_openright_ \l_keys_key_str _tl } {#1} }
+          { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str }
+      } ,
+  }
+\cs_new_protected:Npn \__hit_openright_set:n #1
+  {
+    \tl_if_in:nnTF {#1} { = }
+      { \keys_set:nn { hit / open-right } {#1} }
+      { \tl_gset:Nn \g__hit_openright_tl {#1} }
+  }
 \keys_define:nn { hit / style }
   {
+    open-right .code:n = { \__hit_openright_set:n {#1} } ,
+    open-right .default:n = { true } ,
+    library .choice: ,
+    library / true .code:n =
+      {
+        \bool_gset_true:N \g__hit_library_bool
+        \tl_gset:Nn \g__hit_openright_tl { false }
+      } ,
+    library / false .code:n = { \bool_gset_false:N \g__hit_library_bool } ,
+    library / auto .code:n = { } ,
+    library .default:n = { true } ,
     ziju .choices:nn = { auto , regu , word }
       {
         \str_if_eq:VnF \l_keys_choice_tl { auto }
@@ -611,8 +653,6 @@
 \clist_map_inline:nn
   {
     { title-en-auto } { etitleauto } ,
-    { open-right } { openright } ,
-    { library } { library } ,
   }
   { \__hit_style_pair:nn #1 }
 %    \end{macrocode}

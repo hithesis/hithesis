@@ -363,6 +363,89 @@
 \hit@define@boolean@option{library}{false}
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/08/25}{右开页收成「一个三态总闸 + 四个跳页点 + 一张按
+%   学位的默认表」，六处内联判断与两处特判都改走 \cs{hit@openright:n}}
+%
+% \subsection{右开页}
+%
+% 全篇一共四个地方要决定跳不跳到右手页：内封那一串、前置、正文入口、后置。
+% 从前这四处各判各的——前置、后置与 \cs{hit@clear@page} 看 \option{openright}，
+% 内封那一串只看 \option{library}，正文入口看「博士且非图书馆版」，学位耦合还
+% 藏在 \option{oneside}/\option{twoside} 里（本硕单面，于是 \cs{cleardoublepage}
+% 自动退化成 \cs{clearpage}）。同一件事四种写法，加起来才看得出默认形态。
+%
+% 现在收成三层，取值层层可覆盖，每层都收 \texttt{auto} 表示「我不表态，交给
+% 上一层」：
+% \begin{itemize}
+% \item 单点：\option{style}/\option{open-right} 收
+%       \texttt{\{titlepage=…,frontmatter=…,mainmatter=…,backmatter=…\}}
+% \item 总闸：\option{style}/\option{open-right} 直接给 \texttt{true} 或
+%       \texttt{false}，四个点一起定
+% \item 默认表：总闸是 \texttt{auto} 时按学位查 \cs{c\_\_hit\_openright\_auto\_prop}
+% \end{itemize}
+%
+% \option{library} 不再是独立的一路判断，它就是把总闸压成 \texttt{false}——
+% 图书馆版要的「不跳、不留空白、页码连续」正是四个点全不跳。
+%
+% 默认表照搬现有形态：内封那一串各学位都跳（本硕在单面下与不跳同效），正文
+% 入口只有博士跳，前置后置都不跳。iota 的同名表把本硕的内封那一档写成
+% \texttt{false}，单面下两者输出一致，这里取 \texttt{true} 是为了与改动前逐页
+% 相同。
+%    \begin{macrocode}
+\clist_const:Nn \c__hit_openright_points_clist
+  { titlepage , frontmatter , mainmatter , backmatter }
+\tl_new:N \g__hit_openright_tl
+\tl_gset:Nn \g__hit_openright_tl { auto }
+\clist_map_inline:Nn \c__hit_openright_points_clist
+  {
+    \tl_new:c { g__hit_openright_#1_tl }
+    \tl_gset:cn { g__hit_openright_#1_tl } { auto }
+  }
+\prop_const_from_keyval:Nn \c__hit_openright_auto_prop
+  {
+    bachelor/titlepage = true  , bachelor/frontmatter = false ,
+    bachelor/mainmatter = false , bachelor/backmatter = false ,
+    master/titlepage   = true  , master/frontmatter   = false ,
+    master/mainmatter   = false , master/backmatter   = false ,
+    doctor/titlepage   = true  , doctor/frontmatter   = false ,
+    doctor/mainmatter   = false , doctor/backmatter   = false ,
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@openright:n}
+% \cs{hit@openright:n}\marg{点} 按上面三层解析，跳就发 \cs{cleardoublepage}，
+% 不跳就发 \cs{clearpage}。默认表按学位查不着时退回本科那一档。
+%    \begin{macrocode}
+\tl_new:N \l__hit_openright_value_tl
+\tl_new:N \l__hit_openright_degree_tl
+\tl_new:N \g__hit_matter_now_tl
+\tl_gset:Nn \g__hit_matter_now_tl { frontmatter }
+\cs_new_protected:Npn \__hit_openright_resolve:n #1
+  {
+    \tl_set_eq:Nc \l__hit_openright_value_tl { g__hit_openright_#1_tl }
+    \str_if_eq:VnT \l__hit_openright_value_tl { auto }
+      { \tl_set_eq:NN \l__hit_openright_value_tl \g__hit_openright_tl }
+    \str_if_eq:VnT \l__hit_openright_value_tl { auto }
+      {
+        \tl_set:Nx \l__hit_openright_degree_tl
+          {
+            \bool_if:NTF \g__hit_doctor_bool { doctor }
+              { \bool_if:NTF \g__hit_master_bool { master } { bachelor } }
+          }
+        \prop_get:NxNF \c__hit_openright_auto_prop
+          { \l__hit_openright_degree_tl / #1 } \l__hit_openright_value_tl
+          { \tl_set:Nn \l__hit_openright_value_tl { false } }
+      }
+  }
+\cs_new_protected:Npn \hit@openright:n #1
+  {
+    \__hit_openright_resolve:n {#1}
+    \str_if_eq:VnTF \l__hit_openright_value_tl { true }
+      { \cleardoublepage } { \clearpage }
+  }
+%    \end{macrocode}
+%    \end{macro}
+%
 % 图题和标题最后一行是否居中对齐（默认是，非规范要求）。
 % \changes{v1.0.06}{2017/10/25}{此处更改了选项的名称}
 %    \begin{macrocode}
