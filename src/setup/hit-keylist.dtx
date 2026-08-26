@@ -280,11 +280,16 @@
 % 页眉页脚接到 Word 位置上的，来路见 \file{src/utils/hit-msword.dtx}。
 %    \begin{macrocode}
 \tl_new:N \g__hit_layout_msword_tl
+\tl_new:N \l__hit_layout_target_tl
+\tl_set:Nn \l__hit_layout_target_tl { g__hit_layout_msword_tl }
+\bool_new:N \l__hit_layout_global_bool
+\bool_set_true:N \l__hit_layout_global_bool
 \bool_new:N \l__hit_layout_dirty_bool
 \cs_new_protected:Npn \__hit_layout_msword:nn #1#2
   {
-    \tl_gput_right:Nx \g__hit_layout_msword_tl { #1 = \exp_not:n {#2} , }
-    \bool_set_true:N \l__hit_layout_dirty_bool
+    \tl_gput_right:cx { \l__hit_layout_target_tl } { #1 = \exp_not:n {#2} , }
+    \bool_if:NT \l__hit_layout_global_bool
+      { \bool_set_true:N \l__hit_layout_dirty_bool }
   }
 %    \end{macrocode}
 %
@@ -331,6 +336,56 @@
       {
         #1 .code:n = { \hit@keys@set:nn { hit / layout / #1 } {##1} } ,
         #1 .value_required:n = true ,
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/25}{\option{layout} 加部件表。Word 的分节符让每一节有
+%   自己的页面设置，各部件把差异写在自己名下，其余继承全篇的取值}
+%
+% \emph{按部件覆盖。} Word 的一个分节对应我们的一个部件：封面与内封的
+% \texttt{docGrid} 行跨度是 395 缇，摘要目录 391，正文 383。写在部件名下的键
+% 只对那个部件生效，没写的继承全篇。
+%
+% 全篇的取值攒在 \cs{g\_\_hit\_layout\_msword\_tl}，各部件攒在
+% \cs{g\_\_hit\_layout\_msword\_}\meta{部件}\cs{\_tl}。收键时把
+% \cs{l\_\_hit\_layout\_target\_tl} 指向哪个，就攒进哪个。部件那一路不置
+% \emph{dirty}——它不即时生效，等排到那个部件再推。
+%    \begin{macrocode}
+\clist_const:Nn \c__hit_layout_part_clist
+  { cover , titlepage , frontmatter , mainmatter , backmatter }
+\clist_map_inline:Nn \c__hit_layout_part_clist
+  { \tl_new:c { g__hit_layout_msword_#1_tl } }
+\clist_map_inline:Nn \c__hit_layout_part_clist
+  {
+    \keys_define:nn { hit / layout }
+      {
+        #1 .code:n =
+          {
+            \group_begin:
+              \tl_set:Nn \l__hit_layout_target_tl { g__hit_layout_msword_#1_tl }
+              \bool_set_false:N \l__hit_layout_global_bool
+              \hit@keys@set:nn { hit / layout } {##1}
+            \group_end:
+          } ,
+        #1 .value_required:n = true ,
+      }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@layout@push@part:n}
+% 排某个部件之前换上它那一节的版面，排完 \cs{hit@msword@layout@pop:} 还回去。
+% 传进去的是「全篇取值 + 该部件的差异」，后写的覆盖先写的。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@layout@push@part:n #1
+  {
+    \use:x
+      {
+        \exp_not:N \hit@msword@layout@push:n
+          {
+            \exp_not:v { g__hit_layout_msword_tl }
+            \exp_not:v { g__hit_layout_msword_#1_tl }
+          }
       }
   }
 \__hit_layout_leaf:nnn { paper } { width }  { paper-width }
