@@ -391,6 +391,27 @@
           }
       } ,
     openright-default .value_required:n = true ,
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/25}{\option{page-number-line} 从 \option{style} 挪进
+%   \option{layout}，用部件名寻址，不再自带 front/main 两个子键}
+%
+% \option{page-number-line} 决定那一段的页码要不要单独占一行。它本来就在按段
+% 分，挪进来之后与 \option{openright} 共用部件名，不必另起一套写法。
+%    \begin{macrocode}
+    page-number-line .code:n =
+      {
+        \tl_if_empty:NF \l__hit_layout_part_tl
+          {
+            \cs_if_exist:cT
+              { g__hit_page_number_line_ \l__hit_layout_part_tl _tl }
+              {
+                \__hit_tristate_gset:cn
+                  { g__hit_page_number_line_ \l__hit_layout_part_tl _tl } {#1}
+              }
+          }
+      } ,
+    page-number-line .value_required:n = true ,
   }
 \clist_map_inline:Nn \c__hit_layout_part_clist
   {
@@ -437,6 +458,40 @@
 \__hit_layout_block:nn { footer } { shift }
 \__hit_layout_block:nn { grid } { chars }
 \__hit_layout_block:nn { grid } { lines }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/25}{\option{header}/\option{rule} 兼收裸值，页眉线的
+%   开关从 \option{style} 挪进来；不再另设 \option{header-rule} 那个名字}
+%
+% \option{header}/\option{rule} 收两种写法：给 \texttt{true} / \texttt{false} /
+% \texttt{auto} 是开关，给键值是调参数。仓库里 \option{open-right} 与
+% \option{student-type} 都是这个套路，判有没有等号。
+%
+% \begin{quote}
+% \cs{hitsetup}\{ layout = \{ header = \{ rule = false \} \} \}\\
+% \cs{hitsetup}\{ layout = \{ header = \{ rule = \{ width = 2.25bp \} \} \} \}
+% \end{quote}
+%    \begin{macrocode}
+\keys_define:nn { hit / layout / header }
+  {
+    rule .code:n =
+      {
+        \tl_if_in:nnTF {#1} { = }
+          { \hit@keys@set:nn { hit / layout / header / rule } {#1} }
+          { \__hit_tristate_set:Nn \g__hit_header_rule_tl {#1} }
+      } ,
+    rule .value_required:n = true ,
+  }
+\keys_define:nn { hit / layout }
+  {
+    header / rule .code:n =
+      {
+        \tl_if_in:nnTF {#1} { = }
+          { \hit@keys@set:nn { hit / layout / header / rule } {#1} }
+          { \__hit_tristate_set:Nn \g__hit_header_rule_tl {#1} }
+      } ,
+    header / rule .value_required:n = true ,
+  }
 \__hit_layout_leaf:nnn { header / rule } { width }     { header-rule-width }
 \__hit_layout_leaf:nnn { header / rule } { from-text } { header-rule-from-text }
 \__hit_layout_leaf:nnn { footer / shift } { vertical }   { footer-shift-vertical }
@@ -712,14 +767,6 @@
     ziju .value_required:n = true ,
     hyphenation .bool_gset:N = \g_hit_format_hyphen_bool ,
     hyphenation .default:n = true ,
-    header-rule .code:n = { \__hit_tristate_set:Nn \g__hit_header_rule_tl {#1} } ,
-    page-number-line .code:n =
-      { \hit@keys@set:nn { hit / style / page-number-line } {#1} } ,
-  }
-\keys_define:nn { hit / style / page-number-line }
-  {
-    mainmatter  .code:n = { \__hit_tristate_set:Nn \g__hit_page_number_line_main_tl  {#1} } ,
-    frontmatter .code:n = { \__hit_tristate_set:Nn \g__hit_page_number_line_front_tl {#1} } ,
   }
 \clist_map_inline:nn
   {
@@ -944,9 +991,9 @@
     openright        = { layout = { openright = ... } } ,
     library          = { layout = { openright = false } } ,
     zijv             = { style = { ziju = ... } } ,
-    bsheadrule       = { style = { header-rule = ... } } ,
-    bsmainpagenumberline  = { style = { page-number-line = { mainmatter = ... } } } ,
-    bsfrontpagenumberline = { style = { page-number-line = { frontmatter = ... } } } ,
+    bsheadrule       = { layout = { header = { rule = ... } } } ,
+    bsmainpagenumberline  = { layout = { mainmatter = { page-number-line = ... } } } ,
+    bsfrontpagenumberline = { layout = { frontmatter = { page-number-line = ... } } } ,
     citetwo          = { bib = { compress-min = 2~|~3 } } ,
     splitbibitem     = { bib = { split-entry = ... } } ,
     biblabelalign    = { bib = { numbering-align = ... } } ,
