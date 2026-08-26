@@ -355,7 +355,43 @@
 \clist_const:Nn \c__hit_layout_part_clist
   { cover , titlepage , frontmatter , mainmatter , backmatter }
 \clist_map_inline:Nn \c__hit_layout_part_clist
-  { \tl_new:c { g__hit_layout_msword_#1_tl } }
+  {
+    \tl_new:c { g__hit_layout_msword_#1_tl }
+    \tl_new:c { g__hit_openright_#1_tl }
+    \tl_gset:cn { g__hit_openright_#1_tl } { auto }
+    \tl_new:c { g__hit_openright_default_#1_tl }
+    \tl_gset:cn { g__hit_openright_default_#1_tl } { false }
+  }
+\tl_new:N \g__hit_openright_tl
+\tl_gset:Nn \g__hit_openright_tl { auto }
+\tl_new:N \l__hit_layout_part_tl
+\keys_define:nn { hit / layout }
+  {
+    openright .code:n =
+      {
+        \tl_if_empty:NTF \l__hit_layout_part_tl
+          { \tl_gset:Nn \g__hit_openright_tl {#1} }
+          {
+            \tl_gset:cn { g__hit_openright_ \l__hit_layout_part_tl _tl } {#1}
+          }
+      } ,
+    openright .value_required:n = true ,
+%    \end{macrocode}
+%
+% \option{openright-default} 只给默认值表用。它写的是最底下那一层：用户在部件
+% 或全篇写了值，都盖得住它。学位耦合就住在这一层，见
+% \file{src/setup/hit-defaults.dtx}。
+%    \begin{macrocode}
+    openright-default .code:n =
+      {
+        \tl_if_empty:NF \l__hit_layout_part_tl
+          {
+            \tl_gset:cn
+              { g__hit_openright_default_ \l__hit_layout_part_tl _tl } {#1}
+          }
+      } ,
+    openright-default .value_required:n = true ,
+  }
 \clist_map_inline:Nn \c__hit_layout_part_clist
   {
     \keys_define:nn { hit / layout }
@@ -364,6 +400,7 @@
           {
             \group_begin:
               \tl_set:Nn \l__hit_layout_target_tl { g__hit_layout_msword_#1_tl }
+              \tl_set:Nn \l__hit_layout_part_tl { #1 }
               \bool_set_false:N \l__hit_layout_global_bool
               \hit@keys@set:nn { hit / layout } {##1}
             \group_end:
@@ -642,48 +679,27 @@
 %    \begin{macrocode}
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/25}{\option{open-right} 从布尔改成三态，另收四个跳页点
-%   的分写形式；\option{library} 改成压总闸，不再是独立的一路判断}
+% \changes{v3.2a}{2026/08/25}{右开页从 \option{style} 挪进 \option{layout}，
+%   按部件覆盖；\option{library} 与四个跳页点的子键写法一并删掉}
 %
-% \option{style}/\option{open-right} 三种写法：
-% \begin{itemize}
-% \item \texttt{true} / \texttt{false} 定总闸，四个点一起
-% \item \texttt{auto}（默认）按学位查表，见 \file{src/setup/hit-thesis-options.dtx}
-% \item \texttt{\{titlepage=…,frontmatter=…,mainmatter=…,backmatter=…\}} 单点定，
-%       每个点也收 \texttt{auto}，含义是「我不表态，交给总闸」
-% \end{itemize}
+% \option{layout}/\option{openright} 决定强制另起一页时要不要落在奇数页。
+% 写在全篇一级是默认值，写在部件名下只管那个部件：
 %
-% \option{library} 现在就是把总闸压成 \texttt{false}。交图书馆的电子版要求没有
-% 任何空白页，那正是四个点全不跳。它仍是独立的布尔键，因为除了跳页还另有用处。
+% \begin{quote}
+% \cs{hitsetup}\{ layout = \{ openright = false ,
+%     cover = \{ openright = true \} \} \}
+% \end{quote}
+%
+% 部件那一层收 \texttt{auto}，含义是「我不表态，用全篇的值」。交图书馆的电子版
+% 要求没有任何空白页，写 \option{layout}\texttt{=\{openright=false\}} 即可，
+% 不必另设开关。
+%
+% \emph{为什么在 \option{layout} 里。} Word 的 \texttt{w:sectPr} 同时装着页边距
+% 与分节符类型，页面几何与页流本来就是一层的事；我们的 \option{layout} 建模的
+% 正是它。
 %    \begin{macrocode}
-\keys_define:nn { hit / open-right }
-  {
-    unknown .code:n =
-      {
-        \clist_if_in:NoTF \c__hit_openright_points_clist \l_keys_key_str
-          { \tl_gset:cn { g__hit_openright_ \l_keys_key_str _tl } {#1} }
-          { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str }
-      } ,
-  }
-\cs_new_protected:Npn \__hit_openright_set:n #1
-  {
-    \tl_if_in:nnTF {#1} { = }
-      { \keys_set:nn { hit / open-right } {#1} }
-      { \tl_gset:Nn \g__hit_openright_tl {#1} }
-  }
 \keys_define:nn { hit / style }
   {
-    open-right .code:n = { \__hit_openright_set:n {#1} } ,
-    open-right .default:n = { true } ,
-    library .choice: ,
-    library / true .code:n =
-      {
-        \bool_gset_true:N \g__hit_library_bool
-        \tl_gset:Nn \g__hit_openright_tl { false }
-      } ,
-    library / false .code:n = { \bool_gset_false:N \g__hit_library_bool } ,
-    library / auto .code:n = { } ,
-    library .default:n = { true } ,
     ziju .choices:nn = { auto , regu , word }
       {
         \str_if_eq:VnF \l_keys_choice_tl { auto }
@@ -925,8 +941,8 @@
     subcapcenterlast = { format = { caption-sub = { alignment = last-line-centered } } } ,
     absupper         = { format = { abstract-heading = { all-caps = ... } } } ,
     etitleauto       = { style = { title-en-auto = ... } } ,
-    openright        = { style = { open-right = ... } } ,
-    library          = { style = { library = ... } } ,
+    openright        = { layout = { openright = ... } } ,
+    library          = { layout = { openright = false } } ,
     zijv             = { style = { ziju = ... } } ,
     bsheadrule       = { style = { header-rule = ... } } ,
     bsmainpagenumberline  = { style = { page-number-line = { mainmatter = ... } } } ,
