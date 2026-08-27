@@ -571,12 +571,35 @@
 %
 % \emph{某个词条一档都没命中就不绑}，裸宏名保持原样（多半是未定义）。消费方用到
 % 它时当场报未定义，比悄悄回落到键名强——回落会把键名印到纸上，编译还不报错。
+%
+% \changes{v3.2a}{2026/08/27}{语种不再当作一条比具体程度的轴，改成分区：
+%   \cs{hit@}\meta{词条}\cs{@zh} 与 \cs{@en} 各自按学位挑一档，两个名字同时在}
+% \emph{语种是分区，不是轴。} 内封上中英文标签并排印，两个宏必须同时在，
+% 所以语种段不参与比具体程度：它从解析结果里摘出来接回名字后头，剩下的档位
+% 才拿去跟上下文比。\texttt{supervisor-field-label-zh} 与
+% \texttt{supervisor-field-label-bachelor-zh} 是同一个分区里的两条，本科那一档
+% 挑后者，绑到 \cs{hit@supervisor@field@label@zh}；英文那一份各挑各的，
+% 绑到 \cs{@en}。
+%
+% 从前语种也算一段，于是本科内封上写 \cs{hit@date@field@label@zh} 拿到的是研究生
+% 那一份「答辩日期」，明明有一条 \texttt{date-field-label-bachelor-zh} 摆着没人用；
+% 要拿对就得在消费端自己写 \cs{@bachelor@zh}，同一张字段表里一半写了一半没写。
+%
+% \emph{不带语种的裸名跟文档语种走。} 词条只有中英两份、没有不分语种的那一条时，
+% \cs{hit@}\meta{词条} 绑成本篇语种的那一份。\cs{hit@eqdenote@label} 是这一类：
+% 公式说明栏全篇只排一种语言，消费方不该自己去挑。
 %    \begin{macrocode}
 \prop_new:N \l__hit_axis_context_prop
 \prop_new:N \l__hit_axis_best_prop
 \prop_new:N \l__hit_axis_win_prop
 \tl_new:N \l__hit_axis_best_tl
+\tl_new:N \l__hit_axis_lang_tl
+\tl_new:N \l__hit_axis_bare_tl
+\tl_new:N \l__hit_axis_doclang_tl
+\prop_new:N \l__hit_axis_dbest_prop
+\prop_new:N \l__hit_axis_dwin_prop
 \bool_new:N \l__hit_axis_hit_bool
+\bool_new:N \l__hit_axis_report_bool
 \cs_new_protected:Npn \__hit_axis_context_try:n #1
   {
     \bool_if_exist:cT { g__hit_#1_bool }
@@ -624,33 +647,61 @@
 \cs_new_protected:Npn \__hit_axis_weigh:n #1
   {
     \hit@axis@parse:n {#1}
+    \tl_set_eq:NN \l__hit_axis_bare_tl \l__hit_axis_term_tl
+    \tl_clear:N \l__hit_axis_lang_tl
+    \prop_pop:NnNT \l__hit_axis_spec_prop { lang } \l__hit_axis_lang_tl
+      { \tl_put_right:Nx \l__hit_axis_term_tl { - \l__hit_axis_lang_tl } }
     \bool_set_true:N \l__hit_axis_hit_bool
     \prop_map_function:NN \l__hit_axis_spec_prop \__hit_axis_match:nn
     \bool_if:NT \l__hit_axis_hit_bool
       {
         \int_set:Nn \l__hit_axis_index_int
           { \prop_count:N \l__hit_axis_spec_prop }
-        \prop_get:NVNTF \l__hit_axis_best_prop \l__hit_axis_term_tl
-          \l__hit_axis_best_tl
+        \bool_set_true:N \l__hit_axis_report_bool
+        \exp_args:NNNV \__hit_axis_rank:NNnn
+          \l__hit_axis_best_prop \l__hit_axis_win_prop
+          \l__hit_axis_term_tl {#1}
+        \tl_if_empty:NF \l__hit_axis_lang_tl
           {
-            \int_compare:nNnTF { \l__hit_axis_index_int } > { \l__hit_axis_best_tl }
-              { \__hit_axis_record_win:n {#1} }
+            \prop_get:NnNT \l__hit_axis_context_prop { lang }
+              \l__hit_axis_doclang_tl
               {
-                \int_compare:nNnT { \l__hit_axis_index_int } = { \l__hit_axis_best_tl }
+                \tl_if_eq:NNT \l__hit_axis_lang_tl \l__hit_axis_doclang_tl
                   {
-                    \msg_error:nnxx { hithesis } { axis-ambiguous }
-                      { \l__hit_axis_term_tl } {#1}
+                    \bool_set_false:N \l__hit_axis_report_bool
+                    \exp_args:NNNV \__hit_axis_rank:NNnn
+                      \l__hit_axis_dbest_prop \l__hit_axis_dwin_prop
+                      \l__hit_axis_bare_tl {#1}
                   }
               }
           }
-          { \__hit_axis_record_win:n {#1} }
       }
   }
-\cs_new_protected:Npn \__hit_axis_record_win:n #1
+%    \end{macrocode}
+%
+% 排名。段数多的赢；并列就报歧义，但只在正名那一遍报——文档语种那一遍的候选是
+% 正名那一遍的子集，同一处并列报两遍没有意义。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_axis_rank:NNnn #1#2#3#4
   {
-    \prop_put:NVx \l__hit_axis_best_prop \l__hit_axis_term_tl
-      { \int_use:N \l__hit_axis_index_int }
-    \prop_put:NVn \l__hit_axis_win_prop \l__hit_axis_term_tl {#1}
+    \prop_get:NnNTF #1 {#3} \l__hit_axis_best_tl
+      {
+        \int_compare:nNnTF { \l__hit_axis_index_int } > { \l__hit_axis_best_tl }
+          { \__hit_axis_put:NNnn #1 #2 {#3} {#4} }
+          {
+            \int_compare:nNnT { \l__hit_axis_index_int } = { \l__hit_axis_best_tl }
+              {
+                \bool_if:NT \l__hit_axis_report_bool
+                  { \msg_error:nnnn { hithesis } { axis-ambiguous } {#3} {#4} }
+              }
+          }
+      }
+      { \__hit_axis_put:NNnn #1 #2 {#3} {#4} }
+  }
+\cs_new_protected:Npn \__hit_axis_put:NNnn #1#2#3#4
+  {
+    \prop_put:Nnx #1 {#3} { \int_use:N \l__hit_axis_index_int }
+    \prop_put:Nnn #2 {#3} {#4}
   }
 %    \end{macrocode}
 %
@@ -674,8 +725,15 @@
     \clist_map_inline:Nn \c__hit_axis_clist { \__hit_axis_context_axis:n {##1} }
     \prop_clear:N \l__hit_axis_best_prop
     \prop_clear:N \l__hit_axis_win_prop
+    \prop_clear:N \l__hit_axis_dbest_prop
+    \prop_clear:N \l__hit_axis_dwin_prop
     \seq_map_inline:Nn \g__hit_constant_seq { \__hit_axis_consider:n {##1} }
     \prop_map_function:NN \l__hit_axis_win_prop \__hit_axis_bind:nn
+    \prop_map_inline:Nn \l__hit_axis_dwin_prop
+      {
+        \prop_if_in:NnF \l__hit_axis_win_prop {##1}
+          { \__hit_axis_bind:nn {##1} {##2} }
+      }
   }
 %    \end{macrocode}
 %    \end{macro}
