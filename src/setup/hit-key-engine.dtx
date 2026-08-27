@@ -427,6 +427,127 @@
     \cs_gset:cpx { hit@ \l__hit_constant_name_str }
       { \exp_not:V \l__hit_constant_value_tl }
   }
+%    \end{macrocode}
+%
+% \subsection{轴}
+%
+% \changes{v3.2a}{2026/08/27}{键名里的取值分轴：一张有序轴表，键名是「词条名 +
+%   各轴取值按轴序排列」，省掉某轴表示该轴各档共用}
+%
+% \emph{轴表。} 键名里带的取值分属这几条轴，次序即键名里各段的次序：
+%
+% \begin{quote}
+% \meta{词条名}\oarg{-文种}\oarg{-校区}\oarg{-学科类别}\oarg{-学位}%
+% \oarg{-学位类别}\oarg{-语言}
+% \end{quote}
+%
+% \emph{省掉一段就是那条轴各档共用。} \option{algorithm-name-zh} 只带语言，说明
+% 它与文种、校区、学位都无关；\option{bachelor-affiliation-field-label} 带学位，
+% 说明本科那一档另有说法。
+%
+% \emph{档位值必须单段、全局唯一。} 唯一了才能只看一段就断定它属于哪条轴，不必
+% 靠位置猜；单段了才能按连字符切开来数。两条都在加载时 \cs{assert} 住——表写错
+% 的代价是查表悄悄查到别的东西上去，不如当场停下。
+%    \begin{macrocode}
+\clist_const:Nn \c__hit_axis_clist
+  { kind , campus , discipline-category , degree , degree-type , lang }
+\prop_const_from_keyval:Nn \c__hit_axis_values_prop
+  {
+    kind                = { thesis , proposal , interim } ,
+    campus              = { harbin , shenzhen , weihai } ,
+    discipline-category = { stem , hss } ,
+    degree              = { bachelor , master , doctor , postdoc , graduate } ,
+    degree-type         = { academic , professional } ,
+    lang                = { zh , en } ,
+  }
+%    \end{macrocode}
+%
+% 每个档位值记下它属于哪条轴，顺带把上面那两条约束验了。
+%    \begin{macrocode}
+\prop_new:N \g__hit_axis_of_prop
+\tl_new:N \l__hit_axis_name_tl
+\tl_new:N \l__hit_axis_pos_tl
+\bool_new:N \l__hit_axis_more_bool
+\tl_new:N \l__hit_axis_term_tl
+\tl_new:N \l__hit_axis_value_tl
+\tl_new:N \l__hit_axis_last_tl
+\prop_new:N \l__hit_axis_spec_prop
+\seq_new:N \l__hit_axis_seg_seq
+\int_new:N \l__hit_axis_index_int
+\prop_new:N \g__hit_axis_order_prop
+\tl_new:N \l__hit_axis_current_tl
+\cs_new_protected:Npn \__hit_axis_record:nn #1#2
+  {
+    \tl_if_in:nnT {#2} { - }
+      { \msg_error:nnnn { hithesis } { axis-value-multi } {#1} {#2} }
+    \prop_if_in:NnT \g__hit_axis_of_prop {#2}
+      { \msg_error:nnnn { hithesis } { axis-value-clash } {#1} {#2} }
+    \prop_gput:Nnn \g__hit_axis_of_prop {#2} {#1}
+  }
+\cs_new_protected:Npn \__hit_axis_declare:n #1
+  {
+    \int_incr:N \l__hit_axis_index_int
+    \prop_gput:Nnx \g__hit_axis_order_prop {#1}
+      { \int_use:N \l__hit_axis_index_int }
+    \prop_get:NnNT \c__hit_axis_values_prop {#1} \l__hit_axis_value_tl
+      {
+        \exp_args:NV \clist_map_function:nN \l__hit_axis_value_tl
+          \__hit_axis_record_aux:n
+      }
+  }
+\cs_new_protected:Npn \__hit_axis_record_aux:n #1
+  { \exp_args:NV \__hit_axis_record:nn \l__hit_axis_current_tl {#1} }
+\clist_map_inline:Nn \c__hit_axis_clist
+  {
+    \tl_set:Nn \l__hit_axis_current_tl {#1}
+    \__hit_axis_declare:n {#1}
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@axis@parse:n}
+% \cs{hit@axis@parse:n}\marg{键名} 把键名切成「词条名」与「各轴取值」。从\emph{末段}
+% 往前剥：末段是档位值、且它那条轴排在已剥出来的各轴\emph{之前}，就继续剥；否则
+% 停下，剩下的就是词条名。次序这一条是关键——它让
+% \option{graduate-thesis-field-label} 这种把档位值写在中段的键剥不动，当场看得出
+% 表写歧义了，而不是悄悄按错的轴查过去。
+%
+% 结果放进 \cs{l\_\_hit\_axis\_term\_tl}（词条名）与
+% \cs{l\_\_hit\_axis\_spec\_prop}（轴到取值）。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@axis@parse:n #1
+  {
+    \prop_clear:N \l__hit_axis_spec_prop
+    \seq_set_split:Nnn \l__hit_axis_seg_seq { - } {#1}
+    \tl_set:Nn \l__hit_axis_last_tl { \c_max_int }
+    \bool_set_true:N \l__hit_axis_more_bool
+    \bool_do_while:Nn \l__hit_axis_more_bool
+      {
+        \bool_set_false:N \l__hit_axis_more_bool
+        \int_compare:nNnT { \seq_count:N \l__hit_axis_seg_seq } > { 1 }
+          {
+            \seq_get_right:NN \l__hit_axis_seg_seq \l__hit_axis_value_tl
+            \prop_get:NVNT \g__hit_axis_of_prop \l__hit_axis_value_tl
+              \l__hit_axis_name_tl
+              {
+                \prop_get:NVN \g__hit_axis_order_prop \l__hit_axis_name_tl
+                  \l__hit_axis_pos_tl
+                \int_compare:nNnT { \l__hit_axis_pos_tl } < { \l__hit_axis_last_tl }
+                  {
+                    \prop_put:NVV \l__hit_axis_spec_prop \l__hit_axis_name_tl
+                      \l__hit_axis_value_tl
+                    \tl_set_eq:NN \l__hit_axis_last_tl \l__hit_axis_pos_tl
+                    \seq_pop_right:NN \l__hit_axis_seg_seq \l__hit_axis_value_tl
+                    \bool_set_true:N \l__hit_axis_more_bool
+                  }
+              }
+          }
+      }
+    \tl_set:Nx \l__hit_axis_term_tl
+      { \seq_use:Nn \l__hit_axis_seg_seq { - } }
+  }
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macrocode}
 \cs_new_protected:Npn \hit@declare@constant #1
   {
     \clist_map_inline:nn {#1}
