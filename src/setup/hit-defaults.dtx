@@ -35,6 +35,8 @@
 % 回放走的是 \cs{hitsetup} 本身，与用户在导言区写的完全同一条路径，只是先后不同：
 % 类文件里先设默认值，用户后设的覆盖它。
 %
+% \changes{v3.2a}{2026/08/27}{\cs{hit@preconfig} 也收条件：默认值整体挪进
+%   \file{hithesis.cfg} 之后，两个类读同一份，原样代码那两条也得分学位论文与报告}
 % \begin{macro}{\hit@preconfig}
 % \cs{hitpreconfig}\marg{代码} 记一段原样的代码，同样排队、同样延后回放。它是迁移
 % 用的过渡入口：配置从旧写法搬过来时先整段包进它，输出逐字节不变，再逐块改写成
@@ -54,8 +56,8 @@
 \bool_new:N \l__hit_presetup_hit_bool
 \NewDocumentCommand \hit@presetup { O{} +m }
   { \seq_gput_right:Nn \g__hit_presetup_seq { { keys } {#1} {#2} } }
-\NewDocumentCommand \hit@preconfig { +m }
-  { \seq_gput_right:Nn \g__hit_presetup_seq { { code } { } {#1} } }
+\NewDocumentCommand \hit@preconfig { O{} +m }
+  { \seq_gput_right:Nn \g__hit_presetup_seq { { code } {#1} {#2} } }
 %    \end{macrocode}
 %
 % 文件全程在 \pkg{expl3} 语境里——\cs{ProvidesExplClass} 已经开好了，这里不要再写
@@ -196,9 +198,8 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_presetup_one:nnn #1#2#3
   {
-    \str_if_eq:nnTF {#1} { code }
-      {#3}
-      { \hit@if@condition:nT {#2} { \hitsetup {#3} } }
+    \hit@if@condition:nT {#2}
+      { \str_if_eq:nnTF {#1} { code } {#3} { \hitsetup {#3} } }
   }
 \cs_new_protected:Npn \hit@apply@presetup
   {
@@ -216,12 +217,16 @@
 % 拼——同一个校区名在封面上带括号、在深圳本科页眉上跟着「校区」，那是版式的事，
 % 不是这个值的事。三个类共用一份。
 %    \begin{macrocode}
+%</shared-defaults>
+%<*cfg>
 \ExplSyntaxOff
 \hit@presetup[campus=harbin]{ const = { campus = {哈尔滨} } }
 \hit@presetup[campus=weihai]{ const = { campus = {威海} } }
 \hit@presetup[campus=shenzhen]{ const = { campus = {深圳} } }
 \hit@presetup{ const = { campus-full = {<campus>校区} } }
 \ExplSyntaxOn
+%</cfg>
+%<*shared-defaults>
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/11}{\option{after-*-number} 一批常量显式设成空值}
@@ -270,7 +275,7 @@
 % 字间距撑开在 \file{src/utils/hit-spread.dtx}。\cs{hitpreconfig} 只在两处出现，
 % 都是一句 \cs{hit@setup@date}。
 %    \begin{macrocode}
-%<*thesis-defaults>
+%<*cfg>
 %    \end{macrocode}
 %
 % \subsection{本科的版面}
@@ -411,7 +416,7 @@
 % 正文也改成了对齐网格；致谢那一段也对齐网格。
 %    \begin{macrocode}
 \ExplSyntaxOff
-\hit@presetup[layout=!v2-layout]{
+\hit@presetup[kind=thesis,layout=!v2-layout]{
   layout = {
     bottom = auto,
     margin = { top = 107.75bp, bottom = 85.05bp,
@@ -432,19 +437,19 @@
 %% 右开页。规范没写要求右开，两份范例的分节符也全是 nextPage；博士封面那一串
 %% 跳到右手页是双面装订的惯例，只有这一处。写 layout={openright=false} 即全篇
 %% 不跳，交图书馆的电子版要的就是它。
-\hit@presetup[degree-level=doctor]{
+\hit@presetup[kind=thesis,degree-level=doctor]{
   layout = { cover = { openright-default = true } },
 }
 %% 本科声明页的两个小节标题带段前段后。范例 docx 段 662/668 写的是
 %% w:before/after=195 缇，即网格行距 391 的一半，也就是 0.5 行；研究生那一份
 %% （段 710/718）没有，间隔全由空段给。
-\hit@presetup[degree-level=bachelor]{
+\hit@presetup[kind=thesis,degree-level=bachelor]{
   format = {
     statement-heading     = { space-before = 0.5 line, space-after = 0.5 line },
     authorization-heading = { space-before = 0.5 line, space-after = 0.5 line },
   },
 }
-\hit@presetup[layout=!v2-layout]{
+\hit@presetup[kind=thesis,layout=!v2-layout]{
   format = {
     header = {
       font-zh = songti, size = xiaowu, line-spacing = 0,
@@ -587,15 +592,15 @@
 %
 %    \begin{macrocode}
 \ExplSyntaxOff
-\hit@presetup{ thm = {
+\hit@presetup[kind=thesis]{ thm = {
   body-font  = {\normalfont},
   qed        = {\ensuremath{\square}},
   head-punct = {},
 } }
-\hit@presetup[lang=en]{
+\hit@presetup[kind=thesis,lang=en]{
   thm = { head-font = {\normalfont\bfseries}, star = { proof = Proof } },
 }
-\hit@presetup[lang=zh]{
+\hit@presetup[kind=thesis,lang=zh]{
   thm = { head-font = {\normalfont\heiti}, star = { proof = 证明 } },
 }
 \ExplSyntaxOn
@@ -607,7 +612,7 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ thm = { qed = {} } }
+\hit@presetup[kind=thesis]{ thm = { qed = {} } }
 \ExplSyntaxOn
 
 %    \end{macrocode}
@@ -617,10 +622,10 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ thm = { head-punct = {}, within = {chapter} } }
+\hit@presetup[kind=thesis]{ thm = { head-punct = {}, within = {chapter} } }
 
 
-\hit@presetup[lang=en]{ thm = { list = {
+\hit@presetup[kind=thesis,lang=en]{ thm = { list = {
   assumption   = Assumption,
   definition   = Definition,
   proposition  = Proposition,
@@ -635,7 +640,7 @@
   conjecture   = Conjecture,
   fact         = Fact,
 } } }
-\hit@presetup[lang=zh]{ thm = { list = {
+\hit@presetup[kind=thesis,lang=zh]{ thm = { list = {
   assumption   = 假设,
   definition   = 定义,
   proposition  = 命题,
@@ -659,7 +664,7 @@
 % 设值时转给 \cs{ctexset}；其余几个是对外可见的命令名，设值时直接写进同名命令。
 % 两类都在 \file{hit-key-engine.dtx} 里声明，这里只给值。
 %    \begin{macrocode}
-\hit@presetup[lang=en]{ const = {
+\hit@presetup[kind=thesis,lang=en]{ const = {
   chapter-name      = {Chapter\enskip,},
   appendixname      = {Appendix},
   contentsname      = {Contents},
@@ -677,7 +682,7 @@
 % 答辩决议表的表头。带 \verb|\\| 的几条是要在格子里换行的：评阅人那格三行，
 % 「答辩委员会成员」与「委员」在纸质表上是竖排，逐字一行。
 %    \begin{macrocode}
-\hit@presetup[lang=en]{ const = {
+\hit@presetup[kind=thesis,lang=en]{ const = {
   defense-reviewer-label    = {Reviewers},
   defense-name-label        = {Name},
   defense-title-label       = {Title\\(Doctoral\\Supervisor?)},
@@ -692,7 +697,7 @@
 } }
 %    \end{macrocode}
 %    \begin{macrocode}
-\hit@presetup[lang=zh]{ const = {
+\hit@presetup[kind=thesis,lang=zh]{ const = {
   chapter-name      = {第,章},
   appendixname      = {附录},
   contentsname      = {目录},
@@ -714,21 +719,21 @@
 % 现在两半都写成常量，\pkg{ctex} 那两个键由它们接出来。样板跟 \option{resume-heading}、
 % \option{publication-heading} 一致。
 %    \begin{macrocode}
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   bibliography-heading-zh = {参考文献},
   bibliography-heading-en = {References},
   index-heading-zh        = {索引},
   index-heading-en        = {Index},
 } }
-\hit@presetup[lang=zh]{ const = {
+\hit@presetup[kind=thesis,lang=zh]{ const = {
   bibname   = {<bibliography-heading-zh>},
   indexname = {<index-heading-zh>},
 } }
-\hit@presetup[lang=en]{ const = {
+\hit@presetup[kind=thesis,lang=en]{ const = {
   bibname   = {<bibliography-heading-en>},
   indexname = {<index-heading-en>},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   listfigureename   = {List of figures},
   listtableename    = {List of tables},
   listequationename = {List of equations},
@@ -738,11 +743,11 @@
   eabstractcname    = {Abstract},
   eabstractename    = {Abstract (In English)},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   keywords-field-label-zh = {关键词：},
   keywords-field-label-en = {Keywords:},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   keywords-separator-zh = {；},
   keywords-separator-en = {,\space},
 } }
@@ -758,12 +763,12 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   figure-prefix-en = {Fig.$\!$},
   table-prefix-en  = {Table$\!$},
 } }
 \ExplSyntaxOn
-\hit@preconfig{ \hit@setup@date }
+\hit@preconfig[kind=thesis]{ \hit@setup@date }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/08}{日期的四种排法与英文月份名迁到
@@ -809,13 +814,13 @@
 %
 % 现在两条文本是两个常量，\option{student-type} 只作覆盖用，不写就是空的。
 %    \begin{macrocode}
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   student-type-academic-zh     = {学术学位论文},
   student-type-academic-en     = {Academic Degree},
   student-type-professional-zh = {专业学位论文},
   student-type-professional-en = {Professional Degree},
 } }
-\hit@presetup[degree-level=postdoc]{ const = {
+\hit@presetup[kind=thesis,degree-level=postdoc]{ const = {
   degree-level-zh           = {博士},
   degree-level-en           = {Doctor},
   degree-level-attribute = {Doctoral},
@@ -830,19 +835,19 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup[degree-level=doctor]{ const = {
+\hit@presetup[kind=thesis,degree-level=doctor]{ const = {
   degree-level-zh           = {博士},
   degree-level-en           = {Doctor},
   degree-level-attribute = {Doctoral},
 } }
-\hit@presetup[degree-level=master]{ const = {
+\hit@presetup[kind=thesis,degree-level=master]{ const = {
   degree-level-zh           = {硕士},
   degree-level-en           = {Master},
   degree-level-attribute = {Master's},
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   degree-of-discipline-format-zh               = {<discipline-zh><degree-level-zh>},
   degree-of-discipline-format-en               = {<degree-level-en> of <discipline-en>},
   author-field-label-zh                        = {<degree-level-zh>研究生},
@@ -871,7 +876,7 @@
   supervisor-field-label-bachelor-zh           = {指导教师},
   bachelor-thesis-field-label               = {题目},
 } }
-\hit@presetup[degree-level=bachelor]{ const = {
+\hit@presetup[kind=thesis,degree-level=bachelor]{ const = {
   degree-level-zh                     = {学士 },
   author-field-label-zh               = {本科生},
 } }
@@ -901,23 +906,23 @@
 % \changes{v3.2a}{2026/08/16}{删掉深圳本科第二封面把“学生”改成“姓名”的覆盖表}
 %    \begin{macrocode}
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   student-field-label-bachelor = {学生},
   document-type                = {学位论文},
   date-field-label-bachelor-zh    = {\hit@spread@to{4em}{日期}},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   teacher-comment-field-label-bachelor = {指导教师评语：},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   teacher-signature-field-label-bachelor = {指导教师签字：},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   check-date-field-label-bachelor = {检查日期：},
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   title-prefix-thesis                    = {\hit@spread@to{3em}{题目}},
   affiliation-field-label       = {院\hspace{3\ccwd}（系）},
   major-field-label             = {学\hspace{4\ccwd}科},
@@ -950,12 +955,12 @@
 % \changes{v3.2a}{2026/08/16}{“学校”这一条去掉校区限定，三个校区的本科内封已统一}
 %    \begin{macrocode}
 \ExplSyntaxOff
-\hit@presetup[degree-level=bachelor]{ const = {
+\hit@presetup[kind=thesis,degree-level=bachelor]{ const = {
   school-field-label-zh = {学校},
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   major-field-label-zh            = {学科},
   degree-field-label-zh               = {申请学位},
   supervisor-field-label-zh           = {导师},
@@ -984,7 +989,7 @@
 %   原先是 \cs{cs\_set\_nopar:Npn} 直接改宏，绕过了 \texttt{hit/const} 族}
 %    \begin{macrocode}
 \ExplSyntaxOff
-\hit@presetup[campus=harbin,degree-level=master]{ const = {
+\hit@presetup[kind=thesis,campus=harbin,degree-level=master]{ const = {
   major-field-label-zh = {学科或类别},
 } }
 \ExplSyntaxOn
@@ -996,7 +1001,7 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   date-field-label-en                           = {Date of Defence},
   school-field-label-en                         = {Degree-Conferring-Institution},
   school-en                                     = {Harbin Institute of Technology},
@@ -1021,10 +1026,10 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup[campus=shenzhen,degree-level=master]{ const = {
+\hit@presetup[kind=thesis,campus=shenzhen,degree-level=master]{ const = {
   date-field-label-en = {Date of Defense},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   heading-spread             = {1em},
   conclusion-heading-zh      = {结论},
   conclusion-heading-en      = {Conclusions},
@@ -1042,13 +1047,13 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup[degree-level=postdoc]{ const = {
+\hit@presetup[kind=thesis,degree-level=postdoc]{ const = {
   heading-spread    = {},
   resume-heading-zh = {博士后个人简历},
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   corresponding-address-heading-zh = {永久通讯地址},
   corresponding-address-heading-en = {Corresponding Address},
   resume-heading-en                = {Resume},
@@ -1081,35 +1086,35 @@
 % \changes{v3.2a}{2026/08/07}{增加博士的学位论文评阅人、答辩委员会名单及答辩决议 \issue[247]}
 %    \begin{macrocode}
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   author-signature-field-label = {作者签名：},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   supervisor-signature-field-label = {导师签名：},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   date-field-label-front = {日期：},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   symbols-heading-zh = {物理量名称及符号表},
   abbreviations-heading-zh = {缩略语表},
   symbols-abbreviations-heading-zh = {符号及缩略语},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   symbols-heading-en = {List of physical quantities and symbols},
   abbreviations-heading-en = {List of abbreviations},
   symbols-abbreviations-heading-en = {List of symbols and abbreviations},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   eqdenote-label-zh = {式中},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   eqdenote-label-en = {where},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   eqdenote-dash = {——},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   authorization-heading = {学位论文使用权限},
 } }
 %    \end{macrocode}
@@ -1118,7 +1123,7 @@
 % 深圳校区的封面底部没有「哈工大（深圳）制」这一行。另外三个校区学位档次的底部标记
 % 都在下面，唯独深圳这个不排，2022 年按 \issue[126] 去掉的，别再补回来。
 %    \begin{macrocode}
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   school-bottom-mark-harbin-master = { 
    \begin{center} 
      \songti\sanhao\textbf{研究生院制} 
@@ -1144,14 +1149,14 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   school-bottom-mark-bachelor = { 
    \begin{center} 
      \hit@cover@bottommark 
    \end{center} 
 },
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   cover-note-interim-shenzhen-doctor = {
 \thispagestyle{empty}
 {\begin{center}
@@ -1176,7 +1181,7 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   authorization-text = {%
 学位论文是研究生在哈尔滨工业大学攻读学位期间完成的成果，知识产权归属哈尔滨工业大学。学位论文的使用权限如下： 
 \par
@@ -1205,7 +1210,7 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   bachelor-declarations-heading-line-one = {哈尔滨工业大学本科毕业论文（设计）},
   bachelor-declarations-heading-line-two = {原创性声明和使用权限},
   bachelor-declarations-heading = {<bachelor-declarations-heading-line-one><bachelor-declarations-heading-line-two> },
@@ -1226,7 +1231,7 @@
 % 与前文同一段，不另起一段。
 %    \begin{macrocode}
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   bachelor-statement-text = {%
     本人郑重声明：此处所提交的本科毕业论文（设计）《<title-flat-zh>》，是本人在导师指导下，在哈尔滨工业大学攻读学士学位期间独立进行研究工作所取得的成果，且毕业论文（设计）中除已标注引用文献的部分外不包含他人完成或已发表的研究成果。对本毕业论文（设计）的研究工作做出重要贡献的个人和集体，均已在文中以明确方式注明。本毕业论文（设计）对使用AI工具的情况进行了明确标注。
   },
@@ -1240,7 +1245,7 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   bachelor-authorization-text = {%
   本科毕业论文（设计）是本科生在哈尔滨工业大学攻读学士学位期间完成的成果，知识产权归属哈尔滨工业大学。本科毕业论文（设计）的使用权限如下： 
 \par
@@ -1259,7 +1264,7 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   statement-heading = {学位论文原创性声明},
 } }
 \ExplSyntaxOn
@@ -1270,7 +1275,7 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   statement-text = {%
 本人郑重声明：此处所提交的学位论文《<title-flat-zh>》，是本人在导师指导下，在哈尔滨工业大学攻读学位期间独立进行研究工作所取得的成果，且学位论文中除已标注引用文献的部分外不包含他人完成或已发表的研究成果。对本学位论文的研究工作做出重要贡献的个人和集体，均已在文中以明确方式注明。},
 } }
@@ -1288,21 +1293,21 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   publication-heading-zh = {攻读<degree-level-zh>学位期间发表的论文及其他成果},
 } }
 
 
-\hit@presetup[campus=shenzhen,degree-level=master ; degree-level=bachelor]{ const = {
+\hit@presetup[kind=thesis,campus=shenzhen,degree-level=master ; kind=thesis,degree-level=bachelor]{ const = {
   publication-heading-zh = {攻读<degree-level-zh>学位期间取得创新性成果},
 } }
-\hit@presetup[degree-level=postdoc]{ const = {
+\hit@presetup[kind=thesis,degree-level=postdoc]{ const = {
   publication-heading-zh = {博士后期间的研究成果},
 } }
-\hit@presetup[lang=en]{ const = {
+\hit@presetup[kind=thesis,lang=en]{ const = {
   publication-heading-zh = {Author's Publications},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   doctor-publication-heading-zh = {博士生期间的研究成果},
   doctor-publication-heading-en = {Publications During Doctoral Study},
 } }
@@ -1315,7 +1320,7 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   date-blank = {\hspace{2.5em}年\hspace{1.5em}月\hspace{1.5em}日},
 } }
 \ExplSyntaxOn
@@ -1326,20 +1331,20 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   publication-heading-en = {Papers published in the period of Ph.D. education},
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
-\hit@presetup[degree-level=master]{ const = {
+\hit@presetup[kind=thesis,degree-level=master]{ const = {
   publication-heading-en = {Papers published in the period of master education},
 } }
-\hit@presetup[campus=shenzhen,degree-level=master]{ const = {
+\hit@presetup[kind=thesis,campus=shenzhen,degree-level=master]{ const = {
   publication-heading-en = {Innovative achievements for Master},
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=thesis]{ const = {
   hi               = {嗨！thesis},
   brace-left-zh    = {（},
   brace-right-zh   = {）},
@@ -1347,7 +1352,7 @@
   brace-right-en   = {)},
 } }
 \ExplSyntaxOn
-%</thesis-defaults>
+%</cfg>
 %    \end{macrocode}
 %
 % \section{报告类的默认值}
@@ -1355,9 +1360,9 @@
 % \changes{v3.2a}{2026/08/07}{\texttt{reportcfg} 从 \file{hit-report.dtx} 迁进来}
 % 两个报告类共用这一份，与迁移前一致。同样先整段包在 \cs{hitpreconfig} 里。
 %    \begin{macrocode}
-%<*report-defaults>
+%<*cfg>
 \ExplSyntaxOff
-\hit@presetup{ thm = {
+\hit@presetup[kind=report]{ thm = {
   body-font   = {\normalfont},
   head-font   = {\normalfont\heiti},
   qed         = {\ensuremath{\square}},
@@ -1365,9 +1370,9 @@
   note-braces = {}{},
   note-font   = {},
 } }
-\hit@presetup{ thm = { star = { proof = 证明 } } }
-\hit@presetup{ thm = { qed = {}, head-punct = {} } }
-\hit@presetup{ thm = { list = {
+\hit@presetup[kind=report]{ thm = { star = { proof = 证明 } } }
+\hit@presetup[kind=report]{ thm = { qed = {}, head-punct = {} } }
+\hit@presetup[kind=report]{ thm = { list = {
   assumption   = 假设,
   definition   = 定义,
   proposition  = 命题,
@@ -1398,26 +1403,26 @@
 % 深圳硕士的前置页面与正文页眉不一样，所以有两个键。其余变体只用
 % \option{report-header}。
 %    \begin{macrocode}
-\hit@presetup[campus=weihai,degree-level=master]{ const = {
+\hit@presetup[kind=report,campus=weihai,degree-level=master]{ const = {
   report-header = {<school-zh>（<campus>）<degree-level-zh>学位论文开题报告},
 } }
-\hit@presetup[campus=shenzhen,degree-level=master,kind=proposal]{ const = {
+\hit@presetup[kind=report,campus=shenzhen,degree-level=master,kind=proposal]{ const = {
   report-header = {<school-zh>（<campus>）<degree-level-zh>学位论文开题报告},
 } }
-\hit@presetup[campus=shenzhen,degree-level=master,kind=interim]{ const = {
+\hit@presetup[kind=report,campus=shenzhen,degree-level=master,kind=interim]{ const = {
   report-header = {<school-zh>（<campus>）<stage-interim>报告},
 } }
-\hit@presetup[campus=shenzhen,degree-level=master]{ const = {
+\hit@presetup[kind=report,campus=shenzhen,degree-level=master]{ const = {
   report-front-header = {<school-zh>（<campus>）<degree-level-zh>学位论文开题报告},
 } }
-\hit@presetup{ const = { bibliography-heading-zh = {参考文献} } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = { bibliography-heading-zh = {参考文献} } }
+\hit@presetup[kind=report]{ const = {
   contentsname = {\hit@spread@by{1em}{目录}},
   figurename   = {图},
   tablename    = {表},
 } }
 \ExplSyntaxOn
-\hit@preconfig{ \hit@setup@date }
+\hit@preconfig[kind=report]{ \hit@setup@date }
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{根据 \issue[220] 去掉本部答辩日期中的“日”}
@@ -1452,20 +1457,20 @@
 % 上面那张表只放默认值，下面按条件覆盖。后设的盖先设的，所以条件从宽到窄排。
 %    \begin{macrocode}
 \ExplSyntaxOff
-\hit@presetup[degree-level=doctor]{ const = {
+\hit@presetup[kind=report,degree-level=doctor]{ const = {
   degree-level-zh                = {博士},
   degree-of-discipline-format-zh = {<discipline-zh><degree-level-zh>},
   author-field-label-zh          = {<degree-level-zh>研究生},
 } }
-\hit@presetup[degree-level=master]{ const = {
+\hit@presetup[kind=report,degree-level=master]{ const = {
   degree-level-zh                = {硕士},
   degree-of-discipline-format-zh = {<discipline-zh><degree-level-zh>},
   author-field-label-zh          = {<degree-level-zh>研究生},
 } }
-\hit@presetup[degree-level=bachelor]{ const = {
+\hit@presetup[kind=report,degree-level=bachelor]{ const = {
   degree-level-zh = {学士},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   figure-prefix-en                              = {Fig.$\!$},
   table-prefix-en                               = {Table$\!$},
   stage-proposal                                 = {开题},
@@ -1517,74 +1522,74 @@
 %   改成 \texttt{harbin|weihai}，威海本科的开题与中期跟着本部走；深圳本科仍是
 %   “毕业设计（论文）”，它的开题与中期还没并过来}
 %    \begin{macrocode}
-\hit@presetup[campus=harbin|weihai]{ const = {
+\hit@presetup[kind=report,campus=harbin|weihai]{ const = {
   document-type-bachelor = {毕业论文（设计）},
 } }
-\hit@presetup[campus=harbin,degree-level=bachelor]{ const = {
+\hit@presetup[kind=report,campus=harbin,degree-level=bachelor]{ const = {
   school-field-label-zh = {学校},
 } }
-\hit@presetup[kind=interim]{ const = {
+\hit@presetup[kind=report,kind=interim]{ const = {
   date-field-label = {\hit@stage@interim\hit@stage@document@type 日期},
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
-\hit@presetup[campus=shenzhen,degree-level=master,kind=proposal]{ const = {
+\hit@presetup[kind=report,campus=shenzhen,degree-level=master,kind=proposal]{ const = {
   major-field-label = {\hit@spread@to{6\ccwd}{学科\,/\,专业}},
 } }
-\hit@presetup[campus=harbin,degree-level=master,kind=proposal|interim]{ const = {
+\hit@presetup[kind=report,campus=harbin,degree-level=master,kind=report]{ const = {
   affiliation-field-label = {\hit@spread@to{6\ccwd}{学院（部}）},
   % 这一处是压不是拉，九个字进八个字宽。\hit@spread@to 底层是 minipage 会折行，
   % 压不了，所以留 \makebox[s]。别处的分散对齐一律走 \hit@spread@to。
   major-field-label       = {\makebox[8\ccwd][s]{学科/专业学位类别}},
 } }
-\hit@presetup[campus=harbin,degree-level=master,kind=proposal]{ const = {
+\hit@presetup[kind=report,campus=harbin,degree-level=master,kind=proposal]{ const = {
   document-type = {学位},
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   eqdenote-label-zh = {式中},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   eqdenote-label-en = {where},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   eqdenote-dash = {——},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   author-signature-field-label = {作者签名：},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   supervisor-signature-field-label = {导师签名：},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   date-field-label-front = {日期：},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   authorization-heading = {学位论文使用权限},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   school-bottom-mark-harbin = { 
    \begin{center} 
      \songti\sanhao\textbf{研究生院制} 
    \end{center} 
 },
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   school-bottom-mark-bachelor = { 
    \begin{center} 
      \hit@cover@bottommark 
    \end{center} 
 },
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   shenzhen-master-school-bottom-mark = { 
    \begin{center} 
      \songti\sanhao\textbf{深圳校区教务部\nobreakspace{}制} 
    \end{center} 
 },
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   cover-note-interim-shenzhen-doctor = { 
 \thispagestyle{empty} 
 {\begin{center} 
@@ -1600,10 +1605,10 @@
 \end{enumerate} 
 },
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   date-blank = {\hspace{2.5em}年\hspace{1.5em}月\hspace{1.5em}日},
 } }
-\hit@presetup{ const = {
+\hit@presetup[kind=report]{ const = {
   hi = {嗨！thesis},
 } }
 \ExplSyntaxOn
@@ -1629,7 +1634,7 @@
 % \changes{v3.1c}{2023/04/16}{深圳校区硕士开题模板含有“深圳校区教务处 制”。\issue[141]}
 %
 %    \begin{macrocode}
-%</report-defaults>
+%</cfg>
 %    \end{macrocode}
 %
 % \Finale

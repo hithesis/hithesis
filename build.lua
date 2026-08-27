@@ -42,7 +42,7 @@ installfiles = {
   "hit-thesis.cls", "hit-report.cls", "hithesis.cls",
   "hithesisbook.cls", "hithesisart.cls", "hithesisartplus.cls",
   "hithesis.sty",
-  "hithesis.ist", "hithesis.bst",
+  "hithesis.ist", "hithesis.bst", "hithesis.cfg",
   "hit-logo.pdf", "hit-bachelor-report-bottommark.pdf",
 }
 
