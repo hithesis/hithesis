@@ -437,8 +437,7 @@
 % \emph{轴表。} 键名里带的取值分属这几条轴，次序即键名里各段的次序：
 %
 % \begin{quote}
-% \meta{词条名}\oarg{-文种}\oarg{-校区}\oarg{-学科类别}\oarg{-学位}%
-% \oarg{-学位类别}\oarg{-语言}
+% \meta{词条名}\oarg{-文种}\oarg{-校区}\oarg{-学位}\oarg{-学位类别}\oarg{-语言}
 % \end{quote}
 %
 % \emph{省掉一段就是那条轴各档共用。} \option{algorithm-name-zh} 只带语言，说明
@@ -456,12 +455,11 @@
 % 的代价是查表悄悄查到别的东西上去，不如当场停下。
 %    \begin{macrocode}
 \clist_const:Nn \c__hit_axis_clist
-  { kind , campus , discipline-category , degree , degree-type , lang }
+  { kind , campus , degree , degree-type , lang }
 \prop_const_from_keyval:Nn \c__hit_axis_values_prop
   {
     kind                = { thesis , proposal , interim } ,
     campus              = { harbin , shenzhen , weihai } ,
-    discipline-category = { stem , hss } ,
     degree              = { bachelor , master , doctor , postdoc } ,
     degree-type         = { academic , professional } ,
     lang                = { zh , en } ,
@@ -554,10 +552,129 @@
 %    \end{macrocode}
 %    \end{macro}
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@axis@resolve:}
+% \changes{v3.2a}{2026/08/27}{加查表：按当前上下文把最具体的那个变体绑到裸词条名上}
+%
+% \emph{查表。} 遍历所有已声明的词条键，把键名解析成「词条名 + 各轴取值」，取值
+% 与当前上下文\emph{全都对得上}的才算候选，同一词条取\emph{段数最多}的那个——
+% 段数越多越具体。段数并列就报错：那说明表里对同一个上下文写了两条同样具体的，
+% 是歧义，不该由查表替用户挑一个。
+%
+% 挑出来之后把结果绑到\emph{裸词条名}上：\cs{hit@document@type} 在本科那一档指向
+% \cs{hit@document@type@bachelor} 的值。这样消费方一个字都不用改，也不必自己写
+% \cs{hit@if@option@TF} 去分档。
+%
+% \emph{一次性做完。} 在导言区末尾跑一遍，不是每次取值时现查——候选只有几十个，
+% 遍历一次比每处展开都枚举一遍轴的子集省得多。
+%
+% \emph{某个词条一档都没命中就不绑}，裸宏名保持原样（多半是未定义）。消费方用到
+% 它时当场报未定义，比悄悄回落到键名强——回落会把键名印到纸上，编译还不报错。
+%    \begin{macrocode}
+\prop_new:N \l__hit_axis_context_prop
+\prop_new:N \l__hit_axis_best_prop
+\prop_new:N \l__hit_axis_win_prop
+\tl_new:N \l__hit_axis_best_tl
+\bool_new:N \l__hit_axis_hit_bool
+\cs_new_protected:Npn \__hit_axis_context_try:n #1
+  {
+    \bool_if_exist:cT { g__hit_#1_bool }
+      {
+        \bool_if:cT { g__hit_#1_bool }
+          { \prop_put:NVn \l__hit_axis_context_prop \l__hit_axis_current_tl {#1} }
+      }
+  }
+\cs_new_protected:Npn \__hit_axis_context_axis:n #1
+  {
+    \prop_get:NnNT \c__hit_axis_values_prop {#1} \l__hit_axis_value_tl
+      {
+        \tl_set:Nn \l__hit_axis_current_tl {#1}
+        \exp_args:NV \clist_map_function:nN \l__hit_axis_value_tl
+          \__hit_axis_context_try:n
+      }
+  }
+%    \end{macrocode}
+%
+% 一条轴上的取值与上下文对不上，这个键就出局。上下文里没有那条轴（比如
+% \option{lang} 在报告类里没设），也算对不上——宁可不绑，不要瞎绑。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_axis_match:nn #1#2
+  {
+    \prop_get:NnNTF \l__hit_axis_context_prop {#1} \l__hit_axis_best_tl
+      {
+        \str_if_eq:VnF \l__hit_axis_best_tl {#2}
+          { \bool_set_false:N \l__hit_axis_hit_bool }
+      }
+      { \bool_set_false:N \l__hit_axis_hit_bool }
+  }
+\cs_new_protected:Npn \__hit_axis_consider:n #1
+  {
+    \hit@axis@parse:n {#1}
+    \bool_set_true:N \l__hit_axis_hit_bool
+    \prop_map_function:NN \l__hit_axis_spec_prop \__hit_axis_match:nn
+    \bool_if:NT \l__hit_axis_hit_bool
+      {
+        \int_set:Nn \l__hit_axis_index_int
+          { \prop_count:N \l__hit_axis_spec_prop }
+        \prop_get:NVNTF \l__hit_axis_best_prop \l__hit_axis_term_tl
+          \l__hit_axis_best_tl
+          {
+            \int_compare:nNnTF { \l__hit_axis_index_int } > { \l__hit_axis_best_tl }
+              { \__hit_axis_record_win:n {#1} }
+              {
+                \int_compare:nNnT { \l__hit_axis_index_int } = { \l__hit_axis_best_tl }
+                  {
+                    \msg_error:nnxx { hithesis } { axis-ambiguous }
+                      { \l__hit_axis_term_tl } {#1}
+                  }
+              }
+          }
+          { \__hit_axis_record_win:n {#1} }
+      }
+  }
+\cs_new_protected:Npn \__hit_axis_record_win:n #1
+  {
+    \prop_put:NVx \l__hit_axis_best_prop \l__hit_axis_term_tl
+      { \int_use:N \l__hit_axis_index_int }
+    \prop_put:NVn \l__hit_axis_win_prop \l__hit_axis_term_tl {#1}
+  }
+%    \end{macrocode}
+%
+% 绑定。词条名与键名都要先按 \cs{\_\_hit\_key\_to\_macro\_name:n} 的老规矩折成
+% 宏名，横杠换 \texttt{@}。赢家就是裸键时，等于把宏绑到自己身上，无害。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_axis_bind:nn #1#2
+  {
+    \__hit_key_to_macro_name:n {#1}
+    \tl_set:NV \l__hit_axis_best_tl \l__hit_constant_name_str
+    \__hit_key_to_macro_name:n {#2}
+    \cs_if_exist:cT { hit@ \l__hit_constant_name_str }
+      {
+        \cs_gset_eq:cc { hit@ \l__hit_axis_best_tl }
+          { hit@ \l__hit_constant_name_str }
+      }
+  }
+\cs_new_protected:Npn \hit@axis@resolve:
+  {
+    \prop_clear:N \l__hit_axis_context_prop
+    \clist_map_inline:Nn \c__hit_axis_clist { \__hit_axis_context_axis:n {##1} }
+    \prop_clear:N \l__hit_axis_best_prop
+    \prop_clear:N \l__hit_axis_win_prop
+    \seq_map_inline:Nn \g__hit_constant_seq { \__hit_axis_consider:n {##1} }
+    \prop_map_function:NN \l__hit_axis_win_prop \__hit_axis_bind:nn
+  }
+%    \end{macrocode}
+%    \end{macro}
+%    \begin{macrocode}
+\seq_new:N \g__hit_constant_seq
 \cs_new_protected:Npn \hit@declare@constant #1
   {
     \clist_map_inline:nn {#1}
-      { \keys_define:nn { hit / const } { ##1 .code:n = { \__hit_constant_set:n {####1} } } }
+      {
+        \seq_gput_right:Nn \g__hit_constant_seq {##1}
+        \keys_define:nn { hit / const } { ##1 .code:n = { \__hit_constant_set:n {####1} } }
+      }
   }
 %    \end{macrocode}
 %
