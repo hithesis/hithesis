@@ -169,9 +169,9 @@ jobs:
       - name: Build package documentation
         run: make manual
 
-      # 四棵示例树在 d0e6dd9 合成了一棵 examples/demo，一份 main.tex 按 kind
-      # 出四种交付物。开题、中期、英文那三种由变体矩阵覆盖（它按 OPTIONS 传
-      # kind），这里只编默认那一份。
+      # 四棵示例树在 d0e6dd9 合成了一棵 examples/demo，b4d2b18 又把入口拆成
+      # thesis.tex 与 report.tex。开题、中期、英文那三种由变体矩阵覆盖（它按
+      # OPTIONS 传 kind），这里只编默认那一份。
       - name: Build example
         run: make -C examples/demo thesis
 
@@ -277,18 +277,23 @@ jobs:
       # 走 latexmk 会把 examples/demo/latexmkrc 里的 makeindex 与 splitindex
       # 一并拖进来，那是另一回事，出了问题也分不清是模板还是工具链。
       #
-      # 必须显式指定 fontset=fandol。示例的 main.tex 不写 fontset，走的是
+      # 必须显式指定 fontset=fandol。示例的 thesis.tex 不写 fontset，走的是
       # 按机器上装了什么字体逐级探测；而 runner 上一个中文系统字体都没有，
       # 汉字会全部落到 Times New Roman，每个字一条 Missing character，
       # 排出来是空白（实测 53 页、满屏缺字）。fandol 随 TeX Live 发，各平台都在。
       # 变体矩阵不受影响，它的每个变体本来就写着 fontset=fandol。
+      #
+      # 入口是 thesis.tex。b4d2b18 把 main.tex 拆成了 thesis.tex 与 report.tex，
+      # 这一步当时没跟着改，mac 与 windows 两个 job 从那以后一直挂在
+      # “cannot \read from terminal”。xelatex 找不到 main.tex 就转而向终端要
+      # 文件名，nonstopmode 下要不到，直接停机。
       #
       # 失败时把日志末尾打出来，构件要管理员权限才下载得了。
       - name: Build example
         shell: bash
         working-directory: examples/demo
         run: |
-          doc='\PassOptionsToClass{fontset=fandol}{hithesis}\input{main.tex}'
+          doc='\PassOptionsToClass{fontset=fandol}{hithesis}\input{thesis.tex}'
           xelatex -interaction=nonstopmode -jobname=main "$doc" || {
             echo "::group::main.log 末尾"; tail -60 main.log; echo "::endgroup::"; exit 1; }
           xelatex -interaction=nonstopmode -jobname=main "$doc" || {
