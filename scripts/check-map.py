@@ -74,7 +74,7 @@ DESC = {
     "report-bib": "参考文献版式",
     "thesis-appendix": "附录",
     "thesis-backmatter": "成果、索引、简历",
-    "thesis-statement": "原创性声明",
+    "thesis-declarations": "原创性声明与使用授权",
     "thesis-resolution": "答辩决议",
     "thesis-deps": "多模块共用的第三方宏包",
     "report-deps": "多模块共用的第三方宏包",
@@ -129,7 +129,7 @@ def render(cls: str, title: str) -> list[str]:
              "% ^^A 位置无关。★ 标的几块在本文件里，其余在 setup/ utils/ flow/ pages/ 下。",
              bar]
     for n, (path, guard) in enumerate(from_install(cls), 1):
-        lines.append("%% ^^A %2d  %-32s %-24s %s"
+        lines.append("%% ^^A %2d  %-33s %-24s %s"
                      % (n, path, guard, DESC.get(guard.split(",")[0], "")))
     lines += [bar, CLOSE]
     return [l.replace("%%", "%", 1) if l.startswith("%%") else l for l in lines]
