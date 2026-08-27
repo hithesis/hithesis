@@ -431,22 +431,52 @@
   }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/08/27}{加 \cs{\_\_hit\_layout\_msword\_active:TF}，按页换版面
+%   只在新版面下做}
+% \cs{\_\_hit\_layout\_msword\_active:TF} 这份文档走不走 Word 那套版面。旧版面的尺寸写在
+% \file{src/flow/hit-thesis-geometry.dtx} 里，\option{layout} 那一族的默认值整段不发，
+% 攒出来的键值表是空的，拿空表去算只会得到一页零边距。报告类没有这个标志位，
+% 那边只有一套版面，当作走。
+%    \begin{macrocode}
+\prg_new_protected_conditional:Npnn \__hit_layout_msword_active: { T , TF }
+  {
+    \bool_if_exist:NTF \g__hit_layout_two_bool
+      {
+        \bool_if:NTF \g__hit_layout_two_bool
+          { \prg_return_false: } { \prg_return_true: }
+      }
+      { \prg_return_true: }
+  }
+%    \end{macrocode}
+%
 % \begin{macro}{\hit@layout@push@part:n}
-% 排某个部件之前换上它那一节的版面，排完 \cs{hit@msword@layout@pop:} 还回去。
+% \begin{macro}{\hit@layout@pop@part:}
+% 排某个部件之前换上它那一节的版面，排完 \cs{hit@layout@pop@part:} 还回去。
 % 传进去的是「全篇取值 + 该部件的差异」，后写的覆盖先写的。
+%
+% \changes{v3.2a}{2026/08/27}{旧版面下不推部件版面：博士后的摘要页从前推的是一张
+%   空表，边距被换成零，正文顶到纸边、页码落到页外}
+% 两条都跟着 \cs{\_\_hit\_layout\_msword\_active:TF} 走，一起做或者一起不做，
+% 不然 \cs{hit@msword@layout@pop:} 会拿上一次存的值往回还。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@layout@push@part:n #1
   {
-    \use:x
+    \__hit_layout_msword_active:T
       {
-        \exp_not:N \hit@msword@layout@push:n
+        \use:x
           {
-            \exp_not:v { g__hit_layout_msword_tl }
-            \exp_not:v { g__hit_layout_msword_#1_tl }
+            \exp_not:N \hit@msword@layout@push:n
+              {
+                \exp_not:v { g__hit_layout_msword_tl }
+                \exp_not:v { g__hit_layout_msword_#1_tl }
+              }
           }
       }
   }
+\cs_new_protected:Npn \hit@layout@pop@part:
+  { \__hit_layout_msword_active:T { \hit@msword@layout@pop: } }
 %    \end{macrocode}
+% \end{macro}
 % \end{macro}
 %    \begin{macrocode}
 \__hit_layout_leaf:nnn { paper } { width }  { paper-width }
