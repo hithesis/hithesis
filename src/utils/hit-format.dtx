@@ -980,6 +980,7 @@
 \tl_const:Nn \c__hit_format_natural_tl { 1.296875 }
 \tl_const:Nn \c__hit_format_natural_latin_tl { 1.15 }
 \bool_new:N \l__hit_format_latin_bool
+\bool_new:N \l__hit_format_exact_bool
 \tl_const:Nn \c__hit_format_ascent_tl { 1.008 }
 \dim_const:Nn \c__hit_format_ascent_dim { 0.082bp }
 \tl_const:Nn \c__hit_format_exact_tl { 0.8 }
@@ -1261,6 +1262,8 @@
     \__hit_format_read:nnnN {#1} { line-spacing } { 1 } \l__hit_format_value_tl
     \__hit_format_read:nnnN {#1} { line-spacing-unit } { multiple }
       \l__hit_format_unit_tl
+    \bool_set:Nn \l__hit_format_exact_bool
+      { \str_if_eq_p:Vn \l__hit_format_unit_tl { exactly } }
     \__hit_format_read:nnnN {#1} { line-spacing-2 } { } \l__hit_format_value_ii_tl
     \__hit_format_read:nnnN {#1} { line-spacing-2-unit } { }
       \l__hit_format_unit_ii_tl
@@ -1615,14 +1618,22 @@
     \dim_set:Nn \l__hit_format_strut_dim { \f@size pt }
     \dim_set:Nn \l__hit_format_nat_dim
       { #1 \l__hit_format_strut_dim }
-    \dim_set:Nn \l__hit_format_box_dim
-      { \dim_max:nn { \baselineskip } { \l__hit_format_nat_dim } }
-    \dim_set:Nn \l__hit_format_asc_dim
-      { #2 \l__hit_format_strut_dim + \c__hit_format_ascent_dim }
-    \bool_if:NT \l_hit_format_line_snap_bool
+    \bool_if:NTF \l_hit_format_strut_exact_bool
       {
-        \dim_add:Nn \l__hit_format_asc_dim
-          { 0.5 \l__hit_format_box_dim - 0.5 \l__hit_format_nat_dim }
+        \dim_set_eq:NN \l__hit_format_box_dim \baselineskip
+        \dim_set:Nn \l__hit_format_asc_dim
+          { \c__hit_format_exact_tl \l__hit_format_box_dim }
+      }
+      {
+        \dim_set:Nn \l__hit_format_box_dim
+          { \dim_max:nn { \baselineskip } { \l__hit_format_nat_dim } }
+        \dim_set:Nn \l__hit_format_asc_dim
+          { #2 \l__hit_format_strut_dim + \c__hit_format_ascent_dim }
+        \bool_if:NT \l_hit_format_line_snap_bool
+          {
+            \dim_add:Nn \l__hit_format_asc_dim
+              { 0.5 \l__hit_format_box_dim - 0.5 \l__hit_format_nat_dim }
+          }
       }
     \vrule ~ width ~ \c_zero_dim
       ~ height ~ \l__hit_format_asc_dim
@@ -1630,6 +1641,30 @@
           { \l__hit_format_box_dim - \l__hit_format_asc_dim }
     \scan_stop:
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/27}{撑杆认固定值行距：基线落在行盒顶下 0.8 倍行距，
+%   与字号和中西文都无关。此前它永远按字号算，固定值行距的段落每一行都偏}
+%
+% \emph{固定值行距的基线。} Word 的 \texttt{w:lineRule="exact"} 下，行盒高被钉死
+% 成给定值，基线落在盒顶下 \cs{c\_\_hit\_format\_exact\_tl} 倍处，
+% \emph{与字号无关、与中西文无关}。
+%
+% 这条是量出来的：自造探针 \file{docx}，每页只放一个测试段——这样盒顶就是版心顶，
+% 基线减版心顶即上升部，一次量到绝对值，不必解方程。Word 亲自导出 PDF，用文本
+% 矩阵取基线。固定值取 18 到 150\,pt 六档，字号四档，中西文各一组，
+% 最小二乘得 \emph{上升部 = 0.79997 × 固定值 + 0.047}，截距在 Word 自身
+% 0.25\,bp 的位置量化噪声里。每个固定值下四组字号与文种给出的上升部完全相同，
+% 这一条否掉了「行距减下降部」那种随字号变的猜想。
+%
+% \cs{\_\_hit\_format\_first:} 早就按这条算了，只是它只管页首那一行的
+% \cs{topskip}；撑杆管每一行，缺了这条分支，固定值行距的段落每一行都偏。
+%    \begin{macrocode}
+\bool_new:N \l_hit_format_strut_exact_bool
+\cs_new_protected:Npn \hit@format@exact@true:
+  { \bool_set_true:N \l_hit_format_strut_exact_bool }
+\cs_new_protected:Npn \hit@format@exact@false:
+  { \bool_set_false:N \l_hit_format_strut_exact_bool }
 \bool_new:N \l_hit_format_strut_latin_bool
 \cs_new_protected:Npn \hit@format@latin@true:
   { \bool_set_true:N \l_hit_format_strut_latin_bool }
@@ -1738,6 +1773,9 @@
         \bool_if:NTF \l__hit_format_latin_bool
           { \exp_not:N \hit@format@latin@true: }
           { \exp_not:N \hit@format@latin@false: }
+        \bool_if:NTF \l__hit_format_exact_bool
+          { \exp_not:N \hit@format@exact@true: }
+          { \exp_not:N \hit@format@exact@false: }
         \exp_not:N \hit@format@strut:
       }
   }
