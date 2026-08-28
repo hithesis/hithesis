@@ -87,7 +87,7 @@ def info_fields() -> set[str]:
 def expand_loops(s: str) -> str:
     """把 \\clist_map_inline:nn {表} {体} 按表里的项展开一遍。
 
-    ``after-*-number`` 那十二条是循环生成的，不展开就会被当成「声明了没取值」。
+    ``after-*-number`` 那十二条是循环生成的，不展开就会被当成“声明了没取值”。
     只处理 ``#1`` 这一层，够用：cfg 里的循环只有这一种。
     """
     out = [s]
