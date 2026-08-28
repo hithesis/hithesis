@@ -272,7 +272,7 @@ def main() -> int:
     # 改名时消费端改了、键名忘了改，就落在这里；上一次是
     # \hit@titlepage@major@postdoc@zh，六个博后变体直接编不出来。
     terms = {parse_key(k)[0] for k in decl}
-    # 查表把最具体的那一条绑到「词条名[-语言]」上，那个名字不在声明表里，
+    # 查表把最具体的那一条绑到“词条名[-语言]”上，那个名字不在声明表里，
     # 排版代码却正是写它。
     resolved = set(decl)
     for k in decl:
