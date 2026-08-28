@@ -23,7 +23,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls lineends compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint apilint inscheck productcheck mapcheck mapfix depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls lineends compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
@@ -261,6 +261,11 @@ apilint:
 
 constlint:
 	@python3 scripts/check-unused-const.py
+
+# 常量取值的构建期检查：声明表、两份 cfg、查表三处对不上时，排版代码取到的是
+# 未定义的宏，nonstopmode 下只在页面上留一格空白，编译照样以 0 退出。
+constcheck:
+	@python3 scripts/check-const.py
 
 # 扫编译日志里那几类“编得过但有毛病”。要先把变体编出来（make baseline）
 logcheck:
