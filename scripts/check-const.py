@@ -84,9 +84,36 @@ def info_fields() -> set[str]:
     return out
 
 
-def valued(cfg: pathlib.Path) -> set[str]:
-    """某一份 cfg 里真给了取值的键。"""
-    s = cfg.read_text(encoding="utf-8")
+def expand_loops(s: str) -> str:
+    """把 \\clist_map_inline:nn {表} {体} 按表里的项展开一遍。
+
+    ``after-*-number`` 那十二条是循环生成的，不展开就会被当成「声明了没取值」。
+    只处理 ``#1`` 这一层，够用：cfg 里的循环只有这一种。
+    """
+    out = [s]
+    for m in re.finditer(r"\\clist_map_inline:nn\s*\{", s):
+        items, i = braced(s, m.end())
+        while i < len(s) and s[i] in " \n":
+            i += 1
+        if i >= len(s) or s[i] != "{":
+            continue
+        body, _ = braced(s, i + 1)
+        if "#1" not in body:
+            continue
+        for t in items.replace("\n", " ").split(","):
+            t = t.strip()
+            if t:
+                out.append(body.replace("#1", t))
+    return "\n".join(out)
+
+
+def valued(*files: pathlib.Path) -> set[str]:
+    """这些文件里真给了取值的键。
+
+    取值不止在 ``.cfg`` 里：``after-*-number`` 那十二条由 ``shared-defaults``
+    的循环显式设成空值，那一段编进类文件，所以 ``.cls`` 也要一起读。
+    """
+    s = expand_loops("\n".join(f.read_text(encoding="utf-8") for f in files))
     out: set[str] = set()
     for m in re.finditer(r"\\hit@presetup\s*(\[[^\]]*\])?\s*\{", s):
         body, _ = braced(s, m.end())
@@ -213,7 +240,7 @@ def main() -> int:
         if not cfg.exists():
             print(f"没有 {cfg.name}，先跑 make cls")
             return 1
-        have = bound(valued(cfg), CONTEXTS[cls])
+        have = bound(valued(cfg, ROOT / f"{cls}.cls"), CONTEXTS[cls])
         # 声明了却在这个类里没取到值的，引用它就是空的
         missing = {k for k in decl if k not in have}
         macros = {"\\hit@term@" + k.replace("-", "@").replace("*", ""): k for k in missing}

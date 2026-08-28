@@ -337,6 +337,32 @@
               { \l__hit_bucket_name_tl = { \exp_not:n {#4} } }
           }
       }
+      { \__hit_bucket_from_base:nnnn {#1} {#2} {#3} {#4} }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/28}{往某个桶里写 \texttt{base} 有、这个桶自己没有的词条，
+%   当场把它声明进这个桶}
+% 用户写 \option{const}\texttt{=\{zh=\{titlepage=\{university=\ldots\}\}\}} 时，
+% \texttt{titlepage-university-zh} 这个键表里本来没有——跨页共用的词条只在
+% \texttt{base} 里声明一次。查表那头已经把各桶取不到的名字转指到 \texttt{base}，
+% 这头补上另一半：\texttt{base} 里有同名词条就当场把它声明进这个桶再设值，
+% 于是「只改这一页」写得出来。\texttt{base} 里也没有才是真写错了。
+%    \begin{macrocode}
+\tl_new:N \l__hit_bucket_base_tl
+\cs_new_protected:Npn \__hit_bucket_from_base:nnnn #1#2#3#4
+  {
+    \tl_set:Nn \l__hit_bucket_base_tl { base - #3 }
+    \tl_if_empty:nF {#2} { \tl_put_right:Nn \l__hit_bucket_base_tl { - #2 } }
+    \exp_args:NnV \keys_if_exist:nnTF { hit / const } \l__hit_bucket_base_tl
+      {
+        \exp_args:NV \hit@declare@constant \l__hit_bucket_name_tl
+        \use:x
+          {
+            \exp_not:N \keys_set:nn { hit / const }
+              { \l__hit_bucket_name_tl = { \exp_not:n {#4} } }
+          }
+      }
       {
         \msg_warning:nnV { hithesis } { key-not-in-bucket }
           \l__hit_bucket_name_tl
@@ -512,7 +538,7 @@
     \str_set:Nn \l__hit_constant_name_str {#1}
     \str_replace_all:Nnn \l__hit_constant_name_str { - } { @ }
   }
-\cs_generate_variant:Nn \__hit_key_to_macro_name:n { V }
+\cs_generate_variant:Nn \__hit_key_to_macro_name:n { V , x }
 \tl_new:N \l__hit_reference_space_tl
 \prop_new:N \g__hit_constant_declared_prop
 \cs_new_protected:Npn \__hit_expand_references:N #1
@@ -850,7 +876,48 @@
         \prop_if_in:NnF \l__hit_axis_win_prop {##1}
           { \__hit_axis_bind:nn {##1} {##2} }
       }
+    \prop_map_inline:Nn \l__hit_axis_win_prop { \__hit_axis_from_base:n {##1} }
     \seq_map_inline:Nn \g__hit_constant_seq { \__hit_term_guard:n {##1} }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/28}{各页桶取不到的词条回落到 \texttt{base} 桶}
+% \emph{本页的桶盖在 \texttt{base} 上。} 跨页共用的词条住在 \texttt{base}，各页桶里
+% 没写的那些就指向 \texttt{base} 里那一条。这样排版代码一律写自己那一页的桶
+% （\cs{hit@term@titlepage@university@zh}），用户想只改这一页就改
+% \option{const}\texttt{=\{zh=\{titlepage=\{university=\ldots\}\}\}}，想全篇一起改就改
+% \texttt{base} 那一条。桶里自己写了的优先，回落只补没写的。
+%
+% 照 iota 的两级查表：本页的桶盖在 base 上，两处都没有就报错（那是上一段的守卫）。
+% 区别只在时机：那边每次取值现查，我们在这里一次绑完，之后取值就是取一个宏。
+%    \begin{macrocode}
+\seq_new:N \l__hit_axis_base_seq
+\tl_new:N \l__hit_axis_rest_tl
+\cs_new_protected:Npn \__hit_axis_from_base:n #1
+  {
+    \seq_set_split:Nnn \l__hit_axis_base_seq { - } {#1}
+    \seq_pop_left:NN \l__hit_axis_base_seq \l__hit_axis_bare_tl
+    \str_if_eq:VnT \l__hit_axis_bare_tl { base }
+      {
+        \tl_set:Nx \l__hit_axis_rest_tl
+          { \seq_use:Nn \l__hit_axis_base_seq { - } }
+        \clist_map_inline:Nn \c__hit_bucket_clist
+          { \__hit_axis_from_base:nn {##1} {#1} }
+      }
+  }
+\cs_new_protected:Npn \__hit_axis_from_base:nn #1#2
+  {
+    \str_if_eq:nnF {#1} { base }
+      {
+        \__hit_key_to_macro_name:x { #1 - \l__hit_axis_rest_tl }
+        \tl_set:NV \l__hit_axis_best_tl \l__hit_constant_name_str
+        \cs_if_exist:cF { hit@term@ \l__hit_axis_best_tl }
+          {
+            \__hit_key_to_macro_name:n {#2}
+            \cs_gset:cpx { hit@term@ \l__hit_axis_best_tl }
+              { \exp_not:c { hit@term@ \l__hit_constant_name_str } }
+          }
+      }
   }
 %    \end{macrocode}
 %
