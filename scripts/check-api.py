@@ -48,7 +48,7 @@ DEFINE = re.compile(
 JUNK = {"CJK", "CTEX", "LT", "NAT", "ext", "make", "p", "tagform", "def", "bibstyle"}
 
 # 名字后面跟 _ 或 : 的由上面那个前瞻挡掉：那是 expl3 的内部名，用户打不出来。
-# 挡的是 \xeCJK_space_or_xecglue: 这种——截到 \xeCJK 就成了「类里定义了 \xeCJK」，
+# 挡的是 \xeCJK_space_or_xecglue: 这种。截到 \xeCJK 就成了“类里定义了 \xeCJK”，
 # 而 xeCJK 那个名字是宏包的 logo 命令，根本不在这里定义。@ 那一头不能照办：
 # \hit@… 截出来的 hit 与真有其人的 \hit 同名，只能靠 JUNK 逐个列。
 
