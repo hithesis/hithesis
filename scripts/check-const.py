@@ -157,6 +157,23 @@ def parse_key(key: str) -> tuple[str, dict[str, str]]:
     return "-".join(parts), spec
 
 
+def buckets() -> list[str]:
+    """页桶名单，与 src/setup/hit-key-engine.dtx 里那张一致。"""
+    s = (ROOT / "src/setup/hit-key-engine.dtx").read_text(encoding="utf-8")
+    m = re.search(r"\\clist_const:Nn \\c__hit_bucket_clist\s*\{(.*?)\}", s, re.S)
+    return [x.strip() for x in m.group(1).replace("\n", " ").split(",") if x.strip()]
+
+
+def with_fallback(names: set[str]) -> set[str]:
+    """各页桶取不到的名字指向 base 里的同名词条，所以 base 有什么，各桶就有什么。"""
+    out = set(names)
+    for n in names:
+        if n.startswith("base-"):
+            rest = n[len("base-"):]
+            out |= {b + "-" + rest for b in buckets() if b != "base"}
+    return out
+
+
 def bound(keys: set[str], contexts: list[dict[str, str]]) -> set[str]:
     """算出所有上下文下查表会绑出来的名字，连同字面键本身。"""
     out = set(keys)
@@ -240,7 +257,7 @@ def main() -> int:
         if not cfg.exists():
             print(f"没有 {cfg.name}，先跑 make cls")
             return 1
-        have = bound(valued(cfg, ROOT / f"{cls}.cls"), CONTEXTS[cls])
+        have = with_fallback(bound(valued(cfg, ROOT / f"{cls}.cls"), CONTEXTS[cls]))
         # 声明了却在这个类里没取到值的，引用它就是空的
         missing = {k for k in decl if k not in have}
         macros = {"\\hit@term@" + k.replace("-", "@").replace("*", ""): k for k in missing}
@@ -255,7 +272,8 @@ def main() -> int:
     # 改名时消费端改了、键名忘了改，就落在这里；上一次是
     # \hit@titlepage@major@postdoc@zh，六个博后变体直接编不出来。
     terms = {parse_key(k)[0] for k in decl}
-    declm = {"\\hit@term@" + k.replace("-", "@").replace("*", "") for k in decl}
+    declm = {"\\hit@term@" + k.replace("-", "@").replace("*", "")
+             for k in with_fallback(decl)}
     typo: list[tuple[str, str, str]] = []
     for cls, skel in (("hit-thesis", "src/hit-thesis.dtx"),
                       ("hit-report", "src/hit-report.dtx")):
