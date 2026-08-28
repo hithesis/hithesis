@@ -264,6 +264,81 @@
   }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/08/27}{固定词汇按页分桶：键名是「桶-词条」，用户写
+%   \option{const}\texttt{=\{zh=\{titlepage=\{supervisor=\ldots\}\}\}}}
+% \emph{页桶。} 同一个字段身份在不同的页上是不同的东西：报告封面的「院（系）」与
+% 内封的「所在单位」都叫 \option{affiliation}，挤在一层里只能靠前缀区分，越加越长，
+% 而且看不出哪一条只有某一页用得上。所以键名前面带一段桶名，一页一个桶，
+% 跨页共用的进 \texttt{base}。
+%
+% \begin{latex}
+% \hitsetup{ const = {
+%   zh = { titlepage = { supervisor = {导师} } },
+%   base = { university = {哈尔滨工业大学} },
+% } }
+% \end{latex}
+%
+% 桶与语言两层都只是改写键名再转发：上面两句分别落到
+% \texttt{titlepage-supervisor-zh} 与 \texttt{base-university}。正式名仍然是拼好的
+% 那个，报错与改名提示里出现的都是它。
+%
+% \emph{桶名不能与词条名撞车。} 语言分组下面先认桶名再认词条，一个叫
+% \texttt{titlepage} 的词条会被当成桶。桶名一共十个，都是部件名，词条名不该跟部件
+% 同名——真要指某个部件自己的什么，词条名里得说清是它的哪一样。
+%    \begin{macrocode}
+\clist_const:Nn \c__hit_bucket_clist
+  {
+    base , cover , titlepage , abstract , toc , declarations ,
+    resolution , backmatter , header , caption
+  }
+\tl_new:N \l__hit_bucket_name_tl
+\cs_new_protected:Npn \__hit_bucket_key:nnnn #1#2#3#4
+  {
+    \tl_set:Nn \l__hit_bucket_name_tl { #1 - #3 }
+    \tl_if_empty:nF {#2} { \tl_put_right:Nn \l__hit_bucket_name_tl { - #2 } }
+    \exp_args:NnV \keys_if_exist:nnTF { hit / const } \l__hit_bucket_name_tl
+      {
+        \use:x
+          {
+            \exp_not:N \keys_set:nn { hit / const }
+              { \l__hit_bucket_name_tl = { \exp_not:n {#4} } }
+          }
+      }
+      {
+        \msg_warning:nnV { hithesis } { key-not-in-bucket }
+          \l__hit_bucket_name_tl
+      }
+  }
+\cs_new_protected:Npn \__hit_bucket_unknown:nnn #1#2#3
+  {
+    \use:x
+      {
+        \exp_not:N \__hit_bucket_key:nnnn
+          {#1} {#2} { \l_keys_key_str } { \exp_not:n {#3} }
+      }
+  }
+\cs_new_protected:Npn \__hit_declare_bucket:n #1
+  {
+    \keys_define:nn { hit / const / #1 }
+      { unknown .code:n = { \__hit_bucket_unknown:nnn {#1} { } {##1} } }
+    \keys_define:nn { hit / const }
+      { #1 .code:n = { \hit@keys@set:nn { hit / const / #1 } {##1} } }
+  }
+\cs_new_protected:Npn \__hit_declare_bucket:nn #1#2
+  {
+    \keys_define:nn { hit / const / #2 / #1 }
+      { unknown .code:n = { \__hit_bucket_unknown:nnn {#1} {#2} {##1} } }
+    \keys_define:nn { hit / const / #2 }
+      { #1 .code:n = { \hit@keys@set:nn { hit / const / #2 / #1 } {##1} } }
+  }
+\clist_map_inline:Nn \c__hit_bucket_clist
+  {
+    \__hit_declare_bucket:n {#1}
+    \clist_map_inline:Nn \c__hit_lang_clist
+      { \__hit_declare_bucket:nn {#1} {##1} }
+  }
+%    \end{macrocode}
+%
 % 三态取值。选项可取 \texttt{auto}、\texttt{true}、\texttt{false}，也可以按学位分别
 % 指定；\texttt{auto} 的含义由各选项自己定义，在用到的时候才解析。分学位映射里没
 % 列到的学位保持 \texttt{auto}，不是 \texttt{false}。
