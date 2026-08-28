@@ -61,6 +61,29 @@ def declared() -> set[str]:
     return out
 
 
+def info_fields() -> set[str]:
+    """元信息字段名。它们与词条各占一段前缀，这里只用来判“拼串的宏名少了前缀”。"""
+    s = (ROOT / "src/setup/hit-keylist.dtx").read_text(encoding="utf-8")
+    out: set[str] = set()
+    for pat in (r"\\hit@define@term\{([a-z0-9-]+)\}",
+                r"\\hit@define@term@alias\{([a-z0-9-]+)\}",
+                r"\\hit@define@date@term\{([a-z0-9-]+)\}",
+                r"\\hit@parse@keywords\{([a-z0-9-]+)\}"):
+        out |= set(re.findall(pat, s))
+    for m in re.finditer(r"\\hit@declare@info@field\s*\{", s):
+        body, _ = braced(s, m.end())
+        for t in body.replace("\n", " ").split(","):
+            t = t.strip()
+            if re.fullmatch(r"[a-z0-9-]+", t):
+                out.add(t)
+    # \hit@define@title 现造的那一组零参名字
+    for lang in ("zh", "en"):
+        for suf in ("", "-flat", "-cover", "-subtitle",
+                    "-line-one", "-line-two", "-first", "-second"):
+            out.add(f"title{suf}-{lang}")
+    return out
+
+
 def valued(cfg: pathlib.Path) -> set[str]:
     """某一份 cfg 里真给了取值的键。"""
     s = cfg.read_text(encoding="utf-8")
@@ -220,7 +243,22 @@ def main() -> int:
                 key = name[len("\\hit@term@"):].replace("@", "-")
                 typo.append((cls, key, rel))
 
-    if bad or typo:
+    # 第三关：拿字符串拼出来的宏名。\use:c { hit@keywords@zh@plain } 这种
+    # 改名脚本扫不到（它只认 \hit@ 开头的记号），漏了就是取到一个未定义的宏。
+    # 已经踩过三次：\hit@parse@keywords 的分隔符、题注前缀的 \@captype、
+    # 以及 pdfkeywords 这一处。
+    names = {k.replace("-", "@").replace("*", "") for k in decl | info_fields()}
+    names |= {n + "@raw" for n in names} | {n + "@plain" for n in names}
+    built: list[tuple[str, str]] = []
+    for p2 in sorted(ROOT.glob("src/**/*.dtx")):
+        for l in p2.read_text(encoding="utf-8").splitlines():
+            if l.startswith("%"):
+                continue
+            for m in re.finditer(r"\{ *hit@([a-zA-Z@]+) *\}", l):
+                if m.group(1) in names:
+                    built.append((str(p2.relative_to(ROOT)), "hit@" + m.group(1)))
+
+    if bad or typo or built:
         if bad:
             print("常量引用不到取值：\n")
             for cls, key, rel in sorted(set(bad)):
@@ -230,7 +268,12 @@ def main() -> int:
             print("引用了没声明的词条：\n")
             for cls, key, rel in sorted(set(typo)):
                 print(f"  {cls}：{rel} 引用了 {key}，声明表里没有这个键")
-            print("\n多半是改名时消费端改了、声明表与取值忘了跟。")
+            print("\n多半是改名时消费端改了、声明表与取值忘了跟。\n")
+        if built:
+            print("拿字符串拼的宏名指向词条或元信息，少了 term@／info@ 这一段：\n")
+            for rel, name in sorted(set(built)):
+                print(f"  {rel}：{{ {name} }}")
+            print("\n改名脚本只认 \\hit@ 开头的记号，拼串的地方扫不到，得手工跟。")
         return 1
     print(f"常量取值一致（声明 {len(decl)} 个，两个类各自都取得到）")
     return 0
