@@ -54,6 +54,21 @@
     \hit@declare@class@key {#1}
     \prop_gput:Nnn \g__hit_renamed_option_prop {#1} { info={#2=...} }
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/28}{加 \cs{hit@define@legacy@constant}：旧命令也可以
+%   映射到常量，不必非得是元信息字段}
+% \cs{hit@define@legacy@constant}\marg{旧名}\marg{常量键}：有些旧名对应的现在是
+% 常量而不是元信息字段（\cs{cstudenttype} 就是），转发到 \cs{hitsetup} 的
+% \option{const} 族。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@define@legacy@constant #1#2
+  {
+    \cs_gset_protected_nopar:cpn {#1} ##1
+      { \hit@set@constant { #2 = {##1} } }
+    \hit@declare@class@key {#1}
+    \prop_gput:Nnn \g__hit_renamed_option_prop {#1} { const={#2=...} }
+  }
 \cs_new_protected:Npn \hit@define@legacy@terms #1
   {
     \prop_set_from_keyval:Nn \l__hit_legacy_term_prop {#1}
@@ -143,10 +158,10 @@
             \tl_set:Nn \l__hit_keywords_item_tl {####1}
             \tl_trim_spaces:N \l__hit_keywords_item_tl
             \tl_if_empty:cF { hit@#3 }
-              { \tl_gput_right:cx { hit@#3 } { \exp_not:v { hit@#2 } } }
+              { \tl_gput_right:cx { hit@#3 } { \exp_not:v { hit@term@#2 } } }
             \tl_gput_right:cV { hit@#3 } \l__hit_keywords_item_tl
             \tl_if_empty:cF { hit@#3@plain }
-              { \tl_gput_right:cn { hit@#3@plain } { \use:c { hit@#2 } } }
+              { \tl_gput_right:cn { hit@#3@plain } { \use:c { hit@term@#2 } } }
             \tl_gput_right:cx { hit@#3@plain } { \tl_trim_spaces:n {####1} }
           }
       }
@@ -498,6 +513,8 @@
     \str_replace_all:Nnn \l__hit_constant_name_str { - } { @ }
   }
 \cs_generate_variant:Nn \__hit_key_to_macro_name:n { V }
+\tl_new:N \l__hit_reference_space_tl
+\prop_new:N \g__hit_constant_declared_prop
 \cs_new_protected:Npn \__hit_expand_references:N #1
   {
     \regex_extract_all:nVN { < [a-z\-]+ > } #1 \l__hit_reference_seq
@@ -507,9 +524,15 @@
         \tl_set:Nn \l__hit_reference_tl {##1}
         \tl_remove_all:Nn \l__hit_reference_tl { < }
         \tl_remove_all:Nn \l__hit_reference_tl { > }
+        \prop_if_in:NVTF \g__hit_constant_declared_prop \l__hit_reference_tl
+          { \tl_set:Nn \l__hit_reference_space_tl { hit@term@ } }
+          { \tl_set:Nn \l__hit_reference_space_tl { hit@ } }
         \__hit_key_to_macro_name:V \l__hit_reference_tl
         \tl_replace_all:Nnx #1 {##1}
-          { \exp_not:c { hit@ \l__hit_constant_name_str } }
+          {
+            \exp_not:c
+              { \l__hit_reference_space_tl \l__hit_constant_name_str }
+          }
       }
   }
 \cs_new_protected:Npn \__hit_constant_set:n #1
@@ -517,7 +540,7 @@
     \tl_set:Nn \l__hit_constant_value_tl {#1}
     \__hit_expand_references:N \l__hit_constant_value_tl
     \__hit_key_to_macro_name:V \l_keys_key_str
-    \cs_gset:cpx { hit@ \l__hit_constant_name_str }
+    \cs_gset:cpx { hit@term@ \l__hit_constant_name_str }
       { \exp_not:V \l__hit_constant_value_tl }
   }
 %    \end{macrocode}
@@ -734,7 +757,7 @@
 \cs_new_protected:Npn \__hit_axis_consider:n #1
   {
     \__hit_key_to_macro_name:n {#1}
-    \cs_if_exist:cT { hit@ \l__hit_constant_name_str }
+    \cs_if_exist:cT { hit@term@ \l__hit_constant_name_str }
       { \__hit_axis_weigh:n {#1} }
   }
 \cs_new_protected:Npn \__hit_axis_weigh:n #1
@@ -806,10 +829,10 @@
     \__hit_key_to_macro_name:n {#1}
     \tl_set:NV \l__hit_axis_best_tl \l__hit_constant_name_str
     \__hit_key_to_macro_name:n {#2}
-    \cs_if_exist:cT { hit@ \l__hit_constant_name_str }
+    \cs_if_exist:cT { hit@term@ \l__hit_constant_name_str }
       {
-        \cs_gset_eq:cc { hit@ \l__hit_axis_best_tl }
-          { hit@ \l__hit_constant_name_str }
+        \cs_gset_eq:cc { hit@term@ \l__hit_axis_best_tl }
+          { hit@term@ \l__hit_constant_name_str }
       }
   }
 \cs_new_protected:Npn \hit@axis@resolve:
@@ -837,6 +860,7 @@
     \clist_map_inline:nn {#1}
       {
         \seq_gput_right:Nn \g__hit_constant_seq {##1}
+        \prop_gput:Nnn \g__hit_constant_declared_prop {##1} { }
         \keys_define:nn { hit / const } { ##1 .code:n = { \__hit_constant_set:n {####1} } }
       }
   }
@@ -880,11 +904,11 @@
 \cs_new:Npn \hit@after@number@empty: { }
 \cs_new:Npn \hit@after@number:nnn #1#2#3
   {
-    \cs_if_exist:cTF { hit@after@#1@number@#2 }
+    \cs_if_exist:cTF { hit@term@after@#1@number@#2 }
       {
-        \cs_if_eq:cNTF { hit@after@#1@number@#2 } \hit@after@number@empty:
+        \cs_if_eq:cNTF { hit@term@after@#1@number@#2 } \hit@after@number@empty:
           {#3}
-          { \use:c { hit@after@#1@number@#2 } }
+          { \use:c { hit@term@after@#1@number@#2 } }
       }
       {#3}
   }

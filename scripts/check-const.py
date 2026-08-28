@@ -61,25 +61,6 @@ def declared() -> set[str]:
     return out
 
 
-def info_fields() -> set[str]:
-    """元信息字段名。它们与常量共用 \\hit@ 这一个名字空间，判“没声明的档位”时
-    要认得出来，否则 \\hit@degree@type@zh 这种会被当成常量的档位报出来。"""
-    s = (ROOT / "src/setup/hit-keylist.dtx").read_text(encoding="utf-8")
-    out: set[str] = set()
-    for pat in (r"\\hit@define@term\{([a-z0-9-]+)\}",
-                r"\\hit@define@term@alias\{([a-z0-9-]+)\}",
-                r"\\hit@define@date@term\{([a-z0-9-]+)\}",
-                r"\\hit@parse@keywords\{([a-z0-9-]+)\}"):
-        out |= set(re.findall(pat, s))
-    for m in re.finditer(r"\\hit@declare@info@field\s*\{", s):
-        body, _ = braced(s, m.end())
-        for t in body.replace("\n", " ").split(","):
-            t = t.strip()
-            if re.fullmatch(r"[a-z0-9-]+", t):
-                out.add(t)
-    return out
-
-
 def valued(cfg: pathlib.Path) -> set[str]:
     """某一份 cfg 里真给了取值的键。"""
     s = cfg.read_text(encoding="utf-8")
@@ -180,17 +161,21 @@ def code_lines(path: pathlib.Path, guards: list[str]) -> str:
 CONTEXTS = {
     "hit-thesis": [
         dict(kind="thesis", campus=c, degree=d, lang=l)
-        for c, d, l in itertools.product(
+        | {"degree-type": t}
+        for c, d, t, l in itertools.product(
             ["harbin", "shenzhen", "weihai"],
             ["bachelor", "master", "doctor", "postdoc"],
+            ["academic", "professional"],
             ["zh", "en"])
     ],
     "hit-report": [
         dict(kind=k, campus=c, degree=d, lang=l)
-        for k, c, d, l in itertools.product(
+        | {"degree-type": t}
+        for k, c, d, t, l in itertools.product(
             ["proposal", "interim"],
             ["harbin", "shenzhen", "weihai"],
             ["bachelor", "master", "doctor"],
+            ["academic", "professional"],
             ["zh", "en"])
     ],
 }
@@ -208,20 +193,19 @@ def main() -> int:
         have = bound(valued(cfg), CONTEXTS[cls])
         # 声明了却在这个类里没取到值的，引用它就是空的
         missing = {k for k in decl if k not in have}
-        macros = {"\\hit@" + k.replace("-", "@").replace("*", ""): k for k in missing}
+        macros = {"\\hit@term@" + k.replace("-", "@").replace("*", ""): k for k in missing}
         for rel, guards in assembly(skel):
             p = ROOT / "src" / rel
             if not p.exists():
                 continue
-            for m in re.finditer(r"\\hit@[a-zA-Z@]+", code_lines(p, guards)):
+            for m in re.finditer(r"\\hit@term@[a-zA-Z@]+", code_lines(p, guards)):
                 if m.group(0) in macros:
                     bad.append((cls, macros[m.group(0)], rel))
     # 第二关：引用了一个没声明的键，而同一个词条的别的档位是声明过的。
     # 改名时消费端改了、键名忘了改，就落在这里；上一次是
     # \hit@titlepage@major@postdoc@zh，六个博后变体直接编不出来。
     terms = {parse_key(k)[0] for k in decl}
-    skip = decl | info_fields()
-    declm = {"\\hit@" + k.replace("-", "@").replace("*", "") for k in skip}
+    declm = {"\\hit@term@" + k.replace("-", "@").replace("*", "") for k in decl}
     typo: list[tuple[str, str, str]] = []
     for cls, skel in (("hit-thesis", "src/hit-thesis.dtx"),
                       ("hit-report", "src/hit-report.dtx")):
@@ -229,14 +213,12 @@ def main() -> int:
             p = ROOT / "src" / rel
             if not p.exists():
                 continue
-            for m in re.finditer(r"\\hit@[a-zA-Z@]+", code_lines(p, guards)):
+            for m in re.finditer(r"\\hit@term@[a-zA-Z@]+", code_lines(p, guards)):
                 name = m.group(0)
                 if name in declm:
                     continue
-                key = name[len("\\hit@"):].replace("@", "-")
-                term, spec = parse_key(key)
-                if spec and term in terms:
-                    typo.append((cls, key, rel))
+                key = name[len("\\hit@term@"):].replace("@", "-")
+                typo.append((cls, key, rel))
 
     if bad or typo:
         if bad:
@@ -245,11 +227,9 @@ def main() -> int:
                 print(f"  {cls}：{rel} 引用了 {key}，这个类里没有它的取值")
             print("\n要么在对应那份 cfg 里给它取值，要么消费端改用别的键。\n")
         if typo:
-            print("引用了没声明的档位：\n")
+            print("引用了没声明的词条：\n")
             for cls, key, rel in sorted(set(typo)):
-                t = parse_key(key)[0]
-                print(f"  {cls}：{rel} 引用了 {key}，词条 {t} 有别的档位，"
-                      f"这一档没声明")
+                print(f"  {cls}：{rel} 引用了 {key}，声明表里没有这个键")
             print("\n多半是改名时消费端改了、声明表与取值忘了跟。")
         return 1
     print(f"常量取值一致（声明 {len(decl)} 个，两个类各自都取得到）")
