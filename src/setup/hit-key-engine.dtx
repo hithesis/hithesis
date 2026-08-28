@@ -526,13 +526,27 @@
 % 这样写还避开一个坑：\cs{hit@cxueweishort} 是控制字，后面必须留一个空格来终止它，
 % 那个空格不会排出来。照抄的人容易以为空格是版式的一部分。\texttt{<键名>} 后面没有
 % 控制字，空格就是空格。
+%
+% \changes{v3.2a}{2026/08/28}{替换改用 \cs{regex\_replace\_all:nnN}，花括号里头的
+%   引用也认了。原先用 \cs{tl\_replace\_all:Nnn}，它不进分组}
+% \textbf{花括号里头的引用也认。} 原先这一步是 \cs{tl\_replace\_all:Nnn}，它只在
+% 记号表的最外层找，进不了花括号：\texttt{\{\textbackslash textbf\{<base-campus>\}\}}
+% 里那一处原样留着，排出来的是字面的 \texttt{<base-campus>}。手册上写「取值里写
+% \texttt{<键名>} 就行」，没说不能套花括号，所以这是个静默的坑——
+% \file{hit-thesis.cfg} 里 \option{titlepage-date} 就中过，
+% \texttt{\textbackslash hit@if@option@TF\{proposal\}\{<base-stage-proposal>\}}
+% 存下来的是字面文本，只因为学位论文类的 \texttt{proposal} 恒为假才没排出来。
+%
+% 改用 \pkg{l3regex} 的替换：正则引擎逐个记号走，花括号对它只是记号，进得去。
+% 替换文本里写 \texttt{\textbackslash c\{名字\}} 就是插一个控制序列，名字按命名
+% 空间现拼，与原先 \cs{exp\_not:c} 拼出来的是同一个。
 %    \begin{macrocode}
 \str_new:N \l__hit_constant_name_str
 \tl_new:N \l__hit_constant_value_tl
 \tl_new:N \l__hit_reference_tl
 \seq_new:N \l__hit_reference_seq
-\cs_generate_variant:Nn \tl_replace_all:Nnn { Nnx }
 \cs_generate_variant:Nn \regex_extract_all:nnN { nVN }
+\cs_generate_variant:Nn \regex_replace_all:nnN { VVN }
 \cs_new_protected:Npn \__hit_key_to_macro_name:n #1
   {
     \str_set:Nn \l__hit_constant_name_str {#1}
@@ -540,6 +554,8 @@
   }
 \cs_generate_variant:Nn \__hit_key_to_macro_name:n { V , x }
 \tl_new:N \l__hit_reference_space_tl
+\str_new:N \l__hit_reference_pattern_str
+\str_new:N \l__hit_reference_replace_str
 \prop_new:N \g__hit_constant_declared_prop
 \cs_new_protected:Npn \__hit_expand_references:N #1
   {
@@ -554,11 +570,15 @@
           { \tl_set:Nn \l__hit_reference_space_tl { hit@term@ } }
           { \tl_set:Nn \l__hit_reference_space_tl { hit@info@ } }
         \__hit_key_to_macro_name:V \l__hit_reference_tl
-        \tl_replace_all:Nnx #1 {##1}
+        \str_set:Nx \l__hit_reference_pattern_str { \tl_to_str:n {##1} }
+        \str_set:Nx \l__hit_reference_replace_str
           {
-            \exp_not:c
-              { \l__hit_reference_space_tl \l__hit_constant_name_str }
+            \c_backslash_str c \c_left_brace_str
+            \l__hit_reference_space_tl \l__hit_constant_name_str
+            \c_right_brace_str
           }
+        \regex_replace_all:VVN
+          \l__hit_reference_pattern_str \l__hit_reference_replace_str #1
       }
   }
 \cs_new_protected:Npn \__hit_constant_set:n #1
