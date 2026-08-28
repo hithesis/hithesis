@@ -27,7 +27,8 @@
 反过来不成立：有几个 -en 没有 -zh 对应，都在 EN_ONLY 里列明。
 
 跑法：make cls 之后 python3 scripts/check-unused-const.py
-"""import importlib.util
+"""
+import importlib.util
 import re
 import sys
 from pathlib import Path
@@ -40,6 +41,9 @@ EN_ONLY = {
     # 不是一个词：中文档 figurename=图，英文档 figurename=Figure，而这里是 Fig.，
     # 三个值不是两个。中文那行的前缀直接用 figurename，所以没有 -zh 对应。
     "caption-figure-prefix", "caption-table-prefix",
+    # 英文版目录、图索引、表索引上方那一行栏头（Figure / Table / Page）。
+    # 中文版的三张表都没有这一行，所以没有 -zh 对应。
+    "table-of-contents-figure", "table-of-contents-table", "table-of-contents-page",
 }
 
 # \use:c 按 \@captype 之类拼出来的，正则查不到，逐条列明
@@ -97,15 +101,20 @@ def used(key: str, kind: str, refs: set, values: str, cls: str, elsewhere: str) 
     # titlepage-affiliation 的键，代码里取的是 \\hit@term@titlepage@affiliation@zh。
     # 键名里的档位值是查表时按上下文挑出来的，代码里取的是剥掉档位的那个名字：
     # 声明 titlepage-student-bachelor，本科档下绑成 \\hit@term@titlepage@student。
-    bare, _ = CC.parse_key(key)
-    stems = {key, bare}
+    bare, spec = CC.parse_key(key)
+    stems = {bare}
     # 页桶取不到的词条落到 base 的同名条，所以 base 里的键由各桶的引用点算取用。
-    for stem in list(stems):
-        if stem.startswith("base-"):
-            rest = stem[len("base-"):]
-            stems |= {b + "-" + rest for b in CC.buckets() if b != "base"}
-    # 语言是分区不是档位：查表时把 -zh／-en 接在词条名后头。
-    names = {n + suf for n in stems for suf in ("", "-zh", "-en")}
+    if bare.startswith("base-"):
+        rest = bare[len("base-"):]
+        stems |= {b + "-" + rest for b in CC.buckets() if b != "base"}
+    # 语言是分区不是档位：查表时把 -zh／-en 接在词条名后头。键名自己带了语言的，
+    # 只认那一种——两种都认的话，\\hit@term@cover@degree@level@zh 这一处引用会同时
+    # 算成 base-degree-level-en 有人用，另一半就永远查不出来。
+    if "lang" in spec:
+        names = {n + "-" + spec["lang"] for n in stems}
+    else:
+        names = {n + suf for n in stems for suf in ("", "-zh", "-en")}
+    names.add(key)
     if names & refs:
         return True
     # 宏名当参数传：\\hit@parse@keywords{keywords-zh}{abstract@keywords@separator@zh}
@@ -163,36 +172,22 @@ def main() -> int:
         print(f"\n共 {total} 个常量两个类都没取用。确认是遗漏还是该删，"
               f"删的时候把为什么删写进 \\changes。")
 
-    # 上面那个“另一个类在用的就放过”有个盲区：声明在甲、只有乙在用，两边一凑看着
-    # 有人用，实际甲白声明、乙那个宏根本没定义。inline-separator 就这么躺了很久。
-    # 这里正面查一遍：每个类只能用自己声明过的常量。
-    decl = {n: declared((ROOT / n).read_text(encoding="utf-8")) for n in present}
-    crossed = []
-    for k in sorted(set().union(*(set(d) for d in decl.values()))):
-        # CONSTRUCTED 的名字是 \use:c 现拼的，正则在哪个类里都查不到，used() 对它们
-        # 一律返回真。拿这个结果做跨类判断只会得到“每个类都在用”，全是误报，跳过。
-        if k in CONSTRUCTED:
-            continue
-        kind = next(d[k] for d in decl.values() if k in d)
-        for n in present:
-            if k in decl[n]:
-                continue
-            nsrc, nvalues = corpus(n)
-            if used(k, kind, term_refs(nsrc + "\n" + sty_src), nvalues,
-                    nsrc + "\n" + sty_src, elsewhere):
-                crossed.append((k, n))
-    for k, n in crossed:
-        owner = [m for m in decl if k in decl[m]]
-        print(f"{n} 用了常量 {k}，但它只声明在 {'、'.join(owner)}。"
-              f"要么在 {n} 的 keylist 里也声明，要么把取用点挪走")
-    total += len(crossed)
+    # 这里从前还有一条“声明在甲、只有乙在用”的正面检查，v3.2a 之后删了。
+    # 有了轴表，一个类合法地会声明另一个类没有的档位变体（cover-thesis-title-bachelor
+    # 只有学位论文类有，报告类用的是不带档位的 cover-thesis-title），而查表是
+    # 按剥掉档位的名字绑的，两边一比必然互相指认。这条不变式现在由
+    # scripts/check-const.py 的第二项管：一个类引用的词条必须在这个类里声明过。
 
     # 语言后缀的对称性
     both = set()
     for name in present:
         both |= set(declared((ROOT / name).read_text(encoding="utf-8")))
-    zh = {k[:-3] for k in both if k.endswith("-zh")}
-    en = {k[:-3] for k in both if k.endswith("-en")}
+    # 比的是词条，不是整条键名。档位值是查表时按上下文挑的，一条词条的中文档
+    # 在某个档位上另给一份、英文档没有，不算缺英文：英文那份由不带档位的通用值
+    # 供着。titlepage-affiliation-bachelor-zh 就是这样，它的英文是
+    # titlepage-affiliation-en。按整名死比会把这类全报出来，8 条里 8 条是假的。
+    zh = {CC.parse_key(k)[0] for k in both if k.endswith("-zh")}
+    en = {CC.parse_key(k)[0] for k in both if k.endswith("-en")}
     orphan_zh = sorted(zh - en)
     orphan_en = sorted(en - zh - EN_ONLY)
     for k in orphan_zh:
