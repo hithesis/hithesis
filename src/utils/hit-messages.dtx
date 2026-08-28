@@ -288,8 +288,59 @@
     空段行高按「字体自然行高乘倍数」算，自然行高只认实测：
     现有~serif（Times~New~Roman~1.1472）与~songti（宋体~1.29333）。
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/28}{加 \cs{hit@one@of:nN} 与 \cs{hit@bad@value:nnn}：
+%   「取值不在集合里」这一类错统一成一条消息，并且把允许的取值一起报出来}
+% \emph{「取值不在集合里」只有一条消息。} 从前同一类错散着写了五条，四种句式，
+% 而且大多只说「无效」不说什么才有效——用户看完还得翻手册。现在统一走
+% \option{bad-option-value}，调用方把允许的取值一并传进来。
+%
+% \cs{hit@one@of:nN}\marg{取值表}\meta{接收的变量} 把逗号表排成中文的列举：
+% 一项就是它自己，两项写「a~或~b」，三项以上写「a、b~或~c」。取值表在调用点本来
+% 就有（\cs{hit@define@choice@option} 的第三个参数、\cs{\_\_hit\_format\_enum:nnn}
+% 的第二个参数都是），不必另抄一份。抄一份就会与真正判断用的那一份走散。
+%
+% 拿不到取值表的地方传空的，那一句就不出现——\option{font-zh} 的可选值是一批
+% \cs{\_\_hit\_set\_font\_zh\_}\meta{名} 命令，没有一张字面表可传，硬凑一张出来
+% 就成了要同步两处。
+%    \begin{macrocode}
+\seq_new:N \l__hit_one_of_seq
+\tl_new:N \l__hit_one_of_last_tl
+\tl_new:N \l__hit_one_of_tl
+\cs_new_protected:Npn \hit@one@of:nN #1#2
+  {
+    \seq_set_from_clist:Nn \l__hit_one_of_seq {#1}
+    \int_compare:nNnTF { \seq_count:N \l__hit_one_of_seq } < { 2 }
+      { \tl_set:Nx #2 { \seq_use:Nn \l__hit_one_of_seq { } } }
+      {
+        \seq_pop_right:NN \l__hit_one_of_seq \l__hit_one_of_last_tl
+        \tl_set:Nx #2
+          {
+            \seq_use:Nn \l__hit_one_of_seq { 、 } ~或~
+            \l__hit_one_of_last_tl
+          }
+      }
+  }
+\cs_generate_variant:Nn \msg_error:nnnnn { nnnnV }
+\cs_generate_variant:Nn \msg_warning:nnnnn { nnnnV }
+\cs_new_protected:Npn \hit@bad@value:nnn #1#2#3
+  {
+    \hit@one@of:nN {#3} \l__hit_one_of_tl
+    \msg_error:nnnnV { hithesis } { bad-option-value } {#1} {#2}
+      \l__hit_one_of_tl
+  }
+\cs_new_protected:Npn \hit@bad@value@warn:nnn #1#2#3
+  {
+    \hit@one@of:nN {#3} \l__hit_one_of_tl
+    \msg_warning:nnnnV { hithesis } { bad-option-value } {#1} {#2}
+      \l__hit_one_of_tl
+  }
 \msg_new:nnn { hithesis } { bad-option-value }
-  { 选项~#1~不接受取值~#2。 }
+  {
+    选项~#1~不接受取值~#2。
+    \tl_if_empty:nF {#3} { \\ 只能取~#3。 }
+  }
 \msg_new:nnn { hithesis } { measure-clash }
   {
     #1~与~#2~量的是同一段间距，只是度量不同，同一个目标里只能写一个。 \\
@@ -313,13 +364,11 @@
     \texttt{zh}／\texttt{en} 底下。键名清单见手册。
   }
 \msg_new:nnn { hithesis } { font-en-unknown }
-  { 选项~font-en~的取值~'#1'~无效。 }
+  { 选项~font-en~不接受取值~#1。 }
 \msg_new:nnn { hithesis } { font-zh-unknown }
-  { 选项~font-zh~的取值~'#1'~无效。 }
-\msg_new:nnn { hithesis } { math-style-unknown }
-  { 选项~math-style~的取值~'#1'~无效，只能是~TeX、ISO~或~GB。 }
+  { 选项~font-zh~不接受取值~#1。 }
 \msg_new:nnn { hithesis } { math-font-unknown }
-  { 选项~math-font~的取值~'#1'~无效。 }
+  { 选项~math-font~不接受取值~#1。 }
 \msg_new:nnn { hithesis } { msword-no-pitch }
   {
     \iow_char:N \\ hit@msword@layout:n~算不出行距。 \\
