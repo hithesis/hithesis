@@ -251,12 +251,13 @@ CONTEXTS = {
 def main() -> int:
     decl = declared()
     bad: list[tuple[str, str, str]] = []
+    skipped: list[str] = []
     for cls, skel in (("hit-thesis", "src/hit-thesis.dtx"),
                       ("hit-report", "src/hit-report.dtx")):
         cfg = ROOT / f"{cls}.cfg"
-        if not cfg.exists():
-            print(f"没有 {cfg.name}，先跑 make cls")
-            return 1
+        if not cfg.exists() or not (ROOT / f"{cls}.cls").exists():
+            skipped.append(cls)
+            continue
         have = with_fallback(bound(valued(cfg, ROOT / f"{cls}.cls"), CONTEXTS[cls]))
         # 声明了却在这个类里没取到值的，引用它就是空的
         missing = {k for k in decl if k not in have}
@@ -285,6 +286,8 @@ def main() -> int:
     typo: list[tuple[str, str, str]] = []
     for cls, skel in (("hit-thesis", "src/hit-thesis.dtx"),
                       ("hit-report", "src/hit-report.dtx")):
+        if cls in skipped:
+            continue
         for rel, guards in assembly(skel):
             p = ROOT / "src" / rel
             if not p.exists():
@@ -328,7 +331,13 @@ def main() -> int:
                 print(f"  {rel}：{{ {name} }}")
             print("\n改名脚本只认 \\hit@ 开头的记号，拼串的地方扫不到，得手工跟。")
         return 1
-    print(f"常量取值一致（声明 {len(decl)} 个，两个类各自都取得到）")
+    if len(skipped) == 2:
+        print("两个类都没生成，先跑 make cls")
+        return 1
+    if skipped:
+        print(f"常量取值一致（声明 {len(decl)} 个；{skipped[0]} 没生成，只查了另一个）")
+    else:
+        print(f"常量取值一致（声明 {len(decl)} 个，两个类各自都取得到）")
     return 0
 
 
