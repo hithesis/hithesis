@@ -1525,6 +1525,14 @@
 % 定义与寄存器一起设，\pkg{ctex} 那份定义读的就是这个寄存器，谁赢都是同一个值。
 % \cs{CJKecglue} 没有对应的 \pkg{ctex} 寄存器，它走 \pkg{xeCJK}，不受影响。
 %
+% \changes{v3.2a}{2026/08/29}{同一组取值在 \hologo{LuaLaTeX} 下再喂给
+%   \pkg{luatexja} 的 \texttt{kanjiskip} 与 \texttt{xkanjiskip}}
+% \hologo{LuaLaTeX} 下这两段胶不叫 \cs{CJKglue}：\pkg{luatexja} 做成
+% \texttt{kanjiskip} 与 \texttt{xkanjiskip} 两个参数，走 \cs{ltjsetparameter}，
+% 名字不同管的是同一件事。同一组值原样喂过去，先过一趟寄存器——
+% \cs{ltjsetparameter} 不吃 \hologo{LaTeX} 的胶写法。\hologo{XeLaTeX} 下
+% \cs{ltjsetparameter} 不存在，这一段整个跳过。
+%
 % 试过再把比对基准 \cs{\_\_ctex\_ccglue:} 一并换掉，好让
 % \cs{ctex\_if\_ccglue\_touched:} 一律答「改过了」。不行：\TeX~Live 2025 仍是
 % 裸字号，2026 反而从 12.6720 变成 12.7320。记在这里省得重来。
@@ -1545,6 +1553,7 @@
 %    \begin{macrocode}
 \bool_new:N \g__hit_format_ccwd_patched_bool
 \dim_new:N \l__hit_format_ecglue_dim
+\skip_new:N \l__hit_format_kanji_skip
 \cs_new_protected:Npn \__hit_format_ecglue_emit:
   {
     \hskip \l__hit_format_ecglue_dim
@@ -1562,6 +1571,22 @@
       { \skip_set:Nn \l__ctex_ccglue_skip { \dim_eval:n {#1} } }
     \dim_set:Nn \l__hit_format_ecglue_dim { \dim_eval:n {#2} }
     \cs_set_eq:NN \CJKecglue \__hit_format_ecglue_emit:
+    \cs_if_exist:NT \ltjsetparameter
+      {
+        \skip_set:Nn \l__hit_format_kanji_skip
+          {
+            \dim_eval:n {#1}
+            plus \c__hit_format_ccstretch_tl \baselineskip
+          }
+        \ltjsetparameter { kanjiskip = \l__hit_format_kanji_skip }
+        \skip_set:Nn \l__hit_format_kanji_skip
+          {
+            \dim_eval:n {#2}
+            plus \c__hit_format_ecstretch_tl \baselineskip
+            minus \c__hit_format_ecshrink_tl \baselineskip
+          }
+        \ltjsetparameter { xkanjiskip = \l__hit_format_kanji_skip }
+      }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/23}{设完 \cs{CJKecglue} 同步 \pkg{xeCJK} 的
@@ -1757,6 +1782,7 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@strut:
   {
+    \hit@engine@parend@guard:
     \bool_if:NTF \l_hit_format_strut_latin_bool
       {
         \__hit_format_strut:nn
@@ -2372,7 +2398,17 @@
 %
 % \cs{maxdepth} 单独设成零是不够的。行盒的深度是墨迹深度，汉字只有 1.32\,pt；
 % 撑杆挂在 \texttt{para/begin} 与 \texttt{para/end} 两个钩子上，段落中间那些行
-% 两头都不挨，撑不到。范例正文第 17 页的 \cs{tracingpages}：
+% 两头都不挨，撑不到。
+%
+% \changes{v3.2a}{2026/08/16}{\texttt{para/end} 的撑杆前面加
+%   \cs{hit@engine@parend@guard:}。\hologo{LuaLaTeX} 下段末标点与撑杆之间有一段
+%   可断的边界胶，末行排满时会断出一个只有撑杆的空行}
+% 撑杆自带 \cs{hit@engine@parend@guard:} 封条，把自己焊在前面的字上。
+% \hologo{LuaLaTeX} 下没有这道封条时，段末标点与撑杆之间有一段可断的边界胶，
+% 以标点收尾、末行又恰好排满的段落会在段后断出一行只有撑杆的空白，原委见
+% \file{src/utils/hit-engine.dtx}。封条写在撑杆里而不是挂钩处：断口补撑杆、
+% 页眉撑杆这些后来的调用点都自动带上。\hologo{XeLaTeX} 下封条是空的。
+% 范例正文第 17 页的 \cs{tracingpages}：
 % \texttt{maxdepth=6.0} 时 \texttt{t=648.68}，\texttt{maxdepth=0.0} 时
 % \texttt{t=650.00}，只多算了 1.32\,pt，离 \texttt{g=651.52} 还差着，那一行照样
 % 留在这一页。
@@ -2546,6 +2582,12 @@
 % 而不是静默少一格——静默走样比报错难查得多。能挡住改名，挡不住保名改行为，
 % 后者只能靠每年跟着上游复验。
 %    \begin{macrocode}
+\msg_new:nnn { hithesis } { luatex-punct-grid }
+  {
+    LuaLaTeX~下标点没接进字符网格模型，全角标点按~luatexja~自己的
+    规则排（半宽字形加胶），与~Word~的按需压缩不同。要逐格对齐~Word
+    请用~xelatex~编。
+  }
 \msg_new:nnnn { hithesis } { xecjk-punct-grid }
   { xeCJK~缺少字符类接口。 }
   {
@@ -2947,7 +2989,11 @@
         \xeCJK_replace_inter_class_toks:nnnn { CJK } { HalfLeft }
           { \CJKecglue } { \CJKglue }
       }
-      { \msg_error:nn { hithesis } { xecjk-punct-grid } }
+      {
+        \sys_if_engine_luatex:TF
+          { \msg_warning:nn { hithesis } { luatex-punct-grid } }
+          { \msg_error:nn { hithesis } { xecjk-punct-grid } }
+      }
   }
 %    \end{macrocode}
 %

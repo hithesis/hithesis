@@ -1,5 +1,7 @@
 # Makefile for hithesis
 
+# 手册用哪个引擎编。模板本身认 xelatex 与 lualatex，见手册的“用哪个引擎”；
+# 这里默认 xelatex，排版基线也建在它上面。换引擎两行一起改。
 METHOD = xelatex
 LATEXMKOPTS = -xelatex
 
@@ -110,7 +112,7 @@ ifeq ($(METHOD),latexmk)
 $(PACKAGE).pdf: $(TARGETS)
 	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/manual: $(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
 
-else ifeq ($(METHOD),xelatex)
+else ifneq ($(filter $(METHOD),xelatex lualatex),)
 
 # nonstopmode：手册里写错宏名之类的错误会让 xelatex 停在交互提示上等输入，
 # 无人看管时会一直挂着。cls 目标早就加了，manual 漏了。
