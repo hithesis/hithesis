@@ -130,6 +130,39 @@
   }
 %    \end{macrocode}
 %
+% \subsection{按汉字排一个字符}
+%
+% \changes{v3.2a}{2026/08/29}{加 \cs{hit@engine@cjk@char:n}，把单个字符按汉字
+%   排、取中文字体}
+% \cs{hit@engine@cjk@char:n}\marg{字符} 把一个字符按汉字排：中文字体、汉字类。
+% 给占位叉「××××」这类用——\texttt{×}（U+00D7）平时归半角标点类，字形取西文
+% 字体是对的（英文正文里的乘号就该是 Times 的），可范例分类号那四个叉印的是
+% 宋体形，值里逐字用这个宏点名。参数收字符本身，不收码位：配置层的取值在
+% \pkg{expl3} 之外记号化，\texttt{"D7} 那种十六进制在那儿会碎。
+%
+% \hologo{XeLaTeX} 这边在\emph{分组里}把这个字符临时声明进汉字类——
+% \cs{XeTeXcharclass} 赋值随分组，出组即还原，正文里的乘号一根汗毛不动
+% （实测组内宋体、组外 Times）。\pkg{xeCJK} 的 \cs{CJKsymbol} 帮不上忙，
+% 它就是 \cs{use:n}，字体切换在类对的记号表里。\pkg{luatexja} 有现成的
+% \cs{ltjjachar}，按 JAchar 排一个码位。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  {
+    \cs_new_protected:Npn \hit@engine@cjk@char:n #1
+      { \ltjjachar `#1 \scan_stop: }
+  }
+  {
+    \cs_new_protected:Npn \hit@engine@cjk@char:n #1
+      {
+        \group_begin:
+        \xeCJKDeclareCharClass { CJK } { \int_value:w `#1 }
+        #1
+        \group_end:
+      }
+  }
+\cs_new_eq:NN \hit@engine@cjk@char \hit@engine@cjk@char:n
+%    \end{macrocode}
+%
 % \subsection{今天（东八区）}
 %
 % \changes{v3.2a}{2026/08/29}{加东八区的今天。\cs{c\_sys\_year\_int} 一族跟编译
