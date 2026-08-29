@@ -39,6 +39,7 @@
 % 里换 \cs{LT@array} 的，挂在同一个钩子上会被它接着冲掉（实测），要挂到
 % 所有 \cs{AtBeginDocument} 之后那一档。
 %    \begin{macrocode}
+\bool_new:N \l__hit_table_float_bool
 \cs_new_protected:Npn \hit@setup@table
   {
     \AddToHook { begindocument / end }
@@ -46,8 +47,36 @@
         \cs_set_eq:NN \hit@original@longtable@array \LT@array
         \cs_set:Npn \LT@array { \hit@table@font: \hit@original@longtable@array }
       }
+    \AddToHook { env/table/begin }  { \bool_set_true:N \l__hit_table_float_bool }
+    \AddToHook { env/table*/begin } { \bool_set_true:N \l__hit_table_float_bool }
+    \clist_map_inline:nn { tabular , tabular* , tabularx , tabulary , array }
+      {
+        \AddToHook { env/##1/begin }
+          { \bool_if:NT \l__hit_table_float_bool { \hit@table@font: } }
+      }
   }
 %    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/29}{\env{table} 浮动体里的默认字号也压到五号。规范写着
+%   「表中文字用宋体 5 号字」，从前只有长表格照办，普通表格要用户自己写
+%   \cs{wuhao}}
+% \textbf{\env{table} 浮动体里也是五号。} 规范原话是「表中文字用宋体~5~号字」，
+% 与长表格那一条是同一句。从前只有 \pkg{longtable} 走了这一条，普通表格得用户
+% 自己在 \cs{begin}\marg{tabular} 前面写一句 \cs{wuhao}——示例文档里每张表都写着，
+% 正是模型缺了一块的样子。
+%
+% \emph{两级钩子。} 字号不能直接挂在 \env{table} 上：\cs{@xfloat} 起浮动体时
+% 要走一遍 \cs{@floatboxreset}，那里头有 \cs{normalsize}，挂在 \env{table} 上的
+% 设置当场就被冲掉（实测表内文字仍是小四）。也不能直接挂在 \env{tabular} 上：
+% \env{tabular} 类里到处在用（封面的字段表、内封、\env{eqdenote}），那些地方各有
+% 各的字号，挂上去会一并盖掉。
+%
+% 所以 \env{table} 那一层只立一个标志，\env{tabular} 一族那一层看标志再设字号。
+% 标志是局部的，浮动体一收组自己就没了。题注不受影响，\cs{@makecaption} 自己
+% 按 \option{caption-table} 再设一遍。
+%
+% \env{figure} 那一头不挂。规范同样说「图中文字用宋体~5~号字」，可图里的字多半
+% 在图片里头，排版这边够不着；\pkg{tikz} 画的那种要自己写字号。
 % \end{macro}
 %
 % \changes{v3.2a}{2026/08/29}{新版面下长表格的行距取网格行距。原先是 \cs{wuhao}
@@ -68,21 +97,18 @@
 % Word 是「行盒居中再加上升部」，即 $(19.15-13.617)/2 + 10.66 = 13.43$\,bp，
 % 差 0.02\,bp。不必另写居中的撑杆。
 %
-% 旧版面没有网格，原样保留 \cs{wuhao}。
+% 旧版面算不出网格（\cs{g\_hit\_msword\_lead\_dim} 是零），退回 \cs{wuhao}。
+% 判据是「网格算出来没有」，不是「哪个版面」——问版面等于把同一件事写两遍。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@table@font:
   {
-    \__hit_layout_msword_active:TF
-      {
-        \dim_compare:nNnTF { \g_hit_msword_lead_dim } = { 0pt }
-          { \wuhao }
-          {
-            \fontsize { \dim_use:N \c__hit_font_size_wuhao_dim }
-              { \dim_use:N \g_hit_msword_lead_dim }
-            \selectfont
-          }
-      }
+    \dim_compare:nNnTF { \g_hit_msword_lead_dim } = { 0pt }
       { \wuhao }
+      {
+        \fontsize { \dim_use:N \c__hit_font_size_wuhao_dim }
+          { \dim_use:N \g_hit_msword_lead_dim }
+        \selectfont
+      }
   }
 %    \end{macrocode}
 % \end{macro}
@@ -90,7 +116,7 @@
 % \begin{macro}{\hit@setup@table@rules}
 % \changes{v3.2a}{2026/08/12}{三线表的线宽从 deps 挪到这里。那边只管加载宏包，
 %   线宽是排版取值，归表格这一处}
-% \changes{v3.2a}{2026/08/29}{新版面下线宽的单位从 \texttt{pt} 换成 \texttt{bp}，
+% \changes{v3.2a}{2026/08/29}{线宽的单位从 \texttt{pt} 换成 \texttt{bp}，
 %   另按 Word 的单元格边距设 \cs{tabcolsep}}
 % 三线表的线宽与单元格边距。规范里三条线粗细不同，\pkg{booktabs} 的默认值细一档。
 %
@@ -103,8 +129,9 @@
 % 1½ 磅与 1 磅。
 %
 % \textbf{磅是 \texttt{bp} 不是 \texttt{pt}。} Word 的磅是 1/72 英寸，
-% \hologo{TeX} 的 \texttt{pt} 是 1/72.27 英寸。新版面照 Word 写 \texttt{bp}；
-% 旧版面原样留 \texttt{pt}，那是 v3.1e 的取值。
+% \hologo{TeX} 的 \texttt{pt} 是 1/72.27 英寸，照 Word 写 \texttt{bp}。两个版面
+% 一套值，不为旧版面另留一支：v3.1e 写的 1.5\,pt 与 1.5\,bp 差 0.0056\,bp，
+% 印不出来，为这点差养一个分支不值。
 %
 % \cs{tabcolsep} 是单元格左右各留多少。范例的表没写 \texttt{tblCellMar}，用的是
 % \file{styles.xml} 里 \texttt{docDefaults} 那一份：上下 0、左右各 108 缇，
@@ -113,18 +140,10 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@setup@table@rules
   {
-    \__hit_layout_msword_active:TF
-      {
-        \dim_set:Nn \heavyrulewidth { 1.5bp }
-        \dim_set:Nn \lightrulewidth { 1bp }
-        \dim_set:Nn \cmidrulewidth { 0.5bp }
-        \dim_set:Nn \tabcolsep { 5.4bp }
-      }
-      {
-        \dim_set:Nn \heavyrulewidth { 1.5pt }
-        \dim_set:Nn \lightrulewidth { 1pt }
-        \dim_set:Nn \cmidrulewidth { 0.5pt }
-      }
+    \dim_set:Nn \heavyrulewidth { 1.5bp }
+    \dim_set:Nn \lightrulewidth { 1bp }
+    \dim_set:Nn \cmidrulewidth { 0.5bp }
+    \dim_set:Nn \tabcolsep { 5.4bp }
   }
 %    \end{macrocode}
 % \end{macro}
