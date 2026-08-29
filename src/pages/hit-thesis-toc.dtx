@@ -248,7 +248,26 @@
 % 迁写的时候漏了。漏了这些年没露馅是因为残值一直凑巧是零；新版面下版心一变，
 % 残值成了版心高，\cs{leftskip} 跟着涨到一行只剩一个字宽，
 % 章条目当场逐字断行。归零就是把一直在用的那个值写明白。
+%
+% \changes{v3.2a}{2026/08/29}{章条目折行悬挂到标题首字，指南 3.6}
+% \emph{折行悬挂到标题首字。}指南 3.6：“对于超过一行的目录内容提前换行，
+% 换行后缩进至相应标题第一个字符处”。提前换行由 \cs{rightskip} 的 4\,em
+% 兜着（\cs{@pnumwidth} 那处的注释），悬挂原先只有节以下三级有——
+% \cs{@dottedtocline} 的 \cs{leftskip} 机制天然给——章条目折行一直顶回
+% 左缘。
+%
+% 悬挂多宽只有排完编号才知道：\CTeX\ 的 \cs{numberline} 会把“编号实宽加
+% 半个字号”写进 \cs{@tempdima}，那正是标题首字的横向位置，第几章、附录几
+% 都对。接住它不能用 \cs{leftskip}——首行那记 \cs{hskip} 在排编号\emph{之前}
+% 就把值取走了——\cs{hangindent} 到 \cs{par} 断行时才求值，放在段尾正好。
+%
+% 值要在 \cs{numberline} 排完的\emph{当口}抢走：\cs{@tempdima} 是公共草稿，
+% 活不过标题——实测编号盒刚落 43.2\,bp 还在，长标题排完再读就成了零。
+% 条目里把 \cs{numberline} 局部包一层，排完编号立刻全局导出，出组还原、
+% 图表清单与英文目录里的它不受影响。无编号的章（摘要、结论这些）不经过
+% \cs{numberline}，导出的是刚清过的零，不悬挂，折行处恰好也是它标题的首字。
 %    \begin{macrocode}
+\dim_new:N \g__hit_toc_hang_dim
 \RenewDocumentCommand \l@chapter { m m }
   {
     \int_compare:nNnT { \c@tocdepth } > { -1 }
@@ -256,14 +275,22 @@
         \addpenalty { - \@highpenalty }
         \group_begin:
           \dim_zero:N \@tempdima
+          \dim_gzero:N \g__hit_toc_hang_dim
+          \cs_set_eq:NN \hit@toc@numberline@orig \numberline
+          \cs_set:Npn \numberline ##1
+            {
+              \hit@toc@numberline@orig {##1}
+              \dim_gset_eq:NN \g__hit_toc_hang_dim \@tempdima
+            }
           \parindent \z@ \rightskip \@pnumwidth
           \parfillskip -\@pnumwidth
           \leavevmode
-          \advance \leftskip \@tempdima
-          \hskip -\leftskip
           { \hit@toc@chapter@line@font #1 } ~
           \leaders \hbox { $ \m@th \mkern \@dotsep mu \hbox { . } \mkern \@dotsep mu $ } \hfill
-          \nobreak { \normalfont \normalcolor #2 } \par
+          \nobreak { \normalfont \normalcolor #2 }
+          \dim_set_eq:NN \hangindent \g__hit_toc_hang_dim
+          \int_set:Nn \hangafter { 1 }
+          \par
           \penalty \@highpenalty
         \group_end:
       }
