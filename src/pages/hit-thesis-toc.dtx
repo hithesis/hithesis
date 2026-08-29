@@ -187,16 +187,20 @@
 %   1\cs{ccwd}，量宽取齐退成 \texttt{auto} 档}
 % \changes{v3.2a}{2026/08/30}{编号的摆法提成 \option{toc}/\option{number-align}
 %   三态，\option{number-gap} 退成纯长度，\texttt{auto} 档砍掉}
-% 编号与标题之间的间距，一个数三种摆法。\option{toc}/\option{number-gap} 管
-% 间距本身，出厂一个字（1\cs{ccwd}）；\option{toc}/\option{number-align} 管
-% 编号怎么摆：
+% \changes{v3.2a}{2026/08/30}{\option{toc}/\option{number-gap} 键砍掉，间距
+%   直接跟随章标题的编号后间距}
+% 编号与标题之间空多少，目录条目与章标题是同一件事，不另设键：间距取
+% \cs{hit@chapter@number@gap:}（用户设了 \option{after-chapter-number} 词条
+% 用词条，没设是一个字宽，见 \file{hit-format.dtx}），条目组内把它装盒量宽，
+% 三种摆法共用这一个数。\option{toc}/\option{number-align} 管编号怎么摆：
 % \begin{itemize}
 % \item \texttt{natural}（默认）不取列：编号排自然宽，后面空足间距，标题
 %   起点跟着编号长短走。范例是这么排的——目录条目按字形原点量，“章”到
 %   “绪”的步进 25.00\,bp，正是一个汉字加一个全宽空格（12.55\,bp）。
 % \item \texttt{left} 是 v3.1e 的量宽取齐：编号靠左排进定宽列，列宽取
 %   “额定列宽与实宽加\emph{半个间距}的较大者”，间距吃在列里。原版写死的
-%   半个字号在这里参数化成间距的一半，出厂值下差 0.23\,bp。
+%   半个字号在这里参数化成间距的一半——兜底值一个字宽的一半正是半个字号，
+%   没人设词条时与 v3.1e 逐字节同。
 % \item \texttt{right} 编号靠右贴齐额定列宽，右侧再空足间距，标题起点整列
 %   对齐。章条目没有额定列宽（\cs{@tempdima} 进来是零），这一档退化成
 %   \texttt{natural}——“第几章”本就同宽，不缺这次取齐。
@@ -214,18 +218,15 @@
 % 编号的当口抢。无编号的章不经过 \cs{numberline}，哪个体都不跑，悬挂是
 % 条目开头刚清过的零。
 %    \begin{macrocode}
-\tl_new:N \g__hit_toc_number_gap_tl
-\tl_gset:Nn \g__hit_toc_number_gap_tl { 1 \ccwd }
 \str_new:N \g__hit_toc_number_align_str
 \str_gset:Nn \g__hit_toc_number_align_str { natural }
 \keys_define:nn { hit / toc }
   {
     number-align .choices:nn = { natural , left , right }
       { \str_gset:NV \g__hit_toc_number_align_str \l_keys_choice_tl } ,
-    number-gap .code:n = { \tl_gset:Nn \g__hit_toc_number_gap_tl {#1} } ,
-    number-gap .default:n = { 1 \ccwd } ,
   }
 \box_new:N \l__hit_toc_num_box
+\box_new:N \l__hit_toc_gap_box
 \dim_new:N \l__hit_toc_num_pad_dim
 \cs_new_protected:Npn \hit@toc@numwidth@apply:
   {
@@ -235,13 +236,14 @@
           {
             \cs_set_protected:Npn \CTEX@toc@width@n ##1
               {
+                \hbox_set:Nn \l__hit_toc_gap_box { \hit@chapter@number@gap: }
                 \hbox_set:Nn \l__hit_toc_num_box {##1}
                 \dim_set:Nn \@tempdima
                   {
                     \dim_max:nn { \@tempdima }
                       {
                         \box_wd:N \l__hit_toc_num_box
-                        + ( \g__hit_toc_number_gap_tl ) / 2
+                        + \box_wd:N \l__hit_toc_gap_box / 2
                       }
                   }
                 \dim_gset_eq:NN \g__hit_toc_hang_dim \@tempdima
@@ -251,6 +253,7 @@
           {
             \cs_set_protected:Npn \CTEX@toc@width@n ##1
               {
+                \hbox_set:Nn \l__hit_toc_gap_box { \hit@chapter@number@gap: }
                 \hbox_set:Nn \l__hit_toc_num_box {##1}
                 \dim_set:Nn \l__hit_toc_num_pad_dim
                   {
@@ -259,7 +262,10 @@
                   }
                 \skip_horizontal:N \l__hit_toc_num_pad_dim
                 \dim_set:Nn \@tempdima
-                  { \box_wd:N \l__hit_toc_num_box + \g__hit_toc_number_gap_tl }
+                  {
+                    \box_wd:N \l__hit_toc_num_box
+                    + \box_wd:N \l__hit_toc_gap_box
+                  }
                 \dim_gset:Nn \g__hit_toc_hang_dim
                   { \l__hit_toc_num_pad_dim + \@tempdima }
               }
@@ -268,9 +274,13 @@
       {
         \cs_set_protected:Npn \CTEX@toc@width@n ##1
           {
+            \hbox_set:Nn \l__hit_toc_gap_box { \hit@chapter@number@gap: }
             \hbox_set:Nn \l__hit_toc_num_box {##1}
             \dim_set:Nn \@tempdima
-              { \box_wd:N \l__hit_toc_num_box + \g__hit_toc_number_gap_tl }
+              {
+                \box_wd:N \l__hit_toc_num_box
+                + \box_wd:N \l__hit_toc_gap_box
+              }
             \dim_gset_eq:NN \g__hit_toc_hang_dim \@tempdima
           }
       }
