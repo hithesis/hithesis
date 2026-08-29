@@ -38,6 +38,25 @@
   }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/08/29}{新版面下浮动体与正文的间距改成一个网格行。指南
+%   2.12 明写「插表的上下与文中文字间需空一行编排」，范例的图那边量下来也空了
+%   一行；v3.1e 的 8.5\,bp 不到半行}
+% 新版面把三个间距都设成一个网格行。「空一行」在 Word 里是一个空段，占一格
+% 文档网格；刚性不给伸缩，Word 的空段也不会伸。要等版面算完才知道网格行距，
+% 挂在 \texttt{begindocument/end}，比 \cs{AfterPreamble} 里的版面应用晚。
+% 旧版面（网格行距是零）不动。
+%    \begin{macrocode}
+\AddToHook { begindocument / end }
+  {
+    \dim_compare:nNnT { \g_hit_msword_lead_dim } > { \c_zero_dim }
+      {
+        \skip_set:Nn \intextsep    { \g_hit_msword_lead_dim }
+        \skip_set:Nn \textfloatsep { \g_hit_msword_lead_dim }
+        \skip_set:Nn \floatsep     { \g_hit_msword_lead_dim }
+      }
+  }
+%    \end{macrocode}
+%
 % 此处设置float在p选项时间隔，此处不设置\cs{@fptop}和\cs{@fpbot}以确保居中。
 % \changes{v1.0.12}{2018/04/03}{修正float为p状态时默认不居中bug}
 % \changes{v2.0.04}{2018/12/04}{删除\cs{@fpsep}设置，似乎没有什么用}
@@ -77,8 +96,13 @@
 % \changes{v3.2a}{2026/08/07}{\cs{@makecaption} 与 \cs{LT@makecaption} 迁到 expl3}
 % \changes{v3.2a}{2026/08/11}{题号与题名之间的间隔改成读
 %   \option{after-figure-caption-number} 与 \option{after-table-caption-number}}
+% \changes{v3.2a}{2026/08/29}{新版面下题号与题名之间的兜底值统一成一个字宽。
+%   本科指南明写「空 2 个半角字符」，本科与研究生两份范例印出来都是一个字宽；
+%   研究生规范叙述里的「空 1 个半角字符」与它自己的范例不符，不跟。v3.1e 的
+%   硕博 \cs{enskip} 保留给旧版面}
 % \cs{hit@caption@separator} 是题号与题名之间的间隔。图题表题各读一个常量，
-% 常量为空就退回原来的取值：本科一个汉字宽，其余是 \cs{enskip}。
+% 常量为空退回兜底值：新版面一律一个汉字宽（\cs{ccwd}，题注贴字符网格，
+% 一个字就是一格）；旧版面照 v3.1e，本科一个字宽、其余 \cs{enskip}。
 % 图还是表看 \cs{@captype}；\cs{LT@makecaption} 那条路上它也是有的，取不到就按图算。
 % \cs{hit@caption@last@line} 把最后一行单独取出来居中，\option{capcenterlast} 开时用。
 % 里面的盒子编号与分组照抄原来的写法，只是换成 expl3 的拼法。量宽仍用 \cs{sbox}
@@ -86,7 +110,11 @@
 % 改动不会漏出去，后者没有。
 %    \begin{macrocode}
 \cs_new:Npn \hit@caption@separator@fallback
-  { \hit@if@option@TF { bachelor } { \hskip \ccwd } { \enskip } }
+  {
+    \dim_compare:nNnTF { \g_hit_msword_lead_dim } > { \c_zero_dim }
+      { \hskip \ccwd }
+      { \hit@if@option@TF { bachelor } { \hskip \ccwd } { \enskip } }
+  }
 \cs_new:Npn \hit@caption@number@lang:
   { \bool_if:NTF \g__hit_en_bool { en } { zh } }
 \cs_new:Npn \hit@caption@type:

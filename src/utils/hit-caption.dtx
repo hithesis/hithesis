@@ -107,20 +107,44 @@
 % \cs{hit@original@caption} 存的是接管前那条完整的 \cs{caption} 链。
 %    \begin{macrocode}
 \bool_new:N \g__hit_bilingual_caption_bool
-\bool_gset_true:N \g__hit_bilingual_caption_bool
+\bool_new:N \g__hit_bilingual_caption_auto_bool
+\bool_gset_true:N \g__hit_bilingual_caption_auto_bool
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/25}{\option{bilingual-caption} 从 \option{style} 挪进
 %   \option{format}，名字不变}
+% \changes{v3.2a}{2026/08/29}{默认从全员开改成按学位：只有博士开。规范写明
+%   「表题置于表上……硕士学位论文只用中文，博士学位论文用中、英两种文字」，
+%   总则那句「博士学位论文的扉页、摘要、目录、图题及表题等要求中、英文两种
+%   文字」也是这么说；博士范例印的是双语，本科范例只有中文}
 %
 % 双语题注是题注自己的属性，归 \option{format}。写成族级键而不是挂在
 % \option{caption} 底下，是因为 \option{caption} 是个 meta，会把整包取值转给
 % \option{caption-figure} 与 \option{caption-table} 两个目标，而这是一个开关、
 % 不分目标——与 \option{hyphenation} 同形。
+%
+% 默认按学位：博士与博士后开，本科硕士关——硕士写了尾随的英文题也不排，规范
+% 说硕士只用中文。博士后没有自己的图表条款，出站报告照博士的规矩排，v3.1e
+% 以来也一直是双语。报告类没有博士后这一档，那边只查博士，标志位不存在就当假。先前的默认是全员开（「写了就出、不写就不出」），把合规交给用户
+% 自己删英文题；按学位给默认之后合规是默认态，确要双语的硕士写
+% \option{bilingual-caption}\texttt{=true} 一键盖掉。三态里的 \texttt{auto}
+% 就是按学位查表，与 \option{openright} 同一个路数。
 %    \begin{macrocode}
 \keys_define:nn { hit / format }
   {
-    bilingual-caption .bool_gset:N = \g__hit_bilingual_caption_bool ,
+    bilingual-caption .choice: ,
+    bilingual-caption / true .code:n =
+      {
+        \bool_gset_false:N \g__hit_bilingual_caption_auto_bool
+        \bool_gset_true:N \g__hit_bilingual_caption_bool
+      } ,
+    bilingual-caption / false .code:n =
+      {
+        \bool_gset_false:N \g__hit_bilingual_caption_auto_bool
+        \bool_gset_false:N \g__hit_bilingual_caption_bool
+      } ,
+    bilingual-caption / auto .code:n =
+      { \bool_gset_true:N \g__hit_bilingual_caption_auto_bool } ,
     bilingual-caption .default:n = { true } ,
   }
 %    \end{macrocode}
@@ -174,6 +198,15 @@
     \cs_set_eq:NN \__hit_bicaption:w \bicaption
     \AddToHook { begindocument/end }
       {
+    \bool_if:NT \g__hit_bilingual_caption_auto_bool
+      {
+        \bool_gset_eq:NN \g__hit_bilingual_caption_bool \g__hit_doctor_bool
+        \bool_if_exist:NT \g__hit_postdoc_bool
+          {
+            \bool_if:NT \g__hit_postdoc_bool
+              { \bool_gset_true:N \g__hit_bilingual_caption_bool }
+          }
+      }
     \cs_set_eq:NN \hit@original@caption \caption
     \RenewDocumentCommand \caption { o +m o }
       {
