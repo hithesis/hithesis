@@ -8,6 +8,9 @@
 %
 % \changes{v3.2a}{2026/08/10}{日期格式的定义从 \file{hit-defaults.dtx} 抽出来。
 %   配置里只留取值，造轮子的部分放这里}
+% \changes{v3.2a}{2026/08/29}{\cs{today} 一族改取东八区的今天。原先跟编译机器的
+%   本地时区走，国外编译封面日期会差一天；取法在
+%   \file{src/utils/hit-engine.dtx}}
 % 封面与声明页上的日期有几种排法：\texttt{2026 年 8 月}、\texttt{2026 年 8 月 7 日}、
 % \texttt{二〇二六年八月}、\texttt{二〇二六年八月七日}。这里把四种都定义好，
 % 配置里按变体挑一种。
@@ -21,14 +24,27 @@
 %
 % 四种排法与英文月份名。都是纯定义，放在顶层。
 %    \begin{macrocode}
-\cs_set:Npn \CJK@todaysmall@short { \the \year 年~\the \month 月 }
-\cs_set:Npn \CJK@todaysmall { \the \year 年~\the \month 月~\the \day 日 }
+\cs_set:Npn \CJK@todaysmall@short
+  {
+    \int_use:N \g__hit_engine_today_year_int 年~
+    \int_use:N \g__hit_engine_today_month_int 月
+  }
+\cs_set:Npn \CJK@todaysmall
+  {
+    \int_use:N \g__hit_engine_today_year_int 年~
+    \int_use:N \g__hit_engine_today_month_int 月~
+    \int_use:N \g__hit_engine_today_day_int 日
+  }
 \cs_set:Npn \CJK@todaybig@short
-  { \zhdigits { \the \year } 年 \zhnumber { \the \month } 月 }
+  {
+    \zhdigits { \int_use:N \g__hit_engine_today_year_int } 年
+    \zhnumber { \int_use:N \g__hit_engine_today_month_int } 月
+  }
 \cs_set:Npn \CJK@todaybig
   {
-    \zhdigits { \the \year } 年 \zhnumber { \the \month } 月
-    \zhnumber { \the \day } 日
+    \zhdigits { \int_use:N \g__hit_engine_today_year_int } 年
+    \zhnumber { \int_use:N \g__hit_engine_today_month_int } 月
+    \zhnumber { \int_use:N \g__hit_engine_today_day_int } 日
   }
 \cs_set:Npn \CJK@today { \CJK@todaysmall }
 \NewDocumentCommand \CJKtoday { O{1} }
@@ -43,7 +59,7 @@
   }
 \cs_new:Npn \hit@month@en
   {
-    \int_case:nn { \month }
+    \int_case:nn { \g__hit_engine_today_month_int }
       {
         { 1 } { January }   { 2 } { February } { 3 }  { March }
         { 4 } { April }     { 5 } { May }      { 6 }  { June }
@@ -57,23 +73,32 @@
 %
 % \changes{v3.2a}{2026/08/13}{日期字段改收 ISO 数字，各处按自己的语言与精度排；
 %   写得不够精细报警告，写成非 ISO 就原样排并报警告}
+% \changes{v3.2a}{2026/08/29}{精度改成写到哪级排到哪级。声明精度、截断、催补齐
+%   三样机关一起拆掉}
 % \textbf{日期字段填数字，排法交给模板。} 封面上中文写「2026 年 6 月」、英文写
-% 「June, 2026」，同一个日期两处写法不同，本科还要带日。让填表的人各写一遍容易
-% 写岔，所以字段一律收 \texttt{yyyy}、\texttt{yyyy-mm} 或 \texttt{yyyy-mm-dd}，
-% 用到的地方按自己的语言与精度排出来。
+% 「June, 2026」，同一个日期两处写法不同。让填表的人各写一遍容易写岔，所以字段
+% 一律收 \texttt{yyyy}、\texttt{yyyy-mm} 或 \texttt{yyyy-mm-dd}，用到的地方按
+% 自己的语言排出来。
 %
-% 三种情形：
+% \textbf{写到哪级排到哪级。} 从前每个字段声明一个精度：写细了静默截断（写
+% \texttt{2026-06-05} 印出「2026 年 6 月」，一声不响丢一级），写粗了报一句催
+% 补齐。查过四处落点，规范一处也没要求到日——本科范例封面印「2022 年 6 月」，
+% 旁边批注的原话是「\emph{年、月}用阿拉伯数字」；本科内封「答辩日期：2022 年
+% 6 月」；研究生封面与内封都是年月。从前本科声明成到日，与范例和批注都对不上。
+% 所以精度交还给写的人：写年月排年月，写年月日排年月日，不截不催。各处的默认
+% 精度落在\emph{默认取值}上——模板给的今天是年月（见
+% \file{src/setup/hit-defaults.dtx}），深圳本科的开题中期封面按 \issue{220}
+% 单独给到日。
+%
+% 两种情形：
 %
 % \begin{longtable}{ll}
 % \toprule
 % 写的 & 结果 \\\midrule
 % \endfirsthead
-% 合 ISO，精度够 & 按用处的语言与精度排 \\
-% 合 ISO，精度不够 & 有多少排多少，另报一句缺了什么 \\
+% 合 ISO & 按用处的语言、写到的那一级排 \\
 % 不合 ISO & 原样排，另报一句让填表的人自己负责 \\\bottomrule
 % \end{longtable}
-%
-% 精度只嫌少不嫌多：封面要年月，写了年月日照样排成年月，不报警告。
 %    \begin{macrocode}
 \tl_new:N \l__hit_date_year_tl
 \tl_new:N \l__hit_date_month_tl
@@ -190,31 +215,26 @@
   }
 %    \end{macrocode}
 %
-% \begin{macro}{\hit@date@use:nnnn}
-% \meta{字段名}\marg{样式}\marg{精度}\marg{值}。样式取 \texttt{zh}、\texttt{zh-big}
-% 或 \texttt{en}；精度取 \texttt{year}、\texttt{month}、\texttt{day}，
-% 或者 \texttt{auto}——那是「写多少排多少，不挑」。
+% \begin{macro}{\hit@date@use:nnn}
+% \meta{字段名}\marg{样式}\marg{值}。样式取 \texttt{zh}、\texttt{zh-big}
+% 或 \texttt{en}；排到哪一级由值自己定。
 %
 % 空值原样放过：字段没填就是没填，不是格式问题，不该报警告。
 %    \begin{macrocode}
-\tl_new:N \l__hit_date_want_tl
-\tl_new:N \l__hit_date_got_tl
 \tl_new:N \l__hit_date_raw_tl
-\cs_new_protected:Npn \hit@date@use:nnnn #1#2#3#4
+\cs_new_protected:Npn \hit@date@use:nnn #1#2#3
   {
-    \tl_if_empty:nF {#4}
+    \tl_if_empty:nF {#3}
       {
-        \__hit_date_parse:n {#4}
+        \__hit_date_parse:n {#3}
         \bool_if:NTF \l__hit_date_iso_bool
-          { \__hit_date_render:nnnn {#1} {#2} {#3} {#4} }
+          { \__hit_date_render:nn {#1} {#2} }
           {
-            \__hit_date_warn:nnn {#1} { date-not-iso } {#4}
-            #4
+            \__hit_date_warn:nnn {#1} { date-not-iso } {#3}
+            #3
           }
       }
   }
-\cs_new:Npn \__hit_date_rank:n #1
-  { \str_case:nn {#1} { { year } { 1 } { month } { 2 } { day } { 3 } } }
 %    \end{macrocode}
 %
 % 一个字段一种毛病只报一次。去重的键要把毛病也带上：同一个字段先写得不够细、
@@ -228,30 +248,14 @@
         \msg_warning:nnnn { hithesis } {#2} {#1} {#3}
       }
   }
-\cs_generate_variant:Nn \hit@date@use:nnnn { nnnV }
-\cs_generate_variant:Nn \__hit_date_rank:n { V }
-\cs_new_protected:Npn \__hit_date_render:nnnn #1#2#3#4
+\cs_generate_variant:Nn \hit@date@use:nnn { nnV }
+\cs_new_protected:Npn \__hit_date_render:nn #1#2
   {
-    \str_set:Nx \l__hit_date_want_tl {#3}
-    \str_set:Nx \l__hit_date_got_tl { \__hit_date_have: }
-    \str_if_eq:VnT \l__hit_date_want_tl { auto }
-      { \tl_set_eq:NN \l__hit_date_want_tl \l__hit_date_got_tl }
-%    \end{macrocode}
-%
-% 要得比有的细就报一句，然后按有的那一档排。
-%    \begin{macrocode}
-    \int_compare:nNnT
-      { \__hit_date_rank:V \l__hit_date_want_tl }
-      > { \__hit_date_rank:V \l__hit_date_got_tl }
-      {
-        \__hit_date_warn:nnn {#1} { date-too-coarse } {#4}
-        \tl_set_eq:NN \l__hit_date_want_tl \l__hit_date_got_tl
-      }
     \str_case:nn {#2}
       {
-        { zh }     { \exp_args:NV \__hit_date_zh:n     \l__hit_date_want_tl }
-        { zh-big } { \exp_args:NV \__hit_date_zh_big:n \l__hit_date_want_tl }
-        { en }     { \exp_args:NV \__hit_date_en:n     \l__hit_date_want_tl }
+        { zh }     { \exp_args:Nx \__hit_date_zh:n     { \__hit_date_have: } }
+        { zh-big } { \exp_args:Nx \__hit_date_zh_big:n { \__hit_date_have: } }
+        { en }     { \exp_args:Nx \__hit_date_en:n     { \__hit_date_have: } }
       }
   }
 %    \end{macrocode}
