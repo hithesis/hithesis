@@ -185,40 +185,94 @@
 %   一律空定长，编号列不再量宽取齐}
 % \changes{v3.2a}{2026/08/29}{\option{toc}/\option{number-gap} 默认改成
 %   1\cs{ccwd}，量宽取齐退成 \texttt{auto} 档}
-% 编号与标题之间空多少，有两套算法。v3.1e 走到今天的是\emph{量宽取齐}：
-% \CTeX\ 的 \cs{numberline} 把编号排进定宽盒，盒宽取“列宽与编号实宽加
-% 半个字号的较大者”，一列条目的标题起点对齐。范例不是这么排的：目录条目
-% 按字形原点量，“章”到“绪”的步进 25.00\,bp，正是一个汉字加一个全宽空格
-% （12.55\,bp）——编号排自然宽，后面\emph{一律空一个字}，标题起点跟着编号
-% 长短走。默认照范例：\option{toc}/\option{number-gap} 出厂是 1\cs{ccwd}，
-% 也收别的长度；要回量宽取齐写 \texttt{auto}。
+% \changes{v3.2a}{2026/08/30}{编号的摆法提成 \option{toc}/\option{number-align}
+%   三态，\option{number-gap} 退成纯长度，\texttt{auto} 档砍掉}
+% 编号与标题之间的间距，一个数三种摆法。\option{toc}/\option{number-gap} 管
+% 间距本身，出厂一个字（1\cs{ccwd}）；\option{toc}/\option{number-align} 管
+% 编号怎么摆：
+% \begin{itemize}
+% \item \texttt{natural}（默认）不取列：编号排自然宽，后面空足间距，标题
+%   起点跟着编号长短走。范例是这么排的——目录条目按字形原点量，“章”到
+%   “绪”的步进 25.00\,bp，正是一个汉字加一个全宽空格（12.55\,bp）。
+% \item \texttt{left} 是 v3.1e 的量宽取齐：编号靠左排进定宽列，列宽取
+%   “额定列宽与实宽加\emph{半个间距}的较大者”，间距吃在列里。原版写死的
+%   半个字号在这里参数化成间距的一半，出厂值下差 0.23\,bp。
+% \item \texttt{right} 编号靠右贴齐额定列宽，右侧再空足间距，标题起点整列
+%   对齐。章条目没有额定列宽（\cs{@tempdima} 进来是零），这一档退化成
+%   \texttt{natural}——“第几章”本就同宽，不缺这次取齐。
+% \end{itemize}
 %
-% 实现只须换掉 \cs{CTEX@toc@width@n}——\cs{numberline} 里算盒宽的那半：
-% 盒宽直接设成“编号实宽加间距”，盒里的 \cs{hfil} 就把多出的那份垫成编号后
-% 的空隙，前缀包装（图表清单的“图”“表”字）、悬挂导出全都照旧路走。定义
-% 是组内局部的，出组还原，不碰别处的 \CTeX\ 目录。
+% 三档共用一个杠杆：条目组内换掉 \cs{CTEX@toc@width@n}——\cs{numberline}
+% 里算盒宽的那半，盒身 \cs{hb@xt@}\cs{@tempdima}\{编号\cs{hfil}\} 一个不碰，
+% 前缀包装（图表清单的“图”“表”字）照旧路走。\texttt{natural} 把盒宽设成
+% 实宽加间距，盒里的 \cs{hfil} 垫成编号后的空隙；\texttt{left} 照抄原公式、
+% 半字号换半个间距；\texttt{right} 先在盒前垫一段“额定列宽减实宽”，编号
+% 右端就贴上列缘，盒宽仍是实宽加间距。定义是组内局部的，出组还原。
+%
+% 折行悬挂的宽也在这儿一并全局导出：\cs{@tempdima} 是公共草稿，活不过标题
+% ——实测编号盒刚落 43.2\,bp 还在，长标题排完再读就成了零——必须在排完
+% 编号的当口抢。无编号的章不经过 \cs{numberline}，哪个体都不跑，悬挂是
+% 条目开头刚清过的零。
 %    \begin{macrocode}
 \tl_new:N \g__hit_toc_number_gap_tl
 \tl_gset:Nn \g__hit_toc_number_gap_tl { 1 \ccwd }
+\str_new:N \g__hit_toc_number_align_str
+\str_gset:Nn \g__hit_toc_number_align_str { natural }
 \keys_define:nn { hit / toc }
   {
-    number-gap .code:n =
-      {
-        \str_if_eq:nnTF {#1} { auto }
-          { \tl_gclear:N \g__hit_toc_number_gap_tl }
-          { \tl_gset:Nn \g__hit_toc_number_gap_tl {#1} }
-      } ,
+    number-align .choices:nn = { natural , left , right }
+      { \str_gset:NV \g__hit_toc_number_align_str \l_keys_choice_tl } ,
+    number-gap .code:n = { \tl_gset:Nn \g__hit_toc_number_gap_tl {#1} } ,
     number-gap .default:n = { 1 \ccwd } ,
   }
 \box_new:N \l__hit_toc_num_box
-\cs_new_protected:Npn \hit@toc@fixed@numwidth:
+\dim_new:N \l__hit_toc_num_pad_dim
+\cs_new_protected:Npn \hit@toc@numwidth@apply:
   {
-    \cs_set_protected:Npn \CTEX@toc@width@n ##1
+    \str_case:VnF \g__hit_toc_number_align_str
       {
-        \hbox_set:Nn \l__hit_toc_num_box {##1}
-        \dim_set:Nn \@tempdima
-          { \box_wd:N \l__hit_toc_num_box + \g__hit_toc_number_gap_tl }
-        \dim_gset_eq:NN \g__hit_toc_hang_dim \@tempdima
+        { left }
+          {
+            \cs_set_protected:Npn \CTEX@toc@width@n ##1
+              {
+                \hbox_set:Nn \l__hit_toc_num_box {##1}
+                \dim_set:Nn \@tempdima
+                  {
+                    \dim_max:nn { \@tempdima }
+                      {
+                        \box_wd:N \l__hit_toc_num_box
+                        + ( \g__hit_toc_number_gap_tl ) / 2
+                      }
+                  }
+                \dim_gset_eq:NN \g__hit_toc_hang_dim \@tempdima
+              }
+          }
+        { right }
+          {
+            \cs_set_protected:Npn \CTEX@toc@width@n ##1
+              {
+                \hbox_set:Nn \l__hit_toc_num_box {##1}
+                \dim_set:Nn \l__hit_toc_num_pad_dim
+                  {
+                    \dim_max:nn { \c_zero_dim }
+                      { \@tempdima - \box_wd:N \l__hit_toc_num_box }
+                  }
+                \skip_horizontal:N \l__hit_toc_num_pad_dim
+                \dim_set:Nn \@tempdima
+                  { \box_wd:N \l__hit_toc_num_box + \g__hit_toc_number_gap_tl }
+                \dim_gset:Nn \g__hit_toc_hang_dim
+                  { \l__hit_toc_num_pad_dim + \@tempdima }
+              }
+          }
+      }
+      {
+        \cs_set_protected:Npn \CTEX@toc@width@n ##1
+          {
+            \hbox_set:Nn \l__hit_toc_num_box {##1}
+            \dim_set:Nn \@tempdima
+              { \box_wd:N \l__hit_toc_num_box + \g__hit_toc_number_gap_tl }
+            \dim_gset_eq:NN \g__hit_toc_hang_dim \@tempdima
+          }
       }
   }
 %    \end{macrocode}
@@ -245,15 +299,16 @@
           \interlinepenalty \@M
           \leavevmode
           \@tempdima #3\relax
-          \tl_if_empty:NTF \g__hit_toc_number_gap_tl
+          \dim_gzero:N \g__hit_toc_hang_dim
+          \hit@toc@numwidth@apply:
+          \str_if_eq:VnT \g__hit_toc_number_align_str { left }
             { \advance \leftskip \@tempdima }
-            { \dim_gzero:N \g__hit_toc_hang_dim \hit@toc@fixed@numwidth: }
           \null \nobreak \hskip - \leftskip
           { \use:c { hit@toc@font } #4 } \nobreak
           \leaders \hbox { $ \m@th \mkern \@dotsep mu \hbox {.} \mkern \@dotsep mu $ }
           \hfill \nobreak
           \hbox { \hfil \normalfont \normalcolor #5 \kern -\p@ \kern \p@ }
-          \tl_if_empty:NF \g__hit_toc_number_gap_tl
+          \str_if_eq:VnF \g__hit_toc_number_align_str { left }
             {
               \dim_set_eq:NN \hangindent \g__hit_toc_hang_dim
               \int_set:Nn \hangafter { 1 }
@@ -310,11 +365,10 @@
 % 都对。接住它不能用 \cs{leftskip}——首行那记 \cs{hskip} 在排编号\emph{之前}
 % 就把值取走了——\cs{hangindent} 到 \cs{par} 断行时才求值，放在段尾正好。
 %
-% 值要在 \cs{numberline} 排完的\emph{当口}抢走：\cs{@tempdima} 是公共草稿，
-% 活不过标题——实测编号盒刚落 43.2\,bp 还在，长标题排完再读就成了零。
-% 条目里把 \cs{numberline} 局部包一层，排完编号立刻全局导出，出组还原、
-% 图表清单与英文目录里的它不受影响。无编号的章（摘要、结论这些）不经过
-% \cs{numberline}，导出的是刚清过的零，不悬挂，折行处恰好也是它标题的首字。
+% 值由三档共用的算宽体在排完编号的当口全局导出（\cs{@tempdima} 活不过
+% 标题，见上面 \cs{hit@toc@numwidth@apply:} 那段），这里只管清零和取用。
+% 无编号的章（摘要、结论这些）不经过 \cs{numberline}，导出的是刚清过的零，
+% 不悬挂，折行处恰好也是它标题的首字。
 %    \begin{macrocode}
 \dim_new:N \g__hit_toc_hang_dim
 \RenewDocumentCommand \l@chapter { m m }
@@ -325,14 +379,7 @@
         \group_begin:
           \dim_zero:N \@tempdima
           \dim_gzero:N \g__hit_toc_hang_dim
-          \cs_set_eq:NN \hit@toc@numberline@orig \numberline
-          \cs_set:Npn \numberline ##1
-            {
-              \hit@toc@numberline@orig {##1}
-              \dim_gset_eq:NN \g__hit_toc_hang_dim \@tempdima
-            }
-          \tl_if_empty:NF \g__hit_toc_number_gap_tl
-            { \hit@toc@fixed@numwidth: }
+          \hit@toc@numwidth@apply:
           \parindent \z@ \rightskip \@pnumwidth
           \parfillskip -\@pnumwidth
           \leavevmode
