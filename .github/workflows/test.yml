@@ -306,6 +306,50 @@ jobs:
           echo "缺字条数: $(grep -c 'Missing character' main.log || true)"
 
   # ============================================================
+  # lualatex 冒烟：只问「编得过、页数与 xelatex 对齐」。
+  #    主力引擎是 xelatex，逐字节基线与行末棘轮都按它标定；lualatex 是第二
+  #    引擎（21adffe 并入），标点走 luatexja 自己的模型，不逐格比。这个 job
+  #    的用途是防烂：谁在共享层里长出裸的 xeCJK 调用，这里当场红。
+  #    页数比对用同一台 runner 上现编的 xelatex，不钉死数字——页数跟着模板
+  #    演进走，钉死等于每次改版面都要来改这里。
+  # ============================================================
+  lualatex-smoke:
+    name: lualatex 冒烟
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: TeX-Live/setup-texlive-action@v4
+        with:
+          version: latest
+          package-file: .github/tl_packages
+
+      - name: Generate class files
+        run: make cls
+
+      - name: Build with both engines
+        working-directory: examples/demo
+        run: |
+          doc='\PassOptionsToClass{fontset=fandol}{hithesis}\input{thesis.tex}'
+          for eng in xelatex lualatex; do
+            $eng -interaction=nonstopmode -jobname=$eng "$doc" || {
+              echo "::group::$eng.log 末尾"; tail -60 $eng.log; echo "::endgroup::"; exit 1; }
+            $eng -interaction=nonstopmode -jobname=$eng "$doc" || {
+              echo "::group::$eng.log 末尾"; tail -60 $eng.log; echo "::endgroup::"; exit 1; }
+          done
+          echo "lualatex 缺字条数: $(grep -c 'Missing character' lualatex.log || true)"
+
+      # 页数从日志末尾的 Output written 行取，不装 PDF 工具
+      - name: Compare page counts
+        working-directory: examples/demo
+        run: |
+          xe=$(grep -oE 'Output written on xelatex.pdf \(([0-9]+) page' xelatex.log | grep -oE '[0-9]+')
+          lua=$(grep -oE 'Output written on lualatex.pdf \(([0-9]+) page' lualatex.log | grep -oE '[0-9]+')
+          echo "xelatex $xe 页 / lualatex $lua 页"
+          [ -n "$xe" ] && [ -n "$lua" ] || { echo "页数没取到"; exit 1; }
+          [ "$xe" = "$lua" ] || { echo "页数不一致"; exit 1; }
+
+  # ============================================================
   # L2 变体矩阵，看 42 种 \documentclass 选项组合还能不能编出来。
   #    全量跑，实测三分钟左右，没必要再分快慢集。
   # ============================================================
