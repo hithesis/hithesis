@@ -628,12 +628,12 @@
 % 公式的基线差 28.80，改成零之后 20.82，而正文行深 7.28 加公式盒高 13.54 正是
 % 20.82。
 %
-% \textbf{段后仍留一个常数。} Word 给的那一份是 $0.25\times$（公式自身的自然
-% 高），落在基线下方——示例那条分式高 13.54、深 14.5，Word 要 7.0\,bp。
-% \hologo{TeX} 插 \cs{belowdisplayskip} 时手里只有 \cs{prevdepth}（公式盒的深），
-% 拿不到盒高，这一份算不出来，所以按老值顶着：实测 8\,pt 那一档下方基线差 34.32，
-% 模型算出来 33.7，差 0.6。哪天有办法把公式盒量出来，这个常数换成
-% $0.25\times(\text{高}+\text{深})$。
+% \textbf{段后 8\,pt 只给 \env{align} 一族兜底。} Word 的段后那一份是行盒模型的
+% 一部分：多出来的高度落在基线下方，与公式自身多高成正比。单行公式
+% （\env{equation} 一族）现在整段装进一个行盒自己算，见下面
+% \cs{hit@display@open:}，它进场时会把段后也置零；多行的 \env{align} 一族每行
+% 各有行盒，整块套一个盒不成立，仍走 \hologo{TeX} 的四个胶，段后 8\,pt 是对着
+% 范例那条分式凑的常数（实测差 0.6\,bp）。
 %
 % 旧版面照原样：那一档钉的是 v3.1e 的版面，段前段后都是 8\,pt。
 %    \begin{macrocode}
@@ -651,6 +651,173 @@
       { \hit@display@skips:nn {#1} {#1} }
   }
 %    \end{macrocode}
+% \end{macro}
+%
+% \changes{v3.2a}{2026/08/29}{单行公式那一段整个装进一个行盒，高深按 Word 的
+%   模型算：行盒高＝倍数乘这一行的自然行高，自然行高取公式实际内容的高，
+%   上升部不变，多出来的落在基线下方}
+% \begin{macro}{\hit@display@open:}
+% \begin{macro}{\hit@display@close:}
+% \textbf{行盒自己算，不借 \hologo{TeX} 的 display skip。} Word 里公式那一行与
+% 别的行一个待遇：行盒高等于倍数乘这一行的自然行高，而自然行高取\emph{这一行
+% 实际内容}的高——公式有多高就按多高；上升部不变，多出来的那一份落在基线下方；
+% 行与行之间没有额外的胶，盒挨着盒堆。\hologo{TeX} 不是这么排的：它在公式上下
+% 各插一段与公式高矮无关的胶。所以把公式装进一个 \cs{hbox}，量出高深，按上面的
+% 式子改盒的尺寸，四个胶都不要。
+%
+% \textbf{量得到，靠三个钩子的时序。} 环境的 \texttt{begin} 钩子在 \texttt{\$\$}
+% 之前，\cs{everydisplay} 在 \texttt{\$\$} 之后、显示数学里头，环境的
+% \texttt{end} 钩子又在 \cs{endequation} 之前——于是 \texttt{begin} 立一个
+% 「下一个显示要装盒」的旗子，\cs{everydisplay} 见旗开盒，\texttt{end} 钩子收盒、
+% 改尺寸、把盒排回显示里。盒里是行内数学加 \cs{displaystyle}，这条路
+% \pkg{amsmath} 自己走过：它的 \texttt{fleqn} 分支就是这样装显示内容的
+% （\cs{mathdisplay} 里那句 \cs{setbox} 零号盒加 \cs{displaystyle}）。
+%
+% \textbf{\cs{everydisplay} 只能追加不能覆盖。} \pkg{amsmath} 在里头放了
+% \cs{@displaytrue}，\env{split} 靠它判「在显示里」；盒里 \cs{ifinner} 为真，
+% \env{split} 换成 \env{aligned} 排——这正是 \texttt{fleqn} 盒里的机关，
+% 照它把 \cs{split@warning} 也置成 \cs{relax}。
+%
+% \textbf{\cs{@currentlabel} 要从盒里带出来。} \pkg{amsmath} 的 \env{equation}
+% 是
+% \begin{latex}
+% \mathdisplay{equation}%
+% \incr@eqnum\mathopen{}%
+% \end{latex}
+% \cs{incr@eqnum}（也就是 \cs{refstepcounter}）排在 \cs{mathdisplay} 之后，
+% 而 \texttt{\$\$} 在 \cs{mathdisplay} 里头——开了盒，计数器就是在\emph{盒组里}
+% 步进的，\cs{protected@edef} 出来的 \cs{@currentlabel} 是局部量，收盒即失。
+% 真正写 aux 的 \cs{ltx@label} 在 \cs{endmathdisplay@a} 里、收盒之后，那时
+% \cs{@currentlabel} 已经回到上一次章节的值，交叉引用全指错（实测「式(2-1)」
+% 写成了「式(2.8.3.2)」）。所以收盒前把它全局带出来，收盒后在显示组里放回去。
+% 不装盒时没有这个坑：计数器步进落在 \texttt{\$\$} 的显示组里，写 aux 时那个组
+% 还开着。
+%
+% \textbf{断口那一行要补撑杆。} 撑杆挂在 \texttt{para/begin} 与 \texttt{para/end}
+% 两个钩子上，段落中间的行两头都不挨。公式把段落打断时，断口上那一行正是中间行，
+% 深只有墨迹的 2.4\,bp，不是撑杆的 7.3\,bp——上方的基线距跟着塌下去（实测同一
+% 条分式，前面空一行 24.7、不空行只有 19.5）。环境的 \texttt{begin} 钩子在
+% \texttt{\$\$} 之前、还在横排模式里，在那儿把撑杆插进断口，断口行就与别的行
+% 一样深。竖排模式（公式独占段）不插：上一段的段末撑杆本来就在。
+%
+% 公式\emph{之后}的断口没有对称的一手：接排的第一行同样是中间行，比模型紧
+% 2\,bp 上下。不补它——\texttt{after} 钩子那一刻看不出接下来是正文还是空行，
+% 空行时插了撑杆就是一行幽灵行，正是 \texttt{para/end} 那头刚堵住的坑。墨迹
+% 不会相撞（盒深是真的），只是比 Word 紧一点，记着待改。
+%
+% \textbf{与下一行的接缝差一个 \cs{lineskip}。} \hologo{TeX} 按基线距堆叠：行距
+% 减上一行深再减下一行高，不够 \cs{lineskiplimit} 就改插 \cs{lineskip}。正文行
+% 有撑杆，这个差恰好是零；公式行盒高深都大，两头都落到 \cs{lineskip}，各多
+% 1\,pt。不动 \cs{lineskip} 本身——它是全局兜底量，别处行盒撑不住也靠它，
+% 设成零会把那些地方一并收紧（实测 46 变体里 40 个受牵连）。改成把这 1\,pt 从
+% 盒的高与深里各扣掉，盒边加上 \cs{lineskip} 正好落在模型的位置，一处只影响
+% 一处。
+%
+% \textbf{短公式不动。} 公式高不过正文上升部、深不过正文行深的，盒照原样，
+% \hologo{TeX} 的基线距堆叠给出的正是正文行距——与模型「自然行高取两者较大」
+% 那条下限一致。深度也只往大改不往小改：把盒深压到比墨迹浅，墨迹会探进下一行。
+%
+% \textbf{只装 \env{equation} 与 \env{equation*}。} \cs{[} 与 \env{displaymath}
+% 都归到 \env{equation*}（实测 \cs{meaning} 是 \cs{begin}\marg{equation*}），
+% 这两条盖住单行公式的全部写法。\env{align} 一族是多行，不装。\texttt{fleqn}
+% 下 \pkg{amsmath} 自己装盒，让开。旧版面与报告类没有行盒模型
+% （\cs{g\_hit\_body\_first\_dim} 是零），开盒那一步见零就退，照旧走四个胶。
+%    \begin{macrocode}
+\box_new:N \g__hit_display_box
+\bool_new:N \g__hit_display_wanted_bool
+\bool_new:N \g__hit_display_inside_bool
+\bool_new:N \g__hit_display_hooked_bool
+\tl_new:N \g__hit_display_currentlabel_tl
+\dim_new:N \l__hit_display_ascent_dim
+\dim_new:N \l__hit_display_depth_dim
+\cs_new_protected:Npn \hit@display@want:
+  {
+    \mode_if_horizontal:T { \cs_if_exist_use:N \hit@format@strut: }
+    \bool_gset_true:N \g__hit_display_wanted_bool
+  }
+\cs_new_protected:Npn \hit@display@open:
+  {
+    \bool_if:NT \g__hit_display_wanted_bool
+      {
+        \bool_gset_false:N \g__hit_display_wanted_bool
+        \bool_lazy_and:nnT
+          { \dim_compare_p:nNn { \g_hit_body_first_dim } > { \c_zero_dim } }
+          { ! \legacy_if_p:n { @fleqn } }
+          {
+            \bool_gset_true:N \g__hit_display_inside_bool
+            \skip_set:Nn \belowdisplayskip { 0bp }
+            \skip_set:Nn \belowdisplayshortskip { 0bp }
+            \tex_setbox:D \g__hit_display_box \tex_hbox:D \c_group_begin_token
+              \cs_set_eq:NN \split@warning \scan_stop:
+              \c_math_toggle_token \displaystyle
+          }
+      }
+  }
+\cs_new_protected:Npn \hit@display@close:
+  {
+    \bool_gset_false:N \g__hit_display_wanted_bool
+    \bool_if:NT \g__hit_display_inside_bool
+      {
+        \bool_gset_false:N \g__hit_display_inside_bool
+        \tl_gset_eq:NN \g__hit_display_currentlabel_tl \@currentlabel
+        \c_math_toggle_token \c_group_end_token
+        \tl_set_eq:NN \@currentlabel \g__hit_display_currentlabel_tl
+        \__hit_display_fit:
+        \box_use_drop:N \g__hit_display_box
+      }
+  }
+\cs_new_protected:Npn \__hit_display_fit:
+  {
+    \dim_set:Nn \l__hit_display_ascent_dim
+      {
+        \dim_max:nn { \box_ht:N \g__hit_display_box }
+          { \g_hit_body_first_dim }
+      }
+    \dim_set:Nn \l__hit_display_depth_dim
+      {
+        \fp_to_dim:n
+          {
+            \dim_to_fp:n { \g_hit_body_lead_dim }
+            / ( \c__hit_format_natural_tl
+                * \dim_to_fp:n { \g_hit_body_size_dim } )
+            * max
+                (
+                  \dim_to_fp:n { \box_ht:N \g__hit_display_box }
+                  + \dim_to_fp:n { \box_dp:N \g__hit_display_box } ,
+                  \c__hit_format_natural_tl
+                  * \dim_to_fp:n { \g_hit_body_size_dim }
+                )
+            - \dim_to_fp:n { \l__hit_display_ascent_dim }
+          }
+      }
+    \dim_sub:Nn \l__hit_display_depth_dim { \lineskip }
+    \dim_compare:nNnT { \box_ht:N \g__hit_display_box }
+      > { \g_hit_body_first_dim }
+      {
+        \box_set_ht:Nn \g__hit_display_box
+          { \l__hit_display_ascent_dim - \lineskip }
+      }
+    \dim_compare:nNnT { \l__hit_display_depth_dim }
+      > { \g_hit_body_lead_dim - \g_hit_body_first_dim }
+      { \box_set_dp:Nn \g__hit_display_box { \l__hit_display_depth_dim } }
+  }
+\clist_const:Nn \c__hit_display_env_clist { equation , equation* }
+\cs_new_protected:Npn \hit@display@hooks:
+  {
+    \bool_if:NF \g__hit_display_hooked_bool
+      {
+        \bool_gset_true:N \g__hit_display_hooked_bool
+        \clist_map_inline:Nn \c__hit_display_env_clist
+          {
+            \AddToHook { env/##1/begin } { \hit@display@want: }
+            \AddToHook { env/##1/end }   { \hit@display@close: }
+          }
+        \tex_everydisplay:D \exp_after:wN
+          { \tex_the:D \tex_everydisplay:D \hit@display@open: }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
 % \end{macro}
 %
 %    \begin{macrocode}
