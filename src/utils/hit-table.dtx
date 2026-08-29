@@ -44,8 +44,45 @@
     \AddToHook { begindocument / end }
       {
         \cs_set_eq:NN \hit@original@longtable@array \LT@array
-        \cs_set:Npn \LT@array { \wuhao \hit@original@longtable@array }
+        \cs_set:Npn \LT@array { \hit@table@font: \hit@original@longtable@array }
       }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \changes{v3.2a}{2026/08/29}{新版面下长表格的行距取网格行距。原先是 \cs{wuhao}
+%   自带的 1.3 倍，行高 13.65\,bp，比 Word 的一格矮了三分之一}
+% \begin{macro}{\hit@table@font:}
+% \textbf{行高就是网格行距。} Word 里表格数据行的行高等于文档网格的行距，行盒在行里
+% 垂直居中。实测本科范例第 12 页那张表：表头下 387.12、底线 521.40，七行，
+% 一行 $(521.40-387.12)/7 = 19.18$；那一节的 \texttt{docGrid} 写的是
+% \texttt{linePitch=383}，也就是 19.15\,bp。步进与行高都是它。
+%
+% \hologo{LaTeX} 这边表格行高由 \cs{@arstrutbox} 定，而它是按 \cs{strutbox} 的
+% 0.7／0.3 分的，\cs{strutbox} 又跟着 \cs{baselineskip} 走。所以只要把长表格默认
+% 字号的行距设成网格行距，行高就对了：五号 \cs{wuhao} 自带 1.3 倍是 13.65\,bp，
+% 比一格矮三分之一，手册上教用户写 \cs{ltfontsize}\marg{\cs{wuhao}\oarg{1.667}}
+% 手调的正是这一段。
+%
+% 基线在行里的位置这样也就对上了：\hologo{LaTeX} 放在行顶下 $0.7L = 13.41$\,bp，
+% Word 是「行盒居中再加上升部」，即 $(19.15-13.617)/2 + 10.66 = 13.43$\,bp，
+% 差 0.02\,bp。不必另写居中的撑杆。
+%
+% 旧版面没有网格，原样保留 \cs{wuhao}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@table@font:
+  {
+    \__hit_layout_msword_active:TF
+      {
+        \dim_compare:nNnTF { \g_hit_msword_lead_dim } = { 0pt }
+          { \wuhao }
+          {
+            \fontsize { \dim_use:N \c__hit_font_size_wuhao_dim }
+              { \dim_use:N \g_hit_msword_lead_dim }
+            \selectfont
+          }
+      }
+      { \wuhao }
   }
 %    \end{macrocode}
 % \end{macro}
@@ -53,13 +90,41 @@
 % \begin{macro}{\hit@setup@table@rules}
 % \changes{v3.2a}{2026/08/12}{三线表的线宽从 deps 挪到这里。那边只管加载宏包，
 %   线宽是排版取值，归表格这一处}
-% 三线表的线宽。规范里三条线粗细不同，\pkg{booktabs} 的默认值细一档。
+% \changes{v3.2a}{2026/08/29}{新版面下线宽的单位从 \texttt{pt} 换成 \texttt{bp}，
+%   另按 Word 的单元格边距设 \cs{tabcolsep}}
+% 三线表的线宽与单元格边距。规范里三条线粗细不同，\pkg{booktabs} 的默认值细一档。
+%
+% \textbf{读自范例的 \file{.docx}，不是从 PDF 上量的。} 指南只说「不加左右边线」
+% 「建议采用国际通行的三线表」，一个数都没给。范例那张表的 \texttt{tblPr} 是全框
+% \texttt{sz=4}，三条线由\emph{单元格级}的 \texttt{w:tcBorders} 逐格盖掉：表头行
+% 上 \texttt{sz=12}、下 \texttt{sz=8}，数据首行上 \texttt{sz=8}，末行下
+% \texttt{sz=12}，其余四边全 \texttt{nil}。\texttt{w:sz} 的单位是八分之一磅，
+% \texttt{sz=12} 与 \texttt{sz=8} 就是 Word「边框和底纹」里那个宽度下拉框上的
+% 1½ 磅与 1 磅。
+%
+% \textbf{磅是 \texttt{bp} 不是 \texttt{pt}。} Word 的磅是 1/72 英寸，
+% \hologo{TeX} 的 \texttt{pt} 是 1/72.27 英寸。新版面照 Word 写 \texttt{bp}；
+% 旧版面原样留 \texttt{pt}，那是 v3.1e 的取值。
+%
+% \cs{tabcolsep} 是单元格左右各留多少。范例的表没写 \texttt{tblCellMar}，用的是
+% \file{styles.xml} 里 \texttt{docDefaults} 那一份：上下 0、左右各 108 缇，
+% 也就是 5.4\,bp（Word 的「表格属性→单元格边距」上显示 0.19 厘米）。
+% \hologo{LaTeX} 的默认值是 6\,pt。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@setup@table@rules
   {
-    \dim_set:Nn \heavyrulewidth { 1.5pt }
-    \dim_set:Nn \lightrulewidth { 1pt }
-    \dim_set:Nn \cmidrulewidth { 0.5pt }
+    \__hit_layout_msword_active:TF
+      {
+        \dim_set:Nn \heavyrulewidth { 1.5bp }
+        \dim_set:Nn \lightrulewidth { 1bp }
+        \dim_set:Nn \cmidrulewidth { 0.5bp }
+        \dim_set:Nn \tabcolsep { 5.4bp }
+      }
+      {
+        \dim_set:Nn \heavyrulewidth { 1.5pt }
+        \dim_set:Nn \lightrulewidth { 1pt }
+        \dim_set:Nn \cmidrulewidth { 0.5pt }
+      }
   }
 %    \end{macrocode}
 % \end{macro}
