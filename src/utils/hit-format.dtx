@@ -1507,6 +1507,10 @@
 % 再多就该另起一行。demo 实测 1018 处标点里只剩 1 处压过半格，页数 58。
 % 0.02 与 0.04 都太松，该并回本行的字并不回来。
 %
+% 中西文胶与空格的伸量也归到这一档（见 \cs{hit@format@latin@pitch:} 那边的
+% 说明）：伸量在 \hologo{TeX} 里兼任摊派权重，三种缝同一档，行凑不满时缺口
+% 才会像 Word 那样均摊，不在某一个空格上开大洞。
+%
 % \changes{v3.2a}{2026/08/16}{同时设 \pkg{ctex} 的 \cs{l\_\_ctex\_ccglue\_skip}，
 %   \TeX~Live 2025 上光设 \cs{CJKglue} 会被 \pkg{ctex} 盖掉}
 % \emph{两处都设。} \pkg{ctex} 的 \cs{CJKglue} 是
@@ -1526,7 +1530,8 @@
 % 裸字号，2026 反而从 12.6720 变成 12.7320。记在这里省得重来。
 %    \begin{macrocode}
 \tl_const:Nn \c__hit_format_ccstretch_tl { 0.02 }
-\tl_const:Nn \c__hit_format_ecstretch_tl { 0.08 }
+\tl_const:Nn \c__hit_format_ecstretch_tl { 0.02 }
+\tl_const:Nn \c__hit_format_ecshrink_tl { 0.13 }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/18}{西文标点与乘除号并入半角标点类，旁边不发中西文胶}
@@ -1544,6 +1549,7 @@
   {
     \hskip \l__hit_format_ecglue_dim
       \@plus \c__hit_format_ecstretch_tl \baselineskip
+      \@minus \c__hit_format_ecshrink_tl \baselineskip
   }
 \cs_new_protected:Npn \hit@format@hglue:nn #1#2
   {
@@ -2273,8 +2279,32 @@
 %
 % 空格也跟着改。\hologo{XeTeX} 的字间距只落在词内，词尾那一份没有，缺的补进
 % 空格，于是空格 = 字体空格 + 两份增量。可压量取自然宽的四分之一——实测 Word
-% 的上限落在 0.78 与 0.97 之间（12\,bp），四分之一在窗口内。可伸量 Word 不设
-% 上限，实测拉到自然宽的 3.17 倍照拉，这里给两倍。
+% 的上限落在 0.78 与 0.97 之间（12\,bp），四分之一在窗口内。
+%
+% \changes{v3.2a}{2026/08/29}{空格与中西文胶的伸量都压到与汉字缝同一档。原先
+%   空格给两倍字体空格、中西文胶给 0.08 倍行距，行凑不满时缺口全灌进这一两处，
+%   实测一个空格被拉到 74\,bp；Word 是把缺口摊到每条缝上}
+% \emph{伸量是摊派的权重，不是上限。} Word 对空格的\emph{总}拉伸不设上限
+% （实测拉到自然宽的 3.17 倍照拉），但它不是把缺口全给空格：字符网格那节的
+% 第七条实测过，31 个字的行被拉开填满 32 格，\emph{每条缝均摊}。\hologo{TeX}
+% 按各段胶的伸量比例摊派，原先空格的伸量（两倍字体空格，约 6\,bp）是汉字缝
+% （0.02 倍行距，约 0.39\,bp）的十五倍，中西文胶（0.08 倍行距）是四倍，
+% 于是「近五年以第一作者在 Nature Medicine(2023)、Nature」这种行里 74\,bp 的
+% 缺口有 70 落在同一个空格上，纸面上一个大洞。三种缝的伸量设成同一档，缺口
+% 就均摊了——同一行实测各缝 12.6 上下，空格自己也在 3.4 倍自然宽，与 Word
+% 的两条实测都对得上。空格的压缩量不动，那是按 Word 的窗口另标定的
+% （0.25 倍字体空格，压到自然宽的 0.797，Word 实测下沿 0.78）。
+%
+% \changes{v3.2a}{2026/08/29}{中西文胶加可压量 0.13 倍行距。含西文的行因此
+%   能像 Word 那样把边界空隙压掉、多装下一个词；纯中文行没有这份额度，不受
+%   影响。行末棘轮 79 收到 78}
+% \emph{压缩量只给中西文胶，这是道闸门。} Word 打包一行时压的是空格、全角
+% 标点与中西文边界的空隙；纯中文行每个字缝都是断点，Word 从不硬挤。\hologo{TeX}
+% 的压缩量落在哪种胶上，哪种行就有打包的本钱——放进 \cs{rightskip} 等于全体
+% 放行，实测中文行会各拽一个字上来（行末棘轮 79 冲到 118）；放进中西文胶，
+% 只有含西文的行拿得到，恰好是「西文断不开才许挤」。量给 0.13 倍行距
+% （约 2.5\,bp），把 0.225 格的边界空隙压到贴零为止；全角标点的压缩是另一套
+% 模型（贪心分支），主线 \texttt{PunctStyle=plain} 不掺和。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@latin@pitch:
   {
@@ -2309,7 +2339,7 @@
                 \fontdimen 2 \font
                 + \g_hit_msword_char_dim - \g_hit_body_size_dim
               }
-            plus 2 \fontdimen 2 \font
+            plus \c__hit_format_ccstretch_tl \baselineskip
             minus 0.25 \fontdimen 2 \font
           }
         \frenchspacing
