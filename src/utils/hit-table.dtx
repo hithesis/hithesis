@@ -54,6 +54,7 @@
         \AddToHook { env/##1/begin }
           { \bool_if:NT \l__hit_table_float_bool { \hit@table@font: } }
       }
+    \hit@setup@tabularray
   }
 %    \end{macrocode}
 %
@@ -144,6 +145,89 @@
     \dim_set:Nn \lightrulewidth { 1bp }
     \dim_set:Nn \cmidrulewidth { 0.5bp }
     \dim_set:Nn \tabcolsep { 5.4bp }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@setup@tabularray}
+% \changes{v3.2a}{2026/08/30}{\pkg{tabularray} 接进同一套表格值：线宽、单元格
+%   边距、表内字号行距、表题链与续表头，与老写法共用}
+% \pkg{tabularray} 是推荐的表格写法，接进同一套值，全挂在
+% \texttt{package/tabularray/after} 钩子上——用户不装不欠账，装了就齐。
+% 逐项对应：
+% \begin{itemize}
+% \item \emph{线宽零工作}：它的 \pkg{booktabs} 库
+%   （\cs{UseTblrLibrary}\marg{booktabs}）画三线用的就是
+%   \cs{heavyrulewidth} 这批全局尺寸，上面设过的值直接生效。
+% \item \emph{单元格边距}：它的 \texttt{colsep} 不读 \cs{tabcolsep}（默认
+%   6\,pt），而且每个环境一份 inner 表、互不继承，\pkg{booktabs} 库的那三个
+%   环境在库加载前还不存在。所以挂在各环境自己的 begin 钩子里，进环境时
+%   往它的 inner 表追加 \texttt{colsep=}\cs{tabcolsep}——追加是组内局部的，
+%   出组即还原，不会越积越长。
+% \item \emph{表内字号行距}：\env{tblr} 与 \env{booktabs} 走 \env{tabular}
+%   一族的两级钩子（浮动体里才压五号）；\env{longtblr}、\env{talltblr}、
+%   \env{longtabs}、\env{talltabs} 与 \pkg{longtable} 同规矩，无条件压。
+%   钩子挂在环境名上，环境不存在就永不触发，先挂无害。
+% \item \emph{表题}：题号、题号后的间隔、字体三件各接原链——
+%   \cs{fnum@table}、\cs{hit@caption@separator}、\option{caption-table}
+%   格式目标，与 \cs{caption} 排出来同源。间隔与字体那两条链看
+%   \cs{@captype} 分图表，模板里先立成 \texttt{table}。
+% \item \emph{续表头}：规范说「表右上角注明编号，编号后加“（续表）”，
+%   表题可省略」，demo 的老写法是
+%   \cs{multicolumn}\marg{n}\marg{r}\marg{表~x-x（续表）}。续页头照此排：
+%   编号加“（续表）”靠右，表题省略；英文文档排 (Continued)。续页脚不排，
+%   老写法也没有。
+% \end{itemize}
+% 表题字体那条链在报告类没有（\cs{hit@caption@separator} 一族住在学位论文类
+% 的浮动层），钩子里逐条存在才接，报告类装 \pkg{tabularray} 保它默认样式。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_table_tblr_captype:
+  { \cs_set:Npn \@captype { table } }
+\cs_new_protected:Npn \hit@setup@tabularray
+  {
+    \AddToHook { package / tabularray / after }
+      {
+        \clist_map_inline:nn { tblr , booktabs }
+          {
+            \AddToHook { env/##1/begin }
+              {
+                \SetTblrInner [##1] { colsep = \tabcolsep }
+                \bool_if:NT \l__hit_table_float_bool { \hit@table@font: }
+              }
+          }
+        \clist_map_inline:nn { longtblr , talltblr , longtabs , talltabs }
+          {
+            \AddToHook { env/##1/begin }
+              {
+                \SetTblrInner [##1] { colsep = \tabcolsep }
+                \hit@table@font:
+              }
+          }
+        \DefTblrTemplate { caption-tag } { default } { \fnum@table }
+        \cs_if_exist:NT \hit@caption@separator
+          {
+            \DefTblrTemplate { caption-sep } { default }
+              { \__hit_table_tblr_captype: \hit@caption@separator }
+          }
+        \cs_if_exist:NT \hit@caption@font:
+          {
+            \SetTblrStyle { caption }
+              { font = \__hit_table_tblr_captype: \hit@caption@font: }
+            \SetTblrStyle { capcont }
+              { font = \__hit_table_tblr_captype: \hit@caption@font: }
+          }
+        \DefTblrTemplate { capcont } { default }
+          {
+            \makebox [ \hsize ] [ r ]
+              {
+                \fnum@table
+                \bool_if:NTF \g__hit_en_bool
+                  { ~ ( Continued ) } { （续表） }
+              }
+            \par
+          }
+        \SetTblrTemplate { contfoot } { empty }
+      }
   }
 %    \end{macrocode}
 % \end{macro}
