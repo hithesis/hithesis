@@ -181,6 +181,45 @@
 \dim_set:Nn \@tempdima {4em}%
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/08/29}{加 \option{toc}/\option{number-gap}：编号后
+%   一律空定长，编号列不再量宽取齐}
+% 编号与标题之间空多少，有两套算法。v3.1e 走到今天的是\emph{量宽取齐}：
+% \CTeX\ 的 \cs{numberline} 把编号排进定宽盒，盒宽取“列宽与编号实宽加
+% 半个字号的较大者”，一列条目的标题起点对齐。范例不是这么排的：目录条目
+% 按字形原点量，“章”到“绪”的步进 25.00\,bp，正是一个汉字加一个全宽空格
+% （12.55\,bp）——编号排自然宽，后面\emph{一律空一个字}，标题起点跟着编号
+% 长短走。\option{toc}/\option{number-gap} 选后者：裸写就是 1\cs{ccwd}，
+% 也收长度；\texttt{auto}（默认）回到量宽取齐。
+%
+% 实现只须换掉 \cs{CTEX@toc@width@n}——\cs{numberline} 里算盒宽的那半：
+% 盒宽直接设成“编号实宽加间距”，盒里的 \cs{hfil} 就把多出的那份垫成编号后
+% 的空隙，前缀包装（图表清单的“图”“表”字）、悬挂导出全都照旧路走。定义
+% 是组内局部的，出组还原，不碰别处的 \CTeX\ 目录。
+%    \begin{macrocode}
+\tl_new:N \g__hit_toc_number_gap_tl
+\keys_define:nn { hit / toc }
+  {
+    number-gap .code:n =
+      {
+        \str_if_eq:nnTF {#1} { auto }
+          { \tl_gclear:N \g__hit_toc_number_gap_tl }
+          { \tl_gset:Nn \g__hit_toc_number_gap_tl {#1} }
+      } ,
+    number-gap .default:n = { 1 \ccwd } ,
+  }
+\box_new:N \l__hit_toc_num_box
+\cs_new_protected:Npn \hit@toc@fixed@numwidth:
+  {
+    \cs_set_protected:Npn \CTEX@toc@width@n ##1
+      {
+        \hbox_set:Nn \l__hit_toc_num_box {##1}
+        \dim_set:Nn \@tempdima
+          { \box_wd:N \l__hit_toc_num_box + \g__hit_toc_number_gap_tl }
+        \dim_gset_eq:NN \g__hit_toc_hang_dim \@tempdima
+      }
+  }
+%    \end{macrocode}
+%
 % \changes{v3.2a}{2026/08/07}{\cs{@dottedtocline} 改成直接重定义，不再用
 %   \pkg{etoolbox} 打补丁。补丁命令会把宏体 detokenize 后按当前 catcode 重扫，
 %   在 expl3 里会吃掉宏体内的字面空格，只能退出 expl3 才敢用}
@@ -203,12 +242,19 @@
           \interlinepenalty \@M
           \leavevmode
           \@tempdima #3\relax
-          \advance \leftskip \@tempdima
+          \tl_if_empty:NTF \g__hit_toc_number_gap_tl
+            { \advance \leftskip \@tempdima }
+            { \dim_gzero:N \g__hit_toc_hang_dim \hit@toc@fixed@numwidth: }
           \null \nobreak \hskip - \leftskip
           { \use:c { hit@toc@font } #4 } \nobreak
           \leaders \hbox { $ \m@th \mkern \@dotsep mu \hbox {.} \mkern \@dotsep mu $ }
           \hfill \nobreak
           \hbox { \hfil \normalfont \normalcolor #5 \kern -\p@ \kern \p@ }
+          \tl_if_empty:NF \g__hit_toc_number_gap_tl
+            {
+              \dim_set_eq:NN \hangindent \g__hit_toc_hang_dim
+              \int_set:Nn \hangafter { 1 }
+            }
           \par
         }
       }
@@ -282,6 +328,8 @@
               \hit@toc@numberline@orig {##1}
               \dim_gset_eq:NN \g__hit_toc_hang_dim \@tempdima
             }
+          \tl_if_empty:NF \g__hit_toc_number_gap_tl
+            { \hit@toc@fixed@numwidth: }
           \parindent \z@ \rightskip \@pnumwidth
           \parfillskip -\@pnumwidth
           \leavevmode
