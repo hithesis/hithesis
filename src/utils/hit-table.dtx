@@ -177,12 +177,49 @@
 %   \cs{multicolumn}\marg{n}\marg{r}\marg{表~x-x（续表）}。续页头照此排：
 %   编号加“（续表）”靠右，表题省略；英文文档排 (Continued)。续页脚不排，
 %   老写法也没有。
+% \item \emph{双语表题}：给长表环境注册一个 \texttt{caption-en} 外参
+%   （\cs{DeclareTblrKeys} 是它的公开接口），caption 模板排完中文行后接一行
+%   英文——英文表名前缀、表号、题号后的间隔、英文题，逐件与浮动表里
+%   \cs{caption}\marg{中文题}\oarg{英文题} 的第二行同链；排不排听
+%   \option{format}/\option{bilingual-caption} 的，与浮动表同一个开关。
+%   表题的可用宽度顺手从表宽抬成版心宽——\pkg{tabularray} 把 caption 排在
+%   表宽里，窄表的题被挤着折行，规范口径是表题居中于版心；表按默认的居中
+%   摆时两个中心重合，抬宽正好。续表头不抬，右对齐于表右缘是老写法
+%   \cs{multicolumn}\marg{n}\marg{r} 的语义。
+% \item \emph{续表重复表头}：规范说「续表应重复表头」，\env{longtblr} 与
+%   \env{longtabs} 的 \texttt{rowhead} 默认给 1，用户在环境参数里写
+%   \texttt{rowhead=0} 或别的值照常覆盖。
 % \end{itemize}
 % 表题字体那条链在报告类没有（\cs{hit@caption@separator} 一族住在学位论文类
 % 的浮动层），钩子里逐条存在才接，报告类装 \pkg{tabularray} 保它默认样式。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_table_tblr_captype:
   { \cs_set:Npn \@captype { table } }
+\box_new:N \l__hit_table_caption_box
+\tl_new:N \l__hit_table_caption_en_tl
+\cs_new_protected:Npn \__hit_table_tblr_en_line:
+  {
+    \tl_set:Ne \l__hit_table_caption_en_tl { \InsertTblrText { caption-en } }
+    \bool_lazy_and:nnT
+      { \bool_if_p:N \g__hit_bilingual_caption_bool }
+      { ! \tl_if_empty_p:N \l__hit_table_caption_en_tl }
+      {
+        \hbox_set:Nn \l__hit_table_caption_box
+          {
+            \__hit_table_tblr_captype:
+            \use:c { hit@term@caption@table@prefix@en } ~ \thetable
+            \hit@caption@separator
+            \l__hit_table_caption_en_tl
+          }
+        \dim_compare:nNnTF { \box_wd:N \l__hit_table_caption_box } > { \hsize }
+          { \noindent \hbox_unpack:N \l__hit_table_caption_box \par }
+          {
+            \centering
+            \makebox [ \hsize ] [ c ] { \box_use:N \l__hit_table_caption_box }
+            \par
+          }
+      }
+  }
 \cs_new_protected:Npn \hit@setup@tabularray
   {
     \AddToHook { package / tabularray / after }
@@ -203,6 +240,11 @@
                 \hit@table@font:
               }
           }
+        \clist_map_inline:nn { longtblr , longtabs }
+          {
+            \AddToHook { env/##1/begin }
+              { \SetTblrInner [##1] { rowhead = 1 } }
+          }
         \DefTblrTemplate { caption-tag } { default } { \fnum@table }
         \cs_if_exist:NT \hit@caption@separator
           {
@@ -215,6 +257,23 @@
               { font = \__hit_table_tblr_captype: \hit@caption@font: }
             \SetTblrStyle { capcont }
               { font = \__hit_table_tblr_captype: \hit@caption@font: }
+          }
+        \cs_if_exist:NT \hit@caption@separator
+          {
+            \DeclareTblrKeys { table/outer }
+              {
+                caption-en .code:n =
+                  { \__tblr_outer_gput_spec:nn { caption-en } {##1} } ,
+              }
+            \DeclareTblrTemplate { caption } { hithesis }
+              {
+                \group_begin:
+                \dim_set:Nn \hsize { \textwidth }
+                \UseTblrTemplate { caption } { normal }
+                \__hit_table_tblr_en_line:
+                \group_end:
+              }
+            \SetTblrTemplate { caption } { hithesis }
           }
         \DefTblrTemplate { capcont } { default }
           {
