@@ -198,6 +198,14 @@
 % \end{itemize}
 % 表题字体那条链在报告类没有（\cs{hit@caption@separator} 一族住在学位论文类
 % 的浮动层），钩子里逐条存在才接，报告类装 \pkg{tabularray} 保它默认样式。
+%
+% \pkg{tabularray} 的接口按特性检测分级：模板与样式那批要
+% \cs{DeclareTblrTemplate}（2022 年的模板系统），\option{caption-en} 外参还要
+% \cs{DeclareTblrKeys}（2025 年才有），老版本探不到就整块不接，编译照常、
+% 只是没有那部分自动化——类必装 \pkg{tabularray}（决议页在用），钩子每次
+% 都触发，不能在老版上炸。挂环境名的那批（边距、字号、\texttt{rowhead}）
+% 天然免疫：环境不存在钩子永不触发。\pkg{booktabs} 库也在这儿装上，用户
+% 什么都不用写。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_table_tblr_captype:
   { \cs_set:Npn \@captype { table } }
@@ -230,6 +238,7 @@
   {
     \AddToHook { package / tabularray / after }
       {
+        \UseTblrLibrary { booktabs }
         \clist_map_inline:nn { tblr , booktabs }
           {
             \AddToHook { env/##1/begin }
@@ -251,54 +260,59 @@
             \AddToHook { env/##1/begin }
               { \SetTblrInner [##1] { rowhead = 1 } }
           }
-        \DefTblrTemplate { caption-tag } { default } { \fnum@table }
-        \cs_if_exist:NT \hit@caption@separator
+        \cs_if_exist:NT \DeclareTblrTemplate
           {
-            \DefTblrTemplate { caption-sep } { default }
-              { \__hit_table_tblr_captype: \hit@caption@separator }
-          }
-        \cs_if_exist:NT \hit@caption@font:
-          {
-            \SetTblrStyle { caption }
-              { font = \__hit_table_tblr_captype: \hit@caption@font: }
-            \SetTblrStyle { capcont }
-              { font = \__hit_table_tblr_captype: \hit@caption@font: }
-          }
-        \cs_if_exist:NT \hit@caption@separator
-          {
-            \DeclareTblrKeys { table/outer }
+            \DefTblrTemplate { caption-tag } { default } { \fnum@table }
+            \cs_if_exist:NT \hit@caption@separator
               {
-                caption-en .code:n =
-                  { \__tblr_outer_gput_spec:nn { caption-en } {##1} } ,
+                \DefTblrTemplate { caption-sep } { default }
+                  { \__hit_table_tblr_captype: \hit@caption@separator }
               }
-            \DeclareTblrTemplate { caption } { hithesis }
+            \cs_if_exist:NT \hit@caption@font:
               {
-                \noindent
-                \hbox_to_wd:nn { \hsize }
+                \SetTblrStyle { caption }
+                  { font = \__hit_table_tblr_captype: \hit@caption@font: }
+                \SetTblrStyle { capcont }
+                  { font = \__hit_table_tblr_captype: \hit@caption@font: }
+              }
+            \bool_lazy_and:nnT
+              { \cs_if_exist_p:N \hit@caption@separator }
+              { \cs_if_exist_p:N \DeclareTblrKeys }
+              {
+                \DeclareTblrKeys { table/outer }
                   {
-                    \tex_hss:D
-                    \parbox { \textwidth }
+                    caption-en .code:n =
+                      { \__tblr_outer_gput_spec:nn { caption-en } {##1} } ,
+                  }
+                \DeclareTblrTemplate { caption } { hithesis }
+                  {
+                    \noindent
+                    \hbox_to_wd:nn { \hsize }
                       {
-                        \UseTblrTemplate { caption } { normal }
-                        \__hit_table_tblr_en_line:
+                        \tex_hss:D
+                        \parbox { \textwidth }
+                          {
+                            \UseTblrTemplate { caption } { normal }
+                            \__hit_table_tblr_en_line:
+                          }
+                        \tex_hss:D
                       }
-                    \tex_hss:D
+                    \par
+                  }
+                \SetTblrTemplate { caption } { hithesis }
+              }
+            \DefTblrTemplate { capcont } { default }
+              {
+                \makebox [ \hsize ] [ r ]
+                  {
+                    \fnum@table
+                    \bool_if:NTF \g__hit_en_bool
+                      { ~ ( Continued ) } { （续表） }
                   }
                 \par
               }
-            \SetTblrTemplate { caption } { hithesis }
+            \SetTblrTemplate { contfoot } { empty }
           }
-        \DefTblrTemplate { capcont } { default }
-          {
-            \makebox [ \hsize ] [ r ]
-              {
-                \fnum@table
-                \bool_if:NTF \g__hit_en_bool
-                  { ~ ( Continued ) } { （续表） }
-              }
-            \par
-          }
-        \SetTblrTemplate { contfoot } { empty }
       }
   }
 %    \end{macrocode}

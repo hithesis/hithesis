@@ -76,6 +76,8 @@ checkengines = {"xetex"}
 --   25-caption-short-title / 31-structure
 --                      同上两类：fontspec 的 Info 文案，加旧版 fancyhdr 的
 --                      headheight 警告
+--   70-tabularray      caption-en 外参绑 tabularray 2025 的 \DeclareTblrKeys，
+--                      旧版按特性检测整块降级，断言值随之不同
 --
 -- 跳过的只是逐字节比对；这些版本上的编译能力由同一轮 CI 的 make cls、
 -- make manual、示例与变体矩阵覆盖。想在旧版本上也跑，把环境变量清掉即可。
@@ -84,7 +86,7 @@ if os.getenv("HITHESIS_TL_LEGACY") then
     "42-symbols-env", "43-equation-paren", "52-deprecated-commands",
     "53-date-iso", "56-format-keys", "57-format-compute",
     "61-format-white-skip", "63-bib-backend", "64-bib-backend-late",
-    "25-caption-short-title", "31-structure",
+    "25-caption-short-title", "31-structure", "70-tabularray",
   }
 end
 stdengine    = "xetex"
