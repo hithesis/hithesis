@@ -72,14 +72,65 @@
 \cs_new_protected:Npn \hit@header@font { \songti \xiaowu [ 0 ] \hit@header@strut: }
 \cs_new_protected:Npn \hit@footer@font { \xiaowu }
 \dim_const:Nn \c__hit_header_rule_over_dim { 1.56bp }
-\cs_new_protected:Npn \hit@thesis@header@rule
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/30}{页眉整块（文字加双线）装进几何自管的盒，
+%   \pkg{fancyhdr} 只当搬运工，v4 与 v5 排出同一个页眉}
+% \textbf{页眉几何自管，不交给 \pkg{fancyhdr}。} TL2022/2023 装的
+% \pkg{fancyhdr} 是 v4，v5（TL2024 起）重构过页眉盒；跨版本渲染里页眉文字
+% 差 3.56\,bp、横线差 7.78\,bp。受控探针测下来两版对「单个已知盒」的摆放
+% 逐 bp 相同（连深度响应都一样），差全在内容行与 \cs{headrule} 的构造管线
+% 里。所以把整个页眉做成一只盒：文字行强设成额定高深（实测两个字体档、
+% 中英文行同值，钉成常量），下面按 Word 读数排双线；\pkg{fancyhdr} 拿到的
+% 是单个盒，哪个版本都摆在同一处。行盒强设只在新版面做——判据照表格字体
+% 那处，「网格算出来没有」——旧版面（博士后）的页眉行照自然高深走，
+% v3.1e 的位置一根汗毛不动，旧版面本就只保证编译、不保证跨版本逐像素。
+% \cs{headrulewidth} 恒零，它的画线管线
+% 整个不走。线排不排由 \option{layout}/\option{header-rule} 的三态定，
+% 存进一个布尔供盒子里读。页眉页脚里还得把段撑杆的钩子豁免掉——
+% \pkg{fancyhdr} 把字段内容排进 \cs{parbox} 的段里，段首段尾的正文撑杆
+% （深 7.3\,bp）会把头盒撑破 \cs{headheight}，v4 与 v5 对超高盒的收拾
+% 手法不同，这正是从前两版页眉各排各的一部分原因。\cs{fancyhfinit} 两版
+% 都有、在字段排版前执行，在那儿立一个局部布尔，段钩子见着就不打撑杆；
+% 页眉行的高度反正由额定常量钉死，不靠撑杆。
+%    \begin{macrocode}
+\dim_const:Nn \c__hit_header_text_ht_dim { 9.18826pt }
+\dim_const:Nn \c__hit_header_text_dp_dim { 2.52736pt }
+\box_new:N \l__hit_header_text_box
+\bool_new:N \g__hit_header_rule_on_bool
+\fancyhfinit { \bool_set_true:N \l_hit_format_in_header_bool }
+%    \end{macrocode}
+%
+% 头盒测高的那道警告关掉：C 栏的 \cs{parbox} 在段里还会带出一段
+% 0.3 倍 \cs{normalbaselineskip} 的深度（豁免了撑杆之后仍在，没再深究），
+% 头盒量出来比 \cs{headheight} 高，\pkg{fancyhdr} 每页警告一次。实排不受
+% 影响——它随手把盒高强设回 \cs{headheight}，v4 与 v5 走的同一个分支，
+% 页眉几何两版逐 bp 实测相同——警告是纯噪音，还会进宏级测试的日志基线。
+%    \begin{macrocode}
+\AtBeginDocument { \cs_if_exist:NT \f@nch@checkfalse { \f@nch@checkfalse } }
+\cs_new_protected:Npn \hit@header@panel:n #1
   {
-    \cs_set:Npn \headrule
+    \vbox:n
       {
-        \vskip \l__hit_msword_rule_text_dim
-        \hit@header@rule:n { \l__hit_msword_rule_width_dim }
-        \vskip 0.75bp
-        \hit@header@rule:n { 0.75bp }
+        \hbox_set:Nn \l__hit_header_text_box {#1}
+        \dim_compare:nNnT { \g_hit_msword_lead_dim } > { 0pt }
+          {
+            \box_set_ht:Nn \l__hit_header_text_box { \c__hit_header_text_ht_dim }
+            \box_set_dp:Nn \l__hit_header_text_box { \c__hit_header_text_dp_dim }
+          }
+        \hbox_to_wd:nn { \headwidth }
+          {
+            \tex_hss:D
+            \box_use_drop:N \l__hit_header_text_box
+            \tex_hss:D
+          }
+        \bool_if:NT \g__hit_header_rule_on_bool
+          {
+            \vskip \l__hit_msword_rule_text_dim
+            \hit@header@rule:n { \l__hit_msword_rule_width_dim }
+            \vskip 0.75bp
+            \hit@header@rule:n { 0.75bp }
+          }
       }
   }
 \cs_new_protected:Npn \hit@header@rule:n #1
@@ -125,7 +176,8 @@
 \cs_new_protected:Npn \hit@thesis@header@rule@setup
   {
     \__hit_tristate_if:NnTF \g__hit_header_rule_tl { \c_true_bool }
-      { \hit@thesis@header@rule } { \cs_set:Npn \headrulewidth { 0pt } }
+      { \bool_gset_true:N \g__hit_header_rule_on_bool }
+      { \bool_gset_false:N \g__hit_header_rule_on_bool }
   }
 \cs_new_protected:Npn \hit@thesis@footer
   {
@@ -189,11 +241,14 @@
 \fancypagestyle { hit@headings }
   {
     \fancyhf { }
+    \cs_set_eq:NN \hit@orig@fancyhead \fancyhead
+    \DeclareDocumentCommand \fancyhead { o +m }
+      { \hit@orig@fancyhead [##1] { \hit@header@panel:n {##2} } }
     \bool_if:NTF \g__hit_en_bool
       {
         \fancyhead [ C ] { \hit@header@font \leftmark }
         \fancyfoot [ C ] { \hit@footer@font \hit@page@number@decorated }
-        \hit@thesis@header@rule
+        \bool_gset_true:N \g__hit_header_rule_on_bool
       }
       {
         \bool_if:NT \g__hit_postdoc_bool
@@ -277,6 +332,8 @@
             \hit@thesis@header@rule@setup
           }
       }
+    \cs_set_eq:NN \fancyhead \hit@orig@fancyhead
+    \cs_set:Npn \headrulewidth { 0pt }
     \cs_set:Npn \footrulewidth { 0pt }
   }
 %    \end{macrocode}
