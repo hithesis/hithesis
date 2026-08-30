@@ -200,12 +200,14 @@
 % 的浮动层），钩子里逐条存在才接，报告类装 \pkg{tabularray} 保它默认样式。
 %
 % \pkg{tabularray} 的接口按特性检测分级：模板与样式那批要
-% \cs{DeclareTblrTemplate}（2022 年的模板系统），\option{caption-en} 外参还要
-% \cs{DeclareTblrKeys}（2025 年才有），老版本探不到就整块不接，编译照常、
-% 只是没有那部分自动化——类必装 \pkg{tabularray}（决议页在用），钩子每次
-% 都触发，不能在老版上炸。挂环境名的那批（边距、字号、\texttt{rowhead}）
-% 天然免疫：环境不存在钩子永不触发。\pkg{booktabs} 库也在这儿装上，用户
-% 什么都不用写。
+% \cs{DeclareTblrTemplate}（2022 年的模板系统），老版本探不到就整块不接，
+% 编译照常、只是没有那部分自动化——类必装 \pkg{tabularray}（决议页在用），
+% 钩子每次都触发，不能在老版上炸。\option{caption-en} 外参的注册分两路：
+% 2025 年起走公开的 \cs{DeclareTblrKeys}；2023A 到 2024A 那两代没有它，但
+% outer 键组叫 \texttt{tblr-outer}、\cs{\_\_tblr\_outer\_gput\_spec:nn} 同名，
+% 探到组就直接 \cs{keys\_define:nn} 注册，TL2022 到 2024 的 demo 双语长表
+% 照排。挂环境名的那批（边距、字号、\texttt{rowhead}）天然免疫：环境不
+% 存在钩子永不触发。\pkg{booktabs} 库也在这儿装上，用户什么都不用写。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_table_tblr_captype:
   { \cs_set:Npn \@captype { table } }
@@ -213,7 +215,7 @@
 \tl_new:N \l__hit_table_caption_en_tl
 \cs_new_protected:Npn \__hit_table_tblr_en_line:
   {
-    \tl_set:Ne \l__hit_table_caption_en_tl { \InsertTblrText { caption-en } }
+    \tl_set:Nx \l__hit_table_caption_en_tl { \InsertTblrText { caption-en } }
     \bool_lazy_and:nnT
       { \bool_if_p:N \g__hit_bilingual_caption_bool }
       { ! \tl_if_empty_p:N \l__hit_table_caption_en_tl }
@@ -275,14 +277,25 @@
                 \SetTblrStyle { capcont }
                   { font = \__hit_table_tblr_captype: \hit@caption@font: }
               }
-            \bool_lazy_and:nnT
-              { \cs_if_exist_p:N \hit@caption@separator }
-              { \cs_if_exist_p:N \DeclareTblrKeys }
+            \cs_if_exist:NT \hit@caption@separator
               {
-                \DeclareTblrKeys { table/outer }
+                \cs_if_exist:NTF \DeclareTblrKeys
                   {
-                    caption-en .code:n =
-                      { \__tblr_outer_gput_spec:nn { caption-en } {##1} } ,
+                    \DeclareTblrKeys { table/outer }
+                      {
+                        caption-en .code:n =
+                          { \__tblr_outer_gput_spec:nn { caption-en } {##1} } ,
+                      }
+                  }
+                  {
+                    \keys_if_exist:nnT { tblr-outer } { caption }
+                      {
+                        \keys_define:nn { tblr-outer }
+                          {
+                            caption-en .code:n =
+                              { \__tblr_outer_gput_spec:nn { caption-en } {##1} } ,
+                          }
+                      }
                   }
                 \DeclareTblrTemplate { caption } { hithesis }
                   {

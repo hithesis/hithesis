@@ -76,6 +76,7 @@ checkengines = {"xetex"}
 --   25-caption-short-title / 31-structure
 --                      同上两类：fontspec 的 Info 文案，加旧版 fancyhdr 的
 --                      headheight 警告
+--   69-toc-number-gap  同 25/31：目录条目字体首次加载的 fontspec 文案
 --   70-tabularray      caption-en 外参绑 tabularray 2025 的 \DeclareTblrKeys，
 --                      旧版按特性检测整块降级，断言值随之不同
 --
@@ -86,7 +87,8 @@ if os.getenv("HITHESIS_TL_LEGACY") then
     "42-symbols-env", "43-equation-paren", "52-deprecated-commands",
     "53-date-iso", "56-format-keys", "57-format-compute",
     "61-format-white-skip", "63-bib-backend", "64-bib-backend-late",
-    "25-caption-short-title", "31-structure", "70-tabularray",
+    "25-caption-short-title", "31-structure", "69-toc-number-gap",
+    "70-tabularray",
   }
 end
 stdengine    = "xetex"
