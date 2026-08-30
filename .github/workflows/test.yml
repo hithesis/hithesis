@@ -494,6 +494,12 @@ jobs:
         with:
           path: crossver
 
+      - name: Install imagemagick
+        # 差异页用它的 compare 叠出标红对比图，跟兼容回归那轨同一种产物
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends imagemagick
+
       - name: Compare against TL2026
         id: crossver
         run: |
@@ -522,7 +528,18 @@ jobs:
             fi
             diff=0
             for f in "$d"/*.png; do
-              cmp -s "$f" "$ref/$(basename "$f")" || diff=$((diff+1))
+              b=$(basename "$f")
+              if ! cmp -s "$f" "$ref/$b"; then
+                diff=$((diff+1))
+                # 前几张差异页存三件套：基准、本版、compare 叠出的标红图
+                if [ "$diff" -le 5 ]; then
+                  o=crossver-diff/tl$v
+                  mkdir -p "$o"
+                  cp "$ref/$b" "$o/${b%.png}-ref2026.png"
+                  cp "$f" "$o/${b%.png}-tl$v.png"
+                  compare "$ref/$b" "$f" "$o/${b%.png}-diff.png" || true
+                fi
+              fi
             done
             if [ "$strict" = 0 ]; then
               echo "| $v | $n | $diff（只报告，不拦） |" >> "$GITHUB_STEP_SUMMARY"
@@ -533,6 +550,15 @@ jobs:
           done
           echo "rc=$rc" >> "$GITHUB_OUTPUT"
           echo "横比结果见作业摘要"
+
+      - name: Upload diff images
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: crossver-diff
+          path: crossver-diff/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Fail if CROSSVER_MUST_MATCH
         if: vars.CROSSVER_MUST_MATCH == 'true' && steps.crossver.outputs.rc != '0'
