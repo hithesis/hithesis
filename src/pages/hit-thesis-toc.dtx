@@ -22,14 +22,30 @@
     \cs_set_eq:NN \oldnumberline \numberline
     \cs_set:Npn \numberline ##1
       { \oldnumberline { \use:c { #1 name } \skip_horizontal:n { .4em } ##1 } }
-    \@starttoc { \use:c { ext@ #1 } }
+    \group_begin:
+      \hit@toc@layout:n { \bool_if:NTF \g__hit_en_bool { en } { zh } }
+      \@starttoc { \use:c { ext@ #1 } }
+    \group_end:
     \cs_set_eq:NN \numberline \oldnumberline
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/01}{加 \option{toc}/\option{lists}：图表清单
+%   要不要进目录，默认不进}
+% \emph{图表清单默认不进目录。}指南与规范都没有图表清单这一项，两份
+% 书写范例的目录里也没有这两条（照 iota-hit 对范例的核对）；符号表与
+% 缩略语表是规范有的，照进不动。老行为要回来写
+% \option{toc}\texttt{/}\option{lists}\texttt{=true}，中英两份目录一起进。
+%    \begin{macrocode}
 \cs_new_protected:Npn \hit@list@of #1#2
   {
     \hit@clear@page
-    \hit@appendix@chapter * [ \use:c { list #1 name } ]
-      { \use:c { list #1 name } } [ #2 ]
+    \group_begin:
+      \bool_if:NF \g__hit_toc_lists_bool
+        { \cs_set_eq:NN \addcontentsline \use_none:nnn }
+      \hit@appendix@chapter * [ \use:c { list #1 name } ]
+        { \use:c { list #1 name } } [ #2 ]
+    \group_end:
     \hit@start@toc {#1}
   }
 %    \end{macrocode}
@@ -40,7 +56,14 @@
 
 
 \cs_set:Npn \listoffigures   { \hit@list@of { figure } { \hit@term@list@of@figures@in@english@toc } }
-\cs_set_nopar:Npn \l@figure  { \addvspace { 6bp } \@dottedtocline {1} {0em} {4em} }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/01}{图表清单条目去掉条间 6\,bp 附加距}
+% 图表清单条目走同一条 \cs{@dottedtocline} 新规则（编号后一个字、折行
+% 悬挂、点线到右制表位、贴排行距），先前的条间 6\,bp 附加距范例无据，
+% 去掉，行距与目录一致。
+%    \begin{macrocode}
+\cs_set_nopar:Npn \l@figure  { \@dottedtocline {1} {0em} {4em} }
 \cs_set:Npn \listoftables    { \hit@list@of { table } { \hit@term@list@of@tables@in@english@toc } }
 \cs_set_eq:NN \l@table \l@figure
 %    \end{macrocode}
@@ -124,7 +147,10 @@
           { ccontent }
         \hit@chapter* { \hit@spread@by:nn { \hit@term@table@of@contents@heading@spread } { \contentsname } }
         \pdfbookmark [ 0 ] { \contentsname } { ccontent }
-        \normalsize \@starttoc { toc }
+        \group_begin:
+          \hit@toc@layout:n { zh }
+          \normalsize \@starttoc { toc }
+        \group_end:
       }
     \__hit_tristate_if:NnTF \g__hit_toc_english_tl { \bool_if_p:N \g__hit_doctor_bool }
       { \tableofengcontents }
@@ -171,7 +197,14 @@
 %    \begin{macrocode}
 \cs_set:Npn \@pnumwidth { 4em }% 规定中的提前悬挂
 \cs_set:Npn \@tocrmarg { \@pnumwidth }
-\cs_set:Npn \@dotsep { 1 }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/01}{点距对齐范例：句点自然堆}
+% 范例的点线是 Times 句点自然堆出来的，点距 3.0\,bp，恰是句点自己的
+% 步进宽——点垫零、句点贴排（实测垫 0.25\,mu 出 3.34、垫零正落 3.0）。
+% 先前的 1\,mu 堆出 4.0，点线明显稀。
+%    \begin{macrocode}
+\cs_set:Npn \@dotsep { 0 }
 %    \end{macrocode}
 %
 % 此处临时更改一下对齐方式。\CTeX\ 似乎无法应对双语目录。
@@ -220,12 +253,76 @@
 %    \begin{macrocode}
 \str_new:N \g__hit_toc_number_align_str
 \str_gset:Nn \g__hit_toc_number_align_str { natural }
+\bool_new:N \g__hit_toc_lists_bool
 \keys_define:nn { hit / toc }
   {
     number-align .choices:nn = { natural , left , right }
       { \str_gset:NV \g__hit_toc_number_align_str \l_keys_choice_tl } ,
+    lists .bool_gset:N = \g__hit_toc_lists_bool ,
+    lists .default:n   = true ,
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/01}{目录条目行距照 Word 的盒贴排模型分语言分学位，
+%   点距、页码右缘、图表清单条目一并对齐书写范例}
+% \emph{条目行距照 Word 的盒贴排模型。}范例的目录行距是“单倍行距的
+% 1.25 倍”（研究生那份 1.2 倍），Word 的单倍行距按\emph{内容的字体}算，
+% 于是相邻两条的基线距等于“上一条的行深加本条的上升部”，四种组合各是
+% 一个数（本科档）：汉汉 19.46、汉西 18.55、西汉 18.16、西西 17.25——
+% 上升部与行深是宋体 12.18/7.28、Times 11.27/5.98（iota-hit 对范例的
+% 逐行实测），研究生档整体乘 1.2/1.25。先前全体条目按正文的 19.45 排，
+% 研究生档没分、“Abstract”这类整条西文的也按汉字行盒撑高。
+%
+% 落法：每条条目排前按\emph{内容有无汉字}选一档上升部，加上存着的
+% 上一条行深，设成本条的 \cs{baselineskip}，排完把本条行深存回去。
+% 判语言把条目串成字符串逐字符看码位，宏名全是 ASCII 不干扰。
+% \cs{lineskiplimit} 压成负无穷，基线距不再被行内高盒顶开（先前章级
+% 黑体条目下方多出约 1\,bp 就是被顶的）。
+%    \begin{macrocode}
+\bool_new:N \l__hit_toc_cjk_bool
+\prg_new_protected_conditional:Npnn \__hit_toc_entry_cjk:n #1 { TF }
+  {
+    \bool_set_false:N \l__hit_toc_cjk_bool
+    \str_map_inline:nn {#1}
+      {
+        \int_compare:nNnT { `##1 } > { "2E7F }
+          { \bool_set_true:N \l__hit_toc_cjk_bool \str_map_break: }
+      }
+    \bool_if:NTF \l__hit_toc_cjk_bool \prg_return_true: \prg_return_false:
+  }
+\dim_new:N \g__hit_toc_prev_depth_dim
+\cs_new:Npn \__hit_toc_scale: { \bool_if:NTF \g__hit_bachelor_bool { 1 } { 24/25 } }
+\cs_new_protected:Npn \__hit_toc_line_metrics:n #1
+  {
+    \__hit_toc_entry_cjk:nTF {#1}
+      {
+        \dim_set:Nn \baselineskip
+          { \g__hit_toc_prev_depth_dim + 12.18 bp * \__hit_toc_scale: }
+        \dim_gset:Nn \g__hit_toc_prev_depth_dim { 7.28 bp * \__hit_toc_scale: }
+      }
+      {
+        \dim_set:Nn \baselineskip
+          { \g__hit_toc_prev_depth_dim + 11.27 bp * \__hit_toc_scale: }
+        \dim_gset:Nn \g__hit_toc_prev_depth_dim { 5.98 bp * \__hit_toc_scale: }
+      }
+  }
+%    \end{macrocode}
+%
+% 目录版面组：页码右缘照 Word 的右制表位（8494 缇＝页左缘起 424.7\,bp，
+% 比版心右缘少 0.45），行宽整个收窄这一段，点线与页码跟着落位；
+% 贴排制的行深从这一份目录的标题语言起算。三份入口（中文目录、英文
+% 目录、图表清单）都在自己的分组里调它，出组即还。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@toc@layout:n #1
+  {
+    \dim_set:Nn \hsize { \hsize - 0.45 bp }
+    \dim_set:Nn \lineskiplimit { - \maxdimen }
+    \str_if_eq:nnTF {#1} { en }
+      { \dim_gset:Nn \g__hit_toc_prev_depth_dim { 5.98 bp * \__hit_toc_scale: } }
+      { \dim_gset:Nn \g__hit_toc_prev_depth_dim { 7.28 bp * \__hit_toc_scale: } }
   }
 \box_new:N \l__hit_toc_num_box
+\box_new:N \l__hit_toc_pnum_box
 \box_new:N \l__hit_toc_gap_box
 \dim_new:N \l__hit_toc_num_pad_dim
 \cs_new_protected:Npn \hit@toc@numwidth@apply:
@@ -302,7 +399,11 @@
         \vskip \z@ \@plus .2\p@
         {
           \leftskip #2\relax
-          \rightskip \@tocrmarg
+          \__hit_toc_line_metrics:n {#4}
+          \hbox_set:Nn \l__hit_toc_pnum_box { \normalfont #5 }
+          \bool_if_exist:NT \g__hit_format_verb_exit_bool
+            { \bool_gset_false:N \g__hit_format_verb_exit_bool }
+          \rightskip \dim_max:nn { \@tocrmarg } { \box_wd:N \l__hit_toc_pnum_box }
           \parfillskip - \rightskip
           \parindent #2\relax
           \@afterindenttrue
@@ -390,8 +491,13 @@
           \dim_zero:N \@tempdima
           \dim_gzero:N \g__hit_toc_hang_dim
           \hit@toc@numwidth@apply:
-          \parindent \z@ \rightskip \@pnumwidth
-          \parfillskip -\@pnumwidth
+          \__hit_toc_line_metrics:n {#1}
+          \hbox_set:Nn \l__hit_toc_pnum_box { \normalfont #2 }
+          \bool_if_exist:NT \g__hit_format_verb_exit_bool
+            { \bool_gset_false:N \g__hit_format_verb_exit_bool }
+          \parindent \z@
+          \rightskip \dim_max:nn { \@pnumwidth } { \box_wd:N \l__hit_toc_pnum_box }
+          \parfillskip - \rightskip
           \leavevmode
           { \hit@toc@chapter@line@font #1 } ~
           \leaders \hbox { $ \m@th \mkern \@dotsep mu \hbox { . } \mkern \@dotsep mu $ } \hfill
@@ -415,7 +521,7 @@
 %
 % 英文目录格式。
 %    \begin{macrocode}
-\cs_set:Npn~\@dotsep {~0.75~} % 定义英文目录的点间距
+\cs_set:Npn~\@dotsep {~0~} % 英文目录同一张 Word 域，点距同为 3.0bp
 \dim_set:Nn \leftmargini {0pt}
 \dim_set:Nn \leftmarginii {0pt}
 \dim_set:Nn \leftmarginiii {0pt}
@@ -445,10 +551,13 @@
 % 删除增加\cs{hangindent}的方法，其原因是\cs{numberline}多出一个空格
 % \changes{v1.0.05}{2017/09/18}{彻底修正英文目录中换行时无法对齐的bug}
 %    \begin{macrocode}
+ \group_begin:
+ \hit@toc@layout:n { en }
  \@starttoc{toe}%
+ \group_end:
  \if@restonecol\twocolumn\fi
   }
-\cs_set:Npn~\@dotsep {~0.75~} % 定义英文目录的点间距
+\cs_set:Npn~\@dotsep {~0~} % 英文目录同一张 Word 域，点距同为 3.0bp
 %    \end{macrocode}
 %
 % 目录中附录的章号格式。
