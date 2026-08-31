@@ -1570,7 +1570,7 @@
     \cs_if_exist:NT \l__ctex_ccglue_skip
       { \skip_set:Nn \l__ctex_ccglue_skip { \dim_eval:n {#1} } }
     \dim_set:Nn \l__hit_format_ecglue_dim { \dim_eval:n {#2} }
-    \cs_set_eq:NN \CJKecglue \__hit_format_ecglue_emit:
+    \cs_set_protected:Npn \CJKecglue { \__hit_format_ecglue_guard: }
     \cs_if_exist:NT \ltjsetparameter
       {
         \skip_set:Nn \l__hit_format_kanji_skip
@@ -1741,6 +1741,7 @@
 \bool_new:N \l_hit_format_in_header_bool
 \cs_new_protected:Npn \__hit_format_para_open:
   {
+    \bool_gset_false:N \g__hit_format_verb_exit_bool
     \bool_if:NF \l_hit_format_in_header_bool
       {
         \bool_if:NTF \g__hit_format_display_para_bool
@@ -2833,6 +2834,8 @@
 %
 % \changes{v3.2a}{2026/08/31}{行内 \cs{verb} 与前面汉字之间的中西文胶补给
 %   2025 及更早的 \pkg{xeCJK}}
+% \changes{v3.2a}{2026/08/31}{组边界全套补给老版：verb 出口、\cs{num}
+%   \cs{ref} 两侧、上标尾、汉字接波浪线，另给 \cs{CJKecglue} 垫胶前闸}
 % \textbf{verb 边界的中西文胶补给老版。}\pkg{xeCJK} 2026 重写中西文边界后，
 % 行内 \cs{verb} 与前面的汉字之间也空一道中西文胶，2025 及更早不空，
 % 差 3.5\,bp，还会被两端对齐摊满整行。老版不空的原因是组边界会丢「上一个
@@ -2853,6 +2856,40 @@
 % 给老版按名单补：\texttt{cmd/<名>/before} 钩子在宏展开时刻执行，组还
 % 没开、\pkg{xeCJK} 的「上一个是汉字」状态还在，判到就补同一道胶。
 % 名单只抄实测出过差的（\cs{cs}、\cs{eqref}），其余边界流暂不移植。
+% 上标的后边界另算：上标命令的实现是一整段只装着上标盒的数学模式，
+% 2026 的边界体系把它当作正文的附属，尾后紧跟汉字时不发中西文胶；
+% 老版按“数学模式结束接汉字”照发 3.5\,bp。规范章里“\cs{cite} 带页码
+% 再接省略号”正落在这条缝上，跨版本会翻断点。补法：老版给
+% \cs{textsuperscript} 尾追加一只零宽空盒，盒把字符类状态重置回
+% 边界类，这道胶就发不出来了。一般的行内公式尾（如 $x^2$ 接汉字）
+% 两边都发胶，不在此列，不动。
+%
+% verb 的\emph{后边界}同理：2026 在 verb 内容与后面的汉字之间也空一道胶，
+% 老版不空。出组那一侧「身在 verb」的局部布尔已经失效，改用一个全局
+% 布尔接力——任何「某类→Boundary」时把「刚离开 verb」记下（是否在 verb
+% 里，那一刻还读得到），「Boundary→汉字」处见着就补胶并清掉。
+%
+% 文本组的两侧边界是同一族更大的差：\cs{num}、\cs{ref}、\cs{mbox} 这类
+% 命令排出来的内容裹着组或整段落在 whatsit 后头，2026 的边界体系拿组当
+% 透明的，两侧照发中西文胶；老版一到组界就把字符类状态断掉，两侧全不发。
+% 示例文档里 \cs{num}（规范章“500～1000 字”一段）与 \cs{ref}（“后文
+% 2.10.6 中”）都是整段翻断点的实源。全量对齐做不到（任何文本组都算），
+% 只修实际出现的：进入侧把 \cs{num}、\cs{ref} 挂进上面 \texttt{cmd} 钩子
+% 名单；离开侧把这两条命令包一层，尾后置“刚出组”布尔，复用 verb 的
+% “Boundary→汉字”消费点补胶。布尔是全局的，怕它越过组尾漂到后文，
+% 凡“Boundary→西文/标点”与每段开头都顺手清一次。消费时还得看一眼
+% 最后的节点是不是西文字符：出组后隔了一记 \texttt{\string~} 这样的胶再遇
+% 汉字，2026 不会再叠一道中西文胶（“表~\cs{ref}~所示”正是这种），
+% 老版 xeCJK 的边界检查（\cs{xeCJK\_check\_for\_glue:} 一族）在“汉字、
+% 空格或 \texttt{\string~}、西文”这样已经隔着胶的边界照样裸调
+% \cs{CJKecglue}，间距叠成双份；2026 会把胶与中西文胶折叠成一道。
+% \cs{CJKecglue} 正好是我们自己的发胶宏，中间垫一层：老版启动时把它
+% 换成带闸的版本，上一节点已是胶（\cs{lastnodetype} 为 11）就不再发。
+% 2026 的束定路径读的是寄存器，不经这里，直通版原样保留。
+%
+% 补发认“组尾还贴着”的情形：上一节点是胶（\cs{lastnodetype} 为 11)
+% 说明中间已经有 \texttt{\string~} 这样的间隔，不再补；组尾的字符、
+% 链接锚点这类节点则照补。
 % 挂接得在类加载期做、赶在命令定义之前——\texttt{cmd} 钩子对定义在先的
 % robust 命令补挂不进宏体（静默失败），2026 自己也是先挂后等定义注入。
 %
@@ -2878,9 +2915,29 @@
   }
 \cs_new_protected:Npn \__hit_format_boundary_cmd_glue:
   { \xeCJK_if_last_node:nT { CJK } { \__hit_format_ecglue_emit: } }
+\bool_new:N \g__hit_format_verb_exit_bool
+\cs_new_protected:Npn \__hit_format_sup_orig:n #1 { }
+\cs_new_protected:Npn \__hit_format_ecglue_guard:
+  { \__hit_format_ecglue_emit: }
+\cs_new_protected:Npn \__hit_format_group_exit:
+  { \bool_gset_true:N \g__hit_format_verb_exit_bool }
+\cs_new_protected:Npn \__hit_format_num_orig: { }
+\cs_new_protected:Npn \__hit_format_ref_orig: { }
+\cs_new_protected:Npn \__hit_format_verb_exit_mark:
+  {
+    \bool_if:NTF \l__hit_format_in_verb_bool
+      { \bool_gset_true:N \g__hit_format_verb_exit_bool }
+      { \bool_gset_false:N \g__hit_format_verb_exit_bool }
+  }
+\cs_new_protected:Npn \__hit_format_exit_clear_hook:n #1
+  { \xeCJK_pre_inter_class_toks:nnn { Boundary } {#1}
+      { \bool_gset_false:N \g__hit_format_verb_exit_bool } }
 \cs_new_protected:Npn \__hit_format_verb_hook_old:n #1
   { \xeCJK_pre_inter_class_toks:nnn {#1} { Boundary }
-      { \bool_gset_false:N \g__hit_format_boundary_cjk_bool } }
+      {
+        \bool_gset_false:N \g__hit_format_boundary_cjk_bool
+        \__hit_format_verb_exit_mark:
+      } }
 \cs_new_protected:Npn \__hit_format_hook_cmd_glue:n #1
   {
     \AddToHook { cmd / #1 / before }
@@ -2890,8 +2947,36 @@
   {
     \cs_if_exist:NF \__xeCJK_use_ecglue_skip:
       {
-        \clist_map_function:nN { cs , eqref }
+        \clist_map_function:nN { cs , eqref , num , ref }
           \__hit_format_hook_cmd_glue:n
+        \AtBeginDocument
+          {
+            \cs_gset_eq:NN \__hit_format_sup_orig:n \textsuperscript
+            \cs_gset_protected:Npn \textsuperscript #1
+              { \__hit_format_sup_orig:n {#1} \hbox:n { } }
+            \AddToHook { begindocument / end }
+              {
+                \cs_if_exist:NT \num
+                  {
+                    \DeclareCommandCopy \__hit_format_num_orig: \num
+                    \RenewDocumentCommand \num { o m }
+                      {
+                        \IfValueTF {#1}
+                          { \__hit_format_num_orig: [#1] {#2} }
+                          { \__hit_format_num_orig: {#2} }
+                        \__hit_format_group_exit:
+                      }
+                  }
+                \DeclareCommandCopy \__hit_format_ref_orig: \ref
+                \RenewDocumentCommand \ref { s m }
+                  {
+                    \IfBooleanTF {#1}
+                      { \__hit_format_ref_orig: * {#2} }
+                      { \__hit_format_ref_orig: {#2} }
+                    \__hit_format_group_exit:
+                  }
+              }
+          }
       }
   }
 \AtBeginDocument
@@ -2904,9 +2989,32 @@
           { Default , HalfLeft , HalfRight , FullLeft , FullRight }
           \__hit_format_verb_hook_old:n
         \xeCJK_pre_inter_class_toks:nnn { CJK } { Boundary }
-          { \bool_gset_true:N \g__hit_format_boundary_cjk_bool }
+          {
+            \bool_gset_true:N \g__hit_format_boundary_cjk_bool
+            \__hit_format_verb_exit_mark:
+          }
         \xeCJK_pre_inter_class_toks:nnn { Boundary } { Default }
-          { \__hit_format_verb_ecglue: }
+          {
+            \__hit_format_verb_ecglue:
+            \bool_gset_false:N \g__hit_format_verb_exit_bool
+          }
+        \cs_gset_protected:Npn \__hit_format_ecglue_guard:
+          {
+            \int_compare:nNnF { \tex_lastnodetype:D } = { 11 }
+              { \__hit_format_ecglue_emit: }
+          }
+        \clist_map_function:nN
+          { HalfLeft , HalfRight , FullLeft , FullRight }
+          \__hit_format_exit_clear_hook:n
+        \xeCJK_pre_inter_class_toks:nnn { Boundary } { CJK }
+          {
+            \bool_if:NT \g__hit_format_verb_exit_bool
+              {
+                \int_compare:nNnF { \tex_lastnodetype:D } = { 11 }
+                  { \__hit_format_ecglue_emit: }
+              }
+            \bool_gset_false:N \g__hit_format_verb_exit_bool
+          }
       }
     \cs_set_protected:Npx \verbatim@font
       {
@@ -2931,8 +3039,20 @@
       }
       {
         \xeCJKsetup { PunctStyle = plain , CheckFullRight = true }
+%    \end{macrocode}
+% 这枚覆盖原本无条件掏 \cs{CJKecglue}。老版 xeCJK 在“汉字、胶、西文”
+% 这样隔着东西的边界照样调它，源码里“在~\cs{verb}”或换行空格接命令的
+% 地方就叠出双份间距，2026 只在字符还贴着时才发。补一道闸：上一节点
+% 已经是胶（\cs{lastnodetype} 为 11）就不再发。
+%    \begin{macrocode}
         \cs_if_exist:NT \xeCJK_space_or_xecglue:
-          { \cs_set_protected:Npn \xeCJK_space_or_xecglue: { \CJKecglue } }
+          {
+            \cs_set_protected:Npn \xeCJK_space_or_xecglue:
+              {
+                \int_compare:nNnF { \tex_lastnodetype:D } = { 11 }
+                  { \CJKecglue }
+              }
+          }
         \exhyphenpenalty = -5 \scan_stop:
         \hit@format@hyphen:
         \xeCJKDeclareCharClass { CJK } { "2026 }
@@ -3057,6 +3177,16 @@
           { \hit@format@punct@ngap: }
         \xeCJK_pre_inter_class_toks:nnn { CJK } { HITTilde }
           { \nobreak \CJKglue }
+%    \end{macrocode}
+% 汉字接波浪线这一对，从 FullRight 拷来的默认体在 2026 里不出胶，
+% 2025 及更早却多出 0.456\,bp（“3 万～5 万字”跨版本翻断点就是它）。
+% 老版把这对整体重设，只留我们自己的禁则加行间胶，与 2026 逐位同宽。
+%    \begin{macrocode}
+        \cs_if_exist:NF \__xeCJK_use_ecglue_skip:
+          {
+            \xeCJK_inter_class_toks:nnn { CJK } { HITTilde }
+              { \nobreak \CJKglue }
+          }
         \xeCJK_pre_inter_class_toks:nnn { HITTilde } { Default }
           { \hit@format@punct@ngap: }
 %    \end{macrocode}
