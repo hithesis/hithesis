@@ -2829,6 +2829,88 @@
 % 的类对，那条路三版都在。
 %
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/31}{行内 \cs{verb} 与前面汉字之间的中西文胶补给
+%   2025 及更早的 \pkg{xeCJK}}
+% \textbf{verb 边界的中西文胶补给老版。}\pkg{xeCJK} 2026 重写中西文边界后，
+% 行内 \cs{verb} 与前面的汉字之间也空一道中西文胶，2025 及更早不空，
+% 差 3.5\,bp，还会被两端对齐摊满整行。老版不空的原因是组边界会丢「上一个
+% 字是汉字」的状态（2026 靠新增的 boundary 捕获管道记着），所以补法是把
+% 这条管道搭出来：每个「某类→Boundary」的类对把全局布尔清掉、唯
+% 「CJK→Boundary」置位，「Boundary→Default」处若布尔在且身在 verb 里就
+% 手动补一道中西文胶——直接发私有的 \cs{\_\_hit\_format\_ecglue\_emit:}，
+% 不发 \cs{CJKecglue}：老版的 verb 字体钩子（\cs{\_\_xeCJK\_verb\_font\_hook:}
+% 的 \texttt{nobreak\_skip\_zero} 一档）会把后者在 verb 组里垫成零，这正是
+% 老版 verb 无胶的另一半机理；2026 插的是边界外捕获的胶值，同样不吃组内
+% 清零，两边语义一致。位置与 2026 插的同一处。「身在 verb」由
+% \cs{verbatim@font} 里的局部布尔说了算（\pkg{xeCJK} 自己也挂那儿），
+% verb 组一关自动失效，别处的组边界不受影响。
+%
+% 除 verb 之外，2026 还把一份「排出西文的命令」名单注册成边界流
+% （\cs{cs\_if\_exist:NT} \cs{cs} 那一批条件注册），命令前有汉字就插
+% 中西文胶——示例包的 \cs{cs} 撞名在册，老版没这机制就差 3.5\,bp。
+% 给老版按名单补：\texttt{cmd/<名>/before} 钩子在宏展开时刻执行，组还
+% 没开、\pkg{xeCJK} 的「上一个是汉字」状态还在，判到就补同一道胶。
+% 名单只抄实测出过差的（\cs{cs}、\cs{eqref}），其余边界流暂不移植。
+% 挂接得在类加载期做、赶在命令定义之前——\texttt{cmd} 钩子对定义在先的
+% robust 命令补挂不进宏体（静默失败），2026 自己也是先挂后等定义注入。
+% 版本指纹用
+% \cs{\_\_xeCJK\_use\_ecglue\_skip:}——它是 2026 边界重写才有的名字，在就
+% 说明胶已由 \pkg{xeCJK} 自己插、不挂，免得双份。HITQuote 与 HITTilde
+% 两个自定义类建在排版期，它们到 Boundary 的清理挂接跟着建类走，见
+% \cs{hit@format@punct@grid:}。
+%    \begin{macrocode}
+\bool_new:N \g__hit_format_boundary_cjk_bool
+\bool_new:N \l__hit_format_in_verb_bool
+\cs_new_protected:Npn \__hit_format_verb_ecglue:
+  {
+    \bool_lazy_and:nnT
+      { \l__hit_format_in_verb_bool } { \g__hit_format_boundary_cjk_bool }
+      { \__hit_format_ecglue_emit: }
+    \bool_gset_false:N \g__hit_format_boundary_cjk_bool
+  }
+\cs_new_protected:Npn \__hit_format_boundary_cmd_glue:
+  { \xeCJK_if_last_node:nT { CJK } { \__hit_format_ecglue_emit: } }
+\cs_new_protected:Npn \__hit_format_verb_hook_old:n #1
+  { \xeCJK_pre_inter_class_toks:nnn {#1} { Boundary }
+      { \bool_gset_false:N \g__hit_format_boundary_cjk_bool } }
+\cs_new_protected:Npn \__hit_format_hook_cmd_glue:n #1
+  {
+    \AddToHook { cmd / #1 / before }
+      { \__hit_format_boundary_cmd_glue: }
+  }
+\AddToHook { package / xeCJK / after }
+  {
+    \cs_if_exist:NF \__xeCJK_use_ecglue_skip:
+      {
+        \clist_map_function:nN { cs , eqref }
+          \__hit_format_hook_cmd_glue:n
+      }
+  }
+\AtBeginDocument
+  {
+    \bool_lazy_and:nnT
+      { \cs_if_exist_p:N \xeCJK_pre_inter_class_toks:nnn }
+      { ! \cs_if_exist_p:N \__xeCJK_use_ecglue_skip: }
+      {
+        \clist_map_function:nN
+          { Default , HalfLeft , HalfRight , FullLeft , FullRight }
+          \__hit_format_verb_hook_old:n
+        \xeCJK_pre_inter_class_toks:nnn { CJK } { Boundary }
+          { \bool_gset_true:N \g__hit_format_boundary_cjk_bool }
+        \xeCJK_pre_inter_class_toks:nnn { Boundary } { Default }
+          { \__hit_format_verb_ecglue: }
+        \cs_set_protected:Npx \verbatim@font
+          {
+            \exp_not:o \verbatim@font
+            \bool_set_true:N \exp_not:N \l__hit_format_in_verb_bool
+          }
+      }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@punct@grid:
   {
     \bool_lazy_all:nTF
@@ -2870,6 +2952,11 @@
           { FullRight } { FullRight }
         \xeCJK_copy_inter_class_toks:nnnn { HITQuote } { HITTilde }
           { FullLeft } { FullRight }
+        \cs_if_exist:NF \__xeCJK_use_ecglue_skip:
+          {
+            \__hit_format_verb_hook_old:n { HITQuote }
+            \__hit_format_verb_hook_old:n { HITTilde }
+          }
         \xeCJK_copy_inter_class_toks:nnnn { HITTilde } { HITQuote }
           { FullRight } { FullLeft }
         \xeCJKDeclareCharClass { HITQuote } { "201C , "2018 }
