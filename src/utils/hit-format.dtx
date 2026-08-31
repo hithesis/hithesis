@@ -2877,7 +2877,22 @@
 % 只修实际出现的：进入侧把 \cs{num}、\cs{ref} 挂进上面 \texttt{cmd} 钩子
 % 名单；离开侧把这两条命令包一层，尾后置“刚出组”布尔，复用 verb 的
 % “Boundary→汉字”消费点补胶。布尔是全局的，怕它越过组尾漂到后文，
-% 凡“Boundary→西文/标点”与每段开头都顺手清一次。消费时还得看一眼
+% 凡“Boundary→西文/标点”与每段开头都顺手清一次。
+%
+% 链接的\emph{前}边界不进上面的名单：2026 按链接内容的头一个节点定夺，
+% 是字符就发、是盒（\cs{uline} 划线的内容整个是盒串）就不发，钩子在
+% 内容排出来之前看不见这个，宁缺毋滥。示例文档里的链接内容不是划着线
+% 就是顶着标点，都落在“不发”的一侧，素着排两版本来就一致。
+%
+% 链接（\cs{href}、\cs{cite} 这些）的后边界老版也全不发，统一从
+% \cs{Hy@EndAnnot} 出手：每个标注收尾时把“刚出组”记上，补不补由
+% 消费点定夺。上标里带着链接（\cs{cite} 就是）会把这布尔漏到上标
+% 外头，所以上标包装在垫完盒后顺手清掉；目录、页眉这些每行单开一只
+% 盒，行首上一节点是空（类型值 $-1$），消费点一并挡住不发。名字里
+% 带 at 号的 \cs{Hy@EndAnnot} 在 expl3 语法下会拆词，只能走 c 型
+% 按名存取。
+%
+% 消费时还得看一眼
 % 最后的节点是不是西文字符：出组后隔了一记 \texttt{\string~} 这样的胶再遇
 % 汉字，2026 不会再叠一道中西文胶（“表~\cs{ref}~所示”正是这种），
 % 老版 xeCJK 的边界检查（\cs{xeCJK\_check\_for\_glue:} 一族）在“汉字、
@@ -2922,6 +2937,7 @@
 \cs_new_protected:Npn \__hit_format_group_exit:
   { \bool_gset_true:N \g__hit_format_verb_exit_bool }
 \cs_new_protected:Npn \__hit_format_num_orig: { }
+\cs_new_protected:Npn \__hit_format_endannot_orig: { }
 \cs_new_protected:Npn \__hit_format_ref_orig: { }
 \cs_new_protected:Npn \__hit_format_verb_exit_mark:
   {
@@ -2953,7 +2969,20 @@
           {
             \cs_gset_eq:NN \__hit_format_sup_orig:n \textsuperscript
             \cs_gset_protected:Npn \textsuperscript #1
-              { \__hit_format_sup_orig:n {#1} \hbox:n { } }
+              {
+                \__hit_format_sup_orig:n {#1} \hbox:n { }
+                \bool_gset_false:N \g__hit_format_verb_exit_bool
+              }
+            \cs_if_exist:cT { Hy@EndAnnot }
+              {
+                \cs_gset_eq:Nc \__hit_format_endannot_orig: { Hy@EndAnnot }
+                \cs_gset_protected:cpn { Hy@EndAnnot }
+                  {
+                    \__hit_format_endannot_orig:
+                    \bool_if:NF \l_hit_format_in_header_bool
+                      { \__hit_format_group_exit: }
+                  }
+              }
             \AddToHook { begindocument / end }
               {
                 \cs_if_exist:NT \num
@@ -3010,7 +3039,9 @@
           {
             \bool_if:NT \g__hit_format_verb_exit_bool
               {
-                \int_compare:nNnF { \tex_lastnodetype:D } = { 11 }
+                \bool_lazy_or:nnF
+                  { \int_compare_p:nNn { \tex_lastnodetype:D } = { 11 } }
+                  { \int_compare_p:nNn { \tex_lastnodetype:D } = { -1 } }
                   { \__hit_format_ecglue_emit: }
               }
             \bool_gset_false:N \g__hit_format_verb_exit_bool
