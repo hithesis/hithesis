@@ -87,7 +87,8 @@
 %   表头与各块标签加粗}
 % \textbf{字号与行距。} 原表是中易宋体小四（12\,bp），文档网格每页 33 行，
 % 行距 19.55\,bp——字身高约 10.91\,bp，行与行之间的白 8.64\,bp，加起来正是这个数。
-% 段间距是 0，段与段之间不另加空。表头与各块的标签加粗。
+% 段间距是 0，段与段之间不另加空。表头与各块的标签加粗，粗的是宋体，
+% 见下面的 \cs{\_\_hit\_res\_bold:}。
 %    \begin{macrocode}
 \dim_const:Nn \c__hit_res_lead_dim { 19.55bp }
 \cs_new_protected:Nn \__hit_res_text:
@@ -108,8 +109,29 @@
     \__hit_res_text:
     \hit@engine@cjkglue@zero@cc:
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/01}{表头与标签的加粗改成伪粗宋，不再走字族的
+%   \texttt{BoldFont} 映射}
+% \textbf{加粗要粗\emph{宋}，不是黑体。}原表里加粗的格（表头、评阅人与
+% 委员会那两个块标签、决议行）在 Word 里是宋体加粗：中易宋体没有粗体
+% 字面，Word 给它描边合成——PDF 里字体名仍是 \texttt{SimSun}，只是渲染
+% 模式带描边。裸写 \cs{bfseries} 取的是当前字族的 \texttt{BoldFont}，那条
+% 映射由字体档定，有的档指向黑体，排出来就成了黑体。
+%
+% 所以这里自己定：先把 CJK 的真粗字面清掉（\texttt{BoldFont=\{\}}）、开
+% 伪粗（系数取 \cs{c\_\_hit\_font\_fakebold\_tl}，Word 实测的 2.85），再
+% \cs{bfseries}——汉字落回常规宋体加描边，与 Word 同一个做法；西文那半
+% 仍取真粗（范例里拉丁的粗体是 Times Bold）。
+%    \begin{macrocode}
+\cs_new_protected:Nn \__hit_res_bold:
+  {
+    \addCJKfontfeatures
+      { BoldFont = { } , AutoFakeBold = \c__hit_font_fakebold_tl }
+    \bfseries
+  }
 \cs_new_protected:Nn \__hit_res_head:
-  { \__hit_res_cell: \bfseries }
+  { \__hit_res_cell: \__hit_res_bold: }
 %    \end{macrocode}
 %
 % 缩放的基准页宽。原图标称 437\,pt，但贴进论文时按 \cs{includegraphics} 缩放，
@@ -595,7 +617,7 @@
     \skip_set:Nn \parfillskip { 0pt~plus~1fil }
     \__hit_res_text:
     \dim_set:Nn \parindent { \c_zero_dim }
-    { \bfseries \hit@term@resolution@text }
+    { \__hit_res_bold: \hit@term@resolution@text }
     \par
     \dim_set:Nn \parindent { 2em }
     \g__hit_defense_resolution_tl
