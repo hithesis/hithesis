@@ -130,6 +130,26 @@
 % \cs{hit@bib@list:nn}\marg{最宽的标号}\marg{标号与正文的间距} 开一个著录列表。
 % 两个类的 \env{thebibliography} 前后差得多，标题怎么排、分页惩罚怎么给都不一样，
 % 中间这段 \cs{list} 的参数是一样的，只有间距要各传各的。
+%
+% \changes{v3.2a}{2026/09/04}{标号与正文的间距抽成 \cs{hit@bib@labelsep:}，
+%   四个调用点共用一个取值}
+% \emph{那个间距抽出来。}它先前写死在四个调用点上（两个类各有传统与
+% \pkg{biblatex} 两条线），学位论文类还带着一句“深圳校区取 0”的判断，抄了两遍。
+% 成果页也要按同一套排编号，再抄一遍就是第五处。改成一个取值宏
+% \cs{hit@bib@labelsep:}，值存在 \cs{g\_\_hit\_bib\_labelsep\_dim} 里，
+% 默认半个字宽；深圳那一档由学位论文类在选项处理完之后改写这个量，报告类
+% 不分校区所以照旧。
+%
+% \emph{存的是式子不是长度。}\texttt{0.5em} 里的 em 跟着当时的字体走，
+% 存进长度寄存器就等于在类加载那一刻定死（那时还是十点的默认字号，
+% 折出来 5\,pt，而著录列表里是小四的 6\,pt）。所以存在 token 列表里，
+% 到 \cs{labelsep} 那一句才求值。
+%    \begin{macrocode}
+\tl_new:N \g__hit_bib_labelsep_tl
+\tl_gset:Nn \g__hit_bib_labelsep_tl { 0.5em }
+\cs_new:Npn \hit@bib@labelsep: { \g__hit_bib_labelsep_tl }
+%    \end{macrocode}
+%
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@bib@list:nn #1#2
   {
@@ -473,6 +493,7 @@
 \bool_new:N \g__hit_bib_showdoi_bool
 \bool_gset_true:N \g__hit_bib_showdoi_bool
 \bool_new:N \g__hit_bib_showeprint_bool
+\bool_new:N \g__hit_bib_shownote_bool
 \cs_new_protected:Npn \__hit_bib_show_key:nN #1#2
   {
     \keys_define:nn { hit / bib }
@@ -493,6 +514,17 @@
 \__hit_bib_show_key:nN { show-url }    \g__hit_bib_showurl_bool
 \__hit_bib_show_key:nN { show-doi }    \g__hit_bib_showdoi_bool
 \__hit_bib_show_key:nN { show-eprint } \g__hit_bib_showeprint_bool
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/04}{加 \option{show-note}：条目尾的 \texttt{note}
+%   字段排不排}
+% \option{show-note} 管 \file{.bib} 里的 \texttt{note} 字段排不排在条目末尾。
+% 默认关，与 \file{.bst} 的出厂档一致：参考文献表照国标著录，不添自己的话。
+% 成果页那边常要在条目后缀一句“SCI 收录，IDS 号为……”“EI 收录号：……”，
+% 那种就写进 \texttt{note} 再把这个键打开。\file{.bst} 侧的开关是
+% \texttt{CTL\_note}，本来就有，先前没接出来。
+%    \begin{macrocode}
+\__hit_bib_show_key:nN { show-note }   \g__hit_bib_shownote_bool
 %    \end{macrocode}
 % \end{macro}
 %
@@ -590,6 +622,7 @@
     \__hit_bib_ctl_bool:nN { CTL_url }               \g__hit_bib_showurl_bool
     \__hit_bib_ctl_bool:nN { CTL_doi }               \g__hit_bib_showdoi_bool
     \__hit_bib_ctl_bool:nN { CTL_eprint }            \g__hit_bib_showeprint_bool
+    \__hit_bib_ctl_bool:nN { CTL_note }              \g__hit_bib_shownote_bool
     \__hit_bib_ctl_bool:nN { CTL_uppercase_family }  \g_bib_authorupper_bool
     \__hit_bib_ctl_bool:nN { CTL_sentence_case_title }
       \g__hit_bib_sentence_title_bool

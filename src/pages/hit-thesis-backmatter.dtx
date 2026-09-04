@@ -63,8 +63,165 @@
 
 \NewDocumentEnvironment { resume } { }
   { \hit@clear@page \hit@appendix@chapter * { \hit@term@resume@heading@zh } [ \hit@term@resume@heading@en ] } { }
-\NewDocumentEnvironment { publication } { }
-  { \hit@clear@page \hit@appendix@chapter * { \hit@term@publications@heading@zh } [ \hit@term@publications@heading@en ] } { }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/04}{成果页的条目可以从 \file{.bib} 里出：
+%   \env{publication} 收一个库名，\env{pubgroup} 分组，编号版式与参考文献表同源}
+% \begin{environment}{publication,pubgroup}
+% \emph{成果条目也从 \file{.bib} 里出。}指南 1.6 说不同形式的成果“可单独分项
+% 分别列出”，先前示例文档里是把著录逐条手敲的，格式与参考文献表各走各的。
+% 现在写法是：
+% \begin{latex}
+% \begin{publication}[pub]        % 成果条目单独一个 pub.bib
+%   \begin{pubgroup}{发表的学术论文}
+%     \item{key1}
+%     \item{key2}
+%   \end{pubgroup}
+%   \begin{pubgroup}{申请及已获得的专利}
+%     \item{key3}
+%   \end{pubgroup}
+% \end{publication}
+% \end{latex}
+% 不给那个库名就是老用法：正文随用户写，\env{publist} 逐条手敲，一行不受影响。
+% 分几组、每组叫什么、哪几条进哪一组，全由用户写；条目正文由 \file{.bib}
+% 那条链生成，所以标点、句首大写、姓氏大写、作者数上限这些 \option{bib} 族的
+% 设置成果页自动跟着，不用另设一份。
+%
+% \emph{成果条目走自己的一次 \pkg{bibtex}，与参考文献表彻底分开。}一份文档
+% 只能有一个 \cs{bibdata}，所以成果库不能再发一次；而 \pkg{bibentry} 的
+% \cs{bibentry} 内部会 \cs{nocite}，条目一旦进主 \file{.bbl}，参考文献表就
+% 会把它们一起印出来。两条都不行，于是模板自己写一份辅助文件：
+% \texttt{\meta{jobname}-pub.aux} 里放 \cs{bibstyle}、\cs{bibdata} 与用户点名的
+% 那些 \cs{citation}，跑一次 \texttt{bibtex \meta{jobname}-pub} 得到
+% \texttt{\meta{jobname}-pub.bbl}，模板把它读进来只存宏、不排任何东西。主
+% \file{.bbl} 里从头到尾没有成果条目，参考文献表干净。
+%
+% 读法借 \pkg{bibentry}：它的 \cs{nobibliography} 会把 \env{thebibliography}
+% 换成一个只收不排的壳，每条存进 \cs{BR@r@\meta{键}}。我们只借这个壳，把它那句
+% \cs{bibliography}（会写 \cs{bibdata}）临时换成读我们自己的 \file{.bbl}。
+% 取用也不走 \cs{bibentry}，那条会 \cs{nocite}，直接取宏。
+%
+% \emph{编译要多跑一次 \pkg{bibtex}}，与索引那边多跑一次 \texttt{splitindex}
+% 同理，\file{Makefile} 与 \file{latexmkrc} 里各有一条规则。
+%
+% \emph{编号的版式与参考文献表同源。}每组开一个 \cs{hit@bib@list:nn}，标号
+% 宽度按本组条数量、标号与正文的间距取 \cs{hit@bib@labelsep:}（深圳档 0、其余
+% 半个字宽）、标号左右对齐读 \option{numbering-align}，一处都不另写。每组
+% 从［1］起是 \cs{list} 的 \cs{usecounter} 天然给的，与正文引用那套编号互不
+% 相干——范例的成果页也是各组独立编号。
+%
+% \emph{条数要过一遍 \file{.aux}。}标号列宽按“本组最宽的标号”量，而那是排完
+% 才知道的数，所以每组排完把条数写进 \file{.aux}，下一次编译读出来用；头一次
+% 编译没有这个数，退到 9（一位数的宽度），与参考文献表头一遍的表现同理。
+%    \begin{macrocode}
+\int_new:N \g__hit_pub_group_int
+\cs_new_protected:Npn \hit@pub@count #1#2
+  { \cs_gset:cpn { hit@pub@count@ #1 } {#2} }
+\cs_new:Npn \__hit_pub_widest:
+  {
+    \cs_if_exist_use:cF
+      { hit@pub@count@ \int_use:N \g__hit_pub_group_int } { 9 }
+  }
+%    \end{macrocode}
+%
+% 一条条目。传统一线走 \pkg{bibentry} 的 \cs{bibentry}，它把 \file{.bbl} 里
+% 那一条的著录文字原样展开；\pkg{biblatex} 一线走 \cs{fullcite}。两边都会顺手
+% 把这一条登记进文献库，用户不必另写 \cs{nocite}。
+%
+% \emph{末尾那个句点要补回来。}\pkg{bibentry} 存条目时会把末尾的句点剥掉
+% （它的设计意图是让整条能嵌进句子，标点由调用处补），而这里是整条独立成项。
+% GB/T 7714 的条目一律以句点收尾，补一个是安全的。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_pub_entry:n #1
+  {
+    \@ifpackageloaded { biblatex }
+      { \fullcite {#1} }
+      {
+        \iow_now:Nx \g__hit_pub_aux_iow
+          { \token_to_str:N \citation {#1} }
+        { \frenchspacing \@nameuse { BR@r@ #1 \@extra@b@citeb } } .
+      }
+  }
+%    \end{macrocode}
+%
+% 那一章本身。给了库名就把库读进来，\pkg{biblatex} 一线的条目由 \cs{fullcite}
+% 自己带出来、不用先读。
+%    \begin{macrocode}
+\iow_new:N \g__hit_pub_aux_iow
+\cs_new_protected:Npn \__hit_pub_open:n #1
+  {
+    \iow_open:Nn \g__hit_pub_aux_iow { \c_sys_jobname_str -pub.aux }
+    \iow_now:Nx \g__hit_pub_aux_iow { \token_to_str:N \relax }
+    \iow_now:Nx \g__hit_pub_aux_iow
+      { \token_to_str:N \bibstyle { \g__hit_bib_style_tl } }
+%    \end{macrocode}
+%
+% \emph{控制条目也要带上。}\pkg{gbt7714} 那套把 \option{bib} 族的设置
+% （标点、句首大写、姓氏大写、作者数上限这些）编成一个 \texttt{CTL} 条目，
+% 写在 \texttt{\meta{jobname}-BSTcontrol.bib} 里，由主 \file{.aux} 的一句
+% \cs{citation} 送进 \pkg{bibtex}。成果页这一次是独立的 \pkg{bibtex}，
+% 不把那个库和那句 \cs{citation} 一并写上，它读到的就全是 \file{.bst} 的
+% 出厂默认，与参考文献表两个样。
+%    \begin{macrocode}
+    \iow_now:Nx \g__hit_pub_aux_iow
+      {
+        \token_to_str:N \bibdata
+          { \c_sys_jobname_str \c__hit_bib_ctl_suffix_tl , #1 }
+      }
+    \iow_now:Nx \g__hit_pub_aux_iow
+      { \token_to_str:N \citation { \c__hit_bib_ctl_key_tl } }
+%    \end{macrocode}
+%
+% 借 \pkg{bibentry} 的壳读自己的 \file{.bbl}：把它那句会写 \cs{bibdata} 的
+% \cs{bibliography} 临时换掉，只读文件。头一遍编译还没有那份 \file{.bbl}，
+% \cs{@input} 遇不到文件就什么都不做，条目那时是空的，与参考文献表头一遍
+% 的表现一样。
+%    \begin{macrocode}
+    \group_begin:
+      \cs_set:Npn \bibliography ##1
+        { \@input { \c_sys_jobname_str -pub.bbl } }
+      \nobibliography {#1}
+    \group_end:
+  }
+\NewDocumentEnvironment { publication } { O{} }
+  {
+    \hit@clear@page
+    \hit@appendix@chapter * { \hit@term@publications@heading@zh }
+      [ \hit@term@publications@heading@en ]
+    \int_gzero:N \g__hit_pub_group_int
+    \tl_if_blank:nF {#1}
+      { \@ifpackageloaded { biblatex } { } { \__hit_pub_open:n {#1} } }
+  }
+  { \iow_close:N \g__hit_pub_aux_iow }
+%    \end{macrocode}
+%
+% 一组。组标题加粗顶格，与示例文档从前手写的那几行一样；接着开著录列表，
+% 组内 \cs{item} 收一个文献键。
+%    \begin{macrocode}
+\NewDocumentEnvironment { pubgroup } { m }
+  {
+    \int_gincr:N \g__hit_pub_group_int
+    \par \noindent { \bfseries #1 } \par \nobreak
+    \hit@bib@list:nn { \__hit_pub_widest: } { \hit@bib@labelsep: }
+    \cs_set_eq:NN \__hit_pub_olditem: \item
+    \RenewDocumentCommand \item { m }
+      { \__hit_pub_olditem: \__hit_pub_entry:n {##1} }
+  }
+  {
+    \int_gset:Nn \g__hit_pub_count_int { \value { enumiv } }
+    \endlist
+    \protected@write \@auxout { }
+      {
+        \string \hit@pub@count { \int_use:N \g__hit_pub_group_int }
+          { \int_use:N \g__hit_pub_count_int }
+      }
+  }
+\cs_new_protected:Npn \__hit_pub_olditem: { }
+\int_new:N \g__hit_pub_count_int
+%    \end{macrocode}
+% \end{environment}
+%
+%    \begin{macrocode}
 
 
 \NewDocumentEnvironment { doctorpublication } { }

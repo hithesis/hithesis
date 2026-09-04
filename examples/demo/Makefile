@@ -70,6 +70,7 @@ $(THESISMAIN).pdf: $(CLSFILES) $(THESISCONTENTS) $(THESISMAIN)_china.ind $(THESI
 $(THESISMAIN).bbl: $(BIBFILE)
 	$(METHOD) $(THESISMAIN)
 	-bibtex $(THESISMAIN)
+	-if [ -f $(THESISMAIN)-pub.aux ]; then bibtex $(THESISMAIN)-pub; fi  # 成果页那一份
 	$(RM) $(THESISMAIN).pdf
 
 else
