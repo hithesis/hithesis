@@ -493,6 +493,76 @@
 % 文章节，如果有，则是英文目录中显示的内容。
 %    \begin{macro}{\chapter}
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/05}{章节没给英文名时英文目录条目不再整条消失：
+%   退回排印用的标题，中文版再缀一句红字提示；英文版的目录由此才有章条目}
+% \emph{没给英文名不再整条消失。}先前四级章节都是“给了 \oarg{英文名} 才写
+% 英文目录条目”，没给就没有这一条。两个后果：中文版的双语目录里漏写一处英文名
+% 就悄悄少一条，作者看不出来；英文版（\option{lang}\texttt{=en}）的章标题本来
+% 就是英文、写在必选参数里，没人再给一遍 \oarg{英文名}，于是英文版的目录里
+% 一条章节都没有。
+%
+% 现在没给英文名就退回排印用的标题。英文版那就是英文，照排；中文版退回的是
+% 中文，条目后面缀一句红字 \texttt{(Error! English heading not defined.)}，句式
+% 照 Word 自己的“错误！未定义书签。”，只提示不拦编译——论文还得交，拦住不如让
+% 作者一眼看见，补上英文名提示自然消失。这一手照 iota-hit。字样是词条
+% \texttt{table-of-contents-undefined-en}，\option{const} 改得动。
+%
+% 提示宏用 \texttt{@} 名，因为它要写进 \file{.toe} 再读回来，
+% \cs{@starttoc} 读文件时只开 \cs{makeatletter}。受保护，
+% \cs{protected@write} 不展开它。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@toc@undefined
+  {
+    \textcolor [ HTML ] { CC0000 }
+      { \bfseries \hit@term@table@of@contents@undefined@en }
+  }
+\tl_new:N \l__hit_toe_title_tl
+\cs_new_protected:Npn \__hit_toe_title:nn #1#2
+  {
+    \IfValueTF {#1}
+      { \tl_set:Nn \l__hit_toe_title_tl {#1} }
+      {
+        \tl_set:Nn \l__hit_toe_title_tl {#2}
+        \bool_if:NF \g__hit_en_bool
+          { \tl_put_right:Nn \l__hit_toe_title_tl { ~ \hit@toc@undefined } }
+      }
+  }
+%    \end{macrocode}
+%
+% 条目本身分两种：章级加粗、走 \cs{texorpdfstring}；节级平排。编号空着就是
+% 星号版，不走 \cs{numberline}。标题以 \texttt{V} 传进来，不再展开一层。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_toe_chapter:nn #1#2
+  {
+    \tl_if_blank:nTF {#1}
+      { \addcontentsline { toe } { chapter } { \texorpdfstring { \bfseries #2 } {#2} } }
+      {
+        \addcontentsline { toe } { chapter }
+          {
+            \texorpdfstring
+              { \bfseries \protect \numberline {#1} \ignorespaces #2 }
+              { #1 \space \ignorespaces #2 }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_toe_section:nnn #1#2#3
+  {
+    \tl_if_blank:nTF {#2}
+      { \addcontentsline { toe } {#1} {#3} }
+      { \addcontentsline { toe } {#1} { \protect \numberline {#2} \ignorespaces #3 } }
+  }
+\cs_new_protected:Npn \__hit_toe_chapter_entry:nnn #1#2#3
+  {
+    \__hit_toe_title:nn {#2} {#3}
+    \exp_args:NnV \__hit_toe_chapter:nn {#1} \l__hit_toe_title_tl
+  }
+\cs_new_protected:Npn \__hit_toe_section_entry:nnnn #1#2#3#4
+  {
+    \__hit_toe_title:nn {#3} {#4}
+    \exp_args:NnnV \__hit_toe_section:nnn {#1} {#2} \l__hit_toe_title_tl
+  }
 \cs_set_eq:NN \hit@chapter \chapter
 \RenewDocumentCommand \chapter { s o m o }
   {
@@ -502,23 +572,12 @@
         \IfNoValueTF {#2}
           { \hit@chapter * {#3} }
           { \hit@chapter * [#2] {#3} }
-        \IfValueT {#4}
-          {
-%    \end{macrocode}
-%
-% 此处添加保护选项
-% \changes{v1.0.13}{2018/04/05}{添加\cs{texorpdfstring}命令去除书签中带有格式时的警告}
-%    \begin{macrocode}
-            \addcontentsline { toe } { chapter }
-              { \texorpdfstring { \bfseries #4 } {#4} }
-          }
+        \__hit_toe_chapter_entry:nnn { } {#4} {#3}
       }
       {% \chapter
         \IfNoValueTF {#2}
           { \hit@chapter {#3} }
           { \hit@chapter [#2] {#3} }
-        \IfValueT {#4}
-          {
 %    \end{macrocode}
 %
 % 此处需删除章节的空白
@@ -537,18 +596,8 @@
 % 对范例的口径，这一档读文档语言不读目录语言），条目组里量宽导悬挂的
 % 机制也一并接上。附录条目同改。
 %    \begin{macrocode}
-            \addcontentsline { toe } { chapter }
-              {
-                \texorpdfstring
-                  {
-                    \bfseries
-                    \protect \numberline
-                      { \hit@english@toc@chapter@name \thechapter }
-                    \ignorespaces #4
-                  }
-                  { \hit@english@toc@chapter@name \thechapter \space \ignorespaces #4 }
-              }
-          }
+        \__hit_toe_chapter_entry:nnn
+          { \hit@english@toc@chapter@name \thechapter } {#4} {#3}
       }
   }
 %    \end{macrocode}
@@ -563,22 +612,13 @@
         \IfNoValueTF {#2}
           { \hit@section * {#3} }
           { \hit@section * [#2] {#3} }
-        \IfValueT {#4} { \addcontentsline { toe } { section } {#4} }
+        \__hit_toe_section_entry:nnnn { section } { } {#4} {#3}
       }
       {% \section
         \IfNoValueTF {#2}
           { \hit@section {#3} }
           { \hit@section [#2] {#3} }
-        \IfValueT {#4}
-          {
-%    \end{macrocode}
-%
-% 此处需删除章节的空白
-% \changes{v1.0.05}{2017/09/18}{添加\cs{ignorespaces}选项，矫正英文目录多出一个空白而无法对齐的bug}
-%    \begin{macrocode}
-            \addcontentsline { toe } { section }
-              { \protect \numberline { \use:c { thesection } } \ignorespaces #4 }
-          }
+        \__hit_toe_section_entry:nnnn { section } { \thesection } {#4} {#3}
       }
   }
 %    \end{macrocode}
@@ -593,22 +633,13 @@
         \IfNoValueTF {#2}
           { \hit@subsection * {#3} }
           { \hit@subsection * [#2] {#3} }
-        \IfValueT {#4} { \addcontentsline { toe } { subsection } {#4} }
+        \__hit_toe_section_entry:nnnn { subsection } { } {#4} {#3}
       }
       {% \subsection
         \IfNoValueTF {#2}
           { \hit@subsection {#3} }
           { \hit@subsection [#2] {#3} }
-        \IfValueT {#4}
-          {
-%    \end{macrocode}
-%
-% 此处需删除章节的空白
-% \changes{v1.0.05}{2017/09/18}{添加\cs{ignorespaces}选项，矫正英文目录多出一个空白而无法对齐的bug}
-%    \begin{macrocode}
-            \addcontentsline { toe } { subsection }
-              { \protect \numberline { \use:c { thesubsection } } \ignorespaces #4 }
-          }
+        \__hit_toe_section_entry:nnnn { subsection } { \thesubsection } {#4} {#3}
       }
   }
 %    \end{macrocode}
@@ -623,22 +654,13 @@
         \IfNoValueTF {#2}
           { \hit@subsubsection * {#3} }
           { \hit@subsubsection * [#2] {#3} }
-        \IfValueT {#4} { \addcontentsline { toe } { subsubsection } {#4} }
+        \__hit_toe_section_entry:nnnn { subsubsection } { } {#4} {#3}
       }
       {% \subsubsection
         \IfNoValueTF {#2}
           { \hit@subsubsection {#3} }
           { \hit@subsubsection [#2] {#3} }
-        \IfValueT {#4}
-          {
-%    \end{macrocode}
-%
-% 此处需删除章节的空白
-% \changes{v1.0.05}{2017/09/18}{添加\cs{ignorespaces}选项，矫正英文目录多出一个空白而无法对齐的bug}
-%    \begin{macrocode}
-            \addcontentsline { toe } { subsubsection }
-              { \protect \numberline { \use:c { thesubsubsection } } \ignorespaces #4 }
-          }
+        \__hit_toe_section_entry:nnnn { subsubsection } { \thesubsubsection } {#4} {#3}
       }
   }
 %    \end{macrocode}

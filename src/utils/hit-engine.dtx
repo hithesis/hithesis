@@ -539,6 +539,37 @@
   { \cs_new_protected:Npn \hit@engine@postload: { } }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/09/05}{下划线按 Word 画：线心在基线下 0.135\,em、
+%   粗 0.05\,em，\pkg{ulem} 与 \pkg{xeCJKfntef} 两边一起设}
+% \textbf{三、下划线的位置与粗细按 Word。}Word 是一个 run 一条线，线心在
+% 基线下 0.135\,em、粗 0.05\,em，纯汉字、纯西文、数字、混排四种 run 一个数。
+% 自己造 docx 在 macOS Word 上量的（中易宋体 + Times，12/24/48\,pt 三档；
+% 大字号躲开 Word 输出坐标 1/300 英寸的取整，48\,pt 那档四种 run 全落在
+% 0.135/0.050 上，12\,pt 那档在 0.123～0.173 之间晃，那是它按设备像素取整）。
+% 与 iota-hit 的实测同数。粗体西文 run 在 Word 里线粗一倍（0.10\,em），
+% 这一档不另设。
+%
+% 先前 \pkg{ulem} 按字体的 (j 深度自动取，\pkg{xeCJKfntef} 默认 0.20\,em，
+% 两边都在基线下 0.235\,em 上下、粗 0.4\,pt（12\,pt 上 0.033\,em），比 Word
+% 低了近一倍、细了三成。
+%
+% \pkg{ulem} 的线由 \cs{ULdepth}（下缘）与 \cs{ULthickness} 定：下缘取
+% 0.16\,em、粗 0.05\,em，线心正好 0.135。\cs{ULdepth} 是长度寄存器，不能在
+% 加载时按 em 定死，改成在它自动取深度那一步（\cs{UL@setULdepth}）按当时
+% 字体算。\pkg{xeCJKfntef} 的 \texttt{depth} 是线的\emph{上缘}（实测 0.16 给
+% 出线心 0.185），取 0.11\,em；那对键收的是 token 列表，用时才求值，直接写
+% em。两边都量过：12\,pt 上线心 0.1350、粗 0.0500。挂在两个包的加载钩子上，
+% 哪个引擎装哪个都吃得到。
+%    \begin{macrocode}
+\AddToHook { package / ulem / after }
+  {
+    \cs_set:Npn \UL@setULdepth { \dim_set:Nn \ULdepth { 0.16em } }
+    \cs_set:Npn \ULthickness { 0.05em }
+  }
+\AddToHook { package / xeCJKfntef / after }
+  { \xeCJKsetup { underline = { depth = 0.11em , thickness = 0.05em } } }
+%    \end{macrocode}
+%
 % 伪粗体不再分引擎。这一层原先按引擎给 \texttt{AutoFakeBold} 挑
 % \texttt{true} 或数字（\pkg{luaotfload} 的 \texttt{embolden} 不吃布尔值），
 % 后来系数按 Word 实测定成 2.85（见 \file{src/utils/hit-fonts.dtx}），数字

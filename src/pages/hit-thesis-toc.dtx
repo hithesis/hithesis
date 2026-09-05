@@ -152,7 +152,20 @@
           \normalsize \@starttoc { toc }
         \group_end:
       }
-    \__hit_tristate_if:NnTF \g__hit_toc_english_tl { \bool_if_p:N \g__hit_doctor_bool }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/05}{英文版的 \option{english} 三态 \texttt{auto}
+%   一律为真：英文版只排一份目录，那份就是它，先前硕士与本科的英文版整本
+%   没有目录页}
+% 英文版只有这一份目录（上面中文那份在英文版里跳过了），所以 \texttt{auto}
+% 在英文版一律为真，不再只看学位：先前按“博士才排”，硕士与本科的英文版
+% 整本没有目录页。
+%    \begin{macrocode}
+    \__hit_tristate_if:NnTF \g__hit_toc_english_tl
+      {
+        \bool_lazy_or_p:nn
+          { \bool_if_p:N \g__hit_doctor_bool } { \bool_if_p:N \g__hit_en_bool }
+      }
       { \tableofengcontents }
 %    \end{macrocode}
 %
@@ -306,20 +319,36 @@
 \dim_new:N \g__hit_toc_prev_depth_dim
 \bool_new:N \l__hit_toc_latin_bool
 \cs_new:Npn \__hit_toc_scale: { \bool_if:NTF \g__hit_bachelor_bool { 1 } { 24/25 } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/05}{加 \option{toc}/\option{latin-natural}：关掉后
+%   纯西文条目也按汉字行高排}
+% \option{latin-natural} 三态，\texttt{auto} 为真。真是 Word 的原样：纯西文
+% 条目的行盒只有西文字体参与，比汉字行矮。关掉就一律按汉字行高，英文目录
+% 不再随条目中英而挪位。名字与取值照 iota-hit 的 \texttt{latin-natural}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_toc_metrics_cjk:
+  {
+    \dim_set:Nn \baselineskip
+      { \g__hit_toc_prev_depth_dim + 12.18 bp * \__hit_toc_scale: }
+    \dim_gset:Nn \g__hit_toc_prev_depth_dim { 7.28 bp * \__hit_toc_scale: }
+  }
+\cs_new_protected:Npn \__hit_toc_metrics_latin:
+  {
+    \bool_set_true:N \l__hit_toc_latin_bool
+    \dim_set:Nn \baselineskip
+      { \g__hit_toc_prev_depth_dim + 11.27 bp * \__hit_toc_scale: }
+    \dim_gset:Nn \g__hit_toc_prev_depth_dim { 5.98 bp * \__hit_toc_scale: }
+  }
 \cs_new_protected:Npn \__hit_toc_line_metrics:n #1
   {
     \bool_set_false:N \l__hit_toc_latin_bool
     \__hit_toc_entry_cjk:nTF {#1}
+      { \__hit_toc_metrics_cjk: }
       {
-        \dim_set:Nn \baselineskip
-          { \g__hit_toc_prev_depth_dim + 12.18 bp * \__hit_toc_scale: }
-        \dim_gset:Nn \g__hit_toc_prev_depth_dim { 7.28 bp * \__hit_toc_scale: }
-      }
-      {
-        \bool_set_true:N \l__hit_toc_latin_bool
-        \dim_set:Nn \baselineskip
-          { \g__hit_toc_prev_depth_dim + 11.27 bp * \__hit_toc_scale: }
-        \dim_gset:Nn \g__hit_toc_prev_depth_dim { 5.98 bp * \__hit_toc_scale: }
+        \__hit_tristate_if:NnTF \g__hit_toc_latin_natural_tl { \c_true_bool }
+          { \__hit_toc_metrics_latin: }
+          { \__hit_toc_metrics_cjk: }
       }
   }
 %    \end{macrocode}
@@ -569,7 +598,7 @@
 %    \begin{macrocode}
  \cs_set_nopar:Npn \l@chapter {\@dottedtocline{0}{0em}{5em}}%控制英文目录： 细点\@dottedtocline  粗点\@dottedtoclinebold
  \@restonecolfalse
- \chapter*{\engcontentsname %chapter*上移一行，避免在toc中出现。
+ \hit@chapter*{\engcontentsname %chapter*上移一行，避免在toc中出现。走原生的 \chapter*，用户版的会往英文目录里写自己
  \pdfbookmark[0]{Contents}{econtent}~
  \@mkboth{%
  \engcontentsname}{\engcontentsname}}~
