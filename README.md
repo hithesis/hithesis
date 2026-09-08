@@ -426,5 +426,12 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2025-03-10 |  xw       |Alipay           |
 | 2025-04-09 | Lrz       | WeChat          |
 | 2026-01-03 | 无题      |  Alipay         |
+| 2026-03-16 | m*y       | WeChat          |
 | 2026-01-26 | *新       | WeChat          |
 | 2026-03-20 | 青云      | WeChat          |
+| 2026-04-19 | *康       | WeChat          |
+| 2026-04-27 | **飞      | Alipay          |
+| 2026-05-28 | *士       | WeChat          |
+| 2026-06-25 | n*a      |  WeChat         |
+| 2026-06-26 | **碹      | Alipay          |
+| 2026-07-19  | *店       | WeChat         |
