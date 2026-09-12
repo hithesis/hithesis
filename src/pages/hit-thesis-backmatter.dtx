@@ -195,14 +195,71 @@
   { \iow_close:N \g__hit_pub_aux_iow }
 %    \end{macrocode}
 %
-% 一组。组标题加粗顶格，与示例文档从前手写的那几行一样；接着开著录列表，
-% 组内 \cs{item} 收一个文献键。
+% \changes{v3.2a}{2026/09/13}{组名段照范例：编号、段前段后 5 磅、1.25 倍行盒、
+%   宋体伪粗；条目标号后两个宋体空格、悬挂 2.3 字}
+% \emph{组名段照范例排。}两份范例（研究生、本科理工）三条组名的段落属性一字
+% 不差：段前段后各 100 缇（5 磅）、\texttt{line=300 auto}（1.25 倍）、不贴
+% 网格、run 带 \texttt{<w:b/>}（宋体描边合成）、顶格、不进目录。PDF 上组名
+% 前后的基线步进都是 24.3～24.5：前一行的行深 7.28 加 5 加组名的行高 12.18。
+% 这里组名段与条目同一个行盒（本类小四的行盒本来就是 1.25 倍那一份，
+% 19.53\,bp），前后各 \cs{addvspace} 5\,bp（与列表的 \cs{topsep} 合并，不
+% 叠加），加粗走共用的 \cs{hit@font@fakebold@zh:}。四处把 5 磅算准的细节：
+% 组名段与列表都把 \cs{lineskiplimit} 放到底，行距只走 \cs{baselineskip}——
+% 组名行的行深比条目行多 0.007（西文换了粗体面），本类的行盒又正好撑满
+% \cs{baselineskip}，不放的话首条的行间胶落到 \cs{lineskip} 兜底，凭空多
+% 1\,pt；\cs{@trivlist} 给的
+% 首尾胶是 \cs{topsep} 加外层的 \cs{parskip}，所以 \cs{topsep} 写成
+% 5\,bp 减 \cs{parskip}；组名段自己的 \cs{parskip} 清零；写 \file{.aux}
+% 的那个 whatsit 挪到 \cs{endlist} 之前，不然它挡在尾胶后面，
+% \cs{addvspace} 看不见那段胶就再加一份。条目之间与首条之前的
+% \cs{parsep}、\cs{itemsep} 也清零：范例的条目步进一律 19.5，首条到组名也
+% 只有那 5 磅。
+%
+% \emph{组名带编号。}研究生范例“（一）发表的学术论文”，本科范例“一、发表的
+% 学术论文”，英文版照 iota-hit 取硕士开题英文版第六节的“(1) ”。可选参数
+% \texttt{auto}（默认）按学位与语言取，写空就不编号，写别的就是字面的编号。
+%
+% \emph{条目与参考文献表差两个数。}标号后是两个宋体空格（本科范例 Word 导出
+% 逐字量：“］”右缘到正文 12.95\,bp，两个半角宋体空格各 6 加字符间距），
+% 折行悬挂 2.3 字（27.6\,bp，docx 里 \texttt{w:hanging=552} 缇），比标号窄，
+% 所以续行比首行的正文左伸 3.7；参考文献表那边是标号后不空、悬挂到标号宽。
+% 其余（标号对齐、行距、条目间距）与参考文献表同一处取值。
 %    \begin{macrocode}
-\NewDocumentEnvironment { pubgroup } { m }
+\cs_new:Npn \__hit_pub_group_number:
+  {
+    \bool_if:NTF \g__hit_en_bool
+      { ( \int_use:N \g__hit_pub_group_int ) ~ }
+      {
+        \bool_if:NTF \g__hit_bachelor_bool
+          { \zhnumber { \int_use:N \g__hit_pub_group_int } 、 }
+          { （ \zhnumber { \int_use:N \g__hit_pub_group_int } ） }
+      }
+  }
+\NewDocumentEnvironment { pubgroup } { O{auto} m }
   {
     \int_gincr:N \g__hit_pub_group_int
-    \par \noindent { \bfseries #1 } \par \nobreak
-    \hit@bib@list:nn { \__hit_pub_widest: } { \hit@bib@labelsep: }
+    \par \addvspace { 5bp }
+    \group_begin:
+      \dim_zero:N \parindent
+      \skip_zero:N \parskip
+      \dim_set:Nn \lineskiplimit { -\maxdimen }
+      \noindent \hit@font@fakebold@zh:
+      \str_case:nnF {#1}
+        { { auto } { \__hit_pub_group_number: } { } { } }
+        {#1}
+      #2 \par
+    \group_end:
+    \nobreak
+    \hit@bib@list:nnn { \__hit_pub_widest: } { 1em }
+      {
+        \skip_set:Nn \topsep { 5bp - \parskip }
+        \skip_zero:N \partopsep
+        \skip_zero:N \parsep
+        \skip_zero:N \itemsep
+        \dim_set:Nn \lineskiplimit { -\maxdimen }
+        \dim_set:Nn \leftmargin { 2.3em }
+        \dim_set:Nn \itemindent { \labelwidth + \labelsep - \leftmargin }
+      }
     \hit@bib@list@rules:
     \cs_set_eq:NN \__hit_pub_olditem: \item
     \RenewDocumentCommand \item { m }
@@ -210,12 +267,12 @@
   }
   {
     \int_gset:Nn \g__hit_pub_count_int { \value { enumiv } }
-    \endlist
     \protected@write \@auxout { }
       {
         \string \hit@pub@count { \int_use:N \g__hit_pub_group_int }
           { \int_use:N \g__hit_pub_count_int }
       }
+    \endlist
   }
 \cs_new_protected:Npn \__hit_pub_olditem: { }
 \int_new:N \g__hit_pub_count_int
