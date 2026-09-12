@@ -14,7 +14,7 @@ Word 把字形位置量化到 0.25 bp 左右（同一段汉字步进会在 12.49
 
   # 一、抽出能在 Word 里如实复刻的段落（整段无宏，\\ref 按 aux 展开）
   word-compare.py corpus --aux tests/work/13-doctor-harbin \\
-      examples/demo/thesis/mainmatter/introduction.tex > corpus.tsv
+      examples/demo/final/mainmatter/introduction.tex > corpus.tsv
 
   # 二、把段落灌进范例 docx 的版式（版心、网格、样式原样沿用）
   word-compare.py docx --template 范例.docx --corpus corpus.tsv --out 复刻.docx

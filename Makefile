@@ -25,7 +25,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls lineends compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls lineends compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
@@ -178,6 +178,7 @@ clean: auxclean
 	-$(RM) *.eps
 	-$(RM) $(PACKAGE).pdf
 	-$(RM) $(RELEASE_NOTES)
+	-$(MAKE) -C examples/demo cleanall
 
 distclean: clean
 	-$(RM) $(PACKAGE)-$(VERSION).zip
@@ -242,6 +243,11 @@ mapcheck:
 # install 守卫改完跑这个，两张装配表按它重新生成
 mapfix:
 	@python3 scripts/check-map.py --fix
+
+# dtx 注释里的 \file{src/...} 路标指向真实文件。文件改名合并之后这些引用不会
+# 自动跟着走，也不会报错——它只是注释，所以机器盯着。
+refscheck:
+	@python3 scripts/check-dtx-refs.py
 
 # 产物清单交叉校验：install 守卫、tools/distfiles.txt、build.lua 的 installfiles、
 # 安装横幅，四份两两对上。加一个产物只改 install 守卫，剩下三份漏了这里会说。

@@ -46,8 +46,8 @@
 % 变量名分开的版本。
 %
 % \changes{v3.2a}{2026/08/12}{\option{type} 改名 \option{degree-level}，旧名走废弃期。
-%   派发类的 \option{kind} 进来之后两个名字都像「种类」，分不清谁管学位谁管交付物}
-% \option{degree-level} 是学位层次。原先叫 \option{type}，v3.2a 加了派发类的 \option{kind}
+%   派发类的 \option{stage} 进来之后两个名字都像「种类」，分不清谁管学位谁管交付物}
+% \option{degree-level} 是学位层次。原先叫 \option{type}，v3.2a 加了派发类的 \option{stage}
 % 之后两个名字都读作「种类」，一个管学位一个管交付物，谁也说不清哪个是哪个。
 %
 % 旧名 \option{type} 照旧生效，转发到 \option{degree-level}，并提示一次。取值判断看的是
@@ -66,8 +66,17 @@
 % \option{degree-level}：\texttt{bachelor} 勾毕业论文，\texttt{bachelor*} 勾毕业设计。
 %
 % 星号只对本科有意义。别的学位写了不报错，但那一对勾选框只出现在本科封面上。
+%
+% \changes{v3.2a}{2026/09/13}{标志位由 \cs{g\_\_hit\_design\_bool} 改名
+%   \cs{g\_\_hit\_practice\_bool}，词条跟着改成 \texttt{-dissertation}／\texttt{-practice}}
+% \emph{标志位叫 practice 不叫 design。} 本科封面那对勾选框问的是「交上去的是
+% 写出来的论文，还是做出来的成果」，硕博的「学位论文／实践成果」问的是同一件事，
+% 将来并成一根轴是自然的。正名取 \texttt{practice}：实践成果那份指南的成果类型
+% 表里，「产品设计报告」「方案设计报告」本来就是实践成果的\emph{子类}，拿子类
+% 当正名别扭。这一轮只统一词，不建轴——研究生实践成果的词条我们一条都没有，
+% 轴上只有一档等于先给自己造一层机制。\option{design} 这个键名照旧留着。
 %    \begin{macrocode}
-\bool_new:N \g__hit_design_bool
+\bool_new:N \g__hit_practice_bool
 \seq_new:N \l__hit_degree_seq
 \cs_new_protected:Npn \__hit_degree_pick:n #1
   {
@@ -81,7 +90,7 @@
 \cs_new_protected:Npn \__hit_degree_level:n #1
   {
     \seq_set_split:Nnn \l__hit_degree_seq { * } {#1}
-    \bool_gset:Nn \g__hit_design_bool
+    \bool_gset:Nn \g__hit_practice_bool
       { \int_compare_p:nNn { \seq_count:N \l__hit_degree_seq } > { 1 } }
     \exp_args:Nx \__hit_degree_pick:n { \seq_item:Nn \l__hit_degree_seq { 1 } }
   }
@@ -101,8 +110,8 @@
         \__hit_warn_once:nnn { design } { merged-option }
           { degree-level=bachelor* }
         \str_if_eq:nnTF {#1} { true }
-          { \bool_gset_true:N  \g__hit_design_bool }
-          { \bool_gset_false:N \g__hit_design_bool }
+          { \bool_gset_true:N  \g__hit_practice_bool }
+          { \bool_gset_false:N \g__hit_practice_bool }
       } ,
     design .default:n = { true } ,
   }
@@ -127,8 +136,16 @@
 % 取值造出 \cs{g\_\_hit\_stem\_bool} 与 \cs{g\_\_hit\_hass\_bool}，
 % \cs{hitsetup}\oarg{category=hass} 这样的条件也能写。名字取 hass
 % （humanities, arts and social sciences），与 iota-hit 同名。
+%
+% \changes{v3.2a}{2026/09/13}{\texttt{hss} 收作 \texttt{hass} 的别名：学校自己的
+%   文件名是 \file{g-hss.docx}，照文件名写也该认}
+% \emph{\texttt{hss} 是它的别名。} 学校那两份指南的文件名是 \file{g-stem.docx}
+% 与 \file{g-hss.docx}，用户照文件名写 \texttt{category=hss} 也该认。正名取
+% \texttt{hass} 是为了把艺术学兜进来——学校那句适用范围只点了哲学、法学、文学
+% 三个门类，艺术学两边都没提，而哈工大有艺术类专业。别名与 \option{stage} 的
+% \texttt{opening}／\texttt{midterm} 同一套办法：声明进取值表，解析完折成正名。
 %    \begin{macrocode}
-\hit@define@choice@option{category}{}{stem,hass}{stem}
+\hit@define@choice@option{category}{}{stem,hass,hss}{stem}
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{模板默认是 \option{bachelor}，为页脚做准备}
@@ -146,20 +163,32 @@
 % \changes{v2.0.0}{2018/06/14}{此处添加geometry选项}
 % \changes{v3.0.0}{2020/05/20}{此处添加博后选项}
 % \changes{v3.2a}{2026/08/12}{加一对类身份标志位，让 \cs{hitsetup} 的条件能写
-%   \texttt{[kind!=thesis]} 与 \texttt{[kind!=report]}。共用一份配置时用得上}
+%   \texttt{stage!=final} 与 \texttt{class=report} 两种条件。共用一份配置时用得上}
 % 两个都声明，缺一个的话条件求值会撞上不存在的标志位。
 %
-% \changes{v3.2a}{2026/08/12}{\option{kind} 的报告取值在学位论文类里也声明一遍，
+% \changes{v3.2a}{2026/08/12}{\option{stage} 的报告取值在学位论文类里也声明一遍，
 %   一份主文件里写报告那几组条件时不再报「不认识的取值」}
-% \option{kind} 的几个报告取值在这里也声明一遍。它们在学位论文类里永远为假，
+% \changes{v3.2a}{2026/09/13}{加 \cs{g\_\_hit\_final\_bool}：\option{stage} 的终稿
+%   那一档，与类身份的 \cs{g\_\_hit\_thesis\_bool} 分开}
+% \emph{终稿那一档有了自己的标志位。} \option{stage} 轴问的是「哪一份材料」，
+% 三档是 \texttt{final}、\texttt{proposal}、\texttt{interim}。终稿那一档先前
+% 没有自己的标志位，借用了类身份的 \cs{g\_\_hit\_thesis\_bool}——那个比特同时
+% 表示「这份由学位论文类排」与「stage 是终稿」，两件事一个名字。词条查表是按
+% 档位值反查 \cs{g\_\_hit\_}\meta{取值}\cs{\_bool} 的（见 \file{hit-key-engine.dtx}
+% 的 \cs{\_\_hit\_axis\_context\_try:n}），轴表把这一档叫 \texttt{final}，标志位
+% 就得叫 \cs{g\_\_hit\_final\_bool}。两个类身份标志位照旧留着，它们是另一件事。
+%
+% \option{stage} 的几个报告取值在这里也声明一遍。它们在学位论文类里永远为假，
 % 声明的意义在于让条件求值查得到：一份主文件同时写四组条件，
-% \texttt{[kind=proposal]} 那两组编学位论文时该是「条件不成立」，
+% \texttt{[stage=proposal]} 那两组编学位论文时该是「条件不成立」，
 % 而不是「不认识的取值」。报告类那边同理，两个类身份标志位都声明了。
 % 两个废弃取值一并声明，不然写了旧名的条件会掉进另一条提示。
 %    \begin{macrocode}
 \bool_new:N \g__hit_thesis_bool
 \bool_new:N \g__hit_report_bool
 \bool_gset_true:N \g__hit_thesis_bool
+\bool_new:N \g__hit_final_bool
+\bool_gset_true:N \g__hit_final_bool
 \clist_map_inline:nn { proposal , interim , mid-term , opening , midterm }
   { \bool_new:c { g__hit_#1_bool } }
 %    \end{macrocode}
@@ -609,6 +638,21 @@
     bsheadrule            .default:n = { true } ,
   }
 \ProcessKeyOptions [~hit~/~class~]
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{\option{category} 的别名 \texttt{hss} 折成正名
+%   \texttt{hass}}
+% 别名折成正名。得排在 \cs{ProcessKeyOptions} 之后：声明处那一刻取值还没解析，
+% 标志位全是假的。与 \option{stage} 那两个旧取值同一套办法，见
+% \file{hit-report-options.dtx} 的 \cs{\_\_hit\_stage\_migrate:nn}。这里不发
+% 提示——\texttt{hss} 是正式别名不是废弃名，学校的文件名就叫 \file{g-hss.docx}。
+%    \begin{macrocode}
+\bool_if:NT \g__hit_hss_bool
+  {
+    \bool_gset_false:N \g__hit_hss_bool
+    \bool_gset_true:N  \g__hit_hass_bool
+    \bool_gset_false:N \g__hit_stem_bool
+  }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/12}{深圳校区本科现在直接指向本部本科模板，旧深圳本科模板代码暂时保留}

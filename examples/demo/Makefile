@@ -14,10 +14,10 @@ THESISMAIN = thesis
 REPORTMAIN = report
 PACKAGE = hithesis
 
-THESISCONTENTS=$(THESISMAIN).tex $(REPORTMAIN).tex info.tex thesis/frontmatter/*.tex thesis/mainmatter/*.tex report/*/mainmatter/*.tex thesis/backmatter/*.tex $(FIGURES)
+THESISCONTENTS=$(THESISMAIN).tex $(REPORTMAIN).tex info.tex final/frontmatter/*.tex final/mainmatter/*.tex proposal/mainmatter/*.tex interim/mainmatter/*.tex final/backmatter/*.tex $(FIGURES)
 # NOTE: update this to reflect your local file types.
 FIGURES=$(wildcard figures/*.eps figures/*.pdf)
-BIBFILE=$(wildcard thesis/backmatter/*.bib)
+BIBFILE=$(wildcard final/backmatter/*.bib)
 CLSFILES=hit-thesis.cls hit-report.cls $(PACKAGE).cls $(PACKAGE).ist *.bst
 
 # make deletion work on Windows
@@ -29,7 +29,7 @@ else
 	OPEN = open
 endif
 
-.PHONY: clean cleanall thesis viewthesis report viewreport
+.PHONY: clean cleanall clean-generated thesis viewthesis report viewreport
 
 viewthesis: thesis
 	$(OPEN) $(THESISMAIN).pdf
@@ -81,26 +81,42 @@ endif
 # 换 kind 编别的交付物时可以自己指定 jobname，这里把常见的几个一并清掉。
 JOBS = $(THESISMAIN) thesis-en opening midterm
 
-# 按 jobname 逐个删，不用 *.idx 这种通配：hithesis.ist 是随包发的，
-# 通配一扫就把它删了，下次编索引直接报找不到样式文件。
+# 按扩展名通配删，不按 jobname 逐个删。原先 JOBS 只列了四个 jobname
+# （thesis、thesis-en、opening、midterm），而手工编别的档（-jobname=h3、ork2
+# 这类）留下的产物一个都扫不到，日子久了目录里堆出上百个文件。
+#
+# ist 不在这张表里：hithesis.ist 是 make cls 生成再拷过来的，名字与
+# jobname 无关，通配一扫就把它删了，下次编索引直接报找不到样式文件。
+# 它跟 cls/cfg/sty/bst 一起由 clean-generated 那条按名删。
 #
 # latexmkrc 的 $clean_ext 里带着 pdf，所以 latexmk -c 已经把 thesis.pdf 与 report.pdf 删了，
 # cleanall 那条是给不走 latexmk 的情形兜底。
-JUNKEXT = aux bbl blg glo gls idx ilg ind ist log out thm toc toe fls fdb_latexmk
+JUNKEXT = aux bbl bcf blg glo gls idx ilg ind log out run.xml synctex.gz \
+          thm toc toe fls fdb_latexmk xdv
 
 clean:
 	-latexmk -c $(THESISMAIN)
 	-latexmk -c thesis-en
 	-latexmk -c opening
 	-latexmk -c midterm
-	-@$(RM) $(foreach j,$(JOBS),$(foreach e,$(JUNKEXT),$(j).$(e)))
-	-@$(RM) $(foreach j,$(JOBS),$(j)-china.idx $(j)-china.ilg $(j)-china.ind)
-	-@$(RM) $(foreach j,$(JOBS),$(j)-english.idx $(j)-english.ilg $(j)-english.ind)
+	-@$(RM) $(foreach e,$(JUNKEXT),*.$(e))
+	-@$(RM) *-BSTcontrol.bib *-pub.aux *-pub.bbl *-pub.blg
 	-@$(RM) *~
 	# 分章的 .aux 落在源码旁边（\include 按给的路径写），latexmk -c 只管当前目录
-	-@$(RM) thesis/frontmatter/*.aux thesis/mainmatter/*.aux thesis/backmatter/*.aux
-	-@$(RM) report/proposal/frontmatter/*.aux report/proposal/mainmatter/*.aux
-	-@$(RM) report/interim/frontmatter/*.aux report/interim/mainmatter/*.aux
+	-@$(RM) final/frontmatter/*.aux final/mainmatter/*.aux final/backmatter/*.aux
+	-@$(RM) proposal/frontmatter/*.aux proposal/mainmatter/*.aux
+	-@$(RM) interim/frontmatter/*.aux interim/mainmatter/*.aux
 
-cleanall: clean
-	-@$(RM) $(foreach j,$(JOBS),$(j).pdf)
+# make cls 生成、由编译脚本拷进来的那几份，以及 assets/ 里拷过来的图。
+# 它们不是这个目录的内容，是别处的产物，按名删不通配。
+GENERATED = hithesis.cls hithesis.cfg hithesis.sty hithesis.ist hithesis.bst \
+            hit-thesis.cls hit-thesis.cfg hit-report.cls hit-report.cfg \
+            hithesisbook.cls hithesisart.cls hithesisartplus.cls \
+            hit-logo.pdf zfb.pdf hit-bachelor-report-bottommark.pdf \
+            figures/golfer.pdf
+
+clean-generated:
+	-@$(RM) $(GENERATED)
+
+cleanall: clean clean-generated
+	-@$(RM) *.pdf

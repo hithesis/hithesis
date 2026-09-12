@@ -25,10 +25,11 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # 轴表，与 src/setup/hit-key-engine.dtx 里那张一致
 AXES = [
-    ("kind", ["thesis", "proposal", "interim"]),
+    ("stage", ["final", "proposal", "interim"]),
     ("campus", ["harbin", "shenzhen", "weihai"]),
-    ("degree", ["bachelor", "master", "doctor", "postdoc"]),
+    ("degree-level", ["bachelor", "master", "doctor", "postdoc"]),
     ("degree-type", ["academic", "professional"]),
+    ("category", ["stem", "hass"]),
     ("lang", ["zh", "en"]),
 ]
 ORDER = [a for a, _ in AXES]
@@ -117,7 +118,7 @@ def valued(*files: pathlib.Path) -> set[str]:
     out: set[str] = set()
     for m in re.finditer(r"\\hit@presetup\s*(\[[^\]]*\])?\s*\{", s):
         body, _ = braced(s, m.end())
-        cm = re.search(r"\bconst\s*=\s*\{", body)
+        cm = re.search(r"\bterm\s*=\s*\{", body)
         if not cm:
             continue
         inner, _ = braced(body, cm.end())
@@ -227,22 +228,26 @@ def code_lines(path: pathlib.Path, guards: list[str]) -> str:
 
 CONTEXTS = {
     "hit-thesis": [
-        dict(kind="thesis", campus=c, degree=d, lang=l)
+        dict(stage="final", campus=c, category=g, lang=l)
+        | {"degree-level": d}
         | {"degree-type": t}
-        for c, d, t, l in itertools.product(
+        for c, d, t, g, l in itertools.product(
             ["harbin", "shenzhen", "weihai"],
             ["bachelor", "master", "doctor", "postdoc"],
             ["academic", "professional"],
+            ["stem", "hass"],
             ["zh", "en"])
     ],
     "hit-report": [
-        dict(kind=k, campus=c, degree=d, lang=l)
+        dict(stage=k, campus=c, category=g, lang=l)
+        | {"degree-level": d}
         | {"degree-type": t}
-        for k, c, d, t, l in itertools.product(
+        for k, c, d, t, g, l in itertools.product(
             ["proposal", "interim"],
             ["harbin", "shenzhen", "weihai"],
             ["bachelor", "master", "doctor"],
             ["academic", "professional"],
+            ["stem", "hass"],
             ["zh", "en"])
     ],
 }

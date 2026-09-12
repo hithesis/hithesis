@@ -144,9 +144,29 @@
   }
 %    \end{macrocode}
 %
-% 那一章本身。给了库名就把库读进来，\pkg{biblatex} 一线的条目由 \cs{fullcite}
-% 自己带出来、不用先读。
+% 那一章本身。给了库名就把库读进来。
+%
+% \changes{v3.2a}{2026/09/13}{\pkg{biblatex} 一线也要把成果库加进资源：
+%   先前只有传统线读库，\cs{fullcite} 查不到任何一条}
+% \emph{\pkg{biblatex} 一线也得先加资源。} \cs{fullcite} 只从已登记的资源里取，
+% 成果库不 \cs{addbibresource} 进去，每一条都会排成空白并在 \file{.blg} 里留下
+% 一句「I didn't find a database entry」。这一条先前漏了——传统线那半边验过，
+% \pkg{biblatex} 那半边只写了没验。
+%
+% \emph{\pkg{biblatex} 一线的库名不能写在这里，必须写在导言区。}
+% \cs{addbibresource} 只能在导言区用——\pkg{biblatex} 在 \cs{begin\{document\}}
+% 那一刻把资源表写进 \file{.bcf} 交给 \pkg{biber}，之后再加就进不了这一轮，而
+% \env{publication} 是正文里的环境，那时早过了。所以这一线的写法是：导言区
+% \cs{addbibresource}\marg{成果库}，环境的可选参数不写。写了就发一条提示告诉
+% 用户挪到导言区，不是静默忽略——静默的话每一条成果都排成空白，只在
+% \file{.blg} 里留一句「I didn't find a database entry」，没人会去看。
+%
+% 两条线因此不完全对称：传统线的库名写在环境上（它自己写 \file{.aux}、自己
+% 跑那一次 \pkg{bibtex}，时机由我们定），\pkg{biblatex} 线写在导言区。手册
+% 两处都写清。
 %    \begin{macrocode}
+\cs_new_protected:Npn \__hit_pub_resource:n #1
+  { \msg_warning:nnn { hithesis } { pub-resource-biblatex } {#1} }
 \iow_new:N \g__hit_pub_aux_iow
 \cs_new_protected:Npn \__hit_pub_open:n #1
   {
@@ -190,7 +210,10 @@
       [ \hit@term@publications@heading@en ]
     \int_gzero:N \g__hit_pub_group_int
     \tl_if_blank:nF {#1}
-      { \@ifpackageloaded { biblatex } { } { \__hit_pub_open:n {#1} } }
+      {
+        \@ifpackageloaded { biblatex }
+          { \__hit_pub_resource:n {#1} } { \__hit_pub_open:n {#1} }
+      }
   }
   { \iow_close:N \g__hit_pub_aux_iow }
 %    \end{macrocode}
