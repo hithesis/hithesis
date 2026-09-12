@@ -352,9 +352,23 @@
       { \g__hit_toc_prev_depth_dim + 11.27 bp * \__hit_toc_scale: }
     \dim_gset:Nn \g__hit_toc_prev_depth_dim { 5.98 bp * \__hit_toc_scale: }
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{人文社科类的目录固定值 23 磅：三级条目一个步进}
+% 人文社科类不走上面那套贴排制：博士人文范例与本科人文范例的目录三级全写着
+% \texttt{line=460 exact}（23 磅），Word 导出逐行量步进一律 23.0，与条目中西文
+% 无关。固定值就是固定值，行盒的高深不参与，直接把 \cs{baselineskip} 钉在
+% 23\,bp（目录版面组里 \cs{lineskiplimit} 已放到底）。
+%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_toc_line_metrics:n #1
   {
     \bool_set_false:N \l__hit_toc_latin_bool
+    \bool_if:NTF \g__hit_hass_bool
+      { \dim_set:Nn \baselineskip { 23bp } }
+      { \__hit_toc_line_metrics_stem:n {#1} }
+  }
+\cs_new_protected:Npn \__hit_toc_line_metrics_stem:n #1
+  {
     \__hit_toc_entry_cjk:nTF {#1}
       { \__hit_toc_metrics_cjk: }
       {
@@ -388,6 +402,26 @@
 \box_new:N \l__hit_toc_num_box
 \box_new:N \l__hit_toc_pnum_box
 \box_new:N \l__hit_toc_gap_box
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{题序以全角顿号或括号收尾的条目不再空一个字}
+% 题序后那一个字的空隙，按题序自己的样子给：人文社科类的“一、”“（一）”自带
+% 全角顿号或括号，范例目录里题序贴着标题排，不再空；“第一章”“1.1”
+% “Chapter One”后面照旧空一个字。看的是题序末字是不是那两个全角标点，
+% 不看层级——英文目录里的“1.1”与中文目录里的“一、”是同一层级、两种排法。
+% 比的是字符串：\file{.toc} 里读回来的顿号与本文件里写的顿号 catcode 不一定
+% 相同，按 token 比对不上。末字取两遍：题序整个裹在一对花括号里传进来时，
+% 第一遍取到的“末项”是整个括号组，再取一遍才是末字；没裹的取两遍结果一样。
+%    \begin{macrocode}
+\tl_new:N \l__hit_toc_num_last_tl
+\cs_new_protected:Npn \__hit_toc_gap_box_set:n #1
+  {
+    \tl_set:Nx \l__hit_toc_num_last_tl { \tl_item:nn {#1} { -1 } }
+    \tl_set:Nx \l__hit_toc_num_last_tl { \tl_item:Nn \l__hit_toc_num_last_tl { -1 } }
+    \exp_args:NnV \str_if_in:nnTF { 、） } \l__hit_toc_num_last_tl
+      { \hbox_set:Nn \l__hit_toc_gap_box { } }
+      { \hbox_set:Nn \l__hit_toc_gap_box { \hit@chapter@number@gap: } }
+  }
 \dim_new:N \l__hit_toc_num_pad_dim
 \cs_new_protected:Npn \hit@toc@numwidth@apply:
   {
@@ -397,7 +431,7 @@
           {
             \cs_set_protected:Npn \CTEX@toc@width@n ##1
               {
-                \hbox_set:Nn \l__hit_toc_gap_box { \hit@chapter@number@gap: }
+                \__hit_toc_gap_box_set:n {##1}
                 \hbox_set:Nn \l__hit_toc_num_box {##1}
                 \dim_set:Nn \@tempdima
                   {
@@ -414,7 +448,7 @@
           {
             \cs_set_protected:Npn \CTEX@toc@width@n ##1
               {
-                \hbox_set:Nn \l__hit_toc_gap_box { \hit@chapter@number@gap: }
+                \__hit_toc_gap_box_set:n {##1}
                 \hbox_set:Nn \l__hit_toc_num_box {##1}
                 \dim_set:Nn \l__hit_toc_num_pad_dim
                   {
@@ -435,7 +469,7 @@
       {
         \cs_set_protected:Npn \CTEX@toc@width@n ##1
           {
-            \hbox_set:Nn \l__hit_toc_gap_box { \hit@chapter@number@gap: }
+            \__hit_toc_gap_box_set:n {##1}
             \hbox_set:Nn \l__hit_toc_num_box {##1}
             \dim_set:Nn \@tempdima
               {

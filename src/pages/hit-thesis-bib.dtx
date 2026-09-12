@@ -55,6 +55,58 @@
         \RequirePackage{bibentry}
       }
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{哪几档排全角标号、标号后的间距、人文的悬挂，
+%   三样挪到 \pkg{gbt7714} 的钩子之外：\pkg{biblatex} 那条线先前读不到}
+% \emph{标号的三个取值在类加载时就定，不放进 \pkg{gbt7714} 的钩子。}下面那个
+% 钩子只在传统线装了 \pkg{gbt7714} 时才跑，\pkg{biblatex} 那条线从不进去；
+% 先前“全角档标号后不留空”写在钩子里，\pkg{biblatex} 的著录列表读到的还是
+% 半个字宽。这里只留下判断与取值，钩子里只剩改写 \cs{@biblabel} 那一句。
+%
+% 哪几档全角：深圳，以及哈尔滨、威海的本硕博，人文社科类除外。全角档标号后
+% 不留空（三份范例，见下面 \cs{@biblabel} 那一节）。
+%
+% 人文社科类另一个样。两份人文范例（博士 \texttt{s-hss}、本科）的文献表与
+% 成果页条目一致：半角“[1]”、后面一个西文空格（Word 导出逐字量，“]”右缘到
+% 正文 6.0，一个 Times 空格加字符间距）、折行悬挂 426 缇（21.3\,bp，docx 里
+% \texttt{hangingChars=171}），悬挂比“[1] ”还宽 3.9，续行比首行正文右缩一截；
+% 两位数标号时悬挂不变。指南的著录示例印的是全角方括号，两份范例整篇都是半角，
+% 照范例。悬挂那一档三处共用（传统线、\pkg{biblatex} 线、成果页）。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bib_fullwidth_bool
+\bool_lazy_all:nT
+  {
+    { ! \bool_if_p:N \g__hit_hass_bool }
+    {
+      \bool_if_p:N \g__hit_shenzhen_bool ||
+      (
+        ( \bool_if_p:N \g__hit_harbin_bool || \bool_if_p:N \g__hit_weihai_bool )
+        &&
+        (
+          \bool_if_p:N \g__hit_bachelor_bool || \bool_if_p:N \g__hit_master_bool
+          || \bool_if_p:N \g__hit_doctor_bool
+        )
+      )
+    }
+  }
+  {
+    \bool_gset_true:N \g__hit_bib_fullwidth_bool
+    \tl_gset:Nn \g__hit_bib_labelsep_tl { 0pt }
+  }
+\bool_if:NT \g__hit_hass_bool
+  { \tl_gset:Nn \g__hit_bib_labelsep_tl { 0.25em } }
+\cs_new_protected:Npn \hit@bib@hang:
+  {
+    \bool_if:NT \g__hit_hass_bool
+      {
+        \dim_set:Nn \leftmargin { 1.775em }
+        \dim_set:Nn \itemindent { \labelwidth + \labelsep - \leftmargin }
+      }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
 \AddToHook { package / gbt7714 / after }
   {
 \cs_gset:Npn \bibstyle@inline
@@ -91,27 +143,8 @@
 % \file{hit-thesis-pagestyle.dtx}），文献表从没另有规定，先前排半角只是没被
 % 点名，一并进全角档。
 %    \begin{macrocode}
-\bool_lazy_or:nnT
-  { \bool_if_p:N \g__hit_shenzhen_bool }
-  {
-    \bool_lazy_and_p:nn
-      {
-        \bool_lazy_or_p:nn
-          { \bool_if_p:N \g__hit_harbin_bool } { \bool_if_p:N \g__hit_weihai_bool }
-      }
-      {
-        \bool_lazy_any_p:n
-          {
-            { \bool_if_p:N \g__hit_bachelor_bool }
-            { \bool_if_p:N \g__hit_master_bool }
-            { \bool_if_p:N \g__hit_doctor_bool }
-          }
-      }
-  }
-  {
-    \cs_set:Npn \@biblabel #1 { \mbox { ［#1］ } }
-    \tl_gset:Nn \g__hit_bib_labelsep_tl { 0pt }
-  }
+\bool_if:NT \g__hit_bib_fullwidth_bool
+  { \cs_set:Npn \@biblabel #1 { \mbox { ［#1］ } } }
 %    \end{macrocode}
 % \end{macro}
 %
@@ -132,7 +165,7 @@
 %    \end{macrocode}
 % \changes{v3.1b}{2022/06/06}{修改深圳校区的 \cs{labelsep} 为 0pt}
 %    \begin{macrocode}
-  \hit@bib@list:nn {#1} { \hit@bib@labelsep: }
+  \hit@bib@list:nnn {#1} { \hit@bib@labelsep: } { \hit@bib@hang: }
   \hit@bib@list@rules:
 %    \end{macrocode}
 % \changes{v2.0.07}{2019/03/02}{添加flushbottom到thebibliography环境中}
@@ -255,6 +288,7 @@
         \dim_set:Nn \leftmargin { \labelsep + \labelwidth }
         \skip_zero:N \itemsep
         \skip_zero:N \parsep
+        \hit@bib@hang:
       }
     \sloppy \frenchspacing
     \flushbottom

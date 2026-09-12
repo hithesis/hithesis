@@ -228,33 +228,81 @@
     \bool_if:NTF \g__hit_en_bool
       { ( \int_use:N \g__hit_pub_group_int ) ~ }
       {
-        \bool_if:NTF \g__hit_bachelor_bool
+        \bool_lazy_or:nnTF
+          { \bool_if_p:N \g__hit_bachelor_bool } { \bool_if_p:N \g__hit_hass_bool }
           { \zhnumber { \int_use:N \g__hit_pub_group_int } 、 }
           { （ \zhnumber { \int_use:N \g__hit_pub_group_int } ） }
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{人文社科类的组名走节标题那一档：黑体小三、
+%   段前段后 195 缇、编号“一、”；条目照文献表的半角标号}
+% \emph{人文社科类的组名是节标题。}人文博士范例的三条组名段 \texttt{pStyle=2}
+% （标题 2，黑体小三），段前段后各 195 缇（9.75 磅），编号“一、”“二、”，
+% 本科人文范例同。条目与它的文献表一样：半角“[1]”加一个空格、悬挂 1.71 字，
+% 走 \file{hit-thesis-bib.dtx} 里那两个共用取值。
+%
+% 竖向按行盒堆：组名行是黑体小三的 1.25 倍行盒（24.32\,bp，上升 15.2、下沉
+% 9.12），条目行是小四的 1.25 倍行盒（上升 12.18、下沉 7.28），组名与条目之间
+% 各 9.75。范例量出来组名到首条 31.2、末条到组名 31.4，堆出来是
+% 9.12＋9.75＋12.18＝31.05 与 7.28＋9.75＋15.2＝32.2。组名段只有一行，让
+% \TeX{} 走 \cs{lineskip} 那一档真堆（\cs{lineskiplimit} 顶到最大、
+% \cs{lineskip} 清零）；列表不能这么堆——撑杆只在段首那一行，续行是字形自己
+% 的高深，堆出来忽长忽短——所以列表仍按 \cs{baselineskip} 走，组名到首条那
+% 一段差的 9.12＋12.18－19.46＝1.84 在组名之后、列表之前用 \cs{addvspace}
+% 连同那 9.75 一起给（列表自己的 \cs{topsep} 与它合并，不叠加；写进
+% \cs{topsep} 的话列表尾也会多这 1.84）。理工那一档不补，两边范例的数各是
+% 各的。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_pub_group_skip:
+  { \bool_if:NTF \g__hit_hass_bool { 9.75bp } { 5bp } }
+\cs_new_protected:Npn \__hit_pub_group_font:
+  {
+    \bool_if:NTF \g__hit_hass_bool
+      {
+        \hit@title@font \xiaosan
+        \bool_set_false:N \l_hit_format_strut_exact_bool
+        \dim_set:Nn \baselineskip { 24.32bp }
+        \dim_set:Nn \lineskiplimit { \maxdimen }
+        \skip_zero:N \lineskip
+      }
+      { \hit@font@fakebold@zh: }
+  }
+\cs_new:Npn \__hit_pub_labelsep:
+  { \bool_if:NTF \g__hit_hass_bool { \hit@bib@labelsep: } { 1em } }
+\cs_new_protected:Npn \__hit_pub_hang:
+  {
+    \bool_if:NTF \g__hit_hass_bool
+      { \hit@bib@hang: }
+      {
+        \dim_set:Nn \leftmargin { 2.3em }
+        \dim_set:Nn \itemindent { \labelwidth + \labelsep - \leftmargin }
       }
   }
 \NewDocumentEnvironment { pubgroup } { O{auto} m }
   {
     \int_gincr:N \g__hit_pub_group_int
-    \par \addvspace { 5bp }
+    \par \addvspace { \__hit_pub_group_skip: }
     \group_begin:
       \dim_zero:N \parindent
       \skip_zero:N \parskip
       \dim_set:Nn \lineskiplimit { -\maxdimen }
-      \noindent \hit@font@fakebold@zh:
+      \noindent \__hit_pub_group_font:
       \str_case:nnF {#1}
         { { auto } { \__hit_pub_group_number: } { } { } }
         {#1}
       #2 \par
     \group_end:
     \nobreak
-    \hit@bib@list:nnn { \__hit_pub_widest: } { 1em }
+    \bool_if:NT \g__hit_hass_bool
+      { \addvspace { 9.75bp + 9.12bp + 12.18bp - 19.46bp } }
+    \hit@bib@list:nnn { \__hit_pub_widest: } { \__hit_pub_labelsep: }
       {
-        \skip_set:Nn \topsep { 5bp - \parskip }
+        \skip_set:Nn \topsep { \__hit_pub_group_skip: - \parskip }
         \skip_zero:N \partopsep
         \dim_set:Nn \lineskiplimit { -\maxdimen }
-        \dim_set:Nn \leftmargin { 2.3em }
-        \dim_set:Nn \itemindent { \labelwidth + \labelsep - \leftmargin }
+        \__hit_pub_hang:
       }
     \hit@bib@list@rules:
     \cs_set_eq:NN \__hit_pub_olditem: \item
