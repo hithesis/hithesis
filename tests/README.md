@@ -39,25 +39,27 @@ BIBSTYLE=gbt7714-2025-numeric           # 可选，替换掉整棵树里的 \bib
 `BIBSTYLE` 改写两处：源码里的 `\bibliographystyle{}` 那一行，以及 `structure` 族的
 `bib-style` 键。用 `\hitbackmatter` 排后置部分时前者由类生成，源码里根本没有。
 
-变体 42 与 43 是同一份文档的两种写法：42 走 `hithesisartplus` 空壳，43 走
-`hit-report` 加三个选项。深圳博士中期 v3.2a 从独立文档类并回报告类，
-两者的 PDF 必须逐字节相同，空壳一断就会在这里露出来。空壳在 v4.1a 移除，
-届时删掉 42。
+变体 43 是深圳博士中期，由 `stage=interim,degree-level=doctor,campus=shenzhen`
+三个选项选中。这一档 v3.2a 从独立文档类（`hithesisartplus`）并回报告类，当时
+留了个转发空壳，42 号变体比的就是“空壳与三个选项输出逐字节相同”；空壳在
+v3.2a 移除之后那一格没了意义，已删。
 
 变体 44 与 45 走 `fontset=mac`，其余全部钉死 `fontset=fandol`。行距与字体无关是
 靠绝对值实现的：字号和行距都写成 bp，不用 `em` 也不用 `\linespread`。但每页第一行
 走 `\topskip`（12pt），而 mac 仿宋的字面高是 10.13pt，余量只有 1.87pt——再高一点
 每页第一行就会跟着字体往下掉。这两个变体钉的就是那点余量。
 
-另外两个空壳 `hithesisbook` 与 `hithesisart` 走 `testfiles/23`、`testfiles/24`，
-那边比变体便宜，只钉转发结果。
+三个旧类名（`hithesisbook`、`hithesisart`、`hithesisartplus`）在 v3.2a 移除。
+它们各留一份只报错的类文件，写了旧名会得到一条说清改法的错误，而不是 LaTeX
+自己那句看不出该改成什么的“File not found”。`testfiles/23`、`24`、`72` 各钉
+一个名字，钉的是“报了错”，不钉文案。
 
 要加新组合，往 `tests/variants/` 里丢一个 `.conf` 就行，别处不用改。
 
 ## 用法
 
 ```sh
-# 45 个变体全编一遍，渲染结果存为本地基线
+# 48 个变体全编一遍，渲染结果存为本地基线
 make baseline            # 即 bash tools/make-baseline.sh
 
 # 改完 dtx，重编并与本地基线逐页比对

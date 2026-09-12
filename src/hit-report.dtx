@@ -18,7 +18,7 @@
 % ^^A 开题中期报告类 hit-report 的实现
 % ^^A
 % ^^A 开题、中期报告的全部代码，含深圳博士中期。旧名 hithesisart.cls 与
-% ^^A hithesisartplus.cls 现在都只是转发的空壳。
+% ^^A hithesisartplus.cls 在 v3.2a 移除，写了会报错并说明改法。
 % ^^A
 % ^^A 各个类共用的文件头（\NeedsTeXFormat、\ProvidesExplClass 等）留在 hithesis.dtx，
 % ^^A 共用的小工具在 src/utils/，hithesis.ins 里每个 \file 先取头，再取实现。
@@ -83,6 +83,51 @@
 %<*reportcls-load>
 \LoadClass[a4paper,UTF8,zihao=-4,scheme=plain]{ctexart}
 \bool_gset_true:N \g__hit_base_class_loaded_bool
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{报告类从基础类白拿的那几条默认值显式写出来，
+%   为换 \cls{ctexbook} 做准备}
+% \emph{从基础类白拿的默认值，显式写一遍。} 下面这几条现在都是
+% \cls{ctexart} 已有的默认值，抄一遍是恒等改写，一个像素都不该动。写出来是
+% 为了接下来换 \cls{ctexbook}：那边这几条各不相同，到时候只要改这几行，
+% 而不是在「底类换了」与「这一条没压住」之间猜。
+%
+% \begin{itemize}
+% \item \cs{secnumdepth}：\cls{article} 是 3，\cls{book} 是 2。报告通篇没写过
+%   这一句，一直白拿 3；不写死的话换过去三级标题的编号会整个消失。
+% \item \cs{thesection}：\cls{article} 是光节号，\cls{book} 带章号前缀。
+% \item \cs{theHsection}：\pkg{hyperref} 的锚名，同理。印出来看不见，但书签
+%   与交叉引用的目标名会变。
+% \item \cs{pagestyle}：\cls{article} 末尾设 \texttt{plain}，\cls{book} 设
+%   \texttt{headings}。报告只有深圳两处与威海硕士开题显式设过自家样式，
+%   本部各档吃的是类默认值。
+% \end{itemize}
+%    \begin{macrocode}
+\setcounter { secnumdepth } { 3 }
+\cs_set:Npn \thesection { \@arabic \c@section }
+\AddToHook { begindocument }
+  { \cs_set:Npn \theHsection { \arabic { section } } }
+\pagestyle { plain }
+%    \end{macrocode}
+%
+% \emph{\cs{appendix} 自己写一份，不依赖底类。} \cls{ctexart} 的
+% \cs{appendix} 改的是 \cs{CTEX@presection} 那四个宏（节号变 A、B、C），
+% \cls{ctexbook} 那份用 \cs{gdef} 写死了改 \cs{CTEX@prechapter} 一族，
+% 换过去节号会从 A 变回 1。这是摸底里唯一一条压不回去的，所以照 \cls{ctexart}
+% 的形状自己写一份，接在它保存的 \cs{CTEX@save@appendix} 之后。
+%
+% 写在这里而不是等换基类时再写：现在写下来，在 \cls{ctexart} 下它与底类那份
+% 逐字同义，接错了时机当场就会红。
+%    \begin{macrocode}
+\cs_gset_protected:Npn \appendix
+  {
+    \CTEX@save@appendix
+    \gdef \CTEX@presection { \CTEX@preappendix }
+    \gdef \CTEX@thesection { \CTEX@appendix@number }
+    \gdef \CTEX@postsection { \CTEX@postappendix }
+    \gdef \CTEX@section@numbering { \CTEX@appendix@numbering }
+  }
+\ctexset { appendix / number = \@Alph \c@section }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/03}{LoadClass 之后的所有标准包加载、配置整体打包至 art-deps 模块；artcls 仅保留 LoadClass}

@@ -116,7 +116,13 @@ else ifneq ($(filter $(METHOD),xelatex lualatex),)
 
 # nonstopmode：手册里写错宏名之类的错误会让 xelatex 停在交互提示上等输入，
 # 无人看管时会一直挂着。cls 目标早就加了，manual 漏了。
+#
+# 头一句之前先删 .gls 与 .ind：第一次 xelatex 会把它们读进来，而重建它们的
+# makeindex 排在后面，于是上一轮的陈旧内容会进这一轮的第一遍。改了 \changes
+# 条目之后这一点会直接炸——旧 .gls 里那条记录还带着改之前的花括号，报
+# “Extra }”，而源码本身是好的。踩过两次。
 $(PACKAGE).pdf: $(TARGETS)
+	-$(RM) $(PACKAGE).gls $(PACKAGE).glo $(PACKAGE).ind $(PACKAGE).idx
 	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 	makeindex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
 	makeindex -s gglo.ist -o $(PACKAGE).gls $(PACKAGE).glo
