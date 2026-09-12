@@ -279,7 +279,7 @@
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/27}{固定词汇按页分桶：键名是「桶-词条」，用户写
-%   \option{term}\texttt{=\{zh=\{titlepage=\{supervisor=\ldots\}\}\}}}
+%   \option{term}\texttt{!=\{zh!=\{titlepage!=\{supervisor!=\ldots\}\}\}}}
 % \emph{页桶。} 同一个字段身份在不同的页上是不同的东西：报告封面的「院（系）」与
 % 内封的「所在单位」都叫 \option{affiliation}，挤在一层里只能靠前缀区分，越加越长，
 % 而且看不出哪一条只有某一页用得上。所以键名前面带一段桶名，一页一个桶，
@@ -661,6 +661,8 @@
 \int_new:N \l__hit_axis_index_int
 \prop_new:N \g__hit_axis_order_prop
 \tl_new:N \l__hit_axis_current_tl
+\bool_new:N \l__hit_axis_not_bool
+\int_new:N \l__hit_axis_weight_int
 \cs_new_protected:Npn \__hit_axis_record:nn #1#2
   {
     \tl_if_in:nnT {#2} { - }
@@ -689,6 +691,57 @@
   }
 %    \end{macrocode}
 %
+% \begin{macro}{\hit@axis@bools:}
+% \changes{v3.2a}{2026/09/13}{补齐轴值标志位：这个类不收的档位也造一个假的，
+%   免得条件写出来是「不认识的条件」}
+% \emph{每个档位值都得有一个标志位，哪怕这个类不收它。} 条件靠
+% \cs{bool\_if\_exist:cTF} 查标志位，查不到就发「不认识的条件」的提示。
+% 两个类收的档位不一样：报告类的学位轴没有 \texttt{postdoc}，学科门类轴整根都没有，
+% 于是同一份 \file{cfg} 里写 \texttt{[degree-level=postdoc]} 在学位论文类是正常分支，
+% 到报告类就成了一条警告。造一个恒假的标志位，条件读到就是「不成立」，
+% 与「这一档不适用」是同一个意思。
+%
+% \emph{排在选项声明之后跑。} \cs{hit@define@choice@option} 自己
+% \cs{bool\_new:c}，先造好会与它撞名；所以这里只补它没造的那些。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_axis_bool_fill:n #1
+  {
+    \bool_if_exist:cF { g__hit_#1_bool }
+      { \bool_new:c { g__hit_#1_bool } }
+  }
+\cs_new_protected:Npn \hit@axis@bools:
+  {
+    \clist_map_inline:Nn \c__hit_axis_clist
+      {
+        \prop_get:NnNT \c__hit_axis_values_prop {##1} \l__hit_axis_value_tl
+          {
+            \exp_args:NV \clist_map_function:nN \l__hit_axis_value_tl
+              \__hit_axis_bool_fill:n
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \changes{v3.2a}{2026/09/13}{档位值前面加 \texttt{!!} 表示取反，与条件里的写法同一套}
+% \emph{档位值前面加 \texttt{!} 就是取反。} \texttt{achievements-heading-!final}
+% 读作「不是终稿的那几档」，也就是开题与中期两份报告共用的说法。
+% 这与 \cs{hit@presetup} 里条件的写法是同一套：\option{layout}\texttt{=!v2-layout}
+% 读作「不是旧版面」。两处都不给默认值另立名字。
+%
+% \emph{为什么不给「报告」另编一个档位值。} \texttt{stage} 轴上终稿是基准，
+% 开题与中期是它的两个变体。合并两个 \file{cfg} 之后，同一个词条在终稿那一份
+% 写裸键，报告那两份不同的地方写 \texttt{-!final}。要是另立一个
+% \texttt{report} 档位值，它与 \texttt{proposal}、\texttt{interim} 就在同一条轴上
+% 重叠了，查表得先知道哪个盖哪个；取反不引入新档位，盖不盖由段数决定。
+%
+% \emph{取反的那一段算半档。} 比具体程度时正着写的一段算 2 分，取反的算 1 分，
+% 所以 \texttt{-proposal} 压得住 \texttt{-!final}：前者指名道姓，后者只排除了一档。
+% 全表都不带 \texttt{!} 时每段一律 2 分，名次与从前按段数排的完全一样。
+%
+% \emph{语种段不许取反。} 语种是分区不是档位，中英两份得同时在（见下面查表
+% 那一段），写 \texttt{-!zh} 当场报错，不静默失效。
+%
 % \begin{macro}{\hit@axis@parse:n}
 % \cs{hit@axis@parse:n}\marg{键名} 把键名切成「词条名」与「各轴取值」。从\emph{末段}
 % 往前剥：末段是档位值、且它那条轴排在已剥出来的各轴\emph{之前}，就继续剥；否则
@@ -711,15 +764,23 @@
         \int_compare:nNnT { \seq_count:N \l__hit_axis_seg_seq } > { 1 }
           {
             \seq_get_right:NN \l__hit_axis_seg_seq \l__hit_axis_value_tl
+            \exp_args:NV \__hit_axis_negate:n \l__hit_axis_value_tl
             \prop_get:NVNT \g__hit_axis_of_prop \l__hit_axis_value_tl
               \l__hit_axis_name_tl
               {
+                \bool_lazy_and:nnT
+                  { \bool_if_p:N \l__hit_axis_not_bool }
+                  { \str_if_eq_p:Vn \l__hit_axis_name_tl { lang } }
+                  { \msg_error:nnn { hithesis } { axis-negate-lang } {#1} }
                 \prop_get:NVN \g__hit_axis_order_prop \l__hit_axis_name_tl
                   \l__hit_axis_pos_tl
                 \int_compare:nNnT { \l__hit_axis_pos_tl } < { \l__hit_axis_last_tl }
                   {
-                    \prop_put:NVV \l__hit_axis_spec_prop \l__hit_axis_name_tl
-                      \l__hit_axis_value_tl
+                    \prop_put:NVx \l__hit_axis_spec_prop \l__hit_axis_name_tl
+                      {
+                        \bool_if:NT \l__hit_axis_not_bool { ! }
+                        \l__hit_axis_value_tl
+                      }
                     \tl_set_eq:NN \l__hit_axis_last_tl \l__hit_axis_pos_tl
                     \seq_pop_right:NN \l__hit_axis_seg_seq \l__hit_axis_value_tl
                     \bool_set_true:N \l__hit_axis_more_bool
@@ -810,12 +871,34 @@
 % \texttt{school-bottom-mark-harbin}。前者在报告类里段数多、会赢，赢了却绑到一个
 % 没定义的宏上，用的时候才报 undefined。所以先看有没有值，没值的不算候选。
 %    \begin{macrocode}
+\cs_new_protected:Npn \__hit_axis_negate:n #1
+  {
+    \tl_if_head_eq_charcode:nNTF {#1} !
+      {
+        \bool_set_true:N \l__hit_axis_not_bool
+        \tl_set:Nx \l__hit_axis_value_tl { \tl_tail:n {#1} }
+      }
+      {
+        \bool_set_false:N \l__hit_axis_not_bool
+        \tl_set:Nn \l__hit_axis_value_tl {#1}
+      }
+  }
 \cs_new_protected:Npn \__hit_axis_match:nn #1#2
   {
+    \__hit_axis_negate:n {#2}
+    \int_add:Nn \l__hit_axis_weight_int
+      { \bool_if:NTF \l__hit_axis_not_bool { 1 } { 2 } }
     \prop_get:NnNTF \l__hit_axis_context_prop {#1} \l__hit_axis_best_tl
       {
-        \str_if_eq:VnF \l__hit_axis_best_tl {#2}
-          { \bool_set_false:N \l__hit_axis_hit_bool }
+        \str_if_eq:VVTF \l__hit_axis_best_tl \l__hit_axis_value_tl
+          {
+            \bool_if:NT \l__hit_axis_not_bool
+              { \bool_set_false:N \l__hit_axis_hit_bool }
+          }
+          {
+            \bool_if:NF \l__hit_axis_not_bool
+              { \bool_set_false:N \l__hit_axis_hit_bool }
+          }
       }
       { \bool_set_false:N \l__hit_axis_hit_bool }
   }
@@ -833,11 +916,11 @@
     \prop_pop:NnNT \l__hit_axis_spec_prop { lang } \l__hit_axis_lang_tl
       { \tl_put_right:Nx \l__hit_axis_term_tl { - \l__hit_axis_lang_tl } }
     \bool_set_true:N \l__hit_axis_hit_bool
+    \int_zero:N \l__hit_axis_weight_int
     \prop_map_function:NN \l__hit_axis_spec_prop \__hit_axis_match:nn
     \bool_if:NT \l__hit_axis_hit_bool
       {
-        \int_set:Nn \l__hit_axis_index_int
-          { \prop_count:N \l__hit_axis_spec_prop }
+        \int_set:Nn \l__hit_axis_index_int { \l__hit_axis_weight_int }
         \bool_set_true:N \l__hit_axis_report_bool
         \exp_args:NNNV \__hit_axis_rank:NNnn
           \l__hit_axis_best_prop \l__hit_axis_win_prop

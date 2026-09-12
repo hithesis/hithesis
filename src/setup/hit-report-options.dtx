@@ -93,7 +93,7 @@
 % 旧名 \option{type} 照旧生效，转发到 \option{degree-level}，并提示一次。取值判断看的是
 % \cs{g\_\_hit\_}\meta{取值}\cs{\_bool}，跟键名无关，所以内部代码一处不用改。
 % \changes{v3.2a}{2026/08/12}{加一对类身份标志位，让 \cs{hitsetup} 的条件能写
-%   \texttt{stage!=final} 与 \texttt{class=report} 两种条件。共用一份配置时用得上}
+%   \texttt{stage!=final} 与 \texttt{class!=report} 两种条件。共用一份配置时用得上}
 % 两个都声明，缺一个的话条件求值会撞上不存在的标志位。
 %    \begin{macrocode}
 \bool_new:N \g__hit_report_bool
@@ -161,12 +161,24 @@
 
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/09/13}{报告类也加 \option{category}，取值与学位论文类同}
+% \option{category} 分理工类与人文社科类，默认 \texttt{stem}。来历、取名与别名
+% \texttt{hss} 都记在 \file{src/setup/hit-thesis-options.dtx} 的同一段。
+%
+% 报告类目前没有按它分岔的版式。声明它的理由与上面 \option{degree-type} 那条一样，
+% 再加一条：两份 \file{cfg} 要合成一份，学位论文那边有六处
+% \texttt{[category=hass]} 的分支，报告类这根轴整根没有的话，同一行配置
+% 到了报告类就成了「不认识的条件」。
+%    \begin{macrocode}
+\hit@define@choice@option{category}{}{stem,hass,hss}{stem}
+%    \end{macrocode}
+%
 % \changes{v3.2a}{2026/08/12}{报告类加 \option{lang}，封面标签有英文版。
 %   原先只有学位论文类有这个选项，报告类写了英文取值会被静默忽略}
 % 正文语言。取值与 \file{hit-thesis.cls} 相同，共用 \cs{c\_\_hit\_lang\_clist}。
 %
 % 原先报告类没有这个选项，用户写 \texttt{lang=en} 会落进 \texttt{unknown} 分支被转给
-% \pkg{ctexart}，那边认识这个名字，于是既不报错也不生效，排出来还是中文。
+% 底层的 \pkg{ctex}，那边认识这个名字，于是既不报错也不生效，排出来还是中文。
 %    \begin{macrocode}
 \exp_args:NnnV \hit@define@choice@option {lang} {} \c__hit_lang_clist {}
 %    \end{macrocode}
@@ -291,7 +303,7 @@
 \hit@define@string@option@as{math-style}{mathstyle}
 \keys_define:nn { hit / class }
   {
-    unknown .code:n = { \hit@pass@or@warn { ctexart } {#1} } ,
+    unknown .code:n = { \hit@pass@or@warn { ctexbook } {#1} } ,
   }
 \PassOptionsToPackage{no-math}{fontspec}
 
@@ -321,6 +333,19 @@
     \bool_gset_true:N  \g__hit_interim_bool
   }
 
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{\option{category} 的别名 \texttt{hss} 折成正名
+%   \texttt{hass}，与学位论文类同一套}
+% 别名折成正名。为什么非得排在 \cs{ProcessKeyOptions} 之后，见
+% \file{src/setup/hit-thesis-options.dtx} 里同名那一段。
+%    \begin{macrocode}
+\bool_if:NT \g__hit_hss_bool
+  {
+    \bool_gset_false:N \g__hit_hss_bool
+    \bool_gset_true:N  \g__hit_hass_bool
+    \bool_gset_false:N \g__hit_stem_bool
+  }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/12}{art-options 的三段选项校验改用 \cs{bool\_lazy\_any:nF}、
@@ -364,6 +389,11 @@
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/12}{选项后处理（AutoFakeBold 与 fontset 透传）从 artcls 移入 art-options 模块}
+% \changes{v3.2a}{2026/09/13}{透传的目标类名改成 \cls{ctexbook}，跟上底类的更换}
+%
+% 收件人写的是底类的名字。底类在 v3.2a 从 \cls{ctexart} 换成 \cls{ctexbook}，
+% 这里没跟着改的话，\cs{PassOptionsToClass} 会把选项排给一个根本不加载的类，
+% 既不报错也不生效：\option{fontset} 静默失效，中文字体退回自动探测的那一套。
 %    \begin{macrocode}
 \RequirePackage{ifthen}
 \bool_lazy_and:nnT
@@ -381,9 +411,9 @@
 %    \begin{macrocode}
     \PassOptionsToPackage { AutoFakeBold=2.85 } { xeCJK }
     \tl_if_empty:NF \hit@fontset
-      { \PassOptionsToClass { fontset=\hit@fontset } { ctexart } }
+      { \PassOptionsToClass { fontset=\hit@fontset } { ctexbook } }
   }
-  { \PassOptionsToClass { fontset=none } { ctexart } }
+  { \PassOptionsToClass { fontset=none } { ctexbook } }
 %</report-options>
 %    \end{macrocode}
 %

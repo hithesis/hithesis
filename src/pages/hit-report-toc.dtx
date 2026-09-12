@@ -32,6 +32,68 @@
       }
   }
 \RequirePackage[subfigure]{tocloft}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{底类换 \cls{ctexbook} 之后 \pkg{tocloft} 进有章
+%   模式，它按这个分叉设的三个量要设回节模式的值}
+% \emph{\pkg{tocloft} 按「有没有 \cs{chapter}」分叉的那几处。} 它在加载时用
+% \cs{@cftifundefined}\{chapter\} 定一个开关，之后四处按它取不同的值。底类
+% 从 \cls{ctexart} 换成 \cls{ctexbook} 之后 \cs{chapter} 就存在了，这个开关翻
+% 真，四处跟着变：
+%
+% \begin{itemize}
+% \item \cs{cftsecindent} 由 0\,em 变 1.5\,em——整张目录右移一截。报告显式设过
+%   \cs{cftsubsecindent} 与 \cs{cftsubsubsecindent}，恰恰没设这一个。
+% \item \cs{cftbeforetoctitleskip} 由 3.5\,ex 变 50\,pt。
+% \item \cs{cfttitlecommand} 由 \cs{cftsection} 换成 \cs{cftchapter}，前者用
+%   \cs{vspace}、后者用 \cs{vspace*}；目录标题永远在页首，不带星的那份会被丢弃，
+%   带星的会真排出来。所以这一条不是把长度压回去就完事。
+% \item \cs{cfttoctitlefont}——这一个报告本来就在下面覆盖，不用管。
+% \end{itemize}
+%
+% \emph{按值设回去，不去动那个开关。} 另一条路是加载前后把 \cs{chapter} 藏起来
+% 再还原，让 \pkg{tocloft} 以为没有章。那样做 \cs{l@chapter} 与整套
+% \cs{cftchap*} 就都不会定义，而报告现在是可以排章的（写了 \cs{chapter} 就有），
+% 目录里那一级就没有格式可用。所以让它照常进有章模式，只把这三个量设回来。
+%    \begin{macrocode}
+\dim_set:Nn \cftsecindent { 0em }
+\dim_set:Nn \cftbeforetoctitleskip { 3.5ex \@plus 1ex \@minus .2ex }
+\cs_set:Npn \cfttitlecommand #1 { \cftsection {#1} }
+%    \end{macrocode}
+%
+% \emph{还有一处不是取值而是写法。} \cs{l@section} 的段前，节模式下是
+% \cs{addpenalty}\cs{@secpenalty} 加 \cs{addvspace}，章模式下换成裸的
+% \cs{vskip}。两者不等价：\cs{addvspace} 与前一条目留下的胶\emph{合并}取大者，
+% \cs{vskip} 是直接叠上去，所以章模式下每个节条目前面都会多出一段。实测目录页
+% 整体下移 9\,bp。照节模式那份重写一遍。
+%
+% 这是 \pkg{tocloft} 四处分叉里唯一一处「设个值压不回来」的，其余三处上面都
+% 按值设回去了。
+%    \begin{macrocode}
+\cs_set:Npn \l@section #1#2
+  {
+    \int_compare:nNnT { \c@tocdepth } > { 0 }
+      {
+        \addpenalty \@secpenalty
+        \addvspace { \cftbeforesecskip }
+        \group_begin:
+          \skip_set_eq:NN \leftskip \cftsecindent
+          \skip_set_eq:NN \rightskip \@tocrmarg
+          \skip_set:Nn \parfillskip { - \rightskip }
+          \dim_set_eq:NN \parindent \cftsecindent
+          \@afterindenttrue
+          \int_set:Nn \interlinepenalty { \@M }
+          \leavevmode
+          \dim_set:Nn \@tempdima { \cftsecnumwidth }
+          \skip_set:Nn \skip@ { \parfillskip }
+          \skip_zero:N \parfillskip
+          { \cftsecfont #1 }
+          \nobreak
+          \skip_set_eq:NN \parfillskip \skip@
+          \cftsecfillnum {#2}
+        \group_end:
+      }
+  }
 \cs_set:Npn \cfttoctitlefont  { \hfill \xiaoer \heiti }
 \cs_set:Npn \cftaftertoctitle { \hfill \mbox { } }
 \cs_set:Npn \cftsecfont       { \hit@toc@font \heiti }

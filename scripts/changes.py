@@ -109,6 +109,58 @@ def normalize(date: str) -> str:
     return f"{m.group(1)}/{int(m.group(2)):02d}/{int(m.group(3)):02d}" if m else date
 
 
+# gglo.ist 把 ! 当引号、= 当 actual 分隔、> 当层级、| 当 encap。\changes 的说明
+# 原样写进 .glo，这几个字符不转义就会被 makeindex 当成语法：一个没写 ! 的 =
+# 会把说明从那儿劈成“排序键”与“印出来的字”，前半截整段丢掉；劈出来的后半截
+# 常常带着半个花括号，第二遍编译报 “Extra }”，而报的位置在 .gls 里，跟源码对不上。
+# 踩过两次，第二次花了半小时才找到源头，所以在这里挡住。
+#
+# 写法：= 与 > 前面各加一个 !，字面的 ! 写成 !!。
+#
+# | 一个字都不许写，连转义的都不行。它有第二重身份：doc 宏包把 | 设成了 \verb
+# 的简写，而词汇表条目是移动参数，\verb 在那里非法。给 makeindex 转义之后它反而
+# 活着走到 LaTeX 手里，当场报 “\verb illegal in argument”。要印一条竖线写
+# \textbar。
+GLOSSARY_SPECIALS = "=>"
+
+
+def glossary_escape_problem(body: str) -> tuple[str, int] | None:
+    """返回 (说明，位置)；没问题返回 None。"""
+    i = 0
+    while i < len(body):
+        ch = body[i]
+        if ch == "!":
+            if i + 1 < len(body) and body[i + 1] in GLOSSARY_SPECIALS + "!":
+                i += 2
+                continue
+            return "孤立的 !（字面的感叹号要写成 !!）", i
+        if ch == "|":
+            return "竖线（写 \\textbar，它同时是 doc 宏包里 \\verb 的简写）", i
+        if ch in GLOSSARY_SPECIALS:
+            return f"未转义的 {ch}（前面要加 !）", i
+        i += 1
+    return None
+
+
+def audit_glossary() -> list[str]:
+    r"""查每条 \changes 的说明里 makeindex 特殊字符转义了没有。"""
+    problems = []
+    for f in dtx_files():
+        text = f.read_text(encoding="utf-8")
+        pos = 0
+        while (m := HEAD.search(text, pos)) is not None:
+            body, end = balanced(text, m.end())
+            pos = end + 1
+            found = glossary_escape_problem(body)
+            if found is not None:
+                why, at = found
+                line = text.count("\n", 0, m.start()) + 1
+                near = body[max(0, at - 20) : at + 20].replace("\n", " ")
+                rel = f.relative_to(ROOT)
+                problems.append(f"{rel}:{line} \\changes 说明里有{why}：…{near}…")
+    return problems
+
+
 def audit(items: list[tuple[str, str, str]], latest: str) -> list[str]:
     """返回问题清单，只查 LEGACY_MAX 之后的版本。
 
@@ -203,9 +255,10 @@ def main() -> int:
         return 0
 
     if args.check:
-        problems = audit(items, latest)
+        problems = audit(items, latest) + audit_glossary()
         if not problems:
-            print(f"\\changes 日期约定检查通过（开发版 v{latest}，共 {len(items)} 条）")
+            print(f"\\changes 检查通过：日期约定与词汇表转义都没问题"
+                  f"（开发版 v{latest}，共 {len(items)} 条）")
             return 0
         print(f"发现 {len(problems)} 处问题：")
         for msg in problems:

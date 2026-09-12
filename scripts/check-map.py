@@ -59,7 +59,7 @@ DESC = {
     "thesis-options": "文档类选项：声明、默认值、\\ProcessKeyOptions 之后的后处理",
     "report-options": "同上",
     "thesiscls-load": "★ \\LoadClass{ctexbook}，分水岭",
-    "reportcls-load": "★ \\LoadClass{ctexart}，分水岭",
+    "reportcls-load": "★ \\LoadClass{ctexbook}，分水岭",
     "thesis-fonts": "正文字号与主字体",
     "report-fonts": "正文字号与主字体",
     "thesis-pagestyle": "页眉页脚",

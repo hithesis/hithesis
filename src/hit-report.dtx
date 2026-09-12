@@ -59,7 +59,7 @@
 % ^^A 22  utils/hit-structure.dtx           shared-structure         struct 族的部件与分段
 % ^^A 23  setup/hit-keylist.dtx             shared-keylist,report-keylist 有哪些信息字段与常量
 % ^^A 24  setup/hit-report-options.dtx      report-options           同上
-% ^^A 25  hit-report.dtx                    reportcls-load           ★ \LoadClass{ctexart}，分水岭
+% ^^A 25  hit-report.dtx                    reportcls-load           ★ \LoadClass{ctexbook}，分水岭
 % ^^A 26  flow/hit-report-fonts.dtx         report-fonts             正文字号与主字体
 % ^^A 27  flow/hit-report-float.dtx         report-floats            浮动体
 % ^^A 28  flow/hit-report-pagestyle.dtx     report-pagestyle         页眉页脚
@@ -81,7 +81,7 @@
 %
 %    \begin{macrocode}
 %<*reportcls-load>
-\LoadClass[a4paper,UTF8,zihao=-4,scheme=plain]{ctexart}
+\LoadClass[a4paper,oneside,UTF8,zihao=-4,scheme=plain]{ctexbook}
 \bool_gset_true:N \g__hit_base_class_loaded_bool
 %    \end{macrocode}
 %
@@ -94,7 +94,7 @@
 %
 % \begin{itemize}
 % \item \cs{secnumdepth}：\cls{article} 是 3，\cls{book} 是 2。报告通篇没写过
-%   这一句，一直白拿 3；不写死的话换过去三级标题的编号会整个消失。
+%   这一句，一直白拿 3；不写死的话三级标题的编号会整个消失。
 % \item \cs{thesection}：\cls{article} 是光节号，\cls{book} 带章号前缀。
 % \item \cs{theHsection}：\pkg{hyperref} 的锚名，同理。印出来看不见，但书签
 %   与交叉引用的目标名会变。
@@ -102,32 +102,63 @@
 %   \texttt{headings}。报告只有深圳两处与威海硕士开题显式设过自家样式，
 %   本部各档吃的是类默认值。
 % \end{itemize}
+%
+% \changes{v3.2a}{2026/09/13}{底类换 \cls{ctexbook}；两个编号宏改成按章计数器
+%   自适应，写了 \cs{chapter} 就带章号，没写就与从前一字不差}
+% \emph{两个编号宏问的是「有没有章」，不是「哪个类」。}
+% \cs{int\_compare:nNnT}\{\cs{c@chapter}\}\texttt{>}\{0\} 这一句：没写过
+% \cs{chapter} 时章计数器停在零，编号就是光节号，与 \cls{ctexart} 下一字不差；
+% 写了 \cs{chapter} 就自动带上章号。这不是我们发明的写法——\cls{book} 自己的
+% \cs{thefigure}、\cs{thetable}、\cs{theequation} 就是
+% \cs{ifnum}\cs{c@chapter}\texttt{>}\cs{z@} \cs{thechapter}\texttt{.}\cs{fi}，
+% 只有 \cs{thesection} 没这么写，它无条件带章号。补上这一条之后，报告排不排章
+% 就成了作者写不写 \cs{chapter} 的事，不需要选项，也不需要模板提前知道。
 %    \begin{macrocode}
 \setcounter { secnumdepth } { 3 }
-\cs_set:Npn \thesection { \@arabic \c@section }
+\cs_set:Npn \thesection
+  { \int_compare:nNnT { \c@chapter } > { 0 } { \thechapter . } \@arabic \c@section }
 \AddToHook { begindocument }
-  { \cs_set:Npn \theHsection { \arabic { section } } }
+  {
+    \cs_set:Npn \theHsection
+      {
+        \int_compare:nNnT { \c@chapter } > { 0 } { \theHchapter . }
+        \arabic { section }
+      }
+  }
 \pagestyle { plain }
 %    \end{macrocode}
 %
-% \emph{\cs{appendix} 自己写一份，不依赖底类。} \cls{ctexart} 的
-% \cs{appendix} 改的是 \cs{CTEX@presection} 那四个宏（节号变 A、B、C），
-% \cls{ctexbook} 那份用 \cs{gdef} 写死了改 \cs{CTEX@prechapter} 一族，
-% 换过去节号会从 A 变回 1。这是摸底里唯一一条压不回去的，所以照 \cls{ctexart}
-% 的形状自己写一份，接在它保存的 \cs{CTEX@save@appendix} 之后。
+% \changes{v3.2a}{2026/09/13}{\cs{appendix} 也按有没有章分岔：没写 \cs{chapter}
+%   就改节号，写了就走 \cls{ctexbook} 原来那份改章号}
+% \emph{\cs{appendix} 问的同样是「有没有章」。} \cls{article} 的 \cs{appendix}
+% 置零节计数器、把 \cs{thesection} 改成 \cs{@Alph}\cs{c@section}；\cls{book} 那份
+% 置零的是章计数器，改的是 \cs{thechapter}，一个字都没碰 \cs{thesection}。
+% 换了底类又不管，报告里 \cs{appendix} 之后的节号会从 A 变回 1。
 %
-% 写在这里而不是等换基类时再写：现在写下来，在 \cls{ctexart} 下它与底类那份
-% 逐字同义，接错了时机当场就会红。
+% 所以先看章计数器再决定走哪一边。判断要抢在调用底类那份\emph{之前}：
+% \cls{book} 的 \cs{appendix} 头一件事就是把章计数器置零，调完再问，问到的
+% 永远是零。
+%
+% \emph{编号的形状也跟着分。} \cs{CTEX@appendix@number} 是同一个宏，章那一支要
+% \cs{@Alph}\cs{c@chapter}（\cls{ctexbook} 的默认值），节那一支要
+% \cs{@Alph}\cs{c@section}，所以在分支里设，不在类加载时设死。
 %    \begin{macrocode}
+\cs_new_eq:NN \__hit_appendix_chapter: \appendix
 \cs_gset_protected:Npn \appendix
   {
-    \CTEX@save@appendix
-    \gdef \CTEX@presection { \CTEX@preappendix }
-    \gdef \CTEX@thesection { \CTEX@appendix@number }
-    \gdef \CTEX@postsection { \CTEX@postappendix }
-    \gdef \CTEX@section@numbering { \CTEX@appendix@numbering }
+    \int_compare:nNnTF { \c@chapter } > { 0 }
+      { \__hit_appendix_chapter: }
+      {
+        \ctexset { appendix / number = \@Alph \c@section }
+        \setcounter { section } { 0 }
+        \setcounter { subsection } { 0 }
+        \cs_gset:Npn \thesection { \@Alph \c@section }
+        \gdef \CTEX@presection { \CTEX@preappendix }
+        \gdef \CTEX@thesection { \CTEX@appendix@number }
+        \gdef \CTEX@postsection { \CTEX@postappendix }
+        \gdef \CTEX@section@numbering { \CTEX@appendix@numbering }
+      }
   }
-\ctexset { appendix / number = \@Alph \c@section }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/03}{LoadClass 之后的所有标准包加载、配置整体打包至 art-deps 模块；artcls 仅保留 LoadClass}
@@ -160,6 +191,7 @@
 %    \begin{macrocode}
 %<*reportcfg>
 \input{hit-report.cfg}
+\hit@axis@bools:
 \hit@apply@presetup
 \hit@axis@resolve:
 \AfterPreamble
