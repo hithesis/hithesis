@@ -47,17 +47,40 @@
 %   \option{after-figure-caption-number} 与 \option{after-table-caption-number}}
 % 题号与题名之间的间隔。报告走 \pkg{caption} 的 \texttt{labelsep}，那个键只认
 % 名字，所以自己声明两个，各读一个常量，常量为空就退回原来的 \texttt{space}，
-% 也就是一个空格。报告没有 \option{lang} 选项，语言一律按中文取。
+% 也就是一个空格。
 %
 % 两处 \cs{captionsetup} 各自先 \cs{RequirePackage}\marg{caption}，声明得排在加载
 % 之后，所以包成一个宏在两处都调一次。
+%
+% \changes{v3.2a}{2026/09/14}{题号与题名之间那一下改发 \pkg{ccaption} 的
+%   \cs{captiondelim}：\pkg{caption} 的 \texttt{labelsep} 根本到不了正题注}
+% \emph{\texttt{labelsep} 到不了正题注。} \file{hit-flow-deps.dtx} 在
+% \pkg{subcaption}（它自己带进 \pkg{caption}）之后又加载了 \pkg{ccaption}，
+% 而 \pkg{ccaption} 把 \cs{@makecaption} 整个换掉了，分隔符读的是它自己的
+% \cs{@contdelim}。所以上面那两条声明发出去一直没作数，报告的题注从头到尾印的是
+% \pkg{ccaption} 的默认值「\texttt{:~}」。这里补发一次 \cs{captiondelim}，
+% 图与表按 \cs{@captype} 各读各的常量；两条旧声明留着，子题注那一头还走它们。
+%
+% 语言跟着文档走。先前这儿写死 \texttt{zh}——那会儿报告没有 \option{lang}，
+% 现在有了。
 %    \begin{macrocode}
+\cs_new:Npn \hit@report@caption@lang: { \bool_if:NTF \g__hit_en_bool { en } { zh } }
 \cs_new_protected:Npn \hit@report@declare@caption@separator:
   {
     \DeclareCaptionLabelSeparator { hit@figure@number }
-      { \hit@after@number:nnn { figure@caption } { zh } { \space } }
+      { \hit@after@number:nnn { figure@caption }
+          { \hit@report@caption@lang: } { \space } }
     \DeclareCaptionLabelSeparator { hit@table@number }
-      { \hit@after@number:nnn { table@caption } { zh } { \space } }
+      { \hit@after@number:nnn { table@caption }
+          { \hit@report@caption@lang: } { \space } }
+    \captiondelim
+      {
+        \str_if_eq:eeTF { \@captype } { table }
+          { \hit@after@number:nnn { table@caption }
+              { \hit@report@caption@lang: } { \space } }
+          { \hit@after@number:nnn { figure@caption }
+              { \hit@report@caption@lang: } { \space } }
+      }
   }
 %    \end{macrocode}
 %
@@ -81,12 +104,22 @@
 % \changes{v3.2a}{2026/08/07}{schrb: 将哈尔滨校区本科开题报告图表公式编号实现为“图 X-X”、“表 X-X”、“公式 (X-X)”的格式}
 % \changes{v3.2a}{2026/08/16}{条件由 \texttt{harbin} 改成“非深圳”，威海本科开题
 %   跟着本部走}
+% \changes{v3.2a}{2026/09/14}{正文照终稿排的那一档也排「图 1-1」：章级是节，
+%   编号跟着节走}
+% \emph{正文照终稿排的那一档一并进来。} 深圳本科那两份报告的第一级写的是
+% \cs{section}、按章排，题注也该是「图 1-1」。iota-hit 对原件的复刻件里中英两版
+% 都是这个写法（「图1-1」「Figure 1-1」）；先前这边只认本部与威海的本科开题，
+% 深圳本科排出来是 \cls{ctexart} 的「图 1:」。
 %    \begin{macrocode}
-\bool_lazy_all:nT
+\bool_lazy_or:nnT
+  { \bool_if_p:N \g__hit_final_body_bool }
   {
-    { ! \bool_if_p:N \g__hit_shenzhen_bool }
-    { \bool_if_p:N \g__hit_bachelor_bool }
-    { \bool_if_p:N \g__hit_proposal_bool }
+    \bool_lazy_all_p:n
+      {
+        { ! \bool_if_p:N \g__hit_shenzhen_bool }
+        { \bool_if_p:N \g__hit_bachelor_bool }
+        { \bool_if_p:N \g__hit_proposal_bool }
+      }
   }
   {
     \RequirePackage { caption }
