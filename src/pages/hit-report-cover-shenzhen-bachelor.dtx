@@ -176,29 +176,134 @@
 % 原件里 Word 也是这么办的，英文版「指导教师/ Supervisor：」量得 159.2，
 % 比格子内缘 157.05 还宽，探出去没折。
 %
+% \emph{格里每一行画一条线，格自己长高。} 值写长了就在格里折行，折出来的每一行
+% 底下都有一条线，下面几格跟着往下让。原件那一格里本来就是一串带 \texttt{w:u}
+% 的空格，填了字就是字的下划线，所以线跟着行走，不是单元格边框。
+%
+% \emph{折出来的行按「行盒加段前」排，不按行距排。} 这一处\emph{不照原件}：
+% Word 里段内换行没有段前，折出来的两条线只隔一个行盒，比格与格之间的步进挤
+% 一截，填表的人看着像两种线距。加上段前之后整页的线等距，折了行的那一格看着
+% 就是多了一格。iota 也是这么定的。
+%
 % \emph{行盒按 Word 算。} 一格一段，段前 12\,bp、行距 1.5 倍，行盒高取标签与值
 % 里高的那个；英文版标签带一截 16\,bp 的尾巴，六格的步进因此是 43.13 而不是
-% 41.18。这一档由 \option{report-cover-field} 给，撑杆
-% （\cs{hit@format@strut:}）把行盒撑到这个高度，标签与值自己的字号另发。
+% 41.18。这一档由 \option{report-cover-field} 给。
 %
-% \emph{线是字的下划线，不是单元格边框}（新版两份的 \texttt{tcBorders} 与
-% \texttt{tblBorders} 都没写）。位置跟着字体走：中文字 Word 画的线心在基线下
-% $\text{一个 em} / 8 + 0.5$\,bp、线宽 $12/256$ 个 em，这一条是拿中易三副字
-% 各排十六个字号量出来的，不照字体的 \texttt{post} 表。线画在零宽盒里，
-% 不占位、不参与断行。线画成上下各半个线宽的 \cs{vrule}，再整个抬到线心那一处，
-% 这样抬的量就是线心本身。\cs{rule} 收不下 \cs{dimexpr}（它要给参数补单位），
-% 线宽会静默变成零。
+% \emph{整格一种字，线跟着这一格挑。} 有汉字的格走中文那一档：Word 画的线心在
+% 基线下「一个 em 除以 8 加 0.5\,bp」、线宽 $12/256$ 个 em，拿中易三副字各排
+% 十六个字号量出来的，不照字体的 \texttt{post} 表。一个汉字都没有的格（学号那种
+% 纯数字、空着的格）走 Times 那一档，照它 \texttt{post} 表的 $-223/2048$ 与
+% $100/2048$；基线也跟着高一截，行盒矮一截。
 %
-% \emph{字体要在 \cs{noindent} 之前发。} 撑杆由 \cs{everypar} 那一支自动补一根，
-% 补的时候按当时的字号与 \cs{baselineskip} 算；\cs{noindent} 会触发
-% \cs{everypar}，字体写在它后面的话，这一根撑杆量的是\emph{上一行}的字号。
-% 实测题目那一格之后的头一格因此低 3\,bp。发字体这一步本身就把段落起了头，
-% 所以 \cs{parindent} 要在它之前归零，不然 \cs{noindent} 已经晚了一步，
-% 题目那一行会缩进两个字。
+% \emph{与 iota 的差别记在这里：} 那边是\emph{逐行}判有没有汉字，中西混排折了行
+% 时每一行各挑各的。这里按整格判，单行的格（六格填的都是这一路）完全一样，
+% 中西混着又折了行的格会整格取一档。
 %    \begin{macrocode}
     \tl_new:N \l__hit_szb_font_tl
-    \cs_new_protected:Npn \hit@szb@rule:n #1 { \hit@szb@rules:nn { 1 } {#1} }
-    \cs_new_protected:Npn \hit@szb@rules:nn #1#2
+    \str_new:N \l__hit_szb_scan_str
+    \bool_new:N \l__hit_szb_cjk_bool
+    \box_new:N \l__hit_szb_cell_box
+    \dim_new:N \l__hit_szb_pitch_dim
+    \dim_new:N \l__hit_szb_ascent_dim
+    \dim_new:N \l__hit_szb_size_dim
+    \dim_new:N \l__hit_szb_label_ascent_dim
+    \dim_new:N \l__hit_szb_center_dim
+    \dim_new:N \l__hit_szb_thick_dim
+%    \end{macrocode}
+%
+% \emph{这一格是不是汉字那一档，看它填了什么。} 把值展开成字符串逐字看码位，
+% $\ge$ U+2E80 的算汉字那一路。学号填数字就走西文、填汉字就走中文，不必另标。
+%
+% \emph{日期那一格例外，按语种定。} \cs{hit@info@date@zh} 一族是
+% \texttt{protected} 的，\cs{edef} 展不开，\cs{text\_purify:n} 又把不认识的直接
+% 丢掉；而「年月日」正是它排的时候才加的，从取值上根本看不见。中文那一档恒有
+% 这三个字，英文那一档恒没有，所以直接按语种给。
+%
+% \emph{英文版没填英文就退回中文那一份}，与 iota 的 \texttt{value-of} 一致；
+% 退回去之后这一格自然又是汉字那一档。
+%
+% \emph{填没填要看得见的那个存储。} 题目那一路是个派发宏
+% （\cs{hit@info@title@cover@en} 恒展开成 \cs{hit@title@cover}\marg{en}），
+% 空不空从它身上看不出来，所以另给一个探测用的名字：题目探
+% \cs{hit@info@title@first@en}，六格探它自己那一份。
+%    \begin{macrocode}
+    \tl_new:N \l__hit_szb_value_tl
+    \cs_new_protected:Npn \hit@szb@cjk@scan:n #1
+      {
+        \bool_set_false:N \l__hit_szb_cjk_bool
+        \str_set:Nx \l__hit_szb_scan_str {#1}
+        \str_map_inline:Nn \l__hit_szb_scan_str
+          {
+            \int_compare:nT { `##1 > "2E7F }
+              { \bool_set_true:N \l__hit_szb_cjk_bool \str_map_break: }
+          }
+      }
+    \cs_new_protected:Npn \hit@szb@pick:nnn #1#2#3
+      {
+        \tl_set:Nn \l__hit_szb_value_tl { \use:c {#3} }
+        \bool_if:NT \g__hit_en_bool
+          {
+            \tl_if_blank:nF {#1}
+              {
+                \tl_if_empty:cF {#1}
+                  { \tl_set:Nn \l__hit_szb_value_tl { \use:c {#2} } }
+              }
+          }
+        \hit@szb@cjk@scan:V \l__hit_szb_value_tl
+      }
+    \cs_new_protected:Npn \hit@szb@pick:nn #1#2
+      { \hit@szb@pick:nnn {#1} {#1} {#2} }
+    \cs_generate_variant:Nn \hit@szb@cjk@scan:n { V }
+%    \end{macrocode}
+%
+% 线心与线宽，以及基线在行盒顶下方多少。三个都按这一格挑的那一档算。
+% 字号先存进寄存器：\cs{dimexpr} 里小数系数后面只能跟寄存器，
+% 写成 \texttt{1.008 18bp} 那样的字面量会静默算错。
+%    \begin{macrocode}
+    \cs_new_protected:Npn \hit@szb@metrics:n #1
+      {
+        \dim_set:Nn \l__hit_szb_size_dim {#1}
+        \bool_if:NTF \l__hit_szb_cjk_bool
+          {
+            \dim_set:Nn \l__hit_szb_center_dim
+              { \l__hit_szb_size_dim / 8 + 0.5bp }
+            \dim_set:Nn \l__hit_szb_thick_dim
+              { \l__hit_szb_size_dim * 12 / 256 }
+            \dim_set:Nn \l__hit_szb_ascent_dim
+              {
+                \l_hit_format_ascent_tl \l__hit_szb_size_dim
+                + \c__hit_format_ascent_dim
+              }
+          }
+          {
+            \dim_set:Nn \l__hit_szb_center_dim
+              { \l__hit_szb_size_dim * 273 / 2048 }
+            \dim_set:Nn \l__hit_szb_thick_dim
+              { \l__hit_szb_size_dim * 100 / 2048 }
+            \dim_set:Nn \l__hit_szb_ascent_dim
+              {
+                \c__hit_format_ascent_latin_tl \l__hit_szb_size_dim
+                + \c__hit_format_ascent_dim
+              }
+          }
+      }
+%    \end{macrocode}
+%
+% 一格若干行的线。画在零宽盒里，不占位、不参与折行；每一条比上一条低一个步进。
+% 抬的量先算进一个寄存器再取值：\cs{raisebox} 与 \cs{rule} 一样收不下
+% \cs{dimexpr}（它要给参数补单位），传进去静默变成零；而且它只把负号加在头一项
+% 上，\texttt{-a+b} 不是 \texttt{-(a+b)}。
+% 线画成上下各半个线宽的 \cs{vrule}，再整个抬到线心那一处，这样抬的量就是线心
+% 本身。\cs{rule} 收不下 \cs{dimexpr}（它要给参数补单位），线宽会静默变成零。
+%    \begin{macrocode}
+    \dim_new:N \l__hit_szb_drop_dim
+    \cs_new_protected:Npn \hit@szb@drop:nn #1#2
+      {
+        \dim_set:Nn \l__hit_szb_drop_dim { 0pt - ( #1 ) }
+        \raisebox { \dim_use:N \l__hit_szb_drop_dim }
+          [ \c_zero_dim ] [ \c_zero_dim ] {#2}
+      }
+    \cs_new_protected:Npn \hit@szb@rules:n #1
       {
         \hbox_overlap_right:n
           {
@@ -206,50 +311,143 @@
               {
                 \hbox_overlap_right:n
                   {
-                    \raisebox
+                    \hit@szb@drop:nn
                       {
-                        \dim_eval:n
-                          {
-                            - #2 / 8 - 0.5bp
-                            - \int_eval:n { ##1 - 1 } \l_hit_format_lead_dim
-                          }
+                        \l__hit_szb_ascent_dim + \l__hit_szb_center_dim
+                        + \int_eval:n { ##1 - 1 } \l__hit_szb_pitch_dim
                       }
                       {
                         \vrule ~ width ~ \l__hit_szb_value_dim
-                          ~ height ~ \dim_eval:n { #2 * 12 / 512 }
-                          ~ depth ~ \dim_eval:n { #2 * 12 / 512 }
+                          ~ height ~ \dim_eval:n { 0.5 \l__hit_szb_thick_dim }
+                          ~ depth ~ \dim_eval:n { 0.5 \l__hit_szb_thick_dim }
                         \scan_stop:
                       }
                   }
               }
           }
       }
-    \cs_new_protected:Npn \hit@szb@line:nnnn #1#2#3#4
+%    \end{macrocode}
+%
+% \emph{把值排进一个 \cs{vtop}，行距锁成步进。} 字体要在锁之前发完：
+% \cs{xiaoer} 这类字号命令自己会重设 \cs{baselineskip}，写在后面就把锁顶掉了，
+% 实测题目折出来的第二行跑到 23.4\,bp 处（\cs{xiaoer} 的行距），不是 47.02。 \cs{vtop} 的基线是首行的，
+% 与左边标签那一格对得齐；\cs{lineskiplimit} 调到负无穷，行高再大也不会让
+% \hologo{TeX} 改用 \cs{lineskip}，行与行就恒是一个步进。行数由 \cs{prevgraf}
+% 数，它是刚排完那一段的行数，准。
+%    \begin{macrocode}
+    \int_new:N \l__hit_szb_lines_int
+    \cs_new_protected:Npn \hit@szb@fill:nnn #1#2#3
+      {
+        \vbox_set_top:Nn \l__hit_szb_cell_box
+          {
+            \dim_set:Nn \hsize
+              { \l__hit_szb_value_dim - \l__hit_szb_inset_dim }
+            \dim_zero:N \parindent
+            \dim_zero:N \parskip
+            \int_set:Nn \tolerance { 9999 }
+            #2
+            \dim_set_eq:NN \baselineskip \l__hit_szb_pitch_dim
+            \dim_set:Nn \lineskiplimit { -\maxdimen }
+            \noindent #3 \par
+            \int_gset:Nn \g__hit_szb_prevgraf_int { \tex_prevgraf:D }
+          }
+        \int_set:Nn \l__hit_szb_lines_int
+          { \int_max:nn { \g__hit_szb_prevgraf_int } {#1} }
+      }
+    \int_new:N \g__hit_szb_prevgraf_int
+%    \end{macrocode}
+%
+% \emph{一整行。} 段前发在行外，行本身是个定高的 \cs{vbox}：高 $= (行数-1)$ 个
+% 步进加一个行盒，正好让下一行的段前接上去之后，行与行的步进是整数个步进。
+%
+% \emph{标签与值各自从格顶往下摆，不共用一条基线。} 两边的盒子都压成零高零深，
+% 再各按自己的上升部沉下去。标签走中文那一档、按整行的行盒算；值走这一格挑的
+% 那一档。一格填纯西文时基线因此比标签高一截——原件填字后量的正是这样：题目
+% 填英文的基线比「题目：」高 1.4，填中文与它齐。
+%
+% \meta{目标}\meta{值的字号}\meta{最少几行}\meta{定汉字标记的那一句}\meta{标签}
+% \meta{值的字体}\meta{值}。
+%    \begin{macrocode}
+    \cs_new_protected:Npn \hit@szb@line:nnnnnnn #1#2#3#4#5#6#7
       {
         \par
         \hit@format@compute:n {#1}
+        \dim_set:Nn \l__hit_szb_pitch_dim
+          { \l_hit_format_lead_dim + \l_hit_format_before_dim }
+        #4
+        \hit@szb@metrics:n {#2}
+        \dim_set:Nn \l__hit_szb_label_ascent_dim
+          {
+            \l_hit_format_ascent_tl \l_hit_format_size_dim
+            + \c__hit_format_ascent_dim
+          }
+        \hit@format@apply@font:nN {#1} \l__hit_szb_font_tl
+        \hit@szb@fill:nnn {#3} { \l__hit_szb_font_tl #6 } {#7}
         \skip_vertical:n { \l_hit_format_before_dim }
         \nointerlineskip
-        \dim_zero:N \parindent
-        \dim_zero:N \parskip
-        \hit@format@apply@font:nN {#1} \l__hit_szb_font_tl
-        \l__hit_szb_font_tl
-        \noindent
-        \skip_horizontal:n
-          { \dim_eval:n { \l__hit_szb_indent_dim + \l__hit_szb_inset_dim } }
-        \hit@format@strut:
-        \hbox_to_wd:nn
-          { \dim_eval:n { \l__hit_szb_label_dim - \l__hit_szb_inset_dim } }
-          {#3 \hfil }
-        \hit@szb@rule:n {#2}
-        \hbox_to_wd:nn { \l__hit_szb_value_dim }
-          { \skip_horizontal:n { \l__hit_szb_inset_dim } #4 \hfil }
+        \hbox_to_wd:nn { \linewidth }
+          {
+            \skip_horizontal:n
+              { \dim_eval:n { \l__hit_szb_indent_dim + \l__hit_szb_inset_dim } }
+            \vbox_to_ht:nn
+              {
+                \dim_eval:n
+                  {
+                    \int_eval:n { \l__hit_szb_lines_int - 1 } \l__hit_szb_pitch_dim
+                    + \l_hit_format_lead_dim
+                  }
+              }
+              {
+                \hbox:n
+                  {
+                    \hit@szb@drop:nn { \l__hit_szb_label_ascent_dim }
+                      {
+                        \hbox_to_wd:nn
+                          { \dim_eval:n { \l__hit_szb_label_dim - \l__hit_szb_inset_dim } }
+                          { #5 \hfil }
+                      }
+                    \hit@szb@rules:n { \l__hit_szb_lines_int }
+                    \hit@szb@drop:nn { \l__hit_szb_ascent_dim }
+                      {
+                        \hbox:n
+                          {
+                            \skip_horizontal:n { \l__hit_szb_inset_dim }
+                            \box_use:N \l__hit_szb_cell_box
+                          }
+                      }
+                  }
+                \vfil
+              }
+            \hfil
+          }
         \par
       }
-    \cs_new_protected:Npn \hit@szb@row:nn #1#2
+    \cs_new_protected:Npn \hit@szb@row:nnn #1#2#3
       {
-        \hit@szb@line:nnnn { report-cover-field } { 15bp }
-          { \heiti \xiaosan #1 } { \songti \xiaosan #2 }
+        \hit@szb@line:nnnnnnn { report-cover-field } { 15bp } { 1 }
+          { \hit@szb@pick:nn {#3} {#2} }
+          {
+            \heiti \xiaosan
+            \hit@szb@label:nnnn {#1} { \hit@szb@core:n {#1} } { 4 } { 15bp }
+          }
+          { \songti \xiaosan }
+          { \l__hit_szb_value_tl }
+      }
+    \cs_new:Npn \hit@szb@core:n #1
+      { \str_if_eq:nnTF {#1} { supervisor } { 4 } { 2 } }
+    \cs_new_protected:Npn \hit@szb@date@row:
+      {
+        \hit@szb@line:nnnnnnn { report-cover-field } { 15bp } { 1 }
+          { \bool_set:Nn \l__hit_szb_cjk_bool { ! \bool_if_p:N \g__hit_en_bool } }
+          {
+            \heiti \xiaosan
+            \hit@szb@label:nnnn { date } { 2 } { 4 } { 15bp }
+          }
+          { \songti \xiaosan }
+          {
+            \bool_if:NTF \g__hit_en_bool
+              { \hit@info@date@en } { \hit@info@date@zh }
+          }
       }
 %    \end{macrocode}
 %
@@ -317,10 +515,10 @@
         \hit@format@par:nn { report-cover-form }
           {
             \hit@if@option@TF { practice } { \hit@empty@box } { \hit@checked@box }
-            \nobreakspace \hit@term@titlepage@mark@dissertation
+            \hit@term@titlepage@mark@dissertation
             \skip_horizontal:n { 12bp }
             \hit@if@option@TF { practice } { \hit@checked@box } { \hit@empty@box }
-            \nobreakspace \hit@term@titlepage@mark@practice
+            \hit@term@titlepage@mark@practice
           }
         \hit@format@par:nn { report-cover-blank } { \mbox { } }
         \hit@format@par:nn { report-cover-university }
@@ -354,30 +552,12 @@
           }
         \vspace { 49.75bp }
         \hit@szb@title@row:
-        \hit@szb@row:nn
-          { \hit@szb@label:nnnn
-              { author } { 2 } { 4 } { 15bp } }
-          { \hit@info@author@zh }
-        \hit@szb@row:nn
-          { \hit@szb@label:nnnn
-              { student@id } { 2 } { 4 } { 15bp } }
-          { \hit@info@student@id }
-        \hit@szb@row:nn
-          { \hit@szb@label:nnnn
-              { affiliation } { 2 } { 4 } { 15bp } }
-          { \hit@info@affiliation@zh }
-        \hit@szb@row:nn
-          { \hit@szb@label:nnnn
-              { speciality } { 2 } { 4 } { 15bp } }
-          { \hit@info@major@zh }
-        \hit@szb@row:nn
-          { \hit@szb@label:nnnn
-              { supervisor } { 4 } { 4 } { 15bp } }
-          { \hit@info@supervisor@zh }
-        \hit@szb@row:nn
-          { \hit@szb@label:nnnn
-              { date } { 2 } { 4 } { 15bp } }
-          { \hit@info@date@zh }
+        \hit@szb@row:nnn { author }      { hit@info@author@zh }      { hit@info@author@en }
+        \hit@szb@row:nnn { student@id }  { hit@info@student@id }    { }
+        \hit@szb@row:nnn { affiliation } { hit@info@affiliation@zh } { hit@info@affiliation@en }
+        \hit@szb@row:nnn { speciality }  { hit@info@major@zh }      { hit@info@major@en }
+        \hit@szb@row:nnn { supervisor }  { hit@info@supervisor@zh }  { hit@info@supervisor@en }
+        \hit@szb@date@row:
         \par
         \clearpage
         \dim_set_eq:NN \topskip \l__hit_szb_topskip_dim
@@ -385,90 +565,40 @@
       }
 %    \end{macrocode}
 %
-% \emph{题目那一格。} 原件里是两段，各自带一串下划线；那一格的说明「题目长可
-% 分两行写」说的就是这两段。标签中文版小二、英文版三号，值两版都是黑体小二。
+% \emph{题目那一格。} 与六格同一套，只是至少两行：原件那一格是两段，各自带一串
+% 下划线，那一格的说明「题目长可分两行写」说的就是这两段。题目自己折到两行也算
+% 够了，不再补第二条空线；再长就接着往下长，下面六格跟着让。
 %
-% \emph{题目长了在头一段里自己折行，格跟着长高。} 折出来的行之间只隔一个行距，
-% 不另发段前；行数够两行了就不再补那个空段，也就不再多一条线。原件那一行写着
-% 至少 2251 缇即 112.55\,bp（\texttt{w:trHeight} 没写 \texttt{hRule} 就是
-% at-least），两段各 12 加行盒只占 94，凑不满就在末尾补齐，中间那截夹缝正是
+% 那一行还写着至少 2251 缇即 112.55\,bp（\texttt{w:trHeight} 没写 \texttt{hRule}
+% 就是 at-least）。两行各一个步进共 94，凑不满就在末尾补齐，中间那截夹缝正是
 % 留给第三行的。
 %
+% 标签中文版小二、英文版三号，值两版都是黑体小二。
+%
 % \emph{装不下时整体压缩没有照搬。} iota 那边表长过空表单的底时，会把每一行的
-% 步进匀着减一个量，压到碰线为止再发红字。这里没做：报告那一档还没有章级版面，
-% 压缩要的那几个量（空表单的底、每行能让出多少）都没有落处。
+% 步进匀着减一个量，压到字要碰上一行的线为止，再不够就在纸角发红字。这里没做：
+% 报告那一档还没有章级版面，压缩要的那几个量（空表单的底、每行能让出多少）都
+% 没有落处。做之前表只会往下长，长过版心就翻页。
 %    \begin{macrocode}
-    \box_new:N \l__hit_szb_probe_box
-    \int_new:N \l__hit_szb_lines_int
-    \dim_new:N \l__hit_szb_room_dim
-    \dim_new:N \l__hit_szb_used_dim
     \cs_new_protected:Npn \hit@szb@title@row:
       {
-        \dim_zero:N \parindent
-        \dim_zero:N \parskip
-        \hit@format@compute:n { report-cover-title }
-        \dim_set:Nn \l__hit_szb_room_dim
-          { \l__hit_szb_value_dim - \l__hit_szb_inset_dim }
-        \hbox_set:Nn \l__hit_szb_probe_box
+        \hit@szb@line:nnnnnnn { report-cover-title } { 18bp } { 2 }
           {
-            \hit@format@apply@font:nN { report-cover-title } \l__hit_szb_font_tl
-            \l__hit_szb_font_tl \heiti \xiaoer \hit@info@title@cover@zh
+            \hit@szb@pick:nnn { hit@info@title@first@en }
+              { hit@info@title@cover@en } { hit@info@title@cover@zh }
           }
-        \int_set:Nn \l__hit_szb_lines_int
-          {
-            \fp_to_int:n
-              {
-                ceil
-                  (
-                    \dim_to_fp:n { \box_wd:N \l__hit_szb_probe_box }
-                    / \dim_to_fp:n { \l__hit_szb_room_dim }
-                  )
-              }
-          }
-        \int_compare:nNnT { \l__hit_szb_lines_int } < { 1 }
-          { \int_set:Nn \l__hit_szb_lines_int { 1 } }
-        \skip_vertical:n { \l_hit_format_before_dim }
-        \nointerlineskip
-        \hit@format@apply@font:nN { report-cover-title } \l__hit_szb_font_tl
-        \l__hit_szb_font_tl
-        \noindent
-        \skip_horizontal:n
-          { \dim_eval:n { \l__hit_szb_indent_dim + \l__hit_szb_inset_dim } }
-        \hit@format@strut:
-        \hbox_to_wd:nn
-          { \dim_eval:n { \l__hit_szb_label_dim - \l__hit_szb_inset_dim } }
           {
             \heiti \xiaoer
             \hit@szb@label:nnnn { title } { 2 } { 3 } { 16bp }
-            \hfil
           }
-        \hit@szb@rules:nn { \l__hit_szb_lines_int } { 18bp }
-        \hbox_to_wd:nn { \l__hit_szb_value_dim }
+          { \heiti \xiaoer }
+          { \l__hit_szb_value_tl }
+        \dim_compare:nNnT
+          { \l__hit_szb_lines_int \l__hit_szb_pitch_dim } < { 112.55bp }
           {
-            \skip_horizontal:n { \l__hit_szb_inset_dim }
-            \vtop
-              {
-                \hsize = \l__hit_szb_room_dim
-                \heiti \xiaoer
-                \dim_set_eq:NN \baselineskip \l_hit_format_lead_dim
-                \noindent \hit@info@title@cover@zh \par
-              }
-            \hfil
+            \skip_vertical:n
+              { 112.55bp - \l__hit_szb_lines_int \l__hit_szb_pitch_dim }
           }
-        \par
-        \dim_set:Nn \l__hit_szb_used_dim
-          {
-            \l_hit_format_before_dim
-            + \l__hit_szb_lines_int \l_hit_format_lead_dim
-          }
-        \int_compare:nNnT { \l__hit_szb_lines_int } < { 2 }
-          {
-            \hit@szb@line:nnnn { report-cover-title } { 18bp } { } { }
-            \dim_add:Nn \l__hit_szb_used_dim
-              { \l_hit_format_before_dim + \l_hit_format_lead_dim }
-          }
-        \dim_compare:nNnT { \l__hit_szb_used_dim } < { 112.55bp }
-          { \skip_vertical:n { 112.55bp - \l__hit_szb_used_dim } }
       }
     \hit@hook@new:nn { report-cover-page-shenzhen-bachelor }
       { \hit@report@shenzhen@bachelor@title@page }
