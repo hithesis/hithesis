@@ -35,6 +35,17 @@
 %
 % 章另起一页也在这儿发：这一档正文里第一级写的是 \cs{section}，可它按章排
 % （见 \file{src/hithesis.dtx} 的层级错位），章就得另起一页。
+%
+% \emph{不能走 \pkg{ctex} 的 \option{break} 键。} 那个键在 \cs{@startsection} 里
+% 挂在 \cs{if@nobreak} 的假支上——标题底下没正文时这个开关还立着（\hologo{LaTeX}
+% 不在标题与它的头一段之间断页），换页就被跳过。示例里 1.2 底下正好没字，
+% 章 2 于是跟在同一页上。所以直接在 \cs{section} 前面无条件发一次换页。
+%
+% \emph{换页之后那一段的段前也要留住。} \hologo{TeX} 把换页处的竖胶丢掉，而
+% Word 在页首照进段前：原件的章标题基线量到 137.98 ＝ 版心顶 107.75 加段前 12
+% 加上升部 18.23，丢了就只剩 125.98。跟封面那一页同一招——换完页先发一条零高的
+% \cs{hrule} 把这一页垫成非空，后面那段胶就留得住；\cs{topskip} 一并归零，
+% 不然它又会顶上来一截。
 %    \begin{macrocode}
 \cs_set_protected:Npn \hitfrontmatter
   {
@@ -48,9 +59,11 @@
     \bool_if:NT \g__hit_final_body_bool
       {
         \clearpage
+        \legacy_if_gset_true:n { @mainmatter }
         \pagenumbering { arabic }
         \pagestyle { hit@headings }
-        \ctexset { section = { break = \clearpage } }
+        \dim_zero:N \topskip
+        \pretocmd { \section } { \clearpage \hrule ~ height ~ \c_zero_dim } { } { }
       }
     \hit@structure@input@list:n { mainmatter }
   }
