@@ -226,13 +226,13 @@ def bound(keys: set[str], contexts: list[dict[str, str]]) -> set[str]:
     return out
 
 
-# 一个类的装配表里现在两档的模块都在。按守卫名前缀挑出属于某一档的那些：
-# shared-* 与 clshead/clstail/cfgload 两档都算，thesis-* 只算终稿，
-# report-* 只算开题与中期。
+# 一个类的装配表里两档的模块都在。按守卫名前缀挑出属于某一档的那些：
+# shared-*、flow-*、config-* 与 clshead/clstail/cfgload 两档都算，
+# final-* 只算终稿，report-* 只算开题与中期。
 def stage_guards(guards: list[str], stage_prefix: str) -> list[str]:
     keep = []
     for g in guards:
-        if g.startswith("thesis-") or g.startswith("report-"):
+        if g.startswith("final-") or g.startswith("report-"):
             if g.startswith(stage_prefix):
                 keep.append(g)
         else:
@@ -299,7 +299,7 @@ def main() -> int:
     decl = declared()
     bad: list[tuple[str, str, str]] = []
     skipped: list[str] = []
-    for cls, pref in (("hit-thesis", "thesis-"), ("hit-report", "report-")):
+    for cls, pref in (("hit-thesis", "final-"), ("hit-report", "report-")):
         cfg = ROOT / "hithesis.cfg"
         if not cfg.exists() or not (ROOT / "hithesis.cls").exists():
             skipped.append(cls)
@@ -332,7 +332,7 @@ def main() -> int:
     declm = {"\\hit@term@" + k.replace("-", "@").replace("*", "")
              for k in with_fallback(resolved)}
     typo: list[tuple[str, str, str]] = []
-    for cls, pref in (("hit-thesis", "thesis-"), ("hit-report", "report-")):
+    for cls, pref in (("hit-thesis", "final-"), ("hit-report", "report-")):
         if cls in skipped:
             continue
         for rel, guards in ((r, stage_guards(g, pref)) for r, g in assembly(SKEL)):

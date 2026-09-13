@@ -790,8 +790,29 @@
       }
     \tl_set:Nx \l__hit_axis_term_tl
       { \seq_use:Nn \l__hit_axis_seg_seq { - } }
+    \seq_map_inline:Nn \l__hit_axis_seg_seq
+      {
+        \prop_if_in:NnT \g__hit_axis_of_prop {##1}
+          { \msg_error:nnnn { hithesis } { axis-order } {#1} {##1} }
+      }
   }
 %    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{档位值写错顺序当场报错，不再静默当成词条名的一部分}
+% \emph{剥完还剩档位值，就是顺序写错了。} 剥是从末段往前、轴序严格递减，
+% 所以 \texttt{header-doctor-shenzhen} 剥掉 \texttt{shenzhen}（校区，第二根）
+% 之后遇到 \texttt{doctor}（学位，第三根），三不小于二，停下——剩下的
+% \texttt{header-doctor} 整串成了词条名，与 \texttt{header} 是两个互不相干的
+% 名字，查表永远查不到它。
+%
+% 这一条先前只在注释里写着「当场看得出表写歧义了」，其实看不出来：它不报错，
+% 排出来是不带后缀那一份。加进去之后一共抓出一处——\texttt{cover-thesis-interim-check}，
+% 那个 \texttt{interim} 不是档位值的意思，是「中期检查报告」这个词的一部分，
+% 已改名 \texttt{cover-midterm-check-line}。
+%
+% 正确的写法是按轴序排：\texttt{stage}、\texttt{campus}、
+% \texttt{degree-level}、\texttt{degree-type}、\texttt{category}、\texttt{lang}，
+% 少写哪一段就是那根轴各档共用。
 %    \end{macro}
 %    \begin{macrocode}
 %    \end{macrocode}
@@ -1000,6 +1021,110 @@
       }
     \prop_map_inline:Nn \l__hit_axis_win_prop { \__hit_axis_from_base:n {##1} }
     \seq_map_inline:Nn \g__hit_constant_seq { \__hit_term_guard:n {##1} }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@hook@new:nn,\hit@hook@use:n,\hit@hook@base:n}
+% \changes{v3.2a}{2026/09/13}{加部件变体：同一个部件按轴分档，变体只写不一样的
+%   那一小坨，挑哪一档与词条查表同一套规则}
+% \emph{部件也按轴分档，规则与词条完全一样。} \cs{hit@hook@new:nn}\marg{名}\marg{代码}
+% 定义一个部件；名字后面可以跟档位值，与词条键名一个拼法：
+%
+% \begin{latex}
+% \hit@hook@new:nn { header-even } { 基准那一份 }
+% \hit@hook@new:nn { header-even-shenzhen } { 深圳那一份 }
+% \end{latex}
+%
+% 排版处写 \cs{hit@hook@use:n}\marg{名}，取到的是当前这一档最具体的那一份。
+% 挑法是查表那一套：档位值全对得上的才算候选，段数最多的赢，并列报歧义
+% （见上面 \cs{hit@axis@resolve:}）。所以\emph{基准就是不带档位值的那一条}——
+% 学位轴的基准是博士、校区轴的基准是哈尔滨，只要不写后缀就是它们。
+%
+% \emph{变体里只写不一样的那一小坨。} 要接着用基准那一份，在变体里写
+% \cs{hit@hook@base:n}\marg{名}：它指的是不带任何档位值的那一条，与查表结果无关。
+%
+% \emph{为什么不复用词条。} 词条是取值，用户能用 \cs{hitsetup} 覆盖，而且存在
+% \file{hithesis.cfg} 里——那个文件在 \cs{ExplSyntaxOff} 下记号化，放不下带
+% \cs{ExplSyntaxOn} 语境的排版代码。部件是代码，只在 dtx 里定义，不进配置层。
+% 两者共用的是\emph{挑哪一档}这套规则，不是存法。
+%
+% \emph{解析与词条同一遍跑完。} 都在 \cs{hit@axis@resolve:} 里，那一遍排在选项
+% 解析之后、导言区之前，所有模块的部件那时都已定义。
+%    \begin{macrocode}
+\seq_new:N \g__hit_hook_seq
+\cs_new_protected:Npn \hit@hook@new:nn #1#2
+  {
+    \seq_gput_right:Nn \g__hit_hook_seq {#1}
+    \__hit_key_to_macro_name:n {#1}
+    \cs_new_protected:cpn { hit@hook@ \l__hit_constant_name_str } {#2}
+  }
+\cs_new_protected:Npn \hit@hook@use:n #1
+  {
+    \__hit_key_to_macro_name:n {#1}
+    \cs_if_exist_use:cF { hit@hook@ \l__hit_constant_name_str }
+      { \msg_error:nnn { hithesis } { hook-missing } {#1} }
+  }
+\cs_new_protected:Npn \hit@hook@base:n #1
+  {
+    \__hit_key_to_macro_name:n { #1 -base }
+    \cs_if_exist_use:cF { hit@hook@ \l__hit_constant_name_str }
+      {
+        \__hit_key_to_macro_name:n {#1}
+        \cs_if_exist_use:cF { hit@hook@ \l__hit_constant_name_str }
+          { \msg_error:nnn { hithesis } { hook-missing } {#1} }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% 候选与绑定，与词条那两条并列，只是换了前缀。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_hook_consider:n #1
+  {
+    \__hit_key_to_macro_name:n {#1}
+    \cs_if_exist:cT { hit@hook@ \l__hit_constant_name_str }
+      { \__hit_hook_weigh:n {#1} }
+  }
+\cs_new_protected:Npn \__hit_hook_weigh:n #1
+  {
+    \hit@axis@parse:n {#1}
+    \bool_set_true:N \l__hit_axis_hit_bool
+    \int_zero:N \l__hit_axis_weight_int
+    \prop_map_function:NN \l__hit_axis_spec_prop \__hit_axis_match:nn
+    \bool_if:NT \l__hit_axis_hit_bool
+      {
+        \int_set:Nn \l__hit_axis_index_int { \l__hit_axis_weight_int }
+        \bool_set_true:N \l__hit_axis_report_bool
+        \exp_args:NNNV \__hit_axis_rank:NNnn
+          \l__hit_axis_best_prop \l__hit_axis_win_prop
+          \l__hit_axis_term_tl {#1}
+      }
+  }
+\cs_new_protected:Npn \__hit_hook_bind:nn #1#2
+  {
+    \str_if_eq:nnF {#1} {#2}
+      {
+        \__hit_key_to_macro_name:n { #1 -base }
+        \cs_if_exist:cF { hit@hook@ \l__hit_constant_name_str }
+          {
+            \tl_set:NV \l__hit_axis_best_tl \l__hit_constant_name_str
+            \__hit_key_to_macro_name:n {#1}
+            \cs_gset_eq:cc { hit@hook@ \l__hit_axis_best_tl }
+              { hit@hook@ \l__hit_constant_name_str }
+          }
+        \__hit_key_to_macro_name:n {#1}
+        \tl_set:NV \l__hit_axis_best_tl \l__hit_constant_name_str
+        \__hit_key_to_macro_name:n {#2}
+        \cs_gset_eq:cc { hit@hook@ \l__hit_axis_best_tl }
+          { hit@hook@ \l__hit_constant_name_str }
+      }
+  }
+\cs_new_protected:Npn \hit@hook@resolve:
+  {
+    \prop_clear:N \l__hit_axis_best_prop
+    \prop_clear:N \l__hit_axis_win_prop
+    \seq_map_inline:Nn \g__hit_hook_seq { \__hit_hook_consider:n {##1} }
+    \prop_map_function:NN \l__hit_axis_win_prop \__hit_hook_bind:nn
   }
 %    \end{macrocode}
 %

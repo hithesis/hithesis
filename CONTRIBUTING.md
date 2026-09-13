@@ -358,7 +358,37 @@ v3.2a 把两个 cls 合成一个之后，`hithesis.cls` 这一边不再受这条
 骨架之后；把三个 flow 模块合成共用文件那次也当场撞上，只好先合选项与 LoadClass、
 再合 cls，顺序反过来就过不去。
 
-### 4.3 分支按轴走，底层机制共用
+### 4.3 基准加变体：只写不一样的那一小坨
+
+**每根轴都有一个基准，基准就是不写档位值的那一条。** 学位轴的基准是博士，
+校区轴的基准是哈尔滨，材料轴的基准是终稿。别的档只写与基准不同的那一小坨。
+
+这条对**取值**和**代码**是同一套规则：
+
+```latex
+% 取值：词条键名带档位值后缀
+header-report                      % 基准（博士、哈尔滨）
+header-report-shenzhen             % 深圳不一样，只写这一条
+
+% 代码：部件用 \hit@hook@new:nn，名字一个拼法
+\hit@hook@new:nn { header-even } { 基准那一份 }
+\hit@hook@new:nn { header-even-shenzhen } { 深圳那一份 }
+```
+
+排版处写 `\hit@hook@use:n {header-even}`，取到的是当前这一档最具体的那一份：
+档位值全对得上的才算候选，段数最多的赢，并列报歧义。要在变体里接着用基准，
+写 `\hit@hook@base:n {header-even}`。
+
+**档位值一律排在名字末尾，次序照轴序**：`stage`、`campus`、`degree-level`、
+`degree-type`、`category`、`lang`。写反了当场报错——`header-doctor-shenzhen`
+剥掉 `shenzhen`（校区，第二根）之后遇到 `doctor`（学位，第三根），三不小于二，
+剥不动，剩下的 `header-doctor` 整串成了名字，与 `header` 互不相干，查表永远
+查不到它。这一条先前只写在注释里，实测根本看不出来，v3.2a 改成报错。
+
+**取反写 `!`**：`achievements-heading-!final` 读作“不是终稿的那几档”。比具体
+程度时正着写的一段算 2 分、取反的算 1 分，所以 `-proposal` 压得住 `-!final`。
+
+### 4.3b 分支按轴走，底层机制共用
 
 分支按**轴**走，不按类走。轴是 `stage`（final／proposal／interim）、`campus`、`degree-level`、`degree-type`、`category`、`lang` 这几根，见 `src/engine/hit-key-engine.dtx` 的轴表。同一件事在不同档上不一样，就在那一档上分支；“开题中期共用、终稿另说”写成 `-!final`，不要把 proposal 与 interim 各写一遍。
 
