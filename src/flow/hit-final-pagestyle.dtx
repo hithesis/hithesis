@@ -247,6 +247,84 @@
 % 那不是漏了英文分支。\option{lang} 只管摘要之后的正文，见手册
 % 第 \ref{sec:option} 节。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{正文页眉改用部件变体：基准是博士加哈尔滨，
+%   别的档只写不一样的那一小坨}
+% \emph{正文页眉按轴分档，基准是博士加哈尔滨。} 原先是四层嵌套的
+% \cs{bool\_if}：博士、硕士、本科各一支，每支里再分「哈尔滨或威海」与深圳，
+% 形状一样只差那一串词条。改成部件变体之后，不写档位值的那一条就是基准，
+% 别的档各写各的那一小坨，挑哪一档由查表定，规则见
+% \file{src/engine/hit-key-engine.dtx} 的 \cs{hit@hook@new:nn}。
+%
+% \emph{「哈尔滨或威海」这个「或」没了。} 基准覆盖一切没被明写盖掉的档，
+% 威海不写就是走基准，不必再把两个校区并起来判一次。
+%
+% \emph{语种不进部件名。} 英文那一份不是中文那一份的变体，是另一套版面——
+% 不分学位不分校区，一句 \cs{leftmark} 到底。所以语种仍是外面那一层
+% \cs{bool\_if}，部件只管中文这一支。真写成 \texttt{-en} 也不行：深圳的英文稿
+% 会让 \texttt{-shenzhen} 与 \texttt{-en} 段数打平，查表当场报歧义。
+%
+% \emph{顺手去掉一段死码。} 深圳博士那一支里原有
+% \cs{hit@if@option@TF}\texttt{\{doctor\}\{\}\{…\}}，而整支就在
+% \cs{bool\_if:NTF} \cs{g\_\_hit\_doctor\_bool} 的真分支里，条件恒真、排出来恒空。
+%    \begin{macrocode}
+\hit@hook@new:nn { headings-body }
+  {
+    \fancyhead [ CO ] { \hit@header@font \leftmark }
+    \fancyhead [ CE ]
+      {
+        \hit@header@font \hit@term@header@university@zh
+        \hit@term@header@degree@level@zh \hit@term@header@document@type
+      }
+  }
+\hit@hook@new:nn { headings-body-shenzhen-doctor }
+  {
+    \fancyhead [ CO ] { \hit@header@font \leftmark }
+    \fancyhead [ CE ]
+      {
+        \hit@header@font \hit@term@header@university@zh
+        \hit@term@header@degree@of@discipline@zh \hit@term@header@document@type
+      }
+  }
+\hit@hook@new:nn { headings-body-master }
+  {
+    \fancyhead [ C ]
+      {
+        \hit@header@font \hit@term@header@university@zh
+        \hit@term@header@degree@level@zh \hit@term@header@document@type
+      }
+  }
+\hit@hook@new:nn { headings-body-shenzhen-master }
+  {
+    \legacy_if:nTF { @mainmatter }
+      {
+        \fancyhead [ C ]
+          {
+            \hit@header@font \hit@term@header@university@zh
+            \hit@term@header@degree@of@discipline@zh \hit@term@header@document@type
+          }
+      }
+      { \fancyhead [ C ] { \hit@header@font \leftmark } }
+  }
+\hit@hook@new:nn { headings-body-bachelor }
+  {
+    \fancyhead [ C ]
+      {
+        \hit@header@font \hit@term@header@university@zh
+        \hit@term@header@document@type@level \hit@term@header@document@type
+      }
+  }
+\hit@hook@new:nn { headings-body-postdoc }
+  {
+    \fancyhead [ CO ] { \hit@header@font \leftmark }
+    \fancyhead [ CE ]
+      { \hit@header@font \hit@term@header@university@zh \hit@term@header@report }
+  }
+%    \end{macrocode}
+%
+% 页眉主体。语种在外层分，中文那一支交给上面六个部件。
+%    \begin{macrocode}
 \fancypagestyle { hit@headings }
   {
     \fancyhf { }
@@ -260,77 +338,9 @@
         \bool_gset_true:N \g__hit_header_rule_on_bool
       }
       {
-        \bool_if:NT \g__hit_postdoc_bool
-          {
-            \fancyhead [ CO ] { \hit@header@font \leftmark }
-            \fancyhead [ CE ]
-              { \hit@header@font \hit@term@header@university@zh \hit@term@header@report }
-          }
-        \bool_if:NTF \g__hit_doctor_bool
-          {
-            \fancyhead [ CO ] { \hit@header@font \leftmark }
-            \bool_lazy_or:nnT
-              { \bool_if_p:N \g__hit_harbin_bool } { \bool_if_p:N \g__hit_weihai_bool }
-              {
-                \fancyhead [ CE ]
-                  { \hit@header@font \hit@term@header@university@zh \hit@term@header@degree@level@zh \hit@term@header@document@type }
-              }
-            \bool_if:NT \g__hit_shenzhen_bool
-              {
-                \fancyhead [ CE ]
-                  {
-                    \hit@header@font \hit@term@header@university@zh
-                    \hit@if@option@TF{doctor}{}{\hit@term@header@campus@full}
-                    \hit@term@header@degree@of@discipline@zh \hit@term@header@document@type
-                  }
-              }
-          }
-          {
-            \bool_if:NT \g__hit_master_bool
-              {
-                \bool_lazy_or:nnT
-                  { \bool_if_p:N \g__hit_harbin_bool } { \bool_if_p:N \g__hit_weihai_bool }
-                  {
-                    \fancyhead [ C ]
-                      { \hit@header@font \hit@term@header@university@zh \hit@term@header@degree@level@zh \hit@term@header@document@type }
-                  }
-                \bool_if:NT \g__hit_shenzhen_bool
-                  {
-                    \legacy_if:nTF { @mainmatter }
-                      {
-                        \fancyhead [ C ]
-                          {
-                            \hit@header@font \hit@term@header@university@zh \hit@term@header@degree@of@discipline@zh
-                            \hit@term@header@document@type
-                          }
-                      }
-                      { \fancyhead [ C ] { \hit@header@font \leftmark } }
-                  }
-              }
-          }
-%    \end{macrocode}
-% \changes{v3.2a}{2026/09/13}{威海硕博的页眉并进本部：不再带“（威海）”与学科
-%   门类，威海硕博论文的规范与本部已完全一致}
-% 威海硕博先前另有一支：“哈尔滨工业大学（威海）工学博士学位论文”。威海硕博
-% 论文的规范现在与本部一致，页眉也就是本部那一句“哈尔滨工业大学博士学位论文”，
-% 两支合并。深圳仍是自己那一支。
-% \changes{v3.2a}{2026/08/16}{本科页眉三个校区统一，深圳与威海两支删掉}
-% 三个校区的本科页眉都是「哈尔滨工业大学本科毕业论文（设计）」，不带校区名。
-%    \begin{macrocode}
-        \bool_if:NTF \g__hit_bachelor_bool
-          {
-            \fancyhead [ C ]
-              {
-                \hit@header@font \hit@term@header@university@zh \hit@term@header@document@type@level
-                \hit@term@header@document@type
-              }
-            \hit@final@footer
-            \hit@final@header@rule@setup
-          }
-          {
-            \hit@final@footer
-            \hit@final@header@rule@setup
-          }
+        \hit@hook@use:n { headings-body }
+        \hit@final@footer
+        \hit@final@header@rule@setup
       }
     \cs_set_eq:NN \fancyhead \hit@orig@fancyhead
     \cs_set:Npn \headrulewidth { 0pt }
