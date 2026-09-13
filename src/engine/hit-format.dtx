@@ -46,6 +46,7 @@
 % 键 & Word 界面 & 取值 \\\midrule
 % \option{font-zh} & Chinese text font & \texttt{songti} \texttt{heiti} \texttt{kaishu} \texttt{fangsong} \texttt{xinwei} \texttt{none} \\
 % \option{font-en} & Latin text font & \texttt{serif} \texttt{sans} \texttt{mono} \\
+% \option{latin-bold} & （无） & \texttt{true} \texttt{false}，只加粗西文那一槽 \\
 % \option{size} & Size & \texttt{sanhao}，或 \texttt{16bp} \\
 % \option{alignment} & Alignment & \texttt{left} \texttt{centered} \texttt{right} \texttt{justified} \\
 %  & & \texttt{distributed} \texttt{last-line-centered} \\
@@ -653,6 +654,9 @@
           { songti , heiti , kaishu , fangsong , xinwei , none } {#1} } ,
     font-en .code:n =
       { \__hit_format_enum:nnn { font-en } { serif , sans , mono } {#1} } ,
+    latin-bold .code:n =
+      { \__hit_format_enum:nnn { latin-bold } { true , false } {#1} } ,
+    latin-bold .default:n = true ,
     size .code:n = { \__hit_format_size:n {#1} } ,
     alignment .code:n =
       { \__hit_format_enum:nnn { alignment }
@@ -1953,6 +1957,9 @@
     \__hit_format_read:nnnN {#1} { bold } { false } \l__hit_format_value_tl
     \str_if_eq:VnT \l__hit_format_value_tl { true }
       { \tl_put_right:Nn \l__hit_format_out_tl { \bfseries } }
+    \__hit_format_read:nnnN {#1} { latin-bold } { false } \l__hit_format_value_tl
+    \str_if_eq:VnT \l__hit_format_value_tl { true }
+      { \tl_put_right:Nn \l__hit_format_out_tl { \hit@font@latin@bold: } }
     \__hit_format_pick:nnN {#1} { alignment } \c__hit_format_align_prop
     \tl_put_right:Nx \l__hit_format_out_tl
       {
@@ -2098,6 +2105,8 @@
       }
   }
 \cs_new_protected:Npn \hit@format@apply@heading:n #1
+  { \hit@format@apply@heading@to:nn {#1} {#1} }
+\cs_new_protected:Npn \hit@format@apply@heading@to:nn #1#2
   {
     \__hit_format_if_blank:nF {#1}
       {
@@ -2142,14 +2151,23 @@
         \use:x
           {
             \exp_not:N \ctexset
-              { #1 = { \exp_not:V \l__hit_format_keys_tl } }
+              { #2 = { \exp_not:V \l__hit_format_keys_tl } }
           }
       }
   }
 %    \end{macrocode}
 %
-% 四级各发一次。报告不排章，配置里只发三级，所以这里照传进来的清单发，
-% 不把层级写死。
+% \changes{v3.2a}{2026/09/14}{拆出 \cs{hit@format@apply@heading@to:nn}：
+%   目标名与 \pkg{ctex} 的层级名分开，正文照终稿排那一档要错开一格}
+% \emph{目标名与层级名可以不是一个。} 原先两者写死同名，够用是因为四级一一对应。
+% 深圳本科的开题与中期不是：它们没有 \cs{chapter}，正文里第一级写的是
+% \cs{section}，可\emph{正文照终稿排}，那一级要按\emph{章}排（黑体小二、另起一页）。
+% 所以这一档把四档取值整体错开一格发出去：章的值发给 \texttt{section}、
+% 节的发给 \texttt{subsection}，依此类推。
+%
+% iota 那边是反过来的同一件事：真报告把四级\emph{下}移一格
+% （\texttt{report-levels}），正文照终稿排的那一档不移。我们的报告默认就只发三级、
+% 相当于已经移过，所以这一档要移回来。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@apply@headings:n #1
   { \clist_map_inline:nn {#1} { \hit@format@apply@heading:n {##1} } }
