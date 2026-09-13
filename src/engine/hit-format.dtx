@@ -47,6 +47,7 @@
 % \option{font-zh} & Chinese text font & \texttt{songti} \texttt{heiti} \texttt{kaishu} \texttt{fangsong} \texttt{xinwei} \texttt{none} \\
 % \option{font-en} & Latin text font & \texttt{serif} \texttt{sans} \texttt{mono} \\
 % \option{latin-bold} & （无） & \texttt{true} \texttt{false}，只加粗西文那一槽 \\
+% \option{latin-line} & （无） & \texttt{true} \texttt{false}，行盒按西文那一副算 \\
 % \option{size} & Size & \texttt{sanhao}，或 \texttt{16bp} \\
 % \option{alignment} & Alignment & \texttt{left} \texttt{centered} \texttt{right} \texttt{justified} \\
 %  & & \texttt{distributed} \texttt{last-line-centered} \\
@@ -657,6 +658,9 @@
     latin-bold .code:n =
       { \__hit_format_enum:nnn { latin-bold } { true , false } {#1} } ,
     latin-bold .default:n = true ,
+    latin-line .code:n =
+      { \__hit_format_enum:nnn { latin-line } { true , false } {#1} } ,
+    latin-line .default:n = true ,
     size .code:n = { \__hit_format_size:n {#1} } ,
     alignment .code:n =
       { \__hit_format_enum:nnn { alignment }
@@ -966,6 +970,13 @@
 % 的 \option{font-zh} 是 \texttt{none}，配置里写的那副字不改。判据见
 % \cs{hit@format@cjk:nTF}。
 %
+% \changes{v3.2a}{2026/09/14}{加 \option{latin-line}：行盒按西文算，
+%   发出去的中文字体不动}
+% \emph{\option{latin-line} 是同一件事的配置写法。} \option{font-zh}\texttt{=none}
+% 一句管两件：行盒按西文算，中文字体也不发了。英文档的标题两件只要前一件——
+% 行盒该按 Times 算（这一行本来就没有汉字），可万一标题里夹着汉字，那几个字
+% 还得是黑体。写 \option{latin-line}\texttt{=true} 只改行盒。
+%
 % \emph{行盒高。} 也就是 \cs{baselineskip}。倍数写法在对齐到网格时是网格行距的
 % 倍数，关掉时是自然行高的倍数；一行装不下就往上取整到整数个格。固定值原样生效，
 % 网格与字号都不介入，比字号小也照给（字会叠）。最小值是设定值与「网格开看网格
@@ -995,6 +1006,8 @@
 \tl_const:Nn \c__hit_format_natural_latin_tl { 1.15 }
 \bool_new:N \l__hit_format_latin_bool
 \bool_new:N \l_hit_format_latin_pick_bool
+\bool_new:N \l__hit_format_latin_line_bool
+\tl_new:N \l__hit_format_latin_tl
 \bool_new:N \l__hit_format_exact_bool
 \tl_const:Nn \c__hit_format_ascent_tl { 1.008 }
 \dim_const:Nn \c__hit_format_ascent_dim { 0.082bp }
@@ -1271,14 +1284,23 @@
 % 网格行距为零说明没走过 \cs{hit@msword@layout:n}，那时候不存在网格，
 % \option{snap-to-grid} 勾了也没有可对齐的东西，按关掉算。
 %    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_latin_line:n #1
+  {
+    \__hit_format_read:nnnN {#1} { latin-line } { false } \l__hit_format_latin_tl
+    \bool_set:Nn \l__hit_format_latin_line_bool
+      { \str_if_eq_p:Vn \l__hit_format_latin_tl { true } }
+  }
 \cs_new_protected:Npn \hit@format@compute:n #1
   {
     \__hit_format_read:nnnN {#1} { size } { } \l__hit_format_value_tl
     \tl_if_empty:NTF \l__hit_format_value_tl
       { \dim_set:Nn \l_hit_format_size_dim { \f@size pt } }
       { \dim_set:Nn \l_hit_format_size_dim { \l__hit_format_value_tl } }
+    \__hit_format_latin_line:n {#1}
     \__hit_format_read:nnnN {#1} { font-zh } { songti } \l__hit_format_value_tl
-    \bool_if:NT \l_hit_format_latin_pick_bool
+    \bool_lazy_or:nnT
+      { \bool_if_p:N \l_hit_format_latin_pick_bool }
+      { \bool_if_p:N \l__hit_format_latin_line_bool }
       { \tl_set:Nn \l__hit_format_value_tl { none } }
     \bool_set:Nn \l__hit_format_latin_bool
       { \str_if_eq_p:Vn \l__hit_format_value_tl { none } }
@@ -2003,9 +2025,13 @@
 \cs_new_protected:Npn \__hit_format_build:n #1
   {
     \tl_clear:N \l__hit_format_out_tl
+    \__hit_format_latin_line:n {#1}
     \__hit_format_read:nnnN {#1} { font-zh } { } \l__hit_format_value_tl
     \bool_set:Nn \l__hit_format_latin_bool
-      { \str_if_eq_p:Vn \l__hit_format_value_tl { none } }
+      {
+        \str_if_eq_p:Vn \l__hit_format_value_tl { none }
+        || \bool_if_p:N \l__hit_format_latin_line_bool
+      }
     \bool_lazy_and:nnT
       { ! \tl_if_empty_p:N \l__hit_format_value_tl }
       { ! \str_if_eq_p:Vn \l__hit_format_value_tl { none } }
@@ -3456,6 +3482,7 @@
     \__hit_format_if_blank:nF { body }
       {
         \hit@format@compute:n { body }
+        \bool_set_eq:NN \l_hit_format_strut_latin_bool \l__hit_format_latin_bool
         \dim_gset_eq:NN \g_hit_body_size_dim \l_hit_format_size_dim
         \dim_gset_eq:NN \g_hit_body_lead_dim \l_hit_format_lead_dim
         \dim_gset_eq:NN \g_hit_body_stretch_dim \l_hit_format_stretch_dim
