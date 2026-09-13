@@ -602,7 +602,7 @@
 % ^^A Module thesis-keylist: 元信息字段（\hitsetup 接受的 key）（hit-thesis）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*thesis-keylist>
+%<*shared-keylist>
 % \changes{v3.2a}{2026/08/10}{\cs{hitsetup} 的底层机制挪到 \file{src/setup/hit-key-engine.dtx}}
 
 \hit@define@term{secret-level} %密级
@@ -1023,6 +1023,7 @@
     biblabelalign    = { bib = { numbering-align = ... } } ,
     bibauthorupper   = { bib = { uppercase-family = true } } ,
     bibmaxauthor     = { bib = { max-bib-names = ... } } ,
+    raggedbottom     = { layout = { bottom = ragged~|~flush } } ,
   }
 %    \end{macrocode}
 %
@@ -1277,7 +1278,16 @@
     info  .code:n = { \hit@keys@set:nn { hit / info } {#1} } ,
     layout .code:n = { \hit@layout@set:n {#1} } ,
     format .code:n = { \hit@keys@set:nn { hit / format } {#1} } ,
-    toc   .code:n = { \hit@keys@set:nn { hit / toc } {#1} } ,
+    toc   .code:n =
+      {
+        \str_case:nnF {#1}
+          {
+            { true }  { \tl_gset:cn { g__hit_structure_table-of-contents_tl } { true } }
+            { false } { \tl_gset:cn { g__hit_structure_table-of-contents_tl } { false } }
+          }
+          { \hit@keys@set:nn { hit / toc } {#1} }
+      } ,
+    toc .default:n = true ,
     bib   .code:n =
       { \hit@keys@set:nn { hit / bib } {#1} } ,
     term .code:n = { \hit@keys@set:nn { hit / term } {#1} } ,
@@ -1314,7 +1324,7 @@
     \tl_if_empty:cT { hit@info@cover@date@zh@raw }
       { \cs_gset_eq:cc { hit@info@cover@date@zh@raw } { hit@info@date@zh@raw } }
   }
-%</thesis-keylist>
+%</shared-keylist>
 %    \end{macrocode}
 %
 %
@@ -1331,7 +1341,7 @@
 % ^^A Module report-keylist: 元信息字段（\hitsetup 接受的 key）（hit-report）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*report-keylist>
+%<*shared-keylist>
 %% 中文封面
 
 \hit@define@term{report-type-zh}
@@ -1385,48 +1395,6 @@
 % 键名、设值器与守卫跟学位论文类同一套，见那边的说明。报告类没有
 % \option{compress-min} 与 \option{split-entry}，跟统一前一样。
 %    \begin{macrocode}
-\keys_define:nn { hit / bib }
-  {
-    numbering-align .code:n =
-      {
-        \str_if_eq:nnF {#1} { auto }
-          {
-            \hit@bib@key@guard:n { numbering-align }
-            \str_gset:Nn \g_bib_labelalign_str {#1}
-          }
-      } ,
-    uppercase-family .choices:nn = { true , false , auto }
-      {
-        \str_if_eq:VnF \l_keys_choice_tl { auto }
-          {
-            \hit@bib@key@guard:n { uppercase-family }
-            \str_if_eq:VnTF \l_keys_choice_tl { true }
-              { \bool_gset_true:N  \g_bib_authorupper_bool }
-              { \bool_gset_false:N \g_bib_authorupper_bool }
-          }
-      } ,
-    uppercase-family .default:n = true ,
-    max-bib-names .code:n =
-      {
-        \str_if_eq:nnF {#1} { auto }
-          {
-            \hit@bib@key@guard:n { max-bib-names }
-            \int_gset:Nn \g_bib_maxauthor_int {#1}
-            \int_if_zero:nT { \g_bib_maxauthor_int }
-              { \int_gdecr:N \g_bib_maxauthor_int }
-          }
-      } ,
-    max-cite-names .code:n =
-      {
-        \str_if_eq:nnF {#1} { auto }
-          {
-            \hit@bib@key@guard:n { max-cite-names }
-            \int_gset:Nn \g__hit_bib_maxcite_int {#1}
-            \int_compare:nNnT \g__hit_bib_maxcite_int = 0
-              { \int_gdecr:N \g__hit_bib_maxcite_int }
-          }
-      } ,
-  }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/11}{报告类把 \option{toc}/\option{english} 改成一条提示}
@@ -1434,20 +1402,11 @@
 % 语言跟着类选项 \option{lang} 走，没有「中文目录后面再跟一份英文的」这回事。
 % 这里把 \option{english} 覆盖成一条提示，比让它静静地不起作用强。
 %    \begin{macrocode}
-\keys_define:nn { hit / toc }
-  { english .code:n = { \msg_warning:nn { hithesis } { no-toc-english } } }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/10}{加旧名到新名的映射表与废弃警告}
 % 兼容期的处理，与 \file{hit-thesis.cls} 一致：旧名照常生效，只在日志里提示。
 %    \begin{macrocode}
-\prop_gset_from_keyval:Nn \g__hit_renamed_option_prop
-  {
-    raggedbottom   = { layout = { bottom = ragged~|~flush } } ,
-    biblabelalign  = { bib = { numbering-align = ... } } ,
-    bibauthorupper = { bib = { uppercase-family = true } } ,
-    bibmaxauthor   = { bib = { max-bib-names = ... } } ,
-  }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/10}{元信息字段的旧名走废弃期：仍然可用，用一次提示一次}
@@ -1469,53 +1428,12 @@
 \hit@define@legacy@title{ctitlecover}{zh}{first}
 \hit@define@legacy@title{ctitleone}{zh}{first}
 \hit@define@legacy@title{ctitletwo}{zh}{second}
-\prop_gset_from_keyval:Nn \g__hit_renamed_load_option_prop
-  {
-    font        = { font-en = ... } ,
-    cjk-font    = { font-zh = ... } ,
-    type        = { degree-level } ,
-    newgeometry = { v2-layout~=~{~bachelor~,~graduate~=~one|two~} } ,
-  }
-\__hit_check_class_options:
 %    \end{macrocode}
 %
 % 根族路由。\option{toc} 既是族名又是老的布尔选项名，所以它单独处理：
 % 值是 \texttt{true}/\texttt{false} 时当老写法，其余当子族的键值表。
 %    \begin{macrocode}
-\keys_define:nn { hit }
-  {
-    info  .code:n = { \hit@keys@set:nn { hit / info } {#1} } ,
-    layout .code:n = { \hit@layout@set:n {#1} } ,
-    format .code:n = { \hit@keys@set:nn { hit / format } {#1} } ,
-    bib   .code:n =
-      { \hit@keys@set:nn { hit / bib } {#1} } ,
-    term .code:n = { \hit@keys@set:nn { hit / term } {#1} } ,
-    const .code:n =
-      {
-        \__hit_warn_once:nnn { const } { renamed-family } { term }
-        \hit@keys@set:nn { hit / term } {#1}
-      } ,
-    struct .code:n =
-      { \__hit_structure_reset_written: \hit@keys@set:nn { hit / struct } {#1} } ,
-    thm .code:n = { \hit@theorem@style {#1} } ,
-    toc .code:n =
-      {
-        \str_case:nnF {#1}
-          {
-            { true }  { \tl_gset:cn { g__hit_structure_table-of-contents_tl } { true } }
-            { false } { \tl_gset:cn { g__hit_structure_table-of-contents_tl } { false } }
-          }
-          { \hit@keys@set:nn { hit / toc } {#1} }
-      } ,
-    toc .default:n = true ,
-    unknown .code:n = { \__hit_legacy_key:n {#1} } ,
-  }
-\RenewDocumentCommand \hitsetup { O{} +m }
-  {
-    \hit@if@condition:nT {#1}
-      { \hit@keys@set:nn { hit } {#2} \hit@bib@backend@apply: }
-  }
-%</report-keylist>
+%</shared-keylist>
 %    \end{macrocode}
 %
 %
