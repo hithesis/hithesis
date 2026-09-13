@@ -6,7 +6,7 @@
 2026-09-13 扫出 11 处悬空，分别指向 hit-meta.dtx 与 hit-publist.dtx，两个文件
 在 v3.2a 中途就并掉了，机制分别进了 setup/hit-key-engine.dtx 与 utils/hit-list.dtx。
 
-只认 \\file{src/...} 这一种形态。\\file{hit-thesis.cfg} 这类产物名、changes 条目里
+只认 \\file{src/...} 这一种形态。\\file{hithesis.cfg} 这类产物名、changes 条目里
 提到的历史文件名（“原先在 hithesisartplus.cls 里”）都不在此列——前者不是源码
 路径，后者本来就该是历史。带 \\* 的通配写法（\\file{src/flow/hit-*-deps.dtx}，指
 “两个类各自那一份”）按通配匹配，能匹到至少一个就算数。

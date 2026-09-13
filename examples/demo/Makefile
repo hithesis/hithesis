@@ -110,7 +110,7 @@ clean:
 # make cls 生成、由编译脚本拷进来的那几份，以及 assets/ 里拷过来的图。
 # 它们不是这个目录的内容，是别处的产物，按名删不通配。
 GENERATED = hithesis.cls hithesis.cfg hithesis.sty hithesis.ist hithesis.bst \
-            hit-thesis.cls hit-thesis.cfg hit-report.cls hit-report.cfg \
+            hit-thesis.cls hit-report.cls \
             hithesisbook.cls hithesisart.cls hithesisartplus.cls \
             hit-logo.pdf zfb.pdf hit-bachelor-report-bottommark.pdf \
             figures/golfer.pdf

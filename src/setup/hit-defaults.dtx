@@ -60,6 +60,30 @@
   { \seq_gput_right:Nn \g__hit_presetup_seq { { code } {#1} {#2} } }
 %    \end{macrocode}
 %
+% \begin{macro}{\hit@presetup@scope}
+% \changes{v3.2a}{2026/09/13}{加 \cs{hit@presetup@scope}：给一整段配置挂一个
+%   共同条件，两份 \file{cfg} 合成一份要用}
+% \cs{hit@presetup@scope}\marg{条件} 给后面每一条 \cs{hit@presetup} 再挂一个条件，
+% 直到下一次调用改掉它；参数写空就撤销。条件写法与可选参数那个完全一样。
+%
+% \emph{为什么不把条件写进每一行。} 两份 \file{cfg} 合成一份之后，原先靠「这行在
+% 哪个文件里」分开的一百多行要改成靠条件分开。逐行加 \texttt{stage!=final} 的话，
+% 本来就带条件的那四十多行得把新条件与旧条件揉成一句，而条件里的分号是「或」、
+% 逗号是「且」，揉的时候要按分号分配一遍，一行揉错就静默少排一段。
+%
+% \emph{两个条件各判各的，不拼字符串。} 段条件与行条件分别求值，都成立才回放。
+% 所以行条件里的分号还是原来那个分号，合并前后逐字不动。
+%
+% 段条件也排进同一个队列，回放时按遇到的顺序改当前段条件——记的时候还没解析选项，
+% 当场判不了。
+%    \begin{macrocode}
+\tl_new:N \g__hit_presetup_scope_tl
+\bool_new:N \l__hit_presetup_scope_bool
+\NewDocumentCommand \hit@presetup@scope { m }
+  { \seq_gput_right:Nn \g__hit_presetup_seq { { scope } {#1} { } } }
+%    \end{macrocode}
+% \end{macro}
+%
 % 文件全程在 \pkg{expl3} 语境里——\cs{ProvidesExplClass} 已经开好了，这里不要再写
 % \cs{ExplSyntaxOn}/\cs{ExplSyntaxOff}：多写一对 \texttt{Off} 会把后面所有共享模块
 % 的语境一起关掉，踩过一次，症状是 \cs{bool\_new:N} 未定义。
@@ -198,11 +222,26 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_presetup_one:nnn #1#2#3
   {
-    \hit@if@condition:nT {#2}
-      { \str_if_eq:nnTF {#1} { code } {#3} { \hitsetup {#3} } }
+    \str_if_eq:nnTF {#1} { scope }
+      { \tl_gset:Nn \g__hit_presetup_scope_tl {#2} }
+      {
+        \bool_set_true:N \l__hit_presetup_scope_bool
+        \tl_if_empty:NF \g__hit_presetup_scope_tl
+          {
+            \bool_set_false:N \l__hit_presetup_scope_bool
+            \exp_args:NV \hit@if@condition:nT \g__hit_presetup_scope_tl
+              { \bool_set_true:N \l__hit_presetup_scope_bool }
+          }
+        \bool_if:NT \l__hit_presetup_scope_bool
+          {
+            \hit@if@condition:nT {#2}
+              { \str_if_eq:nnTF {#1} { code } {#3} { \hitsetup {#3} } }
+          }
+      }
   }
 \cs_new_protected:Npn \hit@apply@presetup
   {
+    \tl_gclear:N \g__hit_presetup_scope_tl
     \bool_gset_true:N \g__hit_format_presetup_bool
     \seq_map_inline:Nn \g__hit_presetup_seq { \__hit_presetup_one:nnn ##1 }
     \bool_gset_false:N \g__hit_format_presetup_bool
@@ -218,7 +257,7 @@
 % 不是这个值的事。三个类共用一份。
 %    \begin{macrocode}
 %</shared-defaults>
-%<*shared-cfg>
+%<*hithesis-cfg>
 \ExplSyntaxOff
 \hit@presetup[campus=harbin]{ term = { base-campus = {哈尔滨} } }
 \hit@presetup[campus=weihai]{ term = { base-campus = {威海} } }
@@ -247,7 +286,7 @@
   student-id    = {□□□□□□□□□□},
 } }
 \ExplSyntaxOn
-%</shared-cfg>
+%</hithesis-cfg>
 %<*shared-defaults>
 %    \end{macrocode}
 %
@@ -301,7 +340,8 @@
 % 字间距撑开在 \file{src/utils/hit-spread.dtx}。\cs{hitpreconfig} 只在两处出现，
 % 都是一句 \cs{hit@setup@date}。
 %    \begin{macrocode}
-%<*thesis-cfg>
+%<*hithesis-cfg>
+\hit@presetup@scope{stage=final}
 %    \end{macrocode}
 %
 % \subsection{本科的版面}
@@ -1498,15 +1538,22 @@
   base-brace-right-en   = {)},
 } }
 \ExplSyntaxOn
-%</thesis-cfg>
 %    \end{macrocode}
 %
-% \section{报告类的默认值}
+% \section{开题与中期报告的默认值}
 %
 % \changes{v3.2a}{2026/08/07}{\texttt{reportcfg} 从 \file{hit-report.dtx} 迁进来}
-% 两个报告类共用这一份，与迁移前一致。同样先整段包在 \cs{hitpreconfig} 里。
+% \changes{v3.2a}{2026/09/13}{两份 \file{cfg} 合成一份 \file{hithesis.cfg}，
+%   原先靠文件分开的两段改由段条件分开}
+% 这一段是开题与中期两份报告的，段条件写成 \texttt{stage!=!!final}：终稿是这根轴
+% 的基准，剩下的两档一起走这一段。上面那一大段是终稿的，段条件是
+% \texttt{stage!=final}。
+%
+% 两段原先是两份文件（\file{hit-thesis.cfg} 与 \file{hit-report.cfg}），由
+% \pkg{docstrip} 的守卫分开；现在是一份 \file{hithesis.cfg}，由段条件分开。
+% 每一行自己的条件一字未动，所以合并前后各档取到的值逐条相同。
 %    \begin{macrocode}
-%<*report-cfg>
+\hit@presetup@scope{stage=!final}
 \ExplSyntaxOff
 \hit@presetup{ thm = {
   body-font   = {\normalfont},
@@ -1825,7 +1872,8 @@
 % \changes{v3.1c}{2023/04/16}{深圳校区硕士开题模板含有“深圳校区教务处 制”。\issue[141]}
 %
 %    \begin{macrocode}
-%</report-cfg>
+\hit@presetup@scope{}
+%</hithesis-cfg>
 %    \end{macrocode}
 %
 % \Finale

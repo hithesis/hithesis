@@ -108,16 +108,43 @@ def expand_loops(s: str) -> str:
     return "\n".join(out)
 
 
-def valued(*files: pathlib.Path) -> set[str]:
+def scope_holds(scope: str, stages: set[str]) -> bool:
+    """段条件在这个类里成不成立。
+
+    段条件只有 ``轴=取值`` 一种形状，取值前面可以加 ``!`` 取反。判断看的是取值，
+    与 \\hit@presetup 的条件一样不看轴名。空条件恒成立。
+    """
+    scope = scope.strip()
+    if not scope:
+        return True
+    value = scope.split("=", 1)[1].strip() if "=" in scope else scope
+    negated = value.startswith("!")
+    value = value.lstrip("!")
+    return (value not in stages) if negated else (value in stages)
+
+
+def valued(*files: pathlib.Path, stages: set[str] | None = None) -> set[str]:
     """这些文件里真给了取值的键。
 
     取值不止在 ``.cfg`` 里：``after-*-number`` 那十二条由 ``shared-defaults``
     的循环显式设成空值，那一段编进类文件，所以 ``.cls`` 也要一起读。
+
+    ``stages`` 是这个类能处在的材料档（终稿类是 ``{"final"}``，报告类是
+    ``{"proposal", "interim"}``）。两个类合用一份 ``hithesis.cfg`` 之后，
+    哪一段归哪个类由 \\hit@presetup@scope 的段条件决定，不看它就会把学位论文
+    专有的键也算成报告类有值，这个检查的头一关就失效了。
     """
     s = expand_loops("\n".join(f.read_text(encoding="utf-8") for f in files))
     out: set[str] = set()
-    for m in re.finditer(r"\\hit@presetup\s*(\[[^\]]*\])?\s*\{", s):
+    scope = ""
+    both = re.compile(r"\\hit@presetup(@scope)?\s*(\[[^\]]*\])?\s*\{")
+    for m in both.finditer(s):
         body, _ = braced(s, m.end())
+        if m.group(1):                      # 这是一条 \hit@presetup@scope
+            scope = body
+            continue
+        if stages is not None and not scope_holds(scope, stages):
+            continue
         cm = re.search(r"\bterm\s*=\s*\{", body)
         if not cm:
             continue
@@ -259,11 +286,13 @@ def main() -> int:
     skipped: list[str] = []
     for cls, skel in (("hit-thesis", "src/hit-thesis.dtx"),
                       ("hit-report", "src/hit-report.dtx")):
-        cfg = ROOT / f"{cls}.cfg"
+        cfg = ROOT / "hithesis.cfg"
         if not cfg.exists() or not (ROOT / f"{cls}.cls").exists():
             skipped.append(cls)
             continue
-        have = with_fallback(bound(valued(cfg, ROOT / f"{cls}.cls"), CONTEXTS[cls]))
+        stages = {c["stage"] for c in CONTEXTS[cls]}
+        have = with_fallback(bound(
+            valued(cfg, ROOT / f"{cls}.cls", stages=stages), CONTEXTS[cls]))
         # 声明了却在这个类里没取到值的，引用它就是空的
         missing = {k for k in decl if k not in have}
         macros = {"\\hit@term@" + k.replace("-", "@").replace("*", ""): k for k in missing}
