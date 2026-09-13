@@ -180,9 +180,10 @@ def find_template_root(extracted: Path) -> Path | None:
 
 
 def _book_cls_exists(root) -> bool:
-    """学位论文类文件在不在。v3.2a 起叫 hit-thesis.cls，之前叫 hithesisbook.cls。"""
+    """学位论文类文件在不在。v3.2a 起只有一个 hithesis.cls，之前叫 hithesisbook.cls。"""
     d = root / "examples" / "hitbook" / "chinese"
-    return (d / "hit-thesis.cls").exists() or (d / "hithesisbook.cls").exists()
+    return ((d / "hithesis.cls").exists() or (d / "hit-thesis.cls").exists()
+            or (d / "hithesisbook.cls").exists())
 
 def ensure_generated_files(root: Path) -> bool:
     """源码存档里没有生成好的 .cls，得先生成一遍。

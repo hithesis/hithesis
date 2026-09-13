@@ -9,9 +9,7 @@
 ```
 hithesis/
 ├── src/
-│   ├── hithesis.dtx            <- 入口：driver、共用文件头、派发类 hithesis.cls、旧类名空壳
-│   ├── hit-thesis.dtx          <- 学位论文类 hit-thesis 的骨架：LoadClass 与前后钩子
-│   ├── hit-report.dtx          <- 开题中期类 hit-report 的骨架，同上
+│   ├── hithesis.dtx            <- 入口：driver、装配表、类文件头与类尾、旧类名报错文件
 │   ├── hit-bst.dtx             <- 参考文献样式 hithesis.bst（官方 gbt7714 底座）
 │   ├── hit-ist.dtx             <- 索引排序样式 hithesis.ist
 │   ├── hit-dtx-style.dtx       <- 排手册用的 dtx-style.sty，不随模板发布
@@ -150,29 +148,30 @@ src/
 已经指 `doc` 宏包那套排手册的机器，那套在本仓库是 `src/hit-dtx-style.dtx`。
 `manual/` 说的是用户手册这一份具体产物。
 
-`flow/` 与 `pages/` 里的文件按类分开，`hit-thesis-cover.dtx` 是毕业论文封面，`hit-report-cover.dtx`
-是开题报告封面。不共用，是 docstrip 逼的：它给同一个输出里重复出现的输入文件改名
-（原名后面添空格），并要求每个输出的输入文件表是全局表的子序列。一个输出一旦用上
-自己独有的文件，扫描位置就落到全局表尾部，再回头引用排在前面的共享文件就找不到，
-报 `Incompatible order of input files`。
+`flow/` 与 `pages/` 里的文件按交付物分开，`hit-thesis-cover.dtx` 是学位论文封面，
+`hit-report-cover.dtx` 是开题报告封面。v3.2a 起两边同在一个 `hithesis.cls` 里，各自
+整块套在 `\bool_if:NT \g__hit_final_bool` 里（报告那组套 `:NF`），互不相干。
 
-推论：**共享文件必须全部排在类骨架第一次出现之前**。所以 `utils/hit-bibstyle.dtx`
-排在选项区，而不是排在两个类的参考文献模块旁边。这也决定了哪些代码抽得动：
-要在类骨架之后才能跑的（比如读类选项取值的），抽不动。
+合成一个输出之前有一条 docstrip 的硬限制：它给同一个输出里重复出现的输入文件改名
+（原名后面添空格），并要求每个输出的输入文件表是全局表的子序列。两个输出各自用上
+自己独有的文件，再回头引用排在前面的共享文件就找不到，报
+`Incompatible order of input files`。只剩一个输出之后这条限制不再起作用，文件顺序
+可以随意安排；`utils/hit-bibstyle.dtx` 还排在选项区，是因为它得在选项之前跑，
+不是因为 docstrip。
 
 先按家族找文件，再在文件里按 docstrip 守卫找模块：
 
 | 要改什么 | 打开哪个 |
 |---|---|
-| 不知道该改哪 | `src/hit-thesis.dtx`、`src/hit-report.dtx` 开头的装配表：这个类由哪些文件按什么顺序拼出来，一目了然。表是 `install` 守卫的产物，改完那边跑 `make mapfix` |
+| 不知道该改哪 | `src/hithesis.dtx` 里的装配表：这个类由哪些文件按什么顺序拼出来，一目了然。表是 `install` 守卫的产物，改完那边跑 `make mapfix` |
 | 常量的默认值（改学校规范） | `src/setup/hit-defaults.dtx` |
 | 有哪些信息字段与常量 | `src/setup/hit-keylist.dtx` |
-| 这个类有哪些类选项 | `src/setup/hit-thesis-options.dtx`、`src/setup/hit-report-options.dtx` |
+| 有哪些类选项 | `src/setup/hit-options.dtx` |
 | 键与选项的声明机制 | `src/setup/hit-*-engine.dtx` |
 | 改一句提示文案 | `src/utils/hit-messages.dtx` 一处，24 条全在里面 |
 | 前置后置排哪些部件 | `src/utils/hit-structure.dtx` 声明键，`src/flow/hit-*-matter.dtx` 定顺序 |
 | 第三方宏包加载与先后 | `src/flow/hit-thesis-deps.dtx`、`src/flow/hit-report-deps.dtx` |
-| 哪个类装哪个基础类 | `src/hit-thesis.dtx`、`src/hit-report.dtx`，各只有一句 `\LoadClass` |
+| 装哪个基础类 | `src/setup/hit-loadclass.dtx`，一句 `\LoadClass{ctexbook}` 加报告那档的四条补偿 |
 | 各个类共用的小工具 | `src/utils/hit-*.dtx` |
 | 论文的某一页 | `src/pages/hit-thesis-*.dtx`、`src/pages/hit-report-*.dtx` |
 | 版心、页眉、标题、浮动体、字体、数学、脚注 | `src/flow/hit-thesis-*.dtx`、`src/flow/hit-report-*.dtx` |
@@ -181,18 +180,18 @@ src/
 | 排手册用的样式 | `src/hit-dtx-style.dtx` |
 | 示例文档自己要用的东西 | `src/hit-sty.dtx` |
 | 用户手册文字 | `src/manual/hit-manual.dtx` |
-| 类的公共文件头、派发类、旧类名空壳 | `src/hithesis.dtx` |
+| 类文件头、类尾、配置回放、旧类名报错文件 | `src/hithesis.dtx` |
 
-**文件名的规矩：`hit-<类>-<职责>.dtx` 是单类专属，`hit-<职责>.dtx` 是共用。**
-`flow/` 与 `pages/` 里一个共用的都没有，全部带类名前缀；`utils/` 里全部共用，
-一个前缀都不带，守卫也统一叫 `shared-*`。看文件名就知道改它会影响谁。
+**文件名的规矩：`hit-<交付物>-<职责>.dtx` 只管一档，`hit-<职责>.dtx` 两档共用。**
+`flow/` 与 `pages/` 里目前全部带 `thesis-`/`report-` 前缀；`utils/` 与 `setup/` 里
+全部共用，一个前缀都不带，守卫统一叫 `shared-*`。看文件名就知道改它会影响谁。
 
 **52 个 dtx 的文件名必须全局唯一。** `src/` 下按职责分了目录，但解压规则
 里按裸文件名引用，`l3build ctan` 打包和 TDS 的 `source/latex/hithesis/` 也都是平
 的。两个目录下同名的文件，打包后会互相覆盖。这也是类名前缀只能写进文件名、不能
 改成 `flow/thesis/` 与 `flow/report/` 两个子目录的原因——拍平之后就撞了。
 
-文件内用 `grep -n '%<\*thesis-' src/hit-thesis.dtx` 之类列出模块起点。模块用注释标出：
+文件内用 `grep -n '%<\*thesis-' src/pages/hit-thesis-cover.dtx` 之类列出模块起点。模块用注释标出：
 
 ```
 % ^^A ======================================================================
@@ -263,9 +262,9 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 
 改学校规范只动 defaults，加一个字段动 keylist，改键的工作方式才动 engine。
 
-**类选项不在这三层里，在各自的类文件。** `degree-level`、`campus`、`fontset` 这些写在
-`\documentclass[…]` 里的东西，声明在 `src/hit-thesis.dtx` 与 `src/hit-report.dtx` 的
-`*-options` 守卫，紧挨着 `\LoadClass`。它们不是清单：那一段除了声明，还跑
+**类选项不在这三层里，单成一个模块。** `degree-level`、`campus`、`fontset`、`stage`
+这些写在 `\documentclass[…]` 里的东西，声明在 `src/setup/hit-options.dtx`，
+紧挨着 `\LoadClass`。它们不是清单：那一段除了声明，还跑
 `\ProcessKeyOptions`、`\PassOptionsToPackage`，以及“没给 degree-level 就置 bachelor”这类
 兜底逻辑，是类加载序列的一部分，必须在 `\LoadClass` 之前执行完。放进 keylist 试过，
 那一层“只声明不执行”的规矩立刻就破了。
@@ -306,24 +305,28 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 按分层它是机制，但 `hit-defaults.dtx` 在解压清单里排在第二位、自己就调用了
 107 次 `\hit@presetup`，而 engine 排在一百多行之后。定义必须早于调用，挪不动。
 
-**共用文件必须排在每个块的前面。** docstrip 的输入文件表全局只增，一个被两份输出
+**共用文件必须排在每个块的前面。** docstrip 的输入文件表全局只增，一个被多份输出
 共用的文件，只有排在每份输出各自要求的位置之前，先后才彼此相容。排在中间会报：
 
 ```
-! DOCSTRIP error: Incompatible order of input files specified for file `hit-report.cls'
+! DOCSTRIP error: Incompatible order of input files specified for file `hithesis.cls'
 ```
 
-`hit-keylist.dtx` 一度按类分成两个文件，就是因为它当时排在类骨架之后。后来实测它
-根本不需要类骨架给的任何东西，提到 `*-options` 之前照样逐字节一致，于是能合成一个
-共用文件、共用那 96 个键名。加新文件时先想清楚它要排在哪，再决定能不能共用。
+v3.2a 把两个 cls 合成一个之后，`hithesis.cls` 这一边不再受这条约束——只有一个输出
+就没有“彼此相容”可言。但 `hithesis.cfg` 与旧类名那三个报错文件也从
+`hithesis.dtx` 与 `hit-defaults.dtx` 里取，所以这两个文件的位置仍然要留意。
+
+合并之前撞过两次：`hit-keylist.dtx` 一度按类分成两个文件，就是因为它当时排在类
+骨架之后；把三个 flow 模块合成共用文件那次也当场撞上，只好先合选项与 LoadClass、
+再合 cls，顺序反过来就过不去。
 
 ### 4.3 分支按轴走，底层机制共用
 
-分支按**轴**走，不按类走。轴是 `stage`（final／proposal／interim）、`campus`、`degree-level`、`degree-type`、`category`、`lang` 这几根，见 `src/setup/hit-key-engine.dtx` 的轴表。同一件事在不同档上不一样，就在那一档上分支；“开题中期共用、终稿另说”写成 `-not-final`，不要把 proposal 与 interim 各写一遍。
+分支按**轴**走，不按类走。轴是 `stage`（final／proposal／interim）、`campus`、`degree-level`、`degree-type`、`category`、`lang` 这几根，见 `src/setup/hit-key-engine.dtx` 的轴表。同一件事在不同档上不一样，就在那一档上分支；“开题中期共用、终稿另说”写成 `-!final`，不要把 proposal 与 interim 各写一遍。
 
-**这条 v3.2a 改过。** 原先的说法是“各个 cls 的版式代码物理隔离，碰巧相似的版式不要合并”，据此 `hit-thesis.dtx` 与 `hit-report.dtx` 各写一套。实测下来这个前提不成立：两份生成物逐行比对，7204 行完全一致，报告独有的只有 654 行——报告类实质上是学位论文类的一个分支，而不是另一套规范。所谓“规范一独立变动就会变成维护负担”，代价其实反过来：同一处改动要在两边各改一遍，漏一边不报错，这一年里已经发生过多次（文献表标号、页眉、条目间距）。
+**这条 v3.2a 改过。** 原先的说法是“各个 cls 的版式代码物理隔离，碰巧相似的版式不要合并”，据此两个类各写一套。实测下来这个前提不成立：两份生成物逐行比对，7204 行完全一致，报告独有的只有 654 行——报告实质上是学位论文的一个分支，而不是另一套规范。所谓“规范一独立变动就会变成维护负担”，代价其实反过来：同一处改动要在两边各改一遍，漏一边不报错，这一年里已经发生过多次（文献表标号、页眉、条目间距）。v3.2a 据此把两个类合成一个 `hithesis.cls`，差别由 `stage` 分。
 
-反过来，同一套规范下的分支不要单开一个类，这一条照旧。深圳博士中期原先是 `hithesisartplus`，与 `hithesisart`（今 `hit-report`）九成代码逐字相同，差的只有封面、页眉、节标题、正文行距四处；v3.2a 并回 `report-*`，由 `campus=shenzhen,degree-level=doctor,stage=interim` 三个选项选中，与其余十七格并列。判断标准不再是“规范同不同”，而是“差异落在哪根轴上”：落在轴上就加分支，落不到任何一根轴上才该想是不是要新开一根轴。
+反过来，同一套规范下的分支不要单开一个类，这一条照旧。深圳博士中期原先是 `hithesisartplus`，与 `hithesisart`（今 `stage=proposal|interim`）九成代码逐字相同，差的只有封面、页眉、节标题、正文行距四处；v3.2a 并回 `report-*`，由 `campus=shenzhen,degree-level=doctor,stage=interim` 三个选项选中，与其余十七格并列。判断标准不再是“规范同不同”，而是“差异落在哪根轴上”：落在轴上就加分支，落不到任何一根轴上才该想是不是要新开一根轴。
 
 底层机制是另一回事。字号、数学、表格、脚注这些各套规范要求一致的东西，共用一份放在 `src/utils/hit-*.dtx`，守卫叫 `shared-*`：
 
@@ -494,7 +497,7 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 宏的定义：
 
 ```
-scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
+scripts/convert-macro.py src/pages/hit-thesis-cover.dtx hit@engcover --apply
 ```
 
 八个封面版式宏就是这么转的。脚本不是万能的，改完照样要跑全量变体逐字节比对。
@@ -655,13 +658,13 @@ scripts/convert-macro.py src/hit-thesis.dtx hit@engcover --apply
 thuthesis 与 fduthesis 都是这么分的：`tex/` 下只有校徽校名，示例在 `doc/` 下，
 一张图都不带。
 
-2. 在 `src/hithesis.dtx` 的 `install` 守卫里，对应的 `\file{...cls}` 中插一条 `\from`：
+2. 在 `src/hithesis.dtx` 的 `install` 守卫里，`\file{\jobname.cls}` 中插一条 `\from`：
 
    ```
-   \from{hit-thesis.dtx}{thesis-footnote}
+   \from{hit-thesis-footnote.dtx}{thesis-footnote}
    ```
 
-   位置就是它要被执行的位置。docstrip 严格按 `\from` 的书写顺序输出，与守卫块在 dtx 里的位置无关。三处 `\file`（根目录、chinese、english）都要改。
+   位置就是它要被执行的位置。docstrip 严格按 `\from` 的书写顺序输出，与守卫块在 dtx 里的位置无关。
 
    加载顺序敏感：如果新模块依赖 enumitem、hyperref 这些已在 `X-deps` 里加载的包，`\from` 要排在 `X-deps` 之后。
 
@@ -737,7 +740,7 @@ CI 会在推送后跑这几项：
 
 | 范围 | 对应 |
 |---|---|
-| `thesis` `report` | 各个类，当前是 `src/hit-thesis.dtx`、`src/hit-report.dtx` |
+| `thesis` `report` | 只管一档的模块，`src/flow/hit-thesis-*.dtx`、`src/pages/hit-report-*.dtx` 这些 |
 | `utils` | 各个类共用的小工具 `src/utils/hit-*.dtx` |
 | `pages` | 论文的某一页 `src/pages/hit-*.dtx` |
 | `setup` | 设置子系统 `src/setup/hit-*.dtx` |
@@ -880,7 +883,7 @@ make version-set VERSION=3.2b DATE=2026/08/07
 | hyperref 加载顺序 | 引用、书签锚点错乱 | hyperref 已在 `X-deps` 内部的精确位置加载，别在其他模块重新加载 |
 | enumitem 覆盖 cft* 长度 | 目录间距异常 | `X-toc` 的 `\from` 要排在 `X-deps` 之后 |
 | `\from` 顺序写错 | 宏未定义、样式失效 | docstrip 按 `\from` 顺序输出，不按守卫块在 dtx 里的位置 |
-| 新加的 dtx 排在共用文件之后 | `Incompatible order of input files` | docstrip 给同一个 `\file` 里重复出现的输入文件按出现次序各记一条，全局只有一张追加式的文件表。两个 cls 各自大量引用同一个 dtx、之后又共用另一个 dtx，就排不出一致的先后。`reportcfg` 因此留在 `hit-report.dtx` 里没有单独成文件 |
+| 新加的 dtx 排在共用文件之后 | `Incompatible order of input files` | docstrip 给同一个 `\file` 里重复出现的输入文件按出现次序各记一条，全局只有一张追加式的文件表。多份输出各自大量引用同一个 dtx、之后又共用另一个 dtx，就排不出一致的先后。v3.2a 合成一个 cls 之后这条对 cls 不再适用，但 `hithesis.cfg` 与旧类名那三个报错文件仍然共用 `hithesis.dtx` |
 | 模块内残留 `\ProvidesPackage` | 日志里出现不存在的宏包 | 模块拼进 cls，不该有包身份声明 |
 | 守卫缺失 | 代码漏进别的文件 | 每个 `%<*X>` 都要有配对的 `%</X>` |
 | `\changes` 文本里写了 `=` | `make manual` 报 `Extra }`，修改记录那条目被拦腰截断 | `gglo.ist` 把 `=` 当 makeindex 的 actual 分隔符。改成 `\option{font} 取 \texttt{auto}` 这种写法，别写 `font=auto` |

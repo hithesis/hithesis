@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """把 dtx 里某个宏的定义改写成 expl3 写法，记号序列不变。
 
-    scripts/convert-macro.py src/hit-thesis.dtx hit@english@cover [第几处] [--apply]
+    scripts/convert-macro.py src/pages/hit-thesis-cover.dtx hit@english@cover [第几处] [--apply]
 
 不带 --apply 时只打印结果。改完必须跑全量变体逐字节比对。
 """

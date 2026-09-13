@@ -1,0 +1,115 @@
+% \iffalse meta-comment
+%
+% hit-loadclass.dtx 是分水岭：\LoadClass 与紧随其后的几条补偿
+%
+% \fi
+%
+% \section{分水岭：\cs{LoadClass}}
+%
+% ^^A ======================================================================
+% ^^A Module shared-loadclass: \LoadClass{ctexbook} 与紧随其后的几条补偿
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*shared-loadclass>
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{两条装配线的 \cs{LoadClass} 合成一份
+%   \file{src/setup/hit-loadclass.dtx}}
+% 使用 \pkg{ctexbook} 类，优于调用 \pkg{ctex} 宏包。
+%
+% \emph{单双面不写在这里。} 原先两条装配线各自在方括号里写死
+% （终稿 \texttt{openany}、报告 \texttt{oneside}），合成一份之后按
+% \option{stage} 与学位分，所以改由 \cs{PassOptionsToClass} 在选项模块里发，
+% 见 \file{src/setup/hit-options.dtx}。两条路进的是同一张选项表，效果一样。
+%    \begin{macrocode}
+\LoadClass[a4paper,UTF8,zihao=-4,scheme=plain]{ctexbook}
+\bool_gset_true:N \g__hit_base_class_loaded_bool
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{报告类从基础类白拿的那几条默认值显式写出来，
+%   为换 \cls{ctexbook} 做准备}
+% \subsection{报告那一档的四条补偿}
+%
+% \emph{下面这一段只有开题与中期跑。} 报告原先的底类是 \cls{ctexart}，四条默认值
+% 是从那边白拿的；底类换成 \cls{ctexbook} 之后 \cls{book} 那几条各不相同，所以
+% 显式写回来。终稿本来就是 \cls{ctexbook}，这几条正是它要的，不能跟着一起改。
+%
+% \begin{itemize}
+% \item \cs{secnumdepth}：\cls{article} 是 3，\cls{book} 是 2。报告通篇没写过
+%   这一句，一直白拿 3；不写死的话三级标题的编号会整个消失。
+% \item \cs{thesection}：\cls{article} 是光节号，\cls{book} 带章号前缀。
+% \item \cs{theHsection}：\pkg{hyperref} 的锚名，同理。印出来看不见，但书签
+%   与交叉引用的目标名会变。
+% \item \cs{pagestyle}：\cls{article} 末尾设 \texttt{plain}，\cls{book} 设
+%   \texttt{headings}。报告只有深圳两处与威海硕士开题显式设过自家样式，
+%   本部各档吃的是类默认值。
+% \end{itemize}
+%
+% \changes{v3.2a}{2026/09/13}{底类换 \cls{ctexbook}；两个编号宏改成按章计数器
+%   自适应，写了 \cs{chapter} 就带章号，没写就与从前一字不差}
+% \emph{两个编号宏问的是「有没有章」，不是「哪个类」。}
+% \cs{int\_compare:nNnT}\{\cs{c@chapter}\}\texttt{>}\{0\} 这一句：没写过
+% \cs{chapter} 时章计数器停在零，编号就是光节号，与 \cls{ctexart} 下一字不差；
+% 写了 \cs{chapter} 就自动带上章号。这不是我们发明的写法——\cls{book} 自己的
+% \cs{thefigure}、\cs{thetable}、\cs{theequation} 就是
+% \cs{ifnum}\cs{c@chapter}\texttt{>}\cs{z@} \cs{thechapter}\texttt{.}\cs{fi}，
+% 只有 \cs{thesection} 没这么写，它无条件带章号。补上这一条之后，报告排不排章
+% 就成了作者写不写 \cs{chapter} 的事，不需要选项，也不需要模板提前知道。
+%    \begin{macrocode}
+\bool_if:NF \g__hit_final_bool
+  {
+    \setcounter { secnumdepth } { 3 }
+    \cs_set:Npn \thesection
+      { \int_compare:nNnT { \c@chapter } > { 0 } { \thechapter . } \@arabic \c@section }
+    \AddToHook { begindocument }
+      {
+        \cs_set:Npn \theHsection
+          {
+            \int_compare:nNnT { \c@chapter } > { 0 } { \theHchapter . }
+            \arabic { section }
+          }
+      }
+    \pagestyle { plain }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{\cs{appendix} 也按有没有章分岔：没写 \cs{chapter}
+%   就改节号，写了就走 \cls{ctexbook} 原来那份改章号}
+% \emph{\cs{appendix} 问的同样是「有没有章」。} \cls{article} 的 \cs{appendix}
+% 置零节计数器、把 \cs{thesection} 改成 \cs{@Alph}\cs{c@section}；\cls{book} 那份
+% 置零的是章计数器，改的是 \cs{thechapter}，一个字都没碰 \cs{thesection}。
+% 换了底类又不管，报告里 \cs{appendix} 之后的节号会从 A 变回 1。
+%
+% 所以先看章计数器再决定走哪一边。判断要抢在调用底类那份\emph{之前}：
+% \cls{book} 的 \cs{appendix} 头一件事就是把章计数器置零，调完再问，问到的
+% 永远是零。
+%
+% \emph{编号的形状也跟着分。} \cs{CTEX@appendix@number} 是同一个宏，章那一支要
+% \cs{@Alph}\cs{c@chapter}（\cls{ctexbook} 的默认值），节那一支要
+% \cs{@Alph}\cs{c@section}，所以在分支里设，不在类加载时设死。
+%    \begin{macrocode}
+    \cs_new_eq:NN \__hit_appendix_chapter: \appendix
+    \cs_gset_protected:Npn \appendix
+      {
+        \int_compare:nNnTF { \c@chapter } > { 0 }
+          { \__hit_appendix_chapter: }
+          {
+            \ctexset { appendix / number = \@Alph \c@section }
+            \setcounter { section } { 0 }
+            \setcounter { subsection } { 0 }
+            \cs_gset:Npn \thesection { \@Alph \c@section }
+            \gdef \CTEX@presection { \CTEX@preappendix }
+            \gdef \CTEX@thesection { \CTEX@appendix@number }
+            \gdef \CTEX@postsection { \CTEX@postappendix }
+            \gdef \CTEX@section@numbering { \CTEX@appendix@numbering }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/03}{LoadClass 之后的所有标准包加载、配置整体打包至 art-deps 模块；artcls 仅保留 LoadClass}
+% \changes{v3.2a}{2026/08/03}{目录排版从 art-frontmatter 拆出至 art-toc 模块（对齐 book 家族的 book-toc）；排在 art-deps 之后以避免 enumitem 覆盖 cft* 类长度}
+%    \begin{macrocode}
+%</shared-loadclass>
+%    \end{macrocode}
+%
+% \Finale

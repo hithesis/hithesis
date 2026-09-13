@@ -39,7 +39,7 @@ unpackfiles = {"hithesis.dtx"}
 -- hithesis.sty 是示例宏包，装进 TEXMF 是为了让 \usepackage{hithesis} 在任何目录下
 -- 都能编过。它本来就是给用户改的，改法是在自己项目目录里放一份同名文件，那份优先。
 installfiles = {
-  "hit-thesis.cls", "hit-report.cls", "hithesis.cls",
+  "hithesis.cls",
   "hithesisbook.cls", "hithesisart.cls", "hithesisartplus.cls",
   "hithesis.sty",
   "hithesis.ist", "hithesis.bst", "hithesis.cfg",

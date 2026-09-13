@@ -27,7 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 LIST = ROOT / ".github" / "public-api.txt"
-CLASSES = ("hit-thesis.cls", "hit-report.cls")
+CLASSES = ("hithesis.cls",)
 # 示例宏包。它的名字也在公开面上，但不是类给的：用户不写 \usepackage{hithesis}
 # 就没有。单列一节，免得跟类提供的混在一起。
 STY = "hithesis.sty"

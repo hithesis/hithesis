@@ -22,6 +22,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+SKEL = "src/hithesis.dtx"
 
 # 轴表，与 src/setup/hit-key-engine.dtx 里那张一致
 AXES = [
@@ -225,8 +226,22 @@ def bound(keys: set[str], contexts: list[dict[str, str]]) -> set[str]:
     return out
 
 
+# 一个类的装配表里现在两档的模块都在。按守卫名前缀挑出属于某一档的那些：
+# shared-* 与 clshead/clstail/cfgload 两档都算，thesis-* 只算终稿，
+# report-* 只算开题与中期。
+def stage_guards(guards: list[str], stage_prefix: str) -> list[str]:
+    keep = []
+    for g in guards:
+        if g.startswith("thesis-") or g.startswith("report-"):
+            if g.startswith(stage_prefix):
+                keep.append(g)
+        else:
+            keep.append(g)
+    return keep
+
+
 def assembly(dtx: str) -> list[tuple[str, list[str]]]:
-    """某个类的装配表：一行一个（源文件，守卫名单）。"""
+    """装配表：一行一个（源文件，守卫名单）。"""
     s = (ROOT / dtx).read_text(encoding="utf-8")
     out = []
     for m in re.finditer(r"^% \^\^A\s+\d+\s+(\S+\.dtx)\s+(\S+)", s, re.M):
@@ -284,19 +299,18 @@ def main() -> int:
     decl = declared()
     bad: list[tuple[str, str, str]] = []
     skipped: list[str] = []
-    for cls, skel in (("hit-thesis", "src/hit-thesis.dtx"),
-                      ("hit-report", "src/hit-report.dtx")):
+    for cls, pref in (("hit-thesis", "thesis-"), ("hit-report", "report-")):
         cfg = ROOT / "hithesis.cfg"
-        if not cfg.exists() or not (ROOT / f"{cls}.cls").exists():
+        if not cfg.exists() or not (ROOT / "hithesis.cls").exists():
             skipped.append(cls)
             continue
         stages = {c["stage"] for c in CONTEXTS[cls]}
         have = with_fallback(bound(
-            valued(cfg, ROOT / f"{cls}.cls", stages=stages), CONTEXTS[cls]))
-        # 声明了却在这个类里没取到值的，引用它就是空的
+            valued(cfg, ROOT / "hithesis.cls", stages=stages), CONTEXTS[cls]))
+        # 声明了却在这一档里没取到值的，引用它就是空的
         missing = {k for k in decl if k not in have}
         macros = {"\\hit@term@" + k.replace("-", "@").replace("*", ""): k for k in missing}
-        for rel, guards in assembly(skel):
+        for rel, guards in ((r, stage_guards(g, pref)) for r, g in assembly(SKEL)):
             p = ROOT / "src" / rel
             if not p.exists():
                 continue
@@ -318,11 +332,10 @@ def main() -> int:
     declm = {"\\hit@term@" + k.replace("-", "@").replace("*", "")
              for k in with_fallback(resolved)}
     typo: list[tuple[str, str, str]] = []
-    for cls, skel in (("hit-thesis", "src/hit-thesis.dtx"),
-                      ("hit-report", "src/hit-report.dtx")):
+    for cls, pref in (("hit-thesis", "thesis-"), ("hit-report", "report-")):
         if cls in skipped:
             continue
-        for rel, guards in assembly(skel):
+        for rel, guards in ((r, stage_guards(g, pref)) for r, g in assembly(SKEL)):
             p = ROOT / "src" / rel
             if not p.exists():
                 continue
@@ -371,7 +384,7 @@ def main() -> int:
     if skipped:
         print(f"常量取值一致（声明 {len(decl)} 个；{skipped[0]} 没生成，只查了另一个）")
     else:
-        print(f"常量取值一致（声明 {len(decl)} 个，两个类各自都取得到）")
+        print(f"常量取值一致（声明 {len(decl)} 个，两档各自都取得到）")
     return 0
 
 

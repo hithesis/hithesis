@@ -18,7 +18,7 @@ THESISCONTENTS=$(THESISMAIN).tex $(REPORTMAIN).tex info.tex final/frontmatter/*.
 # NOTE: update this to reflect your local file types.
 FIGURES=$(wildcard figures/*.eps figures/*.pdf)
 BIBFILE=$(wildcard final/backmatter/*.bib)
-CLSFILES=hit-thesis.cls hit-report.cls $(PACKAGE).cls $(PACKAGE).ist *.bst
+CLSFILES=$(PACKAGE).cls $(PACKAGE).cfg $(PACKAGE).ist *.bst
 
 # make deletion work on Windows
 ifdef SystemRoot
@@ -113,14 +113,13 @@ clean:
 # make cls 生成、由编译脚本拷进来的那几份，以及 assets/ 里拷过来的图。
 # 它们不是这个目录的内容，是别处的产物，按名删不通配。
 GENERATED = hithesis.cls hithesis.cfg hithesis.sty hithesis.ist hithesis.bst \
-            hit-thesis.cls hit-report.cls \
             hithesisbook.cls hithesisart.cls hithesisartplus.cls \
             hit-logo.pdf zfb.pdf hit-bachelor-report-bottommark.pdf \
             figures/golfer.pdf
 
 # 已经不再生成、但旧版本拷进来过的那几份。留在这张表里，从旧版升上来的目录
 # 才扫得干净；生成物那边删掉一个名字就往这里补一个。
-LEGACY = hit-thesis.cfg hit-report.cfg
+LEGACY = hit-thesis.cfg hit-report.cfg hit-thesis.cls hit-report.cls
 
 clean-generated:
 	-@$(RM) $(GENERATED) $(LEGACY)

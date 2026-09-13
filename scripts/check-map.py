@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""生成并校验两个类骨架里的装配表。
+"""生成并校验类骨架里的装配表。
 
-src/hit-thesis.dtx 与 src/hit-report.dtx 开头各有一张装配表，列出这个类由
-哪些文件按什么顺序拼出来。它是给开发者用的路标：想知道“章节标题在哪处理”，
-打开叫 hit-thesis 的那个文件就能看到，不必去翻 install 守卫里那 101 条 \\from。
+src/hithesis.dtx 里有一张装配表，列出这个类由哪些文件按什么顺序拼出来。
+它是给开发者用的路标：想知道“章节标题在哪处理”，看这张表就够，不必去翻
+install 守卫里那一百多条 \\from。
 
-权威清单只有 src/hithesis.dtx 的 install 守卫一份，装配表是它的产物，
-别手改。改完 install 守卫跑一次 --fix 重新生成。
+权威清单只有 install 守卫一份，装配表是它的产物，别手改。改完 install 守卫
+跑一次 --fix 重新生成。
 
 守卫名到一句话说明的对照写在下面的 DESC 里。新加的守卫这里没有条目的话，
 说明栏留空，--check 会点名，补一条就是。
 
 用法：
     scripts/check-map.py            两边比对，有出入时逐条列出并退出码 1
-    scripts/check-map.py --fix      按 install 守卫重新生成两张表
+    scripts/check-map.py --fix      按 install 守卫重新生成装配表
 """
 
 from __future__ import annotations
@@ -25,15 +25,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DTX = ROOT / "src" / "hithesis.dtx"
-PAIRS = [("src/hit-thesis.dtx", "hit-thesis.cls", "学位论文类 hit-thesis"),
-         ("src/hit-report.dtx", "hit-report.cls", "开题中期报告类 hit-report")]
+PAIRS = [("src/hithesis.dtx", "hithesis.cls", "hithesis")]
 
 OPEN = "% ^^A ---8<--- 装配表由 scripts/check-map.py --fix 生成，别手改 ---8<---"
 CLOSE = "% ^^A ---8<--- 装配表到此 ---8<---"
 
 DESC = {
-    "thesiscls": "类文件头：\\NeedsTeXFormat、\\ProvidesExplClass",
-    "reportcls": "类文件头：\\NeedsTeXFormat、\\ProvidesExplClass",
+    "clshead": "类文件头：\\NeedsTeXFormat、\\ProvidesExplClass",
+    "clstail": "\\AtEndOfClass 钩子",
+    "cfgload": "读 hithesis.cfg 并回放配置队列",
     "shared-defaults": "常量默认值，只记进队列不执行",
     "shared-engine": "引擎差异的封装：xetex 与 luatex 各一套",
     "shared-messages": "面向用户的提示文案",
@@ -57,8 +57,7 @@ DESC = {
     "shared-structure": "struct 族的部件与分段",
     "shared-keylist": "有哪些信息字段与常量",
     "shared-options": "文档类选项：声明、默认值、\\ProcessKeyOptions 之后的后处理",
-    "thesiscls-load": "★ \\LoadClass{ctexbook}，分水岭",
-    "reportcls-load": "★ \\LoadClass{ctexbook}，分水岭",
+    "shared-loadclass": "\\LoadClass{ctexbook}，分水岭",
     "thesis-fonts": "正文字号与主字体",
     "report-fonts": "正文字号与主字体",
     "thesis-pagestyle": "页眉页脚",
@@ -93,10 +92,6 @@ DESC = {
     "report-floats": "浮动体",
     "thesis-toc": "目录版式",
     "report-toc": "目录版式",
-    "thesiscls-tail": "★ \\AtEndOfClass 钩子",
-    "reportcls-tail": "★ \\AtEndOfClass 钩子",
-    "thesiscfg": "★ 回放配置队列 \\hit@apply@presetup",
-    "reportcfg": "★ 回放配置队列 \\hit@apply@presetup",
 }
 
 
@@ -186,7 +181,7 @@ def check() -> int:
             print("  - " + p)
         return 1
     print("两张装配表与 install 守卫一致（%d + %d 条）"
-          % (len(from_install("hit-thesis.cls")), len(from_install("hit-report.cls"))))
+          % (len(from_install("hithesis.cls")), 0))
     return 0
 
 

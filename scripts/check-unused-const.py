@@ -145,7 +145,7 @@ def main() -> int:
         return cls, values
 
     total = 0
-    present = [n for n in ("hit-thesis.cls", "hit-report.cls") if (ROOT / n).exists()]
+    present = [n for n in ("hithesis.cls",) if (ROOT / n).exists()]
     if not present:
         print("两个类都还没生成，先跑 make cls")
         return 2

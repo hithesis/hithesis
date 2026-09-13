@@ -30,8 +30,8 @@
 % \emph{\option{stage} 自己是普通选项，默认 \texttt{final}。} 「这是终稿还是开题
 % 中期」从此就是一个取值，不再是两个类名。
 %
-% 这一段原先跟 \cs{LoadClass}、宏包加载、字体、数学挤在 \file{src/hit-thesis.dtx}
-% 一个文件里。按 \file{src/setup/} 是设置子系统这条约定，选项声明归这里。
+% 这一段原先跟 \cs{LoadClass}、宏包加载、字体、数学挤在类文件里。按
+% \file{src/setup/} 是设置子系统这条约定，选项声明归这里。
 %
 % ^^A ======================================================================
 % ^^A Module shared-options: 文档类选项的声明与后处理（stage/campus/fontset 等）
@@ -731,6 +731,49 @@
   {
     \bool_gset_false:c { g__hit_mid-term_bool }
     \bool_gset_true:N  \g__hit_interim_bool
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/11}{\option{degree-level}\texttt{!=postdoc} 定死
+%   \option{stage}\texttt{!=final}。博士后只有研究报告一种交付物，没有开题与中期，
+%   原先写了别的 \option{stage} 会一路炸到丢掉 \cs{begin\{document\}}，共 7 个错误}
+% \changes{v3.2a}{2026/09/13}{这一条与下面的兜底从撤销的派发类搬进来}
+% \emph{\option{degree-level}\texttt{!=postdoc} 定死 \option{stage}\texttt{!=final}。}
+% 博士后不写开题与中期，这两个选项存在一个不可能的组合。显式写了别的
+% \option{stage} 时在日志里说一句，不写就静默。
+%    \begin{macrocode}
+\bool_if:NT \g__hit_postdoc_bool
+  {
+    \bool_if:NF \g__hit_final_bool
+      {
+        \clist_map_inline:nn { proposal , interim , mid-term , opening , midterm }
+          {
+            \bool_if:cT { g__hit_#1_bool }
+              { \msg_warning:nnn { hithesis } { postdoc-forces-final } {#1} }
+            \bool_gset_false:c { g__hit_#1_bool }
+          }
+        \bool_gset_true:N \g__hit_final_bool
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{\option{stage} 取值不认识时兜底成 \texttt{final}。} 选择项那一头已经报过
+% 「不接受这个取值」，但它把三个标志位全置假就收手了，落到这里三档一个都不成立。
+% 不兜底的话 \cs{g\_\_hit\_final\_bool} 为假，整份文档会按报告排——用户只是把
+% \texttt{interim} 拼错，拿到的却是另一种交付物。
+%
+% 不能改成硬失败：这里已经在类文件里，报错之后后面整份文档都没有类可用，
+% 几百条错一条都指不到病根。
+%    \begin{macrocode}
+\bool_lazy_any:nF
+  {
+    { \bool_if_p:N \g__hit_final_bool }
+    { \bool_if_p:N \g__hit_proposal_bool }
+    { \bool_if_p:N \g__hit_interim_bool }
+  }
+  {
+    \msg_warning:nn { hithesis } { stage-fallback }
+    \bool_gset_true:N \g__hit_final_bool
   }
 %    \end{macrocode}
 %

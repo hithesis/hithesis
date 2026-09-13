@@ -33,7 +33,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DTX = ROOT / "src" / "hithesis.dtx"
 POLICY = ROOT / "tools" / "deps-policy.txt"
 STY = "src/hit-sty.dtx"
-OUTPUTS = ["hit-thesis.cls", "hit-report.cls"]
+OUTPUTS = ["hithesis.cls"]
 DEPS = {"flow/hit-thesis-deps.dtx", "flow/hit-report-deps.dtx"}
 
 REQ = re.compile(r"\\RequirePackage\s*(?:\[[^\]]*\])?\s*\{\s*([a-zA-Z0-9\-&]+)\s*\}")
@@ -74,7 +74,7 @@ def install_map() -> dict[str, list[tuple[str, str]]]:
     loc = {p.name: str(p.relative_to(ROOT / "src")) for p in (ROOT / "src").rglob("*.dtx")}
     out = {}
     for cls in OUTPUTS:
-        start = blk.index("\\file{" + cls + "}{")
+        start = blk.index("\\file{\\jobname.cls}{")
         end = blk.index("\n    }", start)
         seq = []
         for f, guards in re.findall(r"\\from\{([^}]*)\}\{([^}]*)\}", blk[start:end]):
