@@ -1,251 +1,27 @@
 % \iffalse meta-comment
 %
-% hit-defaults.dtx 是各个类常量的默认值，用户的 \hitsetup 会盖掉它
+% Copyright (C) 2017- by Yanshuo Chu <yanshuoc@gmail.com>
+%
+% This file may be distributed and/or modified under the
+% conditions of the LaTeX Project Public License, either version 1.3a
+% of this license or (at your option) any later version.
+% The latest version of this license is in:
+%
+% http://www.latex-project.org/lppl.txt
+%
+% and version 1.3a or later is part of all distributions of LaTeX
+% version 2004/10/01 or later.
 %
 % \fi
 %
-% \section{常量的默认值（defaults）}
+% \section{词条}
 %
-% \changes{v3.2a}{2026/08/10}{各个类的配置集中到 \file{src/config/hit-defaults.dtx}，
-%   写法改成与用户一致的 \cs{hitpresetup}}
-% 模板自己要设的东西——固定词汇、各类的默认取值——原先散在三处：
-% 类文件里的 cfg 段、
-% 以及各个功能模块里零星的赋值。而且写法与用户的不一样：用户写
-% \cs{hitsetup}\{term=\{school-zh=…\}\}，模板自己写
-% \cs{hit@set@constant}\{school-zh=…\}，两套语言。
-%
-% 这个文件把它们收在一处，并且改用与用户完全相同的写法。
-%
-% \begin{macro}{\hit@presetup}
-% \cs{hitpresetup}\oarg{条件}\marg{键值表} 记一条配置。键值表就是 \cs{hitsetup}
-% 接受的那套，一字不差。条件按选项取值写，逗号是且、竖线是或：
-% \begin{latex}
-% \hit@presetup[degree-level=doctor]{ term = { base-degree-level-zh = 博士 } }
-% \hit@presetup[degree-level=doctor|master]{ ... }        % 博士或硕士
-% \hit@presetup[degree-level=master,campus=harbin]{ ... } % 哈尔滨的硕士
-% \hit@presetup{ ... }                            % 无条件
-% \end{latex}
-%
-% \textbf{记下来不立即执行。} 这个文件在每个 \cs{file} 块里排在最前面读——
-% \pkg{docstrip} 的输入文件表是全局只增的，一个被多份输出共用的文件只有排在最前
-% 才能让各份输出的顺序彼此相容，排在末尾会报 \texttt{Incompatible order of input
-% files}（这堵墙撞过两次）。而配置要等选项解析完才能生效，所以先记进队列，
-% 由各个类在原先配置所在的位置调用 \cs{hit@apply@presetup} 回放。
-%
-% 回放走的是 \cs{hitsetup} 本身，与用户在导言区写的完全同一条路径，只是先后不同：
-% 类文件里先设默认值，用户后设的覆盖它。
-%
-% \changes{v3.2a}{2026/08/27}{\cs{hit@preconfig} 也收条件：默认值整体挪进
-%   \file{hithesis.cfg} 之后，两个类读同一份，原样代码那两条也得分学位论文与报告}
-% \begin{macro}{\hit@preconfig}
-% \cs{hitpreconfig}\marg{代码} 记一段原样的代码，同样排队、同样延后回放。它是迁移
-% 用的过渡入口：配置从旧写法搬过来时先整段包进它，输出逐字节不变，再逐块改写成
-% \cs{hitpresetup}。两者共用一个队列，所以混着写也不会打乱先后。
-% \end{macro}
-% \changes{v3.2a}{2026/08/10}{说明这套机制为什么不在 engine 层}
-% 按分层这套排队回放是机制，该在 \file{hit-key-engine.dtx}。放不过去：本文件在
-% \file{hithesis.ins} 里排在第二位，自己就调用了一百多次 \cs{hit@presetup}，而 engine
-% 排在一百多行之后，定义必须早于调用。
-%    \begin{macrocode}
-%<*shared-defaults>
-\seq_new:N \g__hit_presetup_seq
-\seq_new:N \l__hit_presetup_value_seq
-\seq_new:N \l__hit_presetup_group_seq
-\bool_new:N \l__hit_presetup_all_bool
-\bool_new:N \l__hit_presetup_any_bool
-\bool_new:N \l__hit_presetup_hit_bool
-\NewDocumentCommand \hit@presetup { O{} +m }
-  { \seq_gput_right:Nn \g__hit_presetup_seq { { keys } {#1} {#2} } }
-\NewDocumentCommand \hit@preconfig { O{} +m }
-  { \seq_gput_right:Nn \g__hit_presetup_seq { { code } {#1} {#2} } }
-%    \end{macrocode}
-%
-% \begin{macro}{\hit@presetup@scope}
-% \changes{v3.2a}{2026/09/13}{加 \cs{hit@presetup@scope}：给一整段配置挂一个
-%   共同条件，两份 \file{cfg} 合成一份要用}
-% \cs{hit@presetup@scope}\marg{条件} 给后面每一条 \cs{hit@presetup} 再挂一个条件，
-% 直到下一次调用改掉它；参数写空就撤销。条件写法与可选参数那个完全一样。
-%
-% \emph{为什么不把条件写进每一行。} 两份 \file{cfg} 合成一份之后，原先靠「这行在
-% 哪个文件里」分开的一百多行要改成靠条件分开。逐行加 \texttt{stage!=final} 的话，
-% 本来就带条件的那四十多行得把新条件与旧条件揉成一句，而条件里的分号是「或」、
-% 逗号是「且」，揉的时候要按分号分配一遍，一行揉错就静默少排一段。
-%
-% \emph{两个条件各判各的，不拼字符串。} 段条件与行条件分别求值，都成立才回放。
-% 所以行条件里的分号还是原来那个分号，合并前后逐字不动。
-%
-% 段条件也排进同一个队列，回放时按遇到的顺序改当前段条件——记的时候还没解析选项，
-% 当场判不了。
-%    \begin{macrocode}
-\tl_new:N \g__hit_presetup_scope_tl
-\bool_new:N \l__hit_presetup_scope_bool
-\NewDocumentCommand \hit@presetup@scope { m }
-  { \seq_gput_right:Nn \g__hit_presetup_seq { { scope } {#1} { } } }
-%    \end{macrocode}
-% \end{macro}
-%
-% 文件全程在 \pkg{expl3} 语境里——\cs{ProvidesExplClass} 已经开好了，这里不要再写
-% \cs{ExplSyntaxOn}/\cs{ExplSyntaxOff}：多写一对 \texttt{Off} 会把后面所有共享模块
-% 的语境一起关掉，踩过一次，症状是 \cs{bool\_new:N} 未定义。
-%
-% 条件求值。每个子句形如 \texttt{选项=取值}，取值可以用竖线并列。选项名只用来给
-% 人读，判断看的是取值对应的标志位 \cs{g\_\_hit\_}\meta{取值}\cs{\_bool}——
-% \option{degree-level}、\option{campus}、\option{stage}、\option{lang} 四族的取值都是
-% 这么存的，名字全局唯一。
-%
-% \changes{v3.2a}{2026/08/14}{条件里的取值认连字符，查标志位时折成下划线}
-% 取值里的连字符折成下划线再去查：选项取值一律用连字符分词，\pkg{expl3} 的
-% 变量名一律用下划线，折一下两边就能对上，条件写出来跟别处的选项取值一个样。
-%
-% \changes{v3.2a}{2026/08/15}{取值带数字的另立一张对照表：数字接不进控制序列名}
-% 取值里带数字的（\option{v2-layout}）得另查一张表。
-% \hologo{TeX} 的控制序列名只收字母，\cs{g\_\_hit\_v4\_layout\_bool} 读到
-% \texttt{4} 就断了，前半截 \cs{g\_\_hit\_v} 成了命令、后半截成了普通文字，
-% 既不报错也不生效。所以标志位那一头把数字写成词，两头由这张表接上。
-%    \begin{macrocode}
-\tl_new:N \l__hit_presetup_name_tl
-\tl_new:N \l__hit_presetup_alias_tl
-\bool_new:N \l__hit_presetup_not_bool
-\prop_const_from_keyval:Nn \c__hit_presetup_alias_prop
-  {
-    v2-layout = layout-two ,
-  }
-%    \end{macrocode}
-%
-% \changes{v3.2a}{2026/08/16}{条件的取值收前缀 \texttt{!!} 表示取反}
-% 取值前面加 \texttt{!} 就是取反：\option{layout}\texttt{=!v2-layout} 读作
-% 「不是旧版面」。新版面是默认，不该为它另立一个名字——从前写
-% \option{layout}\texttt{=v4-layout}，背后那个 \cs{g\_\_hit\_layout\_four\_bool}
-% 只是 \cs{g\_\_hit\_layout\_two\_bool} 的取反，给默认值编了个版本号当名字。
-%
-% \texttt{!} 在这里是被解析的文本，不是控制序列的名字，所以不受
-% 「名字只收 catcode 11 的字母」那条限制。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_presetup_negate:n #1
-  {
-    \tl_if_head_eq_charcode:nNTF {#1} !
-      {
-        \bool_set_true:N \l__hit_presetup_not_bool
-        \tl_set:Nx \l__hit_presetup_name_tl { \tl_tail:n {#1} }
-      }
-      { \bool_set_false:N \l__hit_presetup_not_bool }
-  }
-\cs_new_protected:Npn \__hit_presetup_clause:w #1 = #2 \q_stop
-  {
-    \bool_set_false:N \l__hit_presetup_any_bool
-    \seq_set_split:Nnn \l__hit_presetup_value_seq { | } {#2}
-    \seq_map_inline:Nn \l__hit_presetup_value_seq
-      {
-        \tl_set:Nx \l__hit_presetup_name_tl { \tl_trim_spaces:n {##1} }
-        \exp_args:NV \__hit_presetup_negate:n \l__hit_presetup_name_tl
-        \prop_get:NVNT \c__hit_presetup_alias_prop \l__hit_presetup_name_tl
-          \l__hit_presetup_alias_tl
-          { \tl_set_eq:NN \l__hit_presetup_name_tl \l__hit_presetup_alias_tl }
-        \tl_put_left:Nn  \l__hit_presetup_name_tl { g__hit_ }
-        \tl_put_right:Nn \l__hit_presetup_name_tl { _bool }
-        \tl_replace_all:Nnn \l__hit_presetup_name_tl { - } { _ }
-        \bool_if_exist:cTF { \l__hit_presetup_name_tl }
-          {
-            \bool_if:cTF { \l__hit_presetup_name_tl }
-              {
-                \bool_if:NF \l__hit_presetup_not_bool
-                  { \bool_set_true:N \l__hit_presetup_any_bool }
-              }
-              {
-                \bool_if:NT \l__hit_presetup_not_bool
-                  { \bool_set_true:N \l__hit_presetup_any_bool }
-              }
-          }
-          { \msg_warning:nnn { hithesis } { unknown-condition } {##1} }
-      }
-    \bool_if:NF \l__hit_presetup_any_bool
-      { \bool_set_false:N \l__hit_presetup_all_bool }
-  }
-\cs_new_protected:Npn \hit@if@condition:nT #1#2
-  {
-    \bool_set_false:N \l__hit_presetup_hit_bool
-    \seq_set_split:Nnn \l__hit_presetup_group_seq { ; } {#1}
-    \seq_map_inline:Nn \l__hit_presetup_group_seq
-      {
-        \bool_set_true:N \l__hit_presetup_all_bool
-        \clist_map_inline:nn {##1} { \__hit_presetup_clause:w ####1 \q_stop }
-        \bool_if:NT \l__hit_presetup_all_bool
-          { \bool_set_true:N \l__hit_presetup_hit_bool }
-      }
-    \bool_if:NT \l__hit_presetup_hit_bool {#2}
-  }
-%    \end{macrocode}
-%
-% \begin{macro}{\hitusepackage}
-% \changes{v3.2a}{2026/08/11}{加 \cs{hitusepackage}，按交付物加载宏包}
-% \cs{hitusepackage}\oarg{条件}\marg{宏包表}：条件成立才加载，条件写法与
-% \cs{hitsetup} 的那个可选参数完全一样。
-% \begin{latex}
-% \hitusepackage[stage=proposal]{lipsum, siunitx={per-mode=symbol, detect-all}}
-% \end{latex}
-% 宏包表里带选项的写成 \meta{包名}\texttt{=}\marg{选项}。选项用花括号不用方括号：
-% 外层是逗号表，方括号里的逗号会被外层拆开，花括号护得住。
-%
-% \textbf{按写的顺序加载。} 宏包之间的先后常常有讲究，这里不排序、不去重，
-% 用户写什么顺序就是什么顺序。
-%
-% 一份主文件管几种交付物时，导言区是共用的，\cs{usepackage} 对谁都生效。
-% 只有某一种要的包就写进这个命令。
-%
-% 只能在导言区用。\cs{usepackage} 本身就是导言区限定，而 \cs{hitsetup} 正文里也能用，
-% 两者混在一起用户迟早写错位置，所以单开一个命令，进正文就报错说清该挪到哪。
-%    \begin{macrocode}
-\NewDocumentCommand \hitusepackage { O{} +m }
-  { \hit@if@condition:nT {#1} { \clist_map_inline:nn {#2} { \__hit_usepackage:n {##1} } } }
-\cs_new_protected:Npn \__hit_usepackage:n #1
-  {
-    \tl_if_in:nnTF {#1} { = }
-      { \__hit_usepackage_with_options:w #1 \q_stop }
-      { \exp_args:Nx \usepackage { \tl_trim_spaces:n {#1} } }
-  }
-\cs_new_protected:Npn \__hit_usepackage_with_options:w #1 = #2 \q_stop
-  {
-    \use:x
-      {
-        \exp_not:N \usepackage [ \exp_not:n {#2} ]
-          { \tl_trim_spaces:n {#1} }
-      }
-  }
-\AtBeginDocument
-  {
-    \RenewDocumentCommand \hitusepackage { O{} +m }
-      { \msg_error:nn { hithesis } { usepackage-in-body } }
-  }
-%    \end{macrocode}
-% \end{macro}
+% \changes{v3.2a}{2026/09/13}{从 \file{hit-defaults.dtx} 按关切拆出来}
+% 固定词汇的取值，三段：两档共用一段，终稿一段，开题与中期一段。
+% 段条件挂在各段段首，末尾撤销。
 %
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_presetup_one:nnn #1#2#3
-  {
-    \str_if_eq:nnTF {#1} { scope }
-      { \tl_gset:Nn \g__hit_presetup_scope_tl {#2} }
-      {
-        \bool_set_true:N \l__hit_presetup_scope_bool
-        \tl_if_empty:NF \g__hit_presetup_scope_tl
-          {
-            \bool_set_false:N \l__hit_presetup_scope_bool
-            \exp_args:NV \hit@if@condition:nT \g__hit_presetup_scope_tl
-              { \bool_set_true:N \l__hit_presetup_scope_bool }
-          }
-        \bool_if:NT \l__hit_presetup_scope_bool
-          {
-            \hit@if@condition:nT {#2}
-              { \str_if_eq:nnTF {#1} { code } {#3} { \hitsetup {#3} } }
-          }
-      }
-  }
-\cs_new_protected:Npn \hit@apply@presetup
-  {
-    \tl_gclear:N \g__hit_presetup_scope_tl
-    \bool_gset_true:N \g__hit_format_presetup_bool
-    \seq_map_inline:Nn \g__hit_presetup_seq { \__hit_presetup_one:nnn ##1 }
-    \bool_gset_false:N \g__hit_format_presetup_bool
-  }
+%<*hithesis-cfg>
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/08}{校区名只留校区两个字，括号与“校区”两个字挪到用它的
@@ -256,8 +32,6 @@
 % 拼——同一个校区名在封面上带括号、在深圳本科页眉上跟着「校区」，那是版式的事，
 % 不是这个值的事。三个类共用一份。
 %    \begin{macrocode}
-%</shared-defaults>
-%<*hithesis-cfg>
 \ExplSyntaxOff
 \hit@presetup[campus=harbin]{ term = { base-campus = {哈尔滨} } }
 \hit@presetup[campus=weihai]{ term = { base-campus = {威海} } }
@@ -267,435 +41,12 @@
 \ExplSyntaxOn
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/29}{元信息字段不填时的回落值照官方范例的占位形给：
-%   姓名导师是方框、学号十个方框、题目取范例的题目。原先一律空着}
-% \textbf{不填就印范例的占位形。} 官方范例本身就是一份「空白表」：姓名印
-% \texttt{□□□}、导师印 \texttt{□□□教授}、学号印十个方框、题目是那条气体
-% 静压轴承。回落值照抄它，什么都不填编出来的就是学校那份范例的样子——哪一格
-% 忘了填，纸面上是一眼可见的方框，不是一段安静的空白。iota-hit 的
-% \texttt{info-defaults} 同一张表。日期不在此列：那一项回落到编译当天（东八区、
-% 年月），比范例里冻死的「2022 年 6 月」有用。
 %    \begin{macrocode}
-\ExplSyntaxOff
-\hit@presetup{ info = {
-  title-zh      = {局部多孔质气体静压轴承关键技术的研究},
-  author-zh     = {□□□},
-  supervisor-zh = {□□□教授},
-  affiliation-zh = {机电工程学院},
-  major-zh      = {机械制造及其自动化},
-  student-id    = {□□□□□□□□□□},
-} }
-\ExplSyntaxOn
-%</hithesis-cfg>
-%<*shared-defaults>
-%    \end{macrocode}
-%
-% \changes{v3.2a}{2026/08/11}{\option{after-*-number} 一批常量显式设成空值}
-% 编号之后排什么，默认一律空，空的含义是「用各处原有的取值」，见
-% \cs{hit@after@number:nnn}。这十二条不能省：常量是用到才 \cs{cs\_gset} 出来的，
-% 不设的话名字根本不存在，取值时会被当成 \cs{relax}、判成非空，间距静悄悄地消失。
-%    \begin{macrocode}
-\clist_map_inline:nn
-  {
-    after-chapter-number , after-section-number ,
-    after-subsection-number , after-subsubsection-number ,
-    after-figure-caption-number , after-table-caption-number
-  }
-  {
-    \hit@presetup{ term = { #1-zh = { } , #1-en = { } } }
-  }
-%    \end{macrocode}
-%
-% \changes{v3.2a}{2026/08/10}{\cs{PGR} 与 \cs{UGR} 改成两个类共用。
-%   原先只有学位论文类有，报告类那边是未定义的}
-% \cs{hithesis}、\cs{hit}、\cs{PGR}、\cs{UGR} 是模板与学校的固定名字，不是可配置
-% 的词汇，所以直接定义，不进 \texttt{hit/term} 族：进了族用户就能改，改出来的
-% 「哈尔滨工业大学」不叫哈尔滨工业大学。
-%
-% 这一段要退出 \pkg{expl3} 的 catcode 写。\cs{def}\cs{PGR} 的值里有
-% \verb|\hit 研究生|，那个空格是控制词的终止符；\pkg{expl3} 下空格被忽略，
-% 后面的汉字又是 letter，整串会粘成一个控制序列。
-%    \begin{macrocode}
-\ExplSyntaxOff
-\def\hithesis{\textsc{hi}\-\textsc{Thesis}}
-\def\hit{哈尔滨工业大学}
-% \changes{v3.2a}{2026/08/31}{\cs{PGR} \cs{UGR} 的书名号挪到链接外}
-% 书名号搁在链接外头：整个书名装进 \cs{href} 的话，闭书名号“》”会顶着
-% 组尾，右半宽的剪切在老版 xeCJK 里过不了组界，跨 TeX Live 版本要翻断点，
-% 2026 倒是能跨组压上。号在外面，两边就都按素的“闭号接汉字”排了。
-\def\PGR{《\href{http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm}{\hit 研究生学位论文撰写规范}》}
-\def\UGR{《\href{http://jwc.hit.edu.cn/2566/list.htm}{\hit 本科生毕业论文撰写规范}》}
-\ExplSyntaxOn
-%</shared-defaults>
-%    \end{macrocode}
-% \end{macro}
-%
-% \section{学位论文类的默认值}
-%
-% \changes{v3.2a}{2026/08/08}{整份配置改写完毕：\cs{hit@set@constant} 与
-%   \cs{hit@if@option@T} 的嵌套全部换成带条件的 \cs{hitpresetup}，
-%   \cs{hitpreconfig} 只剩两处一句话的调用}
-% 整份文件只有取值。造轮子的部分都在别处：常量的存法与转发在
-% \file{src/engine/hit-key-engine.dtx}，日期排法在 \file{src/engine/hit-date.dtx}，
-% 字间距撑开在 \file{src/engine/hit-spread.dtx}。\cs{hitpreconfig} 只在两处出现，
-% 都是一句 \cs{hit@setup@date}。
-%    \begin{macrocode}
-%<*hithesis-cfg>
 \hit@presetup@scope{stage=final}
 %    \end{macrocode}
 %
-% \subsection{本科的版面}
-%
-% \changes{v3.2a}{2026/08/14}{本科的新版面写进配置队列：页面设置从
-%   「本科毕业论文书写范例（理工类）」解出来，字号行距间距照
-%   「本科毕业论文（设计）写作指南（理工类）」3.2 节}
-% \changes{v3.2a}{2026/08/14}{网格字距改回 249 缇，款项标题的段前段后改回零，
-%   两处都按写作指南 3.2 节与研究生范例定}
-% \changes{v3.2a}{2026/08/14}{硕博与本科共用这一份，条件从学位放宽到
-%   \option{layout}\texttt{!=!!v2-layout}}
-% 下面这一份本科与硕博共用。硕博不另解范例：两边的页面设置量出来一样，
-% 字号行距也照同一份写作指南，只有图题表题的间距有出入，那一处等接
-% \option{caption-figure} 与 \option{caption-table} 时再补。
-%
-% 页面设置来自学校发的
-% 「本科毕业论文书写范例（理工类）」，解法是拆开 \file{.docx} 读
-% \texttt{w:sectPr} 与各个 \texttt{w:pPr}，再拿导出的 PDF 逐条基线核对，
-% 量法记在 \file{src/engine/hit-msword.dtx}；字号、行距、段前段后照
-% 「本科毕业论文（设计）写作指南（理工类）」3.2 节的原话。
-% 威海本科没有对照文档，跟着这一份走。
-%
-% 条件写 \option{layout}\texttt{=!v2-layout}，也就是「没要旧版面」：本科写了
-% \option{v2-layout}\texttt{=\{bachelor=true\}} 就回到 v3.1e 那套硬编码尺寸，
-% 这一整段都不发，见 \file{src/flow/hit-flow-geometry.dtx}。
-%
-% \emph{页面设置。} 缇是 Word 的内部单位，一缇是 $1/20$\,bp：上边距 2155 缇、
-% 左下右各 1701 缇、页眉距边界 1701 缇、页脚距边界 1304 缇、文档网格行跨度
-% 383 缇。
-%
-% \emph{网格那两个数不是摆设。} Word 里「一行」「一字」这两个单位取的就是该节
-% 文档网格的行跨度与字跨度：段前段后写「1 行」，存盘时折成
-% 「系数乘行跨度」向下取整到缇；首行缩进写「2 字」，折成 2 倍字跨度。
-% 范例里每个章标题的段前都精确等于它所在那一节的 \texttt{w:linePitch}——
-% 391 缇那一节的章标题写 391，383 缇那两节写 383，一个不差。所以
-% \option{line-pitch} 与 \option{char-pitch} 改一个数，标题间距与首行缩进
-% 跟着全变，配置里那些「1 行」「2 字」一个字都不用动。
-%
-% 范例这一份文档十二节的网格并不统一：行跨度 391 缇八节、383 缇两节、
-% 395 缇两节；字跨度 \texttt{w:charSpace} 1861 九节、2752 两节。取 383 与 1861，
-% 因为正文那一章（书写规范）在这一档：那一节的章标题段前 383 缇、段后
-% $0.8 \times 383 = 306.4$ 截成 306 缇、节条标题 $0.5 \times 383 = 191.5$
-% 截成 191 缇，正文首行缩进 \texttt{w:ind~firstLine="498"}，都对得上。
-%
-% 字距由 \texttt{w:charSpace} 定，那个数是字距超出字号的部分，单位是
-% $1/4096$\,bp：1861 折成小四的 12\,bp 加 $1861/4096 = 0.4543$ 得 12.4543\,bp，
-% 一行 34 字，首行缩进 2 字 24.91\,bp。另外两节写 2752（12.6719\,bp、一行
-% 33 字、缩进 507 缇），结论那一章还写过 37928，那是「每行 20 字」的排版示范。
-%
-% \option{head} 是 \cs{headheight}，也就是页眉块的高度。这个量直接压在页眉
-% 基线上：\hologo{LaTeX} 把页眉盒顶放在页眉距边界处，基线落在页眉距边界加
-% \option{head} 再减去基线以下那一段的位置。基线以下是 7.4827\,bp——小五那
-% 一行的深度 2.5326，加边框间距 1\,bp，加那条粗细双线的 2.25\,bp
-% （\texttt{w:sz="18"} 是八分之一磅），加 \cs{headrule} 前后的零头。
-% Word 那边页眉基线在页眉距边界下方一个 ascent 处，即 $1.0156 \times 9 =
-% 9.1404$\,bp，所以 \option{head} 取 $9.1404 + 7.4827 = 16.6231$\,bp，量出来
-% 页眉基线 94.19\,bp。范例是 94.08，它的坐标量化到 300\,dpi，一格 0.24\,bp，
-% 读数本身就有半格的出入。16.6231 同时是 \pkg{fancyhdr} 要的最小值，再小就
-% 报 \texttt{headheight is too small}。
-% 写作指南 3.4 节说双线「宽 0.8\,mm」，与 \cs{headrule} 里那条 2.276208\,pt
-% 对得上。
-% \changes{v3.2a}{2026/08/15}{\option{foot-baseline} 由 2\,bp 改 2.48\,bp，页码
-%   基线上移 300\,ppi 下的两个像素}
-% \changes{v3.2a}{2026/08/15}{\option{foot-baseline} 改 1.52\,bp。上一次的两个
-%   像素改反了方向，这次连同改回来一起往下 0.96\,bp}
-% \option{foot-baseline} 的 1.52\,bp 是量出来的：页码基线在页脚线上方
-% 1.52\,bp 处。范例的页码不是页脚段落，是个文本框
-% （\texttt{<w:framePr w:hAnchor="margin" w:xAlign="center"/>}），位置由文本框
-% 自己定，推不出闭式，只能量。
-%
-% 这个值越大页码越靠上：\file{src/engine/hit-msword.dtx} 里
-% \option{footskip} $=$ \option{margin-bottom} $-$ \option{footer} $-$
-% \option{foot-baseline}，页脚基线在版心底下方 \option{footskip} 处。
-% 先前取 2\,bp，改 2.48 是把它往上挪了两个像素，方向反了；现在退回来再往下
-% 两个像素，净往下 0.96\,bp。
-%
-% \emph{标题。} 写作指南给了两份，一份按行数与多倍值（3.2 节），一份按毫米
-% （3.8 节）。两份是并列的，不是一份加另一份的余量，所以这里也存成两套完整的
-% 表，由 \option{layout}/\option{bottom} 挑。
-%
-% \changes{v3.2a}{2026/08/15}{标题与正文的默认值拆成倍数版与毫米版两套，
-%   由 \option{bottom} 挑}
-% \option{bottom}\texttt{=ragged} 走倍数版，也就是 3.2 节那一份，逐条写死了，
-% 照抄：
-% \begin{center}
-% \begin{tabular}{llll}
-% \toprule
-% & 字体字号 & 行距 & 段前段后 \\\midrule
-% 章标题 & 黑体小二 & 多倍 1.2 & 1 行 / 0.8 行 \\
-% 节标题 & 黑体小三 & 多倍 1.25 & 0.5 行 / 0.5 行 \\
-% 条标题 & 黑体四号 & 多倍 1.2 & 0.5 行 / 0.5 行 \\
-% 款项标题 & 黑体小四 & 多倍 1.25 & 0 / 0 \\
-% \bottomrule
-% \end{tabular}
-% \end{center}
-% 四级都不对齐网格，量出来章标题行距 $1.2 \times 1.296875 \times 18 =
-% 28.01$\,bp，与本科、博士两份范例都对得上。系数的来路见
-% \file{src/engine/hit-format.dtx}。这一档全是确切值，没有可拉的东西，
-% 所以版心底只能取 \texttt{ragged}。
-%
-% \option{bottom}\texttt{=flush} 走毫米版，也就是 3.8 节那一份。那里给的是
-% 「上、下行距」，指标题与前后两块之间那条看得见的空白，不是标题内部的行距：
-% \begin{center}
-% \begin{tabular}{lll}
-% \toprule
-% & 上、下行距 & 行距 \\\midrule
-% 章标题 & 10\,mm & 多倍 1.2\,--\,1.25 \\
-% 节标题 & 7\,--\,8\,mm & 多倍 1.2\,--\,1.25 \\
-% 条标题 & 6\,--\,7\,mm & 多倍 1.2\,--\,1.25 \\
-% 款项标题 & 3\,--\,4\,mm & 多倍 1.2\,--\,1.25 \\
-% 正文 & 3\,--\,4\,mm & —— \\
-% \bottomrule
-% \end{tabular}
-% \end{center}
-% 区间本身就是伸缩范围：小端做自然值，大端减小端做伸量，页面要撑到版心底
-% 就往上拉。章标题原文只给一个数，没有区间，所以那一级的上下白是刚性的。
-%
-% 内部行距 3.8 节没给，四级一律沿用 3.2 节那两个值合成的区间 1.2\,--\,1.25，
-% 不钉死其中一个。款项标题的 3\,--\,4\,mm 落在上下白上：它的段前段后本来就是
-% 零，与前后正文之间那条白就是普通行距那一条。正文的 3\,--\,4\,mm 是
-% \option{line-white}，量的也是行与行之间那条白。
-%
-% \emph{正文的倍数版与标题一样，多倍 1.25 加不对齐网格}，行距
-% $1.25 \times 1.296875 \times 12 = 19.453$\,bp，首行基线落在版心顶下方
-% $1.008 \times 12 + 0.082 = 12.18$\,bp。本科与研究生这一条不同，别拿研究生
-% 那边的范例来对：研究生是单倍加对齐网格，行距一格 19.55\,bp、首行落点
-% 14.18\,bp，两个数只差半个百分点，一页三十三行下来差 3\,bp，看着像整体
-% 偏了一点。
-%
-% \option{snap-to-grid} 关掉时，横向的字也不贴格子。Word 的这个开关管的是
-% 「对齐到网格」整件事，不只是行：本科的正文行是拉满版心的（范例满行末端
-% 落在版心右边界 510.17\,bp），研究生那边贴格子，一行 34 个格占 423.45\,bp，
-% 右边空着 1.73\,bp。这段余量由 \cs{g\_hit\_msword\_slack\_dim} 算出来，
-% 只在对齐网格时才发给 \cs{rightskip}，见 \file{src/engine/hit-format.dtx}。
-%
-% 范例有几处没照这一份排，都不取：前置部分两节的行跨度是 395 缇，摘要与目录
-% 那几节的字跨度是 2752；结论那一章是「每行 20 字」的排版示范，字距 21.26\,bp，
-% 正文也改成了对齐网格；致谢那一段也对齐网格。
 %    \begin{macrocode}
 \ExplSyntaxOff
-\hit@presetup[layout=!v2-layout]{
-  layout = {
-    bottom = auto,
-    margin = { top = 107.75bp, bottom = 85.05bp,
-               left = 85.05bp, right = 85.05bp },
-    header = { from-edge = 85.05bp,
-               rule = { width = 2.25bp, from-text = 1bp } },
-    footer = { from-edge = 65.2bp,
-               shift = { vertical = -1.52bp, horizontal = 0.24bp } },
-    grid = { lines = { pitch = 19.15bp },
-             chars = { pitch = 12.4543bp, latin = true } },
-    %% 按部件覆盖。范例逐节量下来：封面与内封的 docGrid 行跨度是 395 缇，
-    %% 摘要与目录 391，正文 383。正文那一档就是上面的 19.15bp，不必重写。
-    cover       = { grid = { lines = { pitch = 19.75bp } } },
-    titlepage   = { grid = { lines = { pitch = 19.75bp } } },
-    frontmatter = { grid = { lines = { pitch = 19.55bp } } },
-  },
-}
-%% 右开页。规范没写要求右开，两份范例的分节符也全是 nextPage；博士封面那一串
-%% 跳到右手页是双面装订的惯例，只有这一处。写 layout={openright=false} 即全篇
-%% 不跳，交图书馆的电子版要的就是它。
-\hit@presetup[degree-level=doctor]{
-  layout = { cover = { openright-default = true } },
-}
-%% 本科声明页的两个小节标题带段前段后。范例 docx 段 662/668 写的是
-%% w:before/after=195 缇，即网格行距 391 的一半，也就是 0.5 行；研究生那一份
-%% （段 710/718）没有，间隔全由空段给。
-\hit@presetup[degree-level=bachelor]{
-  format = {
-    statement-heading     = { space-before = 0.5 line, space-after = 0.5 line },
-    authorization-heading = { space-before = 0.5 line, space-after = 0.5 line },
-  },
-}
-\hit@presetup[layout=!v2-layout]{
-  format = {
-    header = {
-      font-zh = songti, size = xiaowu, line-spacing = 0,
-      snap-to-grid = { horizontal = false },
-    },
-    footer = {
-      size = xiaowu, snap-to-grid = { horizontal = false },
-    },
-    body = {
-      font-zh = songti, size = xiaosi,
-      snap-to-grid = { vertical = auto , horizontal = true },
-      indent-special = first-line 2 chars,
-    },
-    body/if-raggedbottom = { line-spacing = 1.25 },
-    body/if-flushbottom  = { line-white = 3mm 4mm },
-    chapter = {
-      font-zh = heiti, size = xiaoer, alignment = centered,
-      snap-to-grid = { horizontal = false }, char-spacing = 0.0543bp,
-    },
-    chapter/if-raggedbottom = { line-spacing = 1.2, space-before = 1 line, space-after = 0.8 line },
-    chapter/if-flushbottom  = { line-spacing = 1.2 1.25, white-before = 10mm, white-after = 10mm },
-    section = {
-      font-zh = heiti, size = xiaosan,
-      snap-to-grid = { horizontal = false }, char-spacing = 0.4543bp,
-    },
-    section/if-raggedbottom = { line-spacing = 1.25, space-before = 0.5 line, space-after = 0.5 line },
-    section/if-flushbottom  = { line-spacing = 1.2 1.25, white-before = 7mm 8mm, white-after = 7mm 8mm },
-    subsection = {
-      font-zh = heiti, size = sihao,
-      snap-to-grid = { horizontal = false }, char-spacing = 0.4543bp,
-    },
-    subsection/if-raggedbottom = { line-spacing = 1.2, space-before = 0.5 line, space-after = 0.5 line },
-    subsection/if-flushbottom  = { line-spacing = 1.2 1.25, white-before = 6mm 7mm, white-after = 6mm 7mm },
-    subsubsection = {
-      font-zh = heiti, size = xiaosi,
-      snap-to-grid = { horizontal = false }, char-spacing = 0.4543bp,
-    },
-    subsubsection/if-raggedbottom = { line-spacing = 1.25, space-before = 0bp, space-after = 0bp },
-    subsubsection/if-flushbottom  = { line-spacing = 1.2 1.25, white-before = 3mm 4mm, white-after = 3mm 4mm },
-    abstract-en = {
-      font-zh = none, font-en = serif, size = xiaosi,
-      line-spacing = 1.25,
-      snap-to-grid = { vertical = false , horizontal = false },
-    },
-    %% 题注。字号由写作指南 2.12／2.13 写死（「表题…用宋体5号字」「图题…用
-    %% 宋体5号字」）；行距规范一个字没提，取 1.25，与正文同一档。
-    %%
-    %% 范例里题注那几段全是排版的人一段一段手敲的直接格式，自己就打架：同一份
-    %% 文件里图1-1 第一处无 spacing 即单倍、第二处 w:line=280 exact 即固定 14pt，
-    %% 表6-1 是 1.2 倍、表6-2 是 1.25 倍。styles.xml 里根本没有「题注」这个样式，
-    %% 没有一处文档级的规矩可依。判据的次序是样式定义、指南原话、段落级直接
-    %% 格式；题注这几段全在第三档，1.25 是那几个值里唯一与正文一致的，范例
-    %% 自己也用过。
-    %%
-    %% 题与图表之间不给间距（\abovecaptionskip 与 \belowcaptionskip 都是零）。
-    %% 范例里图题紧跟着图，图片下沿量不到，没有干净的实测，先取零。
-    %%
-    %% 横向不写 snap-to-grid，跟着正文走，也就是照样贴字符网格。字符网格的格
-    %% 宽是 12.4543bp，五号字身 10.5bp，一格里的增量 1.9543bp 比正文那一档
-    %% （小四，0.4543bp）大，所以同一行题注比接进版面之前宽一截。这是网格模型
-    %% 本身的结果，不是这里另加的间距：半角字在网格里吃半格，两个半角正好一个
-    %% 全角，规范说的「图名在图序之后空 2 个半角字符」在这个模型里才是一个字宽。
-    caption-figure = { font-zh = songti, size = wuhao, line-spacing = 1.25 },
-    caption-table  = { font-zh = songti, size = wuhao, line-spacing = 1.25 },
-    caption-sub    = { font-zh = songti, size = wuhao, line-spacing = 1.25 },
-    %% 图注。规范把它归在「图中文字」那一句里，与题注同一档字号行距。
-    caption-note   = { font-zh = songti, size = wuhao, line-spacing = 1.25 },
-    titlepage-mark = {
-      font-zh = songti, size = xiaosi,
-      snap-to-grid = { vertical = false , horizontal = false },
-    },
-    titlepage-label = {
-      font-zh = songti, size = xiaoer, bold = true, alignment = centered,
-      snap-to-grid = { vertical = false , horizontal = false },
-    },
-    titlepage-title = {
-      font-zh = heiti, size = erhao, alignment = centered,
-      snap-to-grid = { vertical = true , horizontal = false },
-    },
-    titlepage-field = {
-      font-zh = songti, size = sihao, line-spacing = 1.5, alignment = centered,
-      snap-to-grid = { vertical = true , horizontal = false },
-    },
-    %% 英文内封。取值来自研究生范例 docx 段 87-115：分类号两行单倍；
-    %% 「Dissertation for the …」小二；题目 w:line=300 即 1.25 倍、不贴网格；
-    %% 字段是 7 行 2 列的表，w:line="440" w:lineRule="exact" 即固定值 22pt。
-    titlepage-en-mark = {
-      font-zh = none, font-en = serif, size = xiaosi, line-spacing = 1,
-      snap-to-grid = { vertical = true , horizontal = false },
-    },
-    titlepage-en-degree = {
-      font-zh = none, font-en = serif, size = xiaoer, alignment = centered,
-      line-spacing = 1,
-      snap-to-grid = { vertical = true , horizontal = false },
-    },
-    titlepage-en-title = {
-      font-zh = none, font-en = serif, size = xiaoer, bold = true,
-      all-caps = true, alignment = centered, line-spacing = 1.25,
-      snap-to-grid = { vertical = false , horizontal = false },
-    },
-    titlepage-en-field = {
-      font-zh = none, font-en = serif, size = sihao, line-spacing = 22bp!,
-      snap-to-grid = { vertical = false , horizontal = false },
-    },
-    %% 声明页里的两个小节标题。研究生范例 docx 段 710/718：sz30 即小三，黑体，
-    %% 居中，line=300 即 1.25 倍，不贴网格，没有段前段后——间隔由空段给。
-    %% 本科那一份的段前段后是 195 缇即 0.5 行，见下面按学位的预设。
-    %%
-    %% 两节的取值眼下一模一样，仍分成两个目标：相同是「现在恰好相同」，不是
-    %% 「必须相同」。名字与 term 族里那两条同名——一个说它写什么，一个说它长
-    %% 什么样。
-    statement-heading = {
-      font-zh = heiti, size = xiaosan, alignment = centered,
-      line-spacing = 1.25,
-      snap-to-grid = { vertical = false , horizontal = false },
-    },
-    authorization-heading = {
-      font-zh = heiti, size = xiaosan, alignment = centered,
-      line-spacing = 1.25,
-      snap-to-grid = { vertical = false , horizontal = false },
-    },
-    cover-label = {
-      font-zh = songti, size = xiaoyi, bold = true, alignment = centered,
-      line-spacing = 1, snap-to-grid = { vertical = false, horizontal = false },
-    },
-    cover-type = {
-      font-zh = songti, size = xiaoer, bold = true, alignment = centered,
-      line-spacing = 1, snap-to-grid = { vertical = false, horizontal = false },
-    },
-    cover-title = {
-      font-zh = heiti, size = erhao, alignment = centered,
-      line-spacing = 1, space-before = 12bp,
-      snap-to-grid = { vertical = true, horizontal = false },
-    },
-    cover-subtitle = {
-      font-zh = heiti, size = xiaoer, alignment = centered,
-      line-spacing = 1, snap-to-grid = { vertical = false, horizontal = false },
-    },
-    cover-title-en = {
-      font-zh = none, font-en = serif, size = xiaoer, bold = true,
-      all-caps = true, alignment = centered,
-      line-spacing = 1.25, space-before = 12bp,
-      snap-to-grid = { vertical = false, horizontal = false },
-    },
-    cover-author = {
-      font-zh = songti, size = xiaoer, bold = true, alignment = centered,
-      line-spacing = 1, snap-to-grid = { vertical = false, horizontal = false },
-    },
-    cover-institution = {
-      font-zh = kaishu, size = xiaoer, bold = true, alignment = centered,
-      line-spacing = 1.35, snap-to-grid = { vertical = false, horizontal = false },
-    },
-    cover-date = {
-      font-zh = songti, size = xiaoer, bold = true, alignment = centered,
-      line-spacing = 1, snap-to-grid = { vertical = false, horizontal = false },
-    },
-  },
-}
-\ExplSyntaxOn
-%    \end{macrocode}
-%
-% \subsection{人文社科类}
-%
-% \changes{v3.2a}{2026/09/13}{人文社科类那一档：正文固定值 23 磅、不贴网格，
-%   英文目录四处字样照人文博士范例}
-% 人文社科类的正文行距。指南写的是 1.25 倍，两份人文范例（博士 \texttt{s-hss}、
-% 本科）的正文段却是 \texttt{line=460 exact} 加 \texttt{snapToGrid=0}，Word
-% 导出逐行量步进一律 23.0；照范例。目录同为 23 磅固定值，在
-% \file{hit-thesis-toc.dtx} 里单独给。
-%
-% 英文目录的四处字样与理工范例不同：“Abstract(In Chinese)”括号前不空、
-% “Acknowledgments”没有 e、“letter”小写，都是人文博士范例英文目录里的写法。
-%    \begin{macrocode}
-\ExplSyntaxOff
-\hit@presetup[category=hass]{
-  format = {
-    body = { snap-to-grid = { vertical = false } },
-    body/if-raggedbottom = { line-spacing = 23bp! },
-  },
-}
 \hit@presetup[category=hass]{ term = {
   abstract-in-english-toc-zh  = {Abstract(In Chinese)},
   abstract-in-english-toc-en  = {Abstract(In English)},
@@ -705,74 +56,10 @@
 \ExplSyntaxOn
 %    \end{macrocode}
 %
-% \subsection{定理与固定词汇}
-%
 %    \begin{macrocode}
 \ExplSyntaxOff
-\hit@presetup{ thm = {
-  body-font  = {\normalfont},
-  qed        = {\ensuremath{\square}},
-  head-punct = {},
-} }
-\hit@presetup[lang=en]{
-  thm = { head-font = {\normalfont\bfseries}, star = { proof = Proof } },
-}
-\hit@presetup[lang=zh]{
-  thm = { head-font = {\normalfont\heiti}, star = { proof = 证明 } },
-}
-\ExplSyntaxOn
-
 %    \end{macrocode}
 %
-% 英文版黑体加粗
-% \changes{v3.0.0}{2020/05/21}{英文版黑体加粗}
-%    \begin{macrocode}
-
-\ExplSyntaxOff
-\hit@presetup{ thm = { qed = {} } }
-\ExplSyntaxOn
-
-%    \end{macrocode}
-%
-% 此处去除了冒号，（如果需要在加上这个冒号？），反正规范中没有。
-% \changes{v2.0.02}{2018/06/28}{取出了定理冒号}
-%    \begin{macrocode}
-
-\ExplSyntaxOff
-\hit@presetup{ thm = { head-punct = {}, within = {chapter} } }
-
-
-\hit@presetup[lang=en]{ thm = { list = {
-  assumption   = Assumption,
-  definition   = Definition,
-  proposition  = Proposition,
-  lemma        = Lemma,
-  theorem      = Theorem,
-  axiom        = Axiom,
-  corollary    = Corollary,
-  exercise     = exercise,
-  example      = Example,
-  remark       = Remark,
-  problem      = Problem,
-  conjecture   = Conjecture,
-  fact         = Fact,
-} } }
-\hit@presetup[lang=zh]{ thm = { list = {
-  assumption   = 假设,
-  definition   = 定义,
-  proposition  = 命题,
-  lemma        = 引理,
-  theorem      = 定理,
-  axiom        = 公理,
-  corollary    = 推论,
-  exercise     = 练习,
-  example      = 例,
-  remark       = 注释,
-  problem      = 问题,
-  conjecture   = 猜想,
-  fact         = 事实,
-} } }
-%    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/08}{固定词汇改成常量键。原先一半走 \cs{ctexset}、
 %   一半靠 \cs{cs\_new:Npn} 直接定义命令，配置里等于自己造轮子；现在两条路都由
@@ -1540,52 +827,14 @@
 \ExplSyntaxOn
 %    \end{macrocode}
 %
-% \section{开题与中期报告的默认值}
-%
-% \changes{v3.2a}{2026/08/07}{\texttt{reportcfg} 从类文件迁进来}
-% \changes{v3.2a}{2026/09/13}{两份 \file{cfg} 合成一份 \file{hithesis.cfg}，
-%   原先靠文件分开的两段改由段条件分开}
-% 这一段是开题与中期两份报告的，段条件写成 \texttt{stage!=!!final}：终稿是这根轴
-% 的基准，剩下的两档一起走这一段。上面那一大段是终稿的，段条件是
-% \texttt{stage!=final}。
-%
-% 两段原先是两份文件（\file{hit-thesis.cfg} 与 \file{hit-report.cfg}），由
-% \pkg{docstrip} 的守卫分开；现在是一份 \file{hithesis.cfg}，由段条件分开。
-% 每一行自己的条件一字未动，所以合并前后各档取到的值逐条相同。
 %    \begin{macrocode}
 \hit@presetup@scope{stage=!final}
-\ExplSyntaxOff
-\hit@presetup{ thm = {
-  body-font   = {\normalfont},
-  head-font   = {\normalfont\heiti},
-  qed         = {\ensuremath{\square}},
-  head-punct  = {},
-  note-braces = {}{},
-  note-font   = {},
-} }
-\hit@presetup{ thm = { star = { proof = 证明 } } }
-\hit@presetup{ thm = { qed = {}, head-punct = {} } }
-\hit@presetup{ thm = { list = {
-  assumption   = 假设,
-  definition   = 定义,
-  proposition  = 命题,
-  lemma        = 引理,
-  theorem      = 定理,
-  axiom        = 公理,
-  corollary    = 推论,
-  exercise     = 练习,
-  example      = 例,
-  remark       = 注释,
-  problem      = 问题,
-  conjecture   = 猜想,
-} } }
-\ExplSyntaxOn
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/08}{报告类的三个 \pkg{ctex} 词汇也改成常量键}
 %    \begin{macrocode}
 \ExplSyntaxOff
 %    \end{macrocode}
+%
 %
 % \changes{v3.2a}{2026/08/09}{报告页眉整句原先硬写在 \file{hit-report-pagestyle.dtx} 里，
 %   改成按变体给值的常量}
@@ -1872,7 +1121,13 @@
 % \changes{v3.1c}{2023/04/16}{深圳校区硕士开题模板含有“深圳校区教务处 制”。\issue[141]}
 %
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+%    \begin{macrocode}
 \hit@presetup@scope{}
+%    \end{macrocode}
+%
+%    \begin{macrocode}
 %</hithesis-cfg>
 %    \end{macrocode}
 %

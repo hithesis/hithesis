@@ -18,7 +18,7 @@ hithesis/
 │   ├── assets/                 <- EPS 图像数据 hit-eps.dtx，纯数据，不含代码
 │   ├── engine/                 <- 机制：键怎么造、选项怎么读、版面怎么折算、
 │   │                              字体字号、日期、分散对齐、提示文案，守卫叫 shared-*
-│   ├── config/                 <- 只放值：hit-defaults.dtx，生成 hithesis.cfg
+│   ├── config/                 <- 只放值：词条、版面、定理、回落值、固定名字五份
 │   ├── flow/                   <- 装配线上的排版配置：版心、页眉页脚、章节标题、
 │   │                              段落、浮动体、字体、数学、脚注、超链接、第三方依赖
 │   └── pages/                  <- 一页一个文件
@@ -139,7 +139,7 @@ src/
   assets/   EPS 图像数据，纯数据，不含代码
 ```
 
-`setup/` 里三层分工：`hit-keylist.dtx` 说“有哪些字段”，`hit-defaults.dtx` 说
+`engine/` 与 `config/` 的三层分工：`hit-keylist.dtx` 说“有哪些字段”，`config/` 那几份说
 “字段取什么值”，`hit-key-engine.dtx` 与 `hit-option-engine.dtx` 是造这两者的机制。
 详见 §4.2。
 
@@ -164,7 +164,7 @@ src/
 | 要改什么 | 打开哪个 |
 |---|---|
 | 不知道该改哪 | `src/hithesis.dtx` 里的装配表：这个类由哪些文件按什么顺序拼出来，一目了然。表是 `install` 守卫的产物，改完那边跑 `make mapfix` |
-| 常量的默认值（改学校规范） | `src/config/hit-defaults.dtx` |
+| 常量的默认值（改学校规范） | `src/config/hit-terms.dtx`（词汇）、`hit-layout.dtx`（版面） |
 | 有哪些信息字段与常量 | `src/engine/hit-keylist.dtx` |
 | 有哪些类选项 | `src/engine/hit-options.dtx` |
 | 键与选项的声明机制 | `src/engine/hit-*-engine.dtx` |
@@ -262,16 +262,31 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 | 目录 | 是什么 | 判据 |
 |---|---|---|
 | `src/engine/` | 机制 | 换一套学校规范它一行都不用改 |
-| `src/config/` | 只放值 | 里面一句判断都没有，全是 `\hit@presetup{…}` |
+| `src/config/` | 只放值 | 里面一句判断都没有，全是 `\hit@presetup{…}`，按关切分成五份 |
 | `src/flow/` | 装配线 | 在 `\LoadClass` 之后按顺序执行的排版配置 |
 | `src/pages/` | 一页一个文件 | 论文的某一页长什么样 |
 
 这四层照 iota-hit 的 `engine/` `config/` `flow/` `pages/` 分，那边 `config/`
 的文件头写着“*只放值*——挑哪一份、怎么折是 engine 的事”，是同一条判据。
-差别是 iota 的 `config/` 按关切分成九份（版面、词条、字体、编号…），这里
-眼下只有一份 `hit-defaults.dtx`；`hit-keylist.dtx` 里那两张声明表按判据该归
-`config/`，但它同一个文件里还定义着 `\hitsetup` 与 `hit` 键族，拆开是另一件事，
-没做。
+`config/` 也照它按关切分：
+
+| 文件 | 装什么 | 进哪 |
+|---|---|---|
+| `hit-terms.dtx` | 固定词汇，三段（共用／终稿／报告） | `hithesis.cfg` |
+| `hit-layout.dtx` | `layout` 与 `format` 两族的版面取值 | `hithesis.cfg` |
+| `hit-thm.dtx` | 定理环境的名字与样式 | `hithesis.cfg` |
+| `hit-info.dtx` | 元信息字段不填时的回落值 | `hithesis.cfg` |
+| `hit-names.dtx` | 编号后间距、`\hit` `\PGR` `\UGR` 这些固定名字 | 类文件 |
+
+前四份拼出 `hithesis.cfg`；`hit-names.dtx` 进不了 cfg（一组是循环生成的，一组是
+`\def`，而 cfg 只收一行一个键的 `\hit@presetup`），所以编进类文件。
+
+队列机制（记一条、挂条件、回放）在 `src/engine/hit-presetup.dtx`。它原先与取值
+同在一个文件里，挪不动是因为 docstrip 的输入表全局只增、那个文件排在装配线第二位；
+两个类合成一个输出之后这条限制没了。
+
+还有一处没照过来：`hit-keylist.dtx` 里那两张声明表按判据该归 `config/`，但它同一个
+文件里还定义着 `\hitsetup` 与 `hit` 键族，拆开是另一件事，没做。
 
 设置子系统本身在 `src/engine/` 里，从造键到给值分三层，各层只做一件事：
 
@@ -279,7 +294,7 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 |---|---|---|
 | engine 造键 | `hit-key-engine.dtx`、`hit-option-engine.dtx` | 怎么声明一个键、`\hitsetup` 入口、条件判断函数。只定义，一句执行都没有 |
 | keylist 列键 | `hit-keylist.dtx` | 有哪些信息字段与常量。三个守卫：`shared-keylist` 两个类都取，`thesis-keylist` 与 `report-keylist` 各取各的。只声明，不给值 |
-| defaults 给值 | `src/config/hit-defaults.dtx` | 常量的默认值。只给值，不声明；用户的 `\hitsetup` 晚于它执行，照样能盖掉 |
+| defaults 给值 | `src/config/` 下那五份 | 常量的默认值。只给值，不声明；用户的 `\hitsetup` 晚于它执行，照样能盖掉 |
 
 改学校规范只动 defaults，加一个字段动 keylist，改键的工作方式才动 engine。
 
@@ -294,7 +309,7 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 
 1. `hit-keylist.dtx` 的 `\hit@declare@constant{…}` 列表里加键名 `foo-bar-zh`。
    两个类都要就加进 `shared-keylist` 那一份，只有一个类要就加进对应的那份
-2. `hit-defaults.dtx` 里 `\hit@presetup{ const = { foo-bar-zh = {某某} } }`
+2. `src/config/hit-terms.dtx` 里 `\hit@presetup{ term = { foo-bar-zh = {某某} } }`
 3. 版式里写 `\hit@foo@bar@zh`。键名的 `-` 换成 `@`、前缀 `hit@`，换算是自动的
 
 **加一个用户填的字段**（题目、作者那一类）：
@@ -322,9 +337,10 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 不是标志位。option-engine 造的东西一般落在 `\g__hit_<名>_bool` 上给 `\hit@if@…` 选分支，
 字符串选项落在文本宏上。它归 option-engine 是因为加载期就要用，不是因为存法。
 
-**`\hit@presetup` 那套排队回放机制住在 `hit-defaults.dtx` 顶上，不在 engine 层。**
-按分层它是机制，但 `hit-defaults.dtx` 在解压清单里排在第二位、自己就调用了
-107 次 `\hit@presetup`，而 engine 排在一百多行之后。定义必须早于调用，挪不动。
+**`\hit@presetup` 那套排队回放机制在 `src/engine/hit-presetup.dtx`。** 它原先与
+一千九百行取值同在一个文件里，挪不动：那个文件在解压清单里排第二位、自己就调用了
+一百多次 `\hit@presetup`，而 engine 层排在一百多行之后，定义必须早于调用。两个
+cls 合成一个输出之后 docstrip 那条顺序约束没了，才拆得开。
 
 **共用文件必须排在每个块的前面。** docstrip 的输入文件表全局只增，一个被多份输出
 共用的文件，只有排在每份输出各自要求的位置之前，先后才彼此相容。排在中间会报：
@@ -334,8 +350,9 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 ```
 
 v3.2a 把两个 cls 合成一个之后，`hithesis.cls` 这一边不再受这条约束——只有一个输出
-就没有“彼此相容”可言。但 `hithesis.cfg` 与旧类名那三个报错文件也从
-`hithesis.dtx` 与 `hit-defaults.dtx` 里取，所以这两个文件的位置仍然要留意。
+就没有“彼此相容”可言。但 `hithesis.cfg` 从 `hithesis.dtx` 与 `src/config/`
+下那四份里取，旧类名那三个报错文件也从 `hithesis.dtx` 里取，所以这几个文件的
+位置仍然要留意。
 
 合并之前撞过两次：`hit-keylist.dtx` 一度按类分成两个文件，就是因为它当时排在类
 骨架之后；把三个 flow 模块合成共用文件那次也当场撞上，只好先合选项与 LoadClass、
