@@ -148,7 +148,7 @@ src/
 已经指 `doc` 宏包那套排手册的机器，那套在本仓库是 `src/hit-dtx-style.dtx`。
 `manual/` 说的是用户手册这一份具体产物。
 
-`flow/` 与 `pages/` 里的文件按交付物分开，`hit-thesis-cover.dtx` 是学位论文封面，
+`flow/` 与 `pages/` 里的文件按交付物分开，`hit-final-cover.dtx` 是学位论文封面，
 `hit-report-cover.dtx` 是开题报告封面。v3.2a 起两边同在一个 `hithesis.cls` 里，各自
 整块套在 `\bool_if:NT \g__hit_final_bool` 里（报告那组套 `:NF`），互不相干。
 
@@ -170,11 +170,11 @@ src/
 | 键与选项的声明机制 | `src/engine/hit-*-engine.dtx` |
 | 改一句提示文案 | `src/engine/hit-messages.dtx` 一处，24 条全在里面 |
 | 前置后置排哪些部件 | `src/engine/hit-structure.dtx` 声明键，`src/flow/hit-*-matter.dtx` 定顺序 |
-| 第三方宏包加载与先后 | `src/flow/hit-thesis-deps.dtx`、`src/flow/hit-report-deps.dtx` |
+| 第三方宏包加载与先后 | `src/flow/hit-final-deps.dtx`、`src/flow/hit-report-deps.dtx` |
 | 装哪个基础类 | `src/engine/hit-loadclass.dtx`，一句 `\LoadClass{ctexbook}` 加报告那档的四条补偿 |
 | 各个类共用的小工具 | `src/engine/hit-*.dtx` |
-| 论文的某一页 | `src/pages/hit-thesis-*.dtx`、`src/pages/hit-report-*.dtx` |
-| 版心、页眉、标题、浮动体、字体、数学、脚注 | `src/flow/hit-thesis-*.dtx`、`src/flow/hit-report-*.dtx` |
+| 论文的某一页 | `src/pages/hit-final-*.dtx`、`src/pages/hit-report-*.dtx` |
+| 版心、页眉、标题、浮动体、字体、数学、脚注 | `src/flow/hit-final-*.dtx`、`src/flow/hit-report-*.dtx` |
 | 参考文献样式 | `src/hit-bst.dtx` |
 | 索引排序样式 | `src/hit-ist.dtx` |
 | 排手册用的样式 | `src/hit-dtx-style.dtx` |
@@ -191,11 +191,11 @@ src/
 的。两个目录下同名的文件，打包后会互相覆盖。这也是类名前缀只能写进文件名、不能
 改成 `flow/thesis/` 与 `flow/report/` 两个子目录的原因——拍平之后就撞了。
 
-文件内用 `grep -n '%<\*thesis-' src/pages/hit-thesis-cover.dtx` 之类列出模块起点。模块用注释标出：
+文件内用 `grep -n '%<\*thesis-' src/pages/hit-final-cover.dtx` 之类列出模块起点。模块用注释标出：
 
 ```
 % ^^A ======================================================================
-% ^^A Module thesis-footnote: 脚注样式与编号（thesis）
+% ^^A Module final-footnote: 脚注样式与编号（thesis）
 % ^^A ======================================================================
 ```
 
@@ -394,9 +394,9 @@ v3.2a 把两个 cls 合成一个之后，`hithesis.cls` 这一边不再受这条
 
 模块名的形式是“类-职责”，类的前缀是 `thesis` / `report` / `shared`：
 
-- √ `thesis-chapter` 只管毕业论文的章节标题格式
-- √ `thesis-bib` 只管毕业论文的参考文献加载与样式
-- × `thesis-floats` 兼管列表、定理、段落、引用
+- √ `final-chapter` 只管毕业论文的章节标题格式
+- √ `final-bib` 只管毕业论文的参考文献加载与样式
+- × `final-floats` 兼管列表、定理、段落、引用
 
 加代码前先问这段代码语义上属于哪个模块，找到答案再写。找不到就考虑拆一个新的出来，见 §5。
 
@@ -426,11 +426,11 @@ v3.2a 起模块内容直接拼进 `.cls`，不再生成独立的 `.sty`。在类
 
 ```
 % ^^A ======================================================================
-% ^^A Module thesis-footnote: 脚注样式与编号（thesis）
+% ^^A Module final-footnote: 脚注样式与编号（thesis）
 % ^^A ======================================================================
-%<*thesis-footnote>
+%<*final-footnote>
 ...实际代码...
-%</thesis-footnote>
+%</final-footnote>
 ```
 
 ### 4.6 `\changes` 历史条目
@@ -477,7 +477,7 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 - 字面文本里的空格被吞。`text={150true mm}` 直接照抄会变成 `150truemm`，要写 `~`。
 - **`~` 在两种语法下含义不同。** LaTeX 里它是活动字符，表示不断行空格；expl3 里
   它是普通空格（catcode 10）。原有代码里的 `~` 照抄进 `\ExplSyntaxOn`，不断行空格
-  就退化成了普通空格。`thesis-pagestyle` 的 `\fancyfoot[C]{\xiaowu-~\thepage~-}` 这样
+  就退化成了普通空格。`final-pagestyle` 的 `\fancyfoot[C]{\xiaowu-~\thepage~-}` 这样
   照抄之后，42 个变体里有 21 个的 PDF 变了。要保持原意就写 `\nobreakspace{}`。
 
 一句话：**要空格时写 `~`，原文里已有的 `~` 要改写成 `\nobreakspace{}`。**
@@ -535,7 +535,7 @@ CI 会校验这三条，不合规直接失败：开发版条目必须是 `0000/0
 宏的定义：
 
 ```
-scripts/convert-macro.py src/pages/hit-thesis-cover.dtx hit@engcover --apply
+scripts/convert-macro.py src/pages/hit-final-cover.dtx hit@engcover --apply
 ```
 
 八个封面版式宏就是这么转的。脚本不是万能的，改完照样要跑全量变体逐字节比对。
@@ -574,13 +574,13 @@ scripts/convert-macro.py src/pages/hit-thesis-cover.dtx hit@engcover --apply
 名字读下来就是条件本身：`\hit@if@harbin@master@or@doctor@or@shenzhen@master`、
 `\hit@if@harbin@master@proposal@or@interim`。末尾带 `@TF` 的要给两个分支。
 
-已迁移：`thesis-geometry`、`report-geometry`、`thesis-mainmatter`、`report-chapter`、
-`report-pagestyle`、`report-toc`、`thesis-toc`、`thesis-pagestyle`、`report-floats`、`thesis-deps-c`、
-`thesis-glossary`、`report-deps-a`、`thesis-deps-a`、`report-options` 与
+已迁移：`thesis-geometry`、`report-geometry`、`final-mainmatter`、`report-chapter`、
+`report-pagestyle`、`report-toc`、`final-toc`、`final-pagestyle`、`report-floats`、`thesis-deps-c`、
+`final-glossary`、`report-deps-a`、`thesis-deps-a`、`report-options` 与
 `thesis-options`、`report-options`、
-`thesis-keylist`、`report-keylist`、`thesis-floats`、`thesis-hyperlink`、
-`thesis-frontmatter`、`report-frontmatter`、`thesis-chapter`、`thesis-appendix`、`thesis-bib`、
-`report-bib`、`thesis-footnote`、`report-deps-c`。
+`thesis-keylist`、`report-keylist`、`final-floats`、`thesis-hyperlink`、
+`thesis-frontmatter`、`report-frontmatter`、`final-chapter`、`final-appendix`、`final-bib`、
+`report-bib`、`final-footnote`、`report-deps-c`。
 
 生成的类文件里，`\ifhit@…` 与 `\ifboolexpr` 只剩三十处，全在 `thesiscfg` 与
 `reportcfg` 那两段固定词汇的顶层分支里。那些分支的两侧各是几十行 `\gdef` 与
@@ -629,14 +629,14 @@ scripts/convert-macro.py src/pages/hit-thesis-cover.dtx hit@engcover --apply
 目录里引导点的起始位置就变了。改写前先按 TeX 的记号化规则数一遍哪些换行会留下
 空格：行尾是控制字的不留，行尾是 `}` 或字符的留。
 
-抽公共函数时先查同名宏。`\hit@toc@font` 在 `thesis-toc` 里只在 `toc/sans-font`
+抽公共函数时先查同名宏。`\hit@toc@font` 在 `final-toc` 里只在 `toc/sans-font`
 打开时才定义，关着的时候故意保持未定义，用处是 `\csname hit@toc@font\endcsname`
 取到 `\relax`。在别处用 `\cs_new:Npn` 定义同名函数不会报错（那边用的是
 `\cs_set:Npn`），但会让目录每一行都多出一个 `\heiti`。四十二变体比对能查出来，
 逐字节差异出现在第一个内容流，`.toc` 与 `.aux` 反而完全一致。
 
-评估后跳过：`report-hyperlink`（零条件）、`thesis-bib`（含 natbib 补丁需逐字保留）、
-`thesis-appendix`（条件几乎全嵌在含字面空格的排版内容里，按本节规则该留在 expl3 之外，
+评估后跳过：`report-hyperlink`（零条件）、`final-bib`（含 natbib 补丁需逐字保留）、
+`final-appendix`（条件几乎全嵌在含字面空格的排版内容里，按本节规则该留在 expl3 之外，
 而模块本身几乎全是这类内容）。
 
 迁移一个模块的验收三步，缺一不可：
@@ -645,7 +645,7 @@ scripts/convert-macro.py src/pages/hit-thesis-cover.dtx hit@engcover --apply
    的生成，只在这一步暴露。已经踩过：`\opt{}` 本项目没有（应为 `\option{}`），
    `\cs{}` 的参数里 `_` 会被当成数学下标（要写 `\_`）。
 2. `l3build check` 全过。
-3. 与改动前的 PDF 逐字节比对。挑变体容易漏，`thesis-pagestyle` 那次 42 个里有 21 个
+3. 与改动前的 PDF 逐字节比对。挑变体容易漏，`final-pagestyle` 那次 42 个里有 21 个
    变了，只挑几个未必抽中，所以跑全量。建参照树用
    `git worktree add --detach <目录> <上一个提交>`，比在原地 `git stash` 安全。
 
@@ -671,17 +671,17 @@ scripts/convert-macro.py src/pages/hit-thesis-cover.dtx hit@engcover --apply
 
 ## 5. 新增模块的步骤
 
-以给 `thesiscls` 加 `thesis-footnote` 为例（这个模块已经存在，仅作示范）：
+以给 `thesiscls` 加 `final-footnote` 为例（这个模块已经存在，仅作示范）：
 
 1. 在 dtx 里加守卫块。位置按现有 cls 的内部顺序选：
 
    ```
    % ^^A ======================================================================
-   % ^^A Module thesis-footnote: 脚注样式与编号（thesis）
+   % ^^A Module final-footnote: 脚注样式与编号（thesis）
    % ^^A ======================================================================
-   %<*thesis-footnote>
+   %<*final-footnote>
    ...实际代码...
-   %</thesis-footnote>
+   %</final-footnote>
    ```
 
 加一个**产物**（不是模块）时，权威清单只有 `src/hithesis.dtx` 的 `install` 守卫，
@@ -699,7 +699,7 @@ thuthesis 与 fduthesis 都是这么分的：`tex/` 下只有校徽校名，示�
 2. 在 `src/hithesis.dtx` 的 `install` 守卫里，`\file{\jobname.cls}` 中插一条 `\from`：
 
    ```
-   \from{hit-thesis-footnote.dtx}{thesis-footnote}
+   \from{hit-final-footnote.dtx}{final-footnote}
    ```
 
    位置就是它要被执行的位置。docstrip 严格按 `\from` 的书写顺序输出，与守卫块在 dtx 里的位置无关。
@@ -778,7 +778,7 @@ CI 会在推送后跑这几项：
 
 | 范围 | 对应 |
 |---|---|
-| `thesis` `report` | 只管一档的模块，`src/flow/hit-thesis-*.dtx`、`src/pages/hit-report-*.dtx` 这些 |
+| `thesis` `report` | 只管一档的模块，`src/flow/hit-final-*.dtx`、`src/pages/hit-report-*.dtx` 这些 |
 | `utils` | 各个类共用的小工具 `src/engine/hit-*.dtx` |
 | `pages` | 论文的某一页 `src/pages/hit-*.dtx` |
 | `setup` | 设置子系统 `src/engine/hit-*.dtx` |
@@ -796,7 +796,7 @@ CI 会在推送后跑这几项：
 ```
 feat(thesis): 增加深圳校区博士封面的联合导师字段
 fix(report): 修正中期报告页眉在偶数页丢失
-refactor(thesis): 把封面绘制从 thesiscls 拆到 thesis-cover 模块
+refactor(thesis): 把封面绘制从 thesiscls 拆到 final-cover 模块
 docs(manual): 补充 newgeometry 三个取值的版心差异
 docs(contributing): 提交消息改用 Conventional Commits
 test: 补充 thesis 与 report 的字段清单交叉验证
