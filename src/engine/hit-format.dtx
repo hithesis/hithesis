@@ -1047,8 +1047,30 @@
   { \__hit_format_get:nnNF {#1} {#2} #4 { \tl_set:Nn #4 {#3} } }
 %    \end{macrocode}
 %
-% 带单位的键：\meta{值}加\meta{单位}两条。\texttt{line} 折成网格行距的倍数，
+% 带单位的键：\meta{值}加\meta{单位}两条。\texttt{line} 折成一行的倍数，
 % \texttt{chars} 折成网格字距的倍数，\texttt{white} 是视觉白，其余当长度。
+%
+% \changes{v3.2a}{2026/09/13}{「一行」这个单位认 \option{grid}/\option{enabled}：
+%   网格不启用时折成正文字号，不折网格行距}
+% \emph{「一行」有多长，看网格启不启用。} 启用时是网格行距；关着时 Word 仍认
+% 「段前 0.5 行」，那个行是这一节\emph{正文的单倍行高}，也就是 \option{body}
+% 那一档的字号。\file{docGrid} 里记着的 \texttt{linePitch} 此时只是行高的四舍五入，
+% 不是跨度——深圳本科那两份写着 391 却没有 \texttt{w:type}，就是这一档。
+%    \begin{macrocode}
+\dim_new:N \l__hit_format_unit_dim
+\cs_new_protected:Npn \__hit_format_line_unit:N #1
+  {
+    \bool_if:NTF \g__hit_layout_grid_bool
+      { \dim_set_eq:NN #1 \g_hit_msword_lead_dim }
+      {
+        \__hit_format_read:nnnN { body } { size } { } \l__hit_format_value_tl
+        \tl_if_empty:NTF \l__hit_format_value_tl
+          { \dim_set_eq:NN #1 \g_hit_msword_lead_dim }
+          { \dim_set:Nn #1 { \l__hit_format_value_tl } }
+      }
+  }
+%    \end{macrocode}
+%
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_amount_use:nnN #1#2#3
   {
@@ -1056,13 +1078,14 @@
       {
         { line }
           {
+            \__hit_format_line_unit:N \l__hit_format_unit_dim
             \dim_set:Nn #3
               {
                 \fp_to_dim:n
                   {
                     floor
                       (
-                        \dim_to_fp:n { #2 \g_hit_msword_lead_dim }
+                        \dim_to_fp:n { #2 \l__hit_format_unit_dim }
                         / \dim_to_fp:n { 0.05bp } + 0.0001
                       )
                     * \dim_to_fp:n { 0.05bp }
@@ -1260,6 +1283,7 @@
     \bool_set:Nn \l_hit_format_snap_vertical_bool
       {
         \str_if_eq_p:Vn \l__hit_format_value_tl { true }
+        && \bool_if_p:N \g__hit_layout_grid_bool
         && ! \dim_compare_p:nNn { \g_hit_msword_lead_dim } = { 0pt }
       }
     \__hit_format_read:nnnN {#1} { snap-to-grid-horizontal } { auto }
