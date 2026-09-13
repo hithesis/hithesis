@@ -102,10 +102,13 @@ clean:
 	-@$(RM) $(foreach e,$(JUNKEXT),*.$(e))
 	-@$(RM) *-BSTcontrol.bib *-pub.aux *-pub.bbl *-pub.blg
 	-@$(RM) *~
-	# 分章的 .aux 落在源码旁边（\include 按给的路径写），latexmk -c 只管当前目录
-	-@$(RM) final/frontmatter/*.aux final/mainmatter/*.aux final/backmatter/*.aux
-	-@$(RM) proposal/frontmatter/*.aux proposal/mainmatter/*.aux
-	-@$(RM) interim/frontmatter/*.aux interim/mainmatter/*.aux
+	# 分章的产物落在源码旁边（\include 按给的路径写），latexmk -c 只管当前目录。
+	# 按扩展名通配，与上面那条同一套：在子目录里手工编一次（-jobname=v01 这类）
+	# 会留下 .log 与 .aux，只删 .aux 的话 .log 会一直堆着。
+	-@$(RM) $(foreach d,final proposal interim,\
+	          $(foreach sub,frontmatter mainmatter backmatter,\
+	            $(foreach e,$(JUNKEXT),$(d)/$(sub)/*.$(e))))
+	-@$(RM) $(foreach d,final proposal interim,$(foreach e,$(JUNKEXT),$(d)/*.$(e)))
 
 # make cls 生成、由编译脚本拷进来的那几份，以及 assets/ 里拷过来的图。
 # 它们不是这个目录的内容，是别处的产物，按名删不通配。
@@ -115,8 +118,12 @@ GENERATED = hithesis.cls hithesis.cfg hithesis.sty hithesis.ist hithesis.bst \
             hit-logo.pdf zfb.pdf hit-bachelor-report-bottommark.pdf \
             figures/golfer.pdf
 
+# 已经不再生成、但旧版本拷进来过的那几份。留在这张表里，从旧版升上来的目录
+# 才扫得干净；生成物那边删掉一个名字就往这里补一个。
+LEGACY = hit-thesis.cfg hit-report.cfg
+
 clean-generated:
-	-@$(RM) $(GENERATED)
+	-@$(RM) $(GENERATED) $(LEGACY)
 
 cleanall: clean clean-generated
 	-@$(RM) *.pdf

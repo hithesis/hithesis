@@ -14,22 +14,30 @@
 %
 % \fi
 %
-% \section{学位论文类的文档类选项}
+% \section{文档类选项}
 %
-% 学位论文类 \cls{hit-thesis} 在 \cs{documentclass} 上接受的选项：声明、默认值，
-% 以及 \cs{ProcessKeyOptions} 之后按校区与学位补齐的那批后处理。
+% \cs{documentclass} 上接受的选项：声明、默认值，以及 \cs{ProcessKeyOptions}
+% 之后按材料、校区与学位补齐的那批后处理。
+%
+% \changes{v3.2a}{2026/09/13}{两份选项模块合成一份 \file{src/setup/hit-options.dtx}，
+%   终稿与报告的差别改由 \option{stage} 分岔}
+% \emph{终稿与报告合用这一份。} 原先是 \file{hit-thesis-options.dtx} 与
+% \file{hit-report-options.dtx} 两份，各自声明同一批选项。同一批选项声明两遍在一个
+% 类里过不去：\cs{hit@define@choice@option} 里的 \cs{bool\_new:c} 撞名就报错。
+% 所以每个选项在这里只声明一次，取值取两边的并集，差别放到
+% \cs{ProcessKeyOptions} 之后按 \option{stage} 分岔。
+%
+% \emph{\option{stage} 自己是普通选项，默认 \texttt{final}。} 「这是终稿还是开题
+% 中期」从此就是一个取值，不再是两个类名。
 %
 % 这一段原先跟 \cs{LoadClass}、宏包加载、字体、数学挤在 \file{src/hit-thesis.dtx}
 % 一个文件里。按 \file{src/setup/} 是设置子系统这条约定，选项声明归这里。
 %
 % ^^A ======================================================================
-% ^^A Module thesiscls: hit-thesis 类主体（选项透传 + LoadClass + 模块加载 + AtEndOfClass）
-% ^^A ======================================================================
-% ^^A ======================================================================
-% ^^A Module thesis-options: 文档类选项的声明与后处理（type/campus/fontset 等）（hit-thesis）
+% ^^A Module shared-options: 文档类选项的声明与后处理（stage/campus/fontset 等）
 % ^^A ======================================================================
 %    \begin{macrocode}
-%<*thesis-options>
+%<*shared-options>
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/12}{引擎检查从 deps 挪到选项最前。它是先决条件，
@@ -77,6 +85,7 @@
 % 轴上只有一档等于先给自己造一层机制。\option{design} 这个键名照旧留着。
 %    \begin{macrocode}
 \bool_new:N \g__hit_practice_bool
+\bool_new:N \g__hit_degree_given_bool
 \seq_new:N \l__hit_degree_seq
 \cs_new_protected:Npn \__hit_degree_pick:n #1
   {
@@ -89,6 +98,7 @@
   }
 \cs_new_protected:Npn \__hit_degree_level:n #1
   {
+    \bool_gset_true:N \g__hit_degree_given_bool
     \seq_set_split:Nnn \l__hit_degree_seq { * } {#1}
     \bool_gset:Nn \g__hit_practice_bool
       { \int_compare_p:nNn { \seq_count:N \l__hit_degree_seq } > { 1 } }
@@ -178,21 +188,33 @@
 % 的 \cs{\_\_hit\_axis\_context\_try:n}），轴表把这一档叫 \texttt{final}，标志位
 % 就得叫 \cs{g\_\_hit\_final\_bool}。两个类身份标志位照旧留着，它们是另一件事。
 %
-% \option{stage} 的几个报告取值在这里也声明一遍。它们在学位论文类里永远为假，
-% 声明的意义在于让条件求值查得到：一份主文件同时写四组条件，
-% \texttt{[stage=proposal]} 那两组编学位论文时该是「条件不成立」，
-% 而不是「不认识的取值」。报告类那边同理，两个类身份标志位都声明了。
-% 两个废弃取值一并声明，不然写了旧名的条件会掉进另一条提示。
+% \changes{v3.2a}{2026/09/13}{\option{stage} 从两个类各自的写法合成一个选择项，
+%   默认 \texttt{final}；类身份标志位改由它推出来}
+% \emph{\option{stage} 是一个普通的选择项，默认 \texttt{final}。} 六个取值一次
+% 声明完：三个正名加两个废弃名，再加 \texttt{mid-term} 那个更早的写法。废弃名
+% 也得声明，不然写了旧名的条件会掉进另一条提示；归一化排在
+% \cs{ProcessKeyOptions} 之后。
+%
+% \changes{v3.2a}{2026/08/12}{加一对类身份标志位，让 \cs{hitsetup} 的条件能写
+%   \texttt{stage!=final} 与 \texttt{class!=report} 两种条件。共用一份配置时用得上}
+% \changes{v3.2a}{2026/09/13}{加 \cs{g\_\_hit\_final\_bool}：\option{stage} 的终稿
+%   那一档，与类身份的 \cs{g\_\_hit\_thesis\_bool} 分开}
+% \emph{终稿那一档有了自己的标志位。} \option{stage} 轴问的是「哪一份材料」，
+% 三档是 \texttt{final}、\texttt{proposal}、\texttt{interim}。终稿那一档先前
+% 没有自己的标志位，借用了类身份的 \cs{g\_\_hit\_thesis\_bool}——那个比特同时
+% 表示「这份由学位论文类排」与「stage 是终稿」，两件事一个名字。词条查表是按
+% 档位值反查 \cs{g\_\_hit\_}\meta{取值}\cs{\_bool} 的（见 \file{hit-key-engine.dtx}
+% 的 \cs{\_\_hit\_axis\_context\_try:n}），轴表把这一档叫 \texttt{final}，标志位
+% 就得叫 \cs{g\_\_hit\_final\_bool}。
+%
+% 两个类身份标志位照旧留着，它们是另一件事，值由 \option{stage} 推出来，
+% 见下面 \cs{ProcessKeyOptions} 之后那一段。\cs{g\_\_hit\_chapter\_bool}
+% 同理：排不排章跟着材料走，终稿排、报告不排。
 %    \begin{macrocode}
+\hit@define@choice@option{stage}{}{final,proposal,interim,mid-term,opening,midterm}{final}
 \bool_new:N \g__hit_thesis_bool
 \bool_new:N \g__hit_report_bool
-\bool_gset_true:N \g__hit_thesis_bool
-\bool_new:N \g__hit_final_bool
-\bool_gset_true:N \g__hit_final_bool
 \bool_new:N \g__hit_chapter_bool
-\bool_gset_true:N \g__hit_chapter_bool
-\clist_map_inline:nn { proposal , interim , mid-term , opening , midterm }
-  { \bool_new:c { g__hit_#1_bool } }
 %    \end{macrocode}
 %
 %    \begin{macrocode}
@@ -206,6 +228,34 @@
 % \texttt{auto}（默认）有字体就排字体、没有就贴事先转好的 PDF，\texttt{font} 与
 % \texttt{image} 各自钉死。两条路排出来逐像素一致，见 \file{src/utils/hit-fonts.dtx}。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{报告独有的两个具名条件与 \cs{hit@stage@name}
+%   从报告模块搬进来}
+% 两个具名条件与「这份材料叫什么」那个宏原先只有报告模块有。定义在这里对终稿
+% 无害：终稿那边一处也不调，条件本身也不成立。
+%    \begin{macrocode}
+\hit@define@condition{not@shenzhen}{ ! \g__hit_shenzhen_bool }
+\hit@define@condition{shenzhen@doctor@interim}
+  { \g__hit_shenzhen_bool && \g__hit_doctor_bool && \g__hit_interim_bool }
+\cs_new:Npn \hit@stage@name
+  {
+    \bool_if:NTF \g__hit_proposal_bool
+      { \hit@term@base@stage@proposal }
+      { \hit@if@option@T { interim } { \hit@term@base@stage@interim } }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{\option{toc} 键从报告模块搬进来，两档共用}
+% \option{toc} 把「排不排目录」转给 \option{struct} 族。终稿那边原先没有这个键，
+% 写了会掉进 \texttt{unknown} 转给 \pkg{ctex}，那边不认识，再报一条。
+%    \begin{macrocode}
+\keys_define:nn { hit / class }
+  {
+    toc .code:n =
+      { \tl_gset:cn { g__hit_structure_table-of-contents_tl } {#1} } ,
+    toc .default:n = { true } ,
+  }
 \hit@declare@class@key{cover-script}
 \cs_gset_nopar:Npn \hit@cover@script { auto }
 \cs_gset_protected:cpn { cover-script } #1
@@ -350,6 +400,18 @@
 % 下对齐，段的间距大。如果开启，尽量使段间距保持一致，页面底部出现空白。
 %    \begin{macrocode}
 \hit@define@boolean@option{raggedbottom}{true}
+\bool_new:N \g__hit_raggedbottom_given_bool
+\keys_define:nn { hit / class }
+  {
+    raggedbottom .code:n =
+      {
+        \bool_gset_true:N \g__hit_raggedbottom_given_bool
+        \str_if_eq:nnTF {#1} { false }
+          { \bool_gset_false:N \g__hit_raggedbottom_bool }
+          { \bool_gset_true:N \g__hit_raggedbottom_bool }
+      } ,
+    raggedbottom .default:n = { true } ,
+  }
 %    \end{macrocode}
 %
 %
@@ -389,6 +451,7 @@
 % 是否开启debug模式（默认否）。如果开启，载入显示行号等的包，只为开发调试用。
 %    \begin{macrocode}
 \hit@define@boolean@option{debug}{false}
+\hit@define@boolean@option{print}{false}
 %    \end{macrocode}
 %
 % \changes{v2.0.0}{2018/06/14}{此处删除newgeometry选项}
@@ -642,11 +705,52 @@
 \ProcessKeyOptions [~hit~/~class~]
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/08/12}{\option{stage} 的两个取值改名 \texttt{proposal} 与
+%   \texttt{interim}，v3.1e 的 \texttt{opening} 与 \texttt{midterm} 走废弃期}
+% \changes{v3.2a}{2026/09/13}{\option{stage} 的归一化从报告模块搬进来，两档共用}
+% 旧取值一并声明进选择项，解析完再归一化成新取值。子键的写法不行：
+% \cs{hit@define@choice@option} 生成的是一个整体的 \texttt{stage~.code:n}，
+% 它自己查取值表，\texttt{stage/opening} 这样的子键根本不会被查到。
+%
+% 归一化要把 \texttt{final} 一并关掉：用户写了 \texttt{stage!=opening}，
+% 选择项会把 \texttt{final} 置假、\texttt{opening} 置真，这里再把
+% \texttt{opening} 翻成 \texttt{proposal}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_stage_migrate:nn #1#2
+  {
+    \bool_if:cT { g__hit_#1_bool }
+      {
+        \msg_warning:nnnn { hithesis } { renamed-value } {#1} {#2}
+        \bool_gset_false:c { g__hit_#1_bool }
+        \bool_gset_true:c  { g__hit_#2_bool }
+      }
+  }
+\clist_map_inline:nn { { opening } { proposal } , { midterm } { interim } }
+  { \__hit_stage_migrate:nn #1 }
+\bool_if:cT { g__hit_mid-term_bool }
+  {
+    \bool_gset_false:c { g__hit_mid-term_bool }
+    \bool_gset_true:N  \g__hit_interim_bool
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{类身份与「排不排章」改由 \option{stage} 推出来}
+% 类身份标志位与 \cs{g\_\_hit\_chapter\_bool} 跟着 \option{stage} 走。终稿由
+% 学位论文那一套排、有章；开题与中期由报告那一套排、不排章。
+%    \begin{macrocode}
+\bool_if:NTF \g__hit_final_bool
+  {
+    \bool_gset_true:N \g__hit_thesis_bool
+    \bool_gset_true:N \g__hit_chapter_bool
+  }
+  { \bool_gset_true:N \g__hit_report_bool }
+%    \end{macrocode}
+%
 % \changes{v3.2a}{2026/09/13}{\option{category} 的别名 \texttt{hss} 折成正名
 %   \texttt{hass}}
 % 别名折成正名。得排在 \cs{ProcessKeyOptions} 之后：声明处那一刻取值还没解析，
 % 标志位全是假的。与 \option{stage} 那两个旧取值同一套办法，见
-% \file{hit-report-options.dtx} 的 \cs{\_\_hit\_stage\_migrate:nn}。这里不发
+% 上面 \cs{\_\_hit\_stage\_migrate:nn} 那一段。这里不发
 % 提示——\texttt{hss} 是正式别名不是废弃名，学校的文件名就叫 \file{g-hss.docx}。
 %    \begin{macrocode}
 \bool_if:NT \g__hit_hss_bool
@@ -679,16 +783,22 @@
 % 用户至少要提供一个选项，指定论文类型。
 % \changes{v3.0.0}{2020/05/20}{此处添加博后选项}
 %
-% 这条校验目前触发不到。选项解析之前有一段兜底，在 \option{master}、
+% \changes{v3.2a}{2026/09/13}{两份模块的学位校验合成一处，按 \option{stage} 分岔}
+% \emph{终稿这一档触发不到。} 选项解析之前有一段兜底，在 \option{master}、
 % \option{doctor}、\option{postdoc} 都未置位时把 \option{bachelor} 置真，
 % 而那段兜底在 \cs{ProcessKeyOptions} 之前执行，所以到这里
 % \option{bachelor} 一定为真，四个条件不可能同时落空。实测
 % \cs{documentclass}\oarg{campus=harbin} 不给 \option{type} 时不报错，
-% 直接按本科排版。\file{hit-report.cls} 没有这段兜底，它的同名校验能正常
-% 触发。改动会让不写 \option{type} 的文档从「默认本科」变成报错，属用户
-% 可见变更，此处只记录。
+% 直接按本科排版。改动会让不写 \option{type} 的文档从「默认本科」变成报错，
+% 属用户可见变更，此处只记录。
+%
+% \emph{报告那两档照旧要写。} 那边原先靠「取值表里没有 postdoc」来报错，
+% 现在取值表是两档的并集，postdoc 也认了，所以改成看用户写没写
+% （\cs{g\_\_hit\_degree\_given\_bool}）与写的是不是 \texttt{postdoc}。
+% 材料本身也要写：\option{stage} 现在有默认值 \texttt{final}，落到报告这一支
+% 就说明用户写了 \texttt{proposal} 或 \texttt{interim}，不必再查。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@thesis@error@type
+\cs_new_protected:Npn \hit@error@degree@level
   {
     \ClassError { hithesis }
       {
@@ -697,14 +807,47 @@
       }
       { }
   }
-\bool_lazy_any:nF
+\cs_new_protected:Npn \hit@error@degree@level@report
   {
-    { \bool_if_p:N \g__hit_bachelor_bool }
-    { \bool_if_p:N \g__hit_master_bool }
-    { \bool_if_p:N \g__hit_doctor_bool }
-    { \bool_if_p:N \g__hit_postdoc_bool }
+    \ClassError { hithesis }
+      {
+        \MessageBreak Please~specify~thesis~type~in~option:~
+        \MessageBreak type=[bachelor~|~master~|~doctor]~
+      }
   }
-  { \hit@thesis@error@type }
+\bool_if:NTF \g__hit_final_bool
+  {
+    \bool_lazy_any:nF
+      {
+        { \bool_if_p:N \g__hit_bachelor_bool }
+        { \bool_if_p:N \g__hit_master_bool }
+        { \bool_if_p:N \g__hit_doctor_bool }
+        { \bool_if_p:N \g__hit_postdoc_bool }
+      }
+      { \hit@error@degree@level }
+  }
+  {
+    \bool_lazy_or:nnT
+      { ! \bool_if_p:N \g__hit_degree_given_bool }
+      { \bool_if_p:N \g__hit_postdoc_bool }
+      { \hit@error@degree@level@report }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{深圳博士中期那两处后处理从报告模块搬进来}
+% 深圳博士中期不自动排目录，页底也不留活动余量（用户显式写过就不动）。
+%    \begin{macrocode}
+\bool_if:NF \g__hit_final_bool
+  {
+    \bool_new:N \g__hit_report_toc_auto_bool
+    \bool_gset_true:N \g__hit_report_toc_auto_bool
+    \hit@if@shenzhen@doctor@interim
+      {
+        \bool_gset_false:N \g__hit_report_toc_auto_bool
+        \bool_if:NF \g__hit_raggedbottom_given_bool
+          { \bool_gset_false:N \g__hit_raggedbottom_bool }
+      }
+  }
 %    \end{macrocode}
 %
 % 使用 \hologo{XeTeX}\ 引擎时，\pkg{fontspec} 宏包会被 \pkg{xeCJK} 自动调用。传递
@@ -718,11 +861,17 @@
 % \changes{v3.0.17}{2022/02/23}{\pkg{newtx} 更新至 v1.7 版本后与 \pkg{ctex} 宏包冲突, 需要手动引入 \option{nofontspec} 选项. 判断方法为是否存在 v1.7 更新后的新宏包 \pkg{newtx.sty}}
 % 载入单双面打印设置，本、硕单面，博士双面。
 %    \begin{macrocode}
-\bool_lazy_or:nnT
-  { \bool_if_p:N \g__hit_bachelor_bool }
-  { \bool_if_p:N \g__hit_master_bool }
-  { \PassOptionsToClass { oneside } { book } }
-\bool_if:NT \g__hit_doctor_bool { \PassOptionsToClass { twoside } { book } }
+\bool_if:NTF \g__hit_final_bool
+  {
+    \bool_lazy_or:nnT
+      { \bool_if_p:N \g__hit_bachelor_bool }
+      { \bool_if_p:N \g__hit_master_bool }
+      { \PassOptionsToClass { oneside } { book } }
+    \bool_if:NT \g__hit_doctor_bool
+      { \PassOptionsToClass { twoside } { book } }
+    \PassOptionsToClass { openany } { ctexbook }
+  }
+  { \PassOptionsToClass { oneside } { ctexbook } }
 %    \end{macrocode}
 %
 % \changes{v1.0.02}{2017/08/27}{添加了思源字体说明}
@@ -785,31 +934,34 @@
 % 只有真的走旧版面又没指明是哪一组时才补 \texttt{two}，博士后就落在这一条上。
 %    \begin{macrocode}
 \bool_new:N \g__hit_layout_two_bool
-\bool_lazy_and:nnT
-  { \bool_if_p:N \g__hit_bachelor_bool }
-  { \bool_if_p:N \g__hit_layout_two_bachelor_bool }
-  { \bool_gset_true:N \g__hit_layout_two_bool }
-\bool_lazy_and:nnT
+\bool_if:NT \g__hit_final_bool
   {
-    \bool_lazy_or_p:nn
-      { \bool_if_p:N \g__hit_master_bool } { \bool_if_p:N \g__hit_doctor_bool }
+    \bool_lazy_and:nnT
+      { \bool_if_p:N \g__hit_bachelor_bool }
+      { \bool_if_p:N \g__hit_layout_two_bachelor_bool }
+      { \bool_gset_true:N \g__hit_layout_two_bool }
+    \bool_lazy_and:nnT
+      {
+        \bool_lazy_or_p:nn
+          { \bool_if_p:N \g__hit_master_bool }
+          { \bool_if_p:N \g__hit_doctor_bool }
+      }
+      {
+        \bool_lazy_or_p:nn
+          { \bool_if_p:N \g__hit_layout_two_graduate_one_bool }
+          { \bool_if_p:N \g__hit_layout_two_graduate_two_bool }
+      }
+      { \bool_gset_true:N \g__hit_layout_two_bool }
+    \bool_if:NT \g__hit_postdoc_bool
+      { \bool_gset_true:N \g__hit_layout_two_bool }
+    \bool_if:NT \g__hit_layout_two_bool
+      {
+        \bool_lazy_or:nnF
+          { \bool_if_p:N \g__hit_layout_two_graduate_one_bool }
+          { \bool_if_p:N \g__hit_layout_two_graduate_two_bool }
+          { \bool_gset_true:N \g__hit_layout_two_graduate_two_bool }
+      }
   }
-  {
-    \bool_lazy_or_p:nn
-      { \bool_if_p:N \g__hit_layout_two_graduate_one_bool }
-      { \bool_if_p:N \g__hit_layout_two_graduate_two_bool }
-  }
-  { \bool_gset_true:N \g__hit_layout_two_bool }
-\bool_if:NT \g__hit_postdoc_bool
-  { \bool_gset_true:N \g__hit_layout_two_bool }
-\bool_if:NTF \g__hit_layout_two_bool
-  {
-    \bool_lazy_or:nnF
-      { \bool_if_p:N \g__hit_layout_two_graduate_one_bool }
-      { \bool_if_p:N \g__hit_layout_two_graduate_two_bool }
-      { \bool_gset_true:N \g__hit_layout_two_graduate_two_bool }
-  }
-  { }
 \__hit_layout_bottom_apply:
 %    \end{macrocode}
 %
@@ -850,7 +1002,7 @@
 %    \end{macrocode}
 %
 %    \begin{macrocode}
-%</thesis-options>
+%</shared-options>
 %    \end{macrocode}
 %
 % \Finale
