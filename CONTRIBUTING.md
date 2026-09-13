@@ -390,7 +390,14 @@ src/flow/
   hit-final-pagestyle-shenzhen-master.dtx
   hit-final-pagestyle-bachelor.dtx
   hit-final-pagestyle-postdoc.dtx
+
+src/pages/
+  hit-report-cover.dtx                       <- 基准（研究生）与本科那一档
+  hit-report-cover-shenzhen-bachelor.dtx     <- 深圳本科整页另排
 ```
+
+变体里的那一小坨大到整页也照此办：深圳本科报告首页与基准没有重叠的部件，
+整页自己排，仍然是一个文件一个变体、装配表一行。
 
 这样加一个特例就是加一个文件、装配表加一行，基准文件一个字不动；删一个特例是
 删一个文件。写在同一个文件里也能跑，但那样基准与变体的边界只剩缩进，改基准时
