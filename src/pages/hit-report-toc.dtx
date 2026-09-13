@@ -150,6 +150,22 @@
 % 页码、悬挂那一串，重抄一遍迟早对不上。\cs{baselineskip} 在条目组外设，组里
 % 没人动它，排到 \cs{par} 时读的就是这个值。
 %
+% \emph{点线与页码那一格照终稿那一份。} 点距垫零：范例的引导点是 Times 句点
+% 自然堆出来的，步进 3.0\,bp 恰是句点自己的字身宽，垫 1\,mu 堆出来的 4.33 明显稀
+% （终稿那一份早就垫零了，见 \file{hit-final-toc.dtx}）。页码那一格从
+% \pkg{tocloft} 的定宽 \cs{@pnumwidth} 改成实宽的盒：定宽盒里页码靠右排，
+% 左边空出来的一截点线填不进去，一位数的页码前面因此空 16\,bp
+% （实测末点 484.39，原件 501.00）。
+%
+% \emph{点网格的原点还差一格宽的余数。} Word 把点钉在以\emph{页左缘}为原点、
+% 按点距排的一张网格上（iota-hit 对范例逐条量过首点，对点距取余一律
+% 0.05\,--\,0.15，也就是 Word 自身 0.24 的落笔量化）；\hologo{TeX} 的
+% \cs{leaders} 也钉网格，可原点是\emph{行盒左缘}，也就是版心左缘 85.05。
+% 两者差 85.05 对 3 取余的 1.05，于是每条点线整体左移 1.05、末点落在 499.05
+% 而不是 501.00，页码前面空 2.18 而不是 0.20，条数各多一个。
+% \cs{leaders} 的原点挪不动（要挪得把整条条目装进一个位置已知的盒子，
+% 与折行冲突），这一格先记下来。
+%
 % 页首那一段段前 \hologo{TeX} 会在分页处丢掉，Word 不丢，所以标题前先发一条
 % 零高的 \cs{hrule} 把这一页垫成非空，\cs{topskip} 一并归零——与正文每章开头
 % 同一招，见 \file{src/flow/hit-report-matter.dtx}。
@@ -195,6 +211,16 @@
       {
         \hit@toc@line@metrics:nn { 3 } {#1}
         \__hit_report_toc_subsubsec:nn {#1} {#2}
+      }
+    \cs_set:Npn \cftdotsep { 0 }
+    \clist_map_inline:nn { sec , subsec , subsubsec }
+      {
+        \cs_set:cpn { cft #1 fillnum } ##1
+          {
+            { \use:c { cft #1 leader } } \nobreak
+            \hbox:n { \use:c { cft #1 pagefont } ##1 }
+            \use:c { cft #1 afterpnum } \par
+          }
       }
   }
 %    \fi
