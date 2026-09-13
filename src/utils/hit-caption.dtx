@@ -274,6 +274,57 @@
 % \end{macro}
 %
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{题号间隔与题注字号那五条从 \file{hit-thesis-float.dtx}
+%   挪到共享层：两档都要有，报告里的长表也走双语题注那条链}
+% \emph{题号与题名之间的间隔。} 图题表题各读一个常量，常量为空退回兜底值：
+% 新版面一律一个汉字宽（\cs{ccwd}，题注贴字符网格，一个字就是一格）；旧版面
+% 照 v3.1e，本科一个字宽、其余 \cs{enskip}。图还是表看 \cs{@captype}；
+% \cs{LT@makecaption} 那条路上它也是有的，取不到就按图算。
+%
+% \emph{为什么挪到共享层。} 这五条原先只有终稿有，\file{src/utils/hit-table.dtx}
+% 里给 \pkg{tabularray} 长表注册 \option{caption-en} 外参那一段是
+% \cs{cs\_if\_exist:NT} \cs{hit@caption@separator} 守着的，报告里取不到这个宏，
+% 那个外参就没注册——报告里照抄一张终稿的长表，报的是
+% 「Unknown~outer~key~name~'caption-en'」。五条本身没有一处与终稿绑定，读的
+% \cs{hit@after@number:nnn} 与 \cs{hit@format@apply@font@else:en} 两档都有。
+%    \begin{macrocode}
+\cs_new:Npn \hit@caption@separator@fallback
+  {
+    \dim_compare:nNnTF { \g_hit_msword_lead_dim } > { \c_zero_dim }
+      { \hskip \ccwd }
+      { \hit@if@option@TF { bachelor } { \hskip \ccwd } { \enskip } }
+  }
+\cs_new:Npn \hit@caption@number@lang:
+  { \bool_if:NTF \g__hit_en_bool { en } { zh } }
+\cs_new:Npn \hit@caption@type:
+  { \cs_if_exist:NTF \@captype { \@captype } { figure } }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/08/29}{题注的字号行距改从 \option{format} 表取，目标是
+%   \option{caption-figure} 与 \option{caption-table}。原先写死 \cs{wuhao}，
+%   新版面的行距进不来}
+% \cs{hit@caption@font:} 按图还是表挑目标，从 \option{format} 表取字号、行距、
+% 贴不贴网格。表里没取值就退回 \cs{wuhao}——旧版面那一份表是空的，行距跟着
+% \cs{wuhao} 自带的 1.3 倍走，与 v3.1e 一样。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@caption@font:
+  {
+    \hit@format@apply@font@else:en { caption- \hit@caption@type: } { \wuhao }
+  }
+\cs_new:Npn \hit@caption@separator
+  {
+    \str_if_eq:eeTF { \hit@caption@type: } { table }
+      {
+        \hit@after@number:nnn { table@caption } { \hit@caption@number@lang: }
+          { \hit@caption@separator@fallback }
+      }
+      {
+        \hit@after@number:nnn { figure@caption } { \hit@caption@number@lang: }
+          { \hit@caption@separator@fallback }
+      }
+  }
 %</shared-caption>
 %    \end{macrocode}
 %

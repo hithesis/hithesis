@@ -34,7 +34,7 @@ DTX = ROOT / "src" / "hithesis.dtx"
 POLICY = ROOT / "tools" / "deps-policy.txt"
 STY = "src/hit-sty.dtx"
 OUTPUTS = ["hithesis.cls"]
-DEPS = {"flow/hit-thesis-deps.dtx", "flow/hit-report-deps.dtx"}
+DEPS = {"flow/hit-flow-deps.dtx"}
 
 REQ = re.compile(r"\\RequirePackage\s*(?:\[[^\]]*\])?\s*\{\s*([a-zA-Z0-9\-&]+)\s*\}")
 
