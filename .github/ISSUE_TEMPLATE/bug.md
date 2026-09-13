@@ -24,7 +24,7 @@ assignees: [syvshc, xiF616]
 - 请给出完整的示例文件：
 
 ```latex
-% 将 thesis.tex/report.tex 中的内容完整地放在这里
+% 将 final.tex/report.tex 中的内容完整地放在这里
 
 ```
 

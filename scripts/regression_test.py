@@ -65,7 +65,7 @@ class Variant:
             key, _, value = line.partition("=")
             values[key.strip()] = value.strip()
         self.base = values["BASE"]
-        self.entry = values.get("ENTRY", "thesis.tex")
+        self.entry = values.get("ENTRY", "final.tex")
 
     @property
     def pdf_name(self) -> str:

@@ -34,9 +34,9 @@ export SOURCE_DATE_EPOCH FORCE_SOURCE_DATE
 CONF="tests/variants/$variant.conf"
 [ -f "$CONF" ] || { echo "No such variant: $variant"; exit 2; }
 
-# Source variant config: BASE, OPTIONS, CLS, ENTRY (default thesis.tex)
+# Source variant config: BASE, OPTIONS, CLS, ENTRY (default final.tex)
 . "$CONF"
-ENTRY=${ENTRY:-thesis.tex}
+ENTRY=${ENTRY:-final.tex}
 
 # 变体可以声明只在某个平台上有意义（fontset=mac 要 macOS 系统字体，别处没有）。
 # 跳过时按成功退出：CI 的变体矩阵跑在 ubuntu 上，不跳的话这两个必挂。

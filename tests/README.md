@@ -27,7 +27,7 @@
 BASE=examples/hitbook/chinese          # 取哪个 example 目录作模板
 OPTIONS=fontset=fandol,type=bachelor,campus=harbin   # 替换进 \documentclass[...] 的选项
 CLS=hit-thesis                         # 文档类名
-ENTRY=thesis.tex                       # 主文件，默认 thesis.tex
+ENTRY=final.tex                       # 主文件，默认 final.tex
 BIBSTYLE=gbt7714-2025-numeric           # 可选，替换掉整棵树里的 \bibliographystyle
 ```
 

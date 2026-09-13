@@ -58,7 +58,7 @@ compat-regression:
 lineends:
 	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -xelatex \
 	  -interaction=nonstopmode \
-	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' thesis.tex \
+	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' final.tex \
 	  > /dev/null
 	python3 scripts/check-line-ends.py --max-diff 78
 

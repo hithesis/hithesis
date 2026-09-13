@@ -1,4 +1,4 @@
-# Makefile for hithesis dissertation
+# Makefile for the hithesis demo
 
 # Compiling method: latexmk/xelatex/lualatex
 #
@@ -8,13 +8,13 @@
 METHOD = xelatex
 # Set opts for latexmk if you use it
 LATEXMKOPTS = -xelatex
-# Basename of thesis
-THESISMAIN = thesis
+# Basename of the final (degree) document
+FINALMAIN = final
 # Basename of report（开题与中期）
 REPORTMAIN = report
 PACKAGE = hithesis
 
-THESISCONTENTS=$(THESISMAIN).tex $(REPORTMAIN).tex info.tex final/frontmatter/*.tex final/mainmatter/*.tex proposal/mainmatter/*.tex interim/mainmatter/*.tex final/backmatter/*.tex $(FIGURES)
+FINALCONTENTS=$(FINALMAIN).tex $(REPORTMAIN).tex info.tex final/frontmatter/*.tex final/mainmatter/*.tex proposal/mainmatter/*.tex interim/mainmatter/*.tex final/backmatter/*.tex $(FIGURES)
 # NOTE: update this to reflect your local file types.
 FIGURES=$(wildcard figures/*.eps figures/*.pdf)
 BIBFILE=$(wildcard final/backmatter/*.bib)
@@ -29,12 +29,12 @@ else
 	OPEN = open
 endif
 
-.PHONY: clean cleanall clean-generated thesis viewthesis report viewreport
+.PHONY: clean cleanall clean-generated final viewfinal report viewreport
 
-viewthesis: thesis
-	$(OPEN) $(THESISMAIN).pdf
+viewfinal: final
+	$(OPEN) $(FINALMAIN).pdf
 
-thesis: $(THESISMAIN).pdf
+final: $(FINALMAIN).pdf
 
 viewreport: report
 	$(OPEN) $(REPORTMAIN).pdf
@@ -44,34 +44,34 @@ report: $(REPORTMAIN).pdf
 $(REPORTMAIN).pdf: $(CLSFILES)
 	latexmk $(LATEXMKOPTS) $(REPORTMAIN)
 
-# 两份主文件：thesis.tex 排学位论文（中英文两版由 lang 决定），report.tex 排
+# 两份主文件：final.tex 排学位论文（中英文两版由 lang 决定），report.tex 排
 # 开题与中期（由 kind 决定）。各自顶上都写了怎么切换。
 ifeq ($(METHOD),latexmk)
 
-$(THESISMAIN).pdf: $(CLSFILES)
-	$(METHOD) $(LATEXMKOPTS) $(THESISMAIN)
+$(FINALMAIN).pdf: $(CLSFILES)
+	$(METHOD) $(LATEXMKOPTS) $(FINALMAIN)
 
 else ifneq ($(filter $(METHOD),xelatex lualatex),)
 
-$(THESISMAIN).idx: $(THESISMAIN).bbl
-	$(METHOD) $(THESISMAIN)
-	$(METHOD) $(THESISMAIN)
+$(FINALMAIN).idx: $(FINALMAIN).bbl
+	$(METHOD) $(FINALMAIN)
+	$(METHOD) $(FINALMAIN)
 
-$(THESISMAIN)_china.idx : $(CLSFILES) $(THESISMAIN).bbl $(THESISMAIN).idx
-	splitindex $(THESISMAIN) -- -s $(PACKAGE).ist  # 自动生成索引
+$(FINALMAIN)_china.idx : $(CLSFILES) $(FINALMAIN).bbl $(FINALMAIN).idx
+	splitindex $(FINALMAIN) -- -s $(PACKAGE).ist  # 自动生成索引
 
-$(THESISMAIN)_english.ind $(THESISMAIN)_china.ind $(THESISMAIN)_english.idx : $(THESISMAIN)_china.idx
+$(FINALMAIN)_english.ind $(FINALMAIN)_china.ind $(FINALMAIN)_english.idx : $(FINALMAIN)_china.idx
 
-$(THESISMAIN).pdf: $(CLSFILES) $(THESISCONTENTS) $(THESISMAIN)_china.ind $(THESISMAIN)_china.idx $(THESISMAIN)_english.ind $(THESISMAIN)_english.idx $(THESISMAIN).bbl
-	$(METHOD) $(THESISMAIN)
-	splitindex $(THESISMAIN) -- -s $(PACKAGE).ist  # 自动生成索引
-	$(METHOD) $(THESISMAIN)
+$(FINALMAIN).pdf: $(CLSFILES) $(FINALCONTENTS) $(FINALMAIN)_china.ind $(FINALMAIN)_china.idx $(FINALMAIN)_english.ind $(FINALMAIN)_english.idx $(FINALMAIN).bbl
+	$(METHOD) $(FINALMAIN)
+	splitindex $(FINALMAIN) -- -s $(PACKAGE).ist  # 自动生成索引
+	$(METHOD) $(FINALMAIN)
 
-$(THESISMAIN).bbl: $(BIBFILE)
-	$(METHOD) $(THESISMAIN)
-	-bibtex $(THESISMAIN)
-	-if [ -f $(THESISMAIN)-pub.aux ]; then bibtex $(THESISMAIN)-pub; fi  # 成果页那一份
-	$(RM) $(THESISMAIN).pdf
+$(FINALMAIN).bbl: $(BIBFILE)
+	$(METHOD) $(FINALMAIN)
+	-bibtex $(FINALMAIN)
+	-if [ -f $(FINALMAIN)-pub.aux ]; then bibtex $(FINALMAIN)-pub; fi  # 成果页那一份
+	$(RM) $(FINALMAIN).pdf
 
 else
 $(error Unknown METHOD: $(METHOD))
@@ -79,7 +79,7 @@ $(error Unknown METHOD: $(METHOD))
 endif
 
 # 换 kind 编别的交付物时可以自己指定 jobname，这里把常见的几个一并清掉。
-JOBS = $(THESISMAIN) thesis-en opening midterm
+JOBS = $(FINALMAIN) thesis-en opening midterm
 
 # 按扩展名通配删，不按 jobname 逐个删。原先 JOBS 只列了四个 jobname
 # （thesis、thesis-en、opening、midterm），而手工编别的档（-jobname=h3、ork2
@@ -95,7 +95,7 @@ JUNKEXT = aux bbl bcf blg glo gls idx ilg ind log out run.xml synctex.gz \
           thm toc toe fls fdb_latexmk xdv
 
 clean:
-	-latexmk -c $(THESISMAIN)
+	-latexmk -c $(FINALMAIN)
 	-latexmk -c thesis-en
 	-latexmk -c opening
 	-latexmk -c midterm

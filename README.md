@@ -322,19 +322,19 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
      - hitbook/chinese 文件夹中
 
-           xelatex -shell-escape thesis.tex
+           xelatex -shell-escape final.tex
            bibtex thesis
-           xelatex -shell-escape thesis.tex
-           xelatex -shell-escape thesis.tex
+           xelatex -shell-escape final.tex
+           xelatex -shell-escape final.tex
            splitindex thesis -- -s hithesis.ist  # 自动生成索引
-           xelatex -shell-escape thesis.tex
+           xelatex -shell-escape final.tex
 
      - hitbook/english 文件夹中
 
-           xelatex -shell-escape thesis.tex
+           xelatex -shell-escape final.tex
            bibtex thesis
-           xelatex -shell-escape thesis.tex
-           xelatex -shell-escape thesis.tex
+           xelatex -shell-escape final.tex
+           xelatex -shell-escape final.tex
 
      - hitart/{reports,reportplus}文件夹中
 
