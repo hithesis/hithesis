@@ -73,7 +73,7 @@ lineends:
 # TEXINPUTS 指到 src/：这样 install 守卫里写不带目录的文件名即可，
 # make（在根目录跑）和 l3build（把源码拍平到 build/unpacked）都能找到。
 $(TARGETS): $(SOURCES)
-	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/manual: xetex -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/config:src/flow:src/pages:src/assets:src/manual: xetex -interaction=nonstopmode src/$(PACKAGE).dtx
 	$(MAKE) --no-print-directory distribute
 
 # .ins 只生成到根目录，示例目录里的那份由这里分发。
@@ -110,7 +110,7 @@ viewdoc:
 ifeq ($(METHOD),latexmk)
 
 $(PACKAGE).pdf: $(TARGETS)
-	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/manual: $(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
 
 else ifneq ($(filter $(METHOD),xelatex lualatex),)
 
@@ -123,11 +123,11 @@ else ifneq ($(filter $(METHOD),xelatex lualatex),)
 # “Extra }”，而源码本身是好的。踩过两次。
 $(PACKAGE).pdf: $(TARGETS)
 	-$(RM) $(PACKAGE).gls $(PACKAGE).glo $(PACKAGE).ind $(PACKAGE).idx
-	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 	makeindex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
 	makeindex -s gglo.ist -o $(PACKAGE).gls $(PACKAGE).glo
-	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
-	TEXINPUTS=src:src/setup:src/utils:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 
 else
 $(error Unknown METHOD: $(METHOD))

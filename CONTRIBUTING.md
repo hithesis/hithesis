@@ -16,12 +16,12 @@ hithesis/
 │   ├── hit-sty.dtx             <- 示例宏包 hithesis.sty，示例文档自己 \usepackage
 │   ├── manual/                 <- 用户手册 hit-manual.dtx，纯文档，不产出任何文件
 │   ├── assets/                 <- EPS 图像数据 hit-eps.dtx，纯数据，不含代码
-│   ├── setup/                  <- 设置子系统：选项、键、常量，见 §4.3
-│   ├── utils/                  <- 各个类共用的小工具，守卫叫 shared-*，见 §4.3
-│   ├── flow/                   <- 单类专属的排版配置：版心、页眉页脚、章节标题、
+│   ├── engine/                 <- 机制：键怎么造、选项怎么读、版面怎么折算、
+│   │                              字体字号、日期、分散对齐、提示文案，守卫叫 shared-*
+│   ├── config/                 <- 只放值：hit-defaults.dtx，生成 hithesis.cfg
+│   ├── flow/                   <- 装配线上的排版配置：版心、页眉页脚、章节标题、
 │   │                              段落、浮动体、字体、数学、脚注、超链接、第三方依赖
-│   └── pages/                  <- 论文的一页一个文件
-│                                  flow/ 与 pages/ 全是单类专属，文件名带类名
+│   └── pages/                  <- 一页一个文件
 ├── hithesis.ins          <- docstrip 驱动文件，src/hithesis.dtx 的 install 守卫的产物。
 │                            提交进仓库随包发出去，开发时不改它、也不用它解压
 ├── build.lua             <- l3build 配置：unpack / distribute / doc / check / ctan
@@ -156,7 +156,7 @@ src/
 （原名后面添空格），并要求每个输出的输入文件表是全局表的子序列。两个输出各自用上
 自己独有的文件，再回头引用排在前面的共享文件就找不到，报
 `Incompatible order of input files`。只剩一个输出之后这条限制不再起作用，文件顺序
-可以随意安排；`utils/hit-bibstyle.dtx` 还排在选项区，是因为它得在选项之前跑，
+可以随意安排；`engine/hit-bibstyle.dtx` 还排在选项区，是因为它得在选项之前跑，
 不是因为 docstrip。
 
 先按家族找文件，再在文件里按 docstrip 守卫找模块：
@@ -164,15 +164,15 @@ src/
 | 要改什么 | 打开哪个 |
 |---|---|
 | 不知道该改哪 | `src/hithesis.dtx` 里的装配表：这个类由哪些文件按什么顺序拼出来，一目了然。表是 `install` 守卫的产物，改完那边跑 `make mapfix` |
-| 常量的默认值（改学校规范） | `src/setup/hit-defaults.dtx` |
-| 有哪些信息字段与常量 | `src/setup/hit-keylist.dtx` |
-| 有哪些类选项 | `src/setup/hit-options.dtx` |
-| 键与选项的声明机制 | `src/setup/hit-*-engine.dtx` |
-| 改一句提示文案 | `src/utils/hit-messages.dtx` 一处，24 条全在里面 |
-| 前置后置排哪些部件 | `src/utils/hit-structure.dtx` 声明键，`src/flow/hit-*-matter.dtx` 定顺序 |
+| 常量的默认值（改学校规范） | `src/config/hit-defaults.dtx` |
+| 有哪些信息字段与常量 | `src/engine/hit-keylist.dtx` |
+| 有哪些类选项 | `src/engine/hit-options.dtx` |
+| 键与选项的声明机制 | `src/engine/hit-*-engine.dtx` |
+| 改一句提示文案 | `src/engine/hit-messages.dtx` 一处，24 条全在里面 |
+| 前置后置排哪些部件 | `src/engine/hit-structure.dtx` 声明键，`src/flow/hit-*-matter.dtx` 定顺序 |
 | 第三方宏包加载与先后 | `src/flow/hit-thesis-deps.dtx`、`src/flow/hit-report-deps.dtx` |
-| 装哪个基础类 | `src/setup/hit-loadclass.dtx`，一句 `\LoadClass{ctexbook}` 加报告那档的四条补偿 |
-| 各个类共用的小工具 | `src/utils/hit-*.dtx` |
+| 装哪个基础类 | `src/engine/hit-loadclass.dtx`，一句 `\LoadClass{ctexbook}` 加报告那档的四条补偿 |
+| 各个类共用的小工具 | `src/engine/hit-*.dtx` |
 | 论文的某一页 | `src/pages/hit-thesis-*.dtx`、`src/pages/hit-report-*.dtx` |
 | 版心、页眉、标题、浮动体、字体、数学、脚注 | `src/flow/hit-thesis-*.dtx`、`src/flow/hit-report-*.dtx` |
 | 参考文献样式 | `src/hit-bst.dtx` |
@@ -250,20 +250,41 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 `mathrsfs`、`rotating`、`listings`、`algorithm2e` 这六个宏包类里一句都没用到，
 只是替文档预先装上并配好，就归示例宏包；封面要用的 `xcolor` 与 `tikz` 留在类里。
 
-### 4.2 设置分三层：engine / keylist / defaults
+### 4.2 一套引擎加一层配置
 
-`src/setup/` 是设置子系统，从造键到给值分三层，各层只做一件事：
+**终稿、开题、中期是同一套引擎读不同的配置。** v3.2a 把两个类合成一个
+`hithesis.cls` 之后，`stage` 只是一个选项；三档的差别要么落在
+`hithesis.cfg` 的取值上，要么落在分水岭之后那几块按 `stage` 分岔的代码上。
+优先落在取值上——那样加一档只是多写一段值，不必再动代码。
+
+目录名就是这个模型：
+
+| 目录 | 是什么 | 判据 |
+|---|---|---|
+| `src/engine/` | 机制 | 换一套学校规范它一行都不用改 |
+| `src/config/` | 只放值 | 里面一句判断都没有，全是 `\hit@presetup{…}` |
+| `src/flow/` | 装配线 | 在 `\LoadClass` 之后按顺序执行的排版配置 |
+| `src/pages/` | 一页一个文件 | 论文的某一页长什么样 |
+
+这四层照 iota-hit 的 `engine/` `config/` `flow/` `pages/` 分，那边 `config/`
+的文件头写着“*只放值*——挑哪一份、怎么折是 engine 的事”，是同一条判据。
+差别是 iota 的 `config/` 按关切分成九份（版面、词条、字体、编号…），这里
+眼下只有一份 `hit-defaults.dtx`；`hit-keylist.dtx` 里那两张声明表按判据该归
+`config/`，但它同一个文件里还定义着 `\hitsetup` 与 `hit` 键族，拆开是另一件事，
+没做。
+
+设置子系统本身在 `src/engine/` 里，从造键到给值分三层，各层只做一件事：
 
 | 层 | 文件 | 装什么 |
 |---|---|---|
 | engine 造键 | `hit-key-engine.dtx`、`hit-option-engine.dtx` | 怎么声明一个键、`\hitsetup` 入口、条件判断函数。只定义，一句执行都没有 |
 | keylist 列键 | `hit-keylist.dtx` | 有哪些信息字段与常量。三个守卫：`shared-keylist` 两个类都取，`thesis-keylist` 与 `report-keylist` 各取各的。只声明，不给值 |
-| defaults 给值 | `hit-defaults.dtx` | 常量的默认值。只给值，不声明；用户的 `\hitsetup` 晚于它执行，照样能盖掉 |
+| defaults 给值 | `src/config/hit-defaults.dtx` | 常量的默认值。只给值，不声明；用户的 `\hitsetup` 晚于它执行，照样能盖掉 |
 
 改学校规范只动 defaults，加一个字段动 keylist，改键的工作方式才动 engine。
 
 **类选项不在这三层里，单成一个模块。** `degree-level`、`campus`、`fontset`、`stage`
-这些写在 `\documentclass[…]` 里的东西，声明在 `src/setup/hit-options.dtx`，
+这些写在 `\documentclass[…]` 里的东西，声明在 `src/engine/hit-options.dtx`，
 紧挨着 `\LoadClass`。它们不是清单：那一段除了声明，还跑
 `\ProcessKeyOptions`、`\PassOptionsToPackage`，以及“没给 degree-level 就置 bachelor”这类
 兜底逻辑，是类加载序列的一部分，必须在 `\LoadClass` 之前执行完。放进 keylist 试过，
@@ -322,13 +343,13 @@ v3.2a 把两个 cls 合成一个之后，`hithesis.cls` 这一边不再受这条
 
 ### 4.3 分支按轴走，底层机制共用
 
-分支按**轴**走，不按类走。轴是 `stage`（final／proposal／interim）、`campus`、`degree-level`、`degree-type`、`category`、`lang` 这几根，见 `src/setup/hit-key-engine.dtx` 的轴表。同一件事在不同档上不一样，就在那一档上分支；“开题中期共用、终稿另说”写成 `-!final`，不要把 proposal 与 interim 各写一遍。
+分支按**轴**走，不按类走。轴是 `stage`（final／proposal／interim）、`campus`、`degree-level`、`degree-type`、`category`、`lang` 这几根，见 `src/engine/hit-key-engine.dtx` 的轴表。同一件事在不同档上不一样，就在那一档上分支；“开题中期共用、终稿另说”写成 `-!final`，不要把 proposal 与 interim 各写一遍。
 
 **这条 v3.2a 改过。** 原先的说法是“各个 cls 的版式代码物理隔离，碰巧相似的版式不要合并”，据此两个类各写一套。实测下来这个前提不成立：两份生成物逐行比对，7204 行完全一致，报告独有的只有 654 行——报告实质上是学位论文的一个分支，而不是另一套规范。所谓“规范一独立变动就会变成维护负担”，代价其实反过来：同一处改动要在两边各改一遍，漏一边不报错，这一年里已经发生过多次（文献表标号、页眉、条目间距）。v3.2a 据此把两个类合成一个 `hithesis.cls`，差别由 `stage` 分。
 
 反过来，同一套规范下的分支不要单开一个类，这一条照旧。深圳博士中期原先是 `hithesisartplus`，与 `hithesisart`（今 `stage=proposal|interim`）九成代码逐字相同，差的只有封面、页眉、节标题、正文行距四处；v3.2a 并回 `report-*`，由 `campus=shenzhen,degree-level=doctor,stage=interim` 三个选项选中，与其余十七格并列。判断标准不再是“规范同不同”，而是“差异落在哪根轴上”：落在轴上就加分支，落不到任何一根轴上才该想是不是要新开一根轴。
 
-底层机制是另一回事。字号、数学、表格、脚注这些各套规范要求一致的东西，共用一份放在 `src/utils/hit-*.dtx`，守卫叫 `shared-*`：
+底层机制是另一回事。字号、数学、表格、脚注这些各套规范要求一致的东西，共用一份放在 `src/engine/hit-*.dtx`，守卫叫 `shared-*`：
 
 | 文件 | 管什么 |
 |---|---|
@@ -530,7 +551,7 @@ scripts/convert-macro.py src/pages/hit-thesis-cover.dtx hit@engcover --apply
 | `\hit@glue@skip{基准}{伸缩}` | `style/glue` 决定要不要给伸缩量 |
 | `\hit@glue@font@size{字号}{行距}{伸缩}` | 同上，用于 `\fontsize` |
 
-这批定义在 `src/setup/hit-option-engine.dtx`，各个类共用。
+这批定义在 `src/engine/hit-option-engine.dtx`，各个类共用。
 
 另有若干针对具体组合的具名函数，由 `\hit@define@condition{名}{布尔表达式}` 生成，
 名字读下来就是条件本身：`\hit@if@harbin@master@or@doctor@or@shenzhen@master`、
@@ -741,9 +762,9 @@ CI 会在推送后跑这几项：
 | 范围 | 对应 |
 |---|---|
 | `thesis` `report` | 只管一档的模块，`src/flow/hit-thesis-*.dtx`、`src/pages/hit-report-*.dtx` 这些 |
-| `utils` | 各个类共用的小工具 `src/utils/hit-*.dtx` |
+| `utils` | 各个类共用的小工具 `src/engine/hit-*.dtx` |
 | `pages` | 论文的某一页 `src/pages/hit-*.dtx` |
-| `setup` | 设置子系统 `src/setup/hit-*.dtx` |
+| `setup` | 设置子系统 `src/engine/hit-*.dtx` |
 | `flow` | 页面流的版式 `src/flow/hit-*.dtx` |
 | `bst` `eps` | 参考文献样式、图像数据 |
 | `manual` | 用户手册 `src/manual/hit-manual.dtx` |
@@ -874,7 +895,7 @@ make version-set VERSION=3.2b DATE=2026/08/07
 
 ### 9.3 跨类改动
 
-一个改动对多个类都适用时，每处都要同步。如果改的是各套规范一致的底层机制，考虑抽进 `src/utils/`，见 §4.2。
+一个改动对多个类都适用时，每处都要同步。如果改的是各套规范一致的底层机制，考虑抽进 `src/engine/`，见 §4.2。
 
 ## 10. 常见陷阱
 

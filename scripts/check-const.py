@@ -24,7 +24,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SKEL = "src/hithesis.dtx"
 
-# 轴表，与 src/setup/hit-key-engine.dtx 里那张一致
+# 轴表，与 src/engine/hit-key-engine.dtx 里那张一致
 AXES = [
     ("stage", ["final", "proposal", "interim"]),
     ("campus", ["harbin", "shenzhen", "weihai"]),
@@ -52,7 +52,7 @@ def braced(text: str, start: int) -> tuple[str, int]:
 def declared() -> set[str]:
     """声明表里的常量名。三种声明各扫一遍，@as 与 @ctex 那两批不走 \\hit@ 存法，
     它们的值写进同名命令或转给 ctex，这里不算。"""
-    s = (ROOT / "src/setup/hit-keylist.dtx").read_text(encoding="utf-8")
+    s = (ROOT / "src/engine/hit-keylist.dtx").read_text(encoding="utf-8")
     out: set[str] = set()
     for m in re.finditer(r"\\hit@declare@constant\s*\{", s):
         body, _ = braced(s, m.end())
@@ -65,7 +65,7 @@ def declared() -> set[str]:
 
 def info_fields() -> set[str]:
     """元信息字段名。它们与词条各占一段前缀，这里只用来判“拼串的宏名少了前缀”。"""
-    s = (ROOT / "src/setup/hit-keylist.dtx").read_text(encoding="utf-8")
+    s = (ROOT / "src/engine/hit-keylist.dtx").read_text(encoding="utf-8")
     out: set[str] = set()
     for pat in (r"\\hit@define@term\{([a-z0-9-]+)\}",
                 r"\\hit@define@term@alias\{([a-z0-9-]+)\}",
@@ -187,8 +187,8 @@ def parse_key(key: str) -> tuple[str, dict[str, str]]:
 
 
 def buckets() -> list[str]:
-    """页桶名单，与 src/setup/hit-key-engine.dtx 里那张一致。"""
-    s = (ROOT / "src/setup/hit-key-engine.dtx").read_text(encoding="utf-8")
+    """页桶名单，与 src/engine/hit-key-engine.dtx 里那张一致。"""
+    s = (ROOT / "src/engine/hit-key-engine.dtx").read_text(encoding="utf-8")
     m = re.search(r"\\clist_const:Nn \\c__hit_bucket_clist\s*\{(.*?)\}", s, re.S)
     return [x.strip() for x in m.group(1).replace("\n", " ").split(",") if x.strip()]
 

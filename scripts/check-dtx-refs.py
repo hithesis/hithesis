@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """校验 dtx 注释里的 \\file{src/...} 交叉引用指向真实存在的文件。
 
-正文注释里常写“这套机制在 \\file{src/utils/hit-format.dtx}”这样的路标。文件
+正文注释里常写“这套机制在 \\file{src/engine/hit-format.dtx}”这样的路标。文件
 改名或合并之后这些引用不会自动跟着走，也没有任何东西会报错——它只是注释。
 2026-09-13 扫出 11 处悬空，分别指向 hit-meta.dtx 与 hit-publist.dtx，两个文件
-在 v3.2a 中途就并掉了，机制分别进了 setup/hit-key-engine.dtx 与 utils/hit-list.dtx。
+在 v3.2a 中途就并掉了，机制分别进了 engine/hit-key-engine.dtx 与 engine/hit-list.dtx。
 
 只认 \\file{src/...} 这一种形态。\\file{hithesis.cfg} 这类产物名、changes 条目里
 提到的历史文件名（“原先在 hithesisartplus.cls 里”）都不在此列——前者不是源码
