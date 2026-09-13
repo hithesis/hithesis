@@ -536,12 +536,33 @@
 % 而字体装没装上与 \option{fontset} 选哪套是两回事。
 %    \begin{macrocode}
 \bool_new:N \g__hit_lishu_bool
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/13}{探测那句补一个空的尾随可选参数，
+%   否则 \cs{newCJKfontfamily} 的探头会扫出调用之外}
+% \emph{末尾那个 \texttt{[\,]} 不能省。} \cs{newCJKfontfamily} 的语法是
+% \cs{newCJKfontfamily}\oarg{族名}\meta{命令}\marg{字体}\oarg{特性}，
+% 末尾还有一个可选参数。不写它，探头就会越过这次调用往后扫，把紧跟在后面的
+% 代码当成待查的内容展开一遍。实测的样子是后一句连着执行了两回，
+% 而字体命令最终没留下来：\pkg{fontspec} 那边的字体族建好了，
+% 命令却报未定义，错误还指在别处，从现象上根本看不出是这里的事。
+%
+% 写一对空方括号把探头收住。空特性与不写特性排出来一样。
+%
+% \emph{定义还要抬成全局。} \cs{newCJKfontfamily} 定义的是个局部命令，
+% 而惰性探测赶上哪一组算哪一组。「探过了」那个标志位是全局的，字体命令却随组消失，
+% 于是同一页上第一处排得出来、第二处报未定义。字体族那边
+% （\cs{DeclareFontFamily} 一路）本来就是全局声明，把命令本身
+% \cs{global}\cs{let} 一遍就够。
+%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_cover_font:nnN #1#2#3
   {
     \fontspec_font_if_exist:nTF {#1}
       {
         \bool_gset_true:N #3
-        \use:x { \exp_not:N \newCJKfontfamily \exp_not:c {#2} { \exp_not:n {#1} } }
+        \use:x
+          { \exp_not:N \newCJKfontfamily \exp_not:c {#2} { \exp_not:n {#1} } [ ] }
+        \cs_gset_eq:cc {#2} {#2}
       }
       { }
   }
