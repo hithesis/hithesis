@@ -69,6 +69,7 @@ DESC = {
     "report-pagestyle": "页眉页脚",
     "final-cover": "封面（封一）",
     "final-titlepage": "内封（扉页）",
+    "shared-checkbox": "勾选框",
     "report-cover": "封面（内含目录）",
     "final-abstract": "摘要",
     "final-toc-lists": "图表目录",
