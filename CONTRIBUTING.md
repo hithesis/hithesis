@@ -33,7 +33,7 @@ hithesis/
 ├── testfiles/            <- l3build 的宏级测试：*.lvt 用例与 *.tlg 基线
 ├── examples/demo/        <- 一棵示例树：开题、中期、学位论文放在同一个目录
 │   ├── hitsetup.tex      <- 三份共用的元信息
-│   ├── thesis.tex  thesis-en.tex  proposal.tex  interim.tex   <- 四个入口
+│   ├── final.tex  thesis-en.tex  proposal.tex  interim.tex   <- 四个入口
 │   └── front/ body/ back/ figures/
 └── .github/              <- Issue / PR 模板、CI 配置
 ```
@@ -120,7 +120,7 @@ l3build check          # 确认全绿
 在示例目录里：
 
 ```shell
-cd examples/demo && make thesis     # 学位论文
+cd examples/demo && make final      # 学位论文（终稿）
 cd examples/demo && make report     # 开题、中期报告
 ```
 
@@ -130,11 +130,11 @@ cd examples/demo && make report     # 开题、中期报告
 
 ```
 src/
-  setup/    选项、键、常量：有哪些字段、字段取什么值、怎么声明
-  utils/    小工具，两个类共用
-  flow/     单类专属的排版配置：版心、页眉页脚、章节标题、段落、浮动体、
+  engine/   底层引擎：选项、键、条件求值、字体、版面换算、格式模型。只定义机制
+  config/   配置层：常量取值、版面取值、定理、信息字段、ctex 词汇。只给值
+  flow/     成篇的排版配置：版心、页眉页脚、章节标题、段落、浮动体、
             字体、数学、脚注、超链接、第三方依赖
-  pages/    论文的一页一个文件：封面、摘要、目录、声明、致谢、成果、决议、附录、参考文献
+  pages/    一页一个文件：封面、摘要、目录、声明、致谢、成果、决议、附录、参考文献
   manual/   用户手册的正文，纯文档，不产出任何文件
   assets/   EPS 图像数据，纯数据，不含代码
 ```
@@ -182,20 +182,20 @@ src/
 | 用户手册文字 | `src/manual/hit-manual.dtx` |
 | 类文件头、类尾、配置回放、旧类名报错文件 | `src/hithesis.dtx` |
 
-**文件名的规矩：`hit-<交付物>-<职责>.dtx` 只管一档，`hit-<职责>.dtx` 两档共用。**
-`flow/` 与 `pages/` 里目前全部带 `thesis-`/`report-` 前缀；`utils/` 与 `setup/` 里
+**文件名的规矩：`hit-<档位>-<职责>.dtx` 只管一档，`hit-<职责>.dtx` 两档共用。**
+`flow/` 与 `pages/` 里分档的带 `final-`/`report-` 前缀；`engine/` 与 `config/` 里
 全部共用，一个前缀都不带，守卫统一叫 `shared-*`。看文件名就知道改它会影响谁。
 
 **52 个 dtx 的文件名必须全局唯一。** `src/` 下按职责分了目录，但解压规则
 里按裸文件名引用，`l3build ctan` 打包和 TDS 的 `source/latex/hithesis/` 也都是平
 的。两个目录下同名的文件，打包后会互相覆盖。这也是类名前缀只能写进文件名、不能
-改成 `flow/thesis/` 与 `flow/report/` 两个子目录的原因——拍平之后就撞了。
+改成 `flow/final/` 与 `flow/report/` 两个子目录的原因——拍平之后就撞了。
 
-文件内用 `grep -n '%<\*thesis-' src/pages/hit-final-cover.dtx` 之类列出模块起点。模块用注释标出：
+文件内用 `grep -n '%<\*final-' src/pages/hit-final-cover.dtx` 之类列出模块起点。模块用注释标出：
 
 ```
 % ^^A ======================================================================
-% ^^A Module final-footnote: 脚注样式与编号（thesis）
+% ^^A Module final-footnote: 脚注样式与编号（终稿）
 % ^^A ======================================================================
 ```
 
@@ -252,6 +252,21 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 
 ### 4.2 一套引擎加一层配置
 
+**`thesis` 只指这个项目，不指一种文档。** 文档只有两档：`final`（终稿）与
+`report`（开题、中期）；正文照哪一档排，由 `final-body` 与 `report-body` 分
+（深圳本科的开题与中期是 `report` 却走 `final-body`）。所以：
+
+| 说的是 | 写 | 别写 |
+|---|---|---|
+| 学位论文那一档 | 终稿、`final` | 论文、学位论文类、`thesis` |
+| 开题中期那一档 | 报告、`report` | 报告类 |
+| 正文照哪一档排 | `final-body` / `report-body` | thesis-body |
+| 这个项目本身 | hithesis、`thesis` | |
+
+标识符、守卫名、文件名、注释一律照这张表。v3.2a 之前有过两个类
+（`hithesis.cls` 与 `hithesisart.cls`），那会儿“学位论文类／报告类”是准确的说法；
+现在只有一个类，再这么写就是描述一个不存在的结构。谈那段历史时写“两个类那会儿”。
+
 **终稿、开题、中期是同一套引擎读不同的配置。** v3.2a 把两个类合成一个
 `hithesis.cls` 之后，`stage` 只是一个选项；三档的差别要么落在
 `hithesis.cfg` 的取值上，要么落在分水岭之后那几块按 `stage` 分岔的代码上。
@@ -293,7 +308,7 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 | 层 | 文件 | 装什么 |
 |---|---|---|
 | engine 造键 | `hit-key-engine.dtx`、`hit-option-engine.dtx` | 怎么声明一个键、`\hitsetup` 入口、条件判断函数。只定义，一句执行都没有 |
-| keylist 列键 | `hit-keylist.dtx` | 有哪些信息字段与常量。三个守卫：`shared-keylist` 两个类都取，`thesis-keylist` 与 `report-keylist` 各取各的。只声明，不给值 |
+| keylist 列键 | `hit-keylist.dtx` | 有哪些信息字段与常量。只有 `shared-keylist` 一个守卫，终稿与报告都从它取。只声明，不给值 |
 | defaults 给值 | `src/config/` 下那五份 | 常量的默认值。只给值，不声明；用户的 `\hitsetup` 晚于它执行，照样能盖掉 |
 
 改学校规范只动 defaults，加一个字段动 keylist，改键的工作方式才动 engine。
@@ -308,7 +323,7 @@ myNewPublicThing 定义在类里但不在公开面清单上。它是能被用户
 **加一个常量**（模板给的固定词汇，比如封面多一栏标签）：
 
 1. `hit-keylist.dtx` 的 `\hit@declare@constant{…}` 列表里加键名 `foo-bar-zh`。
-   两个类都要就加进 `shared-keylist` 那一份，只有一个类要就加进对应的那份
+   声明不分档位，只有 `shared-keylist` 一份；哪一档有值由 `src/config/` 那层的条件分
 2. `src/config/hit-terms.dtx` 里 `\hit@presetup{ term = { foo-bar-zh = {某某} } }`
 3. 版式里写 `\hit@foo@bar@zh`。键名的 `-` 换成 `@`、前缀 `hit@`，换算是自动的
 
@@ -443,7 +458,7 @@ src/pages/
 
 分支按**轴**走，不按类走。轴是 `stage`（final／proposal／interim）、`campus`、`degree-level`、`degree-type`、`category`、`lang` 这几根，见 `src/engine/hit-key-engine.dtx` 的轴表。同一件事在不同档上不一样，就在那一档上分支；“开题中期共用、终稿另说”写成 `-!final`，不要把 proposal 与 interim 各写一遍。
 
-**这条 v3.2a 改过。** 原先的说法是“各个 cls 的版式代码物理隔离，碰巧相似的版式不要合并”，据此两个类各写一套。实测下来这个前提不成立：两份生成物逐行比对，7204 行完全一致，报告独有的只有 654 行——报告实质上是学位论文的一个分支，而不是另一套规范。所谓“规范一独立变动就会变成维护负担”，代价其实反过来：同一处改动要在两边各改一遍，漏一边不报错，这一年里已经发生过多次（文献表标号、页眉、条目间距）。v3.2a 据此把两个类合成一个 `hithesis.cls`，差别由 `stage` 分。
+**这条 v3.2a 改过。** 原先的说法是“各个 cls 的版式代码物理隔离，碰巧相似的版式不要合并”，据此两个类各写一套。实测下来这个前提不成立：两份生成物逐行比对，7204 行完全一致，报告独有的只有 654 行——报告实质上是终稿的一个分支，而不是另一套规范。所谓“规范一独立变动就会变成维护负担”，代价其实反过来：同一处改动要在两边各改一遍，漏一边不报错，这一年里已经发生过多次（文献表标号、页眉、条目间距）。v3.2a 据此把两个类合成一个 `hithesis.cls`，差别由 `stage` 分。
 
 反过来，同一套规范下的分支不要单开一个类，这一条照旧。深圳博士中期原先是 `hithesisartplus`，与 `hithesisart`（今 `stage=proposal|interim`）九成代码逐字相同，差的只有封面、页眉、节标题、正文行距四处；v3.2a 并回 `report-*`，由 `campus=shenzhen,degree-level=doctor,stage=interim` 三个选项选中，与其余十七格并列。判断标准不再是“规范同不同”，而是“差异落在哪根轴上”：落在轴上就加分支，落不到任何一根轴上才该想是不是要新开一根轴。
 
@@ -463,17 +478,17 @@ src/pages/
 | `hit-subfigure.dtx` | `\subfigure` 兼容层，整个文件到 v4 可删 |
 | `hit-option-engine.dtx` | 选项声明助手与读标志位的判断函数 |
 
-判断标准是“各套规范会不会分开改”。会分开改的（封面、页眉、章节标题、目录）留在各自的类文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `utils/`。
+判断标准是“两档会不会分开改”。会分开改的（封面、页眉、章节标题、目录）留在分档的文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `engine/`。
 
-`utils/` 的写法与类模块不同：文件里只放定义，需要在特定时机执行的部分包成 `\hit@setup@<名>`，由各个类在原来那段代码所在的位置调用。这样共享之后生成物的执行顺序不变，能用“生成的 cls 逐字节不变”来验收。
+`engine/` 的写法与分档模块不同：文件里只放定义，需要在特定时机执行的部分包成 `\hit@setup@<名>`，由调用处在原来那段代码所在的位置调用。这样抽出来之后生成物的执行顺序不变，能用“生成的 cls 逐字节不变”来验收。
 
-例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hit-eps.dtx` 也跨类共享，但它们不走 `utils/`，因为不是拼进 cls 的模块。
+例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hit-eps.dtx` 也两档共享，但它们不走 `engine/`，因为不是拼进 cls 的模块。
 
 ### 4.4 一个模块一个职责
 
 模块名要能反映它唯一的职责：
 
-模块名的形式是“类-职责”，类的前缀是 `thesis` / `report` / `shared`：
+模块名的形式是“档位-职责”，前缀是 `final` / `report` / `flow` / `shared`：
 
 - √ `final-chapter` 只管毕业论文的章节标题格式
 - √ `final-bib` 只管毕业论文的参考文献加载与样式
@@ -507,7 +522,7 @@ v3.2a 起模块内容直接拼进 `.cls`，不再生成独立的 `.sty`。在类
 
 ```
 % ^^A ======================================================================
-% ^^A Module final-footnote: 脚注样式与编号（thesis）
+% ^^A Module final-footnote: 脚注样式与编号（终稿）
 % ^^A ======================================================================
 %<*final-footnote>
 ...实际代码...
@@ -635,7 +650,7 @@ scripts/convert-macro.py src/pages/hit-final-cover.dtx hit@engcover --apply
 判断散落在内容各处时不好用。这时反过来：判断本身定义成 expl3 函数，放在模块顶层，
 内容里只写函数调用。参数是在 expl3 之外记号化的，里面的空格照原样保留。
 
-现有的一批助手（`thesis-options` 与两个 `*-options` 模块里各有一份）：
+现有的一批助手（定义在 `shared-option-engine`）：
 
 | 函数 | 作用 |
 | --- | --- |
@@ -649,22 +664,22 @@ scripts/convert-macro.py src/pages/hit-final-cover.dtx hit@engcover --apply
 | `\hit@glue@skip{基准}{伸缩}` | `style/glue` 决定要不要给伸缩量 |
 | `\hit@glue@font@size{字号}{行距}{伸缩}` | 同上，用于 `\fontsize` |
 
-这批定义在 `src/engine/hit-option-engine.dtx`，各个类共用。
+这批定义在 `src/engine/hit-option-engine.dtx`，两档共用。
 
 另有若干针对具体组合的具名函数，由 `\hit@define@condition{名}{布尔表达式}` 生成，
 名字读下来就是条件本身：`\hit@if@harbin@master@or@doctor@or@shenzhen@master`、
 `\hit@if@harbin@master@proposal@or@interim`。末尾带 `@TF` 的要给两个分支。
 
-已迁移：`thesis-geometry`、`report-geometry`、`final-mainmatter`、`report-chapter`、
-`report-pagestyle`、`report-toc`、`final-toc`、`final-pagestyle`、`report-floats`、`thesis-deps-c`、
-`final-glossary`、`report-deps-a`、`thesis-deps-a`、`report-options` 与
-`thesis-options`、`report-options`、
-`thesis-keylist`、`report-keylist`、`final-floats`、`thesis-hyperlink`、
-`thesis-frontmatter`、`report-frontmatter`、`final-chapter`、`final-appendix`、`final-bib`、
-`report-bib`、`final-footnote`、`report-deps-c`。
+迁移在 v3.2a 完成，当时的守卫名与现在对不上了（两档合并、目录重排都改过名）：
+`thesis-geometry` 与 `report-geometry` 现在是一份 `flow-geometry`，
+`thesis-deps-*` 与 `report-deps-*` 是 `flow-deps`，
+`thesis-keylist` 与 `report-keylist` 是 `shared-keylist`，
+`thesis-hyperlink` 是 `flow-hyperlink`，
+`thesis-frontmatter` 与 `report-frontmatter` 是 `final-matter` 与 `report-matter`。
+现有守卫的全名以 `hithesis.ins` 的装配表为准。
 
-生成的类文件里，`\ifhit@…` 与 `\ifboolexpr` 只剩三十处，全在 `thesiscfg` 与
-`reportcfg` 那两段固定词汇的顶层分支里。那些分支的两侧各是几十行 `\gdef` 与
+生成的类文件里，`\ifhit@…` 与 `\ifboolexpr` 只剩三十处，全在 `hithesis.cfg`
+那几段固定词汇的顶层分支里。那些分支的两侧各是几十行 `\gdef` 与
 `\newtheorem`，内容里有大量带空格的英文串；把它们塞进宏参数只会让 dtx 更难读，
 所以留着不动。`\ifthenelse{\equal{#1}{...}}` 比较章标题的两处也留着——`\equal`
 与 `\str_if_eq:nn` 对健壮命令的处理不完全一样，换了不保险。
@@ -752,13 +767,13 @@ scripts/convert-macro.py src/pages/hit-final-cover.dtx hit@engcover --apply
 
 ## 5. 新增模块的步骤
 
-以给 `thesiscls` 加 `final-footnote` 为例（这个模块已经存在，仅作示范）：
+以给 `hithesis.cls` 加 `final-footnote` 为例（这个模块已经存在，仅作示范）：
 
 1. 在 dtx 里加守卫块。位置按现有 cls 的内部顺序选：
 
    ```
    % ^^A ======================================================================
-   % ^^A Module final-footnote: 脚注样式与编号（thesis）
+   % ^^A Module final-footnote: 脚注样式与编号（终稿）
    % ^^A ======================================================================
    %<*final-footnote>
    ...实际代码...
@@ -877,7 +892,7 @@ CI 会在推送后跑这几项：
 ```
 feat(thesis): 增加深圳校区博士封面的联合导师字段
 fix(report): 修正中期报告页眉在偶数页丢失
-refactor(thesis): 把封面绘制从 thesiscls 拆到 final-cover 模块
+refactor(cover): 把封面绘制从 hithesis.cls 拆到 final-cover 模块
 docs(manual): 补充 newgeometry 三个取值的版心差异
 docs(contributing): 提交消息改用 Conventional Commits
 test: 补充 thesis 与 report 的字段清单交叉验证

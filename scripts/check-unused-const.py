@@ -173,8 +173,8 @@ def main() -> int:
               f"删的时候把为什么删写进 \\changes。")
 
     # 这里从前还有一条“声明在甲、只有乙在用”的正面检查，v3.2a 之后删了。
-    # 有了轴表，一个类合法地会声明另一个类没有的档位变体（cover-thesis-title-bachelor
-    # 只有学位论文类有，报告类用的是不带档位的 cover-thesis-title），而查表是
+    # 有了轴表，一个类合法地会声明另一个类没有的档位变体（cover-title-label-bachelor
+    # 只有学位论文类有，报告类用的是不带档位的 cover-title-label），而查表是
     # 按剥掉档位的名字绑的，两边一比必然互相指认。这条不变式现在由
     # scripts/check-const.py 的第二项管：一个类引用的词条必须在这个类里声明过。
 
