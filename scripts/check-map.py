@@ -58,8 +58,7 @@ DESC = {
     "shared-keylist": "有哪些信息字段与常量",
     "shared-options": "文档类选项：声明、默认值、\\ProcessKeyOptions 之后的后处理",
     "shared-loadclass": "\\LoadClass{ctexbook}，分水岭",
-    "thesis-fonts": "正文字号与主字体",
-    "report-fonts": "正文字号与主字体",
+    "flow-fonts": "正文字号与主字体",
     "thesis-pagestyle": "页眉页脚",
     "report-pagestyle": "页眉页脚",
     "thesis-cover": "封面（封一）",
@@ -75,12 +74,9 @@ DESC = {
     "thesis-backmatter": "成果、索引、简历",
     "thesis-declarations": "原创性声明与使用授权",
     "thesis-resolution": "答辩决议",
-    "thesis-deps": "多模块共用的第三方宏包",
-    "report-deps": "多模块共用的第三方宏包",
-    "thesis-hyperlink": "hyperref 配置，排在所有包之后",
-    "report-hyperlink": "hyperref 配置，排在所有包之后",
-    "thesis-geometry": "版心，提前定下来",
-    "report-geometry": "版心，提前定下来",
+    "flow-deps": "多模块共用的第三方宏包",
+    "flow-hyperlink": "hyperref 配置，排在所有包之后",
+    "flow-geometry": "版心，提前定下来",
     "thesis-glossary": "术语与符号表",
     "report-subfig": "子图兼容层",
     "thesis-mainmatter": "骨架宏与前后文切换",
@@ -104,7 +100,7 @@ def from_install(cls: str) -> list[tuple[str, str]]:
     """install 守卫里这个输出的（路径，守卫名）序列。"""
     text = DTX.read_text(encoding="utf-8")
     blk = text[text.index("%<*install>"):text.rindex("%</install>")]
-    start = blk.index("\\file{" + cls + "}{")
+    start = blk.index("\\file{\\jobname.cls}{")
     end = blk.index("\n    }", start)
     loc = locations()
     out = []
