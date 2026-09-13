@@ -128,6 +128,75 @@
 \dim_set:Nn \cftsecnumwidth {1em}% 目录中的section条目序号和标题之间的距离
 \dim_set:Nn \cftsubsecnumwidth {1.7em}% 目录中的subsection条目序号和标题之间的距离
 \dim_set:Nn \cftsubsubsecnumwidth {2.4em}% 目录中的subsubsection条目序号和标题之间的距离
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/14}{正文照终稿排的那一档，目录也照 Word 排：标题走
+%   章标题那一套，条目步进由 \option{format} 的盒贴排模型算}
+% \emph{正文照终稿排的那一档，目录也照 Word 排。}深圳本科那两份原件的目录，
+% 标题那一块与正文的章标题是同一档：段前一行、黑体小二居中、段后 0.8 行，
+% 基线落在版心顶起 30.23（原件量得整页 137.98），与正文第一章的标题同数。
+% 所以标题直接用 \cs{hit@format@par:nn} 按 \option{chapter} 那个目标排，
+% \pkg{tocloft} 的 \cs{cftbeforetoctitleskip} 与 \cs{cftaftertoctitleskip}
+% 一并归零，间距全由 \option{format} 给。
+%
+% 条目走共享层的 \cs{hit@toc@line@metrics:nn}，与终稿那一份目录同一个模型；
+% 行深从标题那一块起算（\cs{hit@format@stack@seed:n}）。级要错开一格：报告的
+% 节就是章，所以节传 1、条传 2、款传 3。
+%
+% \cs{cftbeforesecskip} 那三条要归零。步进整个由模型给，再叠一段 \texttt{1.2ex}
+% 就成了 25.94，原件是 19.45。
+%
+% 三个条目体是\emph{裹}一层，不重写：\pkg{tocloft} 的那几个宏体里还有点线、
+% 页码、悬挂那一串，重抄一遍迟早对不上。\cs{baselineskip} 在条目组外设，组里
+% 没人动它，排到 \cs{par} 时读的就是这个值。
+%
+% 页首那一段段前 \hologo{TeX} 会在分页处丢掉，Word 不丢，所以标题前先发一条
+% 零高的 \cs{hrule} 把这一页垫成非空，\cs{topskip} 一并归零——与正文每章开头
+% 同一招，见 \file{src/flow/hit-report-matter.dtx}。
+%
+% \cs{topskip} 只在\emph{目录那一组}里归零，不发到组外。\pkg{tocloft} 的
+% \cs{tableofcontents} 把标题与条目整个裹在一对 \cs{begingroup} 里，目录这几页
+% 的头一个盒子都在组内落下，够用；发到组外的话，后面 \cs{clearpage} 与
+% \env{titlepage} 收尾那两下会各排出一张空白页（实测多两张，页码 II 与 -1-）。
+%    \begin{macrocode}
+\bool_if:NT \g__hit_final_body_bool
+  {
+    \dim_zero:N \cftbeforetoctitleskip
+    \dim_zero:N \cftaftertoctitleskip
+    \dim_zero:N \cftbeforesecskip
+    \dim_zero:N \cftbeforesubsecskip
+    \dim_zero:N \cftbeforesubsubsecskip
+    \cs_set:Npn \cfttitlecommand #1
+      {
+        \@cftpagestyle
+        \dim_zero:N \topskip
+        \hrule ~ height ~ \c_zero_dim
+        \bool_set_false:N \l_hit_format_latin_pick_bool
+        \hit@format@par:nn { chapter } { \use:c { cft #1 titlename } }
+        \use:c { cftmark #1 }
+        \hit@format@stack@seed:n { chapter }
+        \dim_set:Nn \lineskiplimit { - \maxdimen }
+        \@afterheading
+      }
+    \cs_new_eq:NN \__hit_report_toc_sec:nn       \l@section
+    \cs_new_eq:NN \__hit_report_toc_subsec:nn    \l@subsection
+    \cs_new_eq:NN \__hit_report_toc_subsubsec:nn \l@subsubsection
+    \cs_set:Npn \l@section #1#2
+      {
+        \hit@toc@line@metrics:nn { 1 } {#1}
+        \__hit_report_toc_sec:nn {#1} {#2}
+      }
+    \cs_set:Npn \l@subsection #1#2
+      {
+        \hit@toc@line@metrics:nn { 2 } {#1}
+        \__hit_report_toc_subsec:nn {#1} {#2}
+      }
+    \cs_set:Npn \l@subsubsection #1#2
+      {
+        \hit@toc@line@metrics:nn { 3 } {#1}
+        \__hit_report_toc_subsubsec:nn {#1} {#2}
+      }
+  }
 %    \fi
 %  \fi
 %  \ifboolexpr{ bool {hit@weihai} or bool {hit@interim}}{\tocloftpagestyle{empty}}{\tocloftpagestyle{hit@shenzhen@headings@front}}

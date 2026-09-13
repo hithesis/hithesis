@@ -310,80 +310,20 @@
 %
 % \changes{v3.2a}{2026/09/01}{目录条目行距照 Word 的盒贴排模型分语言分学位，
 %   点距、页码右缘、图表清单条目一并对齐书写范例}
+% \changes{v3.2a}{2026/09/14}{盒贴排模型挪进 \file{hit-format.dtx}，这边只剩
+%   挑目标与判中西文；行距不再是写死的四个数，由 \option{format} 算}
 % \emph{条目行距照 Word 的盒贴排模型。}范例的目录行距是“单倍行距的
-% 1.25 倍”（研究生那份 1.2 倍），Word 的单倍行距按\emph{内容的字体}算，
-% 于是相邻两条的基线距等于“上一条的行深加本条的上升部”，四种组合各是
-% 一个数（本科档）：汉汉 19.46、汉西 18.55、西汉 18.16、西西 17.25——
-% 上升部与行深是宋体 12.18/7.28、Times 11.27/5.98（iota-hit 对范例的
-% 逐行实测），研究生档整体乘 1.2/1.25。先前全体条目按正文的 19.45 排，
-% 研究生档没分、“Abstract”这类整条西文的也按汉字行盒撑高。
+% 1.25 倍”（研究生那份 1.2 倍，人文社科类是固定值 23\,bp），Word 的单倍行距
+% 按\emph{内容的字体}算，于是相邻两条的基线距等于“上一条的行深加本条的
+% 上升部”。先前全体条目按正文的 19.45 排，研究生档没分、“Abstract”这类
+% 整条西文的也按汉字行盒撑高。
 %
-% 落法：每条条目排前按\emph{内容有无汉字}选一档上升部，加上存着的
-% 上一条行深，设成本条的 \cs{baselineskip}，排完把本条行深存回去。
-% 判语言把条目串成字符串逐字符看码位，宏名全是 ASCII 不干扰。
-% \cs{lineskiplimit} 压成负无穷，基线距不再被行内高盒顶开（先前章级
-% 黑体条目下方多出约 1\,bp 就是被顶的）。
+% 模型本身在 \file{src/engine/hit-format.dtx} 的 \cs{hit@format@stack@line:n}，
+% 挑目标与判中西文那一步在 \file{src/engine/hit-keylist.dtx} 的
+% \cs{hit@toc@line@metrics:nn}，报告那一份目录走的是同一套。这边只把条目的级
+% 加一传过去：\cs{@dottedtocline} 的级从 0 数起（章 0、节 1），目标表从 1 数。
+% 三档行距因此全写在 \file{hithesis.cfg} 里，这个文件里一个数都不留。
 %    \begin{macrocode}
-\bool_new:N \l__hit_toc_cjk_bool
-\prg_new_protected_conditional:Npnn \__hit_toc_entry_cjk:n #1 { TF }
-  {
-    \bool_set_false:N \l__hit_toc_cjk_bool
-    \str_map_inline:nn {#1}
-      {
-        \int_compare:nNnT { `##1 } > { "2E7F }
-          { \bool_set_true:N \l__hit_toc_cjk_bool \str_map_break: }
-      }
-    \bool_if:NTF \l__hit_toc_cjk_bool \prg_return_true: \prg_return_false:
-  }
-\dim_new:N \g__hit_toc_prev_depth_dim
-\bool_new:N \l__hit_toc_latin_bool
-\cs_new:Npn \__hit_toc_scale: { \bool_if:NTF \g__hit_bachelor_bool { 1 } { 24/25 } }
-%    \end{macrocode}
-%
-% \changes{v3.2a}{2026/09/05}{加 \option{toc}/\option{latin-natural}：关掉后
-%   纯西文条目也按汉字行高排}
-% \option{latin-natural} 三态，\texttt{auto} 为真。真是 Word 的原样：纯西文
-% 条目的行盒只有西文字体参与，比汉字行矮。关掉就一律按汉字行高，英文目录
-% 不再随条目中英而挪位。名字与取值照 iota-hit 的 \texttt{latin-natural}。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_toc_metrics_cjk:
-  {
-    \dim_set:Nn \baselineskip
-      { \g__hit_toc_prev_depth_dim + 12.18 bp * \__hit_toc_scale: }
-    \dim_gset:Nn \g__hit_toc_prev_depth_dim { 7.28 bp * \__hit_toc_scale: }
-  }
-\cs_new_protected:Npn \__hit_toc_metrics_latin:
-  {
-    \bool_set_true:N \l__hit_toc_latin_bool
-    \dim_set:Nn \baselineskip
-      { \g__hit_toc_prev_depth_dim + 11.27 bp * \__hit_toc_scale: }
-    \dim_gset:Nn \g__hit_toc_prev_depth_dim { 5.98 bp * \__hit_toc_scale: }
-  }
-%    \end{macrocode}
-%
-% \changes{v3.2a}{2026/09/13}{人文社科类的目录固定值 23 磅：三级条目一个步进}
-% 人文社科类不走上面那套贴排制：博士人文范例与本科人文范例的目录三级全写着
-% \texttt{line=460 exact}（23 磅），Word 导出逐行量步进一律 23.0，与条目中西文
-% 无关。固定值就是固定值，行盒的高深不参与，直接把 \cs{baselineskip} 钉在
-% 23\,bp（目录版面组里 \cs{lineskiplimit} 已放到底）。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_toc_line_metrics:n #1
-  {
-    \bool_set_false:N \l__hit_toc_latin_bool
-    \bool_if:NTF \g__hit_hass_bool
-      { \dim_set:Nn \baselineskip { 23bp } }
-      { \__hit_toc_line_metrics_stem:n {#1} }
-  }
-\cs_new_protected:Npn \__hit_toc_line_metrics_stem:n #1
-  {
-    \__hit_toc_entry_cjk:nTF {#1}
-      { \__hit_toc_metrics_cjk: }
-      {
-        \__hit_tristate_if:NnTF \g__hit_toc_latin_natural_tl { \c_true_bool }
-          { \__hit_toc_metrics_latin: }
-          { \__hit_toc_metrics_cjk: }
-      }
-  }
 %    \end{macrocode}
 %
 % 西文字距不用另发：模板的西文字体链本来就带
@@ -402,9 +342,9 @@
   {
     \dim_set:Nn \hsize { \hsize - 0.45 bp }
     \dim_set:Nn \lineskiplimit { - \maxdimen }
-    \str_if_eq:nnTF {#1} { en }
-      { \dim_gset:Nn \g__hit_toc_prev_depth_dim { 5.98 bp * \__hit_toc_scale: } }
-      { \dim_gset:Nn \g__hit_toc_prev_depth_dim { 7.28 bp * \__hit_toc_scale: } }
+    \bool_set:Nn \l_hit_format_latin_pick_bool
+      { \str_if_eq_p:nn {#1} { en } }
+    \hit@format@stack@seed:n { toc-chapter }
   }
 \box_new:N \l__hit_toc_num_box
 \box_new:N \l__hit_toc_pnum_box
@@ -504,7 +444,7 @@
         \vskip \z@ \@plus .2\p@
         {
           \leftskip #2\relax
-          \__hit_toc_line_metrics:n {#4}
+          \hit@toc@line@metrics:nn { #1 + 1 } {#4}
           \hbox_set:Nn \l__hit_toc_pnum_box { \normalfont #5 }
           \bool_if_exist:NT \g__hit_format_verb_exit_bool
             { \bool_gset_false:N \g__hit_format_verb_exit_bool }
@@ -601,7 +541,7 @@
         \group_begin:
           \dim_zero:N \@tempdima
           \dim_gzero:N \g__hit_toc_hang_dim
-          \__hit_toc_line_metrics:n {#1}
+          \hit@toc@line@metrics:nn { 1 } {#1}
           \hit@toc@numwidth@apply:
           \hbox_set:Nn \l__hit_toc_pnum_box { \normalfont #2 }
           \bool_if_exist:NT \g__hit_format_verb_exit_bool

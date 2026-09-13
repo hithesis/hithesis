@@ -186,6 +186,41 @@
   { \bool_if:NT \g__hit_toc_latin_sans_bool { \sffamily } }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/09/14}{目录条目的 \option{format} 目标与中西文判据挪到
+%   共享层，终稿与报告两份目录共用同一个盒贴排模型}
+% 目录条目的四个 \option{format} 目标，与四级条目一一对应。
+% \cs{hit@toc@target:n}\marg{第几级}从 1 数起；终稿的目录级从 0 数（章是 0），
+% 报告的正文错开一格（节即章），两边各自加减一次再传进来。
+%
+% \cs{hit@toc@latin@pick:n}\marg{条目内容}按内容有没有汉字立
+% \cs{l\_hit\_format\_latin\_pick\_bool}，也就是告诉 \cs{hit@format@compute:n}
+% 这一条的行高按西文字体算。\option{latin-natural} 关掉就一律不立，纯西文的
+% 条目也按目标写的那副字算。
+%
+% \cs{hit@toc@line@metrics:nn}\marg{第几级}\marg{条目内容}是两者合起来那一步：
+% 排每一条之前调一次，设好这一条的 \cs{baselineskip}，模型见
+% \file{src/engine/hit-format.dtx} 的 \cs{hit@format@stack@line:n}。
+%    \begin{macrocode}
+\clist_const:Nn \c__hit_toc_target_clist
+  { toc-chapter , toc-section , toc-subsection , toc-subsubsection }
+\cs_new:Npn \hit@toc@target:n #1
+  { \clist_item:Nn \c__hit_toc_target_clist { \int_eval:n {#1} } }
+\cs_new_protected:Npn \hit@toc@latin@pick:n #1
+  {
+    \bool_set_false:N \l_hit_format_latin_pick_bool
+    \hit@format@cjk:nF {#1}
+      {
+        \__hit_tristate_if:NnT \g__hit_toc_latin_natural_tl { \c_true_bool }
+          { \bool_set_true:N \l_hit_format_latin_pick_bool }
+      }
+  }
+\cs_new_protected:Npn \hit@toc@line@metrics:nn #1#2
+  {
+    \hit@toc@latin@pick:n {#2}
+    \exp_args:Nx \hit@format@stack@line:n { \hit@toc@target:n {#1} }
+  }
+%    \end{macrocode}
+%
 % \changes{v3.2a}{2026/08/13}{加 \texttt{hit/layout} 族}
 % \changes{v3.2a}{2026/08/15}{页底策略定名 \option{layout}/\option{bottom}，
 %   取值 \texttt{ragged}/\texttt{flush}，与 \hologo{LaTeX} 的 \cs{raggedbottom}

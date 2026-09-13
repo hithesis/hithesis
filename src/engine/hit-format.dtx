@@ -961,6 +961,11 @@
 % \option{font-zh} 取 \texttt{none} 表示这一处没有中文，行高按西文字体算。
 % 英文摘要、英文目录这类地方写它。
 %
+% 逐条内容不同的地方（目录的条目）由排版代码临时说一声：立起
+% \cs{l\_hit\_format\_latin\_pick\_bool}，\cs{hit@format@compute:n} 就当这一次
+% 的 \option{font-zh} 是 \texttt{none}，配置里写的那副字不改。判据见
+% \cs{hit@format@cjk:nTF}。
+%
 % \emph{行盒高。} 也就是 \cs{baselineskip}。倍数写法在对齐到网格时是网格行距的
 % 倍数，关掉时是自然行高的倍数；一行装不下就往上取整到整数个格。固定值原样生效，
 % 网格与字号都不介入，比字号小也照给（字会叠）。最小值是设定值与「网格开看网格
@@ -989,6 +994,7 @@
 \tl_const:Nn \c__hit_format_natural_tl { 1.296875 }
 \tl_const:Nn \c__hit_format_natural_latin_tl { 1.15 }
 \bool_new:N \l__hit_format_latin_bool
+\bool_new:N \l_hit_format_latin_pick_bool
 \bool_new:N \l__hit_format_exact_bool
 \tl_const:Nn \c__hit_format_ascent_tl { 1.008 }
 \dim_const:Nn \c__hit_format_ascent_dim { 0.082bp }
@@ -1272,6 +1278,8 @@
       { \dim_set:Nn \l_hit_format_size_dim { \f@size pt } }
       { \dim_set:Nn \l_hit_format_size_dim { \l__hit_format_value_tl } }
     \__hit_format_read:nnnN {#1} { font-zh } { songti } \l__hit_format_value_tl
+    \bool_if:NT \l_hit_format_latin_pick_bool
+      { \tl_set:Nn \l__hit_format_value_tl { none } }
     \bool_set:Nn \l__hit_format_latin_bool
       { \str_if_eq_p:Vn \l__hit_format_value_tl { none } }
     \prop_get:NVNF \c__hit_format_natural_prop \l__hit_format_value_tl
@@ -1852,6 +1860,71 @@
         \__hit_format_strut:nn
           { \c__hit_format_natural_tl } { \l_hit_format_ascent_tl }
       }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/14}{加 \cs{hit@format@stack@line:n}：照 Word 的
+%   「上块行深加下块上升部」逐块贴排，目录两条路径共用}
+% \emph{块与块之间的基线距。} Word 的行距是每一段自己的事，段与段之间不另有
+% 一个量：下一段首行的基线落在「上一段末行的行深」加「本段首行的上升部」处。
+% 段内每一行等距，所以这条只在一行一段的地方看得出来，目录的每一条就是一段。
+%
+% 上升部与行盒高由\emph{这一行内容的字体}定，不由段落样式里写的那副字定：
+% 一条纯西文的条目（\texttt{Abstract}）行盒比汉字的矮，Word 排出来的步进跟着变。
+% 本科范例的目录四种组合各是一个数（小四 12\,bp、多倍 1.25）：
+% \begin{center}
+% \begin{tabular}{llll}
+% \toprule
+% 上一条 & 本条 & 行深 + 上升部 & 步进 \\\midrule
+% 汉 & 汉 & 7.275 + 12.178 & 19.453 \\
+% 汉 & 西 & 7.275 + 11.273 & 18.548 \\
+% 西 & 汉 & 5.977 + 12.178 & 18.155 \\
+% 西 & 西 & 5.977 + 11.273 & 17.250 \\
+% \bottomrule
+% \end{tabular}
+% \end{center}
+% 这四个数不存在表里。上升部是 \cs{l\_hit\_format\_first\_dim}，行深是行盒高
+% 减上升部，两个都由 \cs{hit@format@compute:n} 按目标自己的字号与行距算出来。
+% 研究生的 1.2 倍、人文社科类的固定值 23\,bp、深圳本科英文报告的 1.5 倍因此
+% 走同一条式子，各档不必自备一组数。
+%
+% \cs{hit@format@stack@seed:n}\marg{目标} 起头，只存行深不设行距：头一块的
+% 位置由它上面那一整块定。\cs{hit@format@stack@line:n}\marg{目标} 每一块调一次。
+% 这一块是不是纯西文，调用方排之前写进 \cs{l\_hit\_format\_latin\_pick\_bool}。
+%    \begin{macrocode}
+\dim_new:N \g__hit_format_depth_dim
+\cs_new_protected:Npn \__hit_format_stack_depth:
+  {
+    \dim_gset:Nn \g__hit_format_depth_dim
+      { \l_hit_format_lead_dim - \l_hit_format_first_dim }
+  }
+\cs_new_protected:Npn \hit@format@stack@seed:n #1
+  {
+    \hit@format@compute:n {#1}
+    \__hit_format_stack_depth:
+  }
+\cs_new_protected:Npn \hit@format@stack@line:n #1
+  {
+    \hit@format@compute:n {#1}
+    \dim_set:Nn \baselineskip
+      { \g__hit_format_depth_dim + \l_hit_format_first_dim }
+    \__hit_format_stack_depth:
+  }
+%    \end{macrocode}
+%
+% 一块内容里有没有汉字。串成字符串逐字符看码位，过了 \texttt{U+2E7F}
+% （康熙部首之前那一格）就算；宏名全是 ASCII，不会误判。
+%    \begin{macrocode}
+\bool_new:N \l__hit_format_cjk_bool
+\prg_new_protected_conditional:Npnn \hit@format@cjk:n #1 { TF , T , F }
+  {
+    \bool_set_false:N \l__hit_format_cjk_bool
+    \str_map_inline:nn {#1}
+      {
+        \int_compare:nNnT { `##1 } > { "2E7F }
+          { \bool_set_true:N \l__hit_format_cjk_bool \str_map_break: }
+      }
+    \bool_if:NTF \l__hit_format_cjk_bool \prg_return_true: \prg_return_false:
   }
 %    \end{macrocode}
 %
