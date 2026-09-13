@@ -399,6 +399,30 @@ src/flow/
 变体文件排在基准之后还是之前都行：查表在类加载末尾才跑（`\hit@hook@resolve:`
 紧跟 `\hit@axis@resolve:`），那时所有模块的部件都已定义。
 
+**基准全局统一，不按模块各挑各的。** 学位轴一律以博士为基准、校区轴一律以哈尔滨
+为基准，哪怕某个模块“除博士外三档共用”写起来更费事。允许每个模块自己挑基准能
+省几行代码，但看一个文件名就得先想“这一块的基准是谁”，省的那点代码不抵这份心智。
+
+**文件名与守卫名里的否定写 `-not-`，不写 `!`。** 这不是风格选择：docstrip 的守卫是
+布尔表达式，`!` 是它的“非”、`|` 是“或”、`&` 是“且”，名字里出现就被当成语法。
+实测 `%<*mod-!doctor>` 配 `\from{...}{mod-!doctor}`：文件找得到、开始处理了，
+当场报 `Error in expression: spurious !`，生成物是个空的 `\endinput`，那一行代码一个
+字都没出来。
+
+界线是谁来读它：
+
+| 谁读 | 怎么写 |
+|---|---|
+| `\hit@presetup[stage=!final]` 的条件 | `!`，我们自己的求值器 |
+| 词条键名 `achievements-heading-!final` | `!`，我们自己的轴解析器 |
+| 部件名 `\hit@hook@new:nn { header-!doctor }` | `!`，同上 |
+| docstrip 守卫、dtx 文件名 | `-not-`，与 iota 的 `-not-final` 一致 |
+
+**动手写 `-not-` 之前先确认它不是基准。** 六根轴里两值的那几根（`lang`、`category`、
+`degree-type`）正着写就行；`campus` 三个值，`-not-shenzhen` 就是基准；`stage` 的
+`-not-final` 就是 `report` 前缀。只有 `degree-level` 四个值，“除博士外三档共用”
+才真需要它。眼下一处都没用上。
+
 **档位值一律排在名字末尾，次序照轴序**：`stage`、`campus`、`degree-level`、
 `degree-type`、`category`、`lang`。写反了当场报错——`header-doctor-shenzhen`
 剥掉 `shenzhen`（校区，第二根）之后遇到 `doctor`（学位，第三根），三不小于二，
