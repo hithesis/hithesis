@@ -379,6 +379,26 @@ header-report-shenzhen             % 深圳不一样，只写这一条
 档位值全对得上的才算候选，段数最多的赢，并列报歧义。要在变体里接着用基准，
 写 `\hit@hook@base:n {header-even}`。
 
+**一个变体一个 dtx 文件。** 基准文件里只留基准，每个变体单独一份
+`<基准文件名>-<档位值…>.dtx`，守卫名同理，装配表上一行一个：
+
+```
+src/flow/
+  hit-final-pagestyle.dtx                    <- 只有基准（博士·哈尔滨）
+  hit-final-pagestyle-shenzhen-doctor.dtx    <- 只写深圳博士那一小坨
+  hit-final-pagestyle-master.dtx
+  hit-final-pagestyle-shenzhen-master.dtx
+  hit-final-pagestyle-bachelor.dtx
+  hit-final-pagestyle-postdoc.dtx
+```
+
+这样加一个特例就是加一个文件、装配表加一行，基准文件一个字不动；删一个特例是
+删一个文件。写在同一个文件里也能跑，但那样基准与变体的边界只剩缩进，改基准时
+很容易顺手动到别人那一档。
+
+变体文件排在基准之后还是之前都行：查表在类加载末尾才跑（`\hit@hook@resolve:`
+紧跟 `\hit@axis@resolve:`），那时所有模块的部件都已定义。
+
 **档位值一律排在名字末尾，次序照轴序**：`stage`、`campus`、`degree-level`、
 `degree-type`、`category`、`lang`。写反了当场报错——`header-doctor-shenzhen`
 剥掉 `shenzhen`（校区，第二根）之后遇到 `doctor`（学位，第三根），三不小于二，
