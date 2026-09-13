@@ -66,6 +66,7 @@ DESC = {
     "final-pagestyle-shenzhen-master": "页眉的深圳硕士变体",
     "final-pagestyle-bachelor": "页眉的本科变体",
     "final-pagestyle-postdoc": "页眉的博士后变体",
+    "final-pagestyle-shenzhen-bachelor": "页眉的深圳本科变体",
     "report-pagestyle": "页眉页脚",
     "final-cover": "封面（封一）",
     "final-titlepage": "内封（扉页）",
