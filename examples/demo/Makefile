@@ -114,6 +114,7 @@ clean:
 # 它们不是这个目录的内容，是别处的产物，按名删不通配。
 GENERATED = hithesis.cls hithesis.cfg hithesis.sty hithesis.ist hithesis.bst \
             hithesisbook.cls hithesisart.cls hithesisartplus.cls \
+            hit-linebreak.lua \
             hit-logo.pdf zfb.pdf hit-bachelor-report-bottommark.pdf \
             figures/golfer.pdf
 
