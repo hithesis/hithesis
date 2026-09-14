@@ -1473,6 +1473,16 @@
   }
 %    \end{macrocode}
 %
+% \cs{spaceskip} 记一条账：它在 \cs{hit@format@apply@body:} 里按\emph{正文}
+% 那一档算死成绝对值，之后所有元素共用。深圳本科报告这一档是 3.0，发到小二
+% 18\,bp 的章标题上还是 3.0，而 Times 的空格该是 0.25\,em ＝ 4.5：英文章标题
+% 每个词隙窄 1.5，居中排出来整行偏。试过「不贴横向网格的元素把 \cs{spaceskip}
+% 归零、交回 \cs{fontdimen}\,2／3／4」，标题那一头是对了，可英文摘要那种整段
+% 西文也吃这一条——那一档的伸缩量（\texttt{plus}\ldots\cs{baselineskip}
+% \texttt{minus}\ 0.25\cs{fontdimen}2）是调过的，换成字体自带的伸缩之后整段
+% 重新断行，二十多个变体的英文摘要页全变。已回滚。要改得按元素自己的字号重算
+% 而不是归零，且英文摘要那一档要保住原值，另记。
+%
 % 基线落点：对齐到网格时行盒居中，关掉时顶对齐。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_first:
@@ -2189,6 +2199,27 @@
   }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/09/14}{英文档的题序后也发 \option{aftername}：原先整条
+%   跳过，落到 \pkg{ctex} 的半个字上}
+% \emph{英文档也发这一条。} 先前这一块整个挂在「不是英文档」下面，英文档的题序
+% 后间距因此是 \pkg{ctex} 的默认值 \cs{enspace}，半个字。iota-hit 逐级量 2026 年
+% 9 月版深圳本科英文版那两份表单（号末到名首）：章 18.35／18 ＝ 1.02 个字，
+% 节 15.23／15.12 ＝ 1.01，条 14.05／13.92 ＝ 1.01——与中文版同数。原件那三处
+% 敲的都是两个半角，与中文版一样；中文那边两个半角就是一个全角，英文这边
+% Times 的半角只有 0.25\,em，可排出来仍是一个字，那两个空格各带了约 0.26\,em 的
+% 额外步进。跟排出来的数，不跟敲了几个空格。
+%
+% \emph{只发给报告，不发给英文学位论文。} 英文学位论文的章标题是
+% 「\texttt{CHAPTER~1}」独占一行、题名另起一行，那一档的 \option{aftername} 由
+% \cs{hit@chapter@settings@english} 自己管着；这一条在 \cs{AfterPreamble} 才发，
+% 发过去会把它盖掉，题名居中位移半个字（实测英文论文的
+% 「\texttt{INTRODUCTION}」右移 9.0，博士后那一档 12.0）。所以条件是
+% 「不是英文档，或者不是终稿」。
+%
+% \emph{这一档也写宽了：验过的只有深圳本科英文版那两份表单。} 判据按语种给，
+% 所有英文报告都吃它——本部的英文报告没有一份带标题实例。拿到别的档的英文原件
+% 要重核。
+%
 % \changes{v3.2a}{2026/09/13}{人文社科类的节与条题序后不空：“一、”“（一）”贴着标题}
 % 人文社科类的节与条，题序自带全角顿号或括号（“一、”“（一）”），范例里题序
 % 贴着标题排，不再空那一个字；章“第一章”后面照旧空一个字。标志位只在学位
@@ -2213,7 +2244,9 @@
         \__hit_format_build:n {#1}
         \tl_set:Nx \l__hit_format_keys_tl
           { format ~ = { \exp_not:V \l__hit_format_out_tl } , }
-        \bool_if:NF \g__hit_en_bool
+        \bool_lazy_or:nnT
+          { ! \bool_if_p:N \g__hit_en_bool }
+          { ! \bool_if_p:N \g__hit_final_bool }
           {
             \bool_if:nTF { \__hit_format_hass_nogap_p:n {#1} }
               { \tl_put_right:Nn \l__hit_format_keys_tl { aftername = { } , } }
@@ -2221,7 +2254,11 @@
                 \tl_put_right:Nn \l__hit_format_keys_tl
                   {
                     aftername =
-                      { \hit@after@number:nnn {#1} { zh } { \hit@heading@number@gap: } } ,
+                      {
+                        \hit@after@number:nnn {#1}
+                          { \bool_if:NTF \g__hit_en_bool { en } { zh } }
+                          { \hit@heading@number@gap: }
+                      } ,
                   }
               }
           }
