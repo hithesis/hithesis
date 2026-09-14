@@ -2,12 +2,12 @@
 
 # Compiling method: latexmk/xelatex/lualatex
 #
-# 模板认 xelatex 与 lualatex 两个引擎。默认 xelatex——版面参数是按它核过的，
-# lualatex 排出来是对的，但中文标点宽度等细节与它不逐页相同，见手册的「用哪个引擎」。
-# 换 lualatex 两行一起改：METHOD = lualatex，LATEXMKOPTS = -lualatex。
-METHOD = xelatex
+# 模板认 xelatex 与 lualatex 两个引擎。默认 lualatex：2026 年 9 月起断行照 Word 的
+# 贪心算法在 Lua 里做，只有 lualatex 有这条路，xelatex 编出来的断行是 TeX 自己的。
+# 换回 xelatex 两行一起改：METHOD = xelatex，LATEXMKOPTS = -xelatex。
+METHOD = lualatex
 # Set opts for latexmk if you use it
-LATEXMKOPTS = -xelatex
+LATEXMKOPTS = -lualatex
 # Basename of the final (degree) document
 FINALMAIN = final
 # Basename of report（开题与中期）
