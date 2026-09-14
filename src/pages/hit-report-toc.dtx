@@ -150,6 +150,28 @@
 % 页码、悬挂那一串，重抄一遍迟早对不上。\cs{baselineskip} 在条目组外设，组里
 % 没人动它，排到 \cs{par} 时读的就是这个值。
 %
+% \changes{v3.2a}{2026/09/14}{条目每一行都排到制表位；折行之后缩进至题名首字}
+% \emph{条目每一行都排到制表位。} \pkg{tocloft} 的 \cs{l@section} 把
+% \cs{rightskip} 设成 \cs{@tocrmarg}（\hologo{LaTeX} 的默认 2.55\,em），
+% 于是折行条目的\emph{每一行}都提前 30.6 收住；末行由 \cs{parfillskip} 抵消，
+% 只有它排到制表位。原件不是这样：折行的那几行一直排到制表位，只有末行给点线与
+% 页码让路（iota-hit 对原件的复刻件里首行末字右缘 499.05，这边 479.62）。
+% 所以 \cs{@tocrmarg} 归零。它是个\emph{宏}不是长度寄存器
+% （\hologo{LaTeX} 里 \cs{def}\cs{@tocrmarg}\{2.55em\}），要用 \cs{cs\_set:Npn} 改。
+%
+% \emph{折行之后缩进至题名首字。} 指南 3.6 写着「对于超过一行的目录内容提前换行，
+% 换行后缩进至相应标题第一个字符处」。\pkg{tocloft} 的续行回到 \cs{leftskip}
+% （一级 85.05、二级 97.05），不是题名首字。悬挂多宽只有排完题序才知道，
+% 所以在算宽体里把它全局导出，排到 \cs{par} 之前设进 \cs{hangindent}——
+% 与终稿那一份目录同一个办法（\file{hit-final-toc.dtx} 的
+% \cs{g\_\_hit\_toc\_hang\_dim}）。
+%
+% \emph{悬挂量要减掉 \cs{leftskip} 里已经含的那一截。} \pkg{tocloft} 的
+% \cs{l@subsection} 与 \cs{l@subsubsection} 在排题序之前把 \cs{cft\ldots numwidth}
+% 加进了 \cs{leftskip}，而本文件自己那一份 \cs{l@section} 没加。所以悬挂量按
+% 「本级缩进加题序盒宽减当前 \cs{leftskip}」算，三级都对：一级
+% $0+18-0=18$，二级 $12+27-32.4=6.6$，续行落在 103.05 与 124.05。
+%
 % \emph{题序那一格按实宽加一个字，不按额定列宽。} \pkg{tocloft} 的
 % \cs{cftsecnumwidth} 那三个是\emph{额定}列宽（1\,em／1.7\,em／2.4\,em），
 % 题序排进去靠左、右边剩多少就是题名前的空当：「1」剩 6.00、「1.1」剩 5.40。
@@ -182,6 +204,7 @@
 % 的头一个盒子都在组内落下，够用；发到组外的话，后面 \cs{clearpage} 与
 % \env{titlepage} 收尾那两下会各排出一张空白页（实测多两张，页码 II 与 -1-）。
 %    \begin{macrocode}
+\dim_new:N \g__hit_report_toc_hang_dim
 \bool_if:NT \g__hit_final_body_bool
   {
     \dim_zero:N \cftbeforetoctitleskip
@@ -223,7 +246,9 @@
       {
         \hbox_set:Nn \l_tmpa_box { #1 \hit@chapter@number@gap: }
         \dim_set:Nn \@tempdima { \box_wd:N \l_tmpa_box }
+        \dim_gset_eq:NN \g__hit_report_toc_hang_dim \@tempdima
       }
+    \cs_set:Npn \@tocrmarg { 0pt }
     \cs_set:Npn \cftdotsep { 0 }
     \clist_map_inline:nn { sec , subsec , subsubsec }
       {
@@ -231,7 +256,14 @@
           {
             { \use:c { cft #1 leader } } \nobreak
             \hbox:n { \use:c { cft #1 pagefont } ##1 }
-            \use:c { cft #1 afterpnum } \par
+            \use:c { cft #1 afterpnum }
+            \dim_set:Nn \hangindent
+              {
+                \use:c { cft #1 indent } + \g__hit_report_toc_hang_dim
+                - \leftskip
+              }
+            \int_set:Nn \hangafter { 1 }
+            \par
           }
       }
   }

@@ -1923,6 +1923,18 @@
 % \cs{hit@format@stack@seed:n}\marg{目标} 起头，只存行深不设行距：头一块的
 % 位置由它上面那一整块定。\cs{hit@format@stack@line:n}\marg{目标} 每一块调一次。
 % 这一块是不是纯西文，调用方排之前写进 \cs{l\_hit\_format\_latin\_pick\_bool}。
+%
+% \changes{v3.2a}{2026/09/14}{一块折成几行时，块内各行按本块自己的行深排，
+%   与上一块的差额发成一段胶}
+% \emph{一块折成几行的时候。} \hologo{TeX} 的 \cs{baselineskip} 管整段，
+% 而 Word 的式子里只有\emph{头一行}用上一块的行深，段内后面几行用本块自己的。
+% 目录里一条长条目折两行就看得出来：先前第二行也吃「上一块行深加上升部」，
+% 从目录标题那一块接下来是 23.13，Word 是 19.45。
+%
+% 所以 \cs{baselineskip} 设成本块自己的「行深加上升部」，两者的差额
+% （上一块行深减本块行深）单独发一段竖胶。不折行时两种写法的总距离一模一样
+% （胶加行距等于原来那个和），折行时后面几行才对。\cs{lineskiplimit} 压到底
+% 之后行间胶恒按 \cs{baselineskip} 算，\cs{prevdepth} 不参与，这一步才成立。
 %    \begin{macrocode}
 \dim_new:N \g__hit_format_depth_dim
 \cs_new_protected:Npn \__hit_format_stack_depth:
@@ -1935,12 +1947,17 @@
     \hit@format@compute:n {#1}
     \__hit_format_stack_depth:
   }
+\dim_new:N \l__hit_format_stack_own_dim
 \cs_new_protected:Npn \hit@format@stack@line:n #1
   {
     \hit@format@compute:n {#1}
+    \dim_set:Nn \l__hit_format_stack_own_dim
+      { \l_hit_format_lead_dim - \l_hit_format_first_dim }
     \dim_set:Nn \baselineskip
-      { \g__hit_format_depth_dim + \l_hit_format_first_dim }
-    \__hit_format_stack_depth:
+      { \l__hit_format_stack_own_dim + \l_hit_format_first_dim }
+    \skip_vertical:n
+      { \g__hit_format_depth_dim - \l__hit_format_stack_own_dim }
+    \dim_gset_eq:NN \g__hit_format_depth_dim \l__hit_format_stack_own_dim
   }
 %    \end{macrocode}
 %
