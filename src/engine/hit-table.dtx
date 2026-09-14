@@ -40,6 +40,15 @@
 % 所有 \cs{AtBeginDocument} 之后那一档。
 %    \begin{macrocode}
 \bool_new:N \l__hit_table_float_bool
+\cs_new_protected:Npn \__hit_table_float_begin:
+  {
+    \bool_set_true:N \l__hit_table_float_bool
+    \__hit_layout_msword_active:T
+      {
+        \skip_zero:N \lineskip
+        \skip_zero:N \normallineskip
+      }
+  }
 \cs_new_protected:Npn \hit@setup@table
   {
     \AddToHook { begindocument / end }
@@ -47,8 +56,8 @@
         \cs_set_eq:NN \hit@original@longtable@array \LT@array
         \cs_set:Npn \LT@array { \hit@table@font: \hit@original@longtable@array }
       }
-    \AddToHook { env/table/begin }  { \bool_set_true:N \l__hit_table_float_bool }
-    \AddToHook { env/table*/begin } { \bool_set_true:N \l__hit_table_float_bool }
+    \AddToHook { env/table/begin }  { \__hit_table_float_begin: }
+    \AddToHook { env/table*/begin } { \__hit_table_float_begin: }
     \clist_map_inline:nn { tabular , tabular* , tabularx , tabulary , array }
       {
         \AddToHook { env/##1/begin }
@@ -100,16 +109,53 @@
 %
 % 旧版面算不出网格（\cs{g\_hit\_msword\_lead\_dim} 是零），退回 \cs{wuhao}。
 % 判据是「网格算出来没有」，不是「哪个版面」——问版面等于把同一件事写两遍。
+%
+% \changes{v3.2a}{2026/09/14}{表格里的字号行距改由 \option{format}/\option{table-cell}
+%   算，行里的撑杆也换成 Word 的行盒；深圳本科报告的表因此排成小四 1.25 倍}
+% \emph{数从 \option{table-cell} 目标取，不再写死五号加网格。} 上面那段
+% 「五号、行高一个网格行」是学位论文范例的样子，写成 \option{format} 的话就是
+% \texttt{size=wuhao, line-spacing=1, snap-to-grid=\{vertical=true\}}——单倍贴格，
+% 一行占一格。深圳本科的两份报告不是这样：原件里表格每一格的段都是
+% \texttt{line=300 auto} 加 \texttt{snapToGrid=0}，字号跟正文（小四），
+% 实测数据行步进 19.44，正是小四 1.25 倍的行盒。所以取值搬进 \file{hithesis.cfg}，
+% 两档各写各的，这里只管把目标算出来的东西装到表格上。
+%
+% \emph{表题与表之间那 1\,bp 是 \cs{lineskip}。} 表题那一行后面跟着整张表的
+% 盒子，盒子比 \cs{baselineskip} 高，\hologo{TeX} 的行间胶退成 \cs{lineskip}
+% ——内核默认 1\,pt，Word 没有这东西：三种题注字号实测表题基线到顶线上沿都比
+% 「行深」多 1.0。浮动体里把它清零（\cs{\_\_hit\_table\_float\_begin:}，只在
+% 新版面下），本科范例那张表的「表题基线到顶线心 7.22 = 行深 6.44 + 0.75」
+% 也正是没有它的样子。\cs{normallineskip} 一并清：环境的 begin 钩子跑在环境
+% 代码之前，\cs{@xfloat} 里的 \cs{@parboxrestore} 会拿它把 \cs{lineskip} 设回去。
+%
+% \emph{行里的撑杆换成 Word 的行盒。} \hologo{LaTeX} 的 \cs{@arstrutbox} 按
+% \cs{strutbox} 的 0.7／0.3 分基线，贴网格那一档凑巧与 Word 的居中只差 0.02\,bp
+% （见上面的算式），不贴网格的 1.25 倍就差远了：19.45 的 0.7 是 13.62，Word 的
+% 上升部是 12.18，基线低 1.4。而且 \texttt{p} 列里的段落靠段落钩子发的是
+% \cs{hit@format@strut:}，与 \cs{@arstrutbox} 不是一根撑杆，两根取大，行高多出
+% 一截——深圳中期那张表先前的行步进是 21.89。这里把目标的撑杆装进
+% \cs{strutbox}（\cs{@array} 从它取 \cs{@arstrutbox}），\texttt{p} 列里的段落
+% 钩子发的还是同一根，两根一样高，行高就是行盒。\cs{strutbox} 是盒寄存器，
+% 在 \env{tabular} 组内设，出组还原。
+%
+% 字体状态用 \cs{hit@format@apply@state@else:nn} 设：它与
+% \cs{hit@format@apply@font@else:nn} 只差不发撑杆——环境开头是竖直模式，
+% 撑杆一发就起了一段。旧版面（\cs{\_\_hit\_layout\_msword\_active:TF} 为假）
+% 整段不走，仍是 \cs{wuhao}，那一档钉的是 v3.1e，一个字节都不能动。
 %    \begin{macrocode}
+\box_new:N \l__hit_table_strut_box
 \cs_new_protected:Npn \hit@table@font:
   {
-    \dim_compare:nNnTF { \g_hit_msword_lead_dim } = { 0pt }
-      { \wuhao }
+    \__hit_layout_msword_active:TF
       {
-        \fontsize { \dim_use:N \c__hit_font_size_wuhao_dim }
-          { \dim_use:N \g_hit_msword_lead_dim }
-        \selectfont
+        \hit@format@apply@state@else:nn { table-cell } { \wuhao }
+        \cs_if_exist:NT \hit@format@strut:
+          {
+            \hit@format@strut@box:N \l__hit_table_strut_box
+            \box_set_eq:NN \strutbox \l__hit_table_strut_box
+          }
       }
+      { \wuhao }
   }
 %    \end{macrocode}
 % \end{macro}
@@ -145,8 +191,30 @@
     \dim_set:Nn \lightrulewidth { 1bp }
     \dim_set:Nn \cmidrulewidth { 0.5bp }
     \dim_set:Nn \tabcolsep { 5.4bp }
+    \AddToHook { begindocument / end }
+      {
+        \__hit_layout_msword_active:T
+          {
+            \skip_zero:N \abovetopsep
+            \skip_zero:N \belowrulesep
+            \skip_zero:N \aboverulesep
+            \skip_zero:N \belowbottomsep
+          }
+      }
   }
 %    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/14}{新版面下三条线上下不再垫 \pkg{booktabs} 的那几段}
+% \emph{线与行之间不垫东西。} \pkg{booktabs} 在 \cs{toprule} 下面垫
+% \cs{belowrulesep}（0.65\,ex）、\cs{midrule} 上下各垫一段，Word 里没有这些：
+% 格子的内容框从线的内沿起排，线本身占多厚就是多厚。两份实测都对得上：
+% 本科范例第 15 页那张表（贴 19.15 的网格，线 1.5／1／1.5）表题基线到顶线心
+% 7.22 = 五号 1.25 倍的行深 6.44 + 0.75，顶线心到表头线心 58.80 = 0.75 +
+% 3 × 19.15 + 0.5，表头末行到首个数据行 20.1 = 19.15 + 1.0；深圳本科中期
+% 表 2-1（不贴网格）表题基线到表头基线 21.12、表头到首行 26.88\footnote{那一行
+% 多出的 6.4 是原件里表头那格段落标记上带着上标属性，是那份文件的手误，不算
+% 规则。}、数据行 19.44。这几个数正是「行深 + 线 + 上升部」，中间没有别的。
+% 挂在 \texttt{begindocument/end}，与浮动体间距同一个钩子，等版面定了再判。
 % \end{macro}
 %
 % \begin{macro}{\hit@setup@tabularray}
@@ -163,7 +231,10 @@
 %   6\,pt），而且每个环境一份 inner 表、互不继承，\pkg{booktabs} 库的那三个
 %   环境在库加载前还不存在。所以挂在各环境自己的 begin 钩子里，进环境时
 %   往它的 inner 表追加 \texttt{colsep=}\cs{tabcolsep}——追加是组内局部的，
-%   出组即还原，不会越积越长。
+%   出组即还原，不会越积越长。新版面下 \texttt{rowsep} 也追加成零：它默认上下
+%   各 2\,pt，Word 的单元格上下边距是 0，行高就是格里那一段的行盒（见
+%   \cs{hit@table@font:}）；实测 demo 的长表格每行 23.13，去掉这 4\,pt 正是
+%   一个网格行。
 % \item \emph{表内字号行距}：\env{tblr} 与 \env{booktabs} 走 \env{tabular}
 %   一族的两级钩子（浮动体里才压五号）；\env{longtblr}、\env{talltblr}、
 %   \env{longtabs}、\env{talltabs} 与 \pkg{longtable} 同规矩，无条件压。
@@ -246,6 +317,8 @@
             \AddToHook { env/##1/begin }
               {
                 \SetTblrInner [##1] { colsep = \tabcolsep }
+                \__hit_layout_msword_active:T
+                  { \SetTblrInner [##1] { rowsep = 0pt } }
                 \bool_if:NT \l__hit_table_float_bool { \hit@table@font: }
               }
           }
@@ -254,6 +327,8 @@
             \AddToHook { env/##1/begin }
               {
                 \SetTblrInner [##1] { colsep = \tabcolsep }
+                \__hit_layout_msword_active:T
+                  { \SetTblrInner [##1] { rowsep = 0pt } }
                 \hit@table@font:
               }
           }

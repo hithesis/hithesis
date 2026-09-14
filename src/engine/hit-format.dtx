@@ -82,6 +82,11 @@
 % \option{caption-table}、\option{caption-sub}、\option{abstract-heading}，
 % 以及四级目录条目 \option{toc-chapter} 到 \option{toc-subsubsection}。
 %
+% \changes{v3.2a}{2026/09/14}{加 \option{table-cell} 目标：表格里的段}
+% \option{table-cell} 是表格单元格里的段，Word 里表格的每一格都是一段，行高就是
+% 那一段的行盒（贴网格时一格一行）。它由 \file{src/engine/hit-table.dtx} 的
+% \cs{hit@table@font:} 接进 \env{tabular} 一族，见那里。
+%
 % \changes{v3.2a}{2026/08/14}{加 \option{body} 目标，正文的字号、行距、首行缩进
 %   与首行基线落点都从它算}
 % \option{body} 是正文，也就是 Word 里的「正文」样式。它管的东西比别的目标多一层：
@@ -135,7 +140,7 @@
     body ,
     chapter , section , subsection , subsubsection ,
     caption-figure , caption-table , caption-sub , caption-note ,
-    abstract-heading ,
+    table-cell , abstract-heading ,
     toc-chapter , toc-section , toc-subsection , toc-subsubsection ,
     header , footer , abstract-en ,
     titlepage-mark , titlepage-label , titlepage-title , titlepage-field ,
@@ -2051,6 +2056,11 @@
   { \bool_if:NT \g__hit_heading_latin_sans_bool { \sffamily } }
 \cs_new_protected:Npn \__hit_format_build:n #1
   {
+    \__hit_format_build_font:n {#1}
+    \tl_put_right:Nn \l__hit_format_out_tl { \hit@format@strut: }
+  }
+\cs_new_protected:Npn \__hit_format_build_font:n #1
+  {
     \tl_clear:N \l__hit_format_out_tl
     \__hit_format_latin_line:n {#1}
     \__hit_format_read:nnnN {#1} { font-zh } { } \l__hit_format_value_tl
@@ -2106,10 +2116,32 @@
         \bool_if:NTF \l__hit_format_exact_bool
           { \exp_not:N \hit@format@exact@true: }
           { \exp_not:N \hit@format@exact@false: }
-        \exp_not:N \hit@format@strut:
       }
   }
 %    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/14}{拼串拆成两截：字体那一截单独可用，表格要}
+% \begin{macro}{\hit@format@apply@state@else:nn,\hit@format@strut@box:N}
+% \cs{hit@format@apply@state@else:nn}\marg{目标}\marg{兜底} 与
+% \cs{hit@format@apply@font@else:nn} 一样按目标设字体、字号、行距与撑杆的状态，
+% 但\emph{不发撑杆}。表格环境的开头是竖直模式，一根 \cs{vrule} 发出去就起了一段；
+% 那里要的只是状态，撑杆由 \cs{hit@format@strut@box:N} 另装进一只盒子给
+% \cs{strutbox}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@apply@state@else:nn #1#2
+  {
+    \__hit_format_if_blank:nTF {#1}
+      {#2}
+      {
+        \hit@format@compute:n {#1}
+        \__hit_format_build_font:n {#1}
+        \l__hit_format_out_tl
+      }
+  }
+\cs_new_protected:Npn \hit@format@strut@box:N #1
+  { \hbox_set:Nn #1 { \hit@format@strut: } }
+%    \end{macrocode}
+% \end{macro}
 %
 % 两道胶的取值。\cs{CJKglue} 是汉字之间的：吃网格就取网格那一份，不吃就取零，
 % 再加上 \option{char-spacing}。两项相加是 Word 的算法，\texttt{docGrid} 的字距被
