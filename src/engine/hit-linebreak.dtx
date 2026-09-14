@@ -14,6 +14,10 @@
 %   从前被拆开）；行盒取内容的自然高深（长表格从前从行盒里冒出去）；手写 kern 不再清零；
 %   开号紧跟开号时半格算在后一个上（从前前一个的墨迹贴到前面的字上）；盒子、公式两侧的
 %   汉西隙按 luatexja 的判定放}
+% \changes{v3.2a}{2026/09/14}{行盒照 Word 逐行算高：各 run 的字体、字号取最大，倍数行距、
+%   贴网格、固定值三种落法，探针 lh1.docx 量的；行盒直接摞，行间只放零宽胶与 TeX 的行间罚分。
+%   断点处的可弃节点在下一行行首作废；\cs{hspace}、\cs{hfill} 照自己的宽与伸量；
+%   ulem 的下划线、盒子两侧的隙按盒里头尾的字定}
 % Word 排一段是逐行贪心：这一行能装几个装几个，下一个字装不下，先看能不能把
 % 行内的标点压一压塞进来，塞不进就换行；行首不能是闭号，行尾不能是开号，碰上了
 % 先压标点再悬挂。TeX 是全段最优，两边永远对不上。\hologo{LuaLaTeX} 的
@@ -184,6 +188,41 @@ local function is_alnum(c)
     or (c >= 0xC0 and c <= 0x24F) or (c >= 0x370 and c <= 0x3FF)
 end
 
+local function nodewidth(g)
+  local id = g.id
+  if id == GLYPH or id == HLIST or id == VLIST or id == RULE then return g.width
+  elseif id == GLUE then return g.width
+  elseif id == KERN then return g.kern
+  elseif id == DISC then
+    local w = 0
+    for h in traverse(g.replace) do if h.id == GLYPH then w = w + h.width elseif h.id == KERN then w = w + h.kern end end
+    return w
+  else return 0 end
+end
+local function spanwidth(it)
+  local w = 0
+  local g = it.first
+  while g do w = w + nodewidth(g); if g == it.last then break end; g = g.next end
+  return w
+end
+
+-- 盒子头尾的字符（往里找第一个与最后一个字形，盒套盒也找）
+local function box_ends(b)
+  local hd, tl
+  local function walk(list)
+    for g in traverse(list) do
+      if g.id == GLYPH then
+        if not hd then hd = g.char end
+        tl = g.char
+      elseif g.id == HLIST or g.id == VLIST then
+        walk(g.list)
+      end
+    end
+  end
+  walk(b.list)
+  return hd, tl
+end
+
 -- 把节点表切成条目：0 汉字 1 闭号 2 开号 3 西文串 4 空格
 -- 西文串记字形宽之和 gw、字数 gn、首末字符；串里的字体字距（subtype 0，含 LetterSpace
 -- 加的那些）不计宽，渲染时清零重设；手写的 \kern（subtype 1，\LaTeX 这类标志靠它）
@@ -246,15 +285,18 @@ local function tokenize(head)
         -- 记下这里有汉西隙：盒子、公式这类看不见内容的条目靠它定两侧的隙
         attach(n)
         local it = run or items[#items]
-        if it then it.xk = true end
+        if it and n.width ~= 0 then it.xk = true end
       elseif is_jfmglue(n) then
         if #items > 0 and not run and items[#items].kind == 1 and not items[#items].jfmglue then
           items[#items].last = n; items[#items].jfmglue = n
         else
           attach(n)
         end
-      elseif n.subtype == 13 or n.subtype == 12 or n.subtype == 0 then
+      elseif n.subtype == 13 or n.subtype == 12 then
         put(4, n, n, n.width, nil)
+      elseif n.subtype == 0 and n.width > 0 then
+        -- 手写的 \hskip、\hspace：可断的位置，宽照它自己的（ulem 的负胶、leaders 不算）
+        put(4, n, n, n.width, nil).user = true
       else
         attach(n)
       end
@@ -285,7 +327,8 @@ local function tokenize(head)
       if run and n.penalty < 10000 then flush_run() end
     elseif id == RULE then
       if n.width == 0 then
-        if n.height > strut_h then strut_h = n.height; strut_d = n.depth end
+        -- 零宽的普通 rule 是类的撑杆；luatexja 给每个汉字挂的那根是 subtype 3，不算
+        if n.subtype == 0 and n.height > strut_h then strut_h = n.height; strut_d = n.depth end
         attach(n)
       else
         put(3, n, n, n.width, nil).rigid = true
@@ -300,7 +343,9 @@ local function tokenize(head)
       nxt = last.next
     elseif id == HLIST or id == VLIST then
       flush_run()
-      items[#items + 1] = { kind = 3, first = n, last = n, core = n, w = n.width, rigid = true }
+      -- 盒子（\mbox、ulem 的下划线、siunitx 的数）：看它头尾的字形定两侧的隙
+      local hd, tl = box_ends(n)
+      items[#items + 1] = { kind = 3, first = n, last = n, core = n, w = n.width, rigid = true, head = hd, tail = tl }
     else
       attach(n)
     end
@@ -343,6 +388,9 @@ local function natural(items, P)
       if prev and prev.kind == 0 and is_alnum(it.head) then gap = P.auto end
       -- 盒子、公式：看不见头尾的字，luatexja 在前面放了汉西隙就照放
       if it.rigid and prev and prev.kind <= 2 and prev.xk then gap = P.auto end
+    elseif it.user then
+      -- 手写的胶：整段跨度（连同挂在后面的 kern、leaders）按自然宽算，不伸缩
+      it.nw = spanwidth(it); it.rigid = true
     else
       local cjk = (prev and prev.kind <= 2) or (nx and nk <= 2)
       if cjk then it.nw = p / 2; it.rigid = true else it.nw = P.space end
@@ -377,7 +425,7 @@ local function decide(items, P, measure, cellcap, indent)
     local w = isfirst and indent or 0
     for k = first, last do
       local it = items[k]
-      if not (it.kind == 4 and k == first) then
+      if not (it.kind == 4 and k == first and not it.user) then
         w = w + ((k == last and it.paired) and p or it.nw) + (k > first and it.gap or 0)
       end
     end
@@ -451,12 +499,13 @@ local function decide(items, P, measure, cellcap, indent)
   -- 条目 k 后面能不能断：照 TeX 的规矩查 k 的实体节点到 k+1 的首节点之间有没有合法断点。
   -- 前面不是可弃节点（胶、kern、罚分、数学）的胶、小于 10000 的罚分、后接胶的 kern 或数学
   -- 节点、disc 都算；~ 是罚分 10000 加胶，就断不开。行末的空格条目自己就是那个胶
-  local function legal_after(k)
-    if k >= n then return true end
+  -- 返回断点节点：行在它前面结束，它起头的可弃节点（胶、kern、罚分）照 TeX 的规矩
+  -- 在下一行行首作废。段末与断不开的地方返回 nil
+  local function breakpoint_after(k)
+    if k >= n then return nil end
     local core = items[k].core
-    if not core then return true end
-    if core.id == DISC then return true end
-    if core.id == GLYPH and core.char == 45 then return true end
+    if not core then return nil end
+    if core.id == DISC or (core.id == GLYPH and core.char == 45) then return core.next end
     local stop = items[k + 1].first
     local prev = core
     local g = core.next
@@ -464,18 +513,21 @@ local function decide(items, P, measure, cellcap, indent)
       local id = g.id
       if id == GLUE then
         local pid = prev.id
-        if pid ~= GLUE and pid ~= KERN and pid ~= PENALTY and pid ~= MATH then return true end
+        if pid ~= GLUE and pid ~= KERN and pid ~= PENALTY and pid ~= MATH then return g end
       elseif id == PENALTY then
-        if g.penalty < 10000 then return true end
+        if g.penalty < 10000 then return g end
       elseif id == KERN or id == MATH then
-        if g.next and g.next.id == GLUE then return true end
+        if g.next and g.next.id == GLUE then return (id == KERN) and g or g.next end
       elseif id == DISC then
-        return true
+        return g.next
       end
       if g == stop then break end
       prev = g; g = g.next
     end
-    return false
+    return nil
+  end
+  local function legal_after(k)
+    return k >= n or breakpoint_after(k) ~= nil
   end
   -- 禁则用的行内位：只算整位的闭号（配对的半宽闭号与开号不算）
   local function mids_of(sp)
@@ -552,7 +604,8 @@ local function decide(items, P, measure, cellcap, indent)
       sp = spots_of(first, deep and last or last + 1)
       if deep then sp = mids_of(sp) end
     end
-    lines[#lines + 1] = { first = first, last = last, width = w, over = over, deep = deep, spots = sp, forced = forced }
+    lines[#lines + 1] = { first = first, last = last, width = w, over = over, deep = deep, spots = sp, forced = forced,
+                          bp = (last < n) and breakpoint_after(last) or nil }
     if M.trace then
       local txt = {}
       for k = first, last do local it = items[k]; txt[#txt+1] = it.c and utf8.char(it.c) or (it.kind == 4 and "_" or "[" .. (it.head and utf8.char(it.head) or "?") .. "]") end
@@ -565,50 +618,127 @@ local function decide(items, P, measure, cellcap, indent)
   return lines
 end
 
+-- 行盒的高深：照 Word 逐行算。探针 lh1.docx 量的（每段三行，第二行换字号、字体、文种）：
+--   每个 run 的自然行高 H_i 与上升部 A_i 按字体与字号算（中易系 1.296875、上升部
+--   1.008 倍字号加 0.082bp；Times 1.15、0.93261，都是类里的常数），一行取各 run 的最大值；
+--   倍数行距 k 不贴网格：盒高 k·H，基线在盒顶下 A（多出来的全在下面，页首那一行量出来
+--   上升部就是 A）；贴网格：盒高取 k·格距与「H 向上取整到整数格」的较大者，多出来的上下
+--   平分；固定值：盒高钉死，基线在 0.8 处（类的撑杆已经是这个数）。盒子、公式、表格这类
+--   东西按 TeX 的办法直接撑，不乘倍数。中文段里全是西文的行按西文的算（探针量的：
+--   1.5 倍行距下西文行 20.75、中文行 23.4），段自己的字体只在一个字都没有的行上兜底。
+local function linebox(box, ctx, strut_h, strut_d)
+  local H, A = 0, 0
+  local objA, objD = 0, 0
+  local function glyph_metrics(g)
+    local f = font.getfont(g.font)
+    local sz = f and f.size or 0
+    if sz == 0 then return end
+    local h, a
+    if is_jfont(g.font) then
+      h = ctx.nat_cjk * sz; a = ctx.asc_cjk * sz + ctx.asc_add
+    else
+      h = ctx.nat_latin * sz; a = ctx.asc_latin * sz + ctx.asc_add
+    end
+    if h > H then H = h end
+    if a > A then A = a end
+  end
+  for g in traverse(box.list) do
+    local id = g.id
+    if id == GLYPH then
+      glyph_metrics(g)
+    elseif id == HLIST and icflag(g) == IC.PACKED then
+      for m in traverse(g.list) do if m.id == GLYPH then glyph_metrics(m) end end
+    elseif id == HLIST or id == VLIST or (id == RULE and g.width ~= 0) then
+      if g.height > objA then objA = g.height end
+      if g.depth > objD then objD = g.depth end
+    elseif id == MATH then
+      -- 公式：从 math-on 到 math-off 之间的东西按 TeX 的高深撑
+      local m = g.next
+      while m and m.id ~= MATH do
+        local mh, md = m.height, m.depth
+        if m.id == GLYPH or m.id == HLIST or m.id == VLIST or m.id == RULE then
+          if mh and mh > objA then objA = mh end
+          if md and md > objD then objD = md end
+        end
+        m = m.next
+      end
+    end
+  end
+  -- 一个字都没有的行（只有盒子、公式）按段自己的字体算
+  if H == 0 then H, A = ctx.natpara, ctx.asc_para end
+  local asc, desc
+  if ctx.exact then
+    asc, desc = strut_h, strut_d
+  elseif ctx.snap and ctx.pitch > 0 then
+    local n = math.ceil(H / ctx.pitch - 0.001)
+    local total = math.max(ctx.bls, n * ctx.pitch)
+    asc = A + (total - H) / 2
+    desc = total - asc
+  else
+    local total = ctx.k * H
+    asc = A; desc = total - A
+  end
+  if objA > asc then asc = objA end
+  if objD > desc then desc = objD end
+  box.height = asc; box.depth = desc
+  trace("BOX H=%.2f A=%.2f obj=%.2f+%.2f k=%.3f %s -> %.2f+%.2f", H / 65536, A / 65536, objA / 65536, objD / 65536, ctx.k,
+    ctx.exact and "exact" or (ctx.snap and "snap" or "auto"), asc / 65536, desc / 65536)
+end
+
 -- 渲染一行：定各处胶与 kern 的宽，装成 hlist
-local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent, isfirst)
+local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent, isfirst, ctx, headnode)
   local p = P.cell
   local a, b = items[line.first], items[line.last]
-  local head, last = a.first, b.last
-  local nxt = last.next
-  last.next = nil
-  if nxt then nxt.prev = nil end
-  head.prev = nil
-  -- 行首的空格不占位
-  if a.kind == 4 then a.first.width = 0 end
-  -- 所有胶先定死；每个条目的节点跨度补 kern 到账本宽 nw，条目前的隙用 kern 摆
-  for g in traverse(head) do
-    if g.id == GLUE then g.stretch = 0; g.stretch_order = 0; g.shrink = 0 end
+  -- 本行的节点：从上一行断点起（首行从段首起），到本行断点前止
+  local head = headnode or a.first
+  local nxt = line.bp or b.last.next
+  if nxt then
+    nxt.prev.next = nil
+    nxt.prev = nil
   end
-  local function nodewidth(g)
-    local id = g.id
-    if id == GLYPH or id == HLIST or id == VLIST or id == RULE then return g.width
-    elseif id == GLUE then return g.width
-    elseif id == KERN then return g.kern
-    elseif id == DISC then
-      local w = 0
-      for h in traverse(g.replace) do if h.id == GLYPH then w = w + h.width elseif h.id == KERN then w = w + h.kern end end
-      return w
-    else return 0 end
+  head.prev = nil
+  -- 行首的可弃节点作废：断点处的胶、kern、罚分，照 TeX 的规矩不占位（链接起点这类
+  -- whatsit 不是可弃的，到它为止）
+  if not isfirst then
+    local g = head
+    while g and (g.id == GLUE or g.id == KERN or g.id == PENALTY) do
+      if g.id == GLUE then g.width = 0; g.stretch = 0; g.shrink = 0
+      elseif g.id == KERN then g.kern = 0 end
+      g = g.next
+    end
+  end
+  -- 所有胶先定死；每个条目的节点跨度补 kern 到账本宽 nw，条目前的隙用 kern 摆
+  -- 无穷伸量的胶（\hfill）留着，余量全归它，别的缝不再摊
+  local hasfil = false
+  for g in traverse(head) do
+    if g.id == GLUE then
+      if g.stretch_order > 0 then hasfil = true; g.shrink = 0
+      else g.stretch = 0; g.stretch_order = 0; g.shrink = 0 end
+    end
   end
   local autos, spaces, cjkgaps = {}, {}, {}
   for k = line.first, line.last do
     local it = items[k]
     if k > line.first and it.gap ~= 0 then
+      -- 隙放在前一条目的实体节点后面，不放在本条目前面：前一条目后面挂着的东西
+      -- （ulem 画下划线的 leaders、链接的 whatsit）该在隙的另一侧
       local kn = node.new(KERN); kn.kern = it.gap
-      node.insert_before(head, it.first, kn)
+      local pv = items[k - 1]
+      node.insert_after(head, pv.core or pv.last, kn)
       if it.gap == P.auto then autos[#autos + 1] = kn end
     end
-    if it.kind == 4 then
+    if it.kind == 4 and it.user then
+      -- 手写的胶：原样，行首也不归零（\hspace 就是要占位）
+    elseif it.kind == 4 then
       it.first.width = (k == line.first) and 0 or it.nw
       if not it.rigid and k > line.first then spaces[#spaces + 1] = it.first end
       -- 空格后面挂着的胶清零
       local g = it.first.next
-      while g and g ~= it.last.next do if g.id == GLUE then g.width = 0 end; g = g.next end
+      while g and g ~= it.last.next do if g.id == GLUE and g.subtype < 100 then g.width = 0 end; g = g.next end
     elseif it.rigid then
-      -- 盒子、公式自己的宽不动，后面挂着的胶（汉西隙）清零，隙由 gap 另放
+      -- 盒子、公式自己的宽不动，后面挂着的胶（汉西隙）清零，隙由 gap 另放；leaders 不动
       local g = it.core and it.core.next
-      while g and g ~= it.last.next do if g.id == GLUE then g.width = 0 end; g = g.next end
+      while g and g ~= it.last.next do if g.id == GLUE and g.subtype < 100 then g.width = 0 end; g = g.next end
     else
       if it.kind == 3 and it.gn then
         -- 西文字宽平衡：串里原有的字距清零，每个字形后补 (scale-1)·宽
@@ -633,7 +763,8 @@ local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent
         node.insert_before(head, it.first, kn)
         if it.first == head then head = kn end
       else
-        node.insert_after(head, it.last, kn)
+        -- 补位 kern 紧跟实体节点，后面挂着的胶、罚分、whatsit 留在它之后
+        node.insert_after(head, it.core or it.last, kn)
       end
       it.adj = kn
       -- 汉字缝：每个中文条目后面那个补位 kern（行末那个不算，它后面没有字了）
@@ -715,7 +846,7 @@ local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent
     -- 松行：贴格段伸到整数格，否则伸到版心；余量先给汉西隙与空格，再匀给汉字缝
     if M.snap or (M.compat ~= 15 and not M.ari0) then target = cellcap end
     local slack = target - line.width
-    if slack > 0 then
+    if slack > 0 and not hasfil then
       local n1 = #autos + #spaces
       if n1 > 0 then
         -- 有汉字缝可分时汉西隙与空格每处至多伸 autostretch，纯西文行由空格全包
@@ -741,10 +872,13 @@ local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent
     ib.next = head; head.prev = ib; head = ib
   end
   local box = node.hpack(head, measure, "exactly")
-  -- 行盒的高深：内容的自然高深，不低于撑杆。行里有表格、大盒子时得跟着内容走，
-  -- 不然那些东西从固定高的行盒里冒出去、盖到上面的行上
-  if box.height < strut_h then box.height = strut_h end
-  if box.depth < strut_d then box.depth = strut_d end
+  if ctx then
+    linebox(box, ctx, strut_h, strut_d)
+  else
+    -- 没有类的行距参数时退到 TeX 的办法：内容的自然高深，不低于撑杆
+    if box.height < strut_h then box.height = strut_h end
+    if box.depth < strut_d then box.depth = strut_d end
+  end
   -- 脚注、浮动体、标记、vadjust 不能留在行盒里：照 TeX 断行的做法搬到行盒后面
   local moved = nil
   local g = box.list
@@ -764,12 +898,51 @@ local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent
     end
     g = nx
   end
-  return box, moved
+  return box, moved, nxt
 end
 
 local function skip(why)
   trace("SKIP %s", why)
   return true
+end
+
+-- 读类的行距参数：撑杆是按段首字体算的，这里要的是逐行重算用的系数。
+-- 类没装这些变量（不走 Word 版面）就返回 nil，行盒退到 TeX 的办法
+local function getbool(name)
+  local ok, t = pcall(token.create, name)
+  if not ok or not t or t.cmdname ~= "char_given" then return nil end
+  return t.mode ~= 0
+end
+local function getfactor(name)
+  local ok, v = pcall(token.get_macro, name)
+  if not ok or not v then return nil end
+  return tonumber(v)
+end
+function M.linectx(strut_h, strut_d)
+  local exact = getbool("l_hit_format_strut_exact_bool")
+  local snap = getbool("l_hit_format_line_snap_bool")
+  local latin = getbool("l_hit_format_strut_latin_bool")
+  if exact == nil or snap == nil then return nil end
+  local ok, natpara = pcall(tex.getdimen, "l__hit_format_nat_dim")
+  if not ok or not natpara or natpara <= 0 then return nil end
+  local nat_cjk = getfactor("c__hit_format_natural_tl") or 1.296875
+  local nat_latin = getfactor("c__hit_format_natural_latin_tl") or 1.15
+  local asc_cjk = getfactor("l_hit_format_ascent_tl") or 1.008
+  local asc_latin = getfactor("c__hit_format_ascent_latin_tl") or 0.93261
+  local ok2, asc_add = pcall(tex.getdimen, "c__hit_format_ascent_dim")
+  if not ok2 or not asc_add then asc_add = 0.082 * 65781.76 end
+  local ok3, pitch = pcall(tex.getdimen, "g_hit_msword_lead_dim")
+  if not ok3 or not pitch then pitch = 0 end
+  local bls = tex.baselineskip.width
+  local total = strut_h + strut_d
+  -- 段自己那一档的上升部：撑杆里贴网格时是居中过的，退回去
+  local asc_para = strut_h
+  if not exact and snap then asc_para = strut_h - (total - natpara) / 2 end
+  local k = bls / natpara
+  if k < 1 then k = 1 end
+  return { exact = exact, snap = snap, latin = latin, natpara = natpara, asc_para = asc_para,
+           nat_cjk = nat_cjk, nat_latin = nat_latin, asc_cjk = asc_cjk, asc_latin = asc_latin,
+           asc_add = asc_add, pitch = pitch, bls = bls, k = k }
 end
 function M.filter(head, is_display)
   if (tex.parshape or 0) ~= 0 or tex.hangindent ~= 0 then return skip("parshape") end
@@ -794,16 +967,25 @@ function M.filter(head, is_display)
   local measure = tex.hsize
   local cellcap = math.floor(measure / cell) * cell
   local lines = decide(items, P, measure, cellcap, indent)
+  local ctx = M.linectx(strut_h, strut_d)
   local newhead, tail = nil, nil
   local prevdepth = tex.prevdepth
+  local nl = #lines
+  local nexthead = nil
   for li, line in ipairs(lines) do
-    local box, moved = render(items, line, P, measure, cellcap, strut_h, strut_d, indent, li == 1)
+    local box, moved
+    box, moved, nexthead = render(items, line, P, measure, cellcap, strut_h, strut_d, indent, li == 1, ctx, nexthead)
     if li > 1 then
-      -- 行间胶照 TeX 的规矩：基线距不够 lineskiplimit 就改用 lineskip
-      local g = node.new(GLUE); g.subtype = 2
-      g.width = tex.baselineskip.width - prevdepth - box.height
-      if g.width < tex.lineskiplimit then
-        g.subtype = 1; g.width = tex.lineskip.width
+      -- 行间胶用 subtype 0：luatexja 的 post_linebreak_filter 会把 subtype 1、2 的胶按
+      -- TeX 的 baselineskip 规矩重算，行盒恰好等于行距时舍入成负数就换成 lineskip，多出 1pt
+      local g = node.new(GLUE); g.subtype = 0
+      if ctx then
+        -- Word 是把行盒直接摞起来：基线距 = 上行行深 + 本行上升部
+        g.width = 0
+      else
+        -- 行间胶照 TeX 的规矩：基线距不够 lineskiplimit 就改用 lineskip
+        g.width = tex.baselineskip.width - prevdepth - box.height
+        if g.width < tex.lineskiplimit then g.width = tex.lineskip.width end
       end
       tail.next = g; g.prev = tail; tail = g
     end
@@ -811,6 +993,16 @@ function M.filter(head, is_display)
     tail = box
     if moved then
       tail.next = moved; moved.prev = tail; tail = node.tail(moved)
+    end
+    if li < nl then
+      -- 行间罚分照 TeX：interlinepenalty，首行后加 clubpenalty，倒数第二行后加 widowpenalty
+      local pen = tex.interlinepenalty
+      if li == 1 then pen = pen + tex.clubpenalty end
+      if li == nl - 1 then pen = pen + tex.widowpenalty end
+      if pen ~= 0 then
+        local pn = node.new(PENALTY); pn.penalty = pen
+        tail.next = pn; pn.prev = tail; tail = pn
+      end
     end
     prevdepth = box.depth
   end
