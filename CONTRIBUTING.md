@@ -476,6 +476,7 @@ src/pages/
 | `hit-title.dtx` | `title` 键的解析与三种取用 |
 | `hit-caption.dtx` | 双语题注（`\caption{中}[英]`）与 `\bicaption` 兼容 |
 | `hit-subfigure.dtx` | `\subfigure` 兼容层，整个文件到 v4 可删 |
+| `hit-linebreak.dtx` | 断行层：LuaTeX 上照 Word 的贪心断行，Lua 部分解出 `hit-linebreak.lua` |
 | `hit-option-engine.dtx` | 选项声明助手与读标志位的判断函数 |
 
 判断标准是“两档会不会分开改”。会分开改的（封面、页眉、章节标题、目录）留在分档的文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `engine/`。

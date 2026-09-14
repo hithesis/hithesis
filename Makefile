@@ -55,12 +55,17 @@ compat-regression:
 #
 # 代价是这个目标要机器上装了 Office 字体才能跑。lineends 不进 CI（CI 只跑
 # compat-regression），是本机开发用的量具，可以这么钉。
+#
+# 2026/09/15 起主线是 lualatex：断行由 src/engine/hit-linebreak.dtx 的 Lua 照 Word
+# 的贪心算法做，行差从 78 降到 52。基线是本科范例（Word 现行版式 15），demo 是
+# 博士论文（默认 word-compat=11），所以这里把模式钉回 15 再比。剩下的 52 里是
+# 八处平局与语料伪差各自往后串出来的行，见 memory 里的对拍记录。
 lineends:
-	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -xelatex \
+	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex \
 	  -interaction=nonstopmode \
-	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' final.tex \
+	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}\AddToHook{class/hithesis/after}{\hitsetup{layout={word-compat=15}}}' final.tex \
 	  > /dev/null
-	python3 scripts/check-line-ends.py --max-diff 78
+	python3 scripts/check-line-ends.py --pdf examples/demo/final.pdf --max-diff 52
 
 # 解压走自解压的 dtx，不走 .ins：解压规则写在 src/hithesis.dtx 的 install 守卫里，
 # hithesis.ins 是它的产物之一（提交进仓库，随 CTAN 包发出去，供拿到源码包的人用）。

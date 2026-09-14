@@ -50,6 +50,7 @@ DESC = {
     "shared-date": "中文日期格式",
     "shared-msword": "Word 页面设置换算成版面参数",
     "shared-format": "元素格式：字体、行距、间距、缩进",
+    "shared-linebreak": "断行层：LuaTeX 上照 Word 的贪心断行",
     "shared-caption": "题注与双语题注",
     "shared-subfigure": "子图",
     "shared-key-engine": "键怎么造、怎么存、旧名怎么兼容",

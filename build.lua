@@ -43,6 +43,7 @@ installfiles = {
   "hithesisbook.cls", "hithesisart.cls", "hithesisartplus.cls",
   "hithesis.sty",
   "hithesis.ist", "hithesis.bst", "hithesis.cfg",
+  "hit-linebreak.lua",
   "hit-logo.pdf", "hit-bachelor-report-bottommark.pdf",
 }
 
