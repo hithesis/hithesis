@@ -8,6 +8,8 @@
 %
 % \changes{v3.2a}{2026/09/15}{新增断行层：\hologo{LuaLaTeX} 上不再用 TeX 的最优断行，
 %   照 Word 的贪心算法逐行首次适配、装不下就压标点，规则全是量出来的}
+% \changes{v3.2a}{2026/09/15}{兼容模式 11、12、14、15 各量一遍：学校的 doc 原件都是 11，
+%   默认改成 11；\option{word-compat} 收四个值}
 % Word 排一段是逐行贪心：这一行能装几个装几个，下一个字装不下，先看能不能把
 % 行内的标点压一压塞进来，塞不进就换行；行首不能是闭号，行尾不能是开号，碰上了
 % 先压标点再悬挂。TeX 是全段最优，两边永远对不上。\hologo{LuaLaTeX} 的
@@ -26,15 +28,20 @@
 % \texttt{word} 只在 \hologo{LuaLaTeX} 且走 Word 版面时生效，
 % \hologo{XeLaTeX} 上没有这条路，写了也当 \texttt{tex}。
 %
-% \option{layout}/\option{word-compat} 是 Word 文件的兼容模式，取 \texttt{15}
-% （默认，现行 Word）或 \texttt{11}（Word 2003 版式，研究生范例是这一档：不塞汉字，
-% 只在有压缩位时给半格）。
+% \option{layout}/\option{word-compat} 是 Word 文件的兼容模式，就是 docx 的
+% \file{settings.xml} 里 \texttt{compatibilityMode} 那个数：\texttt{11}（Word 2003）、
+% \texttt{12}（2007）、\texttt{14}（2010）、\texttt{15}（2013 起）。学校发的原件几乎都是
+% \texttt{doc}，用新版 Word 原样另存都是 11 且带 2003 的三个开关；学校自己发的少数
+% docx/dotx 是 12 或 14；15 只出现在用户点过「转换」的文件里。所以默认 \texttt{11}。
+%
+% 四档里 11、12、14 的断行规则一样，只差行末闭号一处没有行内位时挂半格（11）还是
+% 整格（12、14）；15 另一套，能多塞汉字。规则见 Lua 文件头。
 %    \begin{macrocode}
 %<*shared-linebreak>
 \bool_new:N \g__hit_linebreak_word_bool
 \bool_gset_true:N \g__hit_linebreak_word_bool
 \int_new:N \g__hit_linebreak_compat_int
-\int_gset:Nn \g__hit_linebreak_compat_int { 15 }
+\int_gset:Nn \g__hit_linebreak_compat_int { 11 }
 \keys_define:nn { hit / layout }
   {
     linebreak .choice: ,
@@ -42,8 +49,10 @@
     linebreak / tex  .code:n = { \bool_gset_false:N \g__hit_linebreak_word_bool } ,
     linebreak .value_required:n = true ,
     word-compat .choice: ,
-    word-compat / 15 .code:n = { \int_gset:Nn \g__hit_linebreak_compat_int { 15 } } ,
     word-compat / 11 .code:n = { \int_gset:Nn \g__hit_linebreak_compat_int { 11 } } ,
+    word-compat / 12 .code:n = { \int_gset:Nn \g__hit_linebreak_compat_int { 12 } } ,
+    word-compat / 14 .code:n = { \int_gset:Nn \g__hit_linebreak_compat_int { 14 } } ,
+    word-compat / 15 .code:n = { \int_gset:Nn \g__hit_linebreak_compat_int { 15 } } ,
     word-compat .value_required:n = true ,
   }
 %    \end{macrocode}
@@ -76,8 +85,8 @@
                   {
                     hithesis = hithesis~or~{}
                     hithesis.linebreak = dofile(
-                      kpse.find_file("hit-linebreak.lua", "tex")
-                      or kpse.find_file("hit-linebreak.lua", "lua"))
+                      kpse.find_file("hit-linebreak.lua", "tex")~
+                      or~kpse.find_file("hit-linebreak.lua", "lua"))
                     hithesis.linebreak.compat = \int_use:N \g__hit_linebreak_compat_int
                     hithesis.linebreak.install(luatexbase.attributes["hit@linebreak@attr"])
                   }
@@ -99,11 +108,15 @@
 --   自然宽：汉字/开号一格 p；闭号一格，后接标点则半格；西文字形宽乘 p/em（Word 的
 --     「中西文字宽平衡」）；汉字与西文字母数字之间自动间距 3.25bp；西文接闭号 0.27bp；
 --     两边都是中文的空格占半格且不伸缩，其余空格 3.5bp；—～· 这类全角符号当西文串里的字，不加间距。
---   塞汉字：压缩位 K = 行内闭号（后接标点的算 0.2）+ 开号（前面是汉字或闭号）；
---     总额 T = p·K/(K+1)，各位均摊；行末若是开号则按禁则处理（同塞闭号）。
---   塞闭号（禁则）：行内位每处至多 deepcap，余下悬挂至多半格；一处都没有时整个闭号挂出去。
---   模式 11（研究生范例，adjustRightInd=0）：有压缩位就给半格，没有不给；闭号悬挂半格、行内位各半格。
+--   塞汉字：压缩位 K = 行内闭号（后接闭号的算 0.2）+ 开号（前面是汉字 1、是标点 0.2）。
+--     模式 15：总额 T = p·K/(K+1)，各位均摊，行里有西文块再按 K 扣一点（量出来的表）；
+--     模式 11/12/14：有位就给半格，没有不给，与 K 无关，西文不扣。
+--     行末是开号：再加开号自己的左半空白，装不进就把开号拉到下一行。
+--   塞闭号（禁则）：模式 15 一处行内位都没有时整个闭号挂出去，有 K 个则 p + p·(K+1)/(K+3)；
+--     模式 11（带 doNotWrapTextWithPunct）挂半格、12/14 挂整格，行内位各半格、至多两个。
 --   松行：余量先给汉西隙（每处至多 2.8bp）与西文空格，再均摊到汉字缝；贴格段伸到整数格。
+--   兼容模式的来历：学校的 doc 原件用新版 Word 另存都是 11 且带 2003 那三个开关；
+--   学校自己发的 docx/dotx 是 12 或 14；15 只出现在用户「转换」过的文件里。
 local M = {}
 M.version = "v3.2a"
 local node, tex = node, tex
@@ -129,9 +142,9 @@ local ascii_open = set_of("([{")
 local latinish = set_of("～—–·")
 
 M.trace = false
-M.compat = 15   -- Word 兼容模式：15 现行，11 是 Word 2003 版式（研究生范例）
+M.compat = 11   -- Word 兼容模式：11/12/14 一档（学校发的文件），15 另一档（转换过的 docx）
 M.snap = false  -- 段落贴行网格（Word 的 snapToGrid）
-M.ari0 = true   -- 模式 11：adjustRightInd=0 时装到版心，否则整数格
+M.ari0 = true   -- 模式 ≤14：adjustRightInd=0 时装到版心，否则整数格
 local function trace(...)
   if M.trace then texio.write_nl("term and log", "HG| " .. string.format(...)) end
 end
@@ -318,6 +331,7 @@ end
 
 -- 禁则时行内位各自的压缩上限
 local function midcap(it, P)
+  if M.compat ~= 15 then return it.paired and P.pairdeep or P.cell / 2 end
   if it.kind == 2 then return it.afterclose and 0 or P.deepcap_open end
   return it.paired and P.pairdeep or P.deepcap
 end
@@ -329,7 +343,7 @@ local function decide(items, P, measure, cellcap, indent)
   local lines = {}
   local n = #items
   local capacity = measure
-  if M.compat == 11 and not M.ari0 then capacity = cellcap
+  if M.compat ~= 15 and not M.ari0 then capacity = cellcap
   elseif M.snap then capacity = cellcap end
   -- 行末的配对半宽标点在行末是整格（后面没有东西跟它配了）
   local function width_of(first, last, isfirst)
@@ -353,26 +367,75 @@ local function decide(items, P, measure, cellcap, indent)
     end
     return sp, K
   end
-  local function budget(K, adj)
-    if M.compat == 11 then
+  -- 模式 15 里西文块的扣减：块的「拟合宽」比排出来的宽多 D，扣 D·g(K)；紧挨着被塞字的块不扣，
+  -- 第二个起的块只算一半。g 是量出来的表（k=1..10），D 用 '4' 那种块定标（1.38bp）。
+  local G = { [1] = 0.5, [2] = 1.05, [3] = 1.05, [4] = 0.95, [5] = 0.9, [6] = 0.85, [7] = 0.8, [8] = 0.75, [9] = 0.7, [10] = 0.65 }
+  local function latin_penalty(first, last, K)
+    if M.compat ~= 15 or K < 1 then return 0 end
+    -- 被塞的字紧跟在西文后面时整行都不扣（探针与范例都这样）
+    local before = items[last - 1]
+    if before and (before.kind == 3 or before.kind == 4) then return 0 end
+    local g = G[math.min(10, math.max(1, math.floor(K + 0.5)))]
+    local pen, nblk = 0, 0
+    local k = first
+    while k < last do
+      local it = items[k]
+      if it.kind == 3 and it.gn and not it.rigid then
+        -- 一个块：连着的西文串与空格
+        local w, n = 0, 0
+        local e = k
+        while e < last and (items[e].kind == 3 or items[e].kind == 4) do
+          local x = items[e]
+          if x.kind == 3 and x.gn then w = w + x.gw; n = n + x.gn else w = w + x.nw end
+          e = e + 1
+        end
+        -- 只有两侧都是汉字（两边都有汉西隙）的块才扣；挨着标点的量不出扣减
+        local pv = items[k - 1]
+        if e < last and pv and pv.kind == 0 and items[e].kind == 0 then
+          local q = p / 4
+          local F = w + 0.48 * P.bp * math.max(0, n - 1) + 8.1 * P.bp
+          local R = math.ceil((w + 2 * q) / q - 0.001) * q
+          local D = math.max(0, F - R)
+          nblk = nblk + 1
+          pen = pen + D * g * (nblk == 1 and 1 or 0.5)
+        end
+        k = e
+      else
+        k = k + 1
+      end
+    end
+    return pen
+  end
+  local function budget(K, adj, first, last)
+    if M.compat ~= 15 then
       if not M.ari0 then return 0 end
       return (K >= 1 or adj) and p / 2 or 0
     end
-    return p * K / (K + 1)
+    return p * K / (K + 1) - latin_penalty(first, last, K)
   end
-  -- 禁则用的行内位：只算整位（配对的半宽闭号不算）
+  -- 行末是开号：再给开号自己的左半空白；模式 ≤14 里行内每个位再各给半格，至多两个
+  local function open_budget(K, first, last)
+    if M.compat ~= 15 then
+      if not M.ari0 then return 0 end
+      return p / 2 + math.min(K, 2) * p / 2
+    end
+    return p * K / (K + 1) + p / 2
+  end
+  -- 禁则用的行内位：只算整位的闭号（配对的半宽闭号与开号不算）
   local function mids_of(sp)
     local m = {}
-    for _, it in ipairs(sp) do if it.spot >= 1 then m[#m + 1] = it end end
+    for _, it in ipairs(sp) do if it.kind == 1 and it.spot >= 1 then m[#m + 1] = it end end
     return m
   end
-  local function deep_budget(sp)
+  local function deep_budget(sp, first, last)
     local m = mids_of(sp)
-    if M.compat == 11 then return p / 2 + #m * p / 2 end
-    if #m == 0 then return p end
-    local b = P.hang
-    for _, it in ipairs(m) do b = b + midcap(it, P) end
-    return b
+    local K = #m
+    if M.compat == 15 then
+      -- 整个闭号挂出去，行内闭号再共出 p·(K+1)/(K+3)；西文块的扣减量出来比塞汉字时大一倍上下
+      if K == 0 then return p end
+      return p + p * (K + 1) / (K + 3) - 2 * latin_penalty(first, last, K)
+    end
+    return (M.compat == 11 and p / 2 or p) + math.min(K, 2) * p / 2
   end
   local i = 1
   while i <= n do
@@ -392,7 +455,7 @@ local function decide(items, P, measure, cellcap, indent)
         if it.kind == 1 and (it.spot or 0) > 0 or (it.kind == 3 and ascii_close[it.head]) then
           -- 禁则：闭号不能当行首，先压行内位再悬挂；压不进就连前一项一起下行
           local sp = spots_of(first, j)
-          if need <= deep_budget(sp) + P.eps then
+          if need <= deep_budget(sp, first, j) + P.eps then
             last = j; j = j + 1; deep = true
             while j <= n and items[j].kind == 1 do last = j; j = j + 1 end
           elseif last > first then
@@ -401,9 +464,7 @@ local function decide(items, P, measure, cellcap, indent)
           break
         end
         local sp, K = spots_of(first, prevopen and j - 1 or j)
-        local T = budget(K, prevopen)
-        -- 行尾是开号：开号自己的左半空白也能压，装不下就把开号拉到下一行
-        if prevopen then T = T + p / 2 end
+        local T = prevopen and open_budget(K, first, j - 1) or budget(K, false, first, j)
         if need <= T + P.eps then
           -- 塞进来了，接着看下一项是不是闭号（禁则）
           last = j; j = j + 1
@@ -525,29 +586,35 @@ local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent
       if K > 0 then for _, it in ipairs(sp) do take(it, line.over * it.spot / K) end end
     else
       local rest = line.over
-      if M.compat == 11 then
-        local hang = math.min(rest, p / 2)
-        rest = rest - hang
-        if #sp > 0 then for _, it in ipairs(sp) do take(it, rest / #sp) end; rest = 0 end
-        rest = rest + hang
+      -- 行内位吃得下：全由行内位按上限比例分担，不挂；
+      -- 吃不下：模式 11 挂多少算多少（至多半格），其余模式挂半格或整格（量出来是这两档），
+      -- 挂多了行反而松，余量匀给汉字缝；行内位分担挂剩下的那部分。
+      -- 模式 ≤14 行内位至多两个，取靠后的两个
+      if M.compat ~= 15 and #sp > 2 then
+        local m = {}
+        for i2 = #sp - 1, #sp do m[#m + 1] = sp[i2] end
+        sp = m
+      end
+      local cap = 0
+      for _, it in ipairs(sp) do cap = cap + midcap(it, P) end
+      if rest <= cap + P.eps then
+        for _, it in ipairs(sp) do take(it, rest * midcap(it, P) / cap) end
+        rest = 0
       else
-        -- 超出不到半格：闭号整整挂出半格，行反而松了，余量匀给汉字缝；
-        -- 行内位吃得下：全由行内位均摊，不挂；
-        -- 吃不下：先挂半格，余下按各自上限比例分给行内位，再不够继续挂
-        local cap = 0
-        for _, it in ipairs(sp) do cap = cap + midcap(it, P) end
-        if rest <= P.hang + P.eps then
-          local extra = P.hang - rest
+        local r = rest - cap
+        local hang
+        if M.compat == 11 then hang = math.min(r, p / 2)
+        elseif r <= p / 2 + P.eps then hang = p / 2
+        else hang = p end
+        if hang >= rest then
+          -- 挂出去的比缺的还多，行松了
+          local extra = hang - rest
           if extra > 0 and #cjkgaps > 0 then
             local each = extra / #cjkgaps
             for _, g in ipairs(cjkgaps) do g.kern = g.kern + each end
           end
-          rest = P.hang
-        elseif rest <= cap + P.eps then
-          for _, it in ipairs(sp) do take(it, rest * midcap(it, P) / cap) end
-          rest = 0
+          rest = hang
         else
-          local hang = P.hang
           local r2 = rest - hang
           if cap > 0 then
             local f = math.min(1, r2 / cap)
@@ -574,7 +641,7 @@ local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent
     node.insert_after(head, node.tail(head), fil)
   elseif line.over <= 0 then
     -- 松行：贴格段伸到整数格，否则伸到版心；余量先给汉西隙与空格，再匀给汉字缝
-    if M.snap or (M.compat == 11 and not M.ari0) then target = cellcap end
+    if M.snap or (M.compat ~= 15 and not M.ari0) then target = cellcap end
     local slack = target - line.width
     if slack > 0 then
       local n1 = #autos + #spaces
@@ -642,7 +709,8 @@ function M.filter(head, is_display)
   local bp = 65781.76
   local P = { cell = cell, em = em, bp = bp, scale = cell / em,
               auto = 3.25 * bp, lp = 0.27 * bp, space = 3.25 * bp,
-              pairw = 0.2, deepcap = 5.75 * bp, deepcap_open = 5.5 * bp, pairdeep = 2.0 * bp, hang = 6.2 * bp, autostretch = 2.8 * bp,
+              pairw = 0.2, deepcap = cell / 2, deepcap_open = 5.5 * bp, pairdeep = 2.0 * bp,
+              hang = cell / 2, autostretch = 2.8 * bp,
               eps = 0.03 * bp }
   local measure = tex.hsize
   local cellcap = math.floor(measure / cell) * cell
