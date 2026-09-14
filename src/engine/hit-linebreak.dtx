@@ -10,6 +10,10 @@
 %   照 Word 的贪心算法逐行首次适配、装不下就压标点，规则全是量出来的}
 % \changes{v3.2a}{2026/09/15}{兼容模式 11、12、14、15 各量一遍：学校的 doc 原件都是 11，
 %   默认改成 11；\option{word-compat} 收四个值}
+% \changes{v3.2a}{2026/09/14}{断点只认 TeX 的合法断点（\LaTeX{} 标志、英文内封的两个盒子
+%   从前被拆开）；行盒取内容的自然高深（长表格从前从行盒里冒出去）；手写 kern 不再清零；
+%   开号紧跟开号时半格算在后一个上（从前前一个的墨迹贴到前面的字上）；盒子、公式两侧的
+%   汉西隙按 luatexja 的判定放}
 % Word 排一段是逐行贪心：这一行能装几个装几个，下一个字装不下，先看能不能把
 % 行内的标点压一压塞进来，塞不进就换行；行首不能是闭号，行尾不能是开号，碰上了
 % 先压标点再悬挂。TeX 是全段最优，两边永远对不上。\hologo{LuaLaTeX} 的
@@ -105,7 +109,8 @@
 %<*lua>
 -- hit-linebreak.lua：hithesis 的断行层，照 Word 的贪心断行（LuaTeX linebreak_filter）
 -- 规则全是自造 docx 让 Word 排、逐行量出来的：
---   自然宽：汉字/开号一格 p；闭号一格，后接标点则半格；西文字形宽乘 p/em（Word 的
+--   自然宽：汉字/开号一格 p；闭号一格，后接标点则半格；开号紧跟开号时后一个半格（左半
+--     空白没了，两个开号的墨迹挨着）；西文字形宽乘 p/em（Word 的
 --     「中西文字宽平衡」）；汉字与西文字母数字之间自动间距 3.25bp；西文接闭号 0.27bp；
 --     两边都是中文的空格占半格且不伸缩，其余空格 3.5bp；—～· 这类全角符号当西文串里的字，不加间距。
 --   塞汉字：压缩位 K = 行内闭号（后接闭号的算 0.2）+ 开号（前面是汉字 1、是标点 0.2）。
@@ -115,6 +120,9 @@
 --   塞闭号（禁则）：模式 15 一处行内位都没有时整个闭号挂出去，有 K 个则 p + p·(K+1)/(K+3)；
 --     模式 11（带 doNotWrapTextWithPunct）挂半格、12/14 挂整格，行内位各半格、至多两个。
 --   松行：余量先给汉西隙（每处至多 2.8bp）与西文空格，再均摊到汉字缝；贴格段伸到整数格。
+--   断点：照 TeX 的规矩，只在合法断点断（胶、罚分小于 10000、disc、连字符后），~ 后面
+--     与两个盒子之间断不开；退到头还断不开就照 TeX 往后找第一个能断的地方，行溢出。
+--   行盒：内容的自然高深，不低于撑杆；行间胶照 baselineskip/lineskip 的规矩。
 --   兼容模式的来历：学校的 doc 原件用新版 Word 另存都是 11 且带 2003 那三个开关；
 --   学校自己发的 docx/dotx 是 12 或 14；15 只出现在用户「转换」过的文件里。
 local M = {}
@@ -177,7 +185,9 @@ local function is_alnum(c)
 end
 
 -- 把节点表切成条目：0 汉字 1 闭号 2 开号 3 西文串 4 空格
--- 西文串记字形宽之和 gw、字数 gn、首末字符；串里的字距 kern 不计宽（渲染时重设）
+-- 西文串记字形宽之和 gw、字数 gn、首末字符；串里的字体字距（subtype 0，含 LetterSpace
+-- 加的那些）不计宽，渲染时清零重设；手写的 \kern（subtype 1，\LaTeX 这类标志靠它）
+-- 原样保留，宽记进 kw。每个条目记下 core：它最后一个实体节点，断行合法性从它往后查
 local function tokenize(head)
   local items = {}
   local run = nil
@@ -186,15 +196,15 @@ local function tokenize(head)
   end
   local function put(kind, first, last, w, c)
     flush_run()
-    items[#items + 1] = { kind = kind, first = first, last = last, w = w, c = c }
+    items[#items + 1] = { kind = kind, first = first, last = last, core = last, w = w, c = c }
     return items[#items]
   end
   local function attach(n)
     if run then run.last = n elseif #items > 0 then items[#items].last = n end
   end
   local function addglyph(n, c, jglyph)
-    if not run then run = { kind = 3, first = n, last = n, gw = 0, gn = 0, head = c, tail = c, kerns = {}, glyphs = {} } end
-    run.last = n; run.gw = run.gw + n.width; run.gn = run.gn + 1; run.tail = c
+    if not run then run = { kind = 3, first = n, last = n, gw = 0, gn = 0, kw = 0, head = c, tail = c, kerns = {}, glyphs = {} } end
+    run.last = n; run.core = n; run.gw = run.gw + n.width; run.gn = run.gn + 1; run.tail = c
     run.glyphs[#run.glyphs + 1] = n
     if jglyph then run.hasj = true end
   end
@@ -230,8 +240,13 @@ local function tokenize(head)
       elseif openers[c] then put(2, n, n, n.width, c)
       else put(0, n, n, n.width, c) end
     elseif id == GLUE then
-      if is_kanjiskip(n) or is_xkanjiskip(n) then
+      if is_kanjiskip(n) then
         attach(n)
+      elseif is_xkanjiskip(n) then
+        -- 记下这里有汉西隙：盒子、公式这类看不见内容的条目靠它定两侧的隙
+        attach(n)
+        local it = run or items[#items]
+        if it then it.xk = true end
       elseif is_jfmglue(n) then
         if #items > 0 and not run and items[#items].kind == 1 and not items[#items].jfmglue then
           items[#items].last = n; items[#items].jfmglue = n
@@ -244,7 +259,12 @@ local function tokenize(head)
         attach(n)
       end
     elseif id == KERN then
-      if run then run.last = n; run.kerns[#run.kerns + 1] = n else attach(n) end
+      if run then
+        run.last = n
+        if n.subtype == 0 then run.kerns[#run.kerns + 1] = n else run.kw = run.kw + n.kern; run.core = n end
+      else
+        attach(n)
+      end
     elseif id == DISC then
       -- 明写的连字符在 LuaTeX 里是 disc（replace 里放着字形）：计宽，后面可断
       local w, c = 0, nil
@@ -252,15 +272,17 @@ local function tokenize(head)
         if g.id == GLYPH then w = w + g.width; c = g.char elseif g.id == KERN then w = w + g.kern end
       end
       if c then
-        if not run then run = { kind = 3, first = n, last = n, gw = 0, gn = 0, head = c, tail = c, kerns = {}, glyphs = {} } end
-        run.last = n; run.gw = run.gw + w; run.gn = run.gn + 1; run.tail = c
+        if not run then run = { kind = 3, first = n, last = n, gw = 0, gn = 0, kw = 0, head = c, tail = c, kerns = {}, glyphs = {} } end
+        run.last = n; run.core = n; run.gw = run.gw + w; run.gn = run.gn + 1; run.tail = c
         run.discs = run.discs or {}; run.discs[#run.discs + 1] = n
         if c == 45 then flush_run() end
       else
         attach(n)
       end
     elseif id == PENALTY then
+      -- 串里明写的可断点（\allowbreak、url 的断点）：串到此为止，后面可断
       attach(n)
+      if run and n.penalty < 10000 then flush_run() end
     elseif id == RULE then
       if n.width == 0 then
         if n.height > strut_h then strut_h = n.height; strut_d = n.depth end
@@ -269,16 +291,16 @@ local function tokenize(head)
         put(3, n, n, n.width, nil).rigid = true
       end
     elseif id == MATH then
-      local last = n; local w = 0
+      local last = n
       local m = n.next
-      while m and m.id ~= MATH do w = w + (m.width or 0); last = m; m = m.next end
+      while m and m.id ~= MATH do last = m; m = m.next end
       if m then last = m end
       flush_run()
-      items[#items + 1] = { kind = 3, first = n, last = last, w = w, math = true, rigid = true }
+      items[#items + 1] = { kind = 3, first = n, last = last, core = last, w = node.dimensions(n, last.next), math = true, rigid = true }
       nxt = last.next
     elseif id == HLIST or id == VLIST then
       flush_run()
-      items[#items + 1] = { kind = 3, first = n, last = n, w = n.width, rigid = true }
+      items[#items + 1] = { kind = 3, first = n, last = n, core = n, w = n.width, rigid = true }
     else
       attach(n)
     end
@@ -305,8 +327,10 @@ local function natural(items, P)
       -- 后接闭号的只算 0.2 个位，后接开号或汉字的是整位
       it.spot = (nk == 1) and P.pairw or 1
     elseif it.kind == 2 then
-      -- 开号后接开号：前一个半宽
-      it.paired = (nk == 2)
+      -- 开号后接开号：按步进算是前一个半格，但开号的空白在左边，落到纸面上是后一个
+      -- 的左半空白没了、两个开号的墨迹挨着（范例「为“（1-1）”」量的：“ 的原点在格首，
+      -- （ 从半格处起）。这里的账本按空白记，所以是后一个半格
+      it.paired = (prev and prev.kind == 2) or false
       it.nw = it.paired and p / 2 or p
       -- 前面是汉字的开号是整位，前面是标点的只算 0.2 个位
       if not prev then it.spot = 0
@@ -315,15 +339,18 @@ local function natural(items, P)
       else it.spot = 0 end
       it.afterclose = prev and prev.kind == 1
     elseif it.kind == 3 then
-      if it.gn then it.nw = it.gw * P.scale else it.nw = it.w end
+      if it.gn then it.nw = it.gw * P.scale + it.kw else it.nw = it.w end
       if prev and prev.kind == 0 and is_alnum(it.head) then gap = P.auto end
+      -- 盒子、公式：看不见头尾的字，luatexja 在前面放了汉西隙就照放
+      if it.rigid and prev and prev.kind <= 2 and prev.xk then gap = P.auto end
     else
       local cjk = (prev and prev.kind <= 2) or (nx and nk <= 2)
       if cjk then it.nw = p / 2; it.rigid = true else it.nw = P.space end
     end
     if prev and prev.kind == 3 then
       if (it.kind == 0 or it.kind == 2) and is_alnum(prev.tail) then gap = P.auto
-      elseif it.kind == 1 and is_alnum(prev.tail) then gap = P.lp end
+      elseif it.kind == 1 and is_alnum(prev.tail) then gap = P.lp
+      elseif prev.rigid and prev.xk and it.kind <= 2 then gap = P.auto end
     end
     it.gap = gap
   end
@@ -421,6 +448,35 @@ local function decide(items, P, measure, cellcap, indent)
     end
     return p * K / (K + 1) + p / 2
   end
+  -- 条目 k 后面能不能断：照 TeX 的规矩查 k 的实体节点到 k+1 的首节点之间有没有合法断点。
+  -- 前面不是可弃节点（胶、kern、罚分、数学）的胶、小于 10000 的罚分、后接胶的 kern 或数学
+  -- 节点、disc 都算；~ 是罚分 10000 加胶，就断不开。行末的空格条目自己就是那个胶
+  local function legal_after(k)
+    if k >= n then return true end
+    local core = items[k].core
+    if not core then return true end
+    if core.id == DISC then return true end
+    if core.id == GLYPH and core.char == 45 then return true end
+    local stop = items[k + 1].first
+    local prev = core
+    local g = core.next
+    while g do
+      local id = g.id
+      if id == GLUE then
+        local pid = prev.id
+        if pid ~= GLUE and pid ~= KERN and pid ~= PENALTY and pid ~= MATH then return true end
+      elseif id == PENALTY then
+        if g.penalty < 10000 then return true end
+      elseif id == KERN or id == MATH then
+        if g.next and g.next.id == GLUE then return true end
+      elseif id == DISC then
+        return true
+      end
+      if g == stop then break end
+      prev = g; g = g.next
+    end
+    return false
+  end
   -- 禁则用的行内位：只算整位的闭号（配对的半宽闭号与开号不算）
   local function mids_of(sp)
     local m = {}
@@ -475,17 +531,28 @@ local function decide(items, P, measure, cellcap, indent)
       end
     end
     if last < first then last = first; j = first + 1 end
-    -- 行尾的空格不要；行尾不能是开号（禁则拉回没成功时），也不能是西文的左括号
-    while last > first and (items[last].kind == 4 or items[last].kind == 2 or (items[last].kind == 3 and ascii_open[items[last].tail])) do last = last - 1 end
+    -- 行尾的空格不要；行尾不能是开号（禁则拉回没成功时），也不能是西文的左括号；
+    -- 断不开的地方（两个盒子紧挨着、~ 后面）往前退到能断的地方
+    while last > first and (items[last].kind == 4 or items[last].kind == 2
+        or (items[last].kind == 3 and ascii_open[items[last].tail]) or not legal_after(last)) do
+      last = last - 1
+    end
+    -- 退到头还断不开：照 TeX 的办法往后找第一个能断的地方，行溢出，不压标点
+    local forced = false
+    if not legal_after(last) then
+      while last < n and not legal_after(last) do last = last + 1 end
+      forced = true
+    end
+    if deep and items[last].kind ~= 1 then deep = false end
     if items[last].paired then items[last].nw = p; items[last].paired = false end
     local w = width_of(first, last, isfirst)
     local over = w - measure
     local sp = nil
-    if over > 0 then
+    if over > 0 and not forced then
       sp = spots_of(first, deep and last or last + 1)
       if deep then sp = mids_of(sp) end
     end
-    lines[#lines + 1] = { first = first, last = last, width = w, over = over, deep = deep, spots = sp }
+    lines[#lines + 1] = { first = first, last = last, width = w, over = over, deep = deep, spots = sp, forced = forced }
     if M.trace then
       local txt = {}
       for k = first, last do local it = items[k]; txt[#txt+1] = it.c and utf8.char(it.c) or (it.kind == 4 and "_" or "[" .. (it.head and utf8.char(it.head) or "?") .. "]") end
@@ -538,7 +605,11 @@ local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent
       -- 空格后面挂着的胶清零
       local g = it.first.next
       while g and g ~= it.last.next do if g.id == GLUE then g.width = 0 end; g = g.next end
-    elseif not it.rigid then
+    elseif it.rigid then
+      -- 盒子、公式自己的宽不动，后面挂着的胶（汉西隙）清零，隙由 gap 另放
+      local g = it.core and it.core.next
+      while g and g ~= it.last.next do if g.id == GLUE then g.width = 0 end; g = g.next end
+    else
       if it.kind == 3 and it.gn then
         -- 西文字宽平衡：串里原有的字距清零，每个字形后补 (scale-1)·宽
         for _, kn in ipairs(it.kerns) do kn.kern = 0 end
@@ -558,7 +629,7 @@ local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent
       while g do w = w + nodewidth(g); if g == it.last then break end; g = g.next end
       local kn = node.new(KERN); kn.kern = it.nw - w
       if it.kind == 2 then
-        -- 开号的空白在左边
+        -- 开号的空白在左边（JFM 把开号装成半宽盒，左半空白是盒前那段胶）
         node.insert_before(head, it.first, kn)
         if it.first == head then head = kn end
       else
@@ -581,9 +652,10 @@ local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent
   if line.over > 0 and line.spots then
     local sp = line.spots
     if not line.deep then
+      -- 紧跟在开号后面的开号左边没有空白可压，它的份额匀给别的位
       local K = 0
-      for _, it in ipairs(sp) do K = K + it.spot end
-      if K > 0 then for _, it in ipairs(sp) do take(it, line.over * it.spot / K) end end
+      for _, it in ipairs(sp) do if not it.paired or it.kind == 1 then K = K + it.spot end end
+      if K > 0 then for _, it in ipairs(sp) do if not it.paired or it.kind == 1 then take(it, line.over * it.spot / K) end end end
     else
       local rest = line.over
       -- 行内位吃得下：全由行内位按上限比例分担，不挂；
@@ -669,7 +741,10 @@ local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent
     ib.next = head; head.prev = ib; head = ib
   end
   local box = node.hpack(head, measure, "exactly")
-  box.height = strut_h; box.depth = strut_d
+  -- 行盒的高深：内容的自然高深，不低于撑杆。行里有表格、大盒子时得跟着内容走，
+  -- 不然那些东西从固定高的行盒里冒出去、盖到上面的行上
+  if box.height < strut_h then box.height = strut_h end
+  if box.depth < strut_d then box.depth = strut_d end
   -- 脚注、浮动体、标记、vadjust 不能留在行盒里：照 TeX 断行的做法搬到行盒后面
   local moved = nil
   local g = box.list
@@ -692,14 +767,18 @@ local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent
   return box, moved
 end
 
+local function skip(why)
+  trace("SKIP %s", why)
+  return true
+end
 function M.filter(head, is_display)
-  if (tex.parshape or 0) ~= 0 or tex.hangindent ~= 0 then return true end
+  if (tex.parshape or 0) ~= 0 or tex.hangindent ~= 0 then return skip("parshape") end
   local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
-  if ls.width ~= 0 or rs.width > 65536 * 6 or rs.stretch_order > 0 then return true end
-  if tex.hsize ~= tex.getdimen("textwidth") then return true end
-  if M.attr and (node.get_attribute(head, M.attr) or 0) == 0 then return true end
+  if ls.width ~= 0 or rs.width > 65536 * 6 or rs.stretch_order > 0 then return skip("skips") end
+  if tex.hsize ~= tex.getdimen("textwidth") then return skip("hsize") end
+  if M.attr and (node.get_attribute(head, M.attr) or 0) == 0 then return skip("attr") end
   local ok, cell = pcall(tex.getdimen, "g_hit_msword_char_dim")
-  if not ok or not cell or cell == 0 then return true end
+  if not ok or not cell or cell == 0 then return skip("nocell") end
   local em = tex.sp("1em")
   -- 格宽跟着本级字号缩放：正文一格是 g_hit_msword_char_dim，别的字号按比例
   local ok2, body = pcall(tex.getdimen, "g_hit_body_size_dim")
@@ -720,9 +799,12 @@ function M.filter(head, is_display)
   for li, line in ipairs(lines) do
     local box, moved = render(items, line, P, measure, cellcap, strut_h, strut_d, indent, li == 1)
     if li > 1 then
+      -- 行间胶照 TeX 的规矩：基线距不够 lineskiplimit 就改用 lineskip
       local g = node.new(GLUE); g.subtype = 2
       g.width = tex.baselineskip.width - prevdepth - box.height
-      if g.width < 0 then g.width = 0 end
+      if g.width < tex.lineskiplimit then
+        g.subtype = 1; g.width = tex.lineskip.width
+      end
       tail.next = g; g.prev = tail; tail = g
     end
     if newhead == nil then newhead = box else tail.next = box; box.prev = tail end
