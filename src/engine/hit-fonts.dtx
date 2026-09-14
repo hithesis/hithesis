@@ -351,11 +351,10 @@
 % 见上面 \cs{\_\_hit\_set\_font\_en\_times:} 与 \cs{\_\_hit\_set\_font\_en\_termes:}
 % 里的 \texttt{ItalicFont}。
 %
-% \changes{v3.2a}{2026/09/14}{宋体的斜体默认改回楷体，其余字族斜切；三态由
-%   \option{style}/\option{fake-slant} 挑，字体来自 \pkg{ctex} 还是模板自设都一样}
-% 宋体的斜体默认用楷体，别的字族斜切，这是 \option{style}/\option{fake-slant}
-% 的 \texttt{auto} 档；\texttt{true} 一律斜切，\texttt{false} 从不斜切。三档都在
-% \cs{hit@font@italic@pass:} 里落实（见下面），它在 \texttt{begindocument} 上
+% \changes{v3.2a}{2026/09/14}{宋体的斜体默认改回楷体，其余字族斜切；宋体要斜切
+%   写 \option{style}/\option{fake-slant-songti}，字体来自 \pkg{ctex} 还是模板自设都一样}
+% 宋体的斜体默认用楷体，别的字族斜切；\option{style}/\option{fake-slant-songti}
+% 开了宋体也斜切。这条规矩在 \cs{hit@font@italic@pass:} 里落实（见下面），它在 \texttt{begindocument} 上
 % 把已声明的每个中文字族按这条规矩重声明一遍，所以字体是 \pkg{ctex} 按
 % \option{fontset} 设的还是模板按 \option{font-zh} 设的，斜体都一个样。
 % 先前两条路不一样：\pkg{ctex} 那条 \cs{textit} 里的宋体换楷体、黑体不斜，
@@ -460,7 +459,7 @@
       }
 %    \end{macrocode}
 %
-% 斜体那一遍重声明也挂在 \texttt{begindocument} 上：\option{style}/\option{fake-slant}
+% 斜体那一遍重声明也挂在 \texttt{begindocument} 上：\option{style}/\option{fake-slant-songti}
 % 在导言区随时能写，字族也要等 \pkg{ctex} 与模板都声明完才齐。
 %    \begin{macrocode}
     \AddToHook { begindocument } { \hit@font@italic@pass: }
@@ -475,15 +474,13 @@
 % \cs{g\_\_xeCJK\_family\_font\_options\_prop} 里，\cs{addCJKfontfeatures} 就是
 % 从那儿取的。这里逐个字族取出来，改掉斜体那几项，再用同一个名字声明回去：
 % \begin{itemize}
-% \item 宋体（正文字族与 \texttt{zhsong}）：先把 \texttt{ItalicFont}、
-%   \texttt{AutoFakeSlant} 一类全清掉。\texttt{true} 写 \texttt{AutoFakeSlant}；
-%   \texttt{auto} 与 \texttt{false} 写 \texttt{ItalicFont} 指向 \texttt{zhkai}
-%   那一族的字体，没有那一族时 \texttt{auto} 退成斜切、\texttt{false} 什么都不写
-%   （排正体）。
-% \item 别的字族：\texttt{auto} 与 \texttt{true} 给没有 \texttt{ItalicFont} 也没有
-%   \texttt{AutoFakeSlant} 的补一句 \texttt{AutoFakeSlant}，写了的不动——用户自己
-%   \cs{setCJKfamilyfont} 指定的斜体面照旧；\texttt{false} 把 \texttt{AutoFakeSlant}
-%   清掉。
+% \item 宋体（正文字族与 \texttt{zhsong}，也就是 \cs{songti} 选的那一族）：先把
+%   \texttt{ItalicFont}、\texttt{AutoFakeSlant} 一类全清掉。
+%   \option{fake-slant-songti} 开着写 \texttt{AutoFakeSlant}；关着写
+%   \texttt{ItalicFont} 指向 \texttt{zhkai} 那一族的字体，没有那一族时退成斜切。
+% \item 别的字族：没有 \texttt{ItalicFont} 也没有 \texttt{AutoFakeSlant} 的补一句
+%   \texttt{AutoFakeSlant}，写了的不动——用户自己 \cs{setCJKfamilyfont} 指定的
+%   斜体面照旧。
 % \end{itemize}
 % \texttt{Script=CJK} 那一项 \pkg{xeCJK} 声明时自己会加，表里取出来的那份要去掉，
 % 不然重声明后是两份。特性表没变的字族不重声明，字体实例一个不多。子字族（名字带斜杠的
@@ -514,7 +511,7 @@
     \cs_if_exist:NT \g__xeCJK_family_font_name_prop
       {
         \bool_set_false:N \l__hit_font_kai_bool
-        \str_if_eq:VnF \g__hit_font_fake_slant_str { true }
+        \bool_if:NF \g__hit_font_fake_slant_songti_bool
           {
             \prop_get:NnNT \g__xeCJK_family_font_name_prop { zhkai }
               \l__hit_font_kai_name_tl
@@ -554,7 +551,7 @@
   }
 %    \end{macrocode}
 %
-% 一个字族。宋体按 \option{fake-slant} 重写斜体那几项，别的字族只补
+% 一个字族。宋体按 \option{fake-slant-songti} 重写斜体那几项，别的字族只补
 % \texttt{AutoFakeSlant}。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_font_italic_family:n #1
@@ -601,40 +598,25 @@
           }
       }
       {
-        \str_if_eq:VnF \g__hit_font_fake_slant_str { false }
-          {
-            \clist_put_right:Nx \l__hit_font_new_options_clist
-              { AutoFakeSlant = \c__hit_font_slant_tl }
-          }
+        \clist_put_right:Nx \l__hit_font_new_options_clist
+          { AutoFakeSlant = \c__hit_font_slant_tl }
       }
   }
 \cs_new_protected:Npn \__hit_font_italic_other:
   {
-    \str_if_eq:VnTF \g__hit_font_fake_slant_str { false }
+    \clist_set_eq:NN \l__hit_font_new_options_clist \l__hit_font_options_clist
+    \bool_set_false:N \l__hit_font_has_italic_bool
+    \clist_map_inline:Nn \l__hit_font_options_clist
       {
-        \clist_clear:N \l__hit_font_new_options_clist
-        \clist_map_inline:Nn \l__hit_font_options_clist
-          {
-            \regex_match:nnF
-              { ^\s*(AutoFakeSlant|SlantFont|slantfont|Script)\b } {##1}
-              { \clist_put_right:Nn \l__hit_font_new_options_clist {##1} }
-          }
+        \regex_match:nnT
+          { ^\s*(ItalicFont|AutoFakeSlant|SlantFont|slantfont)\b } {##1}
+          { \bool_set_true:N \l__hit_font_has_italic_bool }
       }
+    \bool_if:NF \l__hit_font_has_italic_bool
       {
-        \clist_set_eq:NN \l__hit_font_new_options_clist \l__hit_font_options_clist
-        \bool_set_false:N \l__hit_font_has_italic_bool
-        \clist_map_inline:Nn \l__hit_font_options_clist
-          {
-            \regex_match:nnT
-              { ^\s*(ItalicFont|AutoFakeSlant|SlantFont|slantfont)\b } {##1}
-              { \bool_set_true:N \l__hit_font_has_italic_bool }
-          }
-        \bool_if:NF \l__hit_font_has_italic_bool
-          {
-            \clist_remove_all:Nn \l__hit_font_new_options_clist { Script = CJK }
-            \clist_put_right:Nx \l__hit_font_new_options_clist
-              { AutoFakeSlant = \c__hit_font_slant_tl }
-          }
+        \clist_remove_all:Nn \l__hit_font_new_options_clist { Script = CJK }
+        \clist_put_right:Nx \l__hit_font_new_options_clist
+          { AutoFakeSlant = \c__hit_font_slant_tl }
       }
   }
 %    \end{macrocode}
