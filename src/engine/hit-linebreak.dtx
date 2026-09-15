@@ -18,6 +18,9 @@
 %   贴网格、固定值三种落法，探针 lh1.docx 量的；行盒直接摞，行间只放零宽胶与 TeX 的行间罚分。
 %   断点处的可弃节点在下一行行首作废；\cs{hspace}、\cs{hfill} 照自己的宽与伸量；
 %   ulem 的下划线、盒子两侧的隙按盒里头尾的字定}
+% \changes{v3.2a}{2026/09/14}{parshape、悬挂缩进、定值的 leftskip/rightskip、窄版心（小页、
+%   表格 X 列）的段也进 Lua：逐行取版心宽与缩进，行盒按 TeX 的办法 shift；西文为主的行汉字缝
+%   也有伸量上限；段末只剩空格时并进末行}
 % Word 排一段是逐行贪心：这一行能装几个装几个，下一个字装不下，先看能不能把
 % 行内的标点压一压塞进来，塞不进就换行；行首不能是闭号，行尾不能是开号，碰上了
 % 先压标点再悬挂。TeX 是全段最优，两边永远对不上。\hologo{LuaLaTeX} 的
@@ -68,9 +71,10 @@
 % \subsection{装回调}
 %
 % 属性 \cs{hit@linebreak@attr} 是逐段的门：段首节点上它为 0 的段交回 TeX 断行。
-% 正文默认为 1；不想让 Lua 碰的环境把它清零。Lua 自己另有几道门：有 \cs{parshape}
-% 或悬挂缩进的、\cs{leftskip} 非零或 \cs{rightskip} 可伸的（居中、靠左）、
-% \cs{hsize} 不等于版心宽的（表格、小页），都交回 TeX。
+% 正文默认为 1；不想让 Lua 碰的环境把它清零。Lua 自己只留一道门：\cs{leftskip}
+% 或 \cs{rightskip} 可伸可缩的（居中、靠左靠右）不是两端对齐，交回 TeX。
+% \cs{parshape}、悬挂缩进、定值的边距、窄版心（小页、表格的 X 列）都逐行折成版心宽
+% 与缩进，照 TeX 的办法给行盒 shift。
 %
 % 回调在 \texttt{begindocument/end} 装：Lua 模块要用 \pkg{luatexja} 的表，
 % 那时它肯定装好了；格宽与正文字号从 \cs{g\_hit\_msword\_char\_dim} 与
@@ -206,20 +210,26 @@ local function spanwidth(it)
   return w
 end
 
--- 盒子头尾的字符（往里找第一个与最后一个字形，盒套盒也找）
+-- 盒子头尾的字符（往里找第一个与最后一个字形，盒套盒也找）。字形外侧还有胶的
+-- （标题编号盒里「1.1」后面带着一段空）就不算有头尾，两侧不再加隙
 local function box_ends(b)
-  local hd, tl
+  local hd, tl, lead_glue, trail_glue
   local function walk(list)
     for g in traverse(list) do
       if g.id == GLYPH then
         if not hd then hd = g.char end
-        tl = g.char
-      elseif g.id == HLIST or g.id == VLIST then
+        tl = g.char; trail_glue = false
+      elseif (g.id == HLIST or g.id == VLIST) and g.shift == 0 then
         walk(g.list)
+      elseif g.id == GLUE and g.width ~= 0 then
+        if not hd then lead_glue = true end
+        trail_glue = true
       end
     end
   end
   walk(b.list)
+  if lead_glue then hd = nil end
+  if trail_glue then tl = nil end
   return hd, tl
 end
 
@@ -343,8 +353,10 @@ local function tokenize(head)
       nxt = last.next
     elseif id == HLIST or id == VLIST then
       flush_run()
-      -- 盒子（\mbox、ulem 的下划线、siunitx 的数）：看它头尾的字形定两侧的隙
-      local hd, tl = box_ends(n)
+      -- 盒子（\mbox、ulem 的下划线、siunitx 的数）：看它头尾的字形定两侧的隙；
+      -- 抬高压低的盒子（上下标、脚注号）不加隙
+      local hd, tl
+      if n.shift == 0 then hd, tl = box_ends(n) end
       items[#items + 1] = { kind = 3, first = n, last = n, core = n, w = n.width, rigid = true, head = hd, tail = tl }
     else
       attach(n)
@@ -412,14 +424,21 @@ local function midcap(it, P)
 end
 
 -- 贪心断行：返回行表 {first,last,width,over,deep,spots}
-local function decide(items, P, measure, cellcap, indent)
+local function decide(items, P, shape, indent)
   natural(items, P)
   local p = P.cell
   local lines = {}
   local n = #items
-  local capacity = measure
-  if M.compat ~= 15 and not M.ari0 then capacity = cellcap
-  elseif M.snap then capacity = cellcap end
+  -- 逐行的版心宽：parshape、悬挂缩进、leftskip/rightskip 都折进 shape 里
+  local measure, capacity, cellcap
+  local function setline(li)
+    local sh = shape(li)
+    measure = sh.width
+    cellcap = math.floor(measure / p) * p
+    capacity = measure
+    if M.compat ~= 15 and not M.ari0 then capacity = cellcap
+    elseif M.snap then capacity = cellcap end
+  end
   -- 行末的配对半宽标点在行末是整格（后面没有东西跟它配了）
   local function width_of(first, last, isfirst)
     local w = isfirst and indent or 0
@@ -548,6 +567,7 @@ local function decide(items, P, measure, cellcap, indent)
   local i = 1
   while i <= n do
     local isfirst = (#lines == 0)
+    setline(#lines + 1)
     local first = i
     local last = i - 1
     local j = i
@@ -595,6 +615,12 @@ local function decide(items, P, measure, cellcap, indent)
       while last < n and not legal_after(last) do last = last + 1 end
       forced = true
     end
+    -- 段末只剩空格时并进本行（TeX 断行前会删掉段末那段胶），不然它们会自己占一行
+    if last < n then
+      local k = last + 1
+      while k <= n and items[k].kind == 4 do k = k + 1 end
+      if k > n then last = n end
+    end
     if deep and items[last].kind ~= 1 then deep = false end
     if items[last].paired then items[last].nw = p; items[last].paired = false end
     local w = width_of(first, last, isfirst)
@@ -605,7 +631,8 @@ local function decide(items, P, measure, cellcap, indent)
       if deep then sp = mids_of(sp) end
     end
     lines[#lines + 1] = { first = first, last = last, width = w, over = over, deep = deep, spots = sp, forced = forced,
-                          bp = (last < n) and breakpoint_after(last) or nil }
+                          bp = (last < n) and breakpoint_after(last) or nil,
+                          measure = measure, cellcap = cellcap, shift = shape(#lines + 1).shift }
     if M.trace then
       local txt = {}
       for k = first, last do local it = items[k]; txt[#txt+1] = it.c and utf8.char(it.c) or (it.kind == 4 and "_" or "[" .. (it.head and utf8.char(it.head) or "?") .. "]") end
@@ -686,8 +713,9 @@ local function linebox(box, ctx, strut_h, strut_d)
 end
 
 -- 渲染一行：定各处胶与 kern 的宽，装成 hlist
-local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent, isfirst, ctx, headnode)
+local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, headnode)
   local p = P.cell
+  local measure, cellcap = line.measure, line.cellcap
   local a, b = items[line.first], items[line.last]
   -- 本行的节点：从上一行断点起（首行从段首起），到本行断点前止
   local head = headnode or a.first
@@ -857,9 +885,22 @@ local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent
         slack = slack - each * n1
       end
       if slack > 0 and #cjkgaps > 0 then
+        -- 汉字缝每处也有上限：西文为主、只带一两个全角标点的行，余量不能全灌进那一两个缝
         local each = slack / #cjkgaps
+        if #spaces > 0 then each = math.min(each, P.autostretch) end
         for _, g in ipairs(cjkgaps) do g.kern = g.kern + each end
-        slack = 0
+        slack = slack - each * #cjkgaps
+      end
+      if slack > 0 then
+        -- 还剩：有空格给空格，没有再给汉字缝，都没有给汉西隙
+        local pool = (#spaces > 0) and spaces or ((#cjkgaps > 0) and cjkgaps or autos)
+        if #pool > 0 then
+          local each = slack / #pool
+          for _, g in ipairs(pool) do
+            if g.id == GLUE then g.width = g.width + each else g.kern = g.kern + each end
+          end
+          slack = 0
+        end
       end
     end
     if target < measure then
@@ -872,6 +913,7 @@ local function render(items, line, P, measure, cellcap, strut_h, strut_d, indent
     ib.next = head; head.prev = ib; head = ib
   end
   local box = node.hpack(head, measure, "exactly")
+  box.shift = line.shift
   if ctx then
     linebox(box, ctx, strut_h, strut_d)
   else
@@ -944,11 +986,35 @@ function M.linectx(strut_h, strut_d)
            nat_cjk = nat_cjk, nat_latin = nat_latin, asc_cjk = asc_cjk, asc_latin = asc_latin,
            asc_add = asc_add, pitch = pitch, bls = bls, k = k }
 end
-function M.filter(head, is_display)
-  if (tex.parshape or 0) ~= 0 or tex.hangindent ~= 0 then return skip("parshape") end
+-- 逐行的版心：照 TeX 的规矩把 parshape、hangindent/hangafter、leftskip/rightskip 折成
+-- 每行的 {width, shift}。返回的函数按行号取，parshape 用完了照最后一行
+function M.shape()
+  local hsize = tex.hsize
   local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
-  if ls.width ~= 0 or rs.width > 65536 * 6 or rs.stretch_order > 0 then return skip("skips") end
-  if tex.hsize ~= tex.getdimen("textwidth") then return skip("hsize") end
+  local lw, rw = ls.width, rs.width
+  -- 类在 XeTeX 那条路上把整数格除不尽的余量放在 rightskip 里（不到一格），这里自己算格，不减它
+  if rw > 0 and rw <= 6 * 65536 then rw = 0 end
+  local ps = tex.parshape
+  local hi, ha = tex.hangindent, tex.hangafter
+  return function(li)
+    local ind, wd = 0, hsize
+    if type(ps) == "table" and #ps > 0 then
+      local e = ps[math.min(li, #ps)]
+      ind, wd = e[1], e[2]
+    elseif hi ~= 0 then
+      local hang = (ha >= 0 and li > ha) or (ha < 0 and li <= -ha)
+      if hang then
+        if hi > 0 then ind, wd = hi, hsize - hi else wd = hsize + hi end
+      end
+    end
+    return { width = wd - lw - rw, shift = ind + lw }
+  end
+end
+
+function M.filter(head, is_display)
+  local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
+  -- 可伸的边距（居中、靠左靠右）不是两端对齐，交回 TeX
+  if ls.stretch ~= 0 or rs.stretch ~= 0 or ls.shrink ~= 0 or rs.shrink ~= 0 then return skip("skips") end
   if M.attr and (node.get_attribute(head, M.attr) or 0) == 0 then return skip("attr") end
   local ok, cell = pcall(tex.getdimen, "g_hit_msword_char_dim")
   if not ok or not cell or cell == 0 then return skip("nocell") end
@@ -964,9 +1030,7 @@ function M.filter(head, is_display)
               pairw = 0.2, deepcap = cell / 2, deepcap_open = 5.5 * bp, pairdeep = 2.0 * bp,
               hang = cell / 2, autostretch = 2.8 * bp,
               eps = 0.03 * bp }
-  local measure = tex.hsize
-  local cellcap = math.floor(measure / cell) * cell
-  local lines = decide(items, P, measure, cellcap, indent)
+  local lines = decide(items, P, M.shape(), indent)
   local ctx = M.linectx(strut_h, strut_d)
   local newhead, tail = nil, nil
   local prevdepth = tex.prevdepth
@@ -974,7 +1038,7 @@ function M.filter(head, is_display)
   local nexthead = nil
   for li, line in ipairs(lines) do
     local box, moved
-    box, moved, nexthead = render(items, line, P, measure, cellcap, strut_h, strut_d, indent, li == 1, ctx, nexthead)
+    box, moved, nexthead = render(items, line, P, strut_h, strut_d, indent, li == 1, ctx, nexthead)
     if li > 1 then
       -- 行间胶用 subtype 0：luatexja 的 post_linebreak_filter 会把 subtype 1、2 的胶按
       -- TeX 的 baselineskip 规矩重算，行盒恰好等于行距时舍入成负数就换成 lineskip，多出 1pt
