@@ -576,6 +576,25 @@
 \__hit_layout_leaf:nnn { header / rule } { from-text } { header-rule-from-text }
 \__hit_layout_leaf:nnn { footer / shift } { vertical }   { footer-shift-vertical }
 \__hit_layout_leaf:nnn { footer / shift } { horizontal } { footer-shift-horizontal }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/15}{\option{header}/\option{shift}、\option{header}/\option{shown}、
+%   \option{footer}/\option{shown}：页眉页脚照 Word 的对话框设，与 iota-hit 同一张表}
+% 页眉页脚各一条记录，与 Word「页面设置」和页眉段落的对话框同形：
+% \option{from-edge} 距边界、\option{shown} 排不排（\texttt{auto}/\texttt{true}/\texttt{false}）、
+% \option{rule} 页眉段落的下边框（\option{width}、\option{from-text}，或直接给开关）、
+% \option{shift} 整块挪动（\option{vertical} 往下为正、\option{horizontal} 往右为正，
+% 是量出来的补偿，不折缇）。字体字号行距在 \option{format}/\option{header} 与
+% \option{format}/\option{footer} 上，页眉那一行的行盒按它算。部件可以按名覆盖：
+% \begin{quote}
+% \cs{hitsetup}\{ layout = \{ header = \{ shown = false \}, frontmatter = \{ header = \{ shown = true \} \} \} \}
+% \end{quote}
+%    \begin{macrocode}
+\__hit_layout_block:nn { header } { shift }
+\__hit_layout_leaf:nnn { header / shift } { vertical }   { header-shift-vertical }
+\__hit_layout_leaf:nnn { header / shift } { horizontal } { header-shift-horizontal }
+\__hit_layout_leaf:nnn { header } { shown } { header-shown }
+\__hit_layout_leaf:nnn { footer } { shown } { footer-shown }
 \__hit_layout_leaf:nnn { grid / chars } { pitch }    { char-pitch }
 \__hit_layout_leaf:nnn { grid / chars } { per-line } { chars-per-line }
 \__hit_layout_leaf:nnn { grid / lines } { pitch }    { line-pitch }
@@ -628,6 +647,19 @@
 %    \end{macrocode}
 %
 %    \begin{macrocode}
+\bool_new:N \g__hit_layout_frozen_bool
+\AddToHook { begindocument } { \bool_gset_true:N \g__hit_layout_frozen_bool }
+\cs_new_protected:Npn \hit@layout@refresh:
+  {
+    \bool_if:NF \g__hit_layout_frozen_bool
+      {
+        \__hit_layout_msword_active:T
+          {
+            \tl_if_empty:NF \g__hit_layout_msword_tl
+              { \exp_args:NV \hit@msword@layout:n \g__hit_layout_msword_tl }
+          }
+      }
+  }
 \cs_new_protected:Npn \hit@layout@set:n #1
   {
     \bool_set_false:N \l__hit_layout_dirty_bool
@@ -1407,7 +1439,13 @@
     info  .code:n = { \hit@keys@set:nn { hit / info } {#1} } ,
     style .code:n = { \hit@keys@set:nn { hit / style } {#1} } ,
     layout .code:n = { \hit@layout@set:n {#1} } ,
-    format .code:n = { \hit@keys@set:nn { hit / format } {#1} } ,
+    format .code:n =
+      {
+        \hit@keys@set:nn { hit / format } {#1}
+        % 页眉行盒按 format/header 目标算（见 hit-msword.dtx），导言区里改了
+        % 目标就重算一次版面；正文里不能再动 geometry，也不需要
+        \hit@layout@refresh:
+      } ,
     toc   .code:n =
       {
         \str_case:nnF {#1}

@@ -135,6 +135,20 @@
 \dim_new:N \l__hit_msword_foot_shift_dim
 \dim_new:N \l__hit_msword_foot_shift_x_dim
 \dim_new:N \g_hit_msword_foot_shift_x_dim
+\dim_new:N \l__hit_msword_head_shift_dim
+\dim_new:N \l__hit_msword_head_shift_x_dim
+\dim_new:N \g_hit_msword_head_shift_dim
+\dim_new:N \g_hit_msword_head_shift_x_dim
+\tl_new:N \l__hit_msword_header_shown_tl
+\tl_new:N \l__hit_msword_footer_shown_tl
+\tl_new:N \g_hit_msword_header_shown_tl
+\tl_new:N \g_hit_msword_footer_shown_tl
+\tl_gset:Nn \g_hit_msword_header_shown_tl { auto }
+\tl_gset:Nn \g_hit_msword_footer_shown_tl { auto }
+\dim_new:N \g_hit_header_text_ht_dim
+\dim_new:N \g_hit_header_text_dp_dim
+\dim_new:N \g_hit_header_latin_ht_dim
+\dim_new:N \g_hit_header_latin_dp_dim
 \dim_new:N \l__hit_msword_lead_dim
 \dim_new:N \l__hit_msword_char_dim
 \dim_new:N \l__hit_msword_text_width_dim
@@ -176,6 +190,67 @@
     chars-per-line .initial:n = { 0 } ,
     footer-shift-horizontal .dim_set:N = \l__hit_msword_foot_shift_x_dim ,
     footer-shift-horizontal .initial:n = { 0pt } ,
+    header-shift-vertical   .dim_set:N = \l__hit_msword_head_shift_dim ,
+    header-shift-vertical   .initial:n = { 0pt } ,
+    header-shift-horizontal .dim_set:N = \l__hit_msword_head_shift_x_dim ,
+    header-shift-horizontal .initial:n = { 0pt } ,
+    header-shown .tl_set:N = \l__hit_msword_header_shown_tl ,
+    header-shown .initial:n = { auto } ,
+    footer-shown .tl_set:N = \l__hit_msword_footer_shown_tl ,
+    footer-shown .initial:n = { auto } ,
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/15}{页眉页脚照 Word 的对话框设：\option{header}/\option{shown}、
+%   \option{footer}/\option{shown} 排不排；\option{header}/\option{shift} 整块挪动；
+%   页眉行盒按 \option{format}/\option{header} 目标的字号与行距算，不再钉死小五}
+% \emph{页眉页脚的记录与 Word 对话框同形。} 每份一条：\option{from-edge}（页面设置里
+% 「页眉／页脚距边界」）、\option{shown}（排不排，\texttt{auto} 按档，\texttt{true}/\texttt{false}
+% 照写）、\option{rule}（页眉段落的下边框，粗线宽与距文字）、\option{shift}（整块挪动，
+% 量出来的补偿，不折缇）；字体与段落对话框的内容在 \option{format}/\option{header} 与
+% \option{format}/\option{footer} 目标上（字体、字号、行距）。部件可以按名覆盖，与页边距同一条链。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \emph{页眉那一行的行盒按目标算。} Word 的页眉框顶钉在「页眉距边界」上，框里那一段
+% 的行盒由它自己的字体与行距定：行距 0（范例的页眉段是这么写的）就是自然行高，倍数
+% 就是倍数乘自然行高，基线在盒顶下一个上升部。\option{format}/\option{header} 目标给了
+% 取值就照它算，四个量存进全局长度供页眉盒用；目标空着（旧版面）退回小五那一套。
+% 纯西文那一档同字号按 Times 的两个常数算。\cs{hit@format@compute:n} 在
+% \file{hit-format.dtx} 里，装在后面，这里只在跑到的时候调，所以不必先有。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_msword_header_line_xiaowu:
+  {
+    \dim_gset:Nn \g_hit_header_text_ht_dim { 9.18826pt }
+    \dim_gset:Nn \g_hit_header_text_dp_dim { 2.52736pt }
+    \dim_gset:Nn \g_hit_header_latin_ht_dim { 8.50727pt }
+    \dim_gset:Nn \g_hit_header_latin_dp_dim { 1.88153pt }
+  }
+\cs_new_protected:Npn \__hit_msword_header_line:
+  {
+    \cs_if_exist:NTF \hit@format@compute:n
+      { \__hit_format_if_blank:nTF { header } { \__hit_msword_header_line_xiaowu: } { \__hit_msword_header_line_format: } }
+      { \__hit_msword_header_line_xiaowu: }
+  }
+\cs_new_protected:Npn \__hit_msword_header_line_format:
+  {
+        \group_begin:
+          \hit@format@compute:n { header }
+          \dim_gset:Nn \g_hit_header_text_ht_dim { \l_hit_format_first_dim }
+          \dim_gset:Nn \g_hit_header_text_dp_dim
+            {
+              \dim_max:nn { \l_hit_format_lead_dim } { \l_hit_format_natural_dim }
+              - \l_hit_format_first_dim
+            }
+          \dim_gset:Nn \g_hit_header_latin_ht_dim
+            { \c__hit_format_ascent_latin_tl \l_hit_format_size_dim + \c__hit_format_ascent_dim }
+          \dim_gset:Nn \g_hit_header_latin_dp_dim
+            {
+              \dim_max:nn { \l_hit_format_lead_dim }
+                { \c__hit_format_natural_latin_tl \l_hit_format_size_dim }
+              - \g_hit_header_latin_ht_dim
+            }
+        \group_end:
   }
 %    \end{macrocode}
 %
@@ -225,14 +300,19 @@
 %
 % 页眉一律小五，所以行高直接取小五。哪天页眉字号可配了，这一句跟着换。
 %    \begin{macrocode}
+      \__hit_msword_header_line:
       \dim_set:Nn \l__hit_msword_header_height_dim
         {
-          \c__hit_format_natural_tl \c__hit_font_size_xiaowu_dim
+          \g_hit_header_text_ht_dim + \g_hit_header_text_dp_dim
           + \l__hit_msword_rule_text_dim
           + \l__hit_msword_rule_width_dim + 1.5bp
         }
       \dim_gset_eq:NN \g_hit_msword_foot_shift_x_dim
         \l__hit_msword_foot_shift_x_dim
+      \dim_gset_eq:NN \g_hit_msword_head_shift_dim \l__hit_msword_head_shift_dim
+      \dim_gset_eq:NN \g_hit_msword_head_shift_x_dim \l__hit_msword_head_shift_x_dim
+      \tl_gset_eq:NN \g_hit_msword_header_shown_tl \l__hit_msword_header_shown_tl
+      \tl_gset_eq:NN \g_hit_msword_footer_shown_tl \l__hit_msword_footer_shown_tl
       \dim_set:Nn \l__hit_msword_text_width_dim
         {
           \l__hit_msword_paper_width_dim
@@ -326,6 +406,14 @@
 \dim_new:N \g__hit_msword_save_char_dim
 \dim_new:N \g__hit_msword_save_foot_x_dim
 \int_new:N \g__hit_msword_save_cells_int
+\dim_new:N \g__hit_msword_save_head_dim
+\dim_new:N \g__hit_msword_save_head_x_dim
+\tl_new:N \g__hit_msword_save_header_shown_tl
+\tl_new:N \g__hit_msword_save_footer_shown_tl
+\dim_new:N \g__hit_msword_save_text_ht_dim
+\dim_new:N \g__hit_msword_save_text_dp_dim
+\dim_new:N \g__hit_msword_save_latin_ht_dim
+\dim_new:N \g__hit_msword_save_latin_dp_dim
 \cs_new_protected:Npn \hit@msword@layout@push:n #1
   {
     \dim_gset_eq:NN \g__hit_msword_save_lead_dim \g_hit_msword_lead_dim
@@ -333,6 +421,14 @@
     \dim_gset_eq:NN \g__hit_msword_save_foot_x_dim
       \g_hit_msword_foot_shift_x_dim
     \int_gset_eq:NN \g__hit_msword_save_cells_int \g_hit_msword_cells_int
+    \dim_gset_eq:NN \g__hit_msword_save_head_dim \g_hit_msword_head_shift_dim
+    \dim_gset_eq:NN \g__hit_msword_save_head_x_dim \g_hit_msword_head_shift_x_dim
+    \tl_gset_eq:NN \g__hit_msword_save_header_shown_tl \g_hit_msword_header_shown_tl
+    \tl_gset_eq:NN \g__hit_msword_save_footer_shown_tl \g_hit_msword_footer_shown_tl
+    \dim_gset_eq:NN \g__hit_msword_save_text_ht_dim \g_hit_header_text_ht_dim
+    \dim_gset_eq:NN \g__hit_msword_save_text_dp_dim \g_hit_header_text_dp_dim
+    \dim_gset_eq:NN \g__hit_msword_save_latin_ht_dim \g_hit_header_latin_ht_dim
+    \dim_gset_eq:NN \g__hit_msword_save_latin_dp_dim \g_hit_header_latin_dp_dim
     \tl_gset_eq:NN \g__hit_msword_save_geometry_tl
       \g__hit_msword_geometry_page_tl
     \__hit_msword_compute:n {#1}
@@ -352,6 +448,14 @@
     \dim_gset_eq:NN \g_hit_msword_foot_shift_x_dim
       \g__hit_msword_save_foot_x_dim
     \int_gset_eq:NN \g_hit_msword_cells_int \g__hit_msword_save_cells_int
+    \dim_gset_eq:NN \g_hit_msword_head_shift_dim \g__hit_msword_save_head_dim
+    \dim_gset_eq:NN \g_hit_msword_head_shift_x_dim \g__hit_msword_save_head_x_dim
+    \tl_gset_eq:NN \g_hit_msword_header_shown_tl \g__hit_msword_save_header_shown_tl
+    \tl_gset_eq:NN \g_hit_msword_footer_shown_tl \g__hit_msword_save_footer_shown_tl
+    \dim_gset_eq:NN \g_hit_header_text_ht_dim \g__hit_msword_save_text_ht_dim
+    \dim_gset_eq:NN \g_hit_header_text_dp_dim \g__hit_msword_save_text_dp_dim
+    \dim_gset_eq:NN \g_hit_header_latin_ht_dim \g__hit_msword_save_latin_ht_dim
+    \dim_gset_eq:NN \g_hit_header_latin_dp_dim \g__hit_msword_save_latin_dp_dim
   }
 %    \end{macrocode}
 %
