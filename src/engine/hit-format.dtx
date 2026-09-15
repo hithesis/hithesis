@@ -2371,13 +2371,35 @@
       {
         \hit@format@compute:n {#1}
         \__hit_format_build:n {#1}
-        % 页眉页脚在输出例程里装盒，luatexja 的参数栈那时候失灵，字距会变成正文的
-        % （每字多一格增量）。这两个量另记在属性上，Lua 装盒时照属性重设，见
-        % src/engine/hit-linebreak.dtx。只有这条路（页眉页脚）记，正文不记
+        \cs_set_eq:NN #2 \l__hit_format_out_tl
+      }
+  }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/15}{加 \cs{hit@format@apply@hf:nN}：页眉页脚那两个宏在
+%   \cs{hit@format@apply@font:nN} 之上再带三样——汉字缝与汉西隙记进属性、
+%   词隙回到字体自己的空格}
+% \emph{页眉页脚另走一条。} 三件事只属于页眉页脚，题注、封面字段这些同样用
+% \cs{hit@format@apply@font:nN} 的地方不该吃：
+% \begin{itemize}
+% \item \pkg{fancyhdr} 在输出例程里装页眉盒，\pkg{luatexja} 的参数栈那时候失灵，
+%   字距会变成正文的（每字多一格增量）。汉字缝与汉西隙另记在属性上，Lua 装盒时
+%   照属性重设，见 \file{src/engine/hit-linebreak.dtx}；西文的 LetterSpace 也一并去掉，
+%   页眉页脚不在字符网格上。
+% \item 词隙不吃正文那份按网格算死的 \texttt{spaceskip}，回到字体自己的空格
+%   （Times 0.25\,em；深圳本科英文页眉原件 2.28 对正文的 3.0）。
+% \end{itemize}
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@format@apply@hf:nN #1#2
+  {
+    \hit@format@apply@font:nN {#1} #2
+    \__hit_format_if_blank:nF {#1}
+      {
+        \tl_put_right:Nn #2 { \skip_zero:N \spaceskip }
         \bool_lazy_and:nnT
           { \l_hit_format_hglue_set_bool } { \cs_if_exist_p:N \hit@kanjiskip@attr }
           {
-            \tl_put_right:Nx \l__hit_format_out_tl
+            \tl_put_right:Nx #2
               {
                 \exp_not:N \hit@kanjiskip@attr =
                   \exp_not:N \tex_dimexpr:D \dim_eval:n { \__hit_format_hglue_cc: } \exp_not:N \scan_stop:
@@ -2385,7 +2407,6 @@
                   \exp_not:N \tex_dimexpr:D \dim_eval:n { \__hit_format_hglue_ec: } \exp_not:N \scan_stop:
               }
           }
-        \cs_set_eq:NN #2 \l__hit_format_out_tl
       }
   }
 %    \end{macrocode}
