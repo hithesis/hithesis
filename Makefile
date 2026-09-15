@@ -61,17 +61,20 @@ compat-regression:
 # 转换时升成了 Word 现行版式 15，而类默认按学校 doc 原件的版式 11 排，所以这里把
 # 模式钉到 15 再比。剩下的 61 是七处平局与语料伪差各自往后串出来的行。
 lineends:
-	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex \
+	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex -g \
 	  -interaction=nonstopmode \
 	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}\AddToHook{class/hithesis/after}{\hitsetup{layout={word-compat=15}}}' final.tex \
 	  > /dev/null
 	python3 scripts/check-line-ends.py --pdf examples/demo/final.pdf --max-diff 55
 
+# 三个目标都带 -g 强制重编：latexmk 不知道 -usepretex 变了，lineends（钉 15）与
+# lineends-self（默认 11）接连跑时，第二个会拿第一个的 PDF 去比，满屏假差异。
+#
 # 自比对：拿 demo 全文（256 段 671 行）与 tests/lineends-demo.tsv 逐行比，钉住 Lua
 # 断行层的现状，改动之后看见的差异都得是有意的。上面的 lineends 只比规范那一章
 # 与 Word 的差距，这一条比全文与自己的差距。默认兼容模式（11）、fontset=windows。
 lineends-self:
-	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex \
+	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex -g \
 	  -interaction=nonstopmode \
 	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' final.tex \
 	  > /dev/null
@@ -79,7 +82,7 @@ lineends-self:
 
 # 重制自比对基线：先确认当前构建的差异都是有意的
 lineends-self-baseline:
-	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex \
+	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex -g \
 	  -interaction=nonstopmode \
 	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' final.tex \
 	  > /dev/null

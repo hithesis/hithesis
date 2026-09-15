@@ -2440,6 +2440,35 @@
 % 排完还回去，不留痕迹。
 %    \begin{macrocode}
 \prop_new:N \l__hit_format_par_save_prop
+\prop_new:N \l__hit_format_par_save_ragged_prop
+\prop_new:N \l__hit_format_par_save_flush_prop
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/14}{临时覆盖进出时两个分档的表也存一次、还一次：在档外写一条键
+%   会把两档里同名的条目抹掉（\cs{\_\_hit\_format\_shadow:n}），只还不分档那张表，
+%   分档里的那条就永远没了。摘要页给章标题临时按 \option{line-spacing} = 1.25，
+%   排完之后正文的章标题就不再是 \texttt{chapter/if-raggedbottom} 里的 1.2 倍，
+%   落成 1.0 倍：两行章标题行距 26.5 对范例 28.0，章到节 37.8 对 41.2，章首页因此比
+%   Word 多排一行}
+% \emph{三张表一起存。} 目标的取值分三张表：不分档的一张，\texttt{ragged} 与
+% \texttt{flush} 各一张。临时覆盖写的是不分档那张，但写的时候要把两档里同名的条目
+% 抹掉（不然档里的值会盖住刚写的），所以进出要把三张都存、都还。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_save:n #1
+  {
+    \__hit_format_new:nnn {#1} { } { }
+    \__hit_format_new:nnn {#1} { ragged } { }
+    \__hit_format_new:nnn {#1} { flush } { }
+    \prop_set_eq:Nc \l__hit_format_par_save_prop { g__hit_format_#1_prop }
+    \prop_set_eq:Nc \l__hit_format_par_save_ragged_prop { g__hit_format_#1_ragged_prop }
+    \prop_set_eq:Nc \l__hit_format_par_save_flush_prop { g__hit_format_#1_flush_prop }
+  }
+\cs_new_protected:Npn \__hit_format_restore_saved:n #1
+  {
+    \prop_gset_eq:cN { g__hit_format_#1_prop } \l__hit_format_par_save_prop
+    \prop_gset_eq:cN { g__hit_format_#1_ragged_prop } \l__hit_format_par_save_ragged_prop
+    \prop_gset_eq:cN { g__hit_format_#1_flush_prop } \l__hit_format_par_save_flush_prop
+  }
 %    \end{macrocode}
 %
 % \changes{v3.2a}{2026/08/24}{加 \cs{hit@format@apply@heading:nn}，按调用覆盖
@@ -2453,10 +2482,10 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@apply@heading:nn #1#2
   {
-    \prop_set_eq:Nc \l__hit_format_par_save_prop { g__hit_format_#1_prop }
+    \__hit_format_save:n {#1}
     \__hit_format_target:nn {#1} {#2}
     \hit@format@apply@heading:n {#1}
-    \prop_gset_eq:cN { g__hit_format_#1_prop } \l__hit_format_par_save_prop
+    \__hit_format_restore_saved:n {#1}
   }
 %    \end{macrocode}
 %    \end{macro}
@@ -2464,11 +2493,10 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@par:nnn #1#2#3
   {
-    \prop_set_eq:Nc \l__hit_format_par_save_prop { g__hit_format_#1_prop }
+    \__hit_format_save:n {#1}
     \__hit_format_target:nn {#1} {#2}
     \hit@format@par:nn {#1} {#3}
-    \prop_gset_eq:cN { g__hit_format_#1_prop }
-      \l__hit_format_par_save_prop
+    \__hit_format_restore_saved:n {#1}
   }
 %    \end{macrocode}
 %    \end{macro}
