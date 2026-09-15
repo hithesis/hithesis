@@ -1,9 +1,9 @@
 # Makefile for hithesis
 
 # 手册用哪个引擎编。模板本身认 xelatex 与 lualatex，见手册的“用哪个引擎”；
-# 这里默认 xelatex，排版基线也建在它上面。换引擎两行一起改。
-METHOD = xelatex
-LATEXMKOPTS = -xelatex
+# 2026-09-15 起默认 lualatex（主线引擎，断行层只在它上面有）。换引擎两行一起改。
+METHOD = lualatex
+LATEXMKOPTS = -lualatex
 
 PACKAGE = hithesis
 VERSION = `grep -m 1 -o "v[0-9]\+\.[0-9]\+\.[0-9]\+" src/$(PACKAGE).dtx`
@@ -25,7 +25,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls lineends compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls lineends lineends-self lineends-self-baseline compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
@@ -66,6 +66,27 @@ lineends:
 	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}\AddToHook{class/hithesis/after}{\hitsetup{layout={word-compat=15}}}' final.tex \
 	  > /dev/null
 	python3 scripts/check-line-ends.py --pdf examples/demo/final.pdf --max-diff 55
+
+# 自比对：拿 demo 全文（256 段 671 行）与 tests/lineends-demo.tsv 逐行比，钉住 Lua
+# 断行层的现状，改动之后看见的差异都得是有意的。上面的 lineends 只比规范那一章
+# 与 Word 的差距，这一条比全文与自己的差距。默认兼容模式（11）、fontset=windows。
+lineends-self:
+	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex \
+	  -interaction=nonstopmode \
+	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' final.tex \
+	  > /dev/null
+	python3 scripts/check-line-ends.py --pdf examples/demo/final.pdf --fixture tests/lineends-demo.tsv
+
+# 重制自比对基线：先确认当前构建的差异都是有意的
+lineends-self-baseline:
+	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex \
+	  -interaction=nonstopmode \
+	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' final.tex \
+	  > /dev/null
+	{ echo '# 行末基线，由 scripts/check-line-ends.py --gen 生成'; \
+	  echo '# 来源：examples/demo/final.pdf，lualatex，fontset=windows，word-compat 默认（11）'; \
+	  echo '# 用途：新版面轨的自比对，钉住 Lua 断行层的现状；改断行规则后确认差异都是有意的，再用 make lineends-self-baseline 重制'; \
+	  python3 scripts/check-line-ends.py --gen examples/demo/final.pdf | tail -n +3; } > tests/lineends-demo.tsv
 
 # 解压走自解压的 dtx，不走 .ins：解压规则写在 src/hithesis.dtx 的 install 守卫里，
 # hithesis.ins 是它的产物之一（提交进仓库，随 CTAN 包发出去，供拿到源码包的人用）。
@@ -122,6 +143,11 @@ else ifneq ($(filter $(METHOD),xelatex lualatex),)
 # nonstopmode：手册里写错宏名之类的错误会让 xelatex 停在交互提示上等输入，
 # 无人看管时会一直挂着。cls 目标早就加了，manual 漏了。
 #
+# 索引用 upmendex 不用 makeindex：索引里有中文条目（示例文件名），makeindex 拿
+# 首字节当分组标题，写出来的 .ind 不是合法 UTF-8，lualatex 读到直接报
+# “String contains an invalid utf-8 sequence”（xelatex 只是吞掉）。upmendex 认
+# Unicode，gind.ist 照用。修改记录那份没有中文键，仍用 makeindex。
+#
 # 头一句之前先删 .gls 与 .ind：第一次 xelatex 会把它们读进来，而重建它们的
 # makeindex 排在后面，于是上一轮的陈旧内容会进这一轮的第一遍。改了 \changes
 # 条目之后这一点会直接炸——旧 .gls 里那条记录还带着改之前的花括号，报
@@ -129,7 +155,7 @@ else ifneq ($(filter $(METHOD),xelatex lualatex),)
 $(PACKAGE).pdf: $(TARGETS)
 	-$(RM) $(PACKAGE).gls $(PACKAGE).glo $(PACKAGE).ind $(PACKAGE).idx
 	TEXINPUTS=src:src/engine:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
-	makeindex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
+	upmendex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
 	makeindex -s gglo.ist -o $(PACKAGE).gls $(PACKAGE).glo
 	TEXINPUTS=src:src/engine:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 	TEXINPUTS=src:src/engine:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx

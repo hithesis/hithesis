@@ -59,7 +59,8 @@ hithesis/
 
 ```shell
 make cls          # 生成 cls/bst/ist/eps，并分发到四个示例目录
-make manual       # 编译用户手册 hithesis.pdf
+make manual       # 编译用户手册 hithesis.pdf（lualatex）
+make lineends-self # demo 全文行末与 tests/lineends-demo.tsv 自比对，钉住 Lua 断行层的现状
 make distribute   # 只做分发（cls 已经生成过时用）
 make clean        # 清理生成产物
 make changes       # 从 \changes 生成 RELEASE_NOTES.md

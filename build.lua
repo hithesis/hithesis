@@ -53,7 +53,7 @@ installfiles = {
 -- 模板资源，示例在 doc/ 下，一张图都不带。两张图随示例目录一起进 doc/。
 
 typesetfiles = {"hithesis.dtx"}
-typesetexe   = "xelatex"
+typesetexe   = "lualatex"
 unpackexe    = "xetex"
 
 checkengines = {"xetex"}
@@ -194,7 +194,9 @@ function typeset(file, dir)
 
   local steps = {
     typesetexe .. " " .. opts .. " " .. src,
-    "makeindex -s gind.ist -o " .. job .. ".ind " .. job .. ".idx",
+    -- 索引用 upmendex：条目里有中文，makeindex 写出的分组标题不是合法 UTF-8，
+    -- lualatex 读到就报错（见 Makefile 里 manual 目标的说明）
+    "upmendex -s gind.ist -o " .. job .. ".ind " .. job .. ".idx",
     "makeindex -s gglo.ist -o " .. job .. ".gls " .. job .. ".glo",
     typesetexe .. " " .. opts .. " " .. src,
     typesetexe .. " " .. opts .. " " .. src,
