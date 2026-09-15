@@ -106,6 +106,43 @@
 %    \begin{macrocode}
 \dim_const:Nn \c__hit_header_text_ht_dim { 9.18826pt }
 \dim_const:Nn \c__hit_header_text_dp_dim { 2.52736pt }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/15}{纯西文的页眉行按 Times 的行盒算：字上抬 0.68，双线上抬
+%   1.33，整块的顶不动；\hologo{LuaLaTeX} 上按盒里有没有汉字判，\hologo{XeLaTeX} 照旧}
+% \emph{页眉的行盒随内容定。} Word 的页眉框顶钉在「页眉距边界」上，那一行的行盒按行内
+% 实际用到的字体算：纯英文的行只有 Times 参与，按 1.15 倍算，比汉字行（1.297 倍）矮，
+% 字与横线都跟着往上走。iota-hit 自造 docx 量过（博士范例的页眉换成
+% Harbin Institute of Technology Doctoral Dissertation）：字的基线上抬 0.72、横线上抬
+% 1.68；按类里 Times 那两个常数（1.15 与 0.93261）算是 0.68 与 1.33，字对得上，横线差
+% 0.35 在量化噪声边上，先照常数。英文档的页眉整篇都是这一档。
+% 判据是盒里有没有汉字字形，只在 \hologo{LuaLaTeX} 上做（节点表能看），
+% \hologo{XeLaTeX} 一律按汉字行。
+%    \begin{macrocode}
+\dim_const:Nn \c__hit_header_latin_ht_dim { 8.50727pt }
+\dim_const:Nn \c__hit_header_latin_dp_dim { 1.88153pt }
+\bool_new:N \l__hit_header_latin_bool
+\cs_new_protected:Npn \__hit_header_latin_test:
+  {
+    \bool_set_false:N \l__hit_header_latin_bool
+    \sys_if_engine_luatex:T
+      {
+        \cs_if_exist:NT \hit@linebreak@attr
+          {
+            % Lua 那头没装（不走 Word 断行）就当有汉字，位置不动
+            \int_compare:nNnT
+              {
+                \lua_now:e
+                  {
+                    tex.sprint( ( hithesis ~ and ~ hithesis.linebreak ~ and ~
+                      hithesis.linebreak.box_cjk_flag( \int_use:N \l__hit_header_text_box ) )
+                      ~ or ~ 1 )
+                  }
+              } = { 0 }
+              { \bool_set_true:N \l__hit_header_latin_bool }
+          }
+      }
+  }
 \box_new:N \l__hit_header_text_box
 \bool_new:N \g__hit_header_rule_on_bool
 \fancyhfinit
@@ -128,10 +165,19 @@
     \vbox:n
       {
         \hbox_set:Nn \l__hit_header_text_box {#1}
+        \bool_set_false:N \l__hit_header_latin_bool
         \dim_compare:nNnT { \g_hit_msword_lead_dim } > { 0pt }
           {
-            \box_set_ht:Nn \l__hit_header_text_box { \c__hit_header_text_ht_dim }
-            \box_set_dp:Nn \l__hit_header_text_box { \c__hit_header_text_dp_dim }
+            \__hit_header_latin_test:
+            \bool_if:NTF \l__hit_header_latin_bool
+              {
+                \box_set_ht:Nn \l__hit_header_text_box { \c__hit_header_latin_ht_dim }
+                \box_set_dp:Nn \l__hit_header_text_box { \c__hit_header_latin_dp_dim }
+              }
+              {
+                \box_set_ht:Nn \l__hit_header_text_box { \c__hit_header_text_ht_dim }
+                \box_set_dp:Nn \l__hit_header_text_box { \c__hit_header_text_dp_dim }
+              }
           }
         \hbox_to_wd:nn { \headwidth }
           {
@@ -145,6 +191,16 @@
             \hit@header@rule:n { \l__hit_msword_rule_width_dim }
             \vskip 0.75bp
             \hit@header@rule:n { 0.75bp }
+          }
+        % 纯西文行矮下去的那一截补在块底：块的顶不动，字与横线一起上抬
+        \bool_if:NT \l__hit_header_latin_bool
+          {
+            \vskip
+              \dim_eval:n
+                {
+                  \c__hit_header_text_ht_dim + \c__hit_header_text_dp_dim
+                  - \c__hit_header_latin_ht_dim - \c__hit_header_latin_dp_dim
+                }
           }
       }
   }

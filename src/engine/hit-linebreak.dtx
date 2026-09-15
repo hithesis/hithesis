@@ -68,6 +68,16 @@
   }
 %    \end{macrocode}
 %
+% \changes{v3.2a}{2026/09/15}{汉字缝与汉西隙的宽另记在两个属性上，Lua 在装盒时照属性重设：
+%   输出例程里 \cs{ltjsetparameter} 不生效，页眉页脚的字距从前是正文那份（页眉每字多
+%   0.4543\,bp，\hologo{XeLaTeX} 没有这个毛病）}
+% \emph{页眉页脚的字距要绕过 luatexja 的参数栈。} \pkg{luatexja} 的 \texttt{kanjiskip}
+% 是按组层级记的栈参数，\pkg{fancyhdr} 在输出例程里装页眉盒，那时候 \cs{ltjsetparameter}
+% 写下的值到装盒时取不到，用的是正文的。所以 \cs{hit@format@hglue:nn} 设参数的同时把两个
+% 量写进属性 \cs{hit@kanjiskip@attr} 与 \cs{hit@xkanjiskip@attr}（单位 sp），
+% Lua 在 \texttt{hpack\_filter} 与 \texttt{pre\_linebreak\_filter} 里把每段汉字缝、汉西隙
+% 的宽改成前一个字身上记的属性值。属性跟着节点走，输出例程里也不例外。
+%
 % \subsection{装回调}
 %
 % 属性 \cs{hit@linebreak@attr} 是逐段的门：段首节点上它为 0 的段交回 TeX 断行。
@@ -87,6 +97,8 @@
   {
     \newattribute \hit@linebreak@attr
     \hit@linebreak@attr = 1
+    \newattribute \hit@kanjiskip@attr
+    \newattribute \hit@xkanjiskip@attr
     \AddToHook { begindocument / end }
       {
         \bool_if:NT \g__hit_linebreak_word_bool
@@ -100,7 +112,9 @@
                       kpse.find_file("hit-linebreak.lua", "tex")~
                       or~kpse.find_file("hit-linebreak.lua", "lua"))
                     hithesis.linebreak.compat = \int_use:N \g__hit_linebreak_compat_int
-                    hithesis.linebreak.install(luatexbase.attributes["hit@linebreak@attr"])
+                    hithesis.linebreak.install(luatexbase.attributes["hit@linebreak@attr"],
+                      luatexbase.attributes["hit@kanjiskip@attr"],
+                      luatexbase.attributes["hit@xkanjiskip@attr"])
                   }
               }
           }
@@ -1076,15 +1090,68 @@ function M.filter(head, is_display)
   return newhead
 end
 
--- 装回调。attr 是类分的属性号：段首节点上为 0 的段不管（交回 TeX）
-function M.install(attr)
+-- 汉字缝、汉西隙的宽照属性重设。luatexja 的参数栈在输出例程里失灵（页眉页脚的字距
+-- 会变成正文那份），类把两个量写进属性，这里在装盒前按前一个字身上的属性改宽
+local function fix_skips(head)
+  if not (M.ks_attr and M.xks_attr) then return end
+  for g in traverse(head) do
+    if g.id == KERN and g.subtype == 0 then
+      -- 页眉页脚不在字符网格上：西文的字距增量（LetterSpace 加的 kern）也去掉
+      local p = g.prev
+      if p and p.id == GLYPH and node.get_attribute(p, M.ks_attr) then g.kern = 0 end
+    elseif g.id == GLUE then
+      local a = nil
+      if is_kanjiskip(g) then a = M.ks_attr elseif is_xkanjiskip(g) then a = M.xks_attr end
+      if a then
+        local p = g.prev
+        while p and p.id ~= GLYPH and p.id ~= HLIST do p = p.prev end
+        local ref = p or g.next
+        local v = ref and node.get_attribute(ref, a)
+        if v then g.width = v end
+      end
+    end
+  end
+end
+
+-- 盒里有没有汉字（jfont 的字形，盒套盒也找）。页眉页脚的行盒按内容定：
+-- 纯西文的行按 Times 的行高算，类在 TeX 那头照这个结果换常量
+function M.box_has_cjk(n)
+  local b = tex.box[n]
+  local function walk(list)
+    for g in traverse(list) do
+      if g.id == GLYPH then
+        if is_jfont(g.font) then return true end
+      elseif g.id == HLIST or g.id == VLIST then
+        if walk(g.list) then return true end
+      end
+    end
+    return false
+  end
+  return b and walk(b.list) or false
+end
+-- 给 TeX 那头用：1 有汉字、0 没有
+function M.box_cjk_flag(n)
+  return M.box_has_cjk(n) and 1 or 0
+end
+
+-- 装回调。attr 是类分的属性号：段首节点上为 0 的段不管（交回 TeX）；
+-- ks、xks 是汉字缝、汉西隙的属性号
+function M.install(attr, ks, xks)
   M.attr = attr
+  M.ks_attr, M.xks_attr = ks, xks
   luatexbase.add_to_callback("linebreak_filter",
     function(h, d) return M.filter(h, d) end, "hit.linebreak")
+  if ks and xks then
+    luatexbase.add_to_callback("hpack_filter",
+      function(h) fix_skips(h); return true end, "hit.skips")
+    luatexbase.add_to_callback("pre_linebreak_filter",
+      function(h) fix_skips(h); return true end, "hit.skips")
+  end
 end
 function M.uninstall()
-  if luatexbase.in_callback("linebreak_filter", "hit.linebreak") then
-    luatexbase.remove_from_callback("linebreak_filter", "hit.linebreak")
+  for _, cb in ipairs({ { "linebreak_filter", "hit.linebreak" }, { "hpack_filter", "hit.skips" },
+                        { "pre_linebreak_filter", "hit.skips" } }) do
+    if luatexbase.in_callback(cb[1], cb[2]) then luatexbase.remove_from_callback(cb[1], cb[2]) end
   end
 end
 
