@@ -1096,9 +1096,18 @@ local function fix_skips(head)
   if not (M.ks_attr and M.xks_attr) then return end
   for g in traverse(head) do
     if g.id == KERN and g.subtype == 0 then
-      -- 页眉页脚不在字符网格上：西文的字距增量（LetterSpace 加的 kern）也去掉
-      local p = g.prev
-      if p and p.id == GLYPH and node.get_attribute(p, M.ks_attr) then g.kern = 0 end
+      -- 页眉页脚不在字符网格上：西文的字距增量（LetterSpace 加的 kern，插在下一个字前面）也去掉
+      local p, q = g.prev, g.next
+      if (p and p.id == GLYPH and node.get_attribute(p, M.ks_attr))
+        or (q and q.id == GLYPH and node.get_attribute(q, M.ks_attr)) then g.kern = 0 end
+    elseif g.id == GLUE and (g.subtype == 0 or g.subtype == 12 or g.subtype == 13)
+        and g.next and g.next.id == GLYPH and node.get_attribute(g.next, M.ks_attr) then
+      -- 空格也被 LetterSpace 加宽了一份增量（luaotfload 把 kern 量加进前面的胶），减回去
+      local f = font.getfont(g.next.font)
+      local kc = f and f.properties and f.properties.kerncharacters
+      if kc and kc ~= "max" and f.parameters and f.parameters.quad and g.width > 0 then
+        g.width = g.width - kc * f.parameters.quad
+      end
     elseif g.id == GLUE then
       local a = nil
       if is_kanjiskip(g) then a = M.ks_attr elseif is_xkanjiskip(g) then a = M.xks_attr end
