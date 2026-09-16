@@ -6,6 +6,8 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/16}{12/14 的行末闭号照 15 整个挂出去、行内共出半格；？前后都不缩半格；
+%   连续标点缩半格只在字距调整开着时有（lb7、lb8 探针）}
 % \changes{v3.2a}{2026/09/16}{断行规则再量一轮（lb4 到 lb6 探针）：？不是压缩位、行末不挂；
 %   西文接开号只有 0.27\,bp；格宽是字号加固定余量、汉西隙是字号/4 加余量/2、西文字宽平衡
 %   只在正文字号；汉西隙自己也能压；模式 15 里塞西文词多给 3\,bp、纯西文行空格压 15\%、
@@ -49,8 +51,9 @@
 % \texttt{doc}，用新版 Word 原样另存都是 11 且带 2003 的三个开关；学校自己发的少数
 % docx/dotx 是 12 或 14；15 只出现在用户点过「转换」的文件里。所以默认 \texttt{11}。
 %
-% 四档里 11、12、14 的断行规则一样，只差行末闭号一处没有行内位时挂半格（11）还是
-% 整格（12、14）；15 另一套，能多塞汉字。规则见 Lua 文件头。
+% 四档里 11、12、14 塞字的规则一样（有位就给半格）；行末闭号 11 只挂半格，12、14 整个
+% 挂出去、行内再共出半格（12 与 14 逐项量过，一样）；15 另一套，能多塞汉字。这里的 11 是
+% 带 2003 那三个开关的学校原件，12、14 是不带开关的；规则见 Lua 文件头。
 %    \begin{macrocode}
 %<*shared-linebreak>
 \bool_new:N \g__hit_linebreak_word_bool
@@ -103,6 +106,7 @@
     \hit@linebreak@attr = 1
     \newattribute \hit@kanjiskip@attr
     \newattribute \hit@xkanjiskip@attr
+    \newattribute \hit@kern@attr
     \AddToHook { begindocument / end }
       {
         \bool_if:NT \g__hit_linebreak_word_bool
@@ -118,14 +122,29 @@
                     hithesis.linebreak.compat = \int_use:N \g__hit_linebreak_compat_int
                     hithesis.linebreak.install(luatexbase.attributes["hit@linebreak@attr"],
                       luatexbase.attributes["hit@kanjiskip@attr"],
-                      luatexbase.attributes["hit@xkanjiskip@attr"])
+                      luatexbase.attributes["hit@xkanjiskip@attr"],
+                      luatexbase.attributes["hit@kern@attr"])
                   }
               }
           }
       }
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{2026/09/16}{加 \cs{hit@linebreak@kern@off:}：Word 的「字距调整」关着时
+%   连续标点不缩成半格，学校模板的标题样式都关着（一级是 22 磅起才开，标题字号不到）}
+% \begin{macro}{\hit@linebreak@kern@off:}
+% Word 的连续标点缩半格（“），”“。”）是字体字距调整（\texttt{w:kern}）干的，关了就各占
+% 一格（lb7 探针，两种设置各排一遍）。学校模板正文样式开着，标题样式都关着。
+% 格式层排标题时调这个宏，把属性 \cs{hit@kern@attr} 设成 0，Lua 见了就不配对。
+% \hologo{XeLaTeX} 上是空操作。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@linebreak@kern@off: { }
+\sys_if_engine_luatex:T
+  { \cs_set_protected:Npn \hit@linebreak@kern@off: { \hit@kern@attr = 0 \scan_stop: } }
 %</shared-linebreak>
 %    \end{macrocode}
+%    \end{macro}
 %
 % \subsection{Lua 模块}
 %
@@ -137,7 +156,7 @@
 -- 规则全是自造 docx 让 Word 排、逐行量出来的：
 --   自然宽：汉字/开号一格 p = 字号 + 固定余量（正文 12pt 是 12.4543，余量不随字号变）；
 --     闭号一格，后接标点则半格；开号紧跟开号时后一个半格（左半空白没了，两个开号的墨迹
---     挨着）；正文字号的西文字形宽乘 p/em（Word 的「中西文字宽平衡」，别的字号没有）；
+--     挨着）；这两条缩半格是字距调整（w:kern）干的，关着时各占一格，？前后都不缩；正文字号的西文字形宽乘 p/em（Word 的「中西文字宽平衡」，别的字号没有）；
 --     汉字与西文字母数字之间自动间距 = 字号/4 + 余量/2（12pt 是 3.23bp）；西文接开号、
 --     闭号都只有 0.27bp；两边都是中文的空格占半格且不伸缩，其余空格 3.25bp；
 --     —～· 这类全角符号当西文串里的字，不加间距。
@@ -151,8 +170,8 @@
 --     行末是开号：模式 11/12/14 再给开号自己的左半空白，行内位各半格、至多两个；
 --     模式 15 各位至多半格、总共不过 p + p·K/(K+2)。装不进就把开号拉到下一行。
 --   塞闭号（禁则）：模式 15 一处行内位都没有时整个闭号挂出去，有 K 个则 p + p·(K+1)/(K+3)；
---     模式 11（带 doNotWrapTextWithPunct）挂半格、12/14 挂整格，行内位各半格、至多两个；
---     ？自己一点不挂（模式 15 照样整个挂出去）。
+--     模式 11（带 doNotWrapTextWithPunct）挂半格，行内位各半格、至多两个，？自己一点不挂；
+--     12/14 整个挂出去（？也是），行内位总共半格。
 --   松行：余量先给汉西隙（每处至多 2.8bp）与西文空格，再均摊到汉字缝；贴格段伸到整数格。
 --   断点：照 TeX 的规矩，只在合法断点断（胶、罚分小于 10000、disc；连字符后只有模式 15
 --     能断，2003 档整词下行），~ 后面与两个盒子之间断不开；退到头还断不开就照 TeX 往后找
@@ -395,6 +414,13 @@ local function tokenize(head)
   return items, indent, strut_h, strut_d
 end
 
+-- 字距调整开着没有（Word 的 w:kern）：属性没设或非 0 就是开着
+local function kern_on(it)
+  if not M.kern_attr or not it.core then return true end
+  local v = node.get_attribute(it.core, M.kern_attr)
+  return v == nil or v ~= 0
+end
+
 -- 自然宽（账本）：每个条目自己的宽 nw，与前一条目之间的隙 gap；顺带标出压缩位权重 spot
 local function natural(items, P)
   local p = P.cell
@@ -406,7 +432,8 @@ local function natural(items, P)
     if it.kind == 0 then
       it.nw = p
     elseif it.kind == 1 then
-      it.paired = (nk == 1 or nk == 2)
+      -- 后接标点缩半格是字距调整干的（属性 0 表示关着）；？前后都不缩
+      it.paired = (nk == 1 or nk == 2) and it.c ~= 0xFF1F and nx.c ~= 0xFF1F and kern_on(it)
       it.nw = it.paired and p / 2 or p
       -- 后接闭号的只算 0.2 个位，后接开号或汉字的是整位；？不是位（两档都量过，
       -- 它的空白压不动，！照常）
@@ -415,7 +442,7 @@ local function natural(items, P)
       -- 开号后接开号：按步进算是前一个半格，但开号的空白在左边，落到纸面上是后一个
       -- 的左半空白没了、两个开号的墨迹挨着（范例「为“（1-1）”」量的：“ 的原点在格首，
       -- （ 从半格处起）。这里的账本按空白记，所以是后一个半格
-      it.paired = (prev and prev.kind == 2) or false
+      it.paired = (prev and prev.kind == 2 and kern_on(it)) or false
       it.nw = it.paired and p / 2 or p
       -- 前面是汉字的开号是整位，前面是标点的只算 0.2 个位
       if not prev then it.spot = 0
@@ -630,10 +657,13 @@ local function decide(items, P, shape, indent)
       if K == 0 then return p end
       return p + p * (K + 1) / (K + 3) - 2 * latin_penalty(first, last, K)
     end
-    -- ？没有空白可压，2003 档里它自己一点不挂（qe0、qe1 探针）
-    local own = (items[last].kind == 1 and (items[last].spot or 0) == 0) and 0
-                or (M.compat == 11 and p / 2 or p)
-    return own + math.min(K, 2) * p / 2
+    if M.compat == 11 then
+      -- ？没有空白可压，2003 档里它自己一点不挂（qe0、qe1 探针）；行内位各半格、至多两个
+      local own = (items[last].kind == 1 and (items[last].spot or 0) == 0) and 0 or p / 2
+      return own + math.min(K, 2) * p / 2
+    end
+    -- 12/14：闭号整个挂出去（？也是），行内位总共半格（lb8 探针：d0=12、d1–d3=19、qe0=12）
+    return p + ((K >= 1) and p / 2 or 0)
   end
   local i = 1
   while i <= n do
@@ -933,16 +963,22 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
       -- 行内位吃得下：全由行内位按上限比例分担，不挂；
       -- 吃不下：模式 11 挂多少算多少（至多半格），其余模式挂半格或整格（量出来是这两档），
       -- 挂多了行反而松，余量匀给汉字缝；行内位分担挂剩下的那部分。
-      -- 模式 ≤14 行内位至多两个，取靠后的两个
-      if M.compat ~= 15 and #sp > 2 then
+      -- 模式 11 行内位至多两个，取靠后的两个；12/14 行内位总共只有半格
+      if M.compat == 11 and #sp > 2 then
         local m = {}
         for i2 = #sp - 1, #sp do m[#m + 1] = sp[i2] end
         sp = m
       end
-      local cap = 0
-      for _, it in ipairs(sp) do cap = cap + midcap(it, P) end
+      local capsum = 0
+      for _, it in ipairs(sp) do capsum = capsum + midcap(it, P) end
+      local cap = capsum
+      if M.compat ~= 11 and M.compat ~= 15 then cap = math.min(cap, p / 2) end
+      local function share(amt)
+        if capsum <= 0 then return end
+        for _, it in ipairs(sp) do take(it, amt * midcap(it, P) / capsum) end
+      end
       if rest <= cap + P.eps then
-        for _, it in ipairs(sp) do take(it, rest * midcap(it, P) / cap) end
+        share(rest)
         rest = 0
       else
         local r = rest - cap
@@ -961,12 +997,9 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
           rest = hang
         else
           local r2 = rest - hang
-          if cap > 0 then
-            local f = math.min(1, r2 / cap)
-            for _, it in ipairs(sp) do take(it, f * midcap(it, P)) end
-            r2 = r2 - f * cap
-          end
-          rest = hang + r2
+          local amt = math.min(cap, r2)
+          share(amt)
+          rest = hang + r2 - amt
         end
       end
       if rest > 0 then
@@ -1253,8 +1286,9 @@ end
 
 -- 装回调。attr 是类分的属性号：段首节点上为 0 的段不管（交回 TeX）；
 -- ks、xks 是汉字缝、汉西隙的属性号
-function M.install(attr, ks, xks)
+function M.install(attr, ks, xks, kern)
   M.attr = attr
+  M.kern_attr = kern
   M.ks_attr, M.xks_attr = ks, xks
   luatexbase.add_to_callback("linebreak_filter",
     function(h, d) return M.filter(h, d) end, "hit.linebreak")
