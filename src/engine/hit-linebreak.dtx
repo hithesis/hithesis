@@ -7,7 +7,14 @@
 % \section{断行层}
 %
 % \changes{v3.2a}{2026/09/20}{跟上 msword.rs 56f9385、28ab515：裸汉字与紧贴汉字的西文串的预算
-%   分母 k+1 换成 k + W/M + Γ(g)，行越短给得越多；2003 到 2010 档的汉西隙按余量的四分之一}
+%   分母 k+1 换成 k + W/M + Γ(g)，行越短给得越多；汉西隙也照它的公式（字号/4 加余量/5，
+%   模式 15 的那一份另有上限）}
+% \changes{v3.2a}{2026/09/20}{与 typst-with-msword-linebreaks 逐行对拍（\file{scripts/typst-compare.py}，
+%   \texttt{make lineends-typst}）：同一批段落两边各排一遍，模式 15 的行文本只差在 URL 段，
+%   模式 11 另有开号单元的位数；两个破折号之间可断行（Word 会断，UAX \#14 不会）。
+%   对拍连同范例又量出三处画法：行末闭号自己压半格就够时行内位一个不动、其余拉开；
+%   贴着汉字的半格空格不参与压缩；开号的网格增量在字形后面（段首的（从 110.4 回到
+%   110.0）。行末扫描不再把断行处的空格字形当行末，范例基线的四处豁免全撤、上限 55 收到 21}
 % \changes{v3.2a}{2026/09/20}{断行模型整个照 typst-with-msword-linebreaks 的 msword.rs 重写：
 %   按「单元」（开号 + 一个字或一段西文 + 闭号链）判装不装，模式 15 的预算分裸汉字、紧贴
 %   汉字的西文串、其余三路，2003 到 2010 档按物理容量加首字形规则；渲染照 Word 的分配
@@ -530,15 +537,17 @@ local function kern_on(it)
   return v == nil or v ~= 0
 end
 
--- 汉西隙：字号的四分之一，有网格时模式 15 再加 0.25bp、2003 到 2010 档加余量的四分之一
--- （按塞字的翻转点倒推 Word 算账用的量：模式 15 的 x1–x3 与 w1–w3 在 12.5 与 13 的格上
--- 都是 3.25；2003 档的 x1–x3 要 3.1、w1–w3 要 3.24，余量的四分之一两头都对上。纸面上
--- 量到的 3.57 与 3.227 不是算账用的数。msword.rs 用余量的五分之一，差 0.02 到 0.13）
+-- 汉西隙：字号的四分之一再加余量的五分之一（余量 = 格宽 − 字号）；模式 15 的那一份
+-- 取 max(余量/5, (余量 − 0.26bp)·0.46) 再封顶 0.2bp。这是 msword.rs 的公式，整套翻转点
+-- 探针（lb2–lb8，108 组）它只错 6 组、都在半格之内；曾试过「模式 15 加 0.25bp、其余加
+-- 余量的四分之一」，错 9 组，纸面上量到的 3.57 与 3.227 也不是算账用的数
 local function auto_at(P, size)
   if not P.autospace then return 0 end
-  if P.excess <= 0 then return size / 4 end
-  if P.compat == 15 then return size / 4 + 0.25 * P.bp end
-  return size / 4 + P.excess / 4
+  local ex = P.excess
+  if P.compat == 15 then
+    return size / 4 + math.min(math.max(ex / 5, (ex - 0.26 * P.bp) * 0.46), 0.2 * P.bp)
+  end
+  return size / 4 + ex / 5
 end
 
 -- 自然宽（账本）：每个条目自己的宽 nw、与前一条目之间的隙 gap、是不是压缩位 spot、
@@ -1157,6 +1166,11 @@ local function decide(items, P, shape, indent)
       if compat == 15 then return core.next end
       return nil
     end
+    -- 两个破折号之间 Word 能断（msword.rs：`——` 可断，UAX #14 不给）；破折号交给西文
+    -- 字体排时两个字形之间没有胶，TeX 那套查不出断点
+    if core.id == GLYPH and core.char == 0x2014 and items[k + 1].c == 0x2014 then
+      return items[k + 1].first
+    end
     local stop = items[k + 1].first
     local prev = core
     local g = core.next
@@ -1454,7 +1468,9 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
     end
   end
   -- 每个条目的节点跨度补 kern 到账本宽 nw：汉字、闭号补在实体节点后（adj），开号的空白在
-  -- 左边、补在前面（pre），后面另放一个 adj 收伸展量；条目前的隙用 kern（gapkern）摆
+  -- 左边、压缩量从前面扣（pre），网格增量仍在字形后面（adj，范例「用“分析」：开号压
+  -- 4.75 时字形起点提前 4.75，后面的一格仍是 12.5；段首的（在 110.0 而不是 110.4），
+  -- 伸展量也收在 adj 里；条目前的隙用 kern（gapkern）摆
   local function base_of(k)
     local it = items[k]
     if it.paired and k == last then return it.full end
@@ -1512,10 +1528,13 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
       it.spanw = w
       local kn = node.new(KERN); kn.kern = base_of(k) - w
       if it.kind == 2 then
+        -- 字形的字面起点落在格首：luatexja 把半宽开号装在半格宽的盒子里、字面从盒子
+        -- 起点往左伸出半格，盒子比字面窄的那一段（it.w − w）补在前面
+        kn.kern = base_of(k) - it.full + (it.w - w)
         node.insert_before(head, it.first, kn)
         if it.first == head then head = kn end
         it.pre = kn
-        local kn2 = node.new(KERN); kn2.kern = 0
+        local kn2 = node.new(KERN); kn2.kern = it.full - w
         node.insert_after(head, it.core or it.last, kn2)
         it.adj = kn2
       else
@@ -1529,6 +1548,7 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
   for k = first, last do delta[k] = 0; after[k] = 0 end
   local start = first
   while start < last and items[start].kind == 4 do start = start + 1 end
+  local ragged = line.ragged or line.islast
 
   local whole_hang, in_place, cap_last = false, false, false
   if line.over > 0 and not line.forced then
@@ -1540,16 +1560,11 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
     local need = line.over
     -- Word 2013 先压西文串里的空格（各四分之一），再压标点
     if compat == 15 and P.justify then
-      local unit_start = last
-      while unit_start > first and items[unit_start].kind == 1 do unit_start = unit_start - 1 end
       local function give(k)
         local t = items[k]
-        if t.kind ~= 4 or t.user then return 0 end
-        if t.rigid and k < unit_start then
-          local all = true
-          for i = k + 1, unit_start - 1 do if items[i].kind ~= 4 then all = false; break end end
-          if all then return 0 end
-        end
+        -- 贴着汉字的半格空格不压（范例「人称, 采用“分析了……」：闭号压半格、三个开号各出
+        -- 4.7，逗号后的半格空格仍是 6.3），与账本里的 space_give 一致
+        if t.kind ~= 4 or t.user or t.rigid then return 0 end
         local in_run = (k > 1 and items[k - 1].kind == 4) or (k < #items and items[k + 1].kind == 4)
         if in_run then return 0 end
         local after_punct = k > 1 and (items[k - 1].kind == 1 or items[k - 1].kind == 2) and not items[k - 1].symbol
@@ -1587,11 +1602,20 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
         inline = math.max(need - hang, 0)
         whole_hang = not lt.symbol
       else
-        -- 2007 起：先由行内位分担（各至多半格）；不够时闭号在原位压成半格、行内位出剩下
+        -- 2007 起：闭号自己压半格就够时只压闭号，行内位一个不动、其余拉开（范例
+        -- 「总结与概括，」超 4.5：逗号起点在右缘内半格，”。与、都是原宽，字距拉到 12.5；
+        -- 段末行没有拉开这一说，照下面的办）；
+        -- 不够时先由行内位分担（各至多半格）；再不够闭号在原位压成半格、行内位均摊剩下
         -- 的；还不够才整个挂出去，那时行内位只出挂出后还缺的那点（lb3/lb4 探针 d0–d2 与
-        -- 范例「代号和公式等。」：四个位吃得下时闭号原样、闭号起点在右缘内一格；吃不下
-        -- 时闭号起点在右缘内半格；差得多时起点在右缘上、行内位只压 need − p）
-        if need <= cap * k + eps then
+        -- 范例「代号和公式等。」：四个位吃得下时闭号原样、闭号起点在右缘内一格；「进行了
+        -- 探讨”」三个位吃不下 20.2 时闭号先压半格、三个开号各出 4.7；差得多时起点在右缘上、
+        -- 行内位只压 need − p）
+        if need <= half + eps and P.justify and not ragged and not hasfil then
+          delta[last] = delta[last] - half
+          inline = 0
+          in_place = true
+          cap_last = true
+        elseif need <= cap * k + eps then
           inline = need
         elseif need - half <= cap * k + eps then
           delta[last] = delta[last] - half
@@ -1642,7 +1666,6 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
   local compressed = 0
   for k = first, last do compressed = compressed + delta[k] end
   local slack = line.capacity - (natural_w + compressed)
-  local ragged = line.ragged or line.islast
   if P.justify and not ragged and not line.forced and not hasfil and slack > 0
     and (line.over <= 0 or symbol_hang or whole_hang or in_place) then
     local autos, spaces, cjkgaps, halves = {}, {}, {}, {}

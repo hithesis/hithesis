@@ -78,6 +78,7 @@ make depslist      # 按当前代码打印一份策略表骨架，加包时拿�
 make baseline        # 45 个变体全编一遍，渲染结果存成本地基线
 make smoke           # 重编并与本地基线逐页比
 make regression-test # 与参照版本逐页比，发版前跑
+make lineends-typst  # 与 typst-with-msword-linebreaks 逐行对拍（要本机有那个 fork）
 make manual-baseline # 改动前存一份手册 PDF
 make manual-check    # 改完与之比对
 ```

@@ -49,8 +49,11 @@ def body_lines(xml):
         for y in sorted(rows):
             seq = sorted(rows[y])
             text = ''.join(c for _, c in seq).strip()
-            if text:
-                yield page, y, seq[0][0], seq[-1][0], ''.join(c for _, c in seq)
+            # 行首行末的坐标取首尾的非空格字符：Word 与 typst 的 PDF 里断行处的空格
+            # 也是一个字形，落在右缘上，会把行末读成 510
+            ink = [x for x, c in seq if not c.isspace()]
+            if text and ink:
+                yield page, y, ink[0], ink[-1], ''.join(c for _, c in seq)
 
 
 HEADING_RE = re.compile(r'^\d+(\.\d+)*\s*\S{0,14}$')
