@@ -6,6 +6,8 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/20}{跟上 msword.rs 56f9385、28ab515：裸汉字与紧贴汉字的西文串的预算
+%   分母 k+1 换成 k + W/M + Γ(g)，行越短给得越多；2003 到 2010 档的汉西隙按余量的四分之一}
 % \changes{v3.2a}{2026/09/20}{断行模型整个照 typst-with-msword-linebreaks 的 msword.rs 重写：
 %   按「单元」（开号 + 一个字或一段西文 + 闭号链）判装不装，模式 15 的预算分裸汉字、紧贴
 %   汉字的西文串、其余三路，2003 到 2010 档按物理容量加首字形规则；渲染照 Word 的分配
@@ -163,15 +165,16 @@
 -- 那边用 Mac Word 16.89 导 PDF、逐字读坐标量出来的；这里只换成 LuaTeX 的节点表。要点：
 --   度量：格 = 字号 + 网格余量（小四 12.4543）；汉字、全角标点各占一格；字距调整开着时
 --     后接标点的闭号缩半格、开号后接开号前一个缩半格（？两侧都不缩）；西文字形各加半个
---     余量（Word 的「平衡半角与全角字符宽度」，只在正文字号）；汉西隙与西文空格各按
---     字体的量加 0.25bp（msword.rs 是余量的五分之一，按自己的探针改）；贴着汉字（或盒子、
---     公式）的空格锁成半格且刚性；交给 jfont 排却不是汉字的符号一格一个、旁边不加隙，
---     不能起行的（℃ °）当闭号挂。
+--     余量（Word 的「平衡半角与全角字符宽度」，只在正文字号）；汉西隙按字体的量加
+--     0.25bp（模式 15）或余量的四分之一（2003 到 2010 档），西文空格加 0.25bp（msword.rs
+--     是余量的五分之一，按自己的探针改）；贴着汉字（或盒子、公式）的空格锁成半格且
+--     刚性；交给 jfont 排却不是汉字的符号一格一个、旁边不加隙，不能起行的（℃ °）当闭号挂。
 --   单元：一次断行决策的对象——开号们 + 一个汉字或一段西文 + 后面的闭号链（含紧跟的
 --     西文闭标点）。单元装不下时看它的溢出量是否不超过预算。
 --   模式 15（2013 起）：预算由前面的 k 个压缩位（各至多半格）、行里的汉西隙（k=0 时是
---     小池子、k≥1 时是扣项）、单元自身的宽 u（压不掉超过 u·k/(k+1)）与挂出（最后一个
---     闭号整格）决定；裸汉字、紧贴汉字的西文串两路直接用量出来的表，其余是拟合式；
+--     小池子、k≥1 时是扣项）、单元自身的宽 u（压不掉超过 u·k/(k+W/M)，W/M 是行到这个
+--     单元为止的自然宽比版心，行满时就是 k/(k+1)）与挂出（最后一个闭号整格）决定；
+--     裸汉字、紧贴汉字的西文串两路直接用量出来的式子，其余是拟合式；
 --     西文语境的空格各压四分之一、总共不过 1.85 个空格。只在两端对齐的段落压缩、挂出。
 --   模式 11/12/14：物理容量 = 每个位半格 + 每个汉西隙半个隙；西文单元要首字形按自然宽
 --     已在版心内才压；闭号链挂半格（11）或整格（12/14）；adjustRightInd 开着时版心按
@@ -527,13 +530,15 @@ local function kern_on(it)
   return v == nil or v ~= 0
 end
 
--- 汉西隙：字号的四分之一，有网格时再加 0.25bp（正文格 12.4543 时 3.227 是量的；lb4/lb5
--- 探针在 13bp 的格上纸面量到 3.57，但按塞字的翻转点倒推 Word 算账用的仍是 3.25 上下：
--- w1–w3、g2、x1–x3 两档都只有 3.25 对得上。msword.rs 用「余量的五分之一」，在学校文件
--- 的格上差 0.13）
+-- 汉西隙：字号的四分之一，有网格时模式 15 再加 0.25bp、2003 到 2010 档加余量的四分之一
+-- （按塞字的翻转点倒推 Word 算账用的量：模式 15 的 x1–x3 与 w1–w3 在 12.5 与 13 的格上
+-- 都是 3.25；2003 档的 x1–x3 要 3.1、w1–w3 要 3.24，余量的四分之一两头都对上。纸面上
+-- 量到的 3.57 与 3.227 不是算账用的数。msword.rs 用余量的五分之一，差 0.02 到 0.13）
 local function auto_at(P, size)
   if not P.autospace then return 0 end
-  return size / 4 + ((P.excess > 0) and 0.25 * P.bp or 0)
+  if P.excess <= 0 then return size / 4 end
+  if P.compat == 15 then return size / 4 + 0.25 * P.bp end
+  return size / 4 + P.excess / 4
 end
 
 -- 自然宽（账本）：每个条目自己的宽 nw、与前一条目之间的隙 gap、是不是压缩位 spot、
@@ -687,6 +692,8 @@ local function decide(items, P, shape, indent)
   local auto = auto_at(P, p - ex)
   local scale = auto / (3.09 * bp)
   local justify = P.justify or compat ~= 15
+  -- 本行的版心宽：主循环逐行设，预算里 W/M 那一项要读它
+  local measure = 0
 
   -- 行里第一个不是空格的条目
   local function text_start(first)
@@ -772,8 +779,9 @@ local function decide(items, P, shape, indent)
     local t = latin and POOL_L or POOL_C
     return t[math.min(g, 8)] * bp * scale
   end
-  local D_TAB = { [0] = 0, 0.88, 1.56, 2.29, 2.6, 3.06, 3.22, 3.35, 3.45 }
-  local E_TAB = { [0] = 0, 0.02, 0.25, 0.11, -0.01, -0.03 }
+  -- 行里的汉西隙先伸，没了这个单元的行需要的伸量就少，隙按 Γ(g) 记进分母，位多时
+  -- 记得更多（(k+3)/5，一个位时只算 0.4）
+  local G_TAB = { [0] = 0, 0.29, 0.54, 0.73, 0.9, 1.1, 1.29, 1.4, 1.5 }
 
   -- 一行里的字（0..last）有没有汉字
   local function has_cjk(first, m)
@@ -811,18 +819,19 @@ local function decide(items, P, shape, indent)
     local cjk_char = (not latin) and bare and not adjacent
     local glued_latin = latin and bare and j == j0 and tc.gap > 0 and ascii_tail == 0 and k >= 1
 
-    -- 形状一：裸汉字
+    -- 形状一：裸汉字。k/(k+1) 里那个 1 其实是 W/M：行到这个单元为止的自然宽比版心，
+    -- 每个位压的量不超过没有这个单元时行要伸的量；行满时就是 k/(k+1)，短一点的行多给
+    -- （msword.rs 56f9385：两个逗号前 18 到 28 个字 9.55 到 8.55，缩进、版心不影响）
     if cjk_char then
       if k == 0 then return pool(n_all, false) end
-      local share = (k == 1) and (1 / 3) or (k / (k + 1))
       local uc = tc.nw
       local own_spaces = 0
       local b = j
       while b > first + 1 and items[b - 1].kind == 4 and items[b - 1].rigid do b = b - 1; own_spaces = own_spaces + items[b].nw end
-      local base = (uc + own_spaces) * k / (k + 1)
-      -- E 只在 k=2、3 有（0.25、0.11），k≥4 那两个负值在 0.1 的量化里，范例「不添加。摘要应」
-      -- 六个位时正好差 0.03，按零算
-      if n_all == 0 and k <= 3 then base = base + E_TAB[k] * bp * (uc / (12.454 * bp)) end
+      local w_line = width_of(items, text_start(first), m)
+      local gamma = G_TAB[math.min(n_all, 8)] * ((k == 1) and 0.4 or (k + 3) / 5)
+      local denom = k + math.max(0, math.min(w_line / measure, 1.5)) + gamma
+      local base = (uc + own_spaces) * k / denom
       local blocks = 0
       if k >= 2 then
         local i = first + 1
@@ -843,16 +852,18 @@ local function decide(items, P, shape, indent)
         end
       end
       local bonus = 0.2 * bp * blocks * scale
-      local t = math.min(base - D_TAB[math.min(n_all, 8)] * bp * scale * share, half * k) + bonus
-      trace("  b15 cjk-char j=%d core=%d m=%d k=%d n_all=%d u=%.2f t=%.2f", j, core, m, k, n_all, uc / bp, t / bp)
+      local t = math.min(base, half * k) + bonus
+      trace("  b15 cjk-char j=%d core=%d m=%d k=%d n_all=%d u=%.2f w/m=%.3f t=%.2f", j, core, m, k, n_all, uc / bp, w_line / measure, t / bp)
       return t
     end
 
-    -- 形状二：紧贴汉字的西文串
+    -- 形状二：紧贴汉字的西文串。分母同样是 k + W/M（in4：两个逗号前 18/22/28 个字的 ab
+    -- 11.85/11.35/10.75），按 k+1 拟合的 1.9 换成 1.7
     if glued_latin then
       local g_other = math.max(n_all - 1, 0)
       local c = half * k + auto / 2 * n_all
-      local t = ((u * 1.031 - 2.85 * bp) * k / (k + 1) + 1.9 * bp * scale) * (1 - 0.136 * math.log(1 + g_other))
+      local wm = math.max(0, math.min(width_of(items, text_start(first), m) / measure, 1.5))
+      local t = ((u * 1.031 - 2.85 * bp) * k / (k + wm) + 1.7 * bp * scale) * (1 - 0.136 * math.log(1 + g_other))
       trace("  b15 glued-latin j=%d core=%d m=%d k=%d n_all=%d u=%.2f c=%.2f t=%.2f", j, core, m, k, n_all, u / bp, c / bp, t / bp)
       return math.min(c, t)
     end
@@ -1197,7 +1208,7 @@ local function decide(items, P, shape, indent)
     local isfirst = (#lines == 0)
     local li = #lines + 1
     local sh = shape(li)
-    local measure = sh.width
+    measure = sh.width
     -- 格数按整个版心数，悬挂缩进事后再减（Word 是按页面版心数格再减段落缩进）
     local full = tex.hsize
     local cellcap
