@@ -25,7 +25,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls lineends lineends-self lineends-typst pages-doctor lineends-self-baseline compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls lineends lineends-self lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
@@ -93,6 +93,13 @@ lineends-typst:
 pages-doctor:
 	cd tests/sample/doctor && TEXINPUTS="$(CURDIR):" BSTINPUTS="$(CURDIR):" latexmk main.tex > /dev/null
 	python3 scripts/check-pages.py --pdf tests/sample/doctor/main.pdf --fixture tests/pages-doctor.tsv --min-ok 172
+
+# 本科那份同理：对拍件 tests/sample/bachelor 引博士那份的正文，靶子是模式 15 的本科范例修正版
+pages-bachelor:
+	cd tests/sample/bachelor && TEXINPUTS="$(CURDIR):" BSTINPUTS="$(CURDIR):" latexmk main.tex > /dev/null
+	python3 scripts/check-pages.py --pdf tests/sample/bachelor/main.pdf --fixture tests/pages-bachelor.tsv --min-ok 126
+
+pages: pages-doctor pages-bachelor
 
 # 重制自比对基线：先确认当前构建的差异都是有意的
 lineends-self-baseline:

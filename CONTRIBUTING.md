@@ -79,7 +79,7 @@ make baseline        # 45 个变体全编一遍，渲染结果存成本地基线
 make smoke           # 重编并与本地基线逐页比
 make regression-test # 与参照版本逐页比，发版前跑
 make lineends-typst  # 与 typst-with-msword-linebreaks 逐行对拍（要本机有那个 fork）
-make pages-doctor    # 博士范例整本复刻件与 Word 导出逐页逐行比基线
+make pages           # 博士与本科范例的整本复刻件与 Word 导出逐页逐行比基线
 make manual-baseline # 改动前存一份手册 PDF
 make manual-check    # 改完与之比对
 ```
@@ -841,13 +841,15 @@ make manual-check  # 手册与基线逐页比
 纯重构（只挪代码、不改行为）的验收标准是零差异。有意的样式调整则要逐页确认差异是否符合预期，`tests/diff/` 下有标红的差异图。
 
 对 Word 的版面对拍有三层，一层比一层粗：`make lineends` 比断点（规范章 58 段，靶子是本科范例的
-Word 导出），`make lineends-typst` 比断点的实现（typst fork），`make pages-doctor` 比每行落在页面
-的哪个高度。最后这条的对拍件是 `tests/sample/doctor/`，照《研究生学位论文书写范例》的段落序列
-写的整本，内容以范例为准、别改成示例；靶子 `tests/pages-doctor.tsv` 抽自范例按指南改齐后的
-Word 导出（来路写在文件头）。`scripts/check-pages.py -v` 逐页列出差的行。范例原件与指南原话
-打架的地方（章标题与条标题的行距、网格行距、声明页标题下的空段）类跟指南，与靶子同一边；
-目录、第 1 章首页、结论、声明、致谢、简历这些页已经整页对上，没对上的是图页（范例手排）、
-英文目录的占位行、表题上下的间距、封面到内封的空白页这几类。
+Word 导出），`make lineends-typst` 比断点的实现（typst fork），`make pages` 比每行落在页面
+的哪个高度。最后这条的对拍件是 `tests/sample/doctor/` 与 `tests/sample/bachelor/`，照两份书写范例
+的段落序列写的整本（本科那份引博士那份的正文），内容以范例为准、别改成示例；靶子
+`tests/pages-*.tsv` 抽自范例按指南改齐后的 Word 导出（来路写在文件头；本科那份是模式 15）。
+`scripts/check-pages.py -v` 逐页列出差的行。范例原件与指南原话打架的地方（章标题与条标题的
+行距、网格行距、声明页标题下的空段）类跟指南，与靶子同一边；目录、第 1 章首页、结论、声明、
+致谢、简历这些页已经整页对上，没对上的是图页（范例手排）、英文目录的占位行、封面到内封的
+空白页、本科内封与声明页的新旧文本这几类。改齐脚本也有误伤（本科成果页组名的段前段后被清成零），
+比的时候要回头看原件。
 
 手册有一点要注意：它会把源码连同行号一起排印，所以改代码必然让行号位移、索引重排。只有纯文档类改动才该期望 `make manual-check` 零差异。
 
