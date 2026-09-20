@@ -294,15 +294,37 @@ This is the configuration file of the hithesis package with LaTeX2e.
 % ^^A ======================================================================
 %<*driver>
 \ProvidesFile{hithesis.dtx}[0000/00/00 3.2a Harbin Institute of Technology Thesis Template]
-\documentclass{ltxdoc}
+% 手册由类自己排，博士学位论文那一档。字体：装了中易宋体就按 windows 那套排
+% （学校要的字体），没装（CI 的 runner）退到随 TeX Live 发的 fandol。
+% \IfFontExistsTF 要 fontspec，这时候还没有，用 \font 探
+\suppressfontnotfounderror=1
+\font\hitmanualprobe="SimSun"\relax
+\ifx\hitmanualprobe\nullfont
+  \PassOptionsToClass{fontset=fandol}{hithesis}
+\else
+  \PassOptionsToClass{fontset=windows}{hithesis}
+\fi
+\suppressfontnotfounderror=0
+% 索引的封装由 hypdoc 加，hyperref 的 hyperindex 得关着（见 dtx-style）
+\PassOptionsToPackage{hyperindex=false}{hyperref}
+\documentclass[stage=final,degree-level=doctor,campus=harbin]{hithesis}
 \usepackage{dtx-style}
+% 答辩决议与声明页是学位论文的，手册不排；参考文献、成果、简历没声明就不排。
+% 英文目录也不排：几百个节标题没有英文名，排出来满页「English heading not defined」
+\hitsetup{ struct = { backmatter = { defense = false, declarations = false } } ,
+           toc = { english = false } }
 
 \EnableCrossrefs
 \CodelineIndex
 \RecordChanges
 
 \begin{document}
+  % 封面、摘要、目录、正文三章都在手册文件里（它自己起前置与正文）
   \DocInput{src/manual/hit-manual.dtx}
+  % 实现全部进附录；修改记录与索引接在附录后，最后是致谢
+  \hitbackmatter
+  \begin{appendix}
+  \chapter{实现}[Implementation]
   % 写死文件名不写 \jobname：换个 -jobname 编时 \jobname 指的是输出名，
   % 不是源文件名
   \DocInput{src/hithesis.dtx}
@@ -377,6 +399,14 @@ This is the configuration file of the hithesis package with LaTeX2e.
   \DocInput{src/engine/hit-subfigure.dtx}
   \DocInput{src/engine/hit-bibstyle.dtx}
   \DocInput{src/engine/hit-structure.dtx}
+  \end{appendix}
+  \makeatletter
+  \hit@doc@chapter{修改记录}{Change History}
+  \PrintChanges
+  \hit@doc@chapter{索引}{Index}
+  \PrintIndex
+  \makeatother
+  \DocInput{src/manual/hit-manual-thanks.dtx}
 \end{document}
 %</driver>
 % \fi
@@ -417,7 +447,8 @@ This is the configuration file of the hithesis package with LaTeX2e.
 % \DoNotIndex{\@@par,\DeclareOperation,\RequirePackage,\LoadClass}
 % \DoNotIndex{\AtBeginDocument,\AtEndDocument}
 %
-% \StopEventually{\PrintChanges\PrintIndex}
+% ^^A 修改记录与索引由 driver 在附录之后排，这里不再借 \Finale 印
+% \StopEventually{}
 % \clearpage
 %
 % \section{装配表}

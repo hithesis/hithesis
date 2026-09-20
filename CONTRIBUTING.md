@@ -14,7 +14,7 @@ hithesis/
 │   ├── hit-ist.dtx             <- 索引排序样式 hithesis.ist
 │   ├── hit-dtx-style.dtx       <- 排手册用的 dtx-style.sty，不随模板发布
 │   ├── hit-sty.dtx             <- 示例宏包 hithesis.sty，示例文档自己 \usepackage
-│   ├── manual/                 <- 用户手册 hit-manual.dtx，纯文档，不产出任何文件
+│   ├── manual/                 <- 用户手册 hit-manual.dtx 与致谢，纯文档，不产出任何文件
 │   ├── assets/                 <- EPS 图像数据 hit-eps.dtx，纯数据，不含代码
 │   ├── engine/                 <- 机制：键怎么造、选项怎么读、版面怎么折算、
 │   │                              字体字号、日期、分散对齐、提示文案，守卫叫 shared-*
@@ -148,6 +148,14 @@ src/
 `\DocInput` 织进 `hithesis.pdf`，`doc/` 这个名字占不住；而且 `doc` 在 LaTeX 里
 已经指 `doc` 宏包那套排手册的机器，那套在本仓库是 `src/hit-dtx-style.dtx`。
 `manual/` 说的是用户手册这一份具体产物。
+
+手册由 `hithesis` 自己排：`src/hithesis.dtx` 的 driver 写的是
+`\documentclass[stage=final,degree-level=doctor]{hithesis}`，整本手册就是一本博士
+学位论文，封面、摘要、目录、章节、附录、索引、致谢全走类的版面。`dtx-style.sty`
+只补 `doc` 那一层（页边的 API 记号、代码块、修改记录与索引）。正文三章在
+`hit-manual.dtx`，实现代码进附录，`hit-manual-thanks.dtx` 是致谢。类的版面有任何
+改动，先在手册上照出来；手册编不过往往就是类的 bug（页边记号丢失那次就是这么
+发现的）。
 
 `flow/` 与 `pages/` 里的文件按交付物分开，`hit-final-cover.dtx` 是学位论文封面，
 `hit-report-cover.dtx` 是开题报告封面。v3.2a 起两边同在一个 `hithesis.cls` 里，各自

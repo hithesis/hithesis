@@ -6,7 +6,7 @@
 %
 % \section{断行层}
 %
-% \changes{v3.2a}{2026/09/21}{断行模型整个照 typst-with-msword-linebreaks 的 msword.rs 重写：
+% \changes{v3.2a}{2026/09/20}{断行模型整个照 typst-with-msword-linebreaks 的 msword.rs 重写：
 %   按「单元」（开号 + 一个字或一段西文 + 闭号链）判装不装，模式 15 的预算分裸汉字、紧贴
 %   汉字的西文串、其余三路，2003 到 2010 档按物理容量加首字形规则；渲染照 Word 的分配
 %   （先空格、再标点均摊、再汉西隙；行末闭号 2003 挂半格，2007 起原位压半格或整个挂出）；
@@ -1771,9 +1771,17 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
       box.list = node.remove(box.list, g)
       g.prev = nil; g.next = nil
       if g.id == ADJUST then
+        -- vadjust 的内容是一整段（浮动体、页边记号是罚分加盒子加罚分），整段接上：
+        -- node.insert_after 只接一个节点，后面的会丢，页边记号从第二个起就没了
         local inner = g.list; g.list = nil
         node.free(g)
-        if inner then moved = moved and node.insert_after(moved, node.tail(moved), inner) or inner end
+        if inner then
+          if moved then
+            local t = node.tail(moved); t.next = inner; inner.prev = t
+          else
+            moved = inner
+          end
+        end
       else
         moved = moved and node.insert_after(moved, node.tail(moved), g) or g
       end
