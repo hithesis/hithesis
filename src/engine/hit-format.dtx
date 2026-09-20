@@ -2695,12 +2695,32 @@
 % 只有含西文的行拿得到，恰好是「西文断不开才许挤」。量给 0.13 倍行距
 % （约 2.5\,bp），把 0.225 格的边界空隙压到贴零为止；全角标点的压缩是另一套
 % 模型（贪心分支），主线 \texttt{PunctStyle=plain} 不掺和。
+%
+% \changes{v3.2a}{2026/09/20}{Lua 断行接管时不再给西文字体加 LetterSpace：西文的半份
+%   增量由 Lua 在正文字号的段里自己加，居中的题目这类交回 TeX 的段 Word 本来就不加，
+%   英文内封的题目从前每字多 0.34\,bp、折行提前}
+% \emph{Lua 断行接管时这一段整个不做。} \pkg{luaotfload} 的 \option{LetterSpace}
+% 是全篇全字号一律加，Lua 排的段落把它清零再按「正文字号才加半份」自己补，交回
+% \hologo{TeX} 的段（居中的题目、标题）Word 本来不贴格也不加——范例英文内封的题目
+% 「PARTIAL POROUS EXTERNALLY PRESSURIZED」Word 一行放下，这边每字多 0.34\,bp
+% 就折到下一行。\option{LetterSpace} 还会让 \pkg{luaotfload} 不做字距对，Word
+% 的 \texttt{kern=2} 是开着的。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@latin@pitch:
   {
-    \bool_lazy_and:nnT
-      { \bool_if_p:N \g__hit_layout_pitch_en_bool }
-      { \cs_if_exist_p:N \hit@fonts@redo@en: }
+    \bool_lazy_all:nT
+      {
+        { \bool_if_p:N \g__hit_layout_pitch_en_bool }
+        { \cs_if_exist_p:N \hit@fonts@redo@en: }
+        {
+          ! \bool_lazy_and_p:nn
+            { \sys_if_engine_luatex_p: }
+            {
+              \cs_if_exist_p:N \g__hit_linebreak_word_bool
+              && \bool_if_p:N \g__hit_linebreak_word_bool
+            }
+        }
+      }
       {
         \use:x
           {

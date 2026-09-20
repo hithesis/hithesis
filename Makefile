@@ -25,7 +25,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls lineends lineends-self lineends-typst lineends-self-baseline compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls lineends lineends-self lineends-typst pages-doctor lineends-self-baseline compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
@@ -82,12 +82,17 @@ lineends-self:
 
 # 与 typst-with-msword-linebreaks 对拍：同一批段落（tests/typst-corpus.txt）两边各排一遍，
 # 逐行比行末。hit-linebreak.lua 是照那个 fork 抄的，Word 只能量翻转点，两个实现之间
-# 能逐行比。棘轮只数文本差异：模式 15 的 6 处全是 URL 段（那边有紧急断点），模式 11
-# 另有开号单元的位数（那边三个、这边两个，探针 o3 站这边）。要本机有那个 fork 的
-# 二进制（TYPST 环境变量或默认路径），不进 CI
+# 能逐行比。棘轮只数文本差异：两档各 6 处，全是 URL 段（那边有紧急断点）。要本机有
+# 那个 fork 的二进制（TYPST 环境变量或默认路径），不进 CI
 lineends-typst:
 	python3 scripts/typst-compare.py --compat 15 --max-diff 6
-	python3 scripts/typst-compare.py --compat 11 --max-diff 14
+	python3 scripts/typst-compare.py --compat 11 --max-diff 6
+
+# 逐页对拍：博士范例的整本复刻件（tests/sample/doctor）与范例修正版的 Word 导出逐行比基线，
+# 棘轮是配上且 |Δy| ≤ 0.5bp 的行数。靶子来路见 tests/pages-doctor.tsv 头注释
+pages-doctor:
+	cd tests/sample/doctor && TEXINPUTS="$(CURDIR):" BSTINPUTS="$(CURDIR):" latexmk main.tex > /dev/null
+	python3 scripts/check-pages.py --pdf tests/sample/doctor/main.pdf --fixture tests/pages-doctor.tsv --min-ok 67
 
 # 重制自比对基线：先确认当前构建的差异都是有意的
 lineends-self-baseline:
