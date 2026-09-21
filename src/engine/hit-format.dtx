@@ -53,6 +53,10 @@
 %   \option{format} 词汇；首行基线按 Times 的上升部}
 % \changes{v3.2a}{2026/08/24}{新增 \cs{hitenter}：模拟 Word 的空回车段，可选参数收行数或
 %   新版面词汇；自然行高按 Word 重测（西文 1.15、汉字 1.296875）}
+% \changes{v3.2a}{2026/09/21}{\cs{verb} 里的空格改成一格宽的盒（画可见的空格记号，
+%   \option{style}/\option{verb-space}\texttt{!=cell} 换成同宽刚性胶）、其后可断，与
+%   fork 版 typst 排行内 raw 的断点相同；原先空格是带伸缩的 \cs{nobreakspace}，不可断，
+%   两端对齐时被拉到 28.9\,bp}
 %
 % 规范里说的是 Word 的话：「章标题小二黑体居中，段前段后各一行，多倍行距 1.5」。
 % 旧版面把这些话手算成 \texttt{beforeskip=28.34646bp} 这样的数散在五份
@@ -3163,8 +3167,58 @@
     \cs_set_protected:Npx \verbatim@font
       {
         \exp_not:o \verbatim@font
-        \bool_set_true:N \exp_not:N \l__hit_format_in_verb_bool
+        \exp_not:N \hit@format@verb@enter:
       }
+    \cs_set_protected:Npn \@setupverbvisiblespace
+      {
+        \cs_set_eq:NN \@xobeysp \hit@format@verb@space@visible:
+        \@setupverbvisibletab
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{行内代码}
+%
+% \cs{verb} 里的一串按正文西文的规矩断：空格处可断，连字符后只有模式 15 可断，
+% 不认 \texttt{/}，一段自己起行还装不下时按字形硬断。fork 版 typst 对行内代码没有
+% 另一套规矩（实测 \texttt{make -C} 在模式 15 照样断成「make -」加「C」，路径在
+% \texttt{hit-} 后断），上游也只是断点相同、算法不同，所以这里断行层一个字不改，
+% 只改空格。
+%
+% \emph{空格是格，不是胶。} 内核把 \cs{verb} 的空格做成 \cs{nobreakspace}，不可断却带
+% 字体的伸缩量，两端对齐时被拉开（实测一行里拉到 28.9\,bp），行里有两个空格的
+% \verb|a  b| 数不出是几个。这里换成一只一格宽（等宽字体的空格宽）的盒，盒里画
+% \cs{verb*} 那种开口朝上的空格记号，盒后一个零罚分：宽度刚性、渲染时不参与摊派、
+% 可以在它后面断行，断了记号留在行尾，几个格数得出来。
+% \option{style}/\option{verb-space}\texttt{=cell} 换成同宽的刚性胶，不画记号，
+% 行尾的照旧丢掉。记号自己用 \cs{vrule} 画，不去字体里找 U+2423：
+% Courier New 没有，有也未必是一格宽。\cs{verb*} 与 \env{verbatim*} 走同一只盒。
+% \env{verbatim} 环境（竖排模式进来）不动，那里的空格不参与断行。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_format_verb_mark:
+  {
+    \tex_vrule:D width ~ .07em ~ height ~ .4ex ~ depth ~ 0pt
+    \tex_vrule:D width ~ .36em ~ height ~ .06em ~ depth ~ 0pt
+    \tex_vrule:D width ~ .07em ~ height ~ .4ex ~ depth ~ 0pt
+  }
+\cs_new_protected:Npn \hit@format@verb@space@visible:
+  {
+    \leavevmode
+    \hbox_to_wd:nn { \tex_fontdimen:D 2 \tex_font:D }
+      { \hss \__hit_format_verb_mark: \hss }
+    \tex_penalty:D \c_zero_int
+  }
+\cs_new_protected:Npn \hit@format@verb@space@cell:
+  { \leavevmode \skip_horizontal:n { \tex_fontdimen:D 2 \tex_font:D } }
+\cs_new_protected:Npn \hit@format@verb@space:
+  {
+    \bool_if:NTF \g__hit_verb_space_visible_bool
+      { \hit@format@verb@space@visible: } { \hit@format@verb@space@cell: }
+  }
+\cs_new_protected:Npn \hit@format@verb@enter:
+  {
+    \bool_set_true:N \l__hit_format_in_verb_bool
+    \mode_if_horizontal:T { \cs_set_eq:NN \@xobeysp \hit@format@verb@space: }
   }
 %    \end{macrocode}
 %
