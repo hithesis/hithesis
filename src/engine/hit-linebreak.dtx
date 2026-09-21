@@ -21,7 +21,9 @@
 %   固定值三种落法），行盒直接摞，行间只放零宽胶与行间罚分；断点只认 TeX 的合法断点；
 %   parshape、悬挂缩进、定值 leftskip/rightskip、窄版心的段也进 Lua；横向不贴格的段按
 %   整个版心装；汉字缝与汉西隙另记在两个属性上，Lua 装盒时照属性重设（输出例程里
-%   \cs{ltjsetparameter} 不生效，页眉每字曾多 0.4543\,bp）}
+%   \cs{ltjsetparameter} 不生效，页眉每字曾多 0.4543\,bp）；带 \cs{hit@code@attr} 的
+%   串（\cs{verb}）不加半格增量，超过 16 个字符的在 \texttt{/ . -} 前可断（Word 文档里
+%   敲的 U+200B 按同一条规则从串里算出来）}
 %
 % Word 排一段是逐行贪心：这一行能装几个装几个，下一个字装不下，先看能不能把
 % 行内的标点压一压塞进来，塞不进就换行；行首不能是闭号，行尾不能是开号，碰上了
@@ -116,7 +118,8 @@
                     hithesis.linebreak.install(luatexbase.attributes["hit@linebreak@attr"],
                       luatexbase.attributes["hit@kanjiskip@attr"],
                       luatexbase.attributes["hit@xkanjiskip@attr"],
-                      luatexbase.attributes["hit@kern@attr"])
+                      luatexbase.attributes["hit@kern@attr"],
+                      luatexbase.attributes["hit@code@attr"])
                   }
               }
           }
@@ -163,7 +166,7 @@
 --     已在版心内才压；闭号链挂半格（11）或整格（12/14）；adjustRightInd 开着时版心按
 --     整数格取整（页面版心取整再减缩进）。
 --   断点：照 TeX 的合法断点（胶、罚分、disc），叠上 Word 的首尾字符禁则；连字符后
---     只有模式 15 能断；-10000 的罚分是强制换行。
+--     只有模式 15 能断；-10000 的罚分是强制换行。代码串（\verb）另有软断点，见 soft_split。
 --   渲染：压缩按预算的分配画（先空格、再标点均摊、再汉西隙；行末闭号 2003 挂半格、
 --     2007 起整个挂出去或原位压半格）；伸展先给西文空格（5/6 个）与汉西隙（一个），
 --     之后行里所有的缝一起涨。行盒逐行照 Word 算高（linebox）。
@@ -349,6 +352,9 @@ local function tokenize(head)
   local function attach(n)
     if run then run.last = n elseif #items > 0 then items[#items].last = n end
   end
+  local function is_code(g)
+    return M.code_attr and (node.get_attribute(g, M.code_attr) or 0) ~= 0
+  end
   local function addglyph(n, c, w)
     local size = fsize(n.font)
     lastsize = size; lastfont = n.font
@@ -356,6 +362,7 @@ local function tokenize(head)
       run = { kind = 3, first = n, last = n, gw = 0, gn = 0, kw = 0, head = c, tail = c, kerns = {}, glist = {},
               size = size, head_w = w, second_w = 0, tail_w = w, c = c }
     end
+    if is_code(n) then run.code = true end
     run.last = n; run.core = n; run.gw = run.gw + w; run.gn = run.gn + 1; run.tail = c; run.tail_w = w
     if run.gn == 2 then run.second_w = w end
     run.glist[#run.glist + 1] = n
@@ -445,11 +452,23 @@ local function tokenize(head)
     elseif id == DISC then
       -- 明写的连字符在 LuaTeX 里是 disc（replace 里放着字形）：计宽，后面（模式 15）可断
       -- replace 里的 kern 是 LetterSpace 加的，不计（渲染时清零）
-      local w, c = 0, nil
+      local w, c, code = 0, nil, false
       for g in traverse(n.replace) do
-        if g.id == GLYPH then w = w + g.width; c = g.char end
+        if g.id == GLYPH then w = w + g.width; c = g.char; code = code or is_code(g) end
       end
-      if c then
+      if c and code and n.prev then
+        -- 代码串里的连字符：把 disc 拆掉，replace 里的字形回到主表当普通字形，整串是一个
+        -- 条目，断点由 soft_split 按 Word 文档里的写法给（模式 15 的连字符后断也在那里）
+        local rep = n.replace
+        n.replace = nil
+        local prev, after = n.prev, n.next
+        local tail = node.tail(rep)
+        prev.next = rep; rep.prev = prev
+        tail.next = after; if after then after.prev = tail end
+        n.next = nil; n.prev = nil
+        node.free(n)
+        nxt = rep
+      elseif c then
         local size = lastsize or tex.sp("1em")
         if not run then
           run = { kind = 3, first = n, last = n, gw = 0, gn = 0, kw = 0, head = c, tail = c, kerns = {}, glist = {},
@@ -568,7 +587,7 @@ local function natural(items, P)
     elseif it.kind == 3 then
       if it.rigid then it.nw = it.w
       elseif latinish[it.c] and it.w >= it.size * 0.9 then it.nw = it.w + P.excess
-      else it.nw = it.w + P.latin_add * it.gn end
+      else it.nw = it.w + (it.code and 0 or P.latin_add) * it.gn end
       if prev and prev.kind == 0 and not prev.symbol and is_alnum(it.head) then gap = auto_at(P, prev.size) end
       it.spot = false
     else
@@ -643,11 +662,47 @@ local function split_run(items, k, g, P)
   end
   a.discs, b.discs = da, db
   a.w, b.w = a.gw + a.kw, b.gw + b.kw
-  a.nw, b.nw = a.w + P.latin_add * a.gn, b.w + P.latin_add * b.gn
+  local ladd = it.code and 0 or P.latin_add
+  a.nw, b.nw = a.w + ladd * a.gn, b.w + ladd * b.gn
   b.gap = 0
   a.emergency = true
   items[k] = a
   table.insert(items, k + 1, b)
+end
+
+-- 代码串（\verb，字形带 hit@code@attr）里的软断点：超过 16 个字符的串在 / . - 前可断，
+-- 头尾四个字符内不断，扩展名（点后不超过五个字符）前不断，连续分隔符与 :// 之间不断。
+-- Word 文档里这些位置是敲进去的 U+200B，这里按同一条规则从串里算出来，切成几个条目，
+-- 条目之间以 soft 记号相连：可断、断处什么也不丢
+local soft_sep = set_of("/.-")
+local function soft_split(items, P)
+  local k = 1
+  while k <= #items do
+    local it = items[k]
+    if it.kind == 3 and it.code and it.glyphs and it.gn >= 2 and #it.glist == it.gn then
+      local n = it.gn
+      local cuts = {}
+      for i = 2, n - 1 do
+        local c = it.glist[i].char
+        local pc = it.glist[i - 1].char
+        local before = n > 16 and i >= 5 and i <= n - 4 and soft_sep[c] and not soft_sep[pc] and pc ~= 58
+          and not (c == 46 and n - i <= 5)
+        -- Word 2013 起在连字符后也断（后面是数字不断），这条不分长短
+        local after = P.compat == 15 and pc == 45 and not is_digit(c) and c ~= 45
+        if before or after then cuts[#cuts + 1] = i - 1 end
+      end
+      local base = 0
+      for _, cut in ipairs(cuts) do
+        split_run(items, k, cut - base, P)
+        items[k].emergency = nil
+        items[k].soft = true
+        items[k].code = true; items[k + 1].code = true
+        base = cut
+        k = k + 1
+      end
+    end
+    k = k + 1
+  end
 end
 
 -- 一行 first..last 的自然宽（行首行尾的空格不算，段首的算）
@@ -1183,7 +1238,7 @@ local function decide(items, P, shape, indent)
   -- 闭号不起行、开号不收行本来就在单元里
   local function legal_after(k)
     if k >= n then return true end
-    if items[k].emergency then return true end
+    if items[k].emergency or items[k].soft then return true end
     if breakpoint_after(k) == nil then return false end
     local a, b = items[k], items[k + 1]
     if b.kind == 1 then return false end
@@ -1291,7 +1346,7 @@ local function decide(items, P, shape, indent)
         local g = 0
         local acc = w0
         for i, gn in ipairs(it.glist) do
-          local add = gn.width + P.latin_add
+          local add = gn.width + (it.code and 0 or P.latin_add)
           if acc + add <= capacity + eps then acc = acc + add; g = i else break end
         end
         if g >= 1 and g < it.gn then
@@ -1328,7 +1383,7 @@ local function decide(items, P, shape, indent)
     lines[#lines + 1] = { first = first, last = last, width = w, over = over,
                           deep = deep and items[last].kind == 1, forced = forced,
                           ragged = forced_end or last >= n,
-                          bp = (last < n) and (items[last].emergency and items[last + 1].first or breakpoint_after(last)) or nil,
+                          bp = (last < n) and ((items[last].emergency or items[last].soft) and items[last + 1].first or breakpoint_after(last)) or nil,
                           measure = measure, capacity = capacity, cellcap = cellcap, shift = sh.shift,
                           isfirst = isfirst }
     if M.trace then
@@ -1487,7 +1542,7 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
         if g == it.last then break end
         g = g.next
       end
-      local add = (latinish[it.c] and it.w >= it.size * 0.9) and (it.nw - it.w) or P.latin_add
+      local add = (latinish[it.c] and it.w >= it.size * 0.9) and (it.nw - it.w) or (it.code and 0 or P.latin_add)
       for _, g in ipairs(it.glist) do
         local kn = node.new(KERN); kn.kern = add
         node.insert_after(head, g, kn)
@@ -1907,6 +1962,7 @@ function M.filter(head, is_display)
               compat = M.compat, ari = not M.ari0, table_cell = M.cell,
               justify = true, autospace = true, compress = true,
               eps = 0.03 * bp }
+  soft_split(items, P)
   local lines = decide(items, P, M.shape(), indent)
   local ctx = M.linectx(strut_h, strut_d)
   local newhead, tail = nil, nil
@@ -2005,10 +2061,11 @@ end
 
 -- 装回调。attr 是类分的属性号：段首节点上为 0 的段不管（交回 TeX）；
 -- ks、xks 是汉字缝、汉西隙的属性号
-function M.install(attr, ks, xks, kern)
+function M.install(attr, ks, xks, kern, code)
   M.attr = attr
   M.kern_attr = kern
   M.ks_attr, M.xks_attr = ks, xks
+  M.code_attr = code
   luatexbase.add_to_callback("linebreak_filter",
     function(h, d) return M.filter(h, d) end, "hit.linebreak")
   if ks and xks then

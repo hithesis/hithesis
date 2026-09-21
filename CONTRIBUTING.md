@@ -79,6 +79,7 @@ make baseline        # 45 个变体全编一遍，渲染结果存成本地基线
 make smoke           # 重编并与本地基线逐页比
 make regression-test # 与参照版本逐页比，发版前跑
 make lineends-typst  # 与 typst-with-msword-linebreaks 逐行对拍（要本机有那个 fork）
+make lineends-verb   # 行内代码三段与 Word 探针导出逐行比，行文本与行末坐标都要对上
 make pages           # 博士与本科范例的整本复刻件与 Word 导出逐页逐行比基线
 make manual-baseline # 改动前存一份手册 PDF
 make manual-check    # 改完与之比对
@@ -855,7 +856,11 @@ Word 导出），`make lineends-typst` 比断点的实现（typst fork），`mak
 的哪个高度。最后这条的对拍件是 `tests/sample/doctor/` 与 `tests/sample/bachelor/`，照两份书写范例
 的段落序列写的整本（本科那份引博士那份的正文），内容以范例为准、别改成示例；靶子
 `tests/pages-*.tsv` 抽自范例按指南改齐后的 Word 导出（来路写在文件头；本科那份是模式 15）。
-`scripts/check-pages.py -v` 逐页列出差的行。范例原件与指南原话打架的地方（章标题与条标题的
+`scripts/check-pages.py -v` 逐页列出差的行。行内代码另有一份靶子 `tests/lineends-verb.tsv`：
+`\verb` 的排法（Consolas 五号、空格印 U+02FD、长串分隔符前可断）每一样都对应 Word 里的一个
+字符或属性，探针 docx 就是照这套敲的，`make lineends-verb` 要求行文本与行末坐标全对上。
+造探针的脚本与 Word 导出在 `~/Downloads/最新版硕博/lb/code/`（要本机的 Word），改 `\verb`
+的排法先改那边、重导、重制基线。范例原件与指南原话打架的地方（章标题与条标题的
 行距、网格行距、声明页标题下的空段）类跟指南，与靶子同一边；目录、第 1 章首页、结论、声明、
 致谢、简历这些页已经整页对上，没对上的是图页（范例手排）、英文目录的占位行、封面到内封的
 空白页、本科内封与声明页的新旧文本这几类。改齐脚本也有误伤（本科成果页组名的段前段后被清成零），

@@ -25,7 +25,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls lineends lineends-self lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls lineends lineends-self lineends-verb lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
@@ -79,6 +79,12 @@ lineends-self:
 	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' final.tex \
 	  > /dev/null
 	python3 scripts/check-line-ends.py --pdf examples/demo/final.pdf --fixture tests/lineends-demo.tsv
+
+# 行内代码与 Word 对拍：三段带 \verb 的文字照 Word 探针 docx 逐字抄（tests/sample/verb/），
+# 靶子是 Mac Word 导出的 PDF 抽成的 tests/lineends-verb.tsv。行文本与行末坐标都要对上，棘轮 0
+lineends-verb:
+	cd tests/sample/verb && TEXINPUTS="$(CURDIR):" lualatex -interaction=nonstopmode main.tex > /dev/null
+	python3 scripts/check-line-ends.py --pdf tests/sample/verb/main.pdf --fixture tests/lineends-verb.tsv
 
 # 与 typst-with-msword-linebreaks 对拍：同一批段落（tests/typst-corpus.txt）两边各排一遍，
 # 逐行比行末。hit-linebreak.lua 是照那个 fork 抄的，Word 只能量翻转点，两个实现之间
