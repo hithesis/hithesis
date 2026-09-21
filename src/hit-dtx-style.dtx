@@ -27,9 +27,12 @@
 %   \pkg{hyperref} 的 \option{hyperindex} 要关，不然索引条目被套两层封装、upmendex
 %   拒收两千多条；\texttt{windows} 一档的黑体族在没有雅黑粗体时逐级退回；修改记录与
 %   索引排成后置的无编号章；维护者名单（\cs{hitauthor}，带 \pkg{ruby} 排的称号）挪到致谢}
+% \changes{v3.2a}{2026/09/21}{\cs{texttt}（连带 \cs{cs}、\cs{file}）照类给 \cs{verb} 定的那套排：
+%   空格印 U+02FD 记号、其后可断，路径在分隔符前可断（Lua 层），\hologo{XeLaTeX} 下
+%   \cs{file} 仍在分隔符后补 \cs{allowbreak}}
 % \changes{v3.2a}{2026/08/14}{记号改用 \pkg{hologo}（按当前字体调 kern，\pkg{metalogo}
 %   撤掉）；\pkg{multicol} 与 \pkg{graphicx} 显式加载，不再靠别的包顺带；代码块里的
-%   中文跟着走等宽字体；长链接与 \cs{file} 的路径允许断行；PDF 元数据补上；配色收成一处
+%   中文跟着走等宽字体；长链接允许断行；PDF 元数据补上；配色收成一处
 %   主色 \texttt{\#285172}，宏名、环境名、代码块、页边记号、\env{hitrgu} 都从它派生}
 %
 % ^^A ======================================================================
@@ -163,14 +166,36 @@
 \Urlmuskip=0mu plus 0.1mu
 %    \end{macrocode}
 %
-% \cs{file} 排的路径允许在 \texttt{/}、\texttt{-}、\texttt{.} 之后断行。
-% \pkg{thuthesis} 那边用的是 \cs{nolinkurl}，我们用不了：它要 verbatim 抓参数，
-% 而本仓库在 \cs{changes} 的文本里写 \cs{file}，那里参数早已记号化，
-% 换上去手册直接塌成 4 页、100 个错。试过了。
+% \subsection{行内代码}
 %
-% 所以自己插断点：逐个记号扫过去，遇上三个分隔符之一就补一个 \cs{allowbreak}。
-% 全仓 306 处 \cs{file} 的参数都是字面路径，没有宏，扫得动。
+% 手册里的代码几乎都是 \cs{cs}、\cs{file}、\cs{texttt} 排的，\cs{verb} 只有两处，
+% 所以类给 \cs{verb} 定的那套（\file{src/engine/hit-format.dtx} 的「行内代码」：空格
+% 印 U+02FD 记号、其后可断，长串在分隔符前可断，串不加半格增量）这里挂到 \cs{texttt}
+% 上，三个命令都落进来。参数早已记号化，空格是空格记号，用 \pkg{l3regex} 把空格记号
+% 换成记号宏再整段发出去（不能逐个记号发：\texttt{\cs{\~{}}} 这种带参数的命令会去
+% 抓下一个记号）；代码属性在组里设，Lua 断行层见了就按代码串算软断点。\cs{nolinkurl} 那种 verbatim 抓参数的路子用不了：
+% \cs{changes} 的文本里也写 \cs{file}，那里参数早已记号化。
+%
+% \hologo{XeLaTeX} 没有 Lua 那一层，\cs{file} 退回老办法：逐个记号扫，遇上
+% \texttt{/}、\texttt{-}、\texttt{.} 就补一个 \cs{allowbreak}。
 %    \begin{macrocode}
+\ExplSyntaxOn
+\tl_new:N \l__hit_doc_code_tl
+\cs_new_protected:Npn \__hit_doc_code:n #1
+  {
+    \tl_set:Nn \l__hit_doc_code_tl {#1}
+    \regex_replace_all:nnN { \x{20} } { \c{hit@format@verb@space:} } \l__hit_doc_code_tl
+    \tl_use:N \l__hit_doc_code_tl
+  }
+\DeclareRobustCommand \texttt [1]
+  {
+    {
+      \ttfamily
+      \sys_if_engine_luatex:T { \hit@code@attr = 1 \scan_stop: }
+      \__hit_doc_code:n {#1}
+    }
+  }
+\ExplSyntaxOff
 \newcommand*\hit@file@breakable[1]{%
   \@tfor\hit@file@tok:=#1\do{%
     \hit@file@tok
@@ -181,6 +206,10 @@
     \if-#1\allowbreak\else
     \if.#1\allowbreak\fi\fi\fi
   \fi}
+\ExplSyntaxOn
+\sys_if_engine_luatex:T
+  { \cs_set_eq:NN \hit@file@breakable \use:n }
+\ExplSyntaxOff
 %    \end{macrocode}
 % 增加 \pkg{ninecolors} 宏包来使用更多颜色。
 %    \begin{macrocode}
