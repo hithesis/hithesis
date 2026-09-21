@@ -30,8 +30,10 @@
 %   节条题序后不空；标题样式关字距调整；临时覆盖进出连分档表一起存还；目标名与
 %   \pkg{ctex} 层级名可错开一格（深圳本科报告正文照终稿排）}
 % \changes{v3.2a}{2026/08/16}{正文接 \cs{normalsize}：字号、行距、首行基线、首行缩进四个
-%   全局长度；\cs{rightskip} 收字符网格的余量；换页判据改成末行盒底（版心底留一个
-%   行深、\cs{@colroom} 补丁、\texttt{flush} 档页底留白刚性）；孤行寡行四个罚分归零}
+%   全局长度；\cs{rightskip} 收字符网格的余量；换页判据改成末行盒底：Lua 断行档
+%   \cs{maxdepth} 归零、每行的深度都算进页（每行的盒就是 Word 的行盒），其余档
+%   版心底留一个行深（\cs{@colroom} 补丁、\texttt{flush} 档页底留白刚性）；
+%   孤行寡行四个罚分归零}
 % \changes{v3.2a}{2026/08/29}{横轴两道胶按元素发：汉字缝伸量 0.02 行距、中西文胶 0.246 格
 %   按字号缩放、可压 0.13 行距，空格伸量同档；同步 \pkg{ctex} 的寄存器、\pkg{xeCJK} 的
 %   \cs{l\_\_xeCJK\_ecglue\_skip} 与 \pkg{luatexja} 的 kanjiskip；\cs{ccwd} 与
@@ -2619,9 +2621,20 @@
 % \texttt{flush} 一档 \hologo{LaTeX} 原本把 \cs{@textbottom} 设成 \cs{relax}，
 % 页面会被拉开去补这一段，所以改发一个刚性的行深，见 \cs{hit@format@flush@bottom:}。
 %
-% \cs{maxdepth} 单独设成零是不够的。行盒的深度是墨迹深度，汉字只有 1.32\,pt；
-% 撑杆挂在 \texttt{para/begin} 与 \texttt{para/end} 两个钩子上，段落中间那些行
-% 两头都不挨，撑不到。
+% \emph{Lua 断行那一档改成 \cs{maxdepth} 为零、一栏照满版心算。} 留一段行深的做法
+% 对末行是文字行时正好，末项没有行深时（空段的盒、表格的盒）就多留了：Word 只看
+% 盒底，那一段本可以装东西。对拍件里表后一串空段 Word 页底比我们多装一个，博士那页
+% 只差 1.2\,bp，就是这么来的。\cs{maxdepth} 为零时 \hologo{TeX} 把每一项的深度都
+% 算进 \cs{pagetotal}，判据就成了“盒底不越版心底”，与 Word 一字不差；一栏的高度
+% 照满版心，\cs{@colroom} 与 \cs{vsize} 都不减。前提是每一行的深度都是行盒的
+% 深度：Lua 断行给每一行的盒装的正是 Word 的行盒（\file{hit-linebreak.dtx} 的
+% \texttt{linebox}），段中间的行也一样。版心底齐平那一档（\texttt{flush}）
+% \hologo{LaTeX} 把页面拉到末行基线齐 \cs{vsize}，末行行深会挂到版心外，那一档
+% 仍走留行深的老路。
+%
+% \hologo{XeLaTeX} 那一档 \cs{maxdepth} 单独设成零是不够的。行盒的深度是墨迹深度，
+% 汉字只有 1.32\,pt；撑杆挂在 \texttt{para/begin} 与 \texttt{para/end} 两个钩子上，
+% 段落中间那些行两头都不挨，撑不到。
 %
 % 撑杆自带 \cs{hit@engine@parend@guard:} 封条，把自己焊在前面的字上。
 % \hologo{LuaLaTeX} 下没有这道封条时，段末标点与撑杆之间有一段可断的边界胶，
@@ -2642,21 +2655,39 @@
 % \cs{hit@format@patch@colroom:}。\cs{vsize} 不用补，它在 \cs{output} 末尾从
 % \cs{@colroom} 取。
 %    \begin{macrocode}
+\prg_new_conditional:Npnn \__hit_format_if_lua_lines: { T , F , TF }
+  {
+    \bool_lazy_all:nTF
+      {
+        { \sys_if_engine_luatex_p: }
+        { \bool_if_exist_p:N \g__hit_linebreak_word_bool }
+        { \bool_if_p:N \g__hit_linebreak_word_bool }
+        { \bool_if_p:N \g__hit_raggedbottom_bool }
+      }
+      { \prg_return_true: } { \prg_return_false: }
+  }
 \cs_new_protected:Npn \hit@format@reserve@depth:
   {
     \dim_gset:Nn \hit@body@depth
       { \g_hit_body_lead_dim - \g_hit_body_first_dim }
-    \dim_compare:nNnT { \hit@body@depth } > { \c_zero_dim }
+    \__hit_format_if_lua_lines:TF
       {
-        \dim_gset_eq:NN \maxdepth \hit@body@depth
-        \dim_gset_eq:NN \@maxdepth \hit@body@depth
-        \dim_gsub:Nn \@colroom { \hit@body@depth }
-        \dim_gset_eq:NN \vsize \@colroom
-        \AddToHook { begindocument/end }
+        \dim_gzero:N \maxdepth
+        \dim_gzero:N \@maxdepth
+      }
+      {
+        \dim_compare:nNnT { \hit@body@depth } > { \c_zero_dim }
           {
-            \hit@format@patch@colroom:
-            \bool_if:NF \g__hit_raggedbottom_bool
-              { \hit@format@flush@bottom: }
+            \dim_gset_eq:NN \maxdepth \hit@body@depth
+            \dim_gset_eq:NN \@maxdepth \hit@body@depth
+            \dim_gsub:Nn \@colroom { \hit@body@depth }
+            \dim_gset_eq:NN \vsize \@colroom
+            \AddToHook { begindocument/end }
+              {
+                \hit@format@patch@colroom:
+                \bool_if:NF \g__hit_raggedbottom_bool
+                  { \hit@format@flush@bottom: }
+              }
           }
       }
   }
