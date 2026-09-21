@@ -54,7 +54,8 @@
 % \changes{v3.2a}{2026/08/24}{新增 \cs{hitenter}：模拟 Word 的空回车段，可选参数收行数或
 %   新版面词汇；自然行高按 Word 重测（西文 1.15、汉字 1.296875）；行距与贴格默认跟当前
 %   段落走（Word 里回车出的空段继承上一段的属性，贴格的单倍空段占一整格，实测），
-%   \option{snap-to-grid} 键可改；星号版的空盒之间补零罚分，页底装得下几行装几行}
+%   \option{snap-to-grid} 键可改；星号版的空盒之间补零罚分，页底装得下几行装几行；
+%   浮动体的后距照留，空段另算}
 % \changes{v3.2a}{2026/09/21}{\cs{verb} 照 Word 里能一字一字映射的写法排：Consolas 五号，
 %   空格印成 U+02FD 加零罚分（\option{style}/\option{verb-space}\texttt{!=cell} 换成
 %   不断行空格），长串在 \texttt{/ . -} 前可断（Lua 层），不贴字符网格；原先空格是
@@ -3667,12 +3668,11 @@
 % 与 iota 的 \texttt{enter} 极性相反：那边默认不可折叠、\texttt{weak: true} 才可折叠，
 % 是 Typst 的惯例；这边跟 \cs{vspace*} 的惯例，星号才保留。抄 Word 稿子时写星号版。
 %
-% \emph{紧跟在浮动体后面时，把浮动体的后距收回。} 类给图表前后各一个网格行，
-% 那是“图表与正文空一行”在 Word 里的样子：表题的段前一行、表后头一段的段前一行。
-% 表后头一段若是空段，它的段前是零，Word 里表底下紧接着就是那个空段；这边的后距
-% 是挂在浮动体上的胶，不知道后面是什么，所以空段自己把它减掉。只认浮动体的那两个
-% 量（\cs{intextsep}、\cs{textfloatsep}），章标题的段后不是这种情形：Word 里标题
-% 段后与空段段前取大，标题那一份留着。对拍件里表后十三个空段就是这样对上的。
+% \emph{紧跟在浮动体后面时不动浮动体的后距。} 类给图表前后各一个网格行，那是
+% “图表与正文空一行”的类规则，空段是作者另加的，两者相加。Word 里与之对应的是
+% 表后头一段（哪怕是空段）段前一行，靶子照这个改（fix-doctor.py 的“表后那一段
+% 段前 1 行”对空段也施加）。曾经试过让空段把后距减掉去凑范例原件（原件表后
+% 的空段没有段前），用户否了：浮动体的后距不能砍。
 %
 % 可选参数是回车几次；含等号时按键值读，与 \option{format} 族同词汇：
 % \option{size}、\option{line-spacing}（文法同 \cs{\_\_hit\_format\_measure:nnnn}）、
@@ -3837,20 +3837,9 @@
           { \l__hit_enter_ht_dim }
       }
   }
-\cs_new_protected:Npn \__hit_enter_unfloat:
-  {
-    \mode_if_vertical:T
-      {
-        \bool_lazy_or:nnT
-          { \skip_if_eq_p:nn { \tex_lastskip:D } { \intextsep } }
-          { \skip_if_eq_p:nn { \tex_lastskip:D } { \textfloatsep } }
-          { \skip_vertical:n { - \tex_lastskip:D } }
-      }
-  }
 \NewDocumentCommand \hitenter { s O{1} }
   {
     \par
-    \__hit_enter_unfloat:
     \group_begin:
     \int_set:Nn \l__hit_enter_lines_int { 1 }
     \dim_zero:N \l__hit_enter_size_dim

@@ -98,12 +98,13 @@ lineends-typst:
 # 棘轮是配上且 |Δy| ≤ 0.5bp 的行数。靶子来路见 tests/pages-doctor.tsv 头注释
 pages-doctor:
 	cd tests/sample/doctor && TEXINPUTS="$(CURDIR):" BSTINPUTS="$(CURDIR):" latexmk main.tex > /dev/null
-	python3 scripts/check-pages.py --pdf tests/sample/doctor/main.pdf --fixture tests/pages-doctor.tsv --min-ok 190
+	python3 scripts/check-pages.py --pdf tests/sample/doctor/main.pdf --fixture tests/pages-doctor.tsv --min-ok 174
 
 # 本科那份同理：对拍件 tests/sample/bachelor 引博士那份的正文，靶子是模式 15 的本科范例修正版。
-# 2026-09-21 靶子重制（空段按正文格式、章前分节符、页码起点删）后两个数从 194/127 变成
-# 190/106：本科那份第 6 章表后十二个空段 Word 在页底装得下十二个、我们装十一个，是
-# 版心底留行深那条老账（见 project 记录“换页模型与 Word 差一个行深”），不是空段本身
+# 2026-09-21 靶子重制（空段按正文格式、表后头一段段前一行空段也算、章前分节符、页码起点删）
+# 后两个数从 194/127 变成 174/106：两份第 6 章表后那串空段 Word 在页底都比我们多装一个
+# （博士那页只差 1.2bp），是版心底留行深那条老账（见 project 记录“换页模型与 Word 差一个
+# 行深”），不是空段本身
 pages-bachelor:
 	cd tests/sample/bachelor && TEXINPUTS="$(CURDIR):" BSTINPUTS="$(CURDIR):" latexmk main.tex > /dev/null
 	python3 scripts/check-pages.py --pdf tests/sample/bachelor/main.pdf --fixture tests/pages-bachelor.tsv --min-ok 106
