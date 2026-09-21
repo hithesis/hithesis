@@ -6,7 +6,28 @@
 %
 % \section{共享参考文献样式}
 %
-% \changes{v3.2a}{2026/08/09}{参考文献里两个类原样相同的那几段抽出来共用}
+% \changes{v3.2a}{2026/08/16}{参考文献分 \texttt{bibtex} 与 \texttt{biber} 两条路线，
+%   \option{bib}/\option{backend} 选，各开一个子组（\option{bibtex}/\option{style} 挑
+%   \file{.bst}，\option{biber} 原封透传 \pkg{biblatex} 的装载选项）；biblatex 一线由类
+%   自己装载配置，不 fork 样式文件，运行时补丁把方括号与逗号冒号分号接到
+%   \option{punct} 上；与 natbib 一族的冲突守卫照 thuthesis 用内核钩子写；
+%   \option{struct} 的 \option{bibliography} 换算成 \cs{addbibresource}；键挂到
+%   \cs{hitsetup} 末尾统一下发}
+% \changes{v3.2a}{2026/09/04}{两条线同名同义的键：\option{punct}
+%   （\texttt{half}｜\texttt{full}｜\texttt{by-lang}，默认 \texttt{full} 照学校规范的
+%   示例）、\option{sentence-case}、\option{show-sl-sn}（默认补「不详」）、
+%   \option{show-note}、六个显示开关、\option{comma-in-cite} 与
+%   \option{brackets-in-cite}（\cs{bibpunct} 收转接宏，键随设随生效）、
+%   \option{correct-punct}（默认关）、\option{uppercase-family}（西文姓氏默认全大写，
+%   跟官方底座）、\option{numbering-align}、\option{max-bib-names}}
+% \changes{v3.2a}{2026/08/16}{传统一线的键走官方 \pkg{gbt7714} 的控制通道下发，下发前
+%   先探键在不在（TeX Live 2025 带的 v2.1.8 没有这条通道），挂到 \cs{bibliography}
+%   自己身上}
+% \changes{v3.2a}{2026/09/13}{著录列表：两个类相同的那几段抽出来共用，标号与正文的
+%   间距抽成 \cs{hit@bib@labelsep:}；条目之间不再留空（范例的著录步进一律 19.5）；
+%   人文社科类退回 1.25 倍多行距（正文是固定值 23 磅，照两份人文范例）；三参数版
+%   \cs{hit@bib@list:nnn} 给成果页改悬挂与段距}
+%
 % 两档底下的文献宏包不是一个：终稿走 \pkg{gbt7714}，报告走 \pkg{natbib}。
 % 但三个选项、引用样式、\cs{inlinecite}、著录列表的排版参数这几件事两边写的是
 % 同一份代码，原先各抄一遍。
@@ -25,8 +46,6 @@
 %
 % \subsection{选项}
 %
-% \changes{v3.2a}{2026/08/09}{设置参考文献列表中的作者是否全大写和最大显示数量}
-% \changes{v3.2a}{2026/08/09}{设置参考文献列表标号的对齐方式}
 % \DescribeMacro{bibauthorupper}
 % \DescribeMacro{bibmaxauthor}
 % \DescribeMacro{biblabelalign}
@@ -37,9 +56,6 @@
 %<*shared-bibstyle>
 
 %    \end{macrocode}
-% \changes{v3.2a}{2026/08/16}{西文姓氏默认全大写。\file{.bst} 换官方底座后
-%   跟官方 \texttt{uppercasefamily!=true} 的默认走，biblatex 一线的
-%   \texttt{gbnamefmt} 映射随标志位一起翻}
 %    \begin{macrocode}
 \str_new:N \g__hit_bib_cite_punct_str
 \str_gset:Nn \g__hit_bib_cite_punct_str { half }
@@ -83,9 +99,6 @@
 % 数字上标式引用。\cs{bibstyle@inline} 两档不一样：报告自己定义一份，
 % 学位论文用 \pkg{gbt7714} 带的那份，所以它不在这里。
 %
-% \changes{v3.2a}{2026/08/16}{序号间的分隔按 \option{comma-in-cite} 分发、
-%   方括号按 \option{brackets-in-cite} 分发。\cs{bibpunct} 收的是三个转接宏，
-%   \pkg{natbib} 存宏名不存展开，键随设随生效，不必重跑 \cs{citestyle}}
 % 括号与分隔都从转接宏取：\cs{bibpunct} 存进 \pkg{natbib} 的是宏名，
 % 每次引用展开的都是键的现值。
 %    \begin{macrocode}
@@ -126,15 +139,10 @@
 % \subsection{著录列表}
 %
 % \begin{macro}{\hit@bib@list:nn}
-% \changes{v3.2a}{2026/08/09}{设置参考文献列表标号的对齐方式}
 % \cs{hit@bib@list:nn}\marg{最宽的标号}\marg{标号与正文的间距} 开一个著录列表。
 % 两档的 \env{thebibliography} 前后差得多，标题怎么排、分页惩罚怎么给都不一样，
 % 中间这段 \cs{list} 的参数是一样的，只有间距要各传各的。
 %
-% \changes{v3.2a}{2026/09/13}{加三参数版 \cs{hit@bib@list:nnn}，第三个参数是
-%   列表参数的补充，成果页拿它改悬挂与段距}
-% \changes{v3.2a}{2026/09/13}{条目之间不再留空：\cs{itemsep} 与 \cs{parsep}
-%   清零，范例的著录步进一律 19.5}
 % 条目之间不留空。三份范例的文献表逐行量，条目内、条目间的基线步进一律
 % 19.5（1.25 倍多行距的行盒），先前 \cs{itemsep} 从字号默认里减 0.8\,em
 % 剩下的那 0.35 与 \cs{parsep} 都是多出来的，两条后端线一并清零。
@@ -143,8 +151,6 @@
 % 哪一个。成果页的列表与参考文献表机制同源、有两个数不同（悬挂宽与段前
 % 段后，范例如此，见 \file{hit-final-backmatter.dtx}），就从这儿进。
 %
-% \changes{v3.2a}{2026/09/04}{标号与正文的间距抽成 \cs{hit@bib@labelsep:}，
-%   四个调用点共用一个取值}
 % \emph{那个间距抽出来。}它先前写死在四个调用点上（两档各有传统与
 % \pkg{biblatex} 两条线），终稿还带着一句“深圳校区取 0”的判断，抄了两遍。
 % 成果页也要按同一套排编号，再抄一遍就是第五处。改成一个取值宏
@@ -162,7 +168,6 @@
 \cs_new:Npn \hit@bib@labelsep: { \g__hit_bib_labelsep_tl }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/04}{著录列表里“列表参数之外”的那几项也抽出来共用}
 % \emph{列表参数之外还有几项。}断行放松、句点后不加英文的句末空格、
 % 分页惩罚——这三样先前写在 \env{thebibliography} 的正文里，成果页那一族
 % 抄不到，于是同一批著录在两处的字距不一样：句点接西文时成果页多出一段
@@ -177,8 +182,6 @@
     \sloppy \frenchspacing
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/13}{人文社科类的著录列表退回 1.25 倍多行距：正文是
-%   固定值 23 磅，文献表与成果条目却是 1.25 倍，照两份人文范例}
 % 人文社科类的正文是固定值 23 磅（见 \file{hit-defaults.dtx}），文献表与成果
 % 条目却不是：两份人文范例里这两处的段落都是 \texttt{line=300 auto}，Word
 % 导出逐行量步进 19.4～19.5，与理工一个数。所以列表里把撑杆的固定值档关掉、
@@ -233,8 +236,6 @@
 %
 % \subsection{后端}
 %
-% \changes{v3.2a}{2026/08/16}{加 \option{bib}/\option{backend}，参考文献分
-%   \texttt{bibtex} 与 \texttt{biber} 两条路线，biblatex 一线由类自己装载配置}
 % \DescribeMacro{backend}
 % \option{bib}/\option{backend} 选参考文献走哪条路线，取值按「要跑哪个程序」起名：
 % \texttt{bibtex} 是传统一线（\pkg{gbt7714}/\pkg{natbib} 加 \file{.bst}，默认），
@@ -254,9 +255,6 @@
 %    \end{macrocode}
 %
 % \begin{macro}{punct}
-% \changes{v3.2a}{2026/08/16}{加 \option{punct}\texttt{!=half\textbar full\textbar by-lang}，
-%   默认 \texttt{full}：不分语种一律全角逗号冒号圆括号（句点恒半角带空格），
-%   照学校规范的示例；旧深圳版就是这个排法}
 % \option{punct} 管著录表的标点宽度，三档：\texttt{full}（默认，不分语种
 % 一律全角逗号冒号圆括号方括号，句点恒半角带空格，学校规范的示例与旧深圳版
 % 都是这个排法）、\texttt{half}（一律半角，旧哈尔滨版的排法）、
@@ -277,8 +275,6 @@
 % \end{macro}
 %
 % \begin{macro}{sentence-case}
-% \changes{v3.2a}{2026/08/22}{加 \option{sentence-case}：西文题名转不转句首大写，
-%   三个字段各一档，两条后端线都落实}
 % \option{sentence-case} 管西文题名要不要转成句首大写（只首字母大写，其余小写），
 % 不转就照 \file{.bib} 里写的原样出。三个字段各一档：
 % \begin{latex}
@@ -385,8 +381,6 @@
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@bib@backend@apply:}
-% \changes{v3.2a}{2026/08/16}{挂到 \cs{hitsetup} 末尾，不再挂在根族的
-%   \option{bib} 路由上}
 % 每处理完一次 \cs{hitsetup} 就照 \option{backend} 的现值行动一次。
 %
 % \emph{挂在 \cs{hitsetup} 末尾，不能挂在根族的 \option{bib} 路由上。} l3keys 认
@@ -470,9 +464,6 @@
 % \end{macro}
 %
 % \begin{macro}{bibtex,biber}
-% \changes{v3.2a}{2026/08/16}{\option{bib} 族按后端各开一个子组：
-%   \option{bibtex}/\option{style} 挑 \file{.bst}，\option{biber} 原封透传
-%   \pkg{biblatex} 的装载选项}
 % 后端专属的配置各归各的子组。\option{bibtex}/\option{style} 是
 % \cs{bibliographystyle} 的参数（\texttt{hithesis}（默认）或
 % \hologo{TeX} 树里任何 \file{.bst} 名），排版时才读，什么时候设都行。
@@ -497,9 +488,6 @@
 % \end{macro}
 %
 % \begin{macro}{show-sl-sn}
-% \changes{v3.2a}{2026/08/16}{加 \option{show-sl-sn}：出版地或出版者缺失时
-%   补不补「不详」占位，默认补。biblatex 一线原先跟着 gbpub 的默认不补，
-%   与 \file{.bst} 一线对不上，顺带扯平}
 % \option{show-sl-sn}（\texttt{true}／\texttt{false}）：文献缺出版地或出版者时补不补
 % ［出版地不详］（sine~loco）与［出版者不详］（sine~nomine）。国标要补，
 % 默认 \texttt{true}。名字取自 kebab-biblatex-gb7714 的同义键。
@@ -509,8 +497,6 @@
 % 一线的「按国标补」对不上，所以这里无论用户设没设都显式发一次，两线默认
 % 才一致。
 %
-% \changes{v3.2a}{2026/08/16}{\file{.bst} 换官方底座后传统一线也可关：走
-%   \texttt{unknownpublisher} 控制通道下发，见 \cs{hit@bib@forward@ctl:}}
 % 传统一线走官方 gbt7714~v3 的 \texttt{unknownpublisher}（控制通道，见
 % \cs{hit@bib@forward@ctl:}），两线都真实可开可关。
 %    \begin{macrocode}
@@ -531,8 +517,6 @@
 % \end{macro}
 %
 % \begin{macro}{show-mark,show-medium,link-title,show-url,show-doi,show-eprint}
-% \changes{v3.2a}{2026/08/16}{六个显示开关：类型标、载体标、题名超链接、
-%   URL、DOI、eprint，两条线同名同义}
 % 六个布尔开关，两边的官方机制一一对应（\file{.bst} 的 CTL 键 ↔
 % \pkg{biblatex} 的 gb 系或核心选项）：\option{show-mark}（类型标 ［J］，
 % \texttt{entrytypeid}↔\texttt{gbtype}）、\option{show-medium}（载体标
@@ -577,8 +561,6 @@
 \__hit_bib_show_key:nN { show-eprint } \g__hit_bib_showeprint_bool
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/04}{加 \option{show-note}：条目尾的 \texttt{note}
-%   字段排不排}
 % \option{show-note} 管 \file{.bib} 里的 \texttt{note} 字段排不排在条目末尾。
 % 默认关，与 \file{.bst} 的出厂档一致：参考文献表照国标著录，不添自己的话。
 % 成果页那边常要在条目后缀一句“SCI 收录，IDS 号为……”“EI 收录号：……”，
@@ -590,9 +572,6 @@
 % \end{macro}
 %
 % \begin{macro}{cite-punct,correct-punct}
-% \changes{v3.2a}{2026/08/16}{加 \option{comma-in-cite}\texttt{!=half\textbar half-with-space\textbar full}
-%   与 \option{brackets-in-cite}\texttt{!=half\textbar full}：正文引用序号间的分隔与
-%   方括号各自的全半角（中途用过的 \option{cite-punct} 撤销改名）}
 % \option{comma-in-cite} 管正文引用序号之间的分隔：\texttt{half}（默认，
 % \texttt{[3,5]}）、\texttt{half-with-space}（\texttt{[3,~5]}）、
 % \texttt{full}（全角逗号）。\option{brackets-in-cite} 管引用的方括号：
@@ -601,9 +580,6 @@
 % 分隔落在 gb 系 cbx 的三个分隔宏、方括号落在 \cs{gbleftbracket} 的引用侧
 % 分支（见 \cs{hit@bib@patch@punct:}），全部排版时读值。两条线都不锁时机。
 %
-% \changes{v3.2a}{2026/08/16}{加 \option{correct-punct}：\file{.bib} 数据里的
-%   标点按 \option{punct} 的档位清洗，名字取 omni 的同义键}
-% \changes{v3.2a}{2026/08/16}{\option{correct-punct} 默认改关}
 % \option{correct-punct}（默认关）管数据清洗：字段里写的标点按
 % \option{punct} 的档位归一（全角档把 \texttt{,~:~;~!~?~()} 换成全角，
 % 半角档反向）。传统一线是 \file{.bst} 的 \texttt{convertpunct}；biblatex
@@ -639,10 +615,6 @@
 % \cs{bibliography}。判据直接看宏包在不在，不看 \option{backend} 的字面值，
 % 免得「用户自己装了 biblatex 而没写键」这一档跟状态记录对不上。
 %
-% \changes{v3.2a}{2026/08/16}{传统一线的键改走官方 \pkg{gbt7714} 的控制通道下发，
-%   \file{.bst} 换底座后 \cs{bibauthor} 那套回调不再被调用}
-% \changes{v3.2a}{2026/08/16}{下发前先探一句键在不在。TeX Live 2025 带的
-%   \pkg{gbt7714} 是 v2.1.8，没有这条 l3keys 通道}
 % \emph{下发前先探键在不在。} 这条通道是官方 \pkg{gbt7714} v3（2026-07）才有的。
 % TeX Live 2025 带的是 v2.1.8，\cs{@ifpackageloaded} 照样为真，但族里没有这些键，
 % 12 个键会各报一次「Can be used only in preamble」，键名还被原样排进文档
@@ -730,8 +702,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/16}{下发挂到 \cs{bibliography} 自己身上，不再只在
-%   \cs{hit@bib@print:} 里调}
 % \emph{下发要挂在 \cs{bibliography} 上，不能只挂在 \cs{hit@bib@print:} 里。}
 % v3.1 时代的文档在正文里直接写 \cs{bibliographystyle}\marg{hithesis} 加
 % \cs{bibliography}\marg{reference}，走不到 \cs{hit@bib@print:}。下发只写在那里的话，
@@ -807,8 +777,6 @@
 % 才盖得回来。
 %
 % \begin{macro}{\hit@bib@patch@brackets:}
-% \changes{v3.2a}{2026/08/16}{biblatex 一线不 fork 样式文件，运行时补丁把
-%   著录里的方括号接到 \option{punct} 上}
 % biblatex 一线的方括号补丁。gb7714-2015 的 bbx 把著录里所有方括号（类型标、
 % 访问日期、序号标签的缺省形）都收口在 \pkg{biblatex} 内核的
 % \cs{bibleftbracket}/\cs{bibrightbracket} 一对宏上，补丁只动这两个名字，
@@ -901,9 +869,6 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@bib@patch@punct:}
-% \changes{v3.2a}{2026/08/16}{逗号冒号分号也接上 \option{punct}：
-%   \pkg{biblatex} 缓冲的标点全走 \cs{abx@puncthook} 单点，2025 代的
-%   \texttt{gbpunctwidth} 干的事在 2015 代用运行时补丁补齐}
 % 逗号冒号分号的补丁，把 2025 代 \texttt{gbpunctwidth} 的能力补到 2015 代上。
 % \pkg{biblatex} 的标点缓冲（重复合并、句点让位那套语义）最终从
 % \cs{abx@puncthook}\marg{字符} 这一个口打出字形，补丁在这里按
@@ -1271,8 +1236,6 @@
 %
 % \subsection{包冲突守卫}
 %
-% \changes{v3.2a}{2026/08/16}{biblatex 与 natbib 一族的有序冲突守卫，
-%   照 thuthesis 的 \cs{thu@package@conflict} 用内核钩子重写}
 % 「先装了 A 再装 B」才报错，所以一对包要两个方向各登记一条。用内核的
 % \texttt{package/.../before} 与 \texttt{.../after} 钩子，不引 \pkg{filehook}。
 % 类自己的装载不会撞上守卫：传统一线的装载在导言区末尾，且探过
@@ -1299,8 +1262,6 @@
 %
 % \subsection{文献库文件}
 %
-% \changes{v3.2a}{2026/08/16}{\option{struct} 的 \option{bibliography} 在
-%   biblatex 一线换算成 \cs{addbibresource}}
 % \option{struct} 里的 \option{bibliography} 写的是给 \cs{bibliography} 的
 % 文件名表（不带后缀）。\pkg{biblatex} 一线改喂 \cs{addbibresource}，一个
 % 文件一句、后缀补上 \file{.bib}（写了后缀的不重复补）。挂导言区末尾做，

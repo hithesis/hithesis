@@ -6,7 +6,23 @@
 %
 % \section{键机制（engine）}
 %
-% \changes{v3.2a}{2026/08/07}{\cs{hitsetup} 的底层机制抽出来给各个类共用}
+% \changes{v3.2a}{2026/08/13}{\cs{hitsetup} 的底层机制抽出来给各个类共用：元信息字段改成
+%   英文 kebab 名（旧名走废弃期，改名映射按排版选项与加载期选项分两张表，另有废弃表）；
+%   \texttt{info} 与 \texttt{term} 两族的 \texttt{zh}／\texttt{en} 子族与斜杠路径；
+%   \cs{hit@define@term@alias}、\cs{hit@define@date@term}（存原值，取值时排）、
+%   \cs{hit@define@legacy@constant}；\cs{hit@keys@set:nn} 把键之间的空行剥掉再喂给
+%   \cs{keys\_set:nn}；\cs{\_\_hit\_tristate\_gset:Nn}}
+% \changes{v3.2a}{2026/09/13}{常量：取值里可以用 \texttt{<键名!>} 引用别的常量（替换走
+%   \cs{regex\_replace\_all:nnN}，花括号里头的引用也认），可以直接驱动既有命令名或转发
+%   给 \pkg{ctex}，配置只出取值；\cs{hit@after@number:nnn} 让编号之后的间距取空值时退回
+%   原有取值；\texttt{cxueweishort} 删掉}
+% \changes{v3.2a}{2026/09/13}{词条按页分桶、按轴分档：键名是「桶 + 词条名 + 各轴取值按
+%   轴序排列」，桶名与 \option{struct} 的部件名对齐，取不到回落到 \texttt{base}；
+%   轴名与类选项名统一（\texttt{stage}、\texttt{degree-level}、\texttt{category}），
+%   这个类不收的档位也造假的标志位，档位值前加 \texttt{!!} 取反，写错顺序当场报错；
+%   查表按当前上下文把最具体的变体绑到裸词条名上，语种分区不当轴，只有真取到值的
+%   词条才参与，一档都没取到的宏定义成一句报错；部件变体只写不一样的那一小坨}
+%
 % 各个类的元信息字段名单各不相同，但生成字段、拆关键词、分族路由、旧名兼容这套
 % 机制是一样的，原先每个类各写一遍，改一处容易漏掉别处。这里只放机制，字段名单
 % 与各族的键仍旧写在各个类里。
@@ -41,7 +57,6 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@define@legacy@terms}
-% \changes{v3.2a}{2026/08/07}{元信息字段改成英文 kebab 名，旧名走废弃期}
 % 元信息字段在 v3.1e 就是公开接口，改名后旧名要继续能用。
 % \cs{hit@define@legacy@terms}\marg{旧名=新名,\ldots} 给每个旧名做三件事：把同名命令
 % 指向新字段的设值器、把旧键注册进 \texttt{hit/class} 族、往改名表里记一条，
@@ -56,8 +71,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/28}{加 \cs{hit@define@legacy@constant}：旧命令也可以
-%   映射到常量，不必非得是元信息字段}
 % \cs{hit@define@legacy@constant}\marg{旧名}\marg{常量键}：有些旧名对应的现在是
 % 常量而不是元信息字段（\cs{cstudenttype} 就是），转发到 \cs{hitsetup} 的
 % \option{term} 族。
@@ -78,7 +91,6 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@define@term@alias}
-% \changes{v3.2a}{2026/08/11}{加 \cs{hit@define@term@alias}，两个名字都是正式写法}
 % \cs{hit@define@term@alias}\marg{别名}\marg{正名} 也是把两个名字接到同一个设值器上，
 % 但不进改名表，所以写哪个都不提示。跟 \cs{hit@define@legacy@term} 的区别在于
 % 定位：那个是「旧名，该改了」，这个是「两个名字都对」。
@@ -93,10 +105,6 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@define@date@term}
-% \changes{v3.2a}{2026/08/13}{加 \cs{hit@define@date@term}，日期字段存原值、
-%   取值时按样式与精度排}
-% \changes{v3.2a}{2026/08/29}{精度参数删掉，写到哪级排到哪级；各档差异搬进
-%   默认取值，见 \file{src/engine/hit-date.dtx}}
 % \cs{hit@define@date@term}\marg{键名}\marg{样式} 与 \cs{hit@define@term}
 % 并列，区别在取值那一头：原值存进 \cs{hit@}\meta{名}\cs{@raw}，
 % \cs{hit@}\meta{名} 展开时才按样式排，排到哪一级由值自己定。这样各处的排版
@@ -182,8 +190,6 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@keys@set:nn}
-% \changes{v3.2a}{2026/08/13}{加 \cs{hit@keys@set:nn}，把键之间的空行剥掉再喂给
-%   \cs{keys\_set:nn}；凡是接用户写的键值表的地方都改走它}
 % \textbf{键之间夹了空行也得认。} 名单一条条写下来，中间空一行分组是很自然的写法，
 % 但空行在键值表里是一个 \cs{par}，下一个键的名字就成了 \verb|\par secretary|，
 % 对不上任何键。轻则丢一条记录只在日志里留行警告，重则被当成老写法去查。
@@ -219,8 +225,6 @@
   { \keys_define:nn { hit / #1 } { unknown .code:n = { \__hit_legacy_key:n {##1} } } }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/07}{\texttt{info} 与 \texttt{term} 两族加 \texttt{zh} 与
-%   \texttt{en} 分组写法，把语言后缀提出来写一次}
 % 中英文成对的键占了一小半，一个个写后缀有点啰嗦。\texttt{zh} 与 \texttt{en} 两个
 % 分组把后缀提出来：
 % \begin{latex}
@@ -235,8 +239,6 @@
 % 里出现的都是它。没有配对的键（\texttt{student-id}、\texttt{secret-level} 这些）
 % 照旧写在分组外面。
 %
-% \changes{v3.2a}{2026/08/09}{\texttt{zh} 与 \texttt{en} 改成真的子族，
-%   斜杠路径写法跟着一起通}
 % \texttt{zh} 与 \texttt{en} 是真的子族 \texttt{hit/info/zh}，接后缀这件事挂在子族的
 % \texttt{unknown} 上，分组键自己只是一句 \cs{keys\_set:nn}。子族存在还带来一个用法：
 % l3keys 按最后一个斜杠切键名，左边当族名右边当键名，所以斜杠路径也认。
@@ -278,8 +280,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/27}{固定词汇按页分桶：键名是「桶-词条」，用户写
-%   \option{term}\texttt{!=\{zh!=\{titlepage!=\{supervisor!=\ldots\}\}\}}}
 % \emph{页桶。} 同一个字段身份在不同的页上是不同的东西：报告封面的「院（系）」与
 % 内封的「所在单位」都叫 \option{affiliation}，挤在一层里只能靠前缀区分，越加越长，
 % 而且看不出哪一条只有某一页用得上。所以键名前面带一段桶名，一页一个桶，
@@ -296,7 +296,6 @@
 % \texttt{titlepage-supervisor-zh} 与 \texttt{base-university}。正式名仍然是拼好的
 % 那个，报错与改名提示里出现的都是它。
 %
-% \changes{v3.2a}{2026/08/28}{桶名与 \option{struct} 的部件名对齐，一套词}
 % \emph{桶名就是部件名。} 用的是 \option{struct} 族那张部件表里的词，一个字不改：
 % \texttt{publications} 而不是 \texttt{publication}，
 % \texttt{table-of-contents} 而不是 \texttt{toc}。同一件东西在两个族里叫两个名字，
@@ -340,8 +339,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/28}{往某个桶里写 \texttt{base} 有、这个桶自己没有的词条，
-%   当场把它声明进这个桶}
 % 用户写 \option{term}\texttt{=\{zh=\{titlepage=\{university=\ldots\}\}\}} 时，
 % \texttt{titlepage-university-zh} 这个键表里本来没有——跨页共用的词条只在
 % \texttt{base} 里声明一次。查表那头已经把各桶取不到的名字转指到 \texttt{base}，
@@ -427,9 +424,6 @@
 %    \begin{macrocode}
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/25}{加 \cs{\_\_hit\_tristate\_gset:Nn}。按部件收键那一
-%   层把解析包在组里，局部赋值出组就没了}
-%
 % \cs{\_\_hit\_tristate\_set:Nn} 是局部赋值。收\emph{按部件}的键时解析包在组里，
 % 局部赋值出组就丢，所以那一路要用全局版。
 %    \begin{macrocode}
@@ -509,11 +503,6 @@
 % 写的 \cs{hitsetup}\{term=\{…\}\} 走的是同一条路，区别只是先后：类文件末尾先设
 % 默认值，导言区后设的覆盖它。表是在 expl3 之外记号化的，取值里的空格照原样保留。
 %
-% \changes{v3.2a}{2026/08/07}{常量取值里可以用 \texttt{<键名!>} 引用别的常量，
-%   不必再写内部宏名}
-% \changes{v3.2a}{2026/08/07}{删掉 \texttt{cxueweishort}：它只为拼
-%   \texttt{degree-level-zh} 与 \texttt{author-field-label-zh} 存在，两个都能从 \texttt{degree-level-zh}
-%   直接写出来。本科分支从没设过它，那一处引用的是未定义的宏}
 % 有些取值要拼进别的常量。取值里写 \texttt{<键名>} 就行，尖括号里是手册上那个键名：
 % \begin{latex}
 % \hitsetup{ term = { titlepage-author-zh = {<cxueweishort>士研究生} } }
@@ -526,19 +515,12 @@
 % 那个空格不会排出来。照抄的人容易以为空格是版式的一部分。\texttt{<键名>} 后面没有
 % 控制字，空格就是空格。
 %
-% \changes{v3.2a}{2026/08/28}{替换改用 \cs{regex\_replace\_all:nnN}，花括号里头的
-%   引用也认了。原先用 \cs{tl\_replace\_all:Nnn}，它不进分组}
-% \textbf{花括号里头的引用也认。} 原先这一步是 \cs{tl\_replace\_all:Nnn}，它只在
-% 记号表的最外层找，进不了花括号：\texttt{\{\textbackslash textbf\{<base-campus>\}\}}
-% 里那一处原样留着，排出来的是字面的 \texttt{<base-campus>}。手册上写「取值里写
-% \texttt{<键名>} 就行」，没说不能套花括号，所以这是个静默的坑——
-% \file{hithesis.cfg} 里 \option{titlepage-date} 就中过，
-% \texttt{\textbackslash hit@if@option@TF\{proposal\}\{<base-stage-proposal>\}}
-% 存下来的是字面文本，只因为终稿的 \texttt{proposal} 恒为假才没排出来。
-%
-% 改用 \pkg{l3regex} 的替换：正则引擎逐个记号走，花括号对它只是记号，进得去。
-% 替换文本里写 \texttt{\textbackslash c\{名字\}} 就是插一个控制序列，名字按命名
-% 空间现拼，与原先 \cs{exp\_not:c} 拼出来的是同一个。
+% \textbf{花括号里头的引用也认。} \cs{tl\_replace\_all:Nnn} 只在记号表的最外层找，
+% 进不了花括号：\texttt{\{\textbackslash textbf\{<base-campus>\}\}}
+% 里那一处会原样留着，排出来的是字面的 \texttt{<base-campus>}，而手册上写「取值里写
+% \texttt{<键名>} 就行」，没说不能套花括号。\pkg{l3regex} 的替换逐个记号走，花括号
+% 对它只是记号，进得去；替换文本里写 \texttt{\textbackslash c\{名字\}} 就是插一个
+% 控制序列，名字按命名空间现拼。
 %    \begin{macrocode}
 \str_new:N \l__hit_constant_name_str
 \tl_new:N \l__hit_constant_value_tl
@@ -592,9 +574,6 @@
 %
 % \subsection{轴}
 %
-% \changes{v3.2a}{2026/08/27}{键名里的取值分轴：一张有序轴表，键名是「词条名 +
-%   各轴取值按轴序排列」，省掉某轴表示该轴各档共用}
-%
 % \emph{轴表。} 键名里带的取值分属这几条轴，次序即键名里各段的次序：
 %
 % \begin{quote}
@@ -611,24 +590,14 @@
 % 「本科 vs 其余」，所以「不带学位段」既是「所有学位通用」，也就正好是研究生
 % 那一档。将来真出现博士专有的说法，写 \texttt{-doctor} 即可，不影响这条。
 %
-% \changes{v3.2a}{2026/09/13}{轴名与类选项名统一：\texttt{kind} 改 \texttt{stage}、
-%   \texttt{degree} 改 \texttt{degree-level}；补上漏掉的 \texttt{category} 轴}
-% \emph{轴名照类选项的名字。} 先前这张表里的 \texttt{degree} 与类选项
-% \option{degree-level} 是同一根轴的两个名字，\texttt{kind} 与词条里已经在用的
-% \texttt{base-stage-proposal} 也是。轴名只出现在这张表里（键名里出现的是\emph{取值}），
-% 改起来不碰别处，但读的人得在两套名字之间换算，所以统一。
+% \emph{轴名照类选项的名字。} 轴名只出现在这张表里（键名里出现的是\emph{取值}），
+% 但读的人得在两套名字之间换算，所以不另起名。新加一根类选项的轴时这张表必须同步：
+% \cs{hit@axis@parse:n} 从末段往前剥，剥到不认识的取值就停下，整串当成词条名，
+% 带那个后缀的词条会\emph{静默失效}（\option{category} 加进类选项时漏过一次，
+% \texttt{acknowledgements-heading-en-hass} 排出来的是不带后缀那一条）。
 %
-% \emph{\option{category} 先前漏在表外。} 这根轴 2026/09/13 加进类选项时没同时
-% 进这张表，于是 \texttt{-hass} 这样的后缀\emph{静默失效}——\cs{hit@axis@parse:n}
-% 从末段往前剥，剥到不认识的 \texttt{hass} 就停下，整串当成词条名，与不带后缀的
-% 那一条成了两个互不相干的词条，查表永远查不到它。实测写
-% \texttt{acknowledgements-heading-en-hass} 排出来的是不带后缀那一条。
-%
-% \emph{取值 \texttt{thesis} 改 \texttt{final}。} 这根轴问的是「哪一份材料」：
-% 终稿、开题、中期。先前终稿那一档叫 \texttt{thesis}，有两处不对：一是终稿不一定
-% 是论文（专业学位交的是实践成果），二是它与类身份标志位
-% \cs{g\_\_hit\_thesis\_bool}（这份文档由终稿还是报告排）同名，同一个
-% 名字两件事。名字照 iota-hit 的 stage 轴取 \texttt{final}。
+% \emph{终稿那一档叫 \texttt{final} 不叫 \texttt{thesis}。} 这根轴问的是「哪一份
+% 材料」，终稿不一定是论文（专业学位交的是实践成果）。名字照 iota-hit 的 stage 轴。
 %
 % \emph{档位值必须单段、全局唯一。} 唯一了才能只看一段就断定它属于哪条轴，不必
 % 靠位置猜；单段了才能按连字符切开来数。两条都在加载时 \cs{assert} 住——表写错
@@ -692,8 +661,6 @@
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@axis@bools:}
-% \changes{v3.2a}{2026/09/13}{补齐轴值标志位：这个类不收的档位也造一个假的，
-%   免得条件写出来是「不认识的条件」}
 % \emph{每个档位值都得有一个标志位，哪怕这个类不收它。} 条件靠
 % \cs{bool\_if\_exist:cTF} 查标志位，查不到就发「不认识的条件」的提示。
 % 两档收的档位不一样：报告的学位轴没有 \texttt{postdoc}，学科门类轴整根都没有，
@@ -723,7 +690,6 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \changes{v3.2a}{2026/09/13}{档位值前面加 \texttt{!!} 表示取反，与条件里的写法同一套}
 % \emph{档位值前面加 \texttt{!} 就是取反。} \texttt{achievements-heading-!final}
 % 读作「不是终稿的那几档」，也就是开题与中期两份报告共用的说法。
 % 这与 \cs{hit@presetup} 里条件的写法是同一套：\option{layout}\texttt{=!v2-layout}
@@ -737,7 +703,7 @@
 %
 % \emph{取反的那一段算半档。} 比具体程度时正着写的一段算 2 分，取反的算 1 分，
 % 所以 \texttt{-proposal} 压得住 \texttt{-!final}：前者指名道姓，后者只排除了一档。
-% 全表都不带 \texttt{!} 时每段一律 2 分，名次与从前按段数排的完全一样。
+% 全表都不带 \texttt{!} 时每段一律 2 分，名次与按段数排的完全一样。
 %
 % \emph{语种段不许取反。} 语种是分区不是档位，中英两份得同时在（见下面查表
 % 那一段），写 \texttt{-!zh} 当场报错，不静默失效。
@@ -798,17 +764,15 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/13}{档位值写错顺序当场报错，不再静默当成词条名的一部分}
 % \emph{剥完还剩档位值，就是顺序写错了。} 剥是从末段往前、轴序严格递减，
 % 所以 \texttt{header-doctor-shenzhen} 剥掉 \texttt{shenzhen}（校区，第二根）
 % 之后遇到 \texttt{doctor}（学位，第三根），三不小于二，停下——剩下的
 % \texttt{header-doctor} 整串成了词条名，与 \texttt{header} 是两个互不相干的
 % 名字，查表永远查不到它。
 %
-% 这一条先前只在注释里写着「当场看得出表写歧义了」，其实看不出来：它不报错，
-% 排出来是不带后缀那一份。加进去之后一共抓出一处——\texttt{cover-thesis-interim-check}，
-% 那个 \texttt{interim} 不是档位值的意思，是「中期检查报告」这个词的一部分，
-% 已改名 \texttt{cover-check-report-title}。
+% 不报错的话排出来是不带后缀那一份，翻日志也看不见。词条名里不要用档位值当
+% 普通的词（\texttt{cover-thesis-interim-check} 里的 \texttt{interim} 曾是「中期
+% 检查报告」这个词的一部分，已改名 \texttt{cover-check-report-title}）。
 %
 % 正确的写法是按轴序排：\texttt{stage}、\texttt{campus}、
 % \texttt{degree-level}、\texttt{degree-type}、\texttt{category}、\texttt{lang}，
@@ -818,7 +782,6 @@
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@axis@resolve:}
-% \changes{v3.2a}{2026/08/27}{加查表：按当前上下文把最具体的那个变体绑到裸词条名上}
 %
 % \emph{查表。} 遍历所有已声明的词条键，把键名解析成「词条名 + 各轴取值」，取值
 % 与当前上下文\emph{全都对得上}的才算候选，同一词条取\emph{段数最多}的那个——
@@ -835,8 +798,6 @@
 % \emph{某个词条一档都没命中就不绑}，裸宏名保持原样（多半是未定义）。消费方用到
 % 它时当场报未定义，比悄悄回落到键名强——回落会把键名印到纸上，编译还不报错。
 %
-% \changes{v3.2a}{2026/08/27}{语种不再当作一条比具体程度的轴，改成分区：
-%   \cs{hit@}\meta{词条}\cs{@zh} 与 \cs{@en} 各自按学位挑一档，两个名字同时在}
 % \emph{语种是分区，不是轴。} 内封上中英文标签并排印，两个宏必须同时在，
 % 所以语种段不参与比具体程度：它从解析结果里摘出来接回名字后头，剩下的档位
 % 才拿去跟上下文比。\texttt{supervisor-field-label-zh} 与
@@ -844,8 +805,8 @@
 % 挑后者，绑到 \cs{hit@supervisor@field@label@zh}；英文那一份各挑各的，
 % 绑到 \cs{@en}。
 %
-% 从前语种也算一段，于是本科内封上写 \cs{hit@date@field@label@zh} 拿到的是研究生
-% 那一份「答辩日期」，明明有一条 \texttt{date-field-label-bachelor-zh} 摆着没人用；
+% 语种算一段的话本科内封上写 \cs{hit@date@field@label@zh} 拿到的是研究生那一份
+% 「答辩日期」，明明有一条 \texttt{date-field-label-bachelor-zh} 摆着没人用；
 % 要拿对就得在消费端自己写 \cs{@bachelor@zh}，同一张字段表里一半写了一半没写。
 %
 % \emph{不带语种的裸名跟文档语种走。} 词条只有中英两份、没有不分语种的那一条时，
@@ -885,8 +846,6 @@
 % 一条轴上的取值与上下文对不上，这个键就出局。上下文里没有那条轴（比如
 % \option{lang} 在报告里没设），也算对不上——宁可不绑，不要瞎绑。
 %
-% \changes{v3.2a}{2026/08/27}{只有真取到值的词条才参与查表：声明了却没给值的那些
-%   不该压掉更泛的一条}
 % 词条名是全类共用的一张表，取值却分类给：\texttt{school-bottom-mark-harbin-master}
 % 只在终稿有值，报告那边同一件事写的是
 % \texttt{school-bottom-mark-harbin}。前者在报告里段数多、会赢，赢了却绑到一个
@@ -1025,8 +984,6 @@
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@hook@new:nn,\hit@hook@use:n,\hit@hook@base:n}
-% \changes{v3.2a}{2026/09/13}{加部件变体：同一个部件按轴分档，变体只写不一样的
-%   那一小坨，挑哪一档与词条查表同一套规则}
 % \emph{部件也按轴分档，规则与词条完全一样。} \cs{hit@hook@new:nn}\marg{名}\marg{代码}
 % 定义一个部件；名字后面可以跟档位值，与词条键名一个拼法：
 %
@@ -1076,8 +1033,6 @@
   }
 %    \end{macrocode}
 % \end{macro}
-%
-% 候选与绑定，与词条那两条并列，只是换了前缀。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_hook_consider:n #1
   {
@@ -1128,7 +1083,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/28}{各页桶取不到的词条回落到 \texttt{base} 桶}
 % \emph{本页的桶盖在 \texttt{base} 上。} 跨页共用的词条住在 \texttt{base}，各页桶里
 % 没写的那些就指向 \texttt{base} 里那一条。这样排版代码一律写自己那一页的桶
 % （\cs{hit@term@titlepage@university@zh}），用户想只改这一页就改
@@ -1168,13 +1122,11 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/28}{声明了却一档都没取到值的词条，宏定义成一句报错，
-%   用到时报出键名}
 % \emph{取不到值的词条，用一次报一次。} 声明表是两档共用的，取值分档给，所以
 % 「声明了、这个类里没有取值」是常态；真出问题的是排版代码去取了这样一个词条。
-% 从前那种情形是 \hologo{TeX} 的 undefined control sequence：\texttt{nonstopmode}
-% 下页面上留一格空白，编译照样以 0 退出，只有翻日志才看得见。现在把这些名字定义成
-% 一句 \cs{msg\_error}，报出键名。
+% 留成 undefined control sequence 的话 \texttt{nonstopmode} 下页面上留一格空白，
+% 编译照样以 0 退出，只有翻日志才看得见，所以把这些名字定义成一句
+% \cs{msg\_error}，报出键名。
 %
 % 排在绑定之后跑，只管那些绑完仍然不存在的名字；用户在导言区改的排在更后面，
 % 改了就把这句报错换掉了。
@@ -1205,9 +1157,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/08}{常量可以直接驱动既有命令名或转发给 \pkg{ctex}，
-%   配置里那批 \cs{cs\_new:Npn} \cs{equationname} 与 \cs{ctexset} 因此不必再写在
-%   配置里——配置只出取值，造轮子的部分都在这一层}
 % 有两类可本地化的词不走 \cs{hit@}\meta{名} 这个存法：一类是 \cs{equationname}、
 % \cs{cabstractcname} 这种早就对外可见的名字，改名会破坏接口；一类是
 % \cs{contentsname}、\cs{figurename} 这种归 \pkg{ctex} 管的名字，得走 \cs{ctexset}。
@@ -1221,8 +1170,6 @@
 %    \begin{macrocode}
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/11}{加 \cs{hit@after@number:nnn}，让「编号之后排什么」
-%   这批常量取空值时退回各处原有的取值}
 % \cs{hit@after@number:nnn}\marg{层级}\marg{语言}\marg{兜底}
 % 取 \option{after-}\meta{层级}\option{-number-}\meta{语言} 这个常量，取值为空就用兜底。
 %
@@ -1313,14 +1260,9 @@
 % 报过的名字记下来，同一个名字只报一次。元信息字段合并成一条，用第一个碰到的
 % 字段名举例。旧名到新名的映射表 \cs{g\_\_hit\_renamed\_option\_prop} 由各个类填。
 %
-% \changes{v3.2a}{2026/08/10}{改名映射分成两张表。\cs{g\_\_hit\_renamed\_option\_prop} 装
-%   排版选项，写进 \cs{documentclass} 会另报一条；\cs{g\_\_hit\_renamed\_load\_option\_prop}
-%   装加载期选项，写进 \cs{documentclass} 本来就对，只报改名}
 % 两张改名表。排版选项写在 \cs{documentclass} 里要提示改用 \cs{hitsetup}；
 % 加载期选项（字体、校区、学位这类）必须写在 \cs{documentclass} 里，只提示改名。
 %
-% \changes{v3.2a}{2026/08/11}{加废弃表 \cs{g\_\_hit\_removed\_option\_prop}，
-%   装没有新名可改的选项}
 % 第三张是废弃表，装的是不再有对应写法的选项。它排在两张改名表之前查：
 % 一个键要么改了名要么废了，不会两者都是，先查哪张只影响没写对时的提示，
 % 而废弃的那条话说得更具体。表里存的是「为什么废了」，直接进提示。

@@ -6,18 +6,29 @@
 %
 % \section{目录与图表目录}
 %
-% \changes{v3.2a}{2026/09/13}{整块套上 \option{stage} 闸：两个类合成一个之后，
-%   这一段与另一档那一段同在一个 cls 里，靠它各管各的}
+% \changes{v3.2a}{2026/09/13}{目录模块拆出来并迁到 expl3：\cs{@dottedtocline} 直接重定义
+%   （\pkg{etoolbox} 补丁在 expl3 里会吃掉宏体内的字面空格）；整块套 \option{stage} 闸；
+%   \cs{tocdepth} 在 \cs{AtBeginDocument} 设；\cs{tableofcontents} 记闸门并接回表图索引与
+%   缩略语表，老文档不再少页；公式清单换扩展名 \file{loeq} 让开 \pkg{thmtools}；
+%   \cs{@tempdima} 显式归零（原先靠残值，一变章条目就逐字断行）；英文版的
+%   \option{english} 三态 \texttt{auto} 一律为真（硕士与本科的英文版曾整本没有目录页）；
+%   加 \option{toc}/\option{lists}}
+% \changes{v3.2a}{2026/09/20}{条目照书写范例排：行距走 \file{hit-format.dtx} 的盒贴排
+%   模型，这边只剩挑目标与判中西文（英文目录的 Contents 标题按纯西文行算行盒，范例
+%   基线 144.0、到首条 36.0）；折行照 Word，每行排到制表位、只有末行给点线与页码让路、
+%   页码不独行，右界收成页码实宽；章条目折行悬挂到标题首字（指南 3.6）；标题与点线
+%   之间不空格，句点自然堆；编号后的间距跟随章标题（\option{toc}/\option{number-align}
+%   三态），题序以全角顿号或括号收尾的条目不空；图表清单条目去掉条间 6\,bp；目录的
+%   页眉跟着排印的标题撑开}
+%
 %    \begin{macrocode}
 %<*final-toc-lists>
 \bool_if:NT \g__hit_final_bool
   {
 %    \end{macrocode}
 %
-%
 % 定义索引、目录格式
 %
-% \changes{v3.2a}{2026/08/08}{\cs{hit@start@toc} 与 \cs{hit@list@of} 迁到 expl3}
 % \texttt{\#1} 是浮动体类型（\texttt{figure}、\texttt{table}、\texttt{equation}），
 % 用来拼出 \cs{listfigurename}、\cs{ext@figure} 这些名字。
 %    \begin{macrocode}
@@ -34,8 +45,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/01}{加 \option{toc}/\option{lists}：图表清单
-%   要不要进目录，默认不进}
 % \emph{图表清单默认不进目录。}指南与规范都没有图表清单这一项，两份
 % 书写范例的目录里也没有这两条（照 iota-hit 对范例的核对）；符号表与
 % 缩略语表是规范有的，照进不动。老行为要回来写
@@ -62,19 +71,16 @@
 \cs_set:Npn \listoffigures   { \hit@list@of { figure } { \hit@term@list@of@figures@in@english@toc } }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/01}{图表清单条目去掉条间 6\,bp 附加距}
-% 图表清单条目走同一条 \cs{@dottedtocline} 新规则（编号后一个字、折行
-% 悬挂、点线到右制表位、贴排行距），先前的条间 6\,bp 附加距范例无据，
-% 去掉，行距与目录一致。
+% 图表清单条目走同一条 \cs{@dottedtocline} 规则（编号后一个字、折行悬挂、点线到
+% 右制表位、贴排行距），不另加条间距：范例里没有。
 %    \begin{macrocode}
 \cs_set_nopar:Npn \l@figure  { \@dottedtocline {1} {0em} {4em} }
 \cs_set:Npn \listoftables    { \hit@list@of { table } { \hit@term@list@of@tables@in@english@toc } }
 \cs_set_eq:NN \l@table \l@figure
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/22}{公式清单换扩展名 \file{loeq}，让开 \pkg{thmtools}}
-% 公式清单的扩展名原先是 \file{loe}，v3.1e 就这么写。可 \pkg{thmtools} 的
-% \cs{listoftheorems} 也写这个名字，而且是写死在包里的：
+% 公式清单的扩展名不用 \file{loe}：\pkg{thmtools} 的 \cs{listoftheorems} 也写
+% 这个名字，而且是写死在包里的：
 % \begin{latex}
 % \def\@starttoc##1{\thref@starttoc{loe}}
 % \immediate\openout \csname tf@loe\endcsname \jobname.loe\relax
@@ -100,7 +106,6 @@
 % \subsubsection{目录}
 % \label{sec:toc}
 % 本科文科生要求目录有四级。
-% \changes{v3.2a}{2026/08/07}{目录相关代码从 bookcls 拆出至 book-toc 模块；拼接位置保留在原处以避免被后续包覆盖布局参数}
 %    \begin{macrocode}
   }
 %</final-toc-lists>
@@ -109,11 +114,9 @@
 % ^^A ======================================================================
 % ^^A Module final-toc: 目录格式（hit-thesis）
 % ^^A ======================================================================
-% \changes{v3.2a}{2026/08/11}{\cs{tocdepth} 改在 \cs{AtBeginDocument} 设，
-%   \option{toc}/\option{depth} 写在导言区才来得及生效}
 % \option{toc}/\option{depth} 数的是级数，\cs{tocdepth} 数的是比章低几级，两者差一。
-% 这一句原先跟着类文件走，那时候导言区的 \cs{hitsetup} 还没执行，写了不起作用；
-% 挪到 \cs{AtBeginDocument} 才赶得上，又仍旧早于第一条 \cs{addcontentsline}。
+% 这一句在 \cs{AtBeginDocument} 才赶得上导言区的 \cs{hitsetup}，又仍旧早于第一条
+% \cs{addcontentsline}。
 %    \begin{macrocode}
 %<*final-toc>
 \bool_if:NT \g__hit_final_bool
@@ -123,12 +126,7 @@
   { \setcounter { tocdepth } { \int_eval:n { \g__hit_toc_depth_int - 1 } } }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/07}{book-toc 的加载期条件与 \cs{tableofcontents} 的
-%   控制流改用 expl3。\cs{l@chapter} 里那串字体判断与 \cs{ctexset} 的取值保持
-%   原样，它们是延后求值的排版内容，不是加载期逻辑}
 % 工大论文目录中的潜规则：目录中的目录位置是空白。
-% \changes{v3.2a}{2026/08/22}{\cs{tableofcontents} 记闸门并接回表图索引，
-%   老文档不再少两页}
 % \begin{macro}{\tableofcontents}
 %    \begin{macrocode}
 \cs_set:Npn \tableofcontents
@@ -145,7 +143,6 @@
         \phantomsection
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/22}{目录的页眉跟着排印的标题撑开}
 % 页眉与排印的标题同源，书签仍取原文。这一处不走 \cs{hit@appendix@chapter}，
 % 所以撑开要自己写一遍。
 %    \begin{macrocode}
@@ -161,12 +158,8 @@
       }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/05}{英文版的 \option{english} 三态 \texttt{auto}
-%   一律为真：英文版只排一份目录，那份就是它，先前硕士与本科的英文版整本
-%   没有目录页}
 % 英文版只有这一份目录（上面中文那份在英文版里跳过了），所以 \texttt{auto}
-% 在英文版一律为真，不再只看学位：先前按“博士才排”，硕士与本科的英文版
-% 整本没有目录页。
+% 在英文版一律为真，不看学位，不然硕士与本科的英文版整本没有目录页。
 %    \begin{macrocode}
     \__hit_tristate_if:NnTF \g__hit_toc_english_tl
       {
@@ -187,11 +180,9 @@
 %    \begin{macrocode}
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/22}{缩略语表也提成部件，老文档在这里拿到它}
-% 缩略语表从前写死在这里，条件是 \option{lang}\texttt{=en}，标题借的是
-% \cs{hit@nomenclature@heading}。现在它是一个部件，这里改成走闸门的调用：
-% 老写法的文档调 \cs{tableofcontents} 就在 v3.1e 的原位置拿到那一页；新写法的
-% 文档由骨架先排，闸门把这一处挡掉。跟上面那对表图清单是同一套办法。
+% 缩略语表是一个部件，这里走闸门的调用：老写法的文档调 \cs{tableofcontents} 就在
+% v3.1e 的原位置拿到那一页；新写法的文档由骨架先排，闸门把这一处挡掉。跟上面那对
+% 表图清单是同一套办法。
 %    \begin{macrocode}
     \hit@structure@switch:nnn { list-of-abbreviations }
       { \bool_if_p:N \g__hit_en_bool } { \listofabbreviations }
@@ -217,9 +208,6 @@
 %    \begin{macrocode}
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/01}{条目的折行右界从 4\,em 收成页码实宽，照范例}
-% \changes{v3.2a}{2026/09/13}{折行改成 Word 的排法：每行排到制表位、只有末行
-%   给点线与页码让路、页码不独行}
 % 长条目在哪儿折行：v3.1e 在右边留 4\,em（\cs{@pnumwidth} 兼
 % \cs{@tocrmarg}，注释称“规定中的提前悬挂”），指南 3.6 那句“提前换行”
 % 被解成了提前一大截。9 月 1 日先收成页码实宽，那是拿两条折行条目的末词
@@ -244,10 +232,9 @@
 \cs_set:Npn \@tocrmarg { \@pnumwidth }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/01}{点距对齐范例：句点自然堆}
 % 范例的点线是 Times 句点自然堆出来的，点距 3.0\,bp，恰是句点自己的
-% 步进宽——点垫零、句点贴排（实测垫 0.25\,mu 出 3.34、垫零正落 3.0）。
-% 先前的 1\,mu 堆出 4.0，点线明显稀。
+% 步进宽——点垫零、句点贴排（实测垫 0.25\,mu 出 3.34、垫零正落 3.0，1\,mu 堆出
+% 4.0，点线明显稀）。
 %    \begin{macrocode}
 \cs_set:Npn \@dotsep { 0 }
 %    \end{macrocode}
@@ -259,14 +246,6 @@
 \dim_set:Nn \@tempdima {4em}%
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/29}{加 \option{toc}/\option{number-gap}：编号后
-%   一律空定长，编号列不再量宽取齐}
-% \changes{v3.2a}{2026/08/29}{\option{toc}/\option{number-gap} 默认改成
-%   1\cs{ccwd}，量宽取齐退成 \texttt{auto} 档}
-% \changes{v3.2a}{2026/08/30}{编号的摆法提成 \option{toc}/\option{number-align}
-%   三态，\option{number-gap} 退成纯长度，\texttt{auto} 档砍掉}
-% \changes{v3.2a}{2026/08/30}{\option{toc}/\option{number-gap} 键砍掉，间距
-%   直接跟随章标题的编号后间距}
 % 编号与标题之间空多少，目录条目与章标题是同一件事，不另设键：间距取
 % \cs{hit@chapter@number@gap:}（用户设了 \option{after-chapter-number} 词条
 % 用词条，没设是一个字宽，见 \file{hit-format.dtx}），条目组内把它装盒量宽，
@@ -308,15 +287,11 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/01}{目录条目行距照 Word 的盒贴排模型分语言分学位，
-%   点距、页码右缘、图表清单条目一并对齐书写范例}
-% \changes{v3.2a}{2026/09/14}{盒贴排模型挪进 \file{hit-format.dtx}，这边只剩
-%   挑目标与判中西文；行距不再是写死的四个数，由 \option{format} 算}
 % \emph{条目行距照 Word 的盒贴排模型。}范例的目录行距是“单倍行距的
 % 1.25 倍”（研究生那份 1.2 倍，人文社科类是固定值 23\,bp），Word 的单倍行距
 % 按\emph{内容的字体}算，于是相邻两条的基线距等于“上一条的行深加本条的
-% 上升部”。先前全体条目按正文的 19.45 排，研究生档没分、“Abstract”这类
-% 整条西文的也按汉字行盒撑高。
+% 上升部”；全体按正文的 19.45 排的话研究生档分不出、“Abstract”这类整条西文的
+% 也被汉字行盒撑高。
 %
 % 模型本身在 \file{src/engine/hit-format.dtx} 的 \cs{hit@format@stack@line:n}，
 % 挑目标与判中西文那一步在 \file{src/engine/hit-keylist.dtx} 的
@@ -351,7 +326,6 @@
 \box_new:N \l__hit_toc_gap_box
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/13}{题序以全角顿号或括号收尾的条目不再空一个字}
 % 题序后那一个字的空隙，按题序自己的样子给：人文社科类的“一、”“（一）”自带
 % 全角顿号或括号，范例目录里题序贴着标题排，不再空；“第一章”“1.1”
 % “Chapter One”后面照旧空一个字。看的是题序末字是不是那两个全角标点，
@@ -429,9 +403,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/07}{\cs{@dottedtocline} 改成直接重定义，不再用
-%   \pkg{etoolbox} 打补丁。补丁命令会把宏体 detokenize 后按当前 catcode 重扫，
-%   在 expl3 里会吃掉宏体内的字面空格，只能退出 expl3 才敢用}
 % 与内核原版比只有两处不同：条目文字外面套一层 \cs{hit@toc@font}，用
 % \cs{use:c} 取；页码盒子从
 % 定宽的 \cs{hb@xt@}\cs{@pnumwidth} 改成自然宽度的 \cs{hbox}，双语目录里页码
@@ -478,8 +449,6 @@
 % \changes{v2.0.08}{2017/06/15}{修改本科生论文目录格式（感谢QQ:嬴政　同学）}
 % \changes{v3.0.01}{2020/06/06}{本科目录添加加粗}
 % \changes{v3.0.0}{2020/05/21}{博后和英文版需要加粗}
-% \changes{v3.2a}{2026/08/07}{目录里章条目的排版迁到 expl3，字体那串判断抽成
-%   \cs{hit@toc@chapter@line@font}}
 % 目录里章条目的字体。本科用 \cs{rmfamily}，其余取 \cs{hit@toc@font}
 % （\option{toc}/\option{latin-sans} 关着的时候它展开成空）。之后按博后、
 % 本科加粗、英文版依次叠加粗体。
@@ -499,15 +468,11 @@
 %
 % 章条目本身。\cs{numberline} 在这里被调用，它要用到 \cs{@tempdima}。
 %
-% \changes{v3.2a}{2026/09/01}{标题与点线之间的那个空格去掉，首点贪心
-%   贴上末字}
 % 标题与点线之间原有一个 \texttt{\string~}（旧写法换行带出来的空格）。
 % 范例里末字右缘到首点只空贪心填格剩下的余数（0.56 到 3.44\,bp，点钉在
 % 页网格上），中间没有那一格空格——垫着它首点就晚一两个点位。去掉，
 % 换成 \cs{nobreak}。
 %
-% \changes{v3.2a}{2026/08/14}{\cs{@tempdima} 显式归零。原先没设，靠的是上一条
-%   命令留在里面的残值，那个残值一变，章条目就逐字断行}
 % \cs{@tempdima} 要自己归零。这一段读它两次——\cs{leftskip} 加一次，
 % \cs{numberline} 用一次——却从没设过，用的是别处留在里面的值。
 % \pkg{book} 的原版在这里写的是 \cs{setlength}\cs{@tempdima}\{1.5em\}，
@@ -515,12 +480,10 @@
 % 残值成了版心高，\cs{leftskip} 跟着涨到一行只剩一个字宽，
 % 章条目当场逐字断行。归零就是把一直在用的那个值写明白。
 %
-% \changes{v3.2a}{2026/08/29}{章条目折行悬挂到标题首字，指南 3.6}
 % \emph{折行悬挂到标题首字。}指南 3.6：“对于超过一行的目录内容提前换行，
 % 换行后缩进至相应标题第一个字符处”。提前换行由 \cs{rightskip} 的 4\,em
-% 兜着（\cs{@pnumwidth} 那处的注释），悬挂原先只有节以下三级有——
-% \cs{@dottedtocline} 的 \cs{leftskip} 机制天然给——章条目折行一直顶回
-% 左缘。
+% 兜着（\cs{@pnumwidth} 那处的注释）；节以下三级的悬挂由 \cs{@dottedtocline} 的
+% \cs{leftskip} 机制天然给，章条目要自己做，不然折行顶回左缘。
 %
 % 悬挂多宽只有排完编号才知道：\CTeX\ 的 \cs{numberline} 会把“编号实宽加
 % 半个字号”写进 \cs{@tempdima}，那正是标题首字的横向位置，第几章、附录几
@@ -569,10 +532,6 @@
 \cs_set_nopar:Npn \l@section       { \@dottedtocline {1} {1em} {2em} }
 \cs_set_nopar:Npn \l@subsection    { \@dottedtocline {2} {2em} {3em} }
 \cs_set_nopar:Npn \l@subsubsection { \@dottedtocline {3} {3\ccwd} {3.1em} }
-%    \end{macrocode}
-%
-% 英文目录格式。
-%    \begin{macrocode}
 \cs_set:Npn~\@dotsep {~0~} % 英文目录同一张 Word 域，点距同为 3.0bp
 \dim_set:Nn \leftmargini {0pt}
 \dim_set:Nn \leftmarginii {0pt}
@@ -593,9 +552,6 @@
  \cs_set_nopar:Npn \l@chapter {\@dottedtocline{0}{0em}{5em}}%控制英文目录： 细点\@dottedtocline  粗点\@dottedtoclinebold
  \@restonecolfalse
 %    \end{macrocode}
-% \changes{v3.2a}{2026/09/20}{英文目录的「Contents」标题按纯西文行算行盒，与英文摘要的
-%   标题同一档：Word 按行内实际字体算行高，范例里它的基线在 144.0、到首条 36.0，
-%   从前按汉字行盒算成 145.5 与 38.8}
 % 「Contents」是纯西文行，行盒按 Times 算（\option{font-zh}\texttt{=none}），与
 % 英文摘要标题那一处同一个写法；范例里它的基线比中文目录的「目录」高 1.5、
 % 到首条近 2.8，正是宋体与 Times 两副上升部、行深之差。排完还回去。
@@ -622,10 +578,6 @@
  \if@restonecol\twocolumn\fi
   }
 \cs_set:Npn~\@dotsep {~0~} % 英文目录同一张 Word 域，点距同为 3.0bp
-%    \end{macrocode}
-%
-% 目录中附录的章号格式。
-%    \begin{macrocode}
 \ctexset{%
   appendix/number=\hit@if@option@TF{bachelor}{\arabic{chapter}}{\Alph{chapter}},
 }

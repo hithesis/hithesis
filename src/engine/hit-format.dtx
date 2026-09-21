@@ -6,18 +6,58 @@
 %
 % \section{元素格式（format）}
 %
-% \changes{v3.2a}{2026/08/13}{加 \texttt{hit/format} 族，按 Word 的字体与段落
-%   对话框描述章节标题、图题表题、目录条目的排法}
-% 规范里说的是 Word 的话：「章标题小二黑体居中，段前段后各一行，多倍行距 1.5」。
-% 这些话现在落在代码里是这个样子：
-% \begin{latex}
-% chapter={ beforeskip={28.34646bp}, afterskip={28.74646bp}, ... }
-% %          ^ 注释写着「一个空行 1.57481 × 18」
-% \end{latex}
-% 那个 \texttt{1.57481 × 18} 是有人拿 Word 的设置手算了一遍留下的。校区与学位之间
-% 标题格式差别很大，这样的手算散在五份 \cs{ctexset} 里，改一处要连带重算三四个数。
+% \changes{v3.2a}{2026/08/25}{加 \texttt{hit/format} 族：按 Word 的字体与段落对话框
+%   描述每个元素怎么排，目标有正文、四级标题、题注、目录条目、封面内封各段、页眉
+%   页脚、表格里的段。键照对话框原词，每键收 \texttt{auto}（交给模板）；
+%   \option{line-spacing} 与 \option{line-white}、\option{space-*} 与 \option{white-*}
+%   各存同一槽，一个词刚性、两个词区间，\texttt{25bp!!} 固定值、\texttt{10bp+} 最小值；
+%   \option{snap-to-grid} 分纵横两轴；\option{char-spacing}、\option{latin-line}、
+%   \option{latin-bold}、\option{hyphenation}。\option{style} 族至此清空删掉}
+% \changes{v3.2a}{2026/08/16}{取值按版心底两档分档存：写进 \option{目标/if-raggedbottom}
+%   与 \option{目标/if-flushbottom} 的各一份，不分档的一份，读时先看当前档；
+%   规范 3.2 节的行数版与 3.8 节的毫米版是两套完整的表，不是一套加伸缩}
+% \changes{v3.2a}{2026/09/13}{\cs{hit@format@compute:n} 按 Word 的行盒模型换算：自然行高
+%   中易系 1.296875 倍字号、Times 1.15、华文新魏按字体表；上升部 1.008 倍字号加 0.082\,bp
+%   （Times 0.93261）；倍数贴格时取整数格、固定值基线在盒顶下 0.8 倍；「一行」单位
+%   认网格启不启用；视觉白按墨迹 0.9050 折成基线距。四轮标定文档、三十组、一百六十
+%   多条基线，来路在 \file{src/engine/hit-msword.dtx}}
+% \changes{v3.2a}{2026/08/29}{\cs{hit@format@strut:} 把每一行的行盒撑成 Word 的尺寸，
+%   贴格居中、不贴格顶对齐、固定值 0.8 倍、纯西文按 Times 三支；空的段落片段不成行
+%   （公式独占一段时上下不再各多一行）；\hologo{LuaLaTeX} 下段末带封条}
+% \changes{v3.2a}{2026/09/16}{标题接 \pkg{ctex}：\option{format} 覆盖旧的 \cs{ctexset}
+%   不追加；题序后一个字宽（指南「空 2 个半角字符」，范例各级都是自己的一个字宽），
+%   章号后间距 \cs{hit@chapter@number@gap:} 公用给页眉与目录；英文报告也发；人文社科类
+%   节条题序后不空；标题样式关字距调整；临时覆盖进出连分档表一起存还；目标名与
+%   \pkg{ctex} 层级名可错开一格（深圳本科报告正文照终稿排）}
+% \changes{v3.2a}{2026/08/16}{正文接 \cs{normalsize}：字号、行距、首行基线、首行缩进四个
+%   全局长度；\cs{rightskip} 收字符网格的余量；换页判据改成末行盒底（版心底留一个
+%   行深、\cs{@colroom} 补丁、\texttt{flush} 档页底留白刚性）；孤行寡行四个罚分归零}
+% \changes{v3.2a}{2026/08/29}{横轴两道胶按元素发：汉字缝伸量 0.02 行距、中西文胶 0.246 格
+%   按字号缩放、可压 0.13 行距，空格伸量同档；同步 \pkg{ctex} 的寄存器、\pkg{xeCJK} 的
+%   \cs{l\_\_xeCJK\_ecglue\_skip} 与 \pkg{luatexja} 的 kanjiskip；\cs{ccwd} 与
+%   \cs{ctex\_update\_ccglue:} 两处补丁；西文标点与乘除号并入半角标点类}
+% \changes{v3.2a}{2026/09/20}{西文的半份网格增量（\option{LetterSpace}）只在 \hologo{XeLaTeX}
+%   一路加，Lua 断行接管时由 Lua 在正文字号的段里自己补，交回 \TeX{} 的段 Word 本来不加}
+% \changes{v3.2a}{2026/08/30}{\hologo{XeLaTeX} 一路的标点：全角标点补网格胶、相邻标点
+%   缩半格、行中可压半格、行末减半走折处、盒内换等宽 kern、引号与波浪线自成字符类、
+%   波浪号破折号不可断、西文接全角标点补一整格、半角闭号接汉字留零宽胶保住断点}
+% \changes{v3.2a}{2026/08/31}{\pkg{xeCJK} 2025 与 2026 的中西文边界拉平：源码里的空格折成
+%   中西文胶，\cs{verb}、\cs{num}、\cs{ref}、上标、链接的组边界补给老版，\cs{CJKecglue}
+%   带闸不叠双份}
+% \changes{v3.2a}{2026/09/20}{按目标排段的几个入口：\cs{hit@format@par:nn}（段前用
+%   \cs{addvspace}，Word 的段前与前一段的段后取大不相加）、\cs{hit@format@par:nnn} 与
+%   \cs{hit@format@apply@heading:nn} 临时覆盖、\cs{hit@format@apply@font:nN} 一族、
+%   页眉页脚的 \cs{hit@format@apply@hf:nN}、块与块之间照「上块行深加下块上升部」贴排的
+%   \cs{hit@format@stack@line:n}}
+% \changes{v3.2a}{2026/08/24}{纯西文段由 \cs{hit@format@apply@par:n} 铺版面，与别的段共用
+%   \option{format} 词汇；首行基线按 Times 的上升部}
+% \changes{v3.2a}{2026/08/24}{新增 \cs{hitenter}：模拟 Word 的空回车段，可选参数收行数或
+%   新版面词汇；自然行高按 Word 重测（西文 1.15、汉字 1.296875）}
 %
-% \texttt{format} 族收 Word 对话框上的原话，换算交给代码：
+% 规范里说的是 Word 的话：「章标题小二黑体居中，段前段后各一行，多倍行距 1.5」。
+% 旧版面把这些话手算成 \texttt{beforeskip=28.34646bp} 这样的数散在五份
+% \cs{ctexset} 里，改一处要连带重算三四个数。\texttt{format} 族收 Word 对话框上的
+% 原话，换算交给代码：
 % \begin{latex}
 % \hitpresetup[campus=harbin,degree-level=bachelor]
 %   {
@@ -82,48 +122,17 @@
 % \option{caption-table}、\option{caption-sub}、\option{abstract-heading}，
 % 以及四级目录条目 \option{toc-chapter} 到 \option{toc-subsubsection}。
 %
-% \changes{v3.2a}{2026/09/14}{加 \option{table-cell} 目标：表格里的段}
 % \option{table-cell} 是表格单元格里的段，Word 里表格的每一格都是一段，行高就是
 % 那一段的行盒（贴网格时一格一行）。它由 \file{src/engine/hit-table.dtx} 的
 % \cs{hit@table@font:} 接进 \env{tabular} 一族，见那里。
 %
-% \changes{v3.2a}{2026/08/14}{加 \option{body} 目标，正文的字号、行距、首行缩进
-%   与首行基线落点都从它算}
 % \option{body} 是正文，也就是 Word 里的「正文」样式。它管的东西比别的目标多一层：
 % 除了字号行距，\cs{parindent} 与 \cs{topskip} 也从它算，见下面「接到正文上」一节。
 %
 % 另有两个伞：\option{heading} 一次写四级标题，\option{caption} 一次写图题表题。
-% 伞展开成逐个写一遍，所以伞后面再单设某一个仍然管用。
-%
-% \subsection{这一轮做到哪}
-%
-% \changes{v3.2a}{2026/08/14}{\option{body} 与四级标题都接上了，剩下题注与目录}
-% 换算齐了，见下面的「换算」小节：\cs{hit@format@compute:n} 把键值算成
-% \cs{baselineskip}、基线落点、段前段后与缩进。接出去的有两处：四级标题走
-% \cs{ctexset}（见「接到标题上」），正文走 \cs{normalsize} 那一批长度
-% （见「接到正文上」）。题注与目录条目那六个目标只存不用，得先把
-% \pkg{caption} 与 \pkg{titletoc} 那边的手算值反推回 Word 设置才好接。
-%
-% 原先散在类选项里的六个开关已经接上。它们本来就只有真假两态，不需要换算：
-% \begin{center}
-% \begin{tabular}{ll}
-% \toprule
-% 新写法 & 原先的标志位 \\\midrule
-% \option{chapter} = \{ \option{bold} \} & \option{chapterbold} \\
-% \option{chapter} = \{ \option{indent-special} = \texttt{hanging} \} & \option{chapterhang} \\
-% \option{caption-figure} = \{ \option{alignment} = \texttt{last-line-centered} \} & \option{capcenterlast} \\
-% \option{caption-sub} = \{ \option{alignment} = \texttt{last-line-centered} \} & \option{subcapcenterlast} \\
-% \option{abstract-heading} = \{ \option{all-caps} \} & \option{absupper} \\
-% \option{heading} = \{ \option{font-en} = \texttt{sans} \} & \option{arialtitle} \\
-% \bottomrule
-% \end{tabular}
-% \end{center}
-%
-% 这六条写的是同一个标志位，排版那边一个字没动，所以生成物不变。
-%
-% 最后两条只认伞：\option{font-en} 只在 \option{heading} 上生效，\option{all-caps}
-% 只在 \option{abstract-heading} 上生效。标志位本身是全局的，写在单个层级上会
-% 越界影响另外三级，与其装作能分级不如先不认。
+% 伞展开成逐个写一遍，所以伞后面再单设某一个仍然管用。\option{font-en} 只在
+% \option{heading} 上生效：它写回的标志位是全局的，写在单个层级上会越界影响
+% 另外三级，与其装作能分级不如先不认。
 %
 % ^^A ======================================================================
 % ^^A Module shared-format: 元素格式（各个类共用）
@@ -177,8 +186,6 @@
 % 值当场展开再存。解析器交过来的是 \cs{dim\_eval:n} 与 \cs{fp\_to\_decimal:n} 这种
 % 还没算的式子，里面读着 \cs{l\_\_hit\_format\_head\_tl} 这些临时变量；原样存下去，
 % 等到取用时才算，那几个临时变量早被下一条键覆盖了。
-% \changes{v3.2a}{2026/08/15}{所有 \option{format} 键都收 \texttt{auto}，
-%   含义是「这一项交给模板决定」，实现是把条目从表里删掉}
 % 存一项。取值写 \texttt{auto} 时不存，反而把已有的条目删掉——读取那一头
 % \cs{\_\_hit\_format\_read:nnnN} 每一项都带着内建默认，条目不在表里就用那个默认，
 % 而那个默认正是模板自己的规矩。所以\texttt{auto} 与「没写这一项」等价，
@@ -189,8 +196,6 @@
 %
 % 数值类的键照样收 \texttt{auto}，含义一样，只是那些键本来就不太用得上。
 %
-% \changes{v3.2a}{2026/08/15}{\option{format} 的每个元素分档存，\option{bottom}
-%   的两档各一份，读的时候先看当前档}
 % \emph{分档。} 同一个元素在版心底两种排法下要两套完全不同的取值：
 % \option{bottom}\texttt{=ragged} 按写作指南 3.2 节的行数与多倍值排，
 % \texttt{flush} 按 3.8 节的毫米区间排。两套之间没有继承关系，不是在一套值上
@@ -219,17 +224,8 @@
     \prop_if_exist:cF { \__hit_format_name:nnn {#1} {#2} {#3} }
       { \prop_new:c { \__hit_format_name:nnn {#1} {#2} {#3} } }
   }
-%    \end{macrocode}
-%
-% 当前是哪一档，看版心底那个开关。取值只有 \texttt{ragged} 与 \texttt{flush}
-% 两种，与 \option{layout}/\option{bottom} 的取值同名。
-%    \begin{macrocode}
 \cs_new:Npn \__hit_format_layer_now:
   { \bool_if:NTF \g__hit_raggedbottom_bool { ragged } { flush } }
-%    \end{macrocode}
-%
-% 取一条：先看当前档，没有再看不分档的那一份。
-%    \begin{macrocode}
 \prg_new_protected_conditional:Npnn \__hit_format_get:nnN #1#2#3 { T , F , TF }
   {
     \prop_get:cnNTF
@@ -276,10 +272,6 @@
   { \__hit_format_store:nnnnn {#1} {#2} { } {#3} {#4} }
 \cs_generate_variant:Nn \__hit_format_store:nnnnn { VVnnn }
 \cs_generate_variant:Nn \__hit_format_store:nnnn { VVnn }
-%    \end{macrocode}
-%
-% 用户在档外头写一条键时，把两个档里同名的条目抹掉。
-%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_shadow:n #1
   {
     \tl_if_empty:NT \l__hit_format_layer_tl
@@ -294,8 +286,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/15}{加 \cs{\_\_hit\_format\_drop:n}，写单值时把区间那
-%   第二个端点从表里抹掉，不留空条目}
 % 删一项。区间的第二个端点只在写了两个词时才有，写一个词就得把上一次留下的抹掉。
 % 存一个空值也能起同样的作用，但表里会多出永远读不到东西的条目，
 % \file{testfiles/56-format-keys.lvt} 把整张表印出来对，一眼就看得见。
@@ -369,19 +359,11 @@
     \tl_set:Nx \l__hit_format_rest_tl
       { \seq_use:Nn \l__hit_format_word_seq { ~ } }
   }
-%    \end{macrocode}
-%
-% 取值只有一个词时没有单位，整段当长度看。
-%    \begin{macrocode}
 \prg_new_conditional:Npnn \__hit_format_one_word: { TF }
   {
     \int_compare:nNnTF { \l__hit_format_count_int } = { 1 }
       { \prg_return_true: } { \prg_return_false: }
   }
-%    \end{macrocode}
-%
-% 取值不在名单里就报一句，键名与取值都印出来。
-%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_enum:nnn #1#2#3
   {
     \clist_if_in:nnTF {#2} {#3}
@@ -392,7 +374,6 @@
   { \__hit_format_enum:nnn {#1} { true , false , auto } {#2} }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/16}{加 \option{char-spacing}，收一个带符号的长度}
 % \option{char-spacing} 是 Word「字体」对话框「高级」页里的字符间距，
 % 对应 \texttt{w:rPr/w:spacing}。Word 那边分成「标准／加宽／紧缩」加一个磅值，
 % 这里合成一个带符号的长度：正数加宽、负数紧缩、零是标准。
@@ -431,11 +412,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/15}{\texttt{exactly~25bp} 改写 \texttt{25bp!!}，
-%   \texttt{at-least~10bp} 改写 \texttt{10bp+}，为的是把「两个词」这个形状
-%   让给区间写法}
-% \changes{v3.2a}{2026/08/15}{\option{line-spacing} 与 \option{line-white} 收下
-%   一个词或两个词，两个词是区间；两个键量的是同一件事，同时写要报错}
 % \emph{\cs{\_\_hit\_format\_measure:nnn}。}
 % 行距的取值。写一个词是刚性，写两个词是区间，两个词不分先后，谁大谁小由代码判。
 %
@@ -513,7 +489,6 @@
   }
 %    \end{macrocode}
 %
-%
 % 一个端点。\meta{槽}\meta{后缀}\meta{度量}\meta{词}。量视觉白的键不必再认词，
 % 端点只能是长度。
 %    \begin{macrocode}
@@ -564,8 +539,6 @@
 \cs_generate_variant:Nn \str_case:nnF { VnF }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/15}{加 \option{white-before} 与 \option{white-after}，
-%   与 \option{space-before}、\option{space-after} 存进同一个槽}
 % \option{space-before} 与 \option{white-before} 说的是同一段间距：前者按行数或
 % 长度给，后者按视觉白给。所以两个键存进同一个槽，同一个目标里都写了就报错，
 % 按后写的算。\option{space-after} 与 \option{white-after} 同理。
@@ -649,10 +622,6 @@
     \__hit_format_amount:nnn { indent-special } { chars } {#2}
   }
 \cs_generate_variant:Nn \__hit_format_special_put:nn { nV }
-%    \end{macrocode}
-%
-% 属性族。
-%    \begin{macrocode}
 \keys_define:nn { hit / format / property }
   {
     font-zh .code:n =
@@ -702,12 +671,9 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/16}{分档从元素的子块 \option{bottom} 改成目标名后面的
-%   限定词 \option{目标/if-raggedbottom}、\option{目标/if-flushbottom}}
-% \emph{分档挂在目标上，不是挂在元素的属性里。} 从前写成
-% \option{chapter}\texttt{=\{bottom=\{if-ragged=\{\ldots\}\}\}}，
-% 那等于说「档」是章标题的一个属性；可档是整份文档的事，由
-% \option{layout}/\option{bottom} 定，一个元素说了不算。现在写成
+% \emph{分档挂在目标上，不是挂在元素的属性里。} 档是整份文档的事，由
+% \option{layout}/\option{bottom} 定，一个元素说了不算，所以不写成
+% \option{chapter}\texttt{=\{bottom=\{\ldots\}\}}，而是
 %
 % \begin{quote}\ttfamily
 % chapter\qquad\qquad\qquad = \{ font-zh = heiti , size = xiaoer \} \\
@@ -736,8 +702,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/16}{\option{snap-to-grid} 拆成纵横两轴，写布尔时两轴一起设，
-%   也可以写 \texttt{\{vertical!=\ldots,horizontal!=\ldots\}} 分开设}
 % \emph{网格分两个方向。} Word 的 \texttt{docGrid} 同时定行距与字距，
 % 但一个段落要不要吃这两样是分开的：范例的正文吃字距（每字 0.4543\,bp），
 % 行距却按自然行高排（实测 19.44\,bp，不是一格 19.55\,bp）。所以这里拆成两轴。
@@ -751,11 +715,9 @@
 % 正文的字距，结果一样；写了 \option{char-spacing} 就得发，发的时候网格那一截
 % 照样按正文的来，只是再加上本档的字距增减。
 %
-% \changes{v3.2a}{2026/08/16}{横轴的 \texttt{auto} 改成回查 \option{body} 的取值，
-%   从前写了 \option{char-spacing} 会把网格那一截连带关掉}
-% 从前 \texttt{auto} 是靠「不发」来实现「跟着走」的，一旦 \option{char-spacing}
-% 逼着发，网格那一截就按假算，等于悄悄关掉了网格。章标题正是这个情形：写着
-% \texttt{char-spacing = -0.4bp}，字距因此比范例窄了一整格网格余量。
+% 靠「不发」来实现「跟着走」不行：一旦 \option{char-spacing} 逼着发，网格那一截
+% 按假算就等于悄悄关掉了网格，章标题（\texttt{char-spacing = -0.4bp}）的字距
+% 会比范例窄一整格网格余量。
 %
 % \emph{标题吃横向网格。} 范例里 \texttt{heading} 各级样式都写着
 % \texttt{snapToGrid=0}，但逐页量下来，同一页上节标题与正文的每字增量总是相同：
@@ -785,10 +747,6 @@
       }
       { \hit@keys@set:nn { hit / format / snap } {#1} }
   }
-%    \end{macrocode}
-%
-% 目标族。每个目标一个键，值是属性的键值表。
-%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_target:nn #1#2
   {
     \str_set:Nn \l__hit_format_target_str {#1}
@@ -811,9 +769,6 @@
 \keys_define:nn { hit / format }
   {
 %    \end{macrocode}
-%
-% \changes{v3.2a}{2026/08/25}{\option{hyphenation} 从 \option{style} 挪进
-%   \option{format}。\option{style} 一族至此清空，删掉}
 %
 % \option{hyphenation} 是段落断行的事，与本族其余属性同类。全文一个开关，正文、
 % 题注、摘要、纯西文段一律跟随。
@@ -934,8 +889,6 @@
 %
 % \subsection{换算}
 %
-% \changes{v3.2a}{2026/08/13}{加 \cs{hit@format@compute:n}，把键值按 Word 的行盒
-%   模型算成 \cs{baselineskip} 与段前段后}
 % 把收下来的键算成排版参数。规则是从 Word 里量出来的，四轮对照文档、三十组、
 % 一百六十多条基线，量法与来路记在 \file{src/engine/hit-msword.dtx}。
 %
@@ -975,8 +928,6 @@
 % 的 \option{font-zh} 是 \texttt{none}，配置里写的那副字不改。判据见
 % \cs{hit@format@cjk:nTF}。
 %
-% \changes{v3.2a}{2026/09/14}{加 \option{latin-line}：行盒按西文算，
-%   发出去的中文字体不动}
 % \emph{\option{latin-line} 是同一件事的配置写法。} \option{font-zh}\texttt{=none}
 % 一句管两件：行盒按西文算，中文字体也不发了。英文档的标题两件只要前一件——
 % 行盒该按 Times 算（这一行本来就没有汉字），可万一标题里夹着汉字，那几个字
@@ -1018,7 +969,6 @@
 \dim_const:Nn \c__hit_format_ascent_dim { 0.082bp }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/13}{上升部系数改成可以按字体覆盖，表里先只有华文新魏}
 % \emph{上升部系数按字体分。} 中易那六副字是同一个 1.008，华文新魏不是。
 % 数取自 iota-hit：造探针 \file{docx}（六个字号、单倍行距、每档三段），
 % Word 导成 PDF 逐段量首行基线与步进反推上升部，常数项固定成 0.082 之后
@@ -1039,8 +989,6 @@
 % \texttt{first-line} 为正、\texttt{hanging} 为负、\texttt{none} 为零，正好是
 % \hologo{LaTeX} 里 \cs{parindent} 与 \cs{hangindent} 的符号约定。
 % 「一字」这个单位指网格字距，与该段自己的字号无关，与「一行」指网格行距同理。
-%
-% 算出来的八个量。调用方读这几个，不直接碰存储。
 %    \begin{macrocode}
 \dim_new:N \l_hit_format_size_dim
 \dim_new:N \l_hit_format_natural_dim
@@ -1067,10 +1015,6 @@
 \dim_new:N \l__hit_format_floor_dim
 \dim_new:N \l__hit_format_span_dim
 \cs_generate_variant:Nn \prop_get:NnNF { NVNF }
-%    \end{macrocode}
-%
-% 取一条设置，没设过就用给的默认值。
-%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_read:nnnN #1#2#3#4
   { \__hit_format_get:nnNF {#1} {#2} #4 { \tl_set:Nn #4 {#3} } }
 %    \end{macrocode}
@@ -1078,8 +1022,6 @@
 % 带单位的键：\meta{值}加\meta{单位}两条。\texttt{line} 折成一行的倍数，
 % \texttt{chars} 折成网格字距的倍数，\texttt{white} 是视觉白，其余当长度。
 %
-% \changes{v3.2a}{2026/09/13}{「一行」这个单位认 \option{grid}/\option{enabled}：
-%   网格不启用时折成正文字号，不折网格行距}
 % \emph{「一行」有多长，看网格启不启用。} 启用时是网格行距；关着时 Word 仍认
 % 「段前 0.5 行」，那个行是这一节\emph{正文的单倍行高}，也就是 \option{body}
 % 那一档的字号。\file{docGrid} 里记着的 \texttt{linePitch} 此时只是行高的四舍五入，
@@ -1130,10 +1072,6 @@
       { \dim_set:Nn #3 {#2} }
   }
 \cs_generate_variant:Nn \__hit_format_amount_use:nnN { VVN }
-%    \end{macrocode}
-%
-% 四条一起读出来：\option{space-before} 这个槽还要收区间，第二个端点没写就是空的。
-%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_amount_read:nn #1#2
   {
     \__hit_format_read:nnnN {#1} {#2} { 0pt } \l__hit_format_value_tl
@@ -1149,7 +1087,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/15}{块白换算成段前段后，四处间距逐个量过}
 % \emph{\cs{\_\_hit\_format\_block:n}。}
 % \emph{块白。} \option{white-before} 与 \option{white-after} 量的是上下两块之间
 % 那条看得见的空白：上一块末行的墨迹底，到下一块首行的墨迹顶。段前段后是
@@ -1241,7 +1178,6 @@
   }
 %    \end{macrocode}
 %
-%
 % 段前段后也收区间：写作指南 3.8 节给节标题的是 7\,--\,8\,mm，条标题
 % 6\,--\,7\,mm。小端做自然值，大端减小端做伸量，与行距那边同一个规矩。
 %    \begin{macrocode}
@@ -1265,10 +1201,6 @@
         \dim_set:Nn #5 { \l__hit_format_span_dim - #4 }
       }
   }
-%    \end{macrocode}
-%
-% 首行缩进与悬挂缩进是同一个量的两个方向，算完折成一个带符号的长度。
-%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_indent:n #1
   {
     \__hit_format_read:nnnN {#1} { indent-special-mode } { none }
@@ -1283,8 +1215,6 @@
       }
   }
 %    \end{macrocode}
-%
-% \cs{hit@format@compute:n}\marg{目标} 把上面那几个量算出来。
 %
 % 网格行距为零说明没走过 \cs{hit@msword@layout:n}，那时候不存在网格，
 % \option{snap-to-grid} 勾了也没有可对齐的东西，按关掉算。
@@ -1363,8 +1293,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/15}{行距的两个端点在算的时候才折成长度，一头长度一头
-%   倍数也能比大小；区间的下端做自然值，上端减下端做伸量}
 % 一个端点折成一段基线距。倍数没有单位，光看写下来的字不知道是多长，所以端点
 % 一直存着原样，到这里才折——字号、自然行高、网格行距这时候才齐。
 %
@@ -1408,11 +1336,6 @@
       { \dim_set:Nn #3 {#2} }
   }
 \cs_generate_variant:Nn \__hit_format_endpoint:nnN { VVN }
-%    \end{macrocode}
-%
-% 倍数写法。对齐到网格时是网格行距的倍数，装不下就往上取整到整数个格；
-% 关掉时是自然行高的倍数。
-%    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_multiple:nN #1#2
   {
     \bool_if:NTF \l_hit_format_snap_vertical_bool
@@ -1436,8 +1359,6 @@
       { \dim_set:Nn #2 { #1 \l_hit_format_natural_dim } }
   }
 %    \end{macrocode}
-%
-% 行盒高与基线落点。
 %
 % 只写一个端点是刚性。写两个就是区间，两端各折一次，小的做自然值，大的减小的
 % 做伸量。自然值取小端有实测撑着：范例正文是多倍 1.25、基线距 19.453\,bp，
@@ -1478,16 +1399,6 @@
   }
 %    \end{macrocode}
 %
-% \cs{spaceskip} 记一条账：它在 \cs{hit@format@apply@body:} 里按\emph{正文}
-% 那一档算死成绝对值，之后所有元素共用。深圳本科报告这一档是 3.0，发到小二
-% 18\,bp 的章标题上还是 3.0，而 Times 的空格该是 0.25\,em ＝ 4.5：英文章标题
-% 每个词隙窄 1.5，居中排出来整行偏。试过「不贴横向网格的元素把 \cs{spaceskip}
-% 归零、交回 \cs{fontdimen}\,2／3／4」，标题那一头是对了，可英文摘要那种整段
-% 西文也吃这一条——那一档的伸缩量（\texttt{plus}\ldots\cs{baselineskip}
-% \texttt{minus}\ 0.25\cs{fontdimen}2）是调过的，换成字体自带的伸缩之后整段
-% 重新断行，二十多个变体的英文摘要页全变。已回滚。要改得按元素自己的字号重算
-% 而不是归零，且英文摘要那一档要保住原值，另记。
-%
 % 基线落点：对齐到网格时行盒居中，关掉时顶对齐。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_first:
@@ -1510,16 +1421,9 @@
 %
 % \subsection{接到标题上}
 %
-% \changes{v3.2a}{2026/08/13}{加 \cs{hit@format@apply@heading:n}，把算出来的量
-%   发给 \cs{ctexset}}
-% 四级标题由 \pkg{ctex} 排，所以算完之后发一条 \cs{ctexset} 过去。字体字号行距用
-% \texttt{format+=} 追加，不覆盖：各个类原有的 \texttt{format} 里还有居中、
-% 编号后的间距这些东西，整条换掉会连它们一起丢。
-%
-% 只发用户真写过的键。一个目标一条键都没设过就整条不发，所以没人写
-% \texttt{format} 时生成物与从前逐字节相同。
-%
-% 时机是 \cs{AfterPreamble}：\cs{hitsetup} 可以写在导言区任何位置，早于它发就读不到。
+% 四级标题由 \pkg{ctex} 排，所以算完之后发一条 \cs{ctexset} 过去。一个目标一条键
+% 都没设过就整条不发，旧版面那一档因此原样保留。时机是 \cs{AfterPreamble}：
+% \cs{hitsetup} 可以写在导言区任何位置，早于它发就读不到。
 %    \begin{macrocode}
 \tl_new:N \l__hit_format_out_tl
 \tl_new:N \l__hit_format_keys_tl
@@ -1532,8 +1436,6 @@
   { serif = \rmfamily , sans = \sffamily , mono = \ttfamily }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/14}{加 \cs{hit@format@strut:}，把每一行的行盒撑成
-%   Word 的高度}
 % \cs{hit@format@strut:} 是一根零宽的撑杆，把它所在那一行的行盒撑成 Word 的尺寸。
 %
 % Word 的行盒高度由字体的上升部与下降部定，与这一行实际写了什么字无关；
@@ -1544,11 +1446,10 @@
 % 三项里有两项是字形量出来的，比 Word 的窄。页首那一行也一样，
 % \cs{topskip} 拦不住比它高的行。
 %
-% \changes{v3.2a}{2026/08/14}{撑杆认对齐网格：行盒高取 \cs{baselineskip} 与自然
-%   行高的较大者，基线落点按对齐与否分两支}
 % 撑杆按当时的字号与 \cs{baselineskip} 现算，一根走遍正文、标题、页眉：
 % \begin{itemize}
-% \item 自然行高 $H = 1.297$ 倍字号，上升部 $A = 1.0156$ 倍字号；
+% \item 自然行高 $H$ 与上升部 $A$ 用换算一节的常数，汉字与纯西文各一副
+%   （\cs{hit@format@latin@true:} 切换）；
 % \item 行盒高 $L$ 取 \cs{baselineskip} 与 $H$ 的较大者。取大这一步是为页眉设的：
 %   页眉那一行的 \cs{baselineskip} 是零，光看它撑出来的盒子没有深度，
 %   页眉横线会整块上移 2\,bp；
@@ -1562,9 +1463,6 @@
 % \cs{hit@format@snap@false:}，不是一个收真假值的命令。收值那种写法要在标题
 % 排版的当口解析一个布尔表达式，而那时候 \pkg{expl3} 的 catcode 已经关了，
 % 解析器读不出 \cs{\_\_bool\_f\_0:} 这类内部名字，报 \texttt{Missing number}。
-%
-% 自然行高一律按中易那一系的 1.297 算，不查 \option{font-zh}。纯西文的段落
-% 因此会比 Word 宽一点点，英文摘要与英文目录受影响，先记着。
 %
 % 字号要先落进一个长度再乘系数。\cs{f@size} 是个数字串不是长度寄存器，
 % \texttt{1.0156\cs{f@size}pt} 在 \cs{dimexpr} 里读成两个数并排，报
@@ -1581,14 +1479,10 @@
   { \bool_set_false:N \l_hit_format_line_snap_bool }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/16}{加 \cs{hit@format@hglue:nn}，横轴的两道胶按元素发}
-% 横轴的两道胶。\cs{CJKglue} 是汉字之间的空隙，\cs{CJKecglue} 是汉字与西文之间的。
-% 从前这两道只在 \cs{hit@format@apply@body:} 里全局设一次，标题跟着吃了正文的
-% 字距；Word 那边三级标题写着 \texttt{snapToGrid=0}，不吃。所以改成按元素发，
-% 发的位置是 \cs{\_\_hit\_format\_build:n} 拼的那串排版命令，被 \pkg{ctex} 限制
-% 在该级标题里。
+% 横轴的两道胶按元素发，不只在正文设一次：Word 那边三级标题写着
+% \texttt{snapToGrid=0}，不吃正文的字距。发的位置是 \cs{\_\_hit\_format\_build:n}
+% 拼的那串排版命令，被 \pkg{ctex} 限制在该级标题里。
 %
-% \changes{v3.2a}{2026/08/16}{字距胶的伸量从 0.08 降到 0.01\cs{baselineskip}}
 % \emph{伸量给多少。} \pkg{xeCJK} 原样给 0.08\cs{baselineskip}，一行 33 缝合计
 % 约 51\,bp，两端对齐时行就靠拉汉字间距填满。Word 不这样：网格是刚的，填行靠压
 % 本行的标点，汉字之间纹丝不动。范例声明页那种整行 34 字自然宽 423.01\,bp、
@@ -1599,16 +1493,15 @@
 % 全逼出来，实测有标点被压到 5.98\,bp 以下，比 Word 的下限半格还窄，行里因此
 % 多塞进本不该有的字。
 %
-% 取 0.01：每缝约 0.195\,bp，一行合计 6.4\,bp，也就是一行最多靠拉伸吸收半格，
-% 再多就该另起一行。demo 实测 1018 处标点里只剩 1 处压过半格，页数 58。
-% 0.02 与 0.04 都太松，该并回本行的字并不回来。
+% 取 0.02：一行能吸收一整格（12.4543 除以 33 缝，每缝约 0.38\,bp）。版心
+% 425.2\,bp 除以格宽是 34.14 格，全刚性时任何整数格的行都凑不满，前两遍断行全败、
+% 掉进应急遍被 \cs{emergencystretch} 硬撑；扫过 0.01／0.02／0.03，只有 0.02 与范例
+% 逐行一致。
 %
 % 中西文胶与空格的伸量也归到这一档（见 \cs{hit@format@latin@pitch:} 那边的
 % 说明）：伸量在 \hologo{TeX} 里兼任摊派权重，三种缝同一档，行凑不满时缺口
 % 才会像 Word 那样均摊，不在某一个空格上开大洞。
 %
-% \changes{v3.2a}{2026/08/16}{同时设 \pkg{ctex} 的 \cs{l\_\_ctex\_ccglue\_skip}，
-%   \TeX~Live 2025 上光设 \cs{CJKglue} 会被 \pkg{ctex} 盖掉}
 % \emph{两处都设。} \pkg{ctex} 的 \cs{CJKglue} 是
 % \cs{skip\_horizontal:N} \cs{l\_\_ctex\_ccglue\_skip}，它在字号变化时由
 % \cs{\_\_ctex\_update\_stretch\_auxi:} 重设，重设前先问
@@ -1621,24 +1514,18 @@
 % 定义与寄存器一起设，\pkg{ctex} 那份定义读的就是这个寄存器，谁赢都是同一个值。
 % \cs{CJKecglue} 没有对应的 \pkg{ctex} 寄存器，它走 \pkg{xeCJK}，不受影响。
 %
-% \changes{v3.2a}{2026/08/29}{同一组取值在 \hologo{LuaLaTeX} 下再喂给
-%   \pkg{luatexja} 的 \texttt{kanjiskip} 与 \texttt{xkanjiskip}}
 % \hologo{LuaLaTeX} 下这两段胶不叫 \cs{CJKglue}：\pkg{luatexja} 做成
 % \texttt{kanjiskip} 与 \texttt{xkanjiskip} 两个参数，走 \cs{ltjsetparameter}，
 % 名字不同管的是同一件事。同一组值原样喂过去，先过一趟寄存器——
 % \cs{ltjsetparameter} 不吃 \hologo{LaTeX} 的胶写法。\hologo{XeLaTeX} 下
 % \cs{ltjsetparameter} 不存在，这一段整个跳过。
 %
-% 试过再把比对基准 \cs{\_\_ctex\_ccglue:} 一并换掉，好让
-% \cs{ctex\_if\_ccglue\_touched:} 一律答「改过了」。不行：\TeX~Live 2025 仍是
-% 裸字号，2026 反而从 12.6720 变成 12.7320。记在这里省得重来。
 %    \begin{macrocode}
 \tl_const:Nn \c__hit_format_ccstretch_tl { 0.02 }
 \tl_const:Nn \c__hit_format_ecstretch_tl { 0.02 }
 \tl_const:Nn \c__hit_format_ecshrink_tl { 0.13 }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/18}{西文标点与乘除号并入半角标点类，旁边不发中西文胶}
 % \emph{中西文胶只该发给字母和数字。} 1--5 页版实测 \texttt{即→×} 是 12.32、
 % \texttt{“→,} 是 12.35、\texttt{汉→,} 约一格——Word 的中西文空隙只加在汉字与
 % 字母数字之间，西文标点、乘除号这类符号旁没有。按字符豁免不走窥探（试过：
@@ -1685,8 +1572,6 @@
       }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/23}{设完 \cs{CJKecglue} 同步 \pkg{xeCJK} 的
-%   \cs{l\_\_xeCJK\_ecglue\_skip}，2026 的中西文边界大半读的是它}
 % \emph{还得把 \pkg{xeCJK} 的中西胶寄存器一并设了。} \cs{CJKecglue} 我们赋成
 % 一个发胶的宏，\pkg{xeCJK} 的 \cs{xeCJK\_glue\_to\_skip:nN} 只在自己改
 % \cs{CJKecglue} 时才把它折成 \cs{l\_\_xeCJK\_ecglue\_skip}，我们绕过那条路，
@@ -1705,8 +1590,6 @@
       }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/23}{设完 \cs{CJKglue} 就地刷一次 \cs{ccwd}，并把
-%   「改过 \cs{CJKglue} 就按它重算」这条补给旧版 \pkg{ctex}}
 % \cs{ccwd} 是「\cs{CJKglue} 的宽 $+$ 字号」，由 \cs{ctex\_update\_ccwd:} 算。
 % 但 \pkg{ctex} 换字号时走的是 \cs{ctex\_update\_stretch:}，那里先调
 % \cs{ctex\_update\_em\_unit:} 把 \cs{ccwd} 设成纯字号，再按分支决定要不要重算。
@@ -1771,9 +1654,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/27}{撑杆认固定值行距：基线落在行盒顶下 0.8 倍行距，
-%   与字号和中西文都无关。此前它永远按字号算，固定值行距的段落每一行都偏}
-%
 % \emph{固定值行距的基线。} Word 的 \texttt{w:lineRule="exact"} 下，行盒高被钉死
 % 成给定值，基线落在盒顶下 \cs{c\_\_hit\_format\_exact\_tl} 倍处，
 % \emph{与字号无关、与中西文无关}。
@@ -1800,8 +1680,6 @@
   { \bool_set_false:N \l_hit_format_strut_latin_bool }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/29}{段落撑杆不再给空的段落片段成行：公式独占一段时
-%   上下各多出的那一整行空白去掉}
 % \textbf{公式独占一段时上下各多一行空白。} 写成
 % \begin{latex}
 % 上一段文字。
@@ -1900,8 +1778,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/14}{加 \cs{hit@format@stack@line:n}：照 Word 的
-%   「上块行深加下块上升部」逐块贴排，目录两条路径共用}
 % \emph{块与块之间的基线距。} Word 的行距是每一段自己的事，段与段之间不另有
 % 一个量：下一段首行的基线落在「上一段末行的行深」加「本段首行的上升部」处。
 % 段内每一行等距，所以这条只在一行一段的地方看得出来，目录的每一条就是一段。
@@ -1929,8 +1805,6 @@
 % 位置由它上面那一整块定。\cs{hit@format@stack@line:n}\marg{目标} 每一块调一次。
 % 这一块是不是纯西文，调用方排之前写进 \cs{l\_hit\_format\_latin\_pick\_bool}。
 %
-% \changes{v3.2a}{2026/09/14}{一块折成几行时，块内各行按本块自己的行深排，
-%   与上一块的差额发成一段胶}
 % \emph{一块折成几行的时候。} \hologo{TeX} 的 \cs{baselineskip} 管整段，
 % 而 Word 的式子里只有\emph{头一行}用上一块的行深，段内后面几行用本块自己的。
 % 目录里一条长条目折两行就看得出来：先前第二行也吃「上一块行深加上升部」，
@@ -1982,14 +1856,6 @@
   }
 %    \end{macrocode}
 %
-% 把字体、字号、行距、加粗、对齐拼成一串排版命令。
-%    \begin{macrocode}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{2026/08/29}{新版面下标题题序与标题之间改成一个字宽。指南
-%   3.2 明写「题序顶格书写，与标题间空 2 个半角字符」，两份范例三级标题量下来
-%   都恰好是那一级自己的一个字宽；v3.1e 走 ctex 的 \cs{enspace}（半个字），
-%   本部硕士与本科另拼了 \cs{quad}，都与范例不符}
 % \begin{macro}{\hit@heading@number@gap:}
 % 题序与标题之间的空当，新版面的兜底值：一个字宽。用 \texttt{1em}——标题不贴
 % 字符网格，一个汉字的宽度就是 \texttt{em}，跟着标题自己的字号走（章 18\,bp、
@@ -2001,8 +1867,6 @@
   { \skip_horizontal:n { 1em } }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/30}{加 \cs{hit@chapter@number@gap:}：章号后间距的
-%   公用取法，页眉与目录跟着它走}
 % 章号与后面内容之间空多少，页眉、目录条目与章标题是同一件事。这里把
 % 「章标题那条链」包成一个名字：用户设了 \option{after-chapter-number}
 % 词条用词条，没设走上面的兜底（一个字宽），语言跟文档。页眉直接排它，
@@ -2017,7 +1881,6 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \changes{v3.2a}{2026/08/15}{\option{format} 接管标题时改成覆盖，不再追加}
 % 标题的格式是\emph{覆盖}旧的 \cs{ctexset}，不是追加。追加的话新版面算出来的
 % 格式后面还跟着旧版面那一串，旧的写了什么就甩不掉——本科章标题的
 % \cs{bfseries} 就是这么漏过来的：新版面的 \option{format} 里没写
@@ -2039,18 +1902,10 @@
 % 新版面一律不加粗——黑体本身够重，规范也没要求。要加粗就在
 % \option{format} 里写 \option{bold}\texttt{=true}，一处说了算。
 %
-% 覆盖就得把旧格式里\emph{该有}的补齐。旧的 \cs{hit@title@font} 是「西文无衬线开着就
-% \cs{sffamily}，否则 \cs{heiti}」，这边 \option{font-zh} 已经发了 \cs{heiti}，
-% 再补一个无衬线的条件——两个一起发是对的，汉字用黑体、西文用无衬线，
-% 与目录条目那边的 \cs{hit@chapter@entry@font} 同一个写法。
-%    \begin{macrocode}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{2026/08/16}{\cs{hit@format@latin@sans:} 只发给四级标题}
-% 这一句是 \option{heading}/\option{font-en}\texttt{=sans} 那个兼容桥，读的标志位
-% 是标题专用的。从前 \cs{\_\_hit\_format\_build:n} 无条件发，四级标题之外的目标
-% 也会跟着变西文字体；页眉页脚进了 \option{format} 之后这一条就会串味，所以限制到
-% 四级标题。
+% 覆盖就得把旧格式里\emph{该有}的补齐：旧的 \cs{hit@title@font} 在西文无衬线开着时
+% 发 \cs{sffamily}，这边 \option{font-zh} 已经发了 \cs{heiti}，再补那个条件，汉字
+% 用黑体、西文用无衬线，与目录条目那边的 \cs{hit@chapter@entry@font} 同一个写法。
+% 只限四级标题：页眉页脚也走 \cs{\_\_hit\_format\_build:n}，无条件发会串味。
 %    \begin{macrocode}
 \cs_new:Npn \hit@format@latin@sans:
   { \bool_if:NT \g__hit_heading_latin_sans_bool { \sffamily } }
@@ -2120,7 +1975,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/14}{拼串拆成两截：字体那一截单独可用，表格要}
 % \begin{macro}{\hit@format@apply@state@else:nn,\hit@format@strut@box:N}
 % \cs{hit@format@apply@state@else:nn}\marg{目标}\marg{兜底} 与
 % \cs{hit@format@apply@font@else:nn} 一样按目标设字体、字号、行距与撑杆的状态，
@@ -2153,8 +2007,6 @@
 % \cs{g\_hit\_msword\_ecglue\_dim} 里算好的 0.225 格）。关掉网格只该去掉前一截，
 % 后一截跟网格无关，去掉了中西文之间就一点空隙都没有了。
 %
-% \changes{v3.2a}{2026/08/18}{中西文间距那一截由 0.261 改 0.246：按 1--5 页版
-%   汉字接数字实测 15.52 反推}
 % 0.246 由 1--5 页版反推：\texttt{汉→数字} 松行实测 15.52，减掉一整格 12.4543
 % 得 3.07，除以格宽即 0.246。旧值 0.261 是按伪影文档定的，总步进会到 15.70，
 % 宽 0.18。
@@ -2165,8 +2017,6 @@
   { \g_hit_msword_char_dim - \g_hit_body_size_dim }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/16}{网格余量的算法从 \file{src/engine/hit-msword.dtx}
-%   挪过来，字号取当前元素的}
 % 整数格除不尽的那点余量。一行放得下 $n$ 个格（\cs{g\_hit\_msword\_cells\_int}，
 % 只跟版心宽与字距有关，由版面那层算），$n$ 个字连着排占 $n$ 个字号加 $n-1$ 段
 % 字距胶，版心宽减掉它就是余量。字号是元素的量，所以算法在这一层。
@@ -2199,15 +2049,9 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/16}{中西文间距的基准由固定格宽改成按本级字号缩放的格宽}
-% \cs{\_\_hit\_format\_ecglue\_base:} 是那 0.225 乘的东西。从前直接乘
-% \cs{g\_hit\_msword\_char\_dim}，也就是正文那一格的宽度，于是不论多大的字号，
-% 中西文之间都只留正文那一格的 0.225。Word 不是这样，这段间距跟着字号走。
-%
-% 章标题实测最明显。范例里 18\,bp 的汉字接数字是 22.28\,bp，减掉汉字 18 得 4.28；
-% 固定格宽给的是 $0.225 \times 12.6719 = 2.851$，差 1.37\,bp，「第\,1\,章」的 1
-% 因此贴得太近。改成按字号缩放，$0.225 \times 18 \times 12.6719 / 12 = 4.2768$，
-% 与实测同位。正文那一档本级字号等于正文字号，算出来仍是原值，不受影响。
+% 中西文胶按字号缩放，不是正文那一格的定值：范例里 18\,bp 的章标题汉字接数字
+% 是 22.28\,bp，减掉汉字 18 得 4.28，按字号缩放 $0.225 \times 18 \times 12.6719
+% / 12 = 4.2768$ 与实测同位，按正文格宽只有 2.851，「第\,1\,章」的 1 贴得太近。
 %
 % 正文字号为零时（旧版面没走 \cs{hit@msword@layout:n}）退回固定格宽，不做除法。
 %    \begin{macrocode}
@@ -2236,7 +2080,6 @@
 %
 % 发给 \pkg{ctex}。段前段后只在用户设过时才发，没设过就让各个类原有的取值留着。
 %
-% \changes{v3.2a}{2026/08/15}{段前段后写区间时发可伸的胶给 \pkg{ctex}}
 % 段前段后写了区间就带一段伸量发过去。\pkg{ctex} 的 \option{beforeskip} 与
 % \option{afterskip} 收的是胶不是长度，写 \texttt{10bp~plus~3bp} 它照收。
 % 伸量为零时一个字也不发，生成物与从前逐字节相同。
@@ -2248,11 +2091,8 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/14}{英文档的题序后也发 \option{aftername}：原先整条
-%   跳过，落到 \pkg{ctex} 的半个字上}
-% \emph{英文档也发这一条。} 先前这一块整个挂在「不是英文档」下面，英文档的题序
-% 后间距因此是 \pkg{ctex} 的默认值 \cs{enspace}，半个字。iota-hit 逐级量 2026 年
-% 9 月版深圳本科英文版那两份表单（号末到名首）：章 18.35／18 ＝ 1.02 个字，
+% \emph{英文报告也发题序后间距，不留 \pkg{ctex} 的默认值 \cs{enspace}。}
+% iota-hit 逐级量 2026 年 9 月版深圳本科英文版那两份表单（号末到名首）：章 18.35／18 ＝ 1.02 个字，
 % 节 15.23／15.12 ＝ 1.01，条 14.05／13.92 ＝ 1.01——与中文版同数。原件那三处
 % 敲的都是两个半角，与中文版一样；中文那边两个半角就是一个全角，英文这边
 % Times 的半角只有 0.25\,em，可排出来仍是一个字，那两个空格各带了约 0.26\,em 的
@@ -2269,7 +2109,6 @@
 % 所有英文报告都吃它——本部的英文报告没有一份带标题实例。拿到别的档的英文原件
 % 要重核。
 %
-% \changes{v3.2a}{2026/09/13}{人文社科类的节与条题序后不空：“一、”“（一）”贴着标题}
 % 人文社科类的节与条，题序自带全角顿号或括号（“一、”“（一）”），范例里题序
 % 贴着标题排，不再空那一个字；章“第一章”后面照旧空一个字。标志位只在学位
 % 终稿里有，报告没有这根轴，先问存在再问真假。
@@ -2348,8 +2187,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/14}{拆出 \cs{hit@format@apply@heading@to:nn}：
-%   目标名与 \pkg{ctex} 的层级名分开，正文照终稿排那一档要错开一格}
 % \emph{目标名与层级名可以不是一个。} 原先两者写死同名，够用是因为四级一一对应。
 % 深圳本科的开题与中期不是：它们没有 \cs{chapter}，正文里第一级写的是
 % \cs{section}，可\emph{正文照终稿排}，那一级要按\emph{章}排（黑体小二、另起一页）。
@@ -2364,8 +2201,6 @@
   { \clist_map_inline:nn {#1} { \hit@format@apply@heading:n {##1} } }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/16}{加 \cs{hit@format@apply@font:nN}，把一个目标算出来的
-%   排版命令存进一个宏}
 % \cs{hit@format@apply@font:nN}\marg{目标}\meta{宏} 把目标算出来的那串排版命令
 % 存进宏里，供不走 \pkg{ctex} 标题机制的地方用——页眉页脚就是这样，它们由
 % \pkg{fancyhdr} 排，收不到 \cs{ctexset}。目标是空的就不动那个宏，
@@ -2382,9 +2217,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/15}{加 \cs{hit@format@apply@hf:nN}：页眉页脚那两个宏在
-%   \cs{hit@format@apply@font:nN} 之上再带三样——汉字缝与汉西隙记进属性、
-%   词隙回到字体自己的空格}
 % \emph{页眉页脚另走一条。} 三件事只属于页眉页脚，题注、封面字段这些同样用
 % \cs{hit@format@apply@font:nN} 的地方不该吃：
 % \begin{itemize}
@@ -2417,9 +2249,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/29}{加 \cs{hit@format@apply@font@else:nn}，目标没取值
-%   时走兜底那一支。题注要用：新版面给了取值，旧版面没有，得退回 \cs{wuhao}}
-%
 % \begin{macro}{\hit@format@apply@font@else:nn}
 % \cs{hit@format@apply@font@else:nn}\marg{目标}\marg{兜底} 目标有取值就按它排，
 % 没有就执行\meta{兜底}。同一处排版代码两个版面都要走时用这个：新版面在
@@ -2439,17 +2268,12 @@
 %    \end{macrocode}
 %    \end{macro}
 %
-% \changes{v3.2a}{2026/08/24}{加 \cs{hit@format@par:nn}，按目标排一整段。封面
-%   这类不走章节命令的页面因此也能用 \option{format} 那套词汇}
-%
 % \begin{macro}{\hit@format@par:nn}
 % \cs{hit@format@par:nn}\marg{目标}\marg{内容} 按目标的版面排一段。字体、
 % 字号、行距、粗体、对齐、贴网格、字距、撑杆都由 \cs{hit@format@apply@font:nN}
 % 备好，这里只补 \option{all-caps} 和段落自身的缩进与段前段后。封面、内封这些不走
 % 章节命令的地方用它排每一段，取值就和正文标题共用一套 \option{format} 词汇。
 %
-% \changes{v3.2a}{2026/09/20}{段前用 \cs{addvspace} 发：Word 的段前与前一段的段后取大不相加，
-%   本科声明页的小标题（段前 0.5 行）跟在章标题（段后 0.8 行）后面从前多出半行}
 % \emph{段前与前一段的段后取大，不相加。}Word 两段之间的距离是前一段的段后与后一段
 % 的段前里大的那个（本科范例声明页：章标题段后 0.8 行、小标题段前 0.5 行，量出来
 % 只有 0.8 行；章标题到节标题也是这样，那一处走 \pkg{ctex} 的 \texttt{beforeskip}
@@ -2480,9 +2304,6 @@
 %    \end{macrocode}
 %    \end{macro}
 %
-% \changes{v3.2a}{2026/08/24}{加 \cs{hit@format@par:nnn}，按调用覆盖目标里的
-%   取值。封面挑英文题目字号要用它}
-%
 % \begin{macro}{\hit@format@par:nnn}
 % \cs{hit@format@par:nnn}\marg{目标}\marg{覆盖}\marg{内容} 同上，但先把
 % \meta{覆盖} 那几条键值临时按到目标上。存储是全局的，所以进出各存一次、
@@ -2493,12 +2314,6 @@
 \prop_new:N \l__hit_format_par_save_flush_prop
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/14}{临时覆盖进出时两个分档的表也存一次、还一次：在档外写一条键
-%   会把两档里同名的条目抹掉（\cs{\_\_hit\_format\_shadow:n}），只还不分档那张表，
-%   分档里的那条就永远没了。摘要页给章标题临时按 \option{line-spacing} = 1.25，
-%   排完之后正文的章标题就不再是 \texttt{chapter/if-raggedbottom} 里的 1.2 倍，
-%   落成 1.0 倍：两行章标题行距 26.5 对范例 28.0，章到节 37.8 对 41.2，章首页因此比
-%   Word 多排一行}
 % \emph{三张表一起存。} 目标的取值分三张表：不分档的一张，\texttt{ragged} 与
 % \texttt{flush} 各一张。临时覆盖写的是不分档那张，但写的时候要把两档里同名的条目
 % 抹掉（不然档里的值会盖住刚写的），所以进出要把三张都存、都还。
@@ -2520,16 +2335,11 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/16}{标题的 format 里带上 \cs{hit@linebreak@kern@off:}：学校模板的
-%   标题样式都关着字距调整，连续标点不缩半格}
-% \changes{v3.2a}{2026/08/24}{加 \cs{hit@format@apply@heading:nn}，按调用覆盖
-%   目标里的取值。英文摘要那个纯西文标题要用它}
-%
 % \begin{macro}{\hit@format@apply@heading:nn}
 % \cs{hit@format@apply@heading:nn}\marg{目标}\marg{覆盖} 同
-% \cs{hit@format@apply@heading:n}，但先把\meta{覆盖}那几条键值临时按到目标上。
-% 存储是全局的，所以进出各存一次。\emph{不还原}——调用方排完那个标题自己再
-% 按一次原样的，因为 \cs{ctexset} 那边的取值也要跟着回去。
+% \cs{hit@format@apply@heading:n}，但先把\meta{覆盖}那几条键值临时按到目标上，
+% 发完还回去。\cs{ctexset} 那边的取值不会自己回去，调用方排完那个标题要再按一次
+% \cs{hit@format@apply@heading:n}。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@apply@heading:nn #1#2
   {
@@ -2554,8 +2364,6 @@
 %
 % \subsection{接到正文上}
 %
-% \changes{v3.2a}{2026/08/14}{加 \cs{hit@format@apply@body:}，正文的字号、行距、
-%   首行缩进、首行基线落点与汉字间距都由 \option{body} 目标算出来}
 % 正文不归 \pkg{ctex} 管，四个量各有各的去处：
 % \begin{center}
 % \begin{tabular}{lll}
@@ -2582,8 +2390,6 @@
 % 关掉它也是照 Word：Word 那边「首行缩进 2 字符」在存盘时就折算成了绝对长度
 % （范例里是 507 缇），换字号不跟着变。
 %
-% \changes{v3.2a}{2026/08/15}{设完 \cs{CJKglue} 补一句 \cs{ccwd}，堵掉开头那一段
-%   读到旧值的窗口}
 % 末尾那句 \cs{ccwd} 是补 \pkg{ctex} 的一个时序缺口。\pkg{ctex} 把 \cs{ccwd} 定义成
 % 「字号 $+$ \cs{CJKglue} 的宽度」，也就是字符网格的步进，每次换字号重算一次
 % （\file{ctex-engine-xetex.def} 的 \cs{ctex\_update\_ccwd:}）。但本函数是先调
@@ -2597,13 +2403,9 @@
 % \cs{topskip} 与首行盒高度的较大者，所以行里有比正文高的东西时首行会往下走，
 % 这一条 Word 也一样。
 %
-% \changes{v3.2a}{2026/08/14}{\cs{rightskip} 收下字符网格的余量，行宽按整数个字算}
 % \cs{CJKglue} 是汉字之间的空隙，取值是网格字距减字号，由
-% \file{src/engine/hit-msword.dtx} 算好。伸缩量照 \pkg{xeCJK} 原样保留：Word 的
-% 字距是自然宽度，两端对齐时照样要再拉开。
+% \file{src/engine/hit-msword.dtx} 算好，伸量见 \cs{c\_\_hit\_format\_ccstretch\_tl}。
 %
-% \changes{v3.2a}{2026/08/14}{\cs{CJKecglue} 按网格算，汉字与西文之间的间距跟
-%   Word 对齐}
 % \cs{CJKecglue} 是汉字与西文之间的空隙，取值两侧合计 0.45 格。9、12、18、24\,bp
 % 四个字号量下来两侧合计分别是 4.281、5.632、8.335、11.037，除以格都是 0.451
 % 上下，除以字号则从 0.476 漂到 0.460——是格的比例，不是 em 的比例。单侧实测
@@ -2646,9 +2448,6 @@
 \dim_new:N \hit@body@depth
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@latin@pitch:}，字距增量也加到
-%   西文字母上，由 \option{layout}/\option{grid}/\option{chars}/\option{latin} 决定}
-% \changes{v3.2a}{2026/08/16}{西文那份改成网格增量的一半，从前取整份}
 % 西文那半。Word 把西文也排进字符网格，但半角字只占半格，所以每个西文字符后面
 % 多的是网格增量的\emph{一半}，不是整份。
 %
@@ -2665,23 +2464,14 @@
 %
 % \option{LetterSpace} 的单位是百分之一个 em，所以要把增量换算成字号的百分比。
 %
-% \changes{v3.2a}{2026/08/17}{空格的自然宽先用 \cs{dim\_eval:n} 收口，
-%   不然伸缩量连符号一起被减掉}
-% \emph{自然宽必须先收口。} 原先直接写
-% “\cs{fontdimen}2\cs{font} $+$ 格宽 $-$ 字号 \texttt{plus} \ldots
-% \texttt{minus} \ldots”，\cs{glueexpr} 把 “$-$ 字号 \texttt{plus} 伸量”
-% 整个当成「减去一个带伸量的胶」，算出来是
-% \texttt{3.69522pt plus -6.47845pt minus -0.8098pt}——伸缩量连符号一起被减掉了。
-% 负伸量等于不能伸，英文段落完全无法两端对齐，demo 第 8 页的英文摘要有 10 行越出
-% 版心 15 到 34\,bp。自然宽那一截套上 \cs{dim\_eval:n} 就断开了这个粘连。
+% \emph{自然宽套着 \cs{dim\_eval:n} 是有意的。} 裸写「\cs{fontdimen}2\cs{font} $+$
+% 格宽 $-$ 字号 \texttt{plus} \ldots」时 \cs{glueexpr} 把「$-$ 字号 \texttt{plus}
+% 伸量」当成减去一段带伸量的胶，伸缩量连符号一起被减成负的，英文段落就两端对不齐。
 %
 % 空格也跟着改。\hologo{XeTeX} 的字间距只落在词内，词尾那一份没有，缺的补进
 % 空格，于是空格 = 字体空格 + 两份增量。可压量取自然宽的四分之一——实测 Word
 % 的上限落在 0.78 与 0.97 之间（12\,bp），四分之一在窗口内。
 %
-% \changes{v3.2a}{2026/08/29}{空格与中西文胶的伸量都压到与汉字缝同一档。原先
-%   空格给两倍字体空格、中西文胶给 0.08 倍行距，行凑不满时缺口全灌进这一两处，
-%   实测一个空格被拉到 74\,bp；Word 是把缺口摊到每条缝上}
 % \emph{伸量是摊派的权重，不是上限。} Word 对空格的\emph{总}拉伸不设上限
 % （实测拉到自然宽的 3.17 倍照拉），但它不是把缺口全给空格：字符网格那节的
 % 第七条实测过，31 个字的行被拉开填满 32 格，\emph{每条缝均摊}。\hologo{TeX}
@@ -2693,9 +2483,6 @@
 % 的两条实测都对得上。空格的压缩量不动，那是按 Word 的窗口另标定的
 % （0.25 倍字体空格，压到自然宽的 0.797，Word 实测下沿 0.78）。
 %
-% \changes{v3.2a}{2026/08/29}{中西文胶加可压量 0.13 倍行距。含西文的行因此
-%   能像 Word 那样把边界空隙压掉、多装下一个词；纯中文行没有这份额度，不受
-%   影响。行末棘轮 79 收到 78}
 % \emph{压缩量只给中西文胶，这是道闸门。} Word 打包一行时压的是空格、全角
 % 标点与中西文边界的空隙；纯中文行每个字缝都是断点，Word 从不硬挤。\hologo{TeX}
 % 的压缩量落在哪种胶上，哪种行就有打包的本钱——放进 \cs{rightskip} 等于全体
@@ -2704,9 +2491,6 @@
 % （约 2.5\,bp），把 0.225 格的边界空隙压到贴零为止；全角标点的压缩是另一套
 % 模型（贪心分支），主线 \texttt{PunctStyle=plain} 不掺和。
 %
-% \changes{v3.2a}{2026/09/20}{Lua 断行接管时不再给西文字体加 LetterSpace：西文的半份
-%   增量由 Lua 在正文字号的段里自己加，居中的题目这类交回 TeX 的段 Word 本来就不加，
-%   英文内封的题目从前每字多 0.34\,bp、折行提前}
 % \emph{Lua 断行接管时这一段整个不做。} \pkg{luaotfload} 的 \option{LetterSpace}
 % 是全篇全字号一律加，Lua 排的段落把它清零再按「正文字号才加半份」自己补，交回
 % \hologo{TeX} 的段（居中的题目、标题）Word 本来不贴格也不加——范例英文内封的题目
@@ -2746,10 +2530,6 @@
           }
         \hit@fonts@redo@en:
         \normalsize
-        % 汉字段里的西文空格:Word 按东亚字体空格加两侧字距加宽排(实测有效
-        % 词隙 3.6~3.9),fd2+加宽 的 3.70 恰在此档,回归验证通过。
-        % 拉丁段落(英文摘要等)不走 spaceskip——贪心 latin 模式自发 kern,
-        % 词隙自然值另按拉丁档实测(见 latin 分支)
         \skip_set:Nn \spaceskip
           {
             \dim_eval:n
@@ -2765,8 +2545,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@reserve@depth:}，版心底留出一个
-%   正文行深，换页的判据从「末行基线」改成「末行盒底」，与 Word 一致}
 % \begin{macro}{\hit@format@reserve@depth:}
 % 换页的判据两边不一样。Word 要末行的\emph{行盒底}不越版心底；\hologo{TeX} 的
 % 页面构建器比的是 \cs{pagetotal} 与 \cs{pagegoal}，末行的深度挂在
@@ -2792,9 +2570,6 @@
 % 撑杆挂在 \texttt{para/begin} 与 \texttt{para/end} 两个钩子上，段落中间那些行
 % 两头都不挨，撑不到。
 %
-% \changes{v3.2a}{2026/08/16}{\texttt{para/end} 的撑杆前面加
-%   \cs{hit@engine@parend@guard:}。\hologo{LuaLaTeX} 下段末标点与撑杆之间有一段
-%   可断的边界胶，末行排满时会断出一个只有撑杆的空行}
 % 撑杆自带 \cs{hit@engine@parend@guard:} 封条，把自己焊在前面的字上。
 % \hologo{LuaLaTeX} 下没有这道封条时，段末标点与撑杆之间有一段可断的边界胶，
 % 以标点收尾、末行又恰好排满的段落会在段后断出一行只有撑杆的空白，原委见
@@ -2835,8 +2610,6 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@patch@colroom:}，把每页重设
-%   \cs{@colroom} 的两句改成扣掉行深}
 % \begin{macro}{\hit@format@patch@colroom:}
 % \cs{@colroom} 是「这一栏还剩多少地方」，每页开头由 \cs{@startcolumn} 从
 % \cs{@colht} 重设，\cs{clearpage} 那条路上 \cs{@doclearpage} 也重设一次。
@@ -2872,8 +2645,6 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@flush@bottom:}，\option{bottom}
-%   \texttt{!=flush} 时页底那一段留白改成刚性，不摊到行间}
 % \begin{macro}{\hit@format@flush@bottom:}
 % \cs{flushbottom} 把 \cs{@textbottom} 设成 \cs{relax}，页面盒子按 \cs{@colht}
 % 打包时缺的那一段就摊到行间去了。留出来的行深本来就该空着，摊掉等于白留，
@@ -2908,8 +2679,6 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \changes{v3.2a}{2026/08/15}{加 \cs{hit@format@penalties:}，孤行寡行的四个罚分
-%   归零，与 Word 的“孤行控制关闭”一致}
 % \begin{macro}{\hit@format@penalties:}
 % 范例的 Normal 样式写着 \texttt{<w:widowControl w:val="0"/>}，全文 566 个段落
 % 没有一个在段级覆盖它，也就是孤行寡行控制全程关闭：段首一行单独留在页底、
@@ -2943,8 +2712,6 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \changes{v3.2a}{2026/08/16}{加 \cs{hit@format@punct@grid:}，把全角标点缺的那一格
-%   网格胶补上}
 % \emph{全角标点少一格网格胶。} Word 的字符网格里，每个全角字符占整整一格，标点
 % 不例外。\pkg{xeCJK} 只在标点\emph{空白的那一侧}发 \cs{CJKglue}：\texttt{，} 的
 % 空白在右，于是 \texttt{点→汉} 有胶而 \texttt{汉→点} 没有；\texttt{（} 的空白在
@@ -2960,7 +2727,6 @@
 % 追加版 \cs{xeCJK\_app\_inter\_class\_toks:nnn} 不行，实测三处纹丝不动：
 % \pkg{xeCJK} 自己那串记号会把后面的东西吃掉，必须前置。
 %
-% \changes{v3.2a}{2026/08/16}{补的那道胶前面加 \cs{nobreak}，不然禁则被破坏}
 % \emph{前面那句 \cs{nobreak} 不能省。} 胶在 \hologo{TeX} 眼里是合法断点，补进去
 % 就等于在汉字与后置标点之间、以及前置标点与汉字之间各开了一个可断处，于是
 % 「、」「。」这类点号会被断到下一行行首，「（」会被留在行尾。实测第一版补完
@@ -2990,11 +2756,6 @@
     换回上述版本，或者忽略本条——排版仍能完成，只是标点走样。
   }
 %    \end{macrocode}
-% \changes{v3.2a}{2026/08/17}{相邻标点前一个缩到半格}
-% \changes{v3.2a}{2026/08/18}{标点规则改按范例第 18 页实测重排；
-%   引号、波浪线单列字符类，省略号、破折号并入汉字类}
-% \changes{v3.2a}{2026/08/18}{压缩由定值 kern 改成按需的可压胶；引号类并回
-%   \texttt{FullLeft}}
 % \emph{Word 的标点压缩是按需的排版资源，不是定值。} 修正过字体提示的测试文档
 % （\file{标点压缩测试2}）把同一标点对铺在各个行位上，结果是双态分布：
 % \texttt{汉→“} 松行 12.49、紧行 8.24；\texttt{汉→《} 12.49 与 9.00；
@@ -3002,8 +2763,8 @@
 % \texttt{；→”} 压满 6.25 而 \texttt{用→“} 只压 1.0。合起来的模型很短：
 % \emph{每个全角字符自然占一格（字身加网格增量），行紧时排版器从标点的空白侧
 % 按需扣，扣的上限约是空白的大小}。范例第 18 页「、→“」的 1.50 是两侧上限同时
-% 扣满的极端（$12.45-5.77-4.73$），同页「用→《」的 12.50 是松行一点不扣。
-% v3.2a 早先按定值 kern 实现，松行也在扣，用户看出「引号有时贴得过近」。
+% 扣满的极端（$12.45-5.77-4.73$），同页「用→《」的 12.50 是松行一点不扣；
+% 按定值 kern 实现的话松行也在扣，引号就贴得过近。
 %
 % 照搬「自然宽=整格、可压量=空白」在 \hologo{TeX} 里走不通，断行会漂：Word 的
 % 断行器把标点压缩当免费资源，挤一挤也要把「探讨”」塞进第 18 页那行；
@@ -3021,8 +2782,6 @@
 % 负责（见下）；「后置→开」「后置→引」的断点是各自折处里的，断行分支把
 % pair~kern 退回去，标点回整格再由突出挂半。
 %
-% \changes{v3.2a}{2026/08/18}{行末减半的折处在盒内不发：\pkg{ulem} 的收词盒
-%   遇到 \cs{discretionary} 会拆坏分组}
 % 折处与标点对的胶只在能断行的地方发。盒子里（\cs{hbox}、表格格子、
 % \pkg{ulem} 的收词盒）不断行，胶的伸缩不参与，一律换等宽或压紧 kern；
 % \pkg{ulem} 遇到分组内的胶和罚分会把分组拆坏（实测报 Too~many~\}'s），
@@ -3034,7 +2793,6 @@
   { \skip_horizontal:n { 0pt ~ minus ~ 0.5 \g_hit_msword_char_dim } }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/24}{行中标点的可压量开闭两侧都取半格，从前是 0.38 与 0.46}
 % \emph{行中标点可压半格。} 这两个数只改可压量，自然宽一点不动，所以不影响任何
 % 不参与齐行的量测；变的是断行时 \hologo{TeX} 手里有多少压缩资源。
 %
@@ -3051,17 +2809,13 @@
 % 标点上、汉字网格不动。我们这边压缩由 \hologo{TeX} 按 badness 在汉字胶与标点
 % 胶之间分配，只能把资源配比调到最接近，做不到同构。
 %
-% \changes{v3.2a}{2026/08/18}{标点对之间的胶盒内换成等宽 kern：\pkg{ulem}
-%   按胶分段，而这些记号落在 \pkg{xeCJK} 的标点类分组里，分组没闭合就切段，
-%   报 Too~many~\}'s}
 % \emph{标点与标点之间的胶，盒内要换成 kern。} \pkg{ulem} 收词时按胶和罚分
 % 切段，而标点对的记号表在 \pkg{xeCJK} 的标点类分组\emph{内部}执行，组还没
 % 闭合就切段，直接拆坏分组（demo 里 \cs{uline} 内的「？】」实测报
 % Too~many~\}'s；同位置 v3.2a 之前的定值 kern 就没事）。盒内不断行、胶的
 % 伸缩也不参与，等宽 kern 与自然宽的胶输出相同，于是每对做两个分支：
 % 盒内发一格增量的 kern，盒外发 \cs{nobreak} 加可压胶。汉字与标点之间的
-% 三对（汉→后、开→汉、汉→开）在分组外执行，v3.2a 以来一直发胶且
-% \cs{uline} 实测无恙，不用换。
+% 三对（汉→后、开→汉、汉→开）在分组外执行，发胶时 \cs{uline} 实测无恙，不用换。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_format_punct_pair_kern:
   { \tex_kern:D \dim_eval:n { 0.5 \g_hit_msword_char_dim - 1em } \scan_stop: }
@@ -3154,7 +2908,6 @@
 % 「……」「——」并入汉字类：范例里它们与汉字步进完全相同，整格、可断、
 % 不压缩，连「、→…」「。→…」也是整格（Word 的压缩不作用于非标点邻位）。
 % \cs{xeCJKDeclareCharClass} 在 \cs{begin\{document\}} 时刻改已有类照样生效，
-% 早先「导言区后定型」的结论是在 shell 转义污染期得出的，不对。
 %
 % \emph{源码在后置标点后换行会丢配对。} 「、」后换行，行尾换行符变成空格记号，
 % \pkg{xeCJK} 吞掉它之后「“」是从 \texttt{Boundary} 类入场的，上面按类配的
@@ -3165,6 +2918,9 @@
 %
 % 「后置→西文」的中西文胶直接前置发胶原语：字母数字要那道空隙，
 % 西文标点如今在半角类里，不从这对走，不会错发。
+%
+% \emph{闭号接西文不减半、不加中西文胶}，Word 是全宽加约 0.25\,bp 微隙
+% （关键词行「；t」实测 12.30）。
 %
 % \emph{半角标点类的三处修正。} 西文句读、括号、乘除号声明进
 % \texttt{HalfLeft}/\texttt{HalfRight} 后，它们与字母数字分了家，三处按
@@ -3182,8 +2938,6 @@
 % 的类对，\cs{xeCJK\_class\_group\_end:} 是配对的分组、拆单边必失衡。字形的事
 % 交给字符自己：要宋体形的占位叉用 \cs{hit@engine@cjk@char:n} 按汉字排
 % （见 \file{src/engine/hit-engine.dtx}），类表一个不动。
-% \changes{v3.2a}{2026/08/23}{源码里的空格在中西文边界上折成中西文胶；撤掉只有
-%   2026 才存在的 \cs{\_\_xeCJK\_use\_ecglue\_skip:} 覆写}
 % \emph{源码里打的空格也走中西文胶。} \pkg{xeCJK} 默认把「汉字、空格、字母」里的
 % 空格留成字体自带的词间空格（12\,bp 下 3.695，伸 6.47 缩 0.81），与不打空格的
 % 3.531 不是一个值，同一段文字打不打空格排出来两样。Word 的中西文间距不看有没有
@@ -3191,20 +2945,10 @@
 % 同宽。包里有个 \texttt{xCJKecglue} 开关能达到同样效果，但它连带换掉
 % \cs{xeCJK\_make\_space\_node:} 一套，与我们改过的类对撞车，\TeX~Live 2025 上整篇
 % 会在 \cs{\_\_xeCJK\_boundary\_group\_end:n} 报 Extra~\}，只取需要的那一条。
-%
-% 顺带撤掉 8/18 加的 \cs{\_\_xeCJK\_use\_ecglue\_skip:} 覆写。那个宏 \TeX~Live 2025
-% 根本没有，覆写只在 2026 生效，而 2026 上它落在的也不是原本要调的「字母数字→汉字」
-% 方向，是源码空格那一路。反向中西胶要不要去掉网格增量另说，真要做得走
+% 反向（字母数字→汉字）的中西胶要不要去掉网格增量另说，真要做得走
 % \cs{xeCJK\_replace\_inter\_class\_toks:nnnn} 配 \texttt{Default} 到 \texttt{CJK}
-% 的类对，那条路三版都在。
+% 的类对。
 %
-%    \begin{macrocode}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{2026/08/31}{行内 \cs{verb} 与前面汉字之间的中西文胶补给
-%   2025 及更早的 \pkg{xeCJK}}
-% \changes{v3.2a}{2026/08/31}{组边界全套补给老版：verb 出口、\cs{num}
-%   \cs{ref} 两侧、上标尾、汉字接波浪线，另给 \cs{CJKecglue} 垫胶前闸}
 % \textbf{verb 边界的中西文胶补给老版。}\pkg{xeCJK} 2026 重写中西文边界后，
 % 行内 \cs{verb} 与前面的汉字之间也空一道中西文胶，2025 及更早不空，
 % 差 3.5\,bp，还会被两端对齐摊满整行。老版不空的原因是组边界会丢「上一个
@@ -3489,7 +3233,6 @@
         \xeCJKDeclareCharClass { HITTilde } { "FF5E , "2014 , "2015 }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/23}{波浪号与破折号钉成不可断行的长标点}
 % \pkg{xeCJK} 在 2026 版把 \texttt{～}（U+FF5E）连同 \texttt{〜}、\texttt{゠} 从
 % \option{MiddlePunct} 改成 \option{LongPunct}（\href{https://github.com/CTeX-org/ctex-kit/pull/793}{ctex-kit\#793}），
 % 理由是与破折号 \texttt{—} 对齐。改动带来两件事：两侧不再生成压缩节点
@@ -3501,8 +3244,6 @@
 % 是 2026 新加的，旧版的 \cs{g\_\_xeCJK\_special\_punct\_clist} 里没有
 % \texttt{nobreak\_long} 这一档，那边 \texttt{～} 留在 \option{MiddlePunct}，
 % 断行同样禁止，只是多一层压缩节点。两头都不会出现行首波浪号。
-%    \begin{macrocode}
-%    \end{macrocode}
 %
 % 传的是字符本身不是码点：\pkg{xeCJK} 那边 \cs{\_\_xeCJK\_add\_special\_punct:nn}
 % 把参数按记号逐个取，上游自己也是先用 \cs{char\_generate:nn} 把码点转成字符
@@ -3552,11 +3293,7 @@
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { FullLeft }
           { \hit@format@punct@cbreak: }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { Default }
-          {
-            % 闭号接西文:Word 全宽加约 0.25bp 微隙(关键词行「；t」实测
-            % 12.30 对我们旧式减半+文数隙的 9.74),不减半不加文数隙
-            \tex_kern:D 0.25 bp \scan_stop:
-          }
+          { \tex_kern:D 0.25 bp \scan_stop: }
         \xeCJK_pre_inter_class_toks:nnn { CJK } { HITQuote }
           { \hit@format@punct@oshrink: }
         \xeCJK_pre_inter_class_toks:nnn { FullRight } { HITQuote }
@@ -3591,7 +3328,6 @@
           { \hit@format@punct@ngap: }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/23}{西文接全角标点补一整格增量，从前一点不补}
 % \emph{西文接全角标点那一格。} \hologo{XeTeX} 的 \option{LetterSpace} 只落在词内，
 % 一段西文的末字没有尾距（\cs{hbox}\marg{12} 实测 12.227 而不是 12.454），后面接
 % 汉字时那半份由中西文胶顶上，接全角标点时就整个丢了：改之前 \texttt{1）} 里数字
@@ -3636,8 +3372,6 @@
           { \hit@format@punct@ngap: }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/30}{半角闭号接汉字的边界摘胶时留一道零宽胶，
-%   断点不再跟着胶一起没了}
 % 摘胶别把断点摘没了。\hologo{TeX} 只在胶处断行，把「半角闭号→汉字」的
 % \cs{CJKecglue} 替换成空之后，“(2022)发表”这种地方就断不开——recruit
 % 章那段第一行只好退到前一个词间空格断，剩 268\,bp 硬拉满 425\,bp，每个
@@ -3683,34 +3417,15 @@
         \hit@format@latin@pitch:
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/17}{设字距前先停掉 \pkg{ctex} 的 \cs{ctex\_update\_ccglue:}，
-%   \TeX~Live 2025 上不停它整篇网格都不生效}
-% \emph{先停掉 \pkg{ctex} 的重置。} \pkg{ctex} 把 \cs{CJKglue} 挂在字号变化上，
-% 由 \cs{\_\_ctex\_update\_stretch\_auxi:} 调 \cs{ctex\_update\_ccglue:} 重设，
-% 重设前先问 \cs{ctex\_if\_ccglue\_touched:}。那个判断比的是 \cs{CJKglue} 与
-% \cs{\_\_ctex\_ccglue:} 的 meaning：\TeX~Live 2026 的
-% \cs{ctex\_update\_ccglue:} 会同步后者，判得准；2025 的不同步，判不准，于是我们
-% 设的字距被冲回 \pkg{ctex} 自己那份。实测 2025 下整篇字距都是裸字号 12.0，
-% 字符网格等于没开。
-%
-% 先前试过三条都不行，记下省得重来：同时设 \cs{l\_\_ctex\_ccglue\_skip}（重置那条
-% 路把定义和寄存器一起冲）；把设字距挪到 \cs{normalsize} 之后（还有别处在重置）；
-% 把比对基准 \cs{\_\_ctex\_ccglue:} 换掉逼它一直判「已改过」（2025 仍没救回，
-% 2026 反而从 12.6720 变成 12.7320）。
-%
-% 直接把 \cs{ctex\_update\_ccglue:} 停成空操作，两版都稳，实测汉字步进都是
-% 12.5040。停它不影响别的：\cs{ccwd} 由 \cs{ctex\_update\_ccwd:} 单独管，我们也
-% 自己设一次。只在新版面下停——旧版面的 \cs{ziju} 还要靠 \pkg{ctex} 这套，所以
-% 这一句摆在 \cs{g\_hit\_msword\_char\_dim} 非零的那个分支里。
-%
-% \changes{v3.2a}{2026/08/16}{字距那一段挪到 \cs{hit@format@latin@pitch:} 后面，
-%   它里面那句 \cs{normalsize} 会让 \pkg{ctex} 把字距重置掉}
-% \emph{顺序要紧。} \cs{hit@format@latin@pitch:} 末尾要发一次 \cs{normalsize}
-% 好让重新声明的西文字体生效，而 \pkg{ctex} 挂在字号变化上的
-% \cs{\_\_ctex\_update\_stretch\_auxi:} 会重设 \cs{CJKglue}。它重设前先问
-% \cs{ctex\_if\_ccglue\_touched:}，那个判断在 \TeX~Live 2026 上准、2025 上不准
-% （见 \cs{hit@format@hglue:nn} 处的说明），于是 2025 下我们先设的字距被这句
-% \cs{normalsize} 冲掉，整篇排出来都是裸字号。字距改到最后设，两版都稳。
+% \emph{先停掉 \pkg{ctex} 的重置，字距最后设。} \pkg{ctex} 挂在字号变化上的
+% \cs{ctex\_update\_ccglue:} 在 \TeX~Live 2025 下判不出我们动过 \cs{CJKglue}
+% （见 \cs{hit@format@hglue:nn} 处），\cs{hit@format@latin@pitch:} 末尾那句
+% \cs{normalsize} 就把字距冲回裸字号。把它停成空操作两版都稳，实测汉字步进都是
+% 12.5040；\cs{ccwd} 由 \cs{ctex\_update\_ccwd:} 单独管，不受影响。只在新版面下
+% 停，旧版面的 \cs{ziju} 还要靠 \pkg{ctex} 这套。试过的三条弯路：同时设
+% \cs{l\_\_ctex\_ccglue\_skip}（一起被冲）、设字距挪到 \cs{normalsize} 之后
+% （还有别处在重置）、换掉比对基准 \cs{\_\_ctex\_ccglue:}（2025 仍没救回，2026
+% 反而从 12.6720 变成 12.7320）。
 %    \begin{macrocode}
         \dim_compare:nNnF { \g_hit_msword_char_dim } = { 0pt }
           {
@@ -3740,18 +3455,10 @@
   }
 %    \end{macrocode}
 %
-%
 % \subsection{断字与空行}
 %
-% \changes{v3.2a}{2026/08/24}{删掉 \cs{hit@format@latin@par:} 与
-%   \cs{hit@format@latin@line:}。纯西文段改由 \cs{hit@format@apply@par:n}
-%   按 \option{format} 目标铺版面，这一套没有调用方了}
-%
-% \changes{v3.2a}{2026/08/24}{自动断字收成一个开关 \option{style}/\option{hyphenation}，
-%   正文、题注、摘要、纯西文段一律跟随；既有连字符处断行不受它管}
-% \emph{断字全文一个开关。} 从前正文与题注是 \cs{hyphenpenalty} 85（开着），
-% 纯西文段（英文摘要、英文规范章、英文致谢）硬写 10000（关着），同一份文档
-% 两套规矩。现在收成 \option{style}/\option{hyphenation}，四处一律跟随。
+% \emph{断字全文一个开关} \option{format}/\option{hyphenation}，正文、题注、
+% 纯西文段一律跟随，一份文档不设两套规矩。
 %
 % 默认\emph{关}。依据三条：范例的 Word 导出勾了不断字；范例逐字量下来 Word 没有
 % 断 \texttt{Nature Communications}；中文论文里的西文通常不断字。行末基线对这个
@@ -3760,8 +3467,7 @@
 %
 % \cs{exhyphenpenalty}（在\emph{已有}的连字符处断行，\texttt{Tree-structured}
 % 这种）不归这个开关管：GB/T~15834 允许，范例里 Word 实测也断在 \texttt{Tree-}，
-% 而且这个值现在是 $-5$，是行末闭号那套梯子调出来的。拉丁段落原先把它也设成
-% 10000，现在去掉，跟正文一致（实测行差不变）。
+% 而且这个值是 $-5$，是行末闭号那套梯子调出来的。拉丁段落也不另设（实测行差不变）。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@format@hyphen:
   {
@@ -3770,11 +3476,7 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/24}{纯西文段的首行基线按 Times 的上升部算，
-%   不再套汉字那一档}
-% \emph{上升部按字体分。} 上升部是「系数 × 字号 $+$ 0.082\,bp」。这条早先只
-%   标定了汉字那一档（1.008），西文一直借用它，档案里记着「纯西文的段落因此会比
-%   Word 宽一点点，英文摘要与英文目录受影响，先记着」。现在把 Times 那一档量出来了。
+% \emph{Times 的上升部系数单独标定}，不借汉字那一档的 1.008。
 %
 % 量法：造一份标定 docx，每个西文行前面放一行 12\,bp 宋体做基准，八个字号各一组，
 % Word 转 PDF 后量相邻基线的步进，减掉基准行的行深（$15.5625 - (1.008 \times 12 +
@@ -3796,9 +3498,6 @@
 %    \begin{macrocode}
 \tl_const:Nn \c__hit_format_ascent_latin_tl { 0.93261 }
 %    \end{macrocode}
-%
-% \changes{v3.2a}{2026/08/24}{加 \cs{hit@format@apply@par:n}，按目标给接下来的
-%   若干段铺好版面。纯西文段从此与别的段共用一套 \option{format} 词汇}
 %
 % \begin{macro}{\hit@format@apply@par:n}
 % \cs{hit@format@apply@par:n}\marg{目标} 按目标给\emph{接下来那几段}铺好版面：
@@ -3830,31 +3529,20 @@
 %    \end{macrocode}
 %    \end{macro}
 %
-%
 % \begin{macro}{\hitenter}
-% \changes{v3.2a}{2026/08/19}{新增 \cs{hitenter}：模拟 Word 空回车段的公开命令}
-% \changes{v3.2a}{2026/08/19}{星号版由整段 \cs{vspace*} 改为逐行空行盒}
-% 模拟 Word 里单独按一次回车留下的空段。高度走版面制度的同一条自动行距
-% 规则（空段行高 = 段落标记字体的自然行高 $\times$ 1.25，Word 的段落标记
-% 是西文字符，故取西文档 1.434\,em，随字号缩放），不写死数值。可选参数是
-% 回车几次。
+% 模拟 Word 里单独按一次回车留下的空段。空段行高 = 段落标记字体的自然行高
+% $\times$ 行距，Word 的段落标记是西文字符，默认按 Times 算；倍数乘在自然行高上，
+% 固定值就是那么高，最小值取两者较大者。
 %
-% 恰逢换页时默认随页首丢弃（学位论文版式里页首空行无意义）。星号版与
-% Word 的空段同构：每行发一个真实的空行盒，盒不可弃、盒间行距胶是合法
-% 断点，所以页底装得下几行装几行，剩下的落到新页页首照常占位——整段
-% \cs{vspace*} 只能整体保留，劈不开。中页几何两版相同：盒高深为零，局部
-% \cs{baselineskip} 设成空段行高，基线步进恰为每行一份。
-% \changes{v3.2a}{2026/08/19}{可选参数除行数外收下新版面词汇：\option{lines}、
-%   \option{size}、\option{line-spacing}、\option{font-en}、\option{font-zh}}
-% 可选参数含等号时按键值读，与新版面属性族同词汇：\option{size} 收
-% \texttt{wuhao} 这类字号名或长度；\option{line-spacing} 收一个词，文法同
-% 版面制度（\texttt{single}、\texttt{double}、倍数、\texttt{25bp!} 固定值、
-% \texttt{10bp+} 最小值、裸长度）；\option{font-en}/\option{font-zh} 指定段落
-% 标记字体，自然行高只认实测值（serif~1.1472、songti~1.29333），没量过的
-% 字体报错不瞎给。纯整数是 \option{lines} 的简写。
+% 恰逢换页时默认随页首丢弃（学位论文版式里页首空行无意义）。星号版与 Word 的
+% 空段同构：每行一只高为空段行高的空盒，盒不可弃、盒间是合法断点，页底装得下
+% 几行装几行，剩下的落到新页页首照常占位；\cs{vspace*} 只能整体保留，劈不开。
+% 盒前 \cs{nointerlineskip}、盒后把 \cs{prevdepth} 还原，前后段的行间胶不受影响。
 %
-% 空段行高的算法与 Word 同构：倍数乘在指定字体字号的自然行高上；固定值
-% 就是那么高；最小值取「自然行高与给定值的较大者」。
+% 可选参数是回车几次；含等号时按键值读，与 \option{format} 族同词汇：
+% \option{size}、\option{line-spacing}（文法同 \cs{\_\_hit\_format\_measure:nnnn}）、
+% \option{font-en}/\option{font-zh} 指定段落标记字体，自然行高只认实测值，没量过的
+% 字体报错不瞎给。
 %    \begin{macrocode}
 \int_new:N \l__hit_enter_lines_int
 \dim_new:N \l__hit_enter_size_dim
@@ -3867,13 +3555,8 @@
 \tl_new:N \l__hit_enter_last_tl
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/24}{自然行高常量按 Word 重测：西文 1.1472 改 1.15，
-%   汉字 1.2933333 改 1.296875，与 \cs{c\_\_hit\_format\_natural\_tl} 统一}
-% \emph{这两个数重测过。} 从前西文取 1.1472（按 Times 的 hhea 行高算），汉字取
-% 1.2933333，而同一份代码里 \cs{c\_\_hit\_format\_natural\_tl} 用的是 1.296875，
-% 两处不一致。
-%
-% 量法：造一份 docx，八个字号（9、10.5、12、14、16、18、22、24）各排六段
+% \emph{自然行高按 Word 的输出量，不按字体的 hhea 行高算}（Times 的 hhea 给
+% 1.1472，12\,bp 上差 0.034）。量法：造一份 docx，八个字号（9、10.5、12、14、16、18、22、24）各排六段
 % Times 单倍行距的文字，用 Word 转 PDF 再量相邻基线的步进。
 %
 % \begin{center}
@@ -3884,11 +3567,8 @@
 % \end{center}
 %
 % 过原点最小二乘是 1.15014，而且 12\,bp 正好 13.800、16\,bp 正好 18.400。
-% 1.1472 在 12\,bp 上给 13.766，差 0.034。汉字那一档同法量得 1.29726，与
-% 1.296875（$= 332/256$，中易宋体的 unitsPerEm 正好是 256）一致，取它，
-% 顺带与 \cs{c\_\_hit\_format\_natural\_tl} 并成同一个数。
-%
-% 两个数都来自 \pkg{iota-hit-thesis} 的标定，这里独立复量过。
+% 汉字那一档同法量得 1.29726，与 \cs{c\_\_hit\_format\_natural\_tl} 的 1.296875
+% 一致。两个数都来自 \pkg{iota-hit-thesis} 的标定，这里独立复量过。
 %    \begin{macrocode}
 \fp_const:Nn \c__hit_enter_natural_serif_fp { 1.15 }
 \fp_const:Nn \c__hit_enter_natural_songti_fp { 1.296875 }
@@ -3922,8 +3602,6 @@
       }
       { \msg_error:nnn { hithesis } { enter-font-unmeasured } {#1} }
   }
-% 行距一个词的文法与版面制度同款:末字符定归属,! 固定值、+ 最小值、
-% 字母收尾是长度、数字收尾是倍数
 \cs_new_protected:Npn \__hit_enter_spacing:n #1
   {
     \str_case:nnF {#1}
@@ -4038,7 +3716,6 @@
   }
 %    \end{macrocode}
 % \end{macro}
-%
 %
 %    \begin{macrocode}
 %</shared-format>

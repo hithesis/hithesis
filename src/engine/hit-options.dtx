@@ -16,22 +16,45 @@
 %
 % \section{文档类选项}
 %
+% \changes{v3.2a}{2026/09/13}{两份选项模块合成一份，终稿与报告的差别由 \option{stage}
+%   分岔：\option{stage} 是一个选择项，默认 \texttt{final}，取值 \texttt{proposal}
+%   与 \texttt{interim}（v3.1e 的 \texttt{opening}、\texttt{midterm} 走废弃期），
+%   \cs{g\_\_hit\_final\_bool} 与「排不排章」都由它推出来；条件里可写
+%   \texttt{stage!=final}；引擎检查挪进 \file{src/engine/hit-engine.dtx}}
+% \changes{v3.2a}{2026/09/13}{学位与类别：\option{type} 改名 \option{degree-level}
+%   （旧名走废弃期），毕业设计并进它写成 \texttt{bachelor*}（\option{design} 废弃）；
+%   加 \option{degree-type} 分学术与专业学位、\option{category} 分理工类与人文社科类
+%   （\texttt{hss} 收作 \texttt{hass} 的别名）；\option{degree-level}\texttt{!=postdoc}
+%   定死 \option{stage}\texttt{!=final}，原先写了别的 \option{stage} 会一路炸到丢掉
+%   \cs{begin\{document\}}}
+% \changes{v3.2a}{2026/09/13}{深圳本科：终稿重定向到本部本科模板；开题与中期是深圳
+%   自己发的表单，不翻成本部，正文照终稿排}
+% \changes{v3.2a}{2026/08/15}{字体选项：\option{fontset-en}、\option{fontset-zh}、
+%   \option{fontset-math} 收「哪一套」的名字，与顶层 \option{fontset} 同词根（中途的
+%   \option{font}／\option{cjk-font}／\option{font-en}／\option{font-zh} 都还认）；
+%   数学引擎换成 \pkg{unicode-math}，\option{newtxmath} 降级为 \option{math-font}
+%   的一档，加 \option{math-style}；加 \option{windows-font-dir}；siyuan fontset 去掉；
+%   伪粗体系数由 2 改 2.85，按 Word 实测}
+% \changes{v3.2a}{2026/08/25}{改名与三态：\option{newgeometry} 改成 \option{v2-layout}
+%   （本科与硕博分开，硕博不写就是新版面），\option{arialtitle} 改名
+%   \option{style}/\option{heading-latin-sans}，\option{tocfour} 改名
+%   \option{toc}/\option{depth}，\option{tocblank} 废弃，\option{language} 补上兼容路径；
+%   \option{subtitle} 改三态；右开页收成「一个三态总闸 + 四个跳页点 + 一张按学位的
+%   默认表」走 \cs{hit@openright:n}；\option{bsfrontpagenumberline} 的条件默认值原先
+%   写在 \cs{ProcessKeyOptions} 之前恒为真，改由三态取值承载；加 \option{cover-script}；
+%   \option{split-entry} 默认改 \texttt{true}}
+% \changes{v3.2a}{2026/08/28}{类内部不再用 \cs{ifthenelse}（加 \cs{hit@if@same@TF}）；
+%   \option{style/glue} 的伸缩量抽成 \cs{hit@glue@skip} 与 \cs{hit@glue@font@size}；
+%   加 \cs{g\_\_hit\_new\_layout\_bool}；只挑取值的三个组合判断删掉，取值已进词条表}
+%
 % \cs{documentclass} 上接受的选项：声明、默认值，以及 \cs{ProcessKeyOptions}
 % 之后按材料、校区与学位补齐的那批后处理。
 %
-% \changes{v3.2a}{2026/09/13}{两份选项模块合成一份 \file{src/engine/hit-options.dtx}，
-%   终稿与报告的差别改由 \option{stage} 分岔}
 % \emph{终稿与报告合用这一份。} 原先是 \file{hit-final-options.dtx} 与
 % \file{hit-report-options.dtx} 两份，各自声明同一批选项。同一批选项声明两遍在一个
 % 类里过不去：\cs{hit@define@choice@option} 里的 \cs{bool\_new:c} 撞名就报错。
 % 所以每个选项在这里只声明一次，取值取两边的并集，差别放到
 % \cs{ProcessKeyOptions} 之后按 \option{stage} 分岔。
-%
-% \emph{\option{stage} 自己是普通选项，默认 \texttt{final}。} 「这是终稿还是开题
-% 中期」从此就是一个取值，不再是两个类名。
-%
-% 这一段原先跟 \cs{LoadClass}、宏包加载、字体、数学挤在类文件里。按
-% \file{src/engine/} 是设置子系统这条约定，选项声明归这里。
 %
 % ^^A ======================================================================
 % ^^A Module shared-options: 文档类选项的声明与后处理（stage/campus/fontset 等）
@@ -40,10 +63,6 @@
 %<*shared-options>
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/12}{引擎检查从 deps 挪到选项最前。它是先决条件，
-%   不是宏包加载；引擎不对就不必再往下走}
-% \changes{v3.2a}{2026/08/16}{引擎检查再挪进 \file{src/engine/hit-engine.dtx}，
-%   放行条件改成 \texttt{xelatex} 或 \texttt{lualatex}}
 % 引擎检查在 \file{src/engine/hit-engine.dtx}，那个文件比这里更早。理由不变——
 % 它是先决条件，引擎不对就不必再往下走。
 %
@@ -53,10 +72,8 @@
 % 键名带连字符时（如 \option{cjk-font}）不能直接拿来拼控制序列，另给一个把键名与
 % 变量名分开的版本。
 %
-% \changes{v3.2a}{2026/08/12}{\option{type} 改名 \option{degree-level}，旧名走废弃期。
-%   派发类的 \option{stage} 进来之后两个名字都像「种类」，分不清谁管学位谁管交付物}
-% \option{degree-level} 是学位层次。原先叫 \option{type}，v3.2a 加了派发类的 \option{stage}
-% 之后两个名字都读作「种类」，一个管学位一个管交付物，谁也说不清哪个是哪个。
+% \option{degree-level} 是学位层次，不叫 \option{type}：与 \option{stage} 并列时
+% 两个名字都读作「种类」，谁也说不清哪个管学位哪个管交付物。
 %
 % 旧名 \option{type} 照旧生效，转发到 \option{degree-level}，并提示一次。取值判断看的是
 % \cs{g\_\_hit\_}\meta{取值}\cs{\_bool}，跟键名无关，所以内部代码一处不用改。
@@ -66,17 +83,12 @@
 \clist_map_inline:Nn \c__hit_degree_clist { \bool_new:c { g__hit_#1_bool } }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/13}{毕业设计从单独的 \option{design} 选项并进
-%   \option{degree-level}：\texttt{bachelor} 是毕业论文，\texttt{bachelor*} 是毕业设计。
-%   \option{design} 走废弃期}
 % \textbf{取值末尾的星号表示毕业设计。} 本科封面上「毕业论文」与「毕业设计」是一对
 % 勾选框，两者互斥，说的又都是「这份东西是什么」，与学位层次是同一件事，所以并进
 % \option{degree-level}：\texttt{bachelor} 勾毕业论文，\texttt{bachelor*} 勾毕业设计。
 %
 % 星号只对本科有意义。别的学位写了不报错，但那一对勾选框只出现在本科封面上。
 %
-% \changes{v3.2a}{2026/09/13}{标志位由 \cs{g\_\_hit\_design\_bool} 改名
-%   \cs{g\_\_hit\_practice\_bool}，词条跟着改成 \texttt{-dissertation}／\texttt{-practice}}
 % \emph{标志位叫 practice 不叫 design。} 本科封面那对勾选框问的是「交上去的是
 % 写出来的论文，还是做出来的成果」，硕博的「学位论文／实践成果」问的是同一件事，
 % 将来并成一根轴是自然的。正名取 \texttt{practice}：实践成果那份指南的成果类型
@@ -127,7 +139,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/12}{加 \option{degree-type}，分学术学位与专业学位}
 % \option{degree-type} 分学术学位与专业学位，默认 \texttt{academic}。
 % \option{degree-level} 管的是学士硕士博士，跟学术还是专业是两个维度，所以分成两个选项。
 %
@@ -137,7 +148,6 @@
 \hit@define@choice@option{degree-type}{}{academic,professional}{academic}
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/13}{加 \option{category}，分理工类与人文社科类}
 % \option{category} 分理工类与人文社科类，默认 \texttt{stem}。学校的写作指南
 % 与书写范例各有两份（\texttt{g-stem}／\texttt{g-hss}、\texttt{d-stem}／
 % \texttt{s-hss}），两份指南的打印要求逐条一样，差在正文层次的编号
@@ -147,8 +157,6 @@
 % \cs{hitsetup}\oarg{category=hass} 这样的条件也能写。名字取 hass
 % （humanities, arts and social sciences），与 iota-hit 同名。
 %
-% \changes{v3.2a}{2026/09/13}{\texttt{hss} 收作 \texttt{hass} 的别名：学校自己的
-%   文件名是 \file{g-hss.docx}，照文件名写也该认}
 % \emph{\texttt{hss} 是它的别名。} 学校那两份指南的文件名是 \file{g-stem.docx}
 % 与 \file{g-hss.docx}，用户照文件名写 \texttt{category=hss} 也该认。正名取
 % \texttt{hass} 是为了把艺术学兜进来——学校那句适用范围只点了哲学、法学、文学
@@ -169,75 +177,30 @@
   { \bool_gset_true:N \g__hit_bachelor_bool }
 %    \end{macrocode}
 %
-% 此处设置校区，没有明确给出威海或者深圳时候，默认为哈尔滨校区。
 % \changes{v2.0.0}{2018/06/14}{此处添加geometry选项}
 % \changes{v3.0.0}{2020/05/20}{此处添加博后选项}
-% \changes{v3.2a}{2026/08/12}{加一对类身份标志位，让 \cs{hitsetup} 的条件能写
-%   \texttt{stage!=final} 与 \texttt{class!=report} 两种条件。共用一份配置时用得上}
 % 两个都声明，缺一个的话条件求值会撞上不存在的标志位。
 %
-% \changes{v3.2a}{2026/08/12}{\option{stage} 的报告取值在终稿里也声明一遍，
-%   一份主文件里写报告那几组条件时不再报「不认识的取值」}
-% \changes{v3.2a}{2026/09/13}{加 \cs{g\_\_hit\_final\_bool}：\option{stage} 的终稿
-%   那一档，与类身份的 \cs{g\_\_hit\_thesis\_bool} 分开}
-% \emph{终稿那一档有了自己的标志位。} \option{stage} 轴问的是「哪一份材料」，
-% 三档是 \texttt{final}、\texttt{proposal}、\texttt{interim}。终稿那一档先前
-% 没有自己的标志位，借用了类身份那个比特——它同时表示「这份由终稿那一套排」
-% 与「stage 是终稿」，两件事一个名字。词条查表是按档位值反查
+% \option{stage} 是一个普通的选择项，默认 \texttt{final}。六个取值一次声明完：
+% 三个正名加两个废弃名，再加 \texttt{mid-term} 那个更早的写法。废弃名也得声明，
+% 不然写了旧名的条件会掉进另一条提示；归一化排在 \cs{ProcessKeyOptions} 之后。
+%
+% 终稿那一档的标志位叫 \cs{g\_\_hit\_final\_bool}：词条查表是按档位值反查
 % \cs{g\_\_hit\_}\meta{取值}\cs{\_bool} 的（见 \file{hit-key-engine.dtx} 的
-% \cs{\_\_hit\_axis\_context\_try:n}），轴表把这一档叫 \texttt{final}，标志位就得叫
-% \cs{g\_\_hit\_final\_bool}。那个类身份比特后来整个退掉了，见下面。
-%
-% \changes{v3.2a}{2026/09/13}{\option{stage} 从两个类各自的写法合成一个选择项，
-%   默认 \texttt{final}；类身份标志位改由它推出来}
-% \emph{\option{stage} 是一个普通的选择项，默认 \texttt{final}。} 六个取值一次
-% 声明完：三个正名加两个废弃名，再加 \texttt{mid-term} 那个更早的写法。废弃名
-% 也得声明，不然写了旧名的条件会掉进另一条提示；归一化排在
-% \cs{ProcessKeyOptions} 之后。
-%
-% \changes{v3.2a}{2026/08/12}{加一对类身份标志位，让 \cs{hitsetup} 的条件能写
-%   \texttt{stage!=final} 与 \texttt{class!=report} 两种条件。共用一份配置时用得上}
-% \changes{v3.2a}{2026/09/13}{加 \cs{g\_\_hit\_final\_bool}：\option{stage} 的终稿
-%   那一档，与类身份的 \cs{g\_\_hit\_thesis\_bool} 分开}
-% \emph{终稿那一档有了自己的标志位。} \option{stage} 轴问的是「哪一份材料」，
-% 三档是 \texttt{final}、\texttt{proposal}、\texttt{interim}。终稿那一档先前
-% 没有自己的标志位，借用了类身份的 \cs{g\_\_hit\_thesis\_bool}——那个比特同时
-% 词条查表是按档位值反查 \cs{g\_\_hit\_}\meta{取值}\cs{\_bool} 的
-% （见 \file{hit-key-engine.dtx} 的 \cs{\_\_hit\_axis\_context\_try:n}），轴表把这一档叫
-% \texttt{final}，标志位就得叫 \cs{g\_\_hit\_final\_bool}。
-%
-% \changes{v3.2a}{2026/09/13}{退掉 \cs{g\_\_hit\_thesis\_bool} 与
-%   \cs{g\_\_hit\_report\_bool}：两个类合成一个之后它们只是 \option{stage} 的影子}
-% \emph{原先那两个「类身份」标志位没有了。} 它们是两个类那会儿的东西，
-% 一个说「这份由终稿排」、一个说「由报告排」；类合成一份之后，
-% 它们的值就只是 \option{stage} 推出来的影子，src 里一处都不读。
-% 要分的那件事是\emph{正文照哪一档排}，见下面的 \cs{g\_\_hit\_final\_body\_bool}
-% 与 \cs{g\_\_hit\_report\_body\_bool}。
-%
-% \cs{g\_\_hit\_chapter\_bool} 留着：排不排章跟着材料走，终稿排、报告不排。
+% \cs{\_\_hit\_axis\_context\_try:n}），轴表把这一档叫 \texttt{final}。没有「类身份」
+% 标志位：类合成一份之后它只是 \option{stage} 推出来的影子。要分的那件事是
+% \emph{正文照哪一档排}，见下面的 \cs{g\_\_hit\_final\_body\_bool} 与
+% \cs{g\_\_hit\_report\_body\_bool}。\cs{g\_\_hit\_chapter\_bool} 留着：排不排章
+% 跟着材料走，终稿排、报告不排。
 %    \begin{macrocode}
 \hit@define@choice@option{stage}{}{final,proposal,interim,mid-term,opening,midterm}{final}
 \bool_new:N \g__hit_chapter_bool
 %    \end{macrocode}
 %
+% 校区没写就是哈尔滨。两个具名条件与「这份材料叫什么」那个宏只有报告用，定义在
+% 这里对终稿无害：终稿那边一处也不调，条件本身也不成立。
 %    \begin{macrocode}
 \hit@define@choice@option{campus}{}{shenzhen,weihai,harbin}{}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{2026/08/13}{加 \option{cover-script}，决定封面上那两处美术字
-%   排字体还是贴图}
-% \option{cover-script} 管封面上那两处美术字：本科报告封面底下的
-% 「哈尔滨工业大学教务处制」（隶书）与威海本科封面的「毕业设计（论文）」（华文新魏）。
-% \texttt{auto}（默认）有字体就排字体、没有就贴事先转好的 PDF，\texttt{font} 与
-% \texttt{image} 各自钉死。两条路排出来逐像素一致，见 \file{src/engine/hit-fonts.dtx}。
-%    \begin{macrocode}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{2026/09/13}{报告独有的两个具名条件与 \cs{hit@stage@name}
-%   从报告模块搬进来}
-% 两个具名条件与「这份材料叫什么」那个宏原先只有报告模块有。定义在这里对终稿
-% 无害：终稿那边一处也不调，条件本身也不成立。
-%    \begin{macrocode}
 \hit@define@condition{not@shenzhen}{ ! \g__hit_shenzhen_bool }
 \hit@define@condition{shenzhen@doctor@interim}
   { \g__hit_shenzhen_bool && \g__hit_doctor_bool && \g__hit_interim_bool }
@@ -249,9 +212,13 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/13}{\option{toc} 键从报告模块搬进来，两档共用}
-% \option{toc} 把「排不排目录」转给 \option{struct} 族。终稿那边原先没有这个键，
-% 写了会掉进 \texttt{unknown} 转给 \pkg{ctex}，那边不认识，再报一条。
+% \option{toc} 把「排不排目录」转给 \option{struct} 族，终稿也认，不然会掉进
+% \texttt{unknown} 转给 \pkg{ctex} 再报一条。
+%
+% \option{cover-script} 管封面上那两处美术字：本科报告封面底下的
+% 「哈尔滨工业大学教务处制」（隶书）与深圳本科报告首页的校名与文种（华文新魏）。
+% \texttt{auto}（默认）有字体就排字体、没有就贴事先转好的 PDF，\texttt{font} 与
+% \texttt{image} 各自钉死。两条路排出来逐像素一致，见 \file{src/engine/hit-fonts.dtx}。
 %    \begin{macrocode}
 \keys_define:nn { hit / class }
   {
@@ -274,9 +241,6 @@
 \exp_args:NnnV \hit@define@choice@option {lang} {} \c__hit_lang_clist {}
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/21}{补 \option{language} 的兼容路径。改名那次它被漏了，
-%   同期改名的 \option{type}、\option{font}、\option{cjk-font}、
-%   \option{newgeometry} 都有，只有它没有}
 % \emph{\option{language} 的兼容要转发值，不能只提示。} 旧名对照表
 % \cs{g\_\_hit\_renamed\_load\_option\_prop} 只发一句「已改名」，那对
 % \option{type} 够用——\texttt{type=doctor} 的取值在 \option{degree-level} 下
@@ -307,31 +271,20 @@
 \bool_if:NF \g__hit_en_bool { \bool_gset_true:N \g__hit_zh_bool }
 %    \end{macrocode}
 %
-% 设置版芯，由于窝工版芯歧义。
 % \changes{v2.0.0}{2018/06/14}{此处添加geometry选项}
-% \changes{v3.2a}{2026/08/14}{\option{newgeometry} 改名 \option{layout}，
-%   旧名走废弃期}
-% \changes{v3.2a}{2026/08/14}{\option{newgeometry} 改成 \option{v2-layout}，
-%   本科与硕博分开，\texttt{no} 取值删除，标志位跟着改名}
 % 版面按新规范排是默认，旧版面靠 \option{v2-layout} 显式要回来。它必须写在
 % \cs{documentclass} 的可选参数里：版心决定整份文档怎么分页，\pkg{geometry} 要在
 % 基础类前后就定下来，挪进 \cs{hitsetup} 太晚。
 % \begin{latex}
-% \documentclass[v2-layout={bachelor=true}]{hit-thesis}
-% \documentclass[v2-layout={graduate=two}]{hit-thesis}
+% \documentclass[v2-layout={bachelor=true}]{hithesis}
+% \documentclass[v2-layout={graduate=two}]{hithesis}
 % \end{latex}
 %
-% 本科与硕博分成两个键。原先 \option{newgeometry} 的 \texttt{one}/\texttt{two} 管的
-% 只是硕博那一套，本科另有自己的旧版面（深圳本科可能还要用一阵），所以
-% \option{bachelor} 是个真假开关，\option{graduate} 才收 \texttt{one}/\texttt{two}。
-% 博士后不在 \option{graduate} 里：它有自己一套参数，直接上新版面，不留旧的。
-%
-% \texttt{no} 那个取值删掉了，对应的版心分支一并删。它是 PlutoThesis 时代留下的，
-% 与现行规范差得太远。
-%
-% 标志位跟着改成 \cs{g\_\_hit\_old\_layout\_bachelor\_bool} 与
-% \cs{g\_\_hit\_old\_layout\_graduate\_one\_bool}、\cs{\ldots\_two\_bool}：名字要跟
-% 当下的标准对得上，不能留着上一版的叫法。
+% 本科与硕博分成两个键：\texttt{one}/\texttt{two} 管的只是硕博那一套，本科另有自己的
+% 旧版面（深圳本科可能还要用一阵），所以 \option{bachelor} 是个真假开关，
+% \option{graduate} 才收 \texttt{one}/\texttt{two}。博士后不在 \option{graduate} 里：
+% 它有自己一套参数，直接上新版面，不留旧的。\option{newgeometry} 的 \texttt{no}
+% 取值没有对应物，那是 PlutoThesis 时代留下的版心，与现行规范差得太远。
 %    \begin{macrocode}
 \hit@define@boolean@option@as{v2-layout-bachelor}{layout_two_bachelor}{false}
 \hit@define@choice@option{v2-layout-graduate}{layout_two_graduate_}{one,two}{}
@@ -383,9 +336,6 @@
 \hit@define@choice@option{citetwo}{citetwo_}{comma,endash}{endash}
 %    \end{macrocode}
 %
-%
-% \changes{v3.2a}{2026/08/12}{\option{arialtitle} 改名 \option{style}/\option{heading-latin-sans}。
-%   旧名留在兼容期，标志位按新名叫}
 % 章节标题里的西文是否用无衬线体（默认关闭）。
 % 目录那个开关在共享层，旧名 \option{arialtoc} 与另外两个目录旧名一起处理。
 %    \begin{macrocode}
@@ -415,33 +365,12 @@
       } ,
     raggedbottom .default:n = { true } ,
   }
-%    \end{macrocode}
-%
-%
-% 字体间距设置（默认关闭）。
-%    \begin{macrocode}
 \hit@define@boolean@option{glue}{false}
-%    \end{macrocode}
-%
-%
-% 章标题是否悬挂居中（默认开启）
-%    \begin{macrocode}
 \hit@define@boolean@option{chapterhang}{true}
-%    \end{macrocode}
-%
-% 是否是全日制学生（默认是）。
-%    \begin{macrocode}
 \hit@define@boolean@option{fulltime}{true}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{2026/08/12}{增加选项：英文内封标题是否根据长度自动调整字号}
-% 英文内封标题是否根据长度自动调整字号（默认关闭，即使用二号字）。
-%    \begin{macrocode}
 \hit@define@boolean@option{etitleauto}{false}
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/12}{\option{subtitle} 从布尔改成三态，默认 \texttt{auto}：
-%   \option{title} 里写了方括号就排副标题，不必再单独打开开关}
 % 要不要排副标题。默认 \texttt{auto}，即 \option{title} 的取值里带了 \oarg{副标题}
 % 就排。写死 \texttt{true} 或 \texttt{false} 可以强制。
 %    \begin{macrocode}
@@ -449,10 +378,6 @@
 \keys_define:nn { hit / class }
   { subtitle .code:n = { \__hit_tristate_set:Nn \g__hit_subtitle_tl {#1} } ,
     subtitle .default:n = { true } , }
-%    \end{macrocode}
-%
-% 是否开启debug模式（默认否）。如果开启，载入显示行号等的包，只为开发调试用。
-%    \begin{macrocode}
 \hit@define@boolean@option{debug}{false}
 \hit@define@boolean@option{print}{false}
 %    \end{macrocode}
@@ -468,9 +393,6 @@
 %    \begin{macrocode}
 \hit@define@boolean@option{library}{false}
 %    \end{macrocode}
-%
-% \changes{v3.2a}{2026/08/25}{右开页收成「一个三态总闸 + 四个跳页点 + 一张按
-%   学位的默认表」，六处内联判断与两处特判都改走 \cs{hit@openright:n}}
 %
 % \subsection{右开页}
 %
@@ -557,13 +479,6 @@
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{哈尔滨本科要求 \cmd{\frontmatter} 中的页脚也要有横线，希望以后会统一。\issue[172]}
-% \changes{v3.2a}{2026/08/12}{修正 \option{bsfrontpagenumberline} 的条件默认值。
-%   原来把嵌套条件写在选项声明处，而那里在 \cs{ProcessKeyOptions} 之前执行，
-%   此时 campus 与 type 尚未解析、\option{harbin} 与 \option{bachelor} 被兜底逻辑置真，
-%   条件恒取第一支，任何组合下默认值都是 true。改为统一声明 false，选项解析完成
-%   后再按校区与学位补默认值，并记录用户是否显式设置过以免覆盖}
-% \changes{v3.2a}{2026/08/12}{条件默认值改由三态取值承载，不再需要
-%   记录用户是否显式设过}
 % 这个选项的默认值随校区与学位而变，交给三态取值处理：\texttt{auto}
 % 时按哈尔滨本科为真解析，用户写了具体值就用具体值。
 %    \begin{macrocode}
@@ -573,15 +488,8 @@
 %
 % 数学字体是否使用新罗马
 % \changes{v2.0.05}{2018/12/05}{添加数学字体开关}
-% \changes{v3.2a}{2026/08/12}{数学引擎换成 \pkg{unicode-math}，\option{newtxmath}
-%   降级为 \option{math-font} 的一档，默认值改为假}
 %    \begin{macrocode}
 \hit@define@boolean@option{newtxmath}{false}
-%    \end{macrocode}
-%
-% \changes{v3.2a}{2026/08/12}{新增 \option{math-font} 与 \option{math-style} 选项}
-% 数学字体与数学排版风格。
-%    \begin{macrocode}
 \hit@define@string@option@as{fontset-math}{mathfont}
 \keys_define:nn { hit / class }
   { math-font .tl_gset:c = { hit@mathfont } , }
@@ -590,7 +498,6 @@
 %
 % 此处应广大刀客要求添加一参考文献分割开关
 % \changes{v2.0.03}{2018/10/08}{添加参考文献分割开关}
-% \changes{v3.2a}{2026/08/16}{默认改成 \texttt{true}：一条文献允许跨页断开}
 % \option{bib}/\option{split-entry} 决定一条参考文献能不能跨页断开。默认 \texttt{true}，
 % 也就是允许断：关着的时候一条长文献宁可整条推到下一页，页底就留一大块白。
 % 各学位各校区一个值，不分家。
@@ -602,14 +509,9 @@
 % \changes{v3.0.11}{2020/10/29}{此处添加英文目录开关}
 %    \begin{macrocode}
 \hit@define@boolean@option{engtoc}{false}
-%    \end{macrocode}
-%
-% 声明字体选项。
-%    \begin{macrocode}
 \hit@define@string@option{fontset}
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/12}{西文字体独立成 \option{font} 选项}
 % 西文字体。原来一律用 TeX Gyre Termes（Times 的克隆），但学校要求的是
 % Times New Roman，Windows 与 macOS 上本来就有。\option{auto} 按 \option{fontset}
 % 决定：\texttt{windows}、\texttt{mac} 用 Times New Roman，其余用 TeX Gyre Termes。
@@ -617,7 +519,6 @@
 \hit@define@string@option@as{fontset-en}{font@en}
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/12}{中文字体独立成 \option{cjk-font} 选项}
 % 中文字体。不写就照旧把 \option{fontset} 转给 \pkg{ctexbook}，由 \pkg{ctex} 设置；
 % 写了就由模板自己设，\pkg{ctexbook} 收到的是 \texttt{fontset=none}。这样默认行为
 % 一点没变，想换字体来源的人才走新路。
@@ -626,8 +527,6 @@
 \tl_gset:cn { hit@font@zh } { auto }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/15}{加 \option{windows-font-dir}，供
-%   \option{fontset-zh}\texttt{!=windows-local} 按路径找中易字体}
 % 中易字体所在的目录，给「字体文件在、但系统没登记」的场合用。默认当前目录，
 % 也就是把 \file{Simsun.ttc} 之类拷在文稿旁边即可。
 %    \begin{macrocode}
@@ -635,13 +534,6 @@
 \tl_gset:cn { hit@windows@font@dir } { . }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/12}{\option{font} 与 \option{cjk-font} 改名
-%   \option{font-en} 与 \option{font-zh}，与模板其余选项的中英后缀一致。旧名仍
-%   生效，只在日志里提示}
-% \changes{v3.2a}{2026/08/15}{三个字体选项再改名 \option{fontset-en}、
-%   \option{fontset-zh}、\option{fontset-math}。它们收的是「哪一套」的名字
-%   （\texttt{windows}、\texttt{fandol}、\texttt{termes}），不是字体名，
-%   与顶层 \option{fontset} 同一个词根才看得出是一组。前两轮的名字都还认}
 % 三个分项与顶层 \option{fontset} 是默认值链：分项不写就是 \texttt{auto}，
 % \texttt{auto} 去查 \option{fontset}，查不到按平台猜。写了具体值就以分项为准。
 % 与 \option{format} 族的 \option{font-zh}/\option{font-en} 不是一回事——
@@ -654,10 +546,6 @@
     font-en    .tl_gset:c = { hit@font@en } ,
     font-zh    .tl_gset:c = { hit@font@zh } ,
   }
-%    \end{macrocode}
-%
-% 将其余选项默认传递给 \pkg{ctexbook}。
-%    \begin{macrocode}
 \keys_define:nn { hit / class }
   {
     unknown .code:n = { \hit@pass@or@warn { ctexbook } {#1} } ,
@@ -666,8 +554,6 @@
 %
 % 解析转发到模块的选项。
 %
-% \changes{v3.2a}{2026/08/12}{\option{tocfour} 改名 \option{toc}/\option{depth}，
-%   取整数；\option{tocblank} 废弃，目录里第一章前一律不插空行}
 % \option{tocfour} 只有开关两档，说的其实是目录排到第几级。新名
 % \option{toc}~=~\{~\option{depth}~=~\texttt{4}~\} 直接写级数，
 % 规范里用得到的是 \texttt{3} 与 \texttt{4}。旧名照旧生效，
@@ -708,9 +594,6 @@
 \ProcessKeyOptions [~hit~/~class~]
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/12}{\option{stage} 的两个取值改名 \texttt{proposal} 与
-%   \texttt{interim}，v3.1e 的 \texttt{opening} 与 \texttt{midterm} 走废弃期}
-% \changes{v3.2a}{2026/09/13}{\option{stage} 的归一化从报告模块搬进来，两档共用}
 % 旧取值一并声明进选择项，解析完再归一化成新取值。子键的写法不行：
 % \cs{hit@define@choice@option} 生成的是一个整体的 \texttt{stage~.code:n}，
 % 它自己查取值表，\texttt{stage/opening} 这样的子键根本不会被查到。
@@ -737,10 +620,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/11}{\option{degree-level}\texttt{!=postdoc} 定死
-%   \option{stage}\texttt{!=final}。博士后只有研究报告一种交付物，没有开题与中期，
-%   原先写了别的 \option{stage} 会一路炸到丢掉 \cs{begin\{document\}}，共 7 个错误}
-% \changes{v3.2a}{2026/09/13}{这一条与下面的兜底从撤销的派发类搬进来}
 % \emph{\option{degree-level}\texttt{!=postdoc} 定死 \option{stage}\texttt{!=final}。}
 % 博士后不写开题与中期，这两个选项存在一个不可能的组合。显式写了别的
 % \option{stage} 时在日志里说一句，不写就静默。
@@ -780,15 +659,12 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/13}{「排不排章」改由 \option{stage} 推出来}
 % \cs{g\_\_hit\_chapter\_bool} 跟着 \option{stage} 走：终稿排章，开题与中期不排。
 %    \begin{macrocode}
 \bool_if:NT \g__hit_final_bool
   { \bool_gset_true:N \g__hit_chapter_bool }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/13}{\option{toc}\texttt{/english} 在报告那两档报一句提示，
-%   这一条从 \file{hit-keylist.dtx} 挪到这里}
 % 报告没有英文目录，\option{toc}\texttt{!=\{english!=...\}} 写了发一句提示。
 % 这一句要排在 \option{stage} 定下来之后，所以不能留在 \file{hit-keylist.dtx}——
 % 那个模块比选项模块早一位，那时 \cs{g\_\_hit\_final\_bool} 还没造出来。
@@ -801,7 +677,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/13}{五个只有终稿用得上的键族在报告那两档换成一句提示}
 % \emph{终稿专有的那几个键族，报告这一档发一句提示。} 两份键表合成一份之后，
 % \cs{hitsetup} 顶层的 \option{cover}、\option{titlepage}、\option{math}、
 % \option{defense}、\option{abbr} 五个键族在报告里也认了，可它们背后的排版
@@ -821,8 +696,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/13}{\option{category} 的别名 \texttt{hss} 折成正名
-%   \texttt{hass}}
 % 别名折成正名。得排在 \cs{ProcessKeyOptions} 之后：声明处那一刻取值还没解析，
 % 标志位全是假的。与 \option{stage} 那两个旧取值同一套办法，见
 % 上面 \cs{\_\_hit\_stage\_migrate:nn} 那一段。这里不发
@@ -836,10 +709,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/12}{深圳校区本科现在直接指向本部本科模板，旧深圳本科模板代码暂时保留}
-% \changes{v3.2a}{2026/08/12}{选项后处理（shenzhen重定向、type校验、PassOptions、fontset/zijv/geometrynew 默认）从 bookcls 移入 book-options，cls 只保留 LoadClass}
-% \changes{v3.2a}{2026/09/13}{重定向收窄到终稿：深圳校区自己发了本科的开题与中期
-%   两份表单，报告那两档不能再翻成本部}
 % \emph{深圳校区本科的\emph{终稿}按本部排。} 学校没有单独的深圳本科毕业论文模板，
 % 所以这一档翻成哈尔滨，旧深圳本科模板代码暂时保留。
 %
@@ -860,8 +729,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/13}{加「正文照终稿排」这一档：深圳本科的开题与中期
-%   只有首页是表单，正文与终稿同构}
 % \emph{深圳本科那两份报告的\emph{正文}照终稿排。} 学校发的两份原件里，首页是
 % 表单，正文那一节的页面设置与终稿一字不差：版心、行距、跳页、页码、图表编号
 % 都是论文那一套，只有首页、页眉、页脚是表单自己的。这一条照 iota-hit 的
@@ -901,7 +768,6 @@
 % 用户至少要提供一个选项，指定学位。
 % \changes{v3.0.0}{2020/05/20}{此处添加博后选项}
 %
-% \changes{v3.2a}{2026/09/13}{两份模块的学位校验合成一处，按 \option{stage} 分岔}
 % \emph{终稿这一档触发不到。} 选项解析之前有一段兜底，在 \option{master}、
 % \option{doctor}、\option{postdoc} 都未置位时把 \option{bachelor} 置真，
 % 而那段兜底在 \cs{ProcessKeyOptions} 之前执行，所以到这里
@@ -952,7 +818,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/13}{深圳博士中期那两处后处理从报告模块搬进来}
 % 深圳博士中期不自动排目录，页底也不留活动余量（用户显式写过就不动）。
 %    \begin{macrocode}
 \bool_if:NF \g__hit_final_bool
@@ -993,14 +858,11 @@
 %    \end{macrocode}
 %
 % \changes{v1.0.02}{2017/08/27}{添加了思源字体说明}
-% \changes{v3.2a}{2026/08/12}{去掉模板自带的 siyuan fontset}
 % 设置字体。宋体没有粗体，而标题要求粗宋，于是面临 \CTeX\ 那个经典的伪粗体 bug：
 % 「首次出现伪粗体字体之后的正常字体无法复制」。自带粗宋的字体不必走伪粗体，
 % 模板早年为此提供过一个 \texttt{siyuan} fontset，现在 \pkg{ctex} 的
 % \texttt{ubuntu} 用的 Noto CJK 就是同一套思源，这一档已经去掉。
 %
-% \changes{v3.2a}{2026/08/12}{类内部不再用 \cs{ifthenelse}，\pkg{ifthen} 只为
-%   兼容旧文档而保留}
 % \pkg{ifthen} 模板自己已经不用了（三处 \cs{ifthenelse} 换成了 \cs{hit@if@same@TF}），
 % 留着是怕旧论文里直接写了 \cs{ifthenelse} 而没自己加载。
 %    \begin{macrocode}
@@ -1013,7 +875,6 @@
   {
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/23}{伪粗体系数由 2 改 2.85，按 Word 实测}
 % 2.85 的来历与量法记在 \file{src/engine/hit-fonts.dtx} 的
 % \cs{c\_\_hit\_font\_fakebold\_tl} 那一段。这里不能引那个常量：选项在类
 % 选项处理期就要传给 \pkg{xeCJK}，那时字体模块还没载入。
@@ -1035,10 +896,6 @@
 %    \end{macrocode}
 %
 % \changes{v3.0.13}{2020/11/10}{重新设置geometry的默认选项}
-% \changes{v3.2a}{2026/08/14}{加 \cs{g\_\_hit\_new\_layout\_bool}，一处算出这份文档
-%   走新版面还是旧版面}
-% \changes{v3.2a}{2026/08/14}{硕博也走新版面，与本科同一套。\option{v2-layout} 的
-%   \option{graduate} 不写就是新版面，不再兜底成 \texttt{two}}
 % 走哪套版面在这里定死一次，后面读标志位就行。本科与硕博都走新版面，同一套取值，
 % 见 \file{src/config/hit-layout.dtx}。博士后还留在旧版面上：那一档另有一套参数，
 % 还没量。
@@ -1083,22 +940,13 @@
 \__hit_layout_bottom_apply:
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/12}{\option{style/glue} 决定的伸缩量抽成
-%   \cs{hit@glue@skip} 与 \cs{hit@glue@font@size}，原地重复了二十多次的
-%   \cs{ifhit@glue} 判断收敛到这两个函数里}
 % 读标志位的那族判断函数（\cs{hit@if@option@TF} 等）定义在
 % \file{src/engine/hit-option-engine.dtx}，各个类共用。按校区、学位组合出来的判断由
 % \cs{hit@define@condition} 生成，一条一行。名字摊开写，读条件本身就知道判的是什么。
 %
-% \changes{v3.2a}{2026/08/28}{删掉 \cs{hit@if@harbin@master@or@doctor} 与
-%   \cs{hit@if@harbin@master@or@doctor@or@shenzhen@master}，它们挑的是取值，
-%   已经搬进词条表}
 % 现在只剩 \cs{hit@if@show@degree@type}，决定要不要在封面上标出学生类别；它是
 % \option{degree-type} 那个三态选项的 \texttt{auto} 分支，用户写显式值就盖过去。
-% 原先另有两条按校区学位挑内封文字的，那是取值不是结构，已经搬进词条表。
 %
-% \changes{v3.2a}{2026/08/16}{删掉 \cs{hit@if@shenzhen@master@or@harbin@bachelor}，
-%   没有一处调用，而本科统一之后它连条件本身也不成立了}
 % 参数从 expl3 之外传进来，里面的空格照原样保留。注意原写法里 \cs{fi} 之后的
 % 空格会被记号化跳过，换成以 \texttt{\}} 结尾之后那个空格就成了真的空格，
 % 所以替换时要把它一起吃掉。
@@ -1107,7 +955,6 @@
 % 两个函数都可展开，所以能直接写在 \cs{ctexset} 的取值里。
 
 %
-% \changes{v3.2a}{2026/08/12}{加 \cs{hit@if@same@TF}，替掉三处 \cs{ifthenelse}}
 % \cs{hit@if@same@TF}\marg{甲}\marg{乙}\marg{真}\marg{假} 比两段文字是否相同。不能用
 % \cs{str\_if\_eq:eeTF}，那是完全展开后比较，遇上 \cs{hspace} 这类不可展开的命令
 % 会留下悬空的 \cs{fi}；被比的正是章标题，\cs{cabstractcname} 在非本科档就是

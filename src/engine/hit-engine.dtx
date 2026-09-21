@@ -6,10 +6,14 @@
 %
 % \section{引擎层}
 %
-% \changes{v3.2a}{2026/08/16}{新增引擎层，模板从只能 \hologo{XeLaTeX} 改成
-%   \hologo{XeLaTeX} 与 \hologo{LuaLaTeX} 都能编}
-% 模板原先只能用 \texttt{xelatex} 编。中文排版的活儿其实是 \pkg{ctex} 干的，
-% 而 \pkg{ctex} 两个引擎都支持：\hologo{XeLaTeX} 底下它调 \pkg{xeCJK}，
+% \changes{v3.2a}{2026/09/20}{新增引擎层，模板 \hologo{XeLaTeX} 与 \hologo{LuaLaTeX} 都能编，
+%   报错文案里推荐引擎 \texttt{lualatex} 排在前面；\cs{CJKglue} 的直接改写、
+%   \cs{hit@engine@cjk@char:n}、\cs{hit@engine@latin@chars:n} 收进这里；
+%   \cs{hit@engine@parend@guard:}（\pkg{luatexja} 在段末标点与撑杆之间插可断的边界胶，
+%   末行排满时断出一个只有撑杆的空行）；东八区的今天（\cs{c\_sys\_year\_int} 跟编译机器
+%   时区走，国外编译封面日期差一天）；下划线按 Word 画：线心在基线下 0.135\,em、粗 0.05\,em}
+%
+% 中文排版的活儿是 \pkg{ctex} 干的，而 \pkg{ctex} 两个引擎都支持：\hologo{XeLaTeX} 底下它调 \pkg{xeCJK}，
 % \hologo{LuaLaTeX} 底下调 \pkg{luatexja}。挡在门口的是模板自己直接用的那几个
 % \pkg{xeCJK} 专属接口——它们在 \pkg{luatexja} 底下没有同名的东西。
 %
@@ -18,8 +22,7 @@
 %
 % \textbf{排在装配表第三位。} 要早于 \file{hit-fonts.dtx}（第五位，字体族里要用
 % 字符归类）、\file{hit-footnote.dtx}（字形探测）、\file{hit-spread.dtx}（定宽拉伸）
-% 与 \file{hit-format.dtx}（字距），也要早于 \file{hit-options.dtx}
-% 里原先那道引擎守卫——守卫本身挪进来了。
+% 与 \file{hit-format.dtx}（字距）。
 %
 %    \begin{macrocode}
 %<*shared-engine>
@@ -27,15 +30,9 @@
 %
 % \subsection{引擎守卫}
 %
-% \changes{v3.2a}{2026/08/16}{引擎守卫从两个 \file{*-options.dtx} 挪进引擎层，
-%   放行条件从「只能 xetex」改成「xetex 或 luatex」}
-% 守卫从选项模块（今天是 \file{src/engine/hit-options.dtx}，当时是按类分的两份）
-% 的最前面挪到这里。它是先决条件，本文件又比选项模块更早，位置比原先更靠前，
-% 含义不变。
-%
+% 引擎是先决条件，不对就不必再往下走，所以守卫在装配表里排得比选项模块还早。
 % \hologo{pdfTeX} 与 \texttt{latex} 仍旧挡在门外：那两个引擎不认 OpenType，中文得走
 % \pkg{CJK} 那一套，与本模板的字体子系统是两条路。
-% \changes{v3.2a}{2026/09/20}{报错文案里 \texttt{lualatex} 排在前面：它是推荐引擎}
 %    \begin{macrocode}
 \bool_lazy_or:nnF
   { \sys_if_engine_xetex_p: }
@@ -73,7 +70,6 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/14}{加 \cs{hit@engine@latin@chars:n}，把码位归成西文}
 % \cs{hit@engine@latin@chars:n}\marg{码位列表} 反过来：把列出的码位交回西文，
 % 让它们从西文字体取字形。破折号要用它，见 \file{src/engine/hit-fonts.dtx}。
 %
@@ -108,7 +104,6 @@
 % 排版时插进去的东西；\pkg{luatexja} 做成两个参数 \texttt{kanjiskip} 与
 % \texttt{xkanjiskip}，走 \cs{ltjsetparameter}。名字不同，管的是同一件事。
 %
-% \changes{v3.2a}{2026/08/16}{\cs{CJKglue} 的四处直接改写收进引擎层}
 % 取值先过一趟 \texttt{skip} 寄存器，是为了让两条路吃同一种写法：调用方按
 % \hologo{LaTeX} 的胶写法给 \texttt{12pt~\cs{@plus}~0.08\cs{baselineskip}}，
 % \pkg{xeCJK} 那边原样贴进 \cs{hskip}，\pkg{luatexja} 那边由寄存器吃掉再交出去。
@@ -140,10 +135,7 @@
   }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/08/16}{\cs{hit@engine@cjkglue@zero:} 只归零汉字间那段，
-%   中西文那段单给一个名字}
-% 有几处只想按住汉字之间那一段，中西文之间的照旧。原先 \cs{CJKglue} 单独归零就是
-% 这个意思，所以再给一个只管汉字间的。
+% 有几处只想按住汉字之间那一段，中西文之间的照旧，所以再给一个只管汉字间的。
 %    \begin{macrocode}
 \sys_if_engine_luatex:TF
   {
@@ -158,8 +150,6 @@
 %
 % \subsection{按汉字排一个字符}
 %
-% \changes{v3.2a}{2026/08/29}{加 \cs{hit@engine@cjk@char:n}，把单个字符按汉字
-%   排、取中文字体}
 % \cs{hit@engine@cjk@char:n}\marg{字符} 把一个字符按汉字排：中文字体、汉字类。
 % 给占位叉「××××」这类用——\texttt{×}（U+00D7）平时归半角标点类，字形取西文
 % 字体是对的（英文正文里的乘号就该是 Times 的），可范例分类号那四个叉印的是
@@ -191,9 +181,6 @@
 %
 % \subsection{今天（东八区）}
 %
-% \changes{v3.2a}{2026/08/29}{加东八区的今天。\cs{c\_sys\_year\_int} 一族跟编译
-%   机器的本地时区走，同一份稿子在国外编译封面日期会差一天，而「今天」在学位
-%   论文里指的是学校所在地的今天}
 % \cs{g\_\_hit\_engine\_today\_year\_int}、\cs{\ldots month\ldots}、
 % \cs{\ldots day\ldots} 是东八区的今天。\pkg{expl3} 的 \cs{c\_sys\_year\_int}
 % 一族是编译机器的本地时间，不带时区；引擎各有一条拿得到时区的路：
@@ -213,8 +200,7 @@
 % 三个解析函数全成了残废，东八区悄悄退回本地日期）。所以取
 % \texttt{os.date("!*t")} 的表字段，一个 \texttt{\%} 都不用。
 %
-% 两条路都不通（\cs{creationdate} 不在或者串认不出）就退回本地时间，
-% 与从前一样。
+% 两条路都不通（\cs{creationdate} 不在或者串认不出）就退回本地时间。
 %    \begin{macrocode}
 \int_new:N \g__hit_engine_today_year_int
 \int_new:N \g__hit_engine_today_month_int
@@ -347,9 +333,8 @@
   }
 %    \end{macrocode}
 %
-% 算一次就定死。放在定义之后——先前写在定义前面，加载时
-% Undefined control sequence 被 nonstopmode 咽掉，东八区悄悄退回本地日期，
-% 是探针测试抓出来的。
+% 算一次就定死。必须放在定义之后：写在前面时加载期的 Undefined control sequence
+% 被 nonstopmode 咽掉，东八区悄悄退回本地日期，只有探针测试抓得出。
 %    \begin{macrocode}
 \sys_if_engine_luatex:TF
   {
@@ -475,9 +460,6 @@
 %
 % \subsection{段末撑杆前的断点封条}
 %
-% \changes{v3.2a}{2026/08/16}{加 \cs{hit@engine@parend@guard:}。\pkg{luatexja} 在
-%   段末标点与撑杆之间插可断的边界胶，末行排满时 TeX 在那儿断出一个只有撑杆的
-%   空行；\hologo{XeLaTeX} 下无此断点，也就无此空行}
 % \cs{hit@engine@parend@guard:} 排在 \texttt{para/end} 钩子里、段末撑杆
 % \cs{hit@format@strut:} 之前，把撑杆焊在段落最后一个字上。\hologo{XeLaTeX} 下
 % 是空操作——那边本来就是焊死的。
@@ -565,8 +547,6 @@
   { \cs_new_protected:Npn \hit@engine@postload: { } }
 %    \end{macrocode}
 %
-% \changes{v3.2a}{2026/09/05}{下划线按 Word 画：线心在基线下 0.135\,em、
-%   粗 0.05\,em，\pkg{ulem} 与 \pkg{xeCJKfntef} 两边一起设}
 % \textbf{三、下划线的位置与粗细按 Word。}Word 是一个 run 一条线，线心在
 % 基线下 0.135\,em、粗 0.05\,em，纯汉字、纯西文、数字、混排四种 run 一个数。
 % 自己造 docx 在 macOS Word 上量的（中易宋体 + Times，12/24/48\,pt 三档；
@@ -575,7 +555,7 @@
 % 与 iota-hit 的实测同数。粗体西文 run 在 Word 里线粗一倍（0.10\,em），
 % 这一档不另设。
 %
-% 先前 \pkg{ulem} 按字体的 (j 深度自动取，\pkg{xeCJKfntef} 默认 0.20\,em，
+% 不设的话 \pkg{ulem} 按字体的 (j 深度自动取，\pkg{xeCJKfntef} 默认 0.20\,em，
 % 两边都在基线下 0.235\,em 上下、粗 0.4\,pt（12\,pt 上 0.033\,em），比 Word
 % 低了近一倍、细了三成。
 %
@@ -596,10 +576,8 @@
   { \xeCJKsetup { underline = { depth = 0.11em , thickness = 0.05em } } }
 %    \end{macrocode}
 %
-% 伪粗体不再分引擎。这一层原先按引擎给 \texttt{AutoFakeBold} 挑
-% \texttt{true} 或数字（\pkg{luaotfload} 的 \texttt{embolden} 不吃布尔值），
-% 后来系数按 Word 实测定成 2.85（见 \file{src/engine/hit-fonts.dtx}），数字
-% 两个引擎都吃，分派没了存在的理由。
+% 伪粗体不分引擎：系数是按 Word 实测定的数字（见 \file{src/engine/hit-fonts.dtx}），
+% 数字两个引擎都吃（\pkg{luaotfload} 的 \texttt{embolden} 只是不吃布尔值）。
 %
 %    \begin{macrocode}
 %</shared-engine>
