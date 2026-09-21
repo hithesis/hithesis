@@ -305,57 +305,58 @@
 % \label{sec:engine}
 % 模板认 \texttt{xelatex} 与 \texttt{lualatex} 两个引擎，\texttt{pdflatex} 与
 % \texttt{latex} 不行——那两个不认 OpenType 字体，排不出本模板要的中文。写错引擎
-% 会在第一时间报 \texttt{Please use: xelatex or lualatex}，不必等一屏字体错误。
+% 会在第一时间报 \texttt{Please use: lualatex (or xelatex)}，不必等一屏字体错误。
 %
-% \textbf{默认用 \texttt{xelatex}。} 模板的版面参数是按 \hologo{XeLaTeX} 逐点核过
-% 的，排版基线也建在它上面。\hologo{LuaLaTeX} 能编、排出来是对的，但两者中文排版
-% 走的不是同一套底层（\hologo{XeLaTeX} 是 \pkg{xeCJK}，\hologo{LuaLaTeX} 是
-% \pkg{luatexja}），中文标点的宽度、汉字盒子的高深有细微出入，同一份稿子两个引擎
-% 排出来不会逐页相同。要交的稿子中途别换引擎。
+% \changes{v3.2a}{2026/09/20}{推荐引擎改成 \hologo{LuaLaTeX}：断行与行高照 Word 的那一套
+%   只有它有，示例的魔法注释、\file{Makefile}、\file{latexmkrc} 一并改过去}
+% \textbf{用 \texttt{lualatex}。} 2026 年 9 月起模板的断行与行高照 Word 排：每一行
+% 按 Word 的贪心算法首次适配、装不下就压标点，行盒的高深按行里实际的字体逐行算。
+% 这两件事都在 Lua 里做（\file{src/engine/hit-linebreak.dtx}），只有 \hologo{LuaLaTeX}
+% 有这条路，与 Word 逐行逐页的对拍也都是拿它跑的。示例的魔法注释、\file{Makefile}
+% 与 \file{latexmkrc} 默认都是它。
 %
-% \hologo{LuaLaTeX} 下有两处功能上的出入，都在 \file{src/engine/hit-engine.dtx} 里
-% 写了原委：
+% \hologo{XeLaTeX} 仍能编，但退化成 \hologo{TeX} 自己的断行加 \pkg{xeCJK} 的标点
+% 处理，行高按段落样式那副字撑杆、不逐行看内容，与 Word 逐行相同就谈不上了；
+% 另有两处功能上的出入，在 \file{src/engine/hit-engine.dtx} 里写了原委：
 % \begin{itemize}
-%   \item \cs{CJKunderanyline} 与 \cs{CJKunderanysymbol} 没有，那边顶替
-%     \pkg{xeCJKfntef} 的是 \pkg{ulem}，它没有对得上的东西。其余
+%   \item \hologo{LuaLaTeX} 下 \cs{CJKunderanyline} 与 \cs{CJKunderanysymbol} 没有，
+%     那边顶替 \pkg{xeCJKfntef} 的是 \pkg{ulem}，它没有对得上的东西。其余
 %     \cs{CJKunderline}、\cs{CJKunderdblline}、\cs{CJKunderwave}、\cs{CJKsout}、
-%     \cs{CJKxout}、\cs{CJKunderdot} 都在，但整段加下划线时断行位置与
-%     \hologo{XeLaTeX} 会有出入。
+%     \cs{CJKxout}、\cs{CJKunderdot} 都在。
 %   \item \cs{quan} 画圈时（字体没有现成的带圈数字才会画）圈里的数字取自西文字体，
-%     比 \hologo{XeLaTeX} 细一点。常见的几档中文字体都自带
+%     两个引擎粗细不同。常见的几档中文字体都自带
 %     \texttt{①}--\texttt{⑳}，多数文档走不到这一支。
 % \end{itemize}
+% 要交的稿子中途别换引擎。下面几小节的命令要用 \hologo{XeLaTeX} 时把
+% \texttt{lualatex} 换成 \texttt{xelatex}，\texttt{latexmk} 那条换成 \texttt{-xelatex}。
 %
-% 下面几小节的命令把 \texttt{xelatex} 换成 \texttt{lualatex} 即可，
-% \texttt{latexmk} 那条换成 \texttt{-lualatex}。
-%
-% \subsection{\hologo{XeLaTeX}}
-% \label{sec:xelatex}
+% \subsection{\hologo{LuaLaTeX}}
+% \label{sec:lualatex}
 % 很多用户对 \hologo{LaTeX}\ 命令执行的次数不太清楚。一个基本的原则是多次运行 \hologo{LaTeX}\ 命
 % 令直至不再出现警告。下面给出生成示例文档的详细过程（\texttt{\#} 开头的行为注
-% 释），首先来看推荐的 \texttt{xelatex} 方式：
+% 释），首先来看逐条命令的 \texttt{lualatex} 方式：
 % \begin{shell}
 % # 1. 发现里面的引用关系，文件后缀 .tex 可以省略
-% $ xelatex thesis
+% $ lualatex thesis
 %
 % # 2. 编译参考文件源文件，生成 bbl 文件
 % $ bibtex thesis
 %
 % # 3. 下面解决引用
-% $ xelatex thesis
-% $ xelatex thesis   # 如果不需要生成索引此时生成完整的 pdf 文件
+% $ lualatex thesis
+% $ lualatex thesis   # 如果不需要生成索引此时生成完整的 pdf 文件
 % $ splitindex thesis -- -s hithesis.ist  # 自动生成索引
-% $ xelatex final.tex
+% $ lualatex final.tex
 % \end{shell}
 %
 % \subsection{latexmk}
 % \label{sec:latexmk}
 % \texttt{latexmk} 命令支持全自动生成 \hologo{LaTeX}\ 编写的文档，并且支持使用不同的工具
 % 链来进行生成，它会自动运行多次工具直到交叉引用都被解决。下面给出了一个用
-% \texttt{latexmk} 调用 \texttt{xelatex} 生成最终文档的示例：
+% \texttt{latexmk} 调用 \texttt{lualatex} 生成最终文档的示例：
 % \begin{shell}
 % # 一句话就够了！
-% $ latexmk -xelatex thesis
+% $ latexmk -lualatex thesis
 % \end{shell}
 %
 % \subsection{make}
@@ -384,8 +385,8 @@
 % $ make thesis    # hitbook 示例生成 thesis.pdf；hitart 示例对应目标为 make report
 % \end{shell}
 %
-% \hithesis\ 的 \file{Makefile} 默认用 \texttt{latexmk} 调用\texttt{xelatex} 编
-% 译，此外还支持直接用 \texttt{xelatex} 编译。如有需要可修
+% \hithesis\ 的 \file{Makefile} 默认用 \texttt{latexmk} 调用\texttt{lualatex} 编
+% 译，此外还支持直接用 \texttt{lualatex} 或 \texttt{xelatex} 编译。如有需要可修
 % 改 \file{Makefile} 开头的参数或通过命令行传递参数（请参看 \file{README.md}），
 % 进一步还可以修改 \file{latexmkrc} 进行定制。
 %

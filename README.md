@@ -277,7 +277,7 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
 使用Docker可以使本地安装不再受平台限制、随时部署，不再受bug、字体、环境变量困扰。诸位上仙、大侠、刀客、头领可以任性地、随意地、抽象地、写实地设置别名，最终完成羽化、飞升。
 
-    alias xelatex='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest xelatex'
+    alias lualatex='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest lualatex'
     alias splitindex='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest splitindex'
     alias bibtex='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest bibtex'
     alias latexmk='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest latexmk'
@@ -316,32 +316,33 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
            ├── chinese     %一校三区本硕博毕业论文以及博后出站报告
            └── english     %一校三区本硕博英文版毕业论文
 
-3. 生成论文方式
+3. 生成论文方式。引擎用 lualatex：断行与行高照 Word 排的那一套只有它有，
+   xelatex 仍能编，但断行是 TeX 自己的。
 
    - 手动狙击（源文件更改后每次编译逐行命令输入一轮）
 
      - hitbook/chinese 文件夹中
 
-           xelatex -shell-escape final.tex
+           lualatex -shell-escape final.tex
            bibtex thesis
-           xelatex -shell-escape final.tex
-           xelatex -shell-escape final.tex
+           lualatex -shell-escape final.tex
+           lualatex -shell-escape final.tex
            splitindex thesis -- -s hithesis.ist  # 自动生成索引
-           xelatex -shell-escape final.tex
+           lualatex -shell-escape final.tex
 
      - hitbook/english 文件夹中
 
-           xelatex -shell-escape final.tex
+           lualatex -shell-escape final.tex
            bibtex thesis
-           xelatex -shell-escape final.tex
-           xelatex -shell-escape final.tex
+           lualatex -shell-escape final.tex
+           lualatex -shell-escape final.tex
 
      - hitart/{reports,reportplus}文件夹中
 
-           xelatex -shell-escape report.tex
+           lualatex -shell-escape report.tex
            bibtex report
-           xelatex -shell-escape report.tex
-           xelatex -shell-escape report.tex
+           lualatex -shell-escape report.tex
+           lualatex -shell-escape report.tex
 
    - 半自动精确射击（源文件更改后每次编译敲一次）
 
@@ -355,11 +356,11 @@ tlmgr install $(grep -v '^#' .github/tl_packages)
 
    - 手动狙击（逐行命令输入一轮）
 
-         xelatex src/hithesis.dtx
-         makeindex -s gind.ist -o hithesis.ind hithesis.idx
+         lualatex src/hithesis.dtx
+         upmendex -s gind.ist -o hithesis.ind hithesis.idx
          makeindex -s gglo.ist -o hithesis.gls hithesis.glo
-         xelatex src/hithesis.dtx
-         xelatex src/hithesis.dtx
+         lualatex src/hithesis.dtx
+         lualatex src/hithesis.dtx
 
    - 半自动精确射击（编译敲一次）
 

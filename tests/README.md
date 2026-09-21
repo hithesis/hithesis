@@ -32,7 +32,7 @@ BIBSTYLE=gbt7714-2025-numeric           # 可选，替换掉整棵树里的 \bib
 ```
 
 `tools/compile-variant.sh` 把 `BASE` 整个复制到 `tests/work/<变体名>/`，改写主文件第一行的
-`\documentclass`，再用 `latexmk -xelatex` 编译。输出一律叫 `main.pdf`：文件名会进 PDF
+`\documentclass`，再用 `latexmk -xelatex` 编译（变体矩阵与逐字节基线仍按 xelatex 跑，lualatex 另有冒烟）。输出一律叫 `main.pdf`：文件名会进 PDF
 （同内容的 `a.tex` 与 `b.tex` 编出来第 2261 字节起就不同），入口一改名逐字节比对
 就全是假差异。
 
