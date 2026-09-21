@@ -435,3 +435,4 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2026-06-25 | n*a      |  WeChat         |
 | 2026-06-26 | **碹      | Alipay          |
 | 2026-07-19  | *店       | WeChat         |
+| 2026-09-18 | heavensaboveall | WeChat   |
