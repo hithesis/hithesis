@@ -1,0 +1,45 @@
+% 字号命令的可选参数 [n] 按新旧版面分语义：新版面是 Word 的多倍行距（n × 1.296875 × 字号），
+% 旧版面是 n × 字号。不写参数两个版面都是 1.3 倍字号。类自己的调用点走 \hit@fontsize@x，
+% 永远是 n × 字号。
+%
+% 这里只能开一个文档，所以新版面用文档本身，旧版面的路径拿 \g__hit_layout_two_bool
+% 临时翻过去（判版面的条件读的就是它）。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=doctor,campus=harbin]{hithesis}
+\makeatletter
+\ExplSyntaxOn
+\cs_new_protected:Npn \fontsizeshow #1#2
+  { \group_begin: #1 \iow_term:x { #2 ~ 字号=\f@size ~ 行距=\f@baselineskip } \group_end: }
+\cs_new_protected:Npn \oldlayout #1
+  {
+    \group_begin:
+    \bool_gset_true:N \g__hit_layout_two_bool
+    #1
+    \bool_gset_false:N \g__hit_layout_two_bool
+    \group_end:
+  }
+\ExplSyntaxOff
+\makeatother
+\begin{document}
+\START
+\makeatletter
+\TEST{新版面：[n] 是 Word 的 n 倍行距}{
+  \fontsizeshow{\xiaosi}{不写参数}
+  \fontsizeshow{\xiaosi[1]}{单倍}
+  \fontsizeshow{\xiaosi[1.25]}{1.25 倍}
+  \fontsizeshow{\sihao[2]}{四号两倍}
+}
+\TEST{旧版面：[n] 是 n 倍字号}{
+  \oldlayout{\fontsizeshow{\xiaosi}{不写参数}}
+  \oldlayout{\fontsizeshow{\xiaosi[1]}{单倍}}
+  \oldlayout{\fontsizeshow{\xiaosi[1.25]}{1.25 倍}}
+  \oldlayout{\fontsizeshow{\sihao[2]}{四号两倍}}
+}
+\TEST{类内部的调用点：\hit@fontsize@x 与版面无关}{
+  \fontsizeshow{\hit@fontsize@x{sihao}{2}}{新版面 四号两倍}
+  \oldlayout{\fontsizeshow{\hit@fontsize@x{sihao}{2}}{旧版面 四号两倍}}
+  \fontsizeshow{\hit@fontsize@x{xiaowu}{0}}{小五零行距}
+}
+\makeatother
+\END
+\end{document}

@@ -11,7 +11,9 @@
 %   页脚、表格里的段。键照对话框原词，每键收 \texttt{auto}（交给模板）；
 %   \option{line-spacing} 与 \option{line-white}、\option{space-*} 与 \option{white-*}
 %   各存同一槽，一个词刚性、两个词区间，\texttt{25bp!!} 固定值、\texttt{10bp+} 最小值；
-%   \option{snap-to-grid} 分纵横两轴；\option{char-spacing}、\option{latin-line}、
+%   \option{snap-to-grid} 分纵横两轴，两轴的 \texttt{auto} 都沿所在位置往上找
+%   （\cs{c\_\_hit\_format\_parent\_prop}：表题嵌在正文、子图题嵌在图题、内封字段嵌在
+%   内封），根上没写就不贴；\option{char-spacing}、\option{latin-line}、
 %   \option{latin-bold}、\option{hyphenation}。\option{style} 族至此清空删掉}
 % \changes{v3.2a}{2026/08/16}{取值按版心底两档分档存：写进 \option{目标/if-raggedbottom}
 %   与 \option{目标/if-flushbottom} 的各一份，不分档的一份，读时先看当前档；
@@ -716,11 +718,22 @@
 % 写成布尔或 \texttt{auto} 是两轴的简写，两轴一起设；要分开设就写子块。
 % 两种写法都收，因为绝大多数场合两轴同进同退，为了少数场合逼所有人写子块不划算。
 %
-% \emph{横轴的 \texttt{auto} 是“跟着正文走”。} 纵轴的 \texttt{auto} 求值成假，
-% 与写 \texttt{false} 同义；横轴不一样，它取 \option{body} 那一档的横轴取值。
-% 没写 \option{char-spacing} 时这一档一个字也不发 \cs{CJKglue}，靠继承拿到
-% 正文的字距，结果一样；写了 \option{char-spacing} 就得发，发的时候网格那一截
-% 照样按正文的来，只是再加上本档的字距增减。
+% \emph{两轴的 \texttt{auto} 都是“跟着所在的位置走”。} 一个元素贴不贴格，
+% Word 里看的是它所在那一段的对话框，而段落是嵌在版面里的：表题嵌在正文里、
+% 子图题嵌在图题里、内封的各个字段嵌在内封里。所以每个目标有一个上级
+% （\cs{c\_\_hit\_format\_parent\_prop}），\texttt{auto} 就沿着上级往上找，找到
+% 第一个明写了 \texttt{true}／\texttt{false} 的为准；正文、内封、封面、报告封面
+% 四个根上也没写时按不贴算，网格是要明说才贴的东西。今天整份学位论文没有一处
+% 贴纵向网格，所以这条现在只是把“全局为假”换成了“沿位置继承出来的假”；
+% 以后哪一页开了网格，那一页上的题注、表格、空段自然跟着，不必逐个再写。
+% 之前纵轴的 \texttt{auto} 一律求值成假、横轴一律取正文，是临时写法。
+% 用户写的 \texttt{auto} 仍先退回默认表（见 \cs{\_\_hit\_format\_put:nn}），默认表
+% 明写了 \texttt{true}／\texttt{false} 就以它为准；只有默认表也没写的轴才往上找。
+% 所以“跟着位置走”是默认表的写法：哪一档该跟上级，默认表就别给它写死。
+%
+% 横轴的 \option{char-spacing} 另有一层：没写它时这一档一个字也不发
+% \cs{CJKglue}，靠继承拿到上级的字距，结果一样；写了就得发，发的时候网格那一截
+% 照样按上级的来，只是再加上本档的字距增减。
 %
 % 靠“不发”来实现“跟着走”不行：一旦 \option{char-spacing} 逼着发，网格那一截
 % 按假算就等于悄悄关掉了网格，章标题（\texttt{char-spacing = -0.4bp}）的字距
@@ -1234,6 +1247,43 @@
     \bool_set:Nn \l__hit_format_latin_line_bool
       { \str_if_eq_p:Vn \l__hit_format_latin_tl { true } }
   }
+\prop_const_from_keyval:Nn \c__hit_format_parent_prop
+  {
+    chapter = body , section = body , subsection = body , subsubsection = body ,
+    caption-figure = body , caption-table = body ,
+    caption-sub = caption-figure , caption-note = caption-figure ,
+    table-cell = body , abstract-heading = body , abstract-en = body ,
+    toc-chapter = body , toc-section = toc-chapter ,
+    toc-subsection = toc-section , toc-subsubsection = toc-subsection ,
+    header = body , footer = body ,
+    statement-heading = body , authorization-heading = body ,
+    titlepage-label = titlepage-mark , titlepage-title = titlepage-mark ,
+    titlepage-field = titlepage-mark , titlepage-en-mark = titlepage-mark ,
+    titlepage-en-degree = titlepage-en-mark , titlepage-en-title = titlepage-en-mark ,
+    titlepage-en-field = titlepage-en-mark ,
+    cover-type = cover-label , cover-title = cover-label ,
+    cover-subtitle = cover-title , cover-title-en = cover-title ,
+    cover-author = cover-label , cover-institution = cover-label ,
+    cover-date = cover-label ,
+    report-cover-blank = report-cover-form ,
+    report-cover-university = report-cover-form ,
+    report-cover-university-en = report-cover-university ,
+    report-cover-stage = report-cover-form ,
+    report-cover-stage-en = report-cover-stage ,
+    report-cover-field = report-cover-form , report-cover-title = report-cover-form ,
+    report-cover-blank-mid = report-cover-form ,
+  }
+\tl_new:N \l__hit_format_parent_tl
+\cs_new_protected:Npn \__hit_format_snap_axis:nnN #1#2#3
+  {
+    \__hit_format_get:nnNF {#1} {#2} #3
+      {
+        \prop_get:NnNTF \c__hit_format_parent_prop {#1} \l__hit_format_parent_tl
+          { \__hit_format_snap_axis:VnN \l__hit_format_parent_tl {#2} #3 }
+          { \tl_set:Nn #3 { false } }
+      }
+  }
+\cs_generate_variant:Nn \__hit_format_snap_axis:nnN { VnN }
 \cs_new_protected:Npn \hit@format@compute:n #1
   {
     \__hit_format_read:nnnN {#1} { size } { } \l__hit_format_value_tl
@@ -1256,7 +1306,7 @@
         \c__hit_format_ascent_tl }
     \dim_set:Nn \l_hit_format_natural_dim
       { \l__hit_format_coef_tl \l_hit_format_size_dim }
-    \__hit_format_read:nnnN {#1} { snap-to-grid-vertical } { false }
+    \__hit_format_snap_axis:nnN {#1} { snap-to-grid-vertical }
       \l__hit_format_value_tl
     \bool_set:Nn \l_hit_format_snap_vertical_bool
       {
@@ -1264,15 +1314,11 @@
         && \bool_if_p:N \g__hit_layout_grid_bool
         && ! \dim_compare_p:nNn { \g_hit_msword_lead_dim } = { 0pt }
       }
-    \__hit_format_read:nnnN {#1} { snap-to-grid-horizontal } { auto }
+    \__hit_format_get:nnNTF {#1} { snap-to-grid-horizontal } \l__hit_format_value_tl
+      { \bool_set_true:N \l_hit_format_hglue_set_bool }
+      { \bool_set_false:N \l_hit_format_hglue_set_bool }
+    \__hit_format_snap_axis:nnN {#1} { snap-to-grid-horizontal }
       \l__hit_format_value_tl
-    \bool_set:Nn \l_hit_format_hglue_set_bool
-      { ! \str_if_eq_p:Vn \l__hit_format_value_tl { auto } }
-    \str_if_eq:VnT \l__hit_format_value_tl { auto }
-      {
-        \__hit_format_read:nnnN { body } { snap-to-grid-horizontal } { false }
-          \l__hit_format_value_tl
-      }
     \bool_set:Nn \l_hit_format_snap_horizontal_bool
       {
         \str_if_eq_p:Vn \l__hit_format_value_tl { true }
