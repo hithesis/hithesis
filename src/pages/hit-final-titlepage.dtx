@@ -50,7 +50,7 @@
  }~
 %    \end{macrocode}
 %
-% 两张表的第一列宽度不同（上表标签撑到 7 个字，下表是八个字的「研究工作起始时间」），
+% 两张表的第一列宽度不同（上表标签撑到 7 个字，下表是八个字的“研究工作起始时间”），
 % 各自按自然宽度居中就会错开。所以两张都装进同宽的 \cs{makebox} 里左对齐，
 % 左边缘落在同一处。
 %    \begin{macrocode}
@@ -105,7 +105,7 @@
 %         所以行距是 $1.5 \times 19.75 = 29.625$，不是 $1.5 \times$ 自然行高
 % \end{itemize}
 %
-% 范例那一页第一行是「密级：公开」，我们这一版第一行还带毕业论文与毕业设计的
+% 范例那一页第一行是“密级：公开”，我们这一版第一行还带毕业论文与毕业设计的
 % 勾选框，两份模板不同版，所以绝对基线不对拍，对的是相对间距。
 %    \begin{macrocode}
 \tl_const:Nn \c__hit_titlepage_layout_tl { line-pitch = 19.75bp , }
@@ -244,38 +244,85 @@
 % 一行的高是两格里高的那个，单行 22、折两行 36，范例里 Speciality 到 Affiliation
 % 正是 36.0。这里取值排进一个顶对齐的 \cs{parbox}，行距钉 18\,bp，行数从
 % \cs{prevgraf} 读，多出 22 的那一截在这一行后面补上。
+%
+% \emph{折行的那一格才收紧到 18。} 范例里单行的取值格与标签格同是固定值 22
+% （\texttt{w:line="440"}），只有折成两行的 Speciality 那一格写 18
+% （\texttt{w:line="360"}）：22 的两行是 44，那一行就比别人高出一截，收到 18
+% 正好 36。所以这里先按 18 排一遍数行数，一行的改用标签那一格的固定值重排。
+%
+% \emph{两格的首行基线不一定在一条线上。} 固定值行距下基线落在格顶下方 0.8 倍
+% 盒高（\cs{c\_\_hit\_format\_exact\_tl}），标签格 22 算下来 17.6，取值格 18
+% 算下来 14.4，所以折行那一格的首行比标签高 3.2；单行的两格同值，也就同基线。
+% \cs{parbox}\oarg{t} 是把首行基线对到当前基线上，差的正是这一段，装盒之后
+% 抬一抬。范例里 Speciality 那一行取值 584.9、标签 587.9，正是这 3.0。
+% 抬完把盒的高深都清零：这一行多高由标签那一格的撑杆定，折行多出来的那一截
+% 在下面另补，盒子自己再参与一次行高的话每一行都会往下掉 3.2，逐行累加。
 %    \begin{macrocode}
+\dim_const:Nn \c__hit_titlepage_en_value_lead_dim { 18bp }
+\dim_new:N \g__hit_titlepage_label_lead_dim
+\dim_new:N \g__hit_titlepage_lead_dim
+\dim_new:N \l__hit_titlepage_lead_dim
 \int_new:N \g__hit_titlepage_value_lines_int
 \box_new:N \l__hit_titlepage_value_box
+\cs_new_protected:Npn \__hit_titlepage_en_value_box:n #1
+  {
+    \hbox_set:Nn \l__hit_titlepage_value_box
+      {
+        \parbox [t] { \c__hit_titlepage_en_value_dim - 10.8bp }
+          {
+            \dim_set_eq:NN \baselineskip \l__hit_titlepage_lead_dim
+            \dim_set:Nn \lineskiplimit { -\maxdimen }
+            \skip_zero:N \lineskip
+            \skip_zero:N \parskip
+            \raggedright
+            #1 \par
+            \int_gset:Nn \g__hit_titlepage_value_lines_int { \prevgraf }
+          }
+      }
+  }
 \cs_new_protected:Npn \hit@titlepage@en@field:nn #1#2
   {
     \tl_if_empty:eF {#2}
       {
         \hit@format@par:nn { titlepage-en-field }
           {
+            \dim_gset_eq:NN \g__hit_titlepage_label_lead_dim \l_hit_format_lead_dim
             \hbox_to_wd:nn { \c__hit_titlepage_en_label_dim }
               { \bfseries #1 \hit@term@titlepage@title@separator@en \hfil }
+            \dim_set_eq:NN \l__hit_titlepage_lead_dim
+              \c__hit_titlepage_en_value_lead_dim
+            \__hit_titlepage_en_value_box:n {#2}
+            \int_compare:nNnT { \g__hit_titlepage_value_lines_int } < { 2 }
+              {
+                \dim_set_eq:NN \l__hit_titlepage_lead_dim \l_hit_format_lead_dim
+                \__hit_titlepage_en_value_box:n {#2}
+              }
             \hbox_set:Nn \l__hit_titlepage_value_box
               {
-                \parbox [t] { \c__hit_titlepage_en_value_dim - 10.8bp }
+                \box_move_up:nn
                   {
-                    \dim_set:Nn \baselineskip { 18bp }
-                    \dim_set:Nn \lineskiplimit { -\maxdimen }
-                    \skip_zero:N \lineskip
-                    \skip_zero:N \parskip
-                    \raggedright
-                    #2 \par
-                    \int_gset:Nn \g__hit_titlepage_value_lines_int { \prevgraf }
+                    \l_hit_format_first_dim
+                    - \c__hit_format_exact_tl \l__hit_titlepage_lead_dim
                   }
+                  { \box_use:N \l__hit_titlepage_value_box }
               }
-            % 折出来的行都在盒子的深度里，把深度清零，这一行照旧走固定值 22 的
-            % 行距，多出的高在下面补
+            \box_set_ht:Nn \l__hit_titlepage_value_box { 0pt }
             \box_set_dp:Nn \l__hit_titlepage_value_box { 0pt }
             \hbox_to_wd:nn { \c__hit_titlepage_en_value_dim }
               { \box_use:N \l__hit_titlepage_value_box \hfil }
+            \dim_gset_eq:NN \g__hit_titlepage_lead_dim \l__hit_titlepage_lead_dim
           }
-        \dim_compare:nNnT { 18bp * \g__hit_titlepage_value_lines_int } > { 22bp }
-          { \par \vspace* { 18bp * \g__hit_titlepage_value_lines_int - 22bp } }
+        \dim_compare:nNnT
+          { \g__hit_titlepage_lead_dim * \g__hit_titlepage_value_lines_int }
+          > { \g__hit_titlepage_label_lead_dim }
+          {
+            \par
+            \vspace*
+              {
+                \g__hit_titlepage_lead_dim * \g__hit_titlepage_value_lines_int
+                  - \g__hit_titlepage_label_lead_dim
+              }
+          }
       }
   }
 %    \end{macrocode}
@@ -472,11 +519,11 @@
               \hit@term@titlepage@brace@right@en
             }
         }
-      \hitenter*[lines=1,size=xiaosi,font-en=serif,line-spacing=1]
+      \hitenter*[lines=1,size=xiaosi,font-zh=songti,line-spacing=1]
       \hitenter*[lines=1,size=xiaosi,font-zh=songti,line-spacing=1]
       \hitenter*[lines=1,size=xiaoer,font-en=serif,line-spacing=39.5bp!]
       \hit@titlepage@en@title:
-      \hitenter*[lines=1,size=xiaosi,font-en=serif,line-spacing=1]
+      \hitenter*[lines=1,size=xiaosi,font-zh=songti,line-spacing=1]
       \hitenter*[lines=1,size=xiaosi,font-zh=songti,line-spacing=1]
       \hitenter*[lines=2,size=erhao,font-en=serif,line-spacing=39.5bp!]
       \hit@titlepage@en@fields:

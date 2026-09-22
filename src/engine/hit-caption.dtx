@@ -9,11 +9,11 @@
 % \changes{v3.2a}{2026/09/14}{双语题注抽出来共用：英文题注是 \cs{caption} 的尾随可选参数，
 %   \cs{bicaption} 降为兼容写法；短标题接到 \pkg{ccaption} 的第二个参数（原先被当成
 %   \cs{label}），题注后补 \cs{@currentlabel}；\option{format/bilingual-caption}
-%   默认按学位只有博士开（规范「硕士学位论文只用中文，博士学位论文用中、英两种文字」）；
+%   默认按学位只有博士开（规范“硕士学位论文只用中文，博士学位论文用中、英两种文字”）；
 %   浮动体的四个间距统一交给 \cs{captionsetup}，\option{style}/\option{float-sep} 可改；
 %   加 \cs{figurenote}；题注的字号行距从 \option{format} 表取}
 %
-% 中英文对照的题注不换命令，用户不必记住「这张图要不要双语」再挑命令：
+% 中英文对照的题注不换命令，用户不必记住“这张图要不要双语”再挑命令：
 % \begin{latex}
 % \caption{中文题}
 % \caption{中文题}[English caption]
@@ -50,7 +50,7 @@
 % \string\intextsep} 里那个空格在 \pkg{expl3} 下会被吞，补丁就对不上（CONTRIBUTING §4.7）。
 %
 % 放在 \cs{AtBeginDocument} 里。\cs{AtEndOfClass} 那个时机太早：\cs{@addtocurcol}
-% 那时还不是最终那一版，三个补丁全都找不到目标（实测报「没打上」），到
+% 那时还不是最终那一版，三个补丁全都找不到目标（实测报“没打上”），到
 % \cs{begin\{document\}} 时 \cs{ifpatchable} 才为真。长度也一样，晚设才不会被覆盖。
 %    \begin{macrocode}
 \ExplSyntaxOff
@@ -115,7 +115,7 @@
 % 默认按学位：博士与博士后开，本科硕士关——硕士写了尾随的英文题也不排，规范
 % 说硕士只用中文。博士后没有自己的图表条款，出站报告照博士的规矩排，v3.1e
 % 以来也一直是双语。报告没有博士后这一档，那边只查博士，标志位不存在就当假。
-% 全员开（「写了就出、不写就不出」）等于把合规交给用户自己删英文题；按学位给
+% 全员开（“写了就出、不写就不出”）等于把合规交给用户自己删英文题；按学位给
 % 默认之后合规是默认态，确要双语的硕士写 \option{bilingual-caption}\texttt{=true}
 % 一键盖掉。三态里的 \texttt{auto} 就是按学位查表，与 \option{openright} 同一个路数。
 %    \begin{macrocode}
@@ -153,14 +153,29 @@
 % 接错了的后果是同一个 \cs{caption}\oarg{短标题} 两条路径含义不同：单语时进插图索引，
 % 双语时变成一个标签，索引里排的还是完整题注。
 %
-% \pkg{ccaption} 之所以提供「可选参数当标签」这条路，是因为 \cs{bicaption} 把整段
+% \pkg{ccaption} 之所以提供“可选参数当标签”这条路，是因为 \cs{bicaption} 把整段
 % 包在 \cs{begingroup}\ldots\cs{endgroup} 里，\cs{caption} 设的 \cs{@currentlabel}
 % 是局部的，出了组就没了——写在后面的 \cs{label} 只能拿到章节号。所以排完之后
 % 按计数器重建一次 \cs{@currentlabel}，让 \cs{label} 与普通 \hologo{LaTeX} 一样写在
 % \cs{caption} 后面。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \emph{英文那一行按西文的行盒排。} 整行只有西文，Word 的行盒就按 Times 算
+% （单倍 1.15 倍字号），跟着题注目标写的宋体算会高出一截：五号 1.25 倍下
+% 两行的步进 15.2 变成 16.2。\pkg{ccaption} 在两条题注之间留了 \cs{midbicaption}
+% 这个钩子，在那里立 \cs{l\_hit\_format\_latin\_pick\_bool}，与目录里整条西文的
+% 条目同一个机关（\file{src/engine/hit-keylist.dtx} 的 \cs{hit@toc@latin@pick:n}）。
+% 标志位是局部的，\cs{bicaption} 自己套着一层组，出组即还。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@caption@latin@pick:
+  {
+    \bool_if_exist:NT \l_hit_format_latin_pick_bool
+      { \bool_set_true:N \l_hit_format_latin_pick_bool }
+  }
 \cs_new_protected:Npn \hit@bilingual@caption #1#2#3
   {
+    \midbicaption { \hit@caption@latin@pick: }
     \tl_if_novalue:nTF {#1}
       { \__hit_bicaption:w {} {#2} { \use:c { hit@term@caption@ \@captype @prefix@en } } {#3} }
       { \__hit_bicaption:w {#1} {#2} { \use:c { hit@term@caption@ \@captype @prefix@en } } {#3} }
@@ -222,7 +237,7 @@
       }
 %    \end{macrocode}
 %
-% \cs{bicaption} 的兼容层。三种写法靠「后面还跟不跟一个花括号组」区分：跟着的是
+% \cs{bicaption} 的兼容层。三种写法靠“后面还跟不跟一个花括号组”区分：跟着的是
 % \pkg{ccaption} 的五参数原形，抓走那一组照原形排；不跟就是本模板之前的三、四参数
 % 写法。探之前先跳空格，与 \cs{@ifnextchar} 的惯例一致——旧示例里那五个参数是连着
 % 写的，但用户可能换了行。题注后面正常不会紧跟花括号组。
@@ -280,7 +295,7 @@
 % \emph{为什么在共享层。} \file{src/engine/hit-table.dtx} 里给 \pkg{tabularray} 长表
 % 注册 \option{caption-en} 外参那一段是 \cs{cs\_if\_exist:NT} \cs{hit@caption@separator}
 % 守着的，报告里取不到这个宏，那个外参就没注册，照抄一张终稿的长表会报
-% 「Unknown~outer~key~name~'caption-en'」。五条本身没有一处与终稿绑定。
+% “Unknown~outer~key~name~'caption-en'”。五条本身没有一处与终稿绑定。
 %    \begin{macrocode}
 \cs_new:Npn \hit@caption@separator@fallback
   {
