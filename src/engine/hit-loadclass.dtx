@@ -7,8 +7,8 @@
 % \section{分水岭：\cs{LoadClass}}
 %
 % \changes{v3.2a}{2026/09/13}{两条装配线的 \cs{LoadClass} 合成一份，底类都是 \cls{ctexbook}：
-%   报告从基础类白拿的默认值显式写出来，编号宏与 \cs{appendix} 按有没有写 \cs{chapter}
-%   自适应，没写就与从前一字不差}
+%   报告从基础类白拿的默认值显式写出来，节号与 \cs{appendix} 照 \cls{article}；
+%   新版面下 \cs{paragraph}、\cs{subparagraph} 报错（规范只到款）}
 %
 % ^^A ======================================================================
 % ^^A Module shared-loadclass: \LoadClass{ctexbook} 与紧随其后的几条补偿
@@ -45,60 +45,58 @@
 %   本部各档吃的是类默认值。
 % \end{itemize}
 %
-% \emph{两个编号宏问的是「有没有章」，不是「哪个类」。}
-% \cs{int\_compare:nNnT}\{\cs{c@chapter}\}\texttt{>}\{0\} 这一句：没写过
-% \cs{chapter} 时章计数器停在零，编号就是光节号，与 \cls{ctexart} 下一字不差；
-% 写了 \cs{chapter} 就自动带上章号。这不是我们发明的写法——\cls{book} 自己的
-% \cs{thefigure}、\cs{thetable}、\cs{theequation} 就是
-% \cs{ifnum}\cs{c@chapter}\texttt{>}\cs{z@} \cs{thechapter}\texttt{.}\cs{fi}，
-% 只有 \cs{thesection} 没这么写，它无条件带章号。补上这一条之后，报告排不排章
-% 就成了作者写不写 \cs{chapter} 的事，不需要选项，也不需要模板提前知道。
+% \emph{报告里没有章。} 作者写的 \cs{chapter} 在报告里排成节（见
+% \file{src/flow/hit-report-heading.dtx} 的标题层级），章计数器始终停在零，所以
+% 节号就是光节号，与 \cls{ctexart} 下一字不差，锚名同理。
 %    \begin{macrocode}
 \bool_if:NF \g__hit_final_bool
   {
     \setcounter { secnumdepth } { 3 }
-    \cs_set:Npn \thesection
-      { \int_compare:nNnT { \c@chapter } > { 0 } { \thechapter . } \@arabic \c@section }
+    \cs_set:Npn \thesection { \@arabic \c@section }
     \AddToHook { begindocument }
-      {
-        \cs_set:Npn \theHsection
-          {
-            \int_compare:nNnT { \c@chapter } > { 0 } { \theHchapter . }
-            \arabic { section }
-          }
-      }
+      { \cs_set:Npn \theHsection { \arabic { section } } }
     \pagestyle { plain }
 %    \end{macrocode}
 %
-% \emph{\cs{appendix} 问的同样是「有没有章」。} \cls{article} 的 \cs{appendix}
+% \emph{\cs{appendix} 照 \cls{article} 的样子改节。} \cls{article} 的 \cs{appendix}
 % 置零节计数器、把 \cs{thesection} 改成 \cs{@Alph}\cs{c@section}；\cls{book} 那份
 % 置零的是章计数器，改的是 \cs{thechapter}，一个字都没碰 \cs{thesection}。
 % 换了底类又不管，报告里 \cs{appendix} 之后的节号会从 A 变回 1。
-%
-% 所以先看章计数器再决定走哪一边。判断要抢在调用底类那份\emph{之前}：
-% \cls{book} 的 \cs{appendix} 头一件事就是把章计数器置零，调完再问，问到的
-% 永远是零。
-%
-% \emph{编号的形状也跟着分。} \cs{CTEX@appendix@number} 是同一个宏，章那一支要
-% \cs{@Alph}\cs{c@chapter}（\cls{ctexbook} 的默认值），节那一支要
-% \cs{@Alph}\cs{c@section}，所以在分支里设，不在类加载时设死。
 %    \begin{macrocode}
-    \cs_new_eq:NN \__hit_appendix_chapter: \appendix
     \cs_gset_protected:Npn \appendix
       {
-        \int_compare:nNnTF { \c@chapter } > { 0 }
-          { \__hit_appendix_chapter: }
-          {
-            \ctexset { appendix / number = \@Alph \c@section }
-            \setcounter { section } { 0 }
-            \setcounter { subsection } { 0 }
-            \cs_gset:Npn \thesection { \@Alph \c@section }
-            \gdef \CTEX@presection { \CTEX@preappendix }
-            \gdef \CTEX@thesection { \CTEX@appendix@number }
-            \gdef \CTEX@postsection { \CTEX@postappendix }
-            \gdef \CTEX@section@numbering { \CTEX@appendix@numbering }
-          }
+        \ctexset { appendix / number = \@Alph \c@section }
+        \setcounter { section } { 0 }
+        \setcounter { subsection } { 0 }
+        \cs_gset:Npn \thesection { \@Alph \c@section }
+        \gdef \CTEX@presection { \CTEX@preappendix }
+        \gdef \CTEX@thesection { \CTEX@appendix@number }
+        \gdef \CTEX@postsection { \CTEX@postappendix }
+        \gdef \CTEX@section@numbering { \CTEX@appendix@numbering }
       }
+  }
+%    \end{macrocode}
+%
+% \subsection{款以下不许写}
+%
+% 规范的标题只到款（终稿的第四级、报告的第三级），再往下是项，写列表。
+% \cs{paragraph}、\cs{subparagraph} 在 \cls{ctexbook} 里有定义、默认不编号，照旧
+% 放行就是静默排出一个规范里没有的层级，所以新版面下一律报错。出错之后照原来的
+% 定义排，后面的内容照常编下去。旧版面照 v3.1e，不拦。
+%    \begin{macrocode}
+\cs_new_eq:NN \hit@paragraph@original \paragraph
+\cs_new_eq:NN \hit@subparagraph@original \subparagraph
+\cs_gset_protected:Npn \paragraph
+  {
+    \__hit_layout_msword_active:T
+      { \msg_error:nnn { hithesis } { heading-too-deep } { paragraph } }
+    \hit@paragraph@original
+  }
+\cs_gset_protected:Npn \subparagraph
+  {
+    \__hit_layout_msword_active:T
+      { \msg_error:nnn { hithesis } { heading-too-deep } { subparagraph } }
+    \hit@subparagraph@original
   }
 %    \end{macrocode}
 %
