@@ -28,6 +28,9 @@
 % \item 标题（Title）28\,bp、副标题（Subtitle）14\,bp，都用标题字体、居中，副标题灰
 %   \texttt{595959}；登记成 \texttt{title} 与 \texttt{subtitle} 两个目标，用
 %   \cs{docxlike\_format\_par:nn} 排。标题的字距 $-0.5$\,磅（\texttt{w:spacing}）眼下没有做。
+% \item 页眉、页脚两个样式：9\,bp，单倍行距，不贴网格，段后沿用正文的 8\,bp；
+%   页眉居中、页脚左对齐；制表位 4153 缇居中、8306 缇右对齐。没有下框线，这是新版
+%   \file{Normal.dotm} 的样子，旧版中文 Word 页眉底下那条线已经没有了。
 % \item 兼容模式 15。
 % \item \LaTeX{} 内置的颜色名换成 Word 调色板上的颜色，见后面的表。
 % \end{itemize}
@@ -35,8 +38,11 @@
 % 标题的层级对照 Word 的“标题 1”到“标题 4”：有 \cs{chapter} 的文档类从
 % \cs{chapter} 算起，没有的从 \cs{section} 算起。标题要经 \pkg{ctex} 的
 % \cs{ctexset} 发出去，\cls{article} 这类不带 \pkg{ctex} 的文档类只排正文，标题
-% 照文档类原样。页码、页眉页脚也不动：Word 的空白文档没有页码，\LaTeX{} 的文档类
-% 大多有，要去掉就写 \cs{pagestyle}\marg{empty}。
+% 照文档类原样。
+%
+% 页面样式换成 \texttt{docxlike}，\texttt{plain} 也指向它：Word 的空白文档没有页眉页脚，
+% 页码也就没有了，要页眉页脚用 \cs{docxlikeheader}、\cs{docxlikefooter} 写，页码写成
+% \verb|\docxlikefield{PAGE}|。标题自动插 \texttt{STYLEREF} 用的标记。
 %
 % 字体要 \hologo{LuaLaTeX} 或 \hologo{XeLaTeX}。系统里找不到等线就报一条警告，
 % 字体照文档类原样，版面照样按等线的行高算。“等线 Light”在 macOS 上只随 Word
@@ -70,7 +76,7 @@
   }
 %    \end{macrocode}
 %
-% \emph{页面。} 页眉那一段没有下框线，线宽与离字都写零。
+% \emph{页面。}
 %    \begin{macrocode}
 \cs_new_protected:Npn \__docxlike_preset_page:
   {
@@ -80,7 +86,6 @@
         margin-left = 90bp , margin-right = 90bp ,
         header = 42.55bp , footer = 49.6bp ,
         line-pitch = 15.6bp ,
-        header-rule-width = 0bp , header-rule-from-text = 0bp ,
       }
   }
 %    \end{macrocode}
@@ -134,6 +139,18 @@
             font-zh = dengxian , size = 14bp , line-spacing = 1.158333 ,
             space-after = 8bp , alignment = centered ,
             snap-to-grid = { vertical = true , horizontal = false } ,
+          } ,
+        header =
+          {
+            font-zh = dengxian , size = 9bp , line-spacing = 1 ,
+            space-after = 8bp , alignment = centered , snap-to-grid = false ,
+            tabs = { center ~ 207.65bp , right ~ 415.3bp } ,
+          } ,
+        footer =
+          {
+            font-zh = dengxian , size = 9bp , line-spacing = 1 ,
+            space-after = 8bp , alignment = left , snap-to-grid = false ,
+            tabs = { center ~ 207.65bp , right ~ 415.3bp } ,
           } ,
       }
     \clist_map_inline:nn { chapter , section , subsection }
@@ -307,6 +324,8 @@
     \docxlike_linebreak_rigid_ragged:
     \docxlike_format_apply_body:
     \docxlike_format_hglue:nn { 0pt } { 0.225 \g_docxlike_body_size_dim }
+    \cs_gset_eq:NN \ps@plain \ps@docxlike
+    \pagestyle { docxlike }
     \cs_if_exist:NT \ctexset
       {
         \cs_if_exist:NTF \chapter
@@ -327,6 +346,7 @@
     \__docxlike_preset_format:
     \__docxlike_preset_fonts:
     \__docxlike_preset_colors:
+    \bool_gset_true:N \g_docxlike_heading_marks_bool
     \hook_gput_code:nnn { begindocument } { docxlike } { \__docxlike_preset_apply: }
   }
 \ProcessKeyOptions [ docxlike / option ]

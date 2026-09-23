@@ -6,12 +6,9 @@
 %
 % \section{Word 页面设置的换算}
 %
-% \changes{v0.1.0}{2026/09/24}{版面直接设进 \hologo{LaTeX} 的页面参数，不再调用 \pkg{geometry}；
-%   设版面那一步与按页换版面的换入还原可以由文档类换掉}
-% \changes{v3.2a}{2026/09/15}{加 \cs{docxlike\_page\_setup:n}，按 Word 的页面设置算出版心、
-%   行距、首行位置与字距；页眉盒高由页眉行盒（按 \option{format}/\option{header} 算）、
-%   \option{header}/\option{rule}/\option{from-text} 与线宽算出，页眉页脚的
-%   \option{shown} 与 \option{shift} 照 Word 的对话框}
+% \changes{v0.1.0}{2026/09/24}{\cs{docxlike\_page\_setup:n} 按 Word 的页面设置算出版心、行距、
+%   首行位置与字距，直接设进 \hologo{LaTeX} 的页面参数，不调用 \pkg{geometry}；
+%   \cs{headheight} 默认零，文档类自己排页眉时由接入点给；设版面与按页换版面可以由文档类换掉}
 %
 % 格式规范里写的常是 Word 的话：“页边距上 3.8 厘米”“文档网格
 % 每页 33 行、间距 19.55 磅”。这些量与 \hologo{LaTeX} 的 \cs{textheight}、\cs{baselineskip}、
@@ -27,7 +24,6 @@
 %     header = 3cm , footer = 2.3cm ,
 %     lines-per-page = 33 , line-pitch = 19.55bp ,
 %     chars-per-line = 34 , char-pitch = 12.45bp ,
-%     size = 12bp , head = 5mm ,
 %   }
 % \end{latex}
 %
@@ -67,22 +63,16 @@
 % \emph{五、字距。} \cs{CJKglue} 是字距减字号。样本文档的 12.45\,bp 减小四 12\,bp 得
 % 0.45\,bp。每行字数与字距的互推关系同第二条。
 %
-% \emph{六、页眉页脚。} 页眉那个距离量到页眉块的顶，页脚那个量到页脚块的底。样本文档里
-% 页眉 3\,cm 而页眉基线在 9.04\,bp 之下，页脚 2.3\,cm 而页脚基线在 2.00\,bp 之上，两处
-% 都是小五。页眉块的底超过上边距时正文整体下移同样的量，这条在“页眉 4\,cm”那份
-% 对照文档上验过。
+% \emph{六、页眉页脚。} 页眉那个距离量到页眉块的顶，页脚那个量到页脚块的底，段前段后
+% 都算在块里。页眉块的底超过上边距时正文整体下移同样的量，页脚块的顶高过下边距时正文
+% 提前换页。页眉页脚里排什么、怎么排，在 \file{docxlike-headfoot.dtx}。
 %
 % \subsection{参数与产物}
 %
 % 尺寸类的键都收长度：\option{margin-top}、\option{margin-bottom}、\option{margin-left}、
-% \option{margin-right}、\option{header}、\option{footer}、\option{line-pitch}、\option{char-pitch}、
-% \option{size}。\option{lines-per-page} 与 \option{chars-per-line} 收整数。纸张默认 A4，
+% \option{margin-right}、\option{header}、\option{footer}、\option{line-pitch}、
+% \option{char-pitch}。\option{lines-per-page} 与 \option{chars-per-line} 收整数。纸张默认 A4，
 % 用 \option{paper-width}、\option{paper-height} 改。
-%
-% 另有两个键是把类自己的页眉页脚接到 Word 的位置上的：\option{head} 是 \cs{headheight}，
-% \option{foot-baseline} 是页脚基线高出页脚线的量。\option{head} 不给就取调用当时的
-% \cs{headheight}，不给等于零，那样会把类自己的页眉高度抹掉；\option{foot-baseline} 的
-% 默认值是零，也就是页脚基线正好落在页脚线上。
 %
 % \emph{七、一行只排整数个字，余量留在右边。} 字符网格是一排死格子，一行装得下
 % 几个字就是几个，装不满的余量原样留在右边不摊开。样本文档版心宽 425.18\,bp、字距
@@ -132,28 +122,8 @@
 \dim_new:N \l__docxlike_page_right_dim
 \dim_new:N \l__docxlike_page_header_dim
 \dim_new:N \l__docxlike_page_footer_dim
-\dim_new:N \l__docxlike_page_header_height_dim
-\dim_new:N \l__docxlike_page_rule_width_dim
-\dim_new:N \l__docxlike_page_rule_text_dim
-\dim_new:N \g_docxlike_page_rule_width_dim
-\dim_new:N \g_docxlike_page_rule_text_dim
-\dim_new:N \l__docxlike_page_foot_shift_dim
-\dim_new:N \l__docxlike_page_foot_shift_x_dim
-\dim_new:N \g_docxlike_page_foot_shift_x_dim
-\dim_new:N \l__docxlike_page_head_shift_dim
-\dim_new:N \l__docxlike_page_head_shift_x_dim
-\dim_new:N \g_docxlike_page_head_shift_dim
-\dim_new:N \g_docxlike_page_head_shift_x_dim
-\tl_new:N \l__docxlike_page_header_shown_tl
-\tl_new:N \l__docxlike_page_footer_shown_tl
-\tl_new:N \g_docxlike_page_header_shown_tl
-\tl_new:N \g_docxlike_page_footer_shown_tl
-\tl_gset:Nn \g_docxlike_page_header_shown_tl { auto }
-\tl_gset:Nn \g_docxlike_page_footer_shown_tl { auto }
-\dim_new:N \g_docxlike_header_text_ht_dim
-\dim_new:N \g_docxlike_header_text_dp_dim
-\dim_new:N \g_docxlike_header_latin_ht_dim
-\dim_new:N \g_docxlike_header_latin_dp_dim
+\dim_new:N \l_docxlike_page_head_height_dim
+\dim_new:N \l_docxlike_page_foot_skip_offset_dim
 \dim_new:N \l__docxlike_page_lead_dim
 \dim_new:N \l__docxlike_page_char_dim
 \dim_new:N \l__docxlike_page_text_width_dim
@@ -174,6 +144,8 @@
 \dim_new:N \g_docxlike_page_margin_right_dim
 \dim_new:N \g_docxlike_page_margin_top_dim
 \dim_new:N \g_docxlike_page_margin_bottom_dim
+\dim_new:N \g_docxlike_page_header_edge_dim
+\dim_new:N \g_docxlike_page_footer_edge_dim
 \dim_new:N \g_docxlike_page_head_height_dim
 \dim_new:N \g_docxlike_page_head_sep_dim
 \dim_new:N \g_docxlike_page_foot_skip_dim
@@ -194,12 +166,6 @@
     margin-right   .dim_set:N = \l__docxlike_page_right_dim ,
     header         .dim_set:N = \l__docxlike_page_header_dim ,
     footer         .dim_set:N = \l__docxlike_page_footer_dim ,
-    header-rule-width     .dim_set:N = \l__docxlike_page_rule_width_dim ,
-    header-rule-width     .initial:n = { 2.25bp } ,
-    header-rule-from-text .dim_set:N = \l__docxlike_page_rule_text_dim ,
-    header-rule-from-text .initial:n = { 1bp } ,
-    footer-shift-vertical .dim_set:N = \l__docxlike_page_foot_shift_dim ,
-    footer-shift-vertical .initial:n = { 0pt } ,
     line-pitch     .dim_set:N = \l__docxlike_page_lead_dim ,
     line-pitch     .initial:n = { 0pt } ,
     char-pitch     .dim_set:N = \l__docxlike_page_char_dim ,
@@ -208,67 +174,32 @@
     lines-per-page .initial:n = { 0 } ,
     chars-per-line .int_set:N = \l__docxlike_page_chars_int ,
     chars-per-line .initial:n = { 0 } ,
-    footer-shift-horizontal .dim_set:N = \l__docxlike_page_foot_shift_x_dim ,
-    footer-shift-horizontal .initial:n = { 0pt } ,
-    header-shift-vertical   .dim_set:N = \l__docxlike_page_head_shift_dim ,
-    header-shift-vertical   .initial:n = { 0pt } ,
-    header-shift-horizontal .dim_set:N = \l__docxlike_page_head_shift_x_dim ,
-    header-shift-horizontal .initial:n = { 0pt } ,
-    header-shown .tl_set:N = \l__docxlike_page_header_shown_tl ,
-    header-shown .initial:n = { auto } ,
-    footer-shown .tl_set:N = \l__docxlike_page_footer_shown_tl ,
-    footer-shown .initial:n = { auto } ,
   }
 %    \end{macrocode}
 %
-% \emph{页眉页脚的记录与 Word 对话框同形。} 每份一条：\option{from-edge}（页面设置里
-% “页眉／页脚距边界”）、\option{shown}（排不排，\texttt{auto} 按档，\texttt{true}/\texttt{false}
-% 照写）、\option{rule}（页眉段落的下边框，粗线宽与距文字）、\option{shift}（整块挪动，
-% 量出来的补偿，不折缇）；字体与段落对话框的内容在 \option{format}/\option{header} 与
-% \option{format}/\option{footer} 目标上（字体、字号、行距）。部件可以按名覆盖，与页边距同一条链。
+% \emph{文档类的接入点。} 本包自己的页眉页脚照 Word 的模型放（见
+% \file{docxlike-headfoot.dtx}），只要页眉距与页脚距，\cs{headheight} 取零、正文顶就在
+% 上边距处。文档类要在 \hologo{LaTeX} 的页眉槽里自己排页眉，就要自己的 \cs{headheight}
+% 与页脚基线的落点，这几件由文档类给：
+% \begin{itemize}
+% \item 往 \texttt{docxlike / page} 这一族里加键，与本包的键写在同一串里；
+% \item \cs{docxlike\_page\_set\_compute:n}\marg{代码}：算版面时执行，此时本族的键都已设好，
+%   \meta{代码}设 \cs{l\_docxlike\_page\_head\_height\_dim}（页眉槽高，默认零）与
+%   \cs{l\_docxlike\_page\_foot\_skip\_offset\_dim}（加到 \cs{footskip} 上，默认零），
+%   要跨组的值自己存进全局；
+% \item \cs{docxlike\_page\_set\_save:n} 与 \cs{docxlike\_page\_set\_restore:n}：按页换版面时
+%   在换入之前、还原之后执行，文档类在这里存取自己的那几个全局量。
+% \end{itemize}
 %    \begin{macrocode}
-%    \end{macrocode}
-%
-% \emph{页眉那一行的行盒按目标算。} Word 的页眉框顶钉在“页眉距边界”上，框里那一段
-% 的行盒由它自己的字体与行距定：行距 0（样本文档的页眉段是这么写的）就是自然行高，倍数
-% 就是倍数乘自然行高，基线在盒顶下一个上升部。\option{format}/\option{header} 目标给了
-% 取值就照它算，四个量存进全局长度供页眉盒用；目标空着就退回小五那一套。
-% 纯西文那一档同字号按 Times 的两个常数算。\cs{docxlike\_format\_compute:n} 在
-% \file{docxlike-format.dtx} 里，装在后面，这里只在跑到的时候调，所以不必先有。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__docxlike_page_header_line_xiaowu:
-  {
-    \dim_gset:Nn \g_docxlike_header_text_ht_dim { 9.18826pt }
-    \dim_gset:Nn \g_docxlike_header_text_dp_dim { 2.52736pt }
-    \dim_gset:Nn \g_docxlike_header_latin_ht_dim { 8.50727pt }
-    \dim_gset:Nn \g_docxlike_header_latin_dp_dim { 1.88153pt }
-  }
-\cs_new_protected:Npn \__docxlike_page_header_line:
-  {
-    \cs_if_exist:NTF \docxlike_format_compute:n
-      { \__docxlike_format_if_blank:nTF { header } { \__docxlike_page_header_line_xiaowu: } { \__docxlike_page_header_line_format: } }
-      { \__docxlike_page_header_line_xiaowu: }
-  }
-\cs_new_protected:Npn \__docxlike_page_header_line_format:
-  {
-        \group_begin:
-          \docxlike_format_compute:n { header }
-          \dim_gset:Nn \g_docxlike_header_text_ht_dim { \l_docxlike_format_first_dim }
-          \dim_gset:Nn \g_docxlike_header_text_dp_dim
-            {
-              \dim_max:nn { \l_docxlike_format_lead_dim } { \l_docxlike_format_natural_dim }
-              - \l_docxlike_format_first_dim
-            }
-          \dim_gset:Nn \g_docxlike_header_latin_ht_dim
-            { \c_docxlike_format_ascent_latin_tl \l_docxlike_format_size_dim + \c_docxlike_format_ascent_dim }
-          \dim_gset:Nn \g_docxlike_header_latin_dp_dim
-            {
-              \dim_max:nn { \l_docxlike_format_lead_dim }
-                { \c__docxlike_format_natural_latin_tl \l_docxlike_format_size_dim }
-              - \g_docxlike_header_latin_ht_dim
-            }
-        \group_end:
-  }
+\cs_new_protected:Npn \__docxlike_page_compute_hook: { }
+\cs_new_protected:Npn \__docxlike_page_save_hook: { }
+\cs_new_protected:Npn \__docxlike_page_restore_hook: { }
+\cs_new_protected:Npn \docxlike_page_set_compute:n #1
+  { \cs_gset_protected:Npn \__docxlike_page_compute_hook: {#1} }
+\cs_new_protected:Npn \docxlike_page_set_save:n #1
+  { \cs_gset_protected:Npn \__docxlike_page_save_hook: {#1} }
+\cs_new_protected:Npn \docxlike_page_set_restore:n #1
+  { \cs_gset_protected:Npn \__docxlike_page_restore_hook: {#1} }
 %    \end{macrocode}
 %
 % \cs{\_\_docxlike\_page\_pitch:NNn}\meta{目标}\meta{版心尺寸}\meta{份数} 是第二条规则：
@@ -306,32 +237,11 @@
       \keys_set:nn { docxlike / page } {#1}
 %    \end{macrocode}
 %
-% 页眉盒高不是独立的量，它是三段之和：页眉那一行的自然行高、文字到横线的距离、
-% 横线本身。Word 那边横线是页眉段落的下边框，位置就是这么定的——跟着文字走，
-% 隔一个 \texttt{w:space}，再画线。所以这里照着算，别人手写一个数就失去了这层关系。
-%
-% 横线是 \texttt{thinThickSmallGap}：粗线取 \option{width}（Word 的 \texttt{w:sz}），
-% 间隙与细线各 0.75\,磅，比例由线型定义写死，Word 也不让改。
-%
-% 页眉一律小五，所以行高直接取小五。哪天页眉字号可配了，这一句跟着换。
+% 页眉槽高与页脚修正由文档类给，默认都是零。
 %    \begin{macrocode}
-      \__docxlike_page_header_line:
-      \dim_set:Nn \l__docxlike_page_header_height_dim
-        {
-          \g_docxlike_header_text_ht_dim + \g_docxlike_header_text_dp_dim
-          + \l__docxlike_page_rule_text_dim
-          + \l__docxlike_page_rule_width_dim + 1.5bp
-        }
-      \dim_gset_eq:NN \g_docxlike_page_foot_shift_x_dim
-        \l__docxlike_page_foot_shift_x_dim
-      % 页眉盒画线时读的是这两个全局量：键设的是局部的，出了这个组就回到初始值，
-      % 不存全局的话，写了 3bp 粗线、离字 4bp 也只进 headheight，线还是按初始的 2.25 与 1 画
-      \dim_gset_eq:NN \g_docxlike_page_rule_width_dim \l__docxlike_page_rule_width_dim
-      \dim_gset_eq:NN \g_docxlike_page_rule_text_dim \l__docxlike_page_rule_text_dim
-      \dim_gset_eq:NN \g_docxlike_page_head_shift_dim \l__docxlike_page_head_shift_dim
-      \dim_gset_eq:NN \g_docxlike_page_head_shift_x_dim \l__docxlike_page_head_shift_x_dim
-      \tl_gset_eq:NN \g_docxlike_page_header_shown_tl \l__docxlike_page_header_shown_tl
-      \tl_gset_eq:NN \g_docxlike_page_footer_shown_tl \l__docxlike_page_footer_shown_tl
+      \dim_zero:N \l_docxlike_page_head_height_dim
+      \dim_zero:N \l_docxlike_page_foot_skip_offset_dim
+      \__docxlike_page_compute_hook:
       \dim_set:Nn \l__docxlike_page_text_width_dim
         {
           \l__docxlike_page_paper_width_dim
@@ -379,16 +289,18 @@
       \dim_gset_eq:NN \g_docxlike_page_margin_right_dim \l__docxlike_page_right_dim
       \dim_gset_eq:NN \g_docxlike_page_margin_top_dim \l__docxlike_page_top_dim
       \dim_gset_eq:NN \g_docxlike_page_margin_bottom_dim \l__docxlike_page_bottom_dim
-      \dim_gset_eq:NN \g_docxlike_page_head_height_dim \l__docxlike_page_header_height_dim
+      \dim_gset_eq:NN \g_docxlike_page_header_edge_dim \l__docxlike_page_header_dim
+      \dim_gset_eq:NN \g_docxlike_page_footer_edge_dim \l__docxlike_page_footer_dim
+      \dim_gset_eq:NN \g_docxlike_page_head_height_dim \l_docxlike_page_head_height_dim
       \dim_gset:Nn \g_docxlike_page_head_sep_dim
         {
           \l__docxlike_page_top_dim
-          - \l__docxlike_page_header_dim - \l__docxlike_page_header_height_dim
+          - \l__docxlike_page_header_dim - \l_docxlike_page_head_height_dim
         }
       \dim_gset:Nn \g_docxlike_page_foot_skip_dim
         {
           \l__docxlike_page_bottom_dim
-          - \l__docxlike_page_footer_dim + \l__docxlike_page_foot_shift_dim
+          - \l__docxlike_page_footer_dim + \l_docxlike_page_foot_skip_offset_dim
         }
       \tl_gset:Nx \g__docxlike_page_layout_tl
         {
@@ -540,35 +452,17 @@
 \bool_new:N \g__docxlike_page_moved_bool
 \dim_new:N \g__docxlike_page_save_lead_dim
 \dim_new:N \g__docxlike_page_save_char_dim
-\dim_new:N \g__docxlike_page_save_foot_x_dim
 \int_new:N \g__docxlike_page_save_cells_int
-\dim_new:N \g__docxlike_page_save_rule_width_dim
-\dim_new:N \g__docxlike_page_save_rule_text_dim
-\dim_new:N \g__docxlike_page_save_head_dim
-\dim_new:N \g__docxlike_page_save_head_x_dim
-\tl_new:N \g__docxlike_page_save_header_shown_tl
-\tl_new:N \g__docxlike_page_save_footer_shown_tl
-\dim_new:N \g__docxlike_page_save_text_ht_dim
-\dim_new:N \g__docxlike_page_save_text_dp_dim
-\dim_new:N \g__docxlike_page_save_latin_ht_dim
-\dim_new:N \g__docxlike_page_save_latin_dp_dim
+\dim_new:N \g__docxlike_page_save_header_edge_dim
+\dim_new:N \g__docxlike_page_save_footer_edge_dim
 \cs_new_protected:Npn \docxlike_page_setup_push:n #1
   {
     \dim_gset_eq:NN \g__docxlike_page_save_lead_dim \g_docxlike_page_lead_dim
     \dim_gset_eq:NN \g__docxlike_page_save_char_dim \g_docxlike_page_char_dim
-    \dim_gset_eq:NN \g__docxlike_page_save_foot_x_dim
-      \g_docxlike_page_foot_shift_x_dim
     \int_gset_eq:NN \g__docxlike_page_save_cells_int \g_docxlike_page_cells_int
-    \dim_gset_eq:NN \g__docxlike_page_save_rule_width_dim \g_docxlike_page_rule_width_dim
-    \dim_gset_eq:NN \g__docxlike_page_save_rule_text_dim \g_docxlike_page_rule_text_dim
-    \dim_gset_eq:NN \g__docxlike_page_save_head_dim \g_docxlike_page_head_shift_dim
-    \dim_gset_eq:NN \g__docxlike_page_save_head_x_dim \g_docxlike_page_head_shift_x_dim
-    \tl_gset_eq:NN \g__docxlike_page_save_header_shown_tl \g_docxlike_page_header_shown_tl
-    \tl_gset_eq:NN \g__docxlike_page_save_footer_shown_tl \g_docxlike_page_footer_shown_tl
-    \dim_gset_eq:NN \g__docxlike_page_save_text_ht_dim \g_docxlike_header_text_ht_dim
-    \dim_gset_eq:NN \g__docxlike_page_save_text_dp_dim \g_docxlike_header_text_dp_dim
-    \dim_gset_eq:NN \g__docxlike_page_save_latin_ht_dim \g_docxlike_header_latin_ht_dim
-    \dim_gset_eq:NN \g__docxlike_page_save_latin_dp_dim \g_docxlike_header_latin_dp_dim
+    \__docxlike_page_save_hook:
+    \dim_gset_eq:NN \g__docxlike_page_save_header_edge_dim \g_docxlike_page_header_edge_dim
+    \dim_gset_eq:NN \g__docxlike_page_save_footer_edge_dim \g_docxlike_page_footer_edge_dim
     \tl_gset_eq:NN \g__docxlike_page_save_layout_tl \g__docxlike_page_layout_tl
     \__docxlike_page_compute:n {#1}
     \tl_if_eq:NNTF \g__docxlike_page_layout_tl \g__docxlike_page_save_layout_tl
@@ -583,19 +477,10 @@
     \bool_if:NT \g__docxlike_page_moved_bool { \__docxlike_page_pop_apply: }
     \dim_gset_eq:NN \g_docxlike_page_lead_dim \g__docxlike_page_save_lead_dim
     \dim_gset_eq:NN \g_docxlike_page_char_dim \g__docxlike_page_save_char_dim
-    \dim_gset_eq:NN \g_docxlike_page_foot_shift_x_dim
-      \g__docxlike_page_save_foot_x_dim
     \int_gset_eq:NN \g_docxlike_page_cells_int \g__docxlike_page_save_cells_int
-    \dim_gset_eq:NN \g_docxlike_page_rule_width_dim \g__docxlike_page_save_rule_width_dim
-    \dim_gset_eq:NN \g_docxlike_page_rule_text_dim \g__docxlike_page_save_rule_text_dim
-    \dim_gset_eq:NN \g_docxlike_page_head_shift_dim \g__docxlike_page_save_head_dim
-    \dim_gset_eq:NN \g_docxlike_page_head_shift_x_dim \g__docxlike_page_save_head_x_dim
-    \tl_gset_eq:NN \g_docxlike_page_header_shown_tl \g__docxlike_page_save_header_shown_tl
-    \tl_gset_eq:NN \g_docxlike_page_footer_shown_tl \g__docxlike_page_save_footer_shown_tl
-    \dim_gset_eq:NN \g_docxlike_header_text_ht_dim \g__docxlike_page_save_text_ht_dim
-    \dim_gset_eq:NN \g_docxlike_header_text_dp_dim \g__docxlike_page_save_text_dp_dim
-    \dim_gset_eq:NN \g_docxlike_header_latin_ht_dim \g__docxlike_page_save_latin_ht_dim
-    \dim_gset_eq:NN \g_docxlike_header_latin_dp_dim \g__docxlike_page_save_latin_dp_dim
+    \dim_gset_eq:NN \g_docxlike_page_header_edge_dim \g__docxlike_page_save_header_edge_dim
+    \dim_gset_eq:NN \g_docxlike_page_footer_edge_dim \g__docxlike_page_save_footer_edge_dim
+    \__docxlike_page_restore_hook:
   }
 %    \end{macrocode}
 %

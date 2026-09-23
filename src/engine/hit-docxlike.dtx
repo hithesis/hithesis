@@ -22,6 +22,138 @@
 %<*shared-docxlike>
 %    \end{macrocode}
 %
+% \subsection{页眉槽}
+%
+% \changes{v3.2a}{2026/09/24}{页眉槽的高、页眉线、页眉页脚的挪动与显隐从 \pkg{docxlike} 挪到类里，
+%   \pkg{docxlike} 只照 Word 的模型排自己的页眉页脚；数一个没改}
+%
+% 本类的页眉页脚不走 \pkg{docxlike} 自己那一套（Word 模型的页眉页脚），而是在
+% \hologo{LaTeX} 的页眉槽里排一整块“文字加双线”，所以要自己的 \cs{headheight}：页眉那一行的
+% 行盒高加离字距离、粗线、0.75\,bp 的间隙与 0.75\,bp 的细线（范例的页眉段落下框线是
+% \texttt{thinThickSmallGap}，线型的构成见 \pkg{docxlike} 的段落边框）。这几件借
+% \pkg{docxlike} 页面设置的接入点接上：键加在 \texttt{docxlike / page} 族里，与版面的其余键
+% 写在同一串；算版面时给出 \cs{headheight} 与页脚基线的修正；按页换版面时存取下面这几个全局量。
+%
+% 键与 \option{layout} 的对应在 \file{hit-keylist.dtx}：\option{header}/\option{rule} 的
+% \option{width} 与 \option{from-text}，\option{header}、\option{footer} 的 \option{shift}
+% （量出来的补偿，往下、往右为正）与 \option{shown}（\texttt{auto} 按档）。
+%    \begin{macrocode}
+\keys_define:nn { docxlike / page }
+  {
+    header-rule-width       .dim_set:N = \l__hit_page_rule_width_dim ,
+    header-rule-width       .initial:n = { 2.25bp } ,
+    header-rule-from-text   .dim_set:N = \l__hit_page_rule_text_dim ,
+    header-rule-from-text   .initial:n = { 1bp } ,
+    footer-shift-vertical   .dim_set:N = \l__hit_page_foot_shift_dim ,
+    footer-shift-vertical   .initial:n = { 0pt } ,
+    footer-shift-horizontal .dim_set:N = \l__hit_page_foot_shift_x_dim ,
+    footer-shift-horizontal .initial:n = { 0pt } ,
+    header-shift-vertical   .dim_set:N = \l__hit_page_head_shift_dim ,
+    header-shift-vertical   .initial:n = { 0pt } ,
+    header-shift-horizontal .dim_set:N = \l__hit_page_head_shift_x_dim ,
+    header-shift-horizontal .initial:n = { 0pt } ,
+    header-shown .tl_set:N = \l__hit_page_header_shown_tl ,
+    header-shown .initial:n = { auto } ,
+    footer-shown .tl_set:N = \l__hit_page_footer_shown_tl ,
+    footer-shown .initial:n = { auto } ,
+  }
+\dim_new:N \g__hit_page_rule_width_dim
+\dim_new:N \g__hit_page_rule_text_dim
+\dim_new:N \g__hit_page_head_shift_dim
+\dim_new:N \g__hit_page_head_shift_x_dim
+\dim_new:N \g__hit_page_foot_shift_x_dim
+\tl_new:N \g__hit_page_header_shown_tl
+\tl_new:N \g__hit_page_footer_shown_tl
+\tl_gset:Nn \g__hit_page_header_shown_tl { auto }
+\tl_gset:Nn \g__hit_page_footer_shown_tl { auto }
+\dim_new:N \g__hit_header_text_ht_dim
+\dim_new:N \g__hit_header_text_dp_dim
+\dim_new:N \g__hit_header_latin_ht_dim
+\dim_new:N \g__hit_header_latin_dp_dim
+%    \end{macrocode}
+%
+% \emph{页眉那一行的行盒按目标算。} Word 的页眉框顶钉在“页眉距边界”上，框里那一段
+% 的行盒由它自己的字体与行距定：行距 0（范例的页眉段是这么写的）就是自然行高，倍数
+% 就是倍数乘自然行高，基线在盒顶下一个上升部。\option{format}/\option{header} 目标给了
+% 取值就照它算；目标空着就退回小五的四个常数，那是旧版面（博士后）的页眉。
+% 纯西文那一档同字号按 Times 的两个常数算。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_page_header_line_xiaowu:
+  {
+    \dim_gset:Nn \g__hit_header_text_ht_dim { 9.18826pt }
+    \dim_gset:Nn \g__hit_header_text_dp_dim { 2.52736pt }
+    \dim_gset:Nn \g__hit_header_latin_ht_dim { 8.50727pt }
+    \dim_gset:Nn \g__hit_header_latin_dp_dim { 1.88153pt }
+  }
+\cs_new_protected:Npn \__hit_page_header_line:
+  {
+    \docxlike_format_if_blank:nTF { header }
+      { \__hit_page_header_line_xiaowu: }
+      {
+        \group_begin:
+          \docxlike_format_compute:n { header }
+          \dim_gset:Nn \g__hit_header_text_ht_dim { \l_docxlike_format_first_dim }
+          \dim_gset:Nn \g__hit_header_text_dp_dim
+            {
+              \dim_max:nn { \l_docxlike_format_lead_dim } { \l_docxlike_format_natural_dim }
+              - \l_docxlike_format_first_dim
+            }
+          \dim_gset:Nn \g__hit_header_latin_ht_dim
+            { \c_docxlike_format_ascent_latin_tl \l_docxlike_format_size_dim + \c_docxlike_format_ascent_dim }
+          \dim_gset:Nn \g__hit_header_latin_dp_dim
+            {
+              \dim_max:nn { \l_docxlike_format_lead_dim }
+                { \c_docxlike_format_natural_latin_tl \l_docxlike_format_size_dim }
+              - \g__hit_header_latin_ht_dim
+            }
+        \group_end:
+      }
+  }
+\docxlike_page_set_compute:n
+  {
+    \__hit_page_header_line:
+    \dim_set:Nn \l_docxlike_page_head_height_dim
+      {
+        \g__hit_header_text_ht_dim + \g__hit_header_text_dp_dim
+        + \l__hit_page_rule_text_dim + \l__hit_page_rule_width_dim + 1.5bp
+      }
+    \dim_set_eq:NN \l_docxlike_page_foot_skip_offset_dim \l__hit_page_foot_shift_dim
+    \dim_gset_eq:NN \g__hit_page_foot_shift_x_dim \l__hit_page_foot_shift_x_dim
+    \dim_gset_eq:NN \g__hit_page_rule_width_dim \l__hit_page_rule_width_dim
+    \dim_gset_eq:NN \g__hit_page_rule_text_dim \l__hit_page_rule_text_dim
+    \dim_gset_eq:NN \g__hit_page_head_shift_dim \l__hit_page_head_shift_dim
+    \dim_gset_eq:NN \g__hit_page_head_shift_x_dim \l__hit_page_head_shift_x_dim
+    \tl_gset_eq:NN \g__hit_page_header_shown_tl \l__hit_page_header_shown_tl
+    \tl_gset_eq:NN \g__hit_page_footer_shown_tl \l__hit_page_footer_shown_tl
+  }
+%    \end{macrocode}
+%
+% 按页换版面时存取这几个量。存只存一层，与 \pkg{docxlike} 自己的一样。
+%    \begin{macrocode}
+\clist_const:Nn \c__hit_page_saved_dim_clist
+  {
+    page_rule_width , page_rule_text , page_head_shift , page_head_shift_x , page_foot_shift_x ,
+    header_text_ht , header_text_dp , header_latin_ht , header_latin_dp
+  }
+\clist_const:Nn \c__hit_page_saved_tl_clist { page_header_shown , page_footer_shown }
+\clist_map_inline:Nn \c__hit_page_saved_dim_clist { \dim_new:c { g__hit_save_ #1 _dim } }
+\clist_map_inline:Nn \c__hit_page_saved_tl_clist { \tl_new:c { g__hit_save_ #1 _tl } }
+\docxlike_page_set_save:n
+  {
+    \clist_map_inline:Nn \c__hit_page_saved_dim_clist
+      { \dim_gset_eq:cc { g__hit_save_ ##1 _dim } { g__hit_ ##1 _dim } }
+    \clist_map_inline:Nn \c__hit_page_saved_tl_clist
+      { \tl_gset_eq:cc { g__hit_save_ ##1 _tl } { g__hit_ ##1 _tl } }
+  }
+\docxlike_page_set_restore:n
+  {
+    \clist_map_inline:Nn \c__hit_page_saved_dim_clist
+      { \dim_gset_eq:cc { g__hit_ ##1 _dim } { g__hit_save_ ##1 _dim } }
+    \clist_map_inline:Nn \c__hit_page_saved_tl_clist
+      { \tl_gset_eq:cc { g__hit_ ##1 _tl } { g__hit_save_ ##1 _tl } }
+  }
+%    \end{macrocode}
+%
 % \subsection{类自己的格式目标}
 %
 % \pkg{docxlike} 只带通用的几个目标（正文、四级标题、页眉页脚），题注、表格单元格、

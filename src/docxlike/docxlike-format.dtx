@@ -353,6 +353,8 @@
       { \prop_if_empty_p:c { \__docxlike_format_name:nnn {#1} { } { } } }
       { \prg_return_true: } { \prg_return_false: }
   }
+\prg_new_eq_conditional:NNn \docxlike_format_if_blank:n \__docxlike_format_if_blank:n
+  { T , F , TF }
 \cs_new_protected:Npn \__docxlike_format_put:nn #1#2
   {
     \str_if_eq:nnTF {#2} { auto }
@@ -767,6 +769,9 @@
     char-spacing   .code:n = { \__docxlike_format_char_spacing:n {#1} } ,
     keep-with-next .code:n = { \__docxlike_format_bool:nn { keep-with-next } {#1} } ,
     keep-with-next .default:n = { true } ,
+    border-top .code:n = { \__docxlike_format_border:nn { top } {#1} } ,
+    border-bottom .code:n = { \__docxlike_format_border:nn { bottom } {#1} } ,
+    tabs .code:n = { \__docxlike_format_put:nn { tabs } {#1} } ,
     unknown .code:n =
       { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
   }
@@ -995,7 +1000,7 @@
     dengxian = 1.351334 , none = 1.15 ,
   }
 \tl_const:Nn \c_docxlike_format_natural_tl { 1.296875 }
-\tl_const:Nn \c__docxlike_format_natural_latin_tl { 1.15 }
+\tl_const:Nn \c_docxlike_format_natural_latin_tl { 1.15 }
 \bool_new:N \l__docxlike_format_latin_bool
 \bool_new:N \l_docxlike_format_latin_pick_bool
 \bool_new:N \l__docxlike_format_latin_line_bool
@@ -1889,7 +1894,7 @@
     \bool_if:NTF \l_docxlike_format_strut_latin_bool
       {
         \__docxlike_format_strut:nn
-          { \c__docxlike_format_natural_latin_tl }
+          { \c_docxlike_format_natural_latin_tl }
           { \c_docxlike_format_ascent_latin_tl }
       }
       {
@@ -2366,13 +2371,15 @@
       \dim_compare:nNnT { \l_docxlike_format_before_dim } > { \c_zero_dim }
         { \par \addvspace { \l_docxlike_format_before_dim } }
       \nointerlineskip
+      \__docxlike_format_border_put:nn {#1} { top }
       \l__docxlike_format_par_tl
       \__docxlike_format_read:nnnN {#1} { all-caps } { false }
         \l__docxlike_format_value_tl
       \str_if_eq:VnTF \l__docxlike_format_value_tl { true }
-        { \MakeUppercase {#2} }
-        {#2}
+        { \__docxlike_format_tabbed:nn {#1} { \MakeUppercase {#2} } }
+        { \__docxlike_format_tabbed:nn {#1} {#2} }
       \par
+      \__docxlike_format_border_put:nn {#1} { bottom }
       \dim_compare:nNnT { \l_docxlike_format_after_dim } > { \c_zero_dim }
         { \skip_vertical:n { \l_docxlike_format_after_dim } }
     \group_end:
@@ -2437,6 +2444,351 @@
   }
 %    \end{macrocode}
 %    \end{macro}
+%
+% \subsection{段落边框}
+%
+% \option{border-top}、\option{border-bottom} 照 docx 的 \texttt{w:pBdr}：
+% \option{val} 线型、\option{sz} 线宽（八分之一磅，与 docx 同）、\option{space} 离文字的
+% 距离（磅）、\option{color}（六位十六进制或 \texttt{auto}）。
+% \texttt{border-bottom = \{ val = single , sz = 6 , space = 1 \}} 就是 Word 的“下框线，
+% 0.75 磅，距正文 1 磅”。
+%
+% 量出来的规则（\file{test/headfoot/README.md}）：下边框画在最后一行行盒底之下
+% \option{space} 处，线与间隙都算进段高；上边框在第一行行盒顶之上。线比段落左右各伸出
+% 1.5 磅。复合线型按线、隙、线……从贴文字的一侧往外排，各段的粗细见下表的写法，
+% $w$ 是 \option{sz}/8。点线、虚线类是宽 $w$ 的线按虚线样式画；波浪线没有照画，
+% 按同样的高度画一条细线。
+%
+% 相邻两段边框相同时 Word 合成一组、只在组末画，这里不合并，要合并的请只给最后一段写。
+%    \begin{macrocode}
+\keys_define:nn { docxlike / format / border }
+  {
+    val .tl_set:N = \l__docxlike_format_border_val_tl ,
+    sz .tl_set:N = \l__docxlike_format_border_sz_tl ,
+    space .tl_set:N = \l__docxlike_format_border_space_tl ,
+    color .tl_set:N = \l__docxlike_format_border_color_tl ,
+    unknown .code:n =
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+  }
+\cs_new_protected:Npn \__docxlike_format_border:nn #1#2
+  {
+    \str_if_eq:nnTF {#2} { auto }
+      { \__docxlike_format_put:nn { border-#1 } { auto } }
+      {
+        \group_begin:
+          \tl_set:Nn \l__docxlike_format_border_val_tl { single }
+          \tl_set:Nn \l__docxlike_format_border_sz_tl { 4 }
+          \tl_set:Nn \l__docxlike_format_border_space_tl { 0 }
+          \tl_set:Nn \l__docxlike_format_border_color_tl { auto }
+          \keys_set:nn { docxlike / format / border } {#2}
+          \__docxlike_format_put:ne { border-#1 }
+            {
+              { \l__docxlike_format_border_val_tl }
+              { \l__docxlike_format_border_sz_tl }
+              { \l__docxlike_format_border_space_tl }
+              { \l__docxlike_format_border_color_tl }
+            }
+        \group_end:
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_format_put:nn { ne }
+%    \end{macrocode}
+%
+% 各线型的构成写成一串 \texttt{R}\marg{粗}（线）与 \texttt{G}\marg{宽}（隙），
+% 点线、虚线类写成 \texttt{D}\marg{粗}\marg{虚线样式}。
+%    \begin{macrocode}
+\cs_new:Npn \__docxlike_format_border_parts:nn #1#2
+  {
+    \str_case:nnF {#1}
+      {
+        { nil } { } { none } { }
+        { double } { R {#2} G {#2} R {#2} }
+        { triple } { R {#2} G {#2} R {#2} G {#2} R {#2} }
+        { thinThickSmallGap } { R {#2} G { 0.75bp } R { 0.75bp } }
+        { thickThinSmallGap } { R { 0.75bp } G { 0.75bp } R {#2} }
+        { thinThickThinSmallGap }
+          { R { 0.75bp } G { 0.75bp } R {#2} G { 0.75bp } R { 0.75bp } }
+        { thinThickMediumGap } { R {#2} G { #2 / 2 } R { #2 / 2 } }
+        { thickThinMediumGap } { R { #2 / 2 } G { #2 / 2 } R {#2} }
+        { thinThickThinMediumGap }
+          { R { #2 / 2 } G { #2 / 2 } R {#2} G { #2 / 2 } R { #2 / 2 } }
+        { thinThickLargeGap } { R { 1.5bp } G {#2} R { 0.75bp } }
+        { thickThinLargeGap } { R { 0.75bp } G {#2} R { 1.5bp } }
+        { thinThickThinLargeGap }
+          { R { 0.75bp } G {#2} R { 1.5bp } G {#2} R { 0.75bp } }
+        { threeDEmboss } { \__docxlike_format_border_3d:n {#2} }
+        { threeDEngrave } { \__docxlike_format_border_3d:n {#2} }
+        { dotted } { D {#2} { {#2} {#2} } }
+        { dashed } { D {#2} { { #2 * 3 } {#2} } }
+        { dashSmallGap } { D {#2} { { #2 * 3 } {#2} } }
+        { dotDash } { D {#2} { { #2 * 3 } {#2} {#2} {#2} } }
+        { dotDotDash } { D {#2} { { #2 * 3 } {#2} {#2} {#2} {#2} {#2} } }
+        { wave } { G { 1.125bp } R { 0.75bp } G { 1.125bp } }
+        { doubleWave } { G { 0.75bp } R { 0.75bp } G { 2.25bp } R { 0.75bp } G { 0.75bp } }
+        { dashDotStroked } { G { 1.125bp } R { 0.75bp } G { 1.125bp } }
+      }
+      { R {#2} }
+  }
+\cs_new:Npn \__docxlike_format_border_3d:n #1
+  {
+    R { \dim_min:nn { 1.5bp } { \dim_max:nn { 0.75bp } { #1 / 2 } } }
+    R {#1}
+    R { \dim_min:nn { 1.5bp } { \dim_max:nn { 0.75bp } { #1 / 2 } } }
+  }
+%    \end{macrocode}
+%
+% 画。下边框：先空 \option{space}，再从上往下排各段；上边框反过来，从下往上排，
+% 最后空 \option{space}。前后都 \cs{nointerlineskip}：线紧贴行盒，行盒的高深由撑杆定。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_format_border_tl
+\cs_new_protected:Npn \__docxlike_format_border_put:nn #1#2
+  {
+    \__docxlike_format_read:nnnN {#1} { border-#2 } { } \l__docxlike_format_border_tl
+    \tl_if_empty:NF \l__docxlike_format_border_tl
+      {
+        \use:e
+          {
+            \exp_not:N \__docxlike_format_border_draw:nnnnn {#2}
+            \exp_not:V \l__docxlike_format_border_tl
+          }
+      }
+  }
+\seq_new:N \l__docxlike_format_border_seq
+\cs_new_protected:Npn \__docxlike_format_border_draw:nnnnn #1#2#3#4#5
+  {
+    \seq_clear:N \l__docxlike_format_border_seq
+    \use:e
+      {
+        \exp_not:N \__docxlike_format_border_collect:w
+        \__docxlike_format_border_parts:nn {#2} { \fp_eval:n { #3 / 8 } bp }
+        \exp_not:N \q_recursion_tail \exp_not:N \q_recursion_stop
+      }
+    \str_if_eq:nnT {#1} { top } { \seq_reverse:N \l__docxlike_format_border_seq }
+    \nointerlineskip
+    \str_if_eq:nnT {#1} { bottom } { \skip_vertical:n { #4 bp } }
+    \group_begin:
+      \str_if_eq:nnF {#5} { auto }
+        { \cs_if_exist:NT \color_select:nn { \color_select:nn { HTML } {#5} } }
+      \seq_map_function:NN \l__docxlike_format_border_seq \use:n
+    \group_end:
+    \str_if_eq:nnT {#1} { top } { \skip_vertical:n { #4 bp } }
+    \nointerlineskip
+  }
+\cs_new_protected:Npn \__docxlike_format_border_collect:w #1
+  {
+    \quark_if_recursion_tail_stop:N #1
+    \str_case:nn {#1}
+      {
+        { R } { \__docxlike_format_border_rule:w }
+        { G } { \__docxlike_format_border_gap:w }
+        { D } { \__docxlike_format_border_dash:w }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_format_border_rule:w #1
+  {
+    \seq_put_right:Ne \l__docxlike_format_border_seq
+      { \__docxlike_format_border_line:nn { \dim_eval:n {#1} } { } }
+    \__docxlike_format_border_collect:w
+  }
+\cs_new_protected:Npn \__docxlike_format_border_gap:w #1
+  {
+    \seq_put_right:Ne \l__docxlike_format_border_seq
+      { \skip_vertical:n { \dim_eval:n {#1} } }
+    \__docxlike_format_border_collect:w
+  }
+\cs_new_protected:Npn \__docxlike_format_border_dash:w #1#2
+  {
+    \seq_put_right:Ne \l__docxlike_format_border_seq
+      { \__docxlike_format_border_line:nn { \dim_eval:n {#1} } { #2 } }
+    \__docxlike_format_border_collect:w
+  }
+\cs_generate_variant:Nn \seq_put_right:Nn { Ne }
+%    \end{macrocode}
+%
+% 一段线：宽是行宽加两头各 1.5 磅，装进行宽的盒子里左右各一个 \cs{hss} 吸掉溢出，
+% 盒子对外仍报行宽。虚线样式是一串长度，交替为实与空，用 \cs{leaders} 铺满。
+%    \begin{macrocode}
+\dim_const:Nn \c__docxlike_format_border_over_dim { 1.5bp }
+\cs_new_protected:Npn \__docxlike_format_border_line:nn #1#2
+  {
+    \hbox_to_wd:nn { \linewidth }
+      {
+        \tex_hss:D
+        \tl_if_blank:nTF {#2}
+          {
+            \tex_vrule:D height ~ #1 ~ depth ~ \c_zero_dim ~
+              width ~ \dim_eval:n { \linewidth + 2 \c__docxlike_format_border_over_dim }
+          }
+          {
+            \hbox_to_wd:nn { \linewidth + 2 \c__docxlike_format_border_over_dim }
+              {
+                \tex_leaders:D \__docxlike_format_border_dashbox:nn {#1} {#2}
+                  \tex_hfill:D
+              }
+          }
+        \tex_hss:D
+      }
+    \nointerlineskip
+  }
+\bool_new:N \l__docxlike_format_border_on_bool
+\cs_new_protected:Npn \__docxlike_format_border_dashbox:nn #1#2
+  {
+    \hbox:n
+      {
+        \bool_set_true:N \l__docxlike_format_border_on_bool
+        \tl_map_inline:nn {#2}
+          {
+            \bool_if:NTF \l__docxlike_format_border_on_bool
+              {
+                \tex_vrule:D height ~ #1 ~ depth ~ \c_zero_dim ~
+                  width ~ \dim_eval:n {##1} \scan_stop:
+              }
+              { \skip_horizontal:n {##1} }
+            \bool_set_inverse:N \l__docxlike_format_border_on_bool
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{制表位}
+%
+% \option{tabs} 照 docx 的 \texttt{w:tabs}：逗号隔开的若干个“类型 位置 前导符”，
+% 类型是 \texttt{left}、\texttt{center}、\texttt{right}，位置从段落左缩进量起，前导符可省，
+% 可写 \texttt{dot}、\texttt{hyphen}、\texttt{underscore}、\texttt{middleDot}。
+% 段落里用 \cs{docxliketab} 表示一个制表符。制表位用完了按 \option{default-tab-stop}
+% （Word 的默认制表位，中文 Word 是 21 磅）往后排。
+%
+% 只排一行：带制表符的段不断行，Word 的页眉页脚几乎都是这样用的。规则是量的：先按
+% 左对齐排开，居中制表位让那一截以停靠点为中心、右制表位让那一截右端贴停靠点，都不压到
+% 前一截上；整行排好再按段落的对齐方式分剩下的空白。
+%    \begin{macrocode}
+\dim_new:N \g_docxlike_default_tab_stop_dim
+\dim_gset:Nn \g_docxlike_default_tab_stop_dim { 21bp }
+\keys_define:nn { docxlike }
+  { default-tab-stop .dim_gset:N = \g_docxlike_default_tab_stop_dim }
+\msg_new:nnn { docxlike } { tab-outside-paragraph }
+  { \token_to_str:N \docxliketab\ is~only~allowed~in~a~paragraph~with~a~format~target. }
+\NewDocumentCommand \docxliketab { }
+  { \msg_error:nn { docxlike } { tab-outside-paragraph } }
+\seq_new:N \l__docxlike_format_tab_seg_seq
+\seq_new:N \l__docxlike_format_tab_stop_seq
+\tl_new:N \l__docxlike_format_tabs_tl
+\dim_new:N \l__docxlike_format_tab_x_dim
+\dim_new:N \l__docxlike_format_tab_start_dim
+\box_new:N \l__docxlike_format_tab_seg_box
+\box_new:N \l__docxlike_format_tab_line_box
+\tl_new:N \l__docxlike_format_tab_kind_tl
+\tl_new:N \l__docxlike_format_tab_lead_tl
+\dim_new:N \l__docxlike_format_tab_pos_dim
+\cs_new_protected:Npn \__docxlike_format_tabbed:nn #1#2
+  {
+    \tl_if_in:nnTF {#2} { \docxliketab }
+      { \__docxlike_format_tab_line:nn {#1} {#2} }
+      {#2}
+  }
+\cs_new_protected:Npn \__docxlike_format_tab_line:nn #1#2
+  {
+    \__docxlike_format_read:nnnN {#1} { tabs } { } \l__docxlike_format_tabs_tl
+    \seq_set_from_clist:NV \l__docxlike_format_tab_stop_seq \l__docxlike_format_tabs_tl
+    \seq_set_split:Nnn \l__docxlike_format_tab_seg_seq { \docxliketab } {#2}
+    \seq_pop_left:NN \l__docxlike_format_tab_seg_seq \l__docxlike_format_border_tl
+    \hbox_set:Nn \l__docxlike_format_tab_line_box { \l__docxlike_format_border_tl }
+    \dim_set:Nn \l__docxlike_format_tab_x_dim { \box_wd:N \l__docxlike_format_tab_line_box }
+    \seq_map_inline:Nn \l__docxlike_format_tab_seg_seq
+      {
+        \hbox_set:Nn \l__docxlike_format_tab_seg_box {##1}
+        \__docxlike_format_tab_next:
+        \str_case:VnF \l__docxlike_format_tab_kind_tl
+          {
+            { center }
+              {
+                \dim_set:Nn \l__docxlike_format_tab_start_dim
+                  { \l__docxlike_format_tab_pos_dim - 0.5 \box_wd:N \l__docxlike_format_tab_seg_box }
+              }
+            { right }
+              {
+                \dim_set:Nn \l__docxlike_format_tab_start_dim
+                  { \l__docxlike_format_tab_pos_dim - \box_wd:N \l__docxlike_format_tab_seg_box }
+              }
+          }
+          { \dim_set_eq:NN \l__docxlike_format_tab_start_dim \l__docxlike_format_tab_pos_dim }
+        \dim_compare:nNnT { \l__docxlike_format_tab_start_dim } < { \l__docxlike_format_tab_x_dim }
+          { \dim_set_eq:NN \l__docxlike_format_tab_start_dim \l__docxlike_format_tab_x_dim }
+        \hbox_set:Nn \l__docxlike_format_tab_line_box
+          {
+            \box_use_drop:N \l__docxlike_format_tab_line_box
+            \__docxlike_format_tab_leader:n
+              { \l__docxlike_format_tab_start_dim - \l__docxlike_format_tab_x_dim }
+            \box_use:N \l__docxlike_format_tab_seg_box
+          }
+        \dim_set:Nn \l__docxlike_format_tab_x_dim
+          { \l__docxlike_format_tab_start_dim + \box_wd:N \l__docxlike_format_tab_seg_box }
+      }
+    \__docxlike_format_read:nnnN {#1} { alignment } { justified } \l__docxlike_format_value_tl
+    \leavevmode
+    \hbox_to_wd:nn { \linewidth }
+      {
+        \str_case:VnF \l__docxlike_format_value_tl
+          {
+            { centered } { \tex_hss:D \box_use_drop:N \l__docxlike_format_tab_line_box \tex_hss:D }
+            { right } { \tex_hss:D \box_use_drop:N \l__docxlike_format_tab_line_box }
+          }
+          { \box_use_drop:N \l__docxlike_format_tab_line_box \tex_hss:D }
+      }
+  }
+\cs_generate_variant:Nn \seq_set_from_clist:Nn { NV }
+%    \end{macrocode}
+%
+% 找下一个停靠点：自定的制表位里第一个比当前位置靠右的；没有了就取默认制表位的下一个倍数，
+% 按左对齐。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_format_tab_next:
+  {
+    \tl_set:Nn \l__docxlike_format_tab_kind_tl { left }
+    \tl_clear:N \l__docxlike_format_tab_lead_tl
+    \dim_set:Nn \l__docxlike_format_tab_pos_dim
+      {
+        \g_docxlike_default_tab_stop_dim
+        * ( \int_div_truncate:nn
+              { \dim_to_decimal_in_sp:n { \l__docxlike_format_tab_x_dim } }
+              { \dim_to_decimal_in_sp:n { \g_docxlike_default_tab_stop_dim } }
+            + 1 )
+      }
+    \seq_map_inline:Nn \l__docxlike_format_tab_stop_seq
+      {
+        \__docxlike_format_tab_stop:w ##1 ~ \q_mark ~ \q_stop
+        \dim_compare:nNnT { \l__docxlike_format_tab_stop_pos_dim } > { \l__docxlike_format_tab_x_dim }
+          {
+            \tl_set_eq:NN \l__docxlike_format_tab_kind_tl \l__docxlike_format_tab_stop_kind_tl
+            \tl_set_eq:NN \l__docxlike_format_tab_lead_tl \l__docxlike_format_tab_stop_lead_tl
+            \dim_set_eq:NN \l__docxlike_format_tab_pos_dim \l__docxlike_format_tab_stop_pos_dim
+            \seq_map_break:
+          }
+      }
+  }
+\tl_new:N \l__docxlike_format_tab_stop_kind_tl
+\tl_new:N \l__docxlike_format_tab_stop_lead_tl
+\dim_new:N \l__docxlike_format_tab_stop_pos_dim
+\cs_new_protected:Npn \__docxlike_format_tab_stop:w #1 ~ #2 ~ #3 \q_stop
+  {
+    \tl_set:Nn \l__docxlike_format_tab_stop_kind_tl {#1}
+    \dim_set:Nn \l__docxlike_format_tab_stop_pos_dim {#2}
+    \tl_set:Nn \l__docxlike_format_tab_stop_lead_tl {#3}
+    \tl_remove_all:Nn \l__docxlike_format_tab_stop_lead_tl { \q_mark }
+    \tl_trim_spaces:N \l__docxlike_format_tab_stop_lead_tl
+  }
+\cs_new_protected:Npn \__docxlike_format_tab_leader:n #1
+  {
+    \str_case:VnF \l__docxlike_format_tab_lead_tl
+      {
+        { dot } { \tex_leaders:D \hbox:n { . } \skip_horizontal:n {#1} }
+        { hyphen } { \tex_leaders:D \hbox:n { - } \skip_horizontal:n {#1} }
+        { underscore } { \tex_leaders:D \hbox:n { \_ } \skip_horizontal:n {#1} }
+        { middleDot } { \tex_leaders:D \hbox:n { · } \skip_horizontal:n {#1} }
+      }
+      { \skip_horizontal:n {#1} }
+  }
+%    \end{macrocode}
 %
 % \subsection{接到正文上}
 %
@@ -3639,7 +3991,7 @@
             \bool_if:NTF \l_docxlike_format_strut_latin_bool
               {
                 \__docxlike_format_strut_dims:nn
-                  { \c__docxlike_format_natural_latin_tl }
+                  { \c_docxlike_format_natural_latin_tl }
                   { \c_docxlike_format_ascent_latin_tl }
               }
               {

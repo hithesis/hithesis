@@ -504,6 +504,7 @@ src/pages/
 | `docxlike-page.dtx` | Word 页面设置换算成版面参数 |
 | `docxlike-format.dtx` | 元素格式：字体、行距、间距、缩进、空段 |
 | `docxlike-linebreak.dtx` | 断行层：LuaTeX 上照 Word 的贪心断行，Lua 部分解出 `docxlike.lua` |
+| `docxlike-headfoot.dtx` | 页眉页脚、节、域与编号格式，照 Word 的模型 |
 | `docxlike-preset.dtx` | 包选项与单独加载时的空白文档预设 |
 
 它的正本在独立仓库 `latex-docxlike`（默认与本仓库并列），`src/docxlike/` 只是那边 dtx 的副本。改动在 `latex-docxlike` 里做、在那边提交，再在这边跑 `make docxlike-sync` 拷过来，按平常的量具验收后提交，提交说明里写上那边的提交号（`docxlike-sync` 会打印）。`make docxlike-check` 看两边是否一致。别在 `src/docxlike/` 里直接改，下次同步会被覆盖；学校专有的东西也别往 docxlike 里写。
