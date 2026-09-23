@@ -34,7 +34,7 @@ unpackfiles = {"hithesis.dtx"}
 --
 -- 这里不用 *.sty 通配。dtx-style.sty 只在排手册时用，被通配捎进 TEXMF 会污染
 -- 用户机器，而且 dtx-style 这个名字相当通用，别的包也叫这个就撞了。要装的
--- .sty 是 hithesis.sty 与排版引擎 zhwordlike.sty 两个，显式列出来。
+-- .sty 是 hithesis.sty 与排版引擎 docxlike.sty 两个，显式列出来。
 --
 -- hithesis.sty 是示例宏包，装进 TEXMF 是为了让 \usepackage{hithesis} 在任何目录下
 -- 都能编过。它本来就是给用户改的，改法是在自己项目目录里放一份同名文件，那份优先。
@@ -42,9 +42,9 @@ installfiles = {
   "hithesis.cls",
   "hithesisbook.cls", "hithesisart.cls", "hithesisartplus.cls",
   "hithesis.sty",
-  "zhwordlike.sty",
+  "docxlike.sty",
   "hithesis.ist", "hithesis.bst", "hithesis.cfg",
-  "zhwordlike.lua",
+  "docxlike.lua",
   "hit-logo.pdf", "hit-bachelor-report-bottommark.pdf",
 }
 
