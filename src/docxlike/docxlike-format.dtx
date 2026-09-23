@@ -6,17 +6,15 @@
 %
 % \section{元素格式（format）}
 %
-% \changes{v3.2a}{2026/08/25}{加 \texttt{ docxlike / format} 族：按 Word 的字体与段落对话框
-%   描述每个元素怎么排，目标有正文、四级标题、题注、目录条目、封面各段、页眉
-%   页脚、表格里的段。键照对话框原词，每键收 \texttt{auto}（交给默认表）；
-%   \option{line-spacing} 与 \option{line-white}、\option{space-*} 与 \option{white-*}
-%   各存同一槽，一个词刚性、两个词区间，\texttt{25bp!!} 固定值、\texttt{10bp+} 最小值；
-%   \option{snap-to-grid} 分纵横两轴，两轴的 \texttt{auto} 都沿所在位置往上找
-%   （\cs{c\_\_docxlike\_format\_parent\_prop}：表题嵌在正文、子图题嵌在图题、封面字段嵌在
-%   封面），根上没写就不贴；\option{char-spacing}、\option{latin-line}、
-%   \option{latin-bold}、\option{hyphenation}。\option{style} 族至此清空删掉}
-% \changes{v3.2a}{2026/08/16}{取值按版心底两档分档存：写进 \option{目标/if-raggedbottom}
-%   与 \option{目标/if-flushbottom} 的各一份，不分档的一份，读时先看当前档；
+% \changes{v3.2a}{2026/08/25}{加 \option{styles}：照 Word 的样式描述每种段落怎么排，内置
+%   \texttt{Normal}、\texttt{Heading 1} 到 \texttt{Heading 4}、\texttt{Header}、\texttt{Footer}，
+%   别的名字写了就新建、基于 \texttt{Normal}。键名照 Word 英文界面，按“字体”“段落”
+%   “制表位”“边框”几个对话框分组嵌套，每键收 \texttt{auto}（交给默认表）；
+%   \option{font} 与 \option{paragraph} 下各有一个 \option{snap-to-grid}，对应 Word 的两处
+%   “对齐到网格”，\texttt{auto} 沿所在位置往上找（\cs{c\_\_docxlike\_format\_parent\_prop}），
+%   根上没写就不贴；另有 \option{hyphenation} 与 \option{default-tab-stops}}
+% \changes{v3.2a}{2026/08/16}{取值按版心底两档分档存：写进 \option{样式名/if-raggedbottom}
+%   与 \option{样式名/if-flushbottom} 的各一份，不分档的一份，读时先看当前档；
 %   行数版与毫米版是两套完整的表，不是一套加伸缩}
 % \changes{v3.2a}{2026/09/13}{\cs{docxlike\_format\_compute:n} 按 Word 的行盒模型换算：自然行高
 %   中易系 1.296875 倍字号、Times 1.15、华文新魏按字体表；上升部 1.008 倍字号加 0.082\,bp
@@ -27,7 +25,7 @@
 %   贴格居中、不贴格顶对齐、固定值 0.8 倍、纯西文按 Times 三支（调用方点名的西文块也算，
 %   双语题注的英文行因此按 Times 的上升部）；空的段落片段不成行
 %   （公式独占一段时上下不再各多一行）；\hologo{LuaLaTeX} 下段末带封条}
-% \changes{v3.2a}{2026/09/16}{标题接 \pkg{ctex}：\option{format} 覆盖旧的 \cs{ctexset}
+% \changes{v3.2a}{2026/09/16}{标题接 \pkg{ctex}：\option{styles} 覆盖旧的 \cs{ctexset}
 %   不追加；题序后一个字宽（规范写“空 2 个半角字符”，样本文档各级都是自己的一个字宽）；
 %   标题样式关字距调整；临时覆盖进出连分档表一起存还；目标名与
 %   \pkg{ctex} 层级名可错开一格（没有 \cs{chapter} 的文档第一级按章排）}
@@ -54,9 +52,9 @@
 %   页眉页脚的 \cs{docxlike\_format\_apply\_hf:nN}、块与块之间照“上块行深加下块上升部”贴排的
 %   \cs{docxlike\_format\_stack\_line:n}}
 % \changes{v3.2a}{2026/08/24}{纯西文段由 \cs{docxlike\_format\_apply\_par:n} 铺版面，与别的段共用
-%   \option{format} 词汇；首行基线按 Times 的上升部}
+%   \option{styles} 词汇；首行基线按 Times 的上升部}
 % \changes{v3.2a}{2026/08/24}{新增 \cs{parmark}：模拟 Word 的空回车段，可选参数收行数或
-%   \option{format} 词汇；自然行高按 Word 重测（西文 1.15、汉字 1.296875）；行距与贴格默认跟当前
+%   \option{styles} 词汇；自然行高按 Word 重测（西文 1.15、汉字 1.296875）；行距与贴格默认跟当前
 %   段落走（Word 里回车出的空段继承上一段的属性，贴格的单倍空段占一整格，实测），
 %   \option{snap-to-grid} 键可改；星号版的空盒之间补零罚分，页底装得下几行装几行；
 %   浮动体的后距照留，空段另算}
@@ -67,80 +65,67 @@
 %
 % 规范里说的是 Word 的话：“章标题小二黑体居中，段前段后各一行，多倍行距 1.5”。
 % 手算的话，这些话要折成 \texttt{beforeskip=28.34646bp} 这样的数散在好几份
-% \cs{ctexset} 里，改一处要连带重算三四个数。\texttt{format} 族收 Word 对话框上的
-% 原话，换算交给代码：
+% \cs{ctexset} 里，改一处要连带重算三四个数。这里收 Word 对话框上的原话，换算交给代码：
 % \begin{latex}
 % \docxlikesetup
 %   {
-%     format =
+%     styles =
 %       {
-%         chapter = { font-zh = heiti , size = xiaoer , bold = true ,
-%                     alignment = centered , line-spacing = 1.5 ,
-%                     space-before = 1 line , space-after = 1 line } ,
-%         caption = { size = wuhao , alignment = centered } ,
+%         Heading 1 = { font = { asian-text-font = heiti , size = xiaoer , font-style = bold } ,
+%                       paragraph = { alignment = centered ,
+%                                     spacing = { before = 1 line , after = 1 line ,
+%                                                 line-spacing = multiple , at = 1.5 } } } ,
 %       }
 %   }
 % \end{latex}
 %
 % \subsection{键}
 %
-% 键名与取值尽量照抄 Word 英文界面的原词，这样对着对话框逐格抄不用翻译。
-% 只有 \option{line-spacing} 的取值做了归并：Word 下拉框里的单倍、1.5 倍、2 倍、
-% 多倍是同一个机制的四个预设，这里合成“一个数就是倍数”，
-% 只有固定值与最小值是另外两种模式。
-%
-% 读起来是名词的键跟一个值，读起来是形容词或动词短语的键只收真假。
-%
-% \begin{longtblr}[caption={\option{format} 族的键与 Word 对话框}, label={tab:impl-format-keys}]
-%   {colspec={l X[1,l] X[1,l]}, width=\linewidth}
+% 公开的键照 Word 英文界面的原词，按“修改样式 → 格式”菜单分成 \option{font}、
+% \option{paragraph}、\option{tabs}、\option{border} 四组，组内再照对话框的分组嵌套；
+% 全表在手册的“样式”一节。内部存储的条目名沿用下表右栏，一个公开的键可能落进几条：
+% \begin{longtblr}[caption={公开的键与内部存储}, label={tab:impl-format-keys}]
+%   {colspec={l l}}
 % \toprule
-% 键 & Word 界面 & 取值 \\ \midrule
-% \option{font-zh} & Chinese text font & \texttt{songti} \texttt{heiti} \texttt{kaishu} \texttt{fangsong} \texttt{xinwei} \texttt{none} \\
-% \option{font-en} & Latin text font & \texttt{serif} \texttt{sans} \texttt{mono} \\
-% \option{latin-bold} & （无） & \texttt{true} \texttt{false}，只加粗西文那一槽 \\
-% \option{latin-line} & （无） & \texttt{true} \texttt{false}，行盒按西文那一副算 \\
-% \option{size} & Size & \texttt{sanhao}，或 \texttt{16bp} \\
-% \option{alignment} & Alignment & \texttt{left} \texttt{centered} \texttt{right} \texttt{justified} \\
-%  & & \texttt{distributed} \texttt{last-line-centered} \\
-% \option{indent-left} & Indentation: Left & \texttt{2 chars}，或 \texttt{12bp} \\
-% \option{indent-right} & Indentation: Right & 同上 \\
-% \option{indent-special} & Indentation: Special + By & \texttt{none}、\texttt{first-line 2 chars}、\texttt{hanging 4 chars} \\
-% \option{line-spacing} & Line spacing + At & \texttt{single} \texttt{double} \texttt{1.5} \\
-%  & & \texttt{exactly 25bp} \texttt{at-least 25bp} \\
-% \option{space-before} & Spacing: Before & \texttt{1 line}，或 \texttt{12bp} \\
-% \option{space-after} & Spacing: After & 同上 \\
-% \option{bold} & Font style: Bold & 真假 \\
-% \option{all-caps} & Effects: All caps & 真假 \\
-% \option{snap-to-grid} & Snap to grid when document grid is defined & 真假 \\
-% \option{keep-with-next} & Keep with next & 真假 \\
+% 公开的键 & 内部条目 \\ \midrule
+% \option{font}/\option{asian-text-font}、\option{latin-text-font} & \texttt{font-zh}、\texttt{font-en} \\
+% \option{font}/\option{font-style} & \texttt{bold} \\
+% \option{font}/\option{size}、\option{all-caps} & \texttt{size}、\texttt{all-caps} \\
+% \option{font}/\option{character-spacing} & \texttt{char-spacing}（带符号的长度） \\
+% \option{font}/\option{snap-to-grid} & \texttt{snap-to-grid-horizontal} \\
+% \option{paragraph}/\option{alignment} & \texttt{alignment} \\
+% \option{paragraph}/\option{indentation} & \texttt{indent-left}、\texttt{indent-right}、\texttt{indent-special} \\
+% \option{paragraph}/\option{spacing} & \texttt{space-before}、\texttt{space-after}、\texttt{line-spacing} \\
+% \option{paragraph}/\option{snap-to-grid} & \texttt{snap-to-grid-vertical} \\
+% \option{paragraph}/\option{pagination}/\option{keep-with-next} & \texttt{keep-with-next} \\
+% \option{tabs}、\option{border} & \texttt{tabs}、\texttt{border-top}、\texttt{border-bottom} \\
 % \bottomrule
 % \end{longtblr}
 %
-% \option{alignment} 的 \texttt{last-line-centered}（末行居中）是本包的扩展，Word 里
-% 没有这一项，别去对话框里找。词形跟着 Word 那几个走：那几个都是过去分词，
-% 描述“排成什么样”这个状态。
+% 行距的“设置值”在内部与模式合成一个词：倍数照写，固定值加 \texttt{!}，最小值加 \texttt{+}。
+% 两个 \option{snap-to-grid} 分属字体与段落，是 Word 本来的样子：段落对话框里那一个
+% （\texttt{w:pPr/w:snapToGrid}）管行网格，字体高级页里那一个（\texttt{w:rPr/w:snapToGrid}）
+% 管字符网格。
 %
-% \texttt{1 line}、\texttt{hanging 4 chars}、\texttt{exactly 25bp} 这几种写法里的空格
-% 是有意义的，解析器按空格切词。用户文档里照写就行；写在类源码里要把空格改成
-% \pkg{expl3} 的空格记号，那里在 \cs{ExplSyntaxOn} 之内，字面空格会被吃掉。
+% 另有几样不是 Word 的，是给某个文档类的临时安排，以后挪出本包：\option{alignment} 的
+% \texttt{last-line-centered}；\option{spacing} 里的 \option{line-white}、\option{white-before}、
+% \option{white-after}（按视觉留白给间距）与 \option{line-spacing}\texttt{=length}（行距就是
+% 这么长，不设下限）；设置值写两个数的区间；样式名后面的 \texttt{/if-raggedbottom}、
+% \texttt{/if-flushbottom}；\option{font} 里的 \option{latin-bold}、\option{latin-line}；
+% 伞键 \option{heading}。
 %
-% \subsection{目标}
+% \texttt{1 line}、\texttt{2 chars} 这几种写法里的空格是有意义的，解析器按空格切词。
+% 写在类源码里要把空格改成 \pkg{expl3} 的空格记号，那里在 \cs{ExplSyntaxOn} 之内，
+% 字面空格会被吃掉。
 %
-% 目标名就是被排的那个元素：\option{body}、\option{chapter}、\option{section}、
-% \option{subsection}、\option{subsubsection}、\option{caption-figure}、
-% \option{caption-table}、\option{caption-sub}、\option{abstract-heading}，
-% 以及四级目录条目 \option{toc-chapter} 到 \option{toc-subsubsection}。
+% \subsection{样式}
 %
-% \option{table-cell} 是表格单元格里的段，Word 里表格的每一格都是一段，行高就是
-% 那一段的行盒（贴网格时一格一行）。由文档类把它接进 \env{tabular} 一族。
+% 样式名就是 Word 里的名字，去掉空格作内部标识（docx 的 \texttt{w:styleId}）。本包登记
+% \texttt{Normal}（正文）、\texttt{Heading1} 到 \texttt{Heading4}、\texttt{Header}、\texttt{Footer}，
+% 文档类登记自己要的，写到没登记的名字就新建一个。
 %
-% \option{body} 是正文，也就是 Word 里的“正文”样式。它管的东西比别的目标多一层：
-% 除了字号行距，\cs{parindent} 与 \cs{topskip} 也从它算，见下面“接到正文上”一节。
-%
-% 另有两个伞：\option{heading} 一次写四级标题，\option{caption} 一次写图题表题。
-% 伞展开成逐个写一遍，所以伞后面再单设某一个仍然管用。\option{font-en} 只在
-% \option{heading} 上生效：它写回的标志位是全局的，写在单个层级上会越界影响
-% 另外三级，与其装作能分级不如先不认。
+% \texttt{Normal} 管的东西比别的样式多一层：除了字号行距，\cs{parindent} 与 \cs{topskip}
+% 也从它算，见下面“接到正文上”一节。
 %
 % ^^A ======================================================================
 % ^^A Module docxlike-format: 元素格式（各个类共用）
@@ -252,7 +237,7 @@
 \prop_new:N \g__docxlike_format_parent_prop
 \cs_new_protected:Npn \docxlike_format_target_new:nn #1#2
   {
-    \clist_if_in:NnF \g_docxlike_format_target_clist {#1}
+    \prop_if_exist:cF { g__docxlike_format_#1_prop }
       {
         \clist_gput_right:Nn \g_docxlike_format_target_clist {#1}
         \clist_map_inline:nn { { } , { _ragged } , { _flush } }
@@ -260,18 +245,11 @@
             \prop_new:c { g__docxlike_format_#1##1_prop }
             \prop_new:c { g__docxlike_format_#1##1_default_prop }
           }
-        \keys_define:nn { docxlike / format }
-          {
-            #1 .code:n = { \__docxlike_format_target:nn {#1} {##1} } ,
-            #1 / if-raggedbottom .code:n =
-              { \__docxlike_format_layer:nnn { ragged } {#1} {##1} } ,
-            #1 / if-flushbottom .code:n =
-              { \__docxlike_format_layer:nnn { flush } {#1} {##1} } ,
-          }
       }
     \tl_if_blank:nF {#2}
       { \prop_gput:Nnn \g__docxlike_format_parent_prop {#1} {#2} }
   }
+\cs_generate_variant:Nn \docxlike_format_target_new:nn { Vn }
 %    \end{macrocode}
 %
 %    \begin{macrocode}
@@ -499,6 +477,7 @@
       { \__docxlike_format_put:nn { char-spacing } { auto } }
       { \__docxlike_format_put:nn { char-spacing } { \dim_eval:n {#1} } }
   }
+\cs_generate_variant:Nn \__docxlike_format_char_spacing:n { e }
 %    \end{macrocode}
 %
 % \option{size} 收字号名或长度。名字查 \cs{docxlike\_size\_new:nn} 登记的那张表，
@@ -719,61 +698,316 @@
       { \__docxlike_bad_value:nnn { indent-special } {#1}
           { first-line , hanging } }
   }
+\cs_generate_variant:Nn \__docxlike_format_indent_special:n { e }
 \cs_new_protected:Npn \__docxlike_format_special_put:nn #1#2
   {
     \__docxlike_format_put:nn { indent-special-mode } {#1}
     \__docxlike_format_amount:nnn { indent-special } { chars } {#2}
   }
 \cs_generate_variant:Nn \__docxlike_format_special_put:nn { nV }
-\keys_define:nn { docxlike / format / property }
+\keys_define:nn { docxlike / style }
   {
-    font-zh .code:n =
+    font .code:n = { \__docxlike_keys_set:nn { docxlike / style / font } {#1} } ,
+    paragraph .code:n =
+      { \__docxlike_keys_set:nn { docxlike / style / paragraph } {#1} } ,
+    tabs .code:n = { \__docxlike_style_tabs:n {#1} } ,
+    border .code:n = { \__docxlike_keys_set:nn { docxlike / style / border } {#1} } ,
+    unknown .code:n =
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+  }
+\keys_define:nn { docxlike / style / font }
+  {
+    asian-text-font .code:n =
       { \__docxlike_format_enum:nnn { font-zh }
           { songti , heiti , kaishu , fangsong , xinwei , dengxian , none } {#1} } ,
-    font-en .code:n =
+    latin-text-font .code:n =
       { \__docxlike_format_enum:nnn { font-en } { serif , sans , mono } {#1} } ,
+    font-style .code:n = { \__docxlike_style_font_style:n {#1} } ,
+    size .code:n = { \__docxlike_format_size:n {#1} } ,
+    all-caps .code:n = { \__docxlike_format_bool:nn { all-caps } {#1} } ,
+    all-caps .default:n = { true } ,
+    character-spacing .code:n = { \__docxlike_style_char_spacing:n {#1} } ,
+    snap-to-grid .code:n = { \__docxlike_format_bool:nn { snap-to-grid-horizontal } {#1} } ,
+    snap-to-grid .default:n = { true } ,
     latin-bold .code:n =
       { \__docxlike_format_enum:nnn { latin-bold } { true , false } {#1} } ,
     latin-bold .default:n = true ,
     latin-line .code:n =
       { \__docxlike_format_enum:nnn { latin-line } { true , false } {#1} } ,
     latin-line .default:n = true ,
-    size .code:n = { \__docxlike_format_size:n {#1} } ,
+    unknown .code:n =
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+  }
+\keys_define:nn { docxlike / style / paragraph }
+  {
     alignment .code:n =
       { \__docxlike_format_enum:nnn { alignment }
           { left , centered , right , justified , distributed ,
             last-line-centered } {#1} } ,
-    indent-left  .code:n = { \__docxlike_format_amount:nnn { indent-left } { chars } {#1} } ,
-    indent-right .code:n = { \__docxlike_format_amount:nnn { indent-right } { chars } {#1} } ,
-    indent-special .code:n = { \__docxlike_format_indent_special:n {#1} } ,
-    line-spacing .code:n =
-      { \__docxlike_format_measure:nnnn { line-spacing } { line-spacing }
-          { spacing } {#1} } ,
-    line-white .code:n =
-      { \__docxlike_format_measure:nnnn { line-white } { line-spacing }
-          { white } {#1} } ,
-    space-before .code:n = { \__docxlike_format_space:nn { space-before } {#1} } ,
-    space-after  .code:n = { \__docxlike_format_space:nn { space-after } {#1} } ,
-    white-before .code:n =
-      { \__docxlike_format_measure:nnnn { white-before } { space-before }
-          { white } {#1} } ,
-    white-after .code:n =
-      { \__docxlike_format_measure:nnnn { white-after } { space-after }
-          { white } {#1} } ,
-    bold           .code:n = { \__docxlike_format_bool:nn { bold } {#1} } ,
-    bold           .default:n = { true } ,
-    all-caps       .code:n = { \__docxlike_format_bool:nn { all-caps } {#1} } ,
-    all-caps       .default:n = { true } ,
-    snap-to-grid   .code:n = { \__docxlike_format_snap:n {#1} } ,
-    snap-to-grid   .default:n = { true } ,
-    char-spacing   .code:n = { \__docxlike_format_char_spacing:n {#1} } ,
-    keep-with-next .code:n = { \__docxlike_format_bool:nn { keep-with-next } {#1} } ,
-    keep-with-next .default:n = { true } ,
-    border-top .code:n = { \__docxlike_format_border:nn { top } {#1} } ,
-    border-bottom .code:n = { \__docxlike_format_border:nn { bottom } {#1} } ,
-    tabs .code:n = { \__docxlike_format_put:nn { tabs } {#1} } ,
+    indentation .code:n = { \__docxlike_style_indentation:n {#1} } ,
+    spacing .code:n = { \__docxlike_style_spacing:n {#1} } ,
+    snap-to-grid .code:n = { \__docxlike_format_bool:nn { snap-to-grid-vertical } {#1} } ,
+    snap-to-grid .default:n = { true } ,
+    pagination .code:n =
+      { \__docxlike_keys_set:nn { docxlike / style / paragraph / pagination } {#1} } ,
     unknown .code:n =
       { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+  }
+\keys_define:nn { docxlike / style / paragraph / pagination }
+  {
+    keep-with-next .code:n = { \__docxlike_format_bool:nn { keep-with-next } {#1} } ,
+    keep-with-next .default:n = { true } ,
+    unknown .code:n =
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+  }
+%    \end{macrocode}
+%
+% \option{font-style} 照“字形”下拉框：\texttt{regular}、\texttt{bold}；\texttt{italic} 与
+% \texttt{bold-italic} 还没有做，写了报错，不静默放过。
+%    \begin{macrocode}
+\msg_new:nnnn { docxlike } { not-implemented }
+  { '#1'~is~not~implemented~yet. }
+  { The~value~is~ignored. }
+\cs_new_protected:Npn \__docxlike_style_font_style:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        { regular } { \__docxlike_format_put:nn { bold } { false } }
+        { bold } { \__docxlike_format_put:nn { bold } { true } }
+        { auto } { \__docxlike_format_put:nn { bold } { auto } }
+        { italic } { \msg_error:nnn { docxlike } { not-implemented } { font-style~=~italic } }
+        { bold-italic }
+          { \msg_error:nnn { docxlike } { not-implemented } { font-style~=~bold-italic } }
+      }
+      { \__docxlike_bad_value:nnn { font-style } {#1} { regular , bold , italic , bold-italic } }
+  }
+%    \end{macrocode}
+%
+% \option{character-spacing} 照“字体 → 高级”的字符间距：\option{spacing} 是
+% \texttt{normal}、\texttt{expanded}、\texttt{condensed}，\option{by} 是磅值。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_style_cs_spacing_tl
+\dim_new:N \l__docxlike_style_cs_by_dim
+\keys_define:nn { docxlike / style / font / character-spacing }
+  {
+    spacing .choices:nn = { normal , expanded , condensed }
+      { \tl_set_eq:NN \l__docxlike_style_cs_spacing_tl \l_keys_choice_tl } ,
+    by .dim_set:N = \l__docxlike_style_cs_by_dim ,
+    unknown .code:n =
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+  }
+\cs_new_protected:Npn \__docxlike_style_char_spacing:n #1
+  {
+    \str_if_eq:nnTF {#1} { auto }
+      { \__docxlike_format_char_spacing:n { auto } }
+      {
+        \group_begin:
+          \tl_set:Nn \l__docxlike_style_cs_spacing_tl { normal }
+          \dim_zero:N \l__docxlike_style_cs_by_dim
+          \keys_set:nn { docxlike / style / font / character-spacing } {#1}
+          \__docxlike_format_char_spacing:e
+            {
+              \str_case:Vn \l__docxlike_style_cs_spacing_tl
+                {
+                  { normal } { 0pt }
+                  { expanded } { \dim_use:N \l__docxlike_style_cs_by_dim }
+                  { condensed } { \dim_eval:n { - \l__docxlike_style_cs_by_dim } }
+                }
+            }
+        \group_end:
+      }
+  }
+%    \end{macrocode}
+%
+% \option{indentation} 照“缩进”那一组：\option{left}、\option{right}，\option{special} 是
+% \texttt{none}、\texttt{first-line}、\texttt{hanging}，\option{by} 是它的磅值或字数
+% （\texttt{2 chars}）。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_style_special_tl
+\tl_new:N \l__docxlike_style_by_tl
+\keys_define:nn { docxlike / style / paragraph / indentation }
+  {
+    left .code:n = { \__docxlike_format_amount:nnn { indent-left } { chars } {#1} } ,
+    right .code:n = { \__docxlike_format_amount:nnn { indent-right } { chars } {#1} } ,
+    special .tl_set:N = \l__docxlike_style_special_tl ,
+    by .tl_set:N = \l__docxlike_style_by_tl ,
+    unknown .code:n =
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+  }
+\cs_new_protected:Npn \__docxlike_style_indentation:n #1
+  {
+    \tl_clear:N \l__docxlike_style_special_tl
+    \tl_clear:N \l__docxlike_style_by_tl
+    \__docxlike_keys_set:nn { docxlike / style / paragraph / indentation } {#1}
+    \tl_if_empty:NF \l__docxlike_style_special_tl
+      {
+        \str_case:VnF \l__docxlike_style_special_tl
+          {
+            { none } { \__docxlike_format_indent_special:n { none } }
+            { auto } { \__docxlike_format_indent_special:n { auto } }
+          }
+          {
+            \__docxlike_format_indent_special:e
+              { \l__docxlike_style_special_tl \c_space_tl \l__docxlike_style_by_tl }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \option{spacing} 照“间距”那一组：\option{before}、\option{after}，\option{line-spacing} 是
+% 下拉框（\texttt{single}、\texttt{1.5-lines}、\texttt{double}、\texttt{at-least}、
+% \texttt{exactly}、\texttt{multiple}），\option{at} 是旁边那个“设置值”。
+% \option{line-spacing} 要等 \option{at} 读完才能落，\option{line-white} 与它存同一个槽，
+% 也跟着等到这一组读完，再按写的先后落，好让“两个都写了按后写的算”照旧成立。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_style_rule_tl
+\tl_new:N \l__docxlike_style_at_tl
+\tl_new:N \l__docxlike_style_white_tl
+\bool_new:N \l__docxlike_style_white_last_bool
+\keys_define:nn { docxlike / style / paragraph / spacing }
+  {
+    before .code:n = { \__docxlike_format_space:nn { space-before } {#1} } ,
+    after .code:n = { \__docxlike_format_space:nn { space-after } {#1} } ,
+    line-spacing .code:n =
+      {
+        \tl_set:Nn \l__docxlike_style_rule_tl {#1}
+        \bool_set_false:N \l__docxlike_style_white_last_bool
+      } ,
+    at .tl_set:N = \l__docxlike_style_at_tl ,
+    line-white .code:n =
+      {
+        \tl_set:Nn \l__docxlike_style_white_tl {#1}
+        \bool_set_true:N \l__docxlike_style_white_last_bool
+      } ,
+    white-before .code:n =
+      { \__docxlike_format_measure:nnnn { white-before } { space-before } { white } {#1} } ,
+    white-after .code:n =
+      { \__docxlike_format_measure:nnnn { white-after } { space-after } { white } {#1} } ,
+    unknown .code:n =
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+  }
+\cs_new_protected:Npn \__docxlike_style_spacing:n #1
+  {
+    \tl_clear:N \l__docxlike_style_rule_tl
+    \tl_clear:N \l__docxlike_style_at_tl
+    \tl_clear:N \l__docxlike_style_white_tl
+    \__docxlike_keys_set:nn { docxlike / style / paragraph / spacing } {#1}
+    \bool_if:NTF \l__docxlike_style_white_last_bool
+      {
+        \__docxlike_style_rule_commit:
+        \__docxlike_style_white_commit:
+      }
+      {
+        \__docxlike_style_white_commit:
+        \__docxlike_style_rule_commit:
+      }
+  }
+\cs_new_protected:Npn \__docxlike_style_white_commit:
+  {
+    \tl_if_empty:NF \l__docxlike_style_white_tl
+      {
+        \__docxlike_format_measure:nnnV { line-white } { line-spacing } { white }
+          \l__docxlike_style_white_tl
+      }
+  }
+\cs_new_protected:Npn \__docxlike_style_rule_commit:
+  {
+    \tl_if_empty:NF \l__docxlike_style_rule_tl
+      {
+        \__docxlike_format_measure:nnne { line-spacing } { line-spacing } { spacing }
+          {
+            \str_case:Vn \l__docxlike_style_rule_tl
+              {
+                { single } { single }
+                { 1.5-lines } { 1.5 }
+                { double } { double }
+                { auto } { auto }
+                { multiple } { \l__docxlike_style_at_tl }
+                { length } { \l__docxlike_style_at_tl }
+                { exactly } { \__docxlike_style_at_mark:n { ! } }
+                { at-least } { \__docxlike_style_at_mark:n { + } }
+              }
+          }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_format_measure:nnnn { nnne , nnnV }
+\cs_new:Npn \__docxlike_style_at_mark:n #1
+  { \exp_args:NV \__docxlike_style_at_mark:nn \l__docxlike_style_at_tl {#1} }
+\cs_new:Npn \__docxlike_style_at_mark:nn #1#2
+  { \__docxlike_style_at_mark:w #1 ~ \q_stop {#2} }
+\cs_new:Npn \__docxlike_style_at_mark:w #1 ~ #2 \q_stop #3
+  { #1 #3 \tl_if_blank:nF {#2} { ~ \__docxlike_style_at_mark:w #2 \q_stop {#3} } }
+%    \end{macrocode}
+%
+% \option{tabs} 照“制表位”对话框：逗号隔开若干个停靠点，每个写“位置 对齐方式 前导符”，
+% 对齐方式 \texttt{left}、\texttt{center}、\texttt{right}，前导符可省。内部按
+% “对齐方式 位置 前导符”存。
+%    \begin{macrocode}
+\seq_new:N \l__docxlike_style_tab_seq
+\seq_new:N \l__docxlike_style_tab_out_seq
+\cs_new_protected:Npn \__docxlike_style_tabs:n #1
+  {
+    \str_if_eq:nnTF {#1} { auto }
+      { \__docxlike_format_put:nn { tabs } { auto } }
+      {
+        \seq_clear:N \l__docxlike_style_tab_out_seq
+        \seq_set_from_clist:Nn \l__docxlike_style_tab_seq {#1}
+        \seq_map_inline:Nn \l__docxlike_style_tab_seq
+          {
+            \seq_put_right:Ne \l__docxlike_style_tab_out_seq
+              { \__docxlike_style_tab_swap:w ##1 ~ ~ \q_stop }
+          }
+        \__docxlike_format_put:ne { tabs } { \seq_use:Nn \l__docxlike_style_tab_out_seq { , } }
+      }
+  }
+\cs_new:Npn \__docxlike_style_tab_swap:w #1 ~ #2 ~ #3 \q_stop
+  { #2 ~ #1 \tl_if_blank:nF {#3} { ~ \tl_trim_spaces:n {#3} } }
+%    \end{macrocode}
+%
+% \option{border} 照“边框和底纹”对话框：\option{top}、\option{bottom} 各一组，
+% \option{style} 线型（取 docx 的线型名，界面上只有图样）、\option{color}、
+% \option{width} 线宽（长度）、\option{from-text} 距正文。默认单线、自动色、0.5 磅、1 磅。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_style_border_style_tl
+\tl_new:N \l__docxlike_style_border_color_tl
+\dim_new:N \l__docxlike_style_border_width_dim
+\dim_new:N \l__docxlike_style_border_text_dim
+\keys_define:nn { docxlike / style / border }
+  {
+    top .code:n = { \__docxlike_style_border:nn { top } {#1} } ,
+    bottom .code:n = { \__docxlike_style_border:nn { bottom } {#1} } ,
+    unknown .code:n =
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+  }
+\keys_define:nn { docxlike / style / border / side }
+  {
+    style .tl_set:N = \l__docxlike_style_border_style_tl ,
+    color .tl_set:N = \l__docxlike_style_border_color_tl ,
+    width .dim_set:N = \l__docxlike_style_border_width_dim ,
+    from-text .dim_set:N = \l__docxlike_style_border_text_dim ,
+    unknown .code:n =
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+  }
+\cs_new_protected:Npn \__docxlike_style_border:nn #1#2
+  {
+    \str_if_eq:nnTF {#2} { auto }
+      { \__docxlike_format_put:nn { border-#1 } { auto } }
+      {
+        \group_begin:
+          \tl_set:Nn \l__docxlike_style_border_style_tl { single }
+          \tl_set:Nn \l__docxlike_style_border_color_tl { auto }
+          \dim_set:Nn \l__docxlike_style_border_width_dim { 0.5bp }
+          \dim_set:Nn \l__docxlike_style_border_text_dim { 1bp }
+          \keys_set:nn { docxlike / style / border / side } {#2}
+          \__docxlike_format_put:ne { border-#1 }
+            {
+              { \l__docxlike_style_border_style_tl }
+              { \fp_eval:n { round ( \dim_to_decimal_in_bp:n { \l__docxlike_style_border_width_dim } * 8 , 3 ) } }
+              { \fp_eval:n { round ( \dim_to_decimal_in_bp:n { \l__docxlike_style_border_text_dim } , 3 ) } }
+              { \l__docxlike_style_border_color_tl }
+            }
+        \group_end:
+      }
   }
 %    \end{macrocode}
 %
@@ -789,7 +1023,7 @@
 %
 % 被配置的东西是“flushbottom 那一档下的章标题”，它与“章标题”是两个目标，
 % 就像 \option{caption-figure} 与 \option{caption-table} 是两个目标。
-% \option{format} 底下因此再没有 \option{bottom} 这个键。
+% \option{styles} 底下因此再没有 \option{bottom} 这个键。
 %
 % 名字带着 \texttt{bottom} 那一截，因为限定词离开 \option{bottom} 子块之后
 % 就没有上下文了：单写 \option{if-ragged} 说不清 ragged 的是什么。
@@ -842,71 +1076,101 @@
 % 只是每档都比正文低 $0.400$，那是它自己的 \texttt{w:spacing}。
 % 所以 \texttt{snapToGrid=0} 在那个渲染里只关掉了纵轴。
 %    \begin{macrocode}
-\clist_const:Nn \c__docxlike_format_axis_clist { vertical , horizontal }
-\keys_define:nn { docxlike / format / snap }
-  {
-    vertical .code:n =
-      { \__docxlike_format_bool:nn { snap-to-grid-vertical } {#1} } ,
-    vertical .default:n = { true } ,
-    horizontal .code:n =
-      { \__docxlike_format_bool:nn { snap-to-grid-horizontal } {#1} } ,
-    horizontal .default:n = { true } ,
-    unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
-  }
-\cs_new_protected:Npn \__docxlike_format_snap:n #1
-  {
-    \clist_if_in:nnTF { true , false , auto } {#1}
-      {
-        \clist_map_inline:Nn \c__docxlike_format_axis_clist
-          { \__docxlike_format_bool:nn { snap-to-grid-##1 } {#1} }
-      }
-      { \__docxlike_keys_set:nn { docxlike / format / snap } {#1} }
-  }
 \cs_new_protected:Npn \__docxlike_format_target:nn #1#2
   {
     \str_set:Nn \l__docxlike_format_target_str {#1}
     \prop_clear:N \l__docxlike_format_claim_prop
-    \__docxlike_keys_set:nn { docxlike / format / property } {#2}
+    \__docxlike_keys_set:nn { docxlike / style } {#2}
     \__docxlike_format_after_target:n {#1}
   }
-\cs_new_protected:Npn \docxlike_format_set:n #1
-  { \__docxlike_keys_set:nn { docxlike / format } {#1} }
-\keys_define:nn { docxlike }
-  { format .code:n = { \docxlike_format_set:n {#1} } }
-\docxlike_format_target_new:nn { body } { }
-\clist_map_inline:nn { chapter , section , subsection , subsubsection , header , footer }
-  { \docxlike_format_target_new:nn {#1} { body } }
-\bool_new:N \g_docxlike_format_hyphen_bool
-\keys_define:nn { docxlike / format }
-  {
 %    \end{macrocode}
 %
-% \option{hyphenation} 是段落断行的事，与本族其余属性同类。全文一个开关，正文、
-% 题注、摘要、纯西文段一律跟随。
+% \emph{样式集合。} \option{styles} 里每一项是一个样式：键是 Word 里的样式名
+% （\texttt{Normal}、\texttt{Heading 1}），值是它的格式。样式名去掉空格就是内部的
+% 样式标识（docx 的 \texttt{w:styleId}），\texttt{Heading 1} 与 \texttt{Heading1} 是同一个。
+% 没登记过的名字第一次写到就新建一个样式，与在 Word 里“新建样式”一样。
+%
+% 样式名后面加 \texttt{/if-raggedbottom}、\texttt{/if-flushbottom} 是按版心底分档的取值，
+% 这是给某个文档类的临时安排，以后挪出本包。
 %    \begin{macrocode}
-    hyphenation .bool_gset:N = \g_docxlike_format_hyphen_bool ,
-    hyphenation .default:n = true ,
-    heading .meta:n =
+\str_new:N \l__docxlike_style_name_str
+\tl_new:N \l__docxlike_style_layer_tl
+\cs_new_protected:Npn \__docxlike_styles_unknown:nn #1#2
+  {
+    \str_set:Nn \l__docxlike_style_name_str {#1}
+    \tl_clear:N \l__docxlike_style_layer_tl
+    \clist_map_inline:nn { ragged , flush }
       {
-        chapter = {#1} , section = {#1} ,
-        subsection = {#1} , subsubsection = {#1} ,
-      } ,
-    heading / if-raggedbottom .meta:n =
+        \str_if_in:NnT \l__docxlike_style_name_str { /if- ##1 bottom }
+          {
+            \tl_set:Nn \l__docxlike_style_layer_tl {##1}
+            \str_remove_all:Nn \l__docxlike_style_name_str { /if- ##1 bottom }
+          }
+      }
+    \str_remove_all:Nn \l__docxlike_style_name_str { ~ }
+    \prop_if_exist:cF { g__docxlike_format_ \l__docxlike_style_name_str _prop }
+      { \docxlike_format_target_new:Vn \l__docxlike_style_name_str { Normal } }
+    \tl_if_empty:NTF \l__docxlike_style_layer_tl
+      { \__docxlike_format_target:Vn \l__docxlike_style_name_str {#2} }
       {
-        chapter/if-raggedbottom = {#1} , section/if-raggedbottom = {#1} ,
-        subsection/if-raggedbottom = {#1} ,
-        subsubsection/if-raggedbottom = {#1} ,
-      } ,
-    heading / if-flushbottom .meta:n =
-      {
-        chapter/if-flushbottom = {#1} , section/if-flushbottom = {#1} ,
-        subsection/if-flushbottom = {#1} ,
-        subsubsection/if-flushbottom = {#1} ,
-      } ,
-    unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+        \__docxlike_format_layer:VVn \l__docxlike_style_layer_tl
+          \l__docxlike_style_name_str {#2}
+      }
   }
+\cs_generate_variant:Nn \__docxlike_format_target:nn { Vn }
+\cs_generate_variant:Nn \__docxlike_format_layer:nnn { VVn }
+\msg_new:nnn { docxlike } { style-without-value }
+  { The~style~'#1'~was~given~without~a~value;~it~is~ignored. }
+\cs_new_protected:Npn \docxlike_format_set:n #1
+  {
+    \tl_set:Nn \l__docxlike_keys_tl {#1}
+    \tl_replace_all:Nnn \l__docxlike_keys_tl { \par } { }
+    \exp_args:NnnV \keyval_parse:nnn
+      { \msg_warning:nnn { docxlike } { style-without-value } }
+      { \__docxlike_styles_item:nn } \l__docxlike_keys_tl
+  }
+\cs_new_protected:Npn \__docxlike_styles_item:nn #1#2
+  {
+    \str_set:Nn \l__docxlike_style_name_str {#1}
+    \str_remove_all:Nn \l__docxlike_style_name_str { ~ }
+    \str_case:VnF \l__docxlike_style_name_str
+      {
+        { heading } { \__docxlike_styles_heading:nn { } {#2} }
+        { heading/if-raggedbottom }
+          { \__docxlike_styles_heading:nn { /if-raggedbottom } {#2} }
+        { heading/if-flushbottom }
+          { \__docxlike_styles_heading:nn { /if-flushbottom } {#2} }
+      }
+      { \__docxlike_styles_unknown:nn {#1} {#2} }
+  }
+\cs_new_protected:Npn \__docxlike_styles_heading:nn #1#2
+  {
+    \int_step_inline:nn { 4 }
+      { \__docxlike_styles_unknown:nn { Heading ##1 #1 } {#2} }
+  }
+\keys_define:nn { docxlike }
+  { styles .code:n = { \docxlike_format_set:n {#1} } }
+\docxlike_format_target_new:nn { Normal } { }
+\clist_map_inline:nn { Heading1 , Heading2 , Heading3 , Heading4 , Header , Footer }
+  { \docxlike_format_target_new:nn {#1} { Normal } }
+%    \end{macrocode}
+%
+% \option{hyphenation} 照“布局 → 断字”：\texttt{automatic} 自动断字，\texttt{none} 不断。
+% 全文一个开关，正文、题注、摘要、纯西文段一律跟随。
+%
+% \option{heading} 一次写四级标题，\texttt{heading/if-*} 同理，也是给某个文档类的临时安排。
+%    \begin{macrocode}
+\bool_new:N \g_docxlike_format_hyphen_bool
+\keys_define:nn { docxlike }
+  {
+    hyphenation .choices:nn = { automatic , none }
+      {
+        \str_if_eq:VnTF \l_keys_choice_tl { automatic }
+          { \bool_gset_true:N \g_docxlike_format_hyphen_bool }
+          { \bool_gset_false:N \g_docxlike_format_hyphen_bool }
+      } ,
+  }
+
 %    \end{macrocode}
 %
 % 一个目标设完之后调 \cs{\_\_docxlike\_format\_after\_target:n}\marg{目标}。文档类要在这里
@@ -1080,7 +1344,7 @@
 % \texttt{chars} 折成网格字距的倍数，\texttt{white} 是视觉白，其余当长度。
 %
 % \emph{“一行”有多长，看网格启不启用。} 启用时是网格行距；关着时 Word 仍认
-% “段前 0.5 行”，那个行是这一节\emph{正文的单倍行高}，也就是 \option{body}
+% “段前 0.5 行”，那个行是这一节\emph{正文的单倍行高}，也就是 \texttt{Normal}
 % 那一档的字号。\file{docGrid} 里记着的 \texttt{linePitch} 此时只是行高的四舍五入，
 % 不是跨度——有两份样本写着 391 却没有 \texttt{w:type}，就是这一档。
 %    \begin{macrocode}
@@ -1090,7 +1354,7 @@
     \bool_if:NTF \g_docxlike_grid_bool
       { \dim_set_eq:NN #1 \g_docxlike_page_lead_dim }
       {
-        \__docxlike_format_read:nnnN { body } { size } { } \l__docxlike_format_value_tl
+        \__docxlike_format_read:nnnN { Normal } { size } { } \l__docxlike_format_value_tl
         \tl_if_empty:NTF \l__docxlike_format_value_tl
           { \dim_set_eq:NN #1 \g_docxlike_page_lead_dim }
           { \dim_set:Nn #1 { \l__docxlike_format_value_tl } }
@@ -1190,7 +1454,7 @@
 %    \begin{macrocode}
 \tl_const:Nn \c__docxlike_format_ink_ascent_tl { 0.8123 }
 \tl_const:Nn \c__docxlike_format_ink_descent_tl { 0.0927 }
-\clist_const:Nn \c__docxlike_format_pagetop_clist { chapter }
+\clist_const:Nn \c__docxlike_format_pagetop_clist { Heading1 }
 \dim_new:N \l__docxlike_format_block_dim
 \dim_new:N \l__docxlike_format_base_dim
 \cs_new_protected:Npn \__docxlike_format_block_up:nn #1#2
@@ -1527,7 +1791,7 @@
 % \item 基线在盒里的落点，不对齐网格时是 $A$（顶对齐），对齐时是
 %   $(L-H)/2+A$（居中）。这一支由 \cs{l\_docxlike\_format\_line\_snap\_bool} 决定，
 %   正文的取值由 \cs{docxlike\_format\_apply\_body:} 全局设好，标题在自己的
-%   \option{format} 里临时改，出了标题那个组就复原。
+%   \option{styles} 里临时改，出了标题那个组就复原。
 % \end{itemize}
 %
 % 改这个标志位的是两个不带参数的命令 \cs{docxlike\_format\_snap\_true:} 与
@@ -1989,12 +2253,12 @@
 %
 %
 % 标题的格式是\emph{覆盖}文档类原有的 \cs{ctexset}，不是追加。追加的话
-% \option{format} 算出来的格式后面还跟着原有那一串，原有的写了什么就甩不掉：
-% 章标题原有的 \cs{bfseries} 就是这么漏过来的，\option{format} 里没写
+% \option{styles} 算出来的格式后面还跟着原有那一串，原有的写了什么就甩不掉：
+% 章标题原有的 \cs{bfseries} 就是这么漏过来的，\option{styles} 里没写
 % \option{bold}，排出来却还是粗的。
 %
-% 覆盖之后两边分家：文档类原有的那套 \cs{ctexset} 只在没设 \option{format} 的目标上
-% 生效，设了的目标字体、字号、行距、对齐、字重、段前段后全从 \option{format}
+% 覆盖之后两边分家：文档类原有的那套 \cs{ctexset} 只在没设 \option{styles} 的目标上
+% 生效，设了的目标字体、字号、行距、对齐、字重、段前段后全从 \option{styles}
 % 算，一处说了算。
 %
 % 有两样手写的标题格式里常有、这边有意不要的。
@@ -2002,11 +2266,11 @@
 % \emph{一是行距的伸缩量。} 手写的标题格式常把行距写成
 % \texttt{21bp~plus~1.677267bp~minus~1.157391bp} 这种可伸缩的值。
 % Word 的行距是刚性的，本包照 Word 建模，所以这边只发 \cs{fontsize}\marg{字号}\marg{行距}，没有伸缩量，
-% \option{format} 族也不打算加表达伸缩的键。这是有意的，不是漏了。
+% \option{styles} 族也不打算加表达伸缩的键。这是有意的，不是漏了。
 %
 % \emph{二是各级标题的 \cs{bfseries}。} 旧格式里章、节、条常带着它，
 % 这边一律不加粗：黑体本身够重，规范也没要求。要加粗就在
-% \option{format} 里写 \option{bold}\texttt{=true}，一处说了算。
+% \option{styles} 里写 \option{bold}\texttt{=true}，一处说了算。
 %
 % 文档类可以给某个目标的字体设置追加一段代码：
 % \cs{docxlike\_format\_add\_font:nn}\marg{目标}\marg{代码}。比如让某几级标题里的
@@ -2208,14 +2472,19 @@
 %
 % 除了字体与段前段后，文档类还可以往发给 \pkg{ctex} 的键里添东西，比如题序后面的
 % 间距（\option{aftername}）：\cs{docxlike\_format\_set\_heading\_keys:n}\marg{代码}，代码里
-% \texttt{\#1} 是目标，\texttt{\#2} 是正在攒的键值记号列表，用 \cs{tl\_put\_right:Nn}
+% \texttt{\#1} 是样式，\texttt{\#2} 是正在攒的键值记号列表，用 \cs{tl\_put\_right:Nn}
 % 往里添。默认什么也不添。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__docxlike_format_heading_keys:nN #1#2 { }
 \cs_new_protected:Npn \docxlike_format_set_heading_keys:n #1
   { \cs_gset_protected:Npn \__docxlike_format_heading_keys:nN ##1##2 {#1} }
+\prop_const_from_keyval:Nn \c__docxlike_format_heading_style_prop
+  { chapter = Heading1 , section = Heading2 , subsection = Heading3 , subsubsection = Heading4 }
 \cs_new_protected:Npn \docxlike_format_apply_heading:n #1
-  { \docxlike_format_apply_heading_to:nn {#1} {#1} }
+  {
+    \docxlike_format_apply_heading_to:en
+      { \prop_item:Nn \c__docxlike_format_heading_style_prop {#1} } {#1}
+  }
 \cs_new_protected:Npn \docxlike_format_apply_heading_to:nn #1#2
   {
     \__docxlike_format_if_blank:nF {#1}
@@ -2269,7 +2538,8 @@
         \bool_if:NT \g__docxlike_format_para_hook_bool
           { \__docxlike_format_level_new:nn {#1} {#2} }
       }
-  }
+  }\cs_generate_variant:Nn \docxlike_format_apply_heading_to:nn { e }
+
 %    \end{macrocode}
 %
 % \emph{目标名与层级名可以不是一个。} 原先两者写死同名，够用是因为四级一一对应。
@@ -2332,7 +2602,7 @@
 %
 % \begin{macro}{\docxlike_format_apply_font_else:nn}
 % \cs{docxlike\_format\_apply\_font\_else:nn}\marg{目标}\marg{兜底} 目标有取值就按它排，
-% 没有就执行\meta{兜底}。同一处排版代码既要服务设了 \option{format} 的文档、
+% 没有就执行\meta{兜底}。同一处排版代码既要服务设了 \option{styles} 的文档、
 % 也要服务没设的文档时用这个：表里有取值就按它，表是空的就退回原先写死的字号。
 %    \begin{macrocode}
 \tl_new:N \l__docxlike_format_else_tl
@@ -2353,7 +2623,7 @@
 % \cs{docxlike\_format\_par:nn}\marg{目标}\marg{内容} 按目标的版面排一段。字体、
 % 字号、行距、粗体、对齐、贴网格、字距、撑杆都由 \cs{docxlike\_format\_apply\_font:nN}
 % 备好，这里只补 \option{all-caps} 和段落自身的缩进与段前段后。封面这类不走
-% 章节命令的地方用它排每一段，取值就和正文标题共用一套 \option{format} 词汇。
+% 章节命令的地方用它排每一段，取值就和正文标题共用一套 \option{styles} 词汇。
 %
 % \emph{段前与前一段的段后取大，不相加。}Word 两段之间的距离是前一段的段后与后一段
 % 的段前里大的那个（样本文档里章标题段后 0.8 行、小标题段前 0.5 行，量出来
@@ -2419,16 +2689,21 @@
 %    \end{macrocode}
 %
 % \begin{macro}{\docxlike_format_apply_heading:nn}
-% \cs{docxlike\_format\_apply\_heading:nn}\marg{目标}\marg{覆盖} 同
+% \cs{docxlike\_format\_apply\_heading:nn}\marg{层级}\marg{覆盖} 同
 % \cs{docxlike\_format\_apply\_heading:n}，但先把\meta{覆盖}那几条键值临时按到目标上，
 % 发完还回去。\cs{ctexset} 那边的取值不会自己回去，调用方排完那个标题要再按一次
 % \cs{docxlike\_format\_apply\_heading:n}。
 %    \begin{macrocode}
 \cs_new_protected:Npn \docxlike_format_apply_heading:nn #1#2
   {
+    \exp_args:Ne \__docxlike_format_apply_heading_over:nnn
+      { \prop_item:Nn \c__docxlike_format_heading_style_prop {#1} } {#1} {#2}
+  }
+\cs_new_protected:Npn \__docxlike_format_apply_heading_over:nnn #1#2#3
+  {
     \__docxlike_format_save:n {#1}
-    \__docxlike_format_target:nn {#1} {#2}
-    \docxlike_format_apply_heading:n {#1}
+    \__docxlike_format_target:nn {#1} {#3}
+    \docxlike_format_apply_heading_to:nn {#1} {#2}
     \__docxlike_format_restore_saved:n {#1}
   }
 %    \end{macrocode}
@@ -2447,11 +2722,8 @@
 %
 % \subsection{段落边框}
 %
-% \option{border-top}、\option{border-bottom} 照 docx 的 \texttt{w:pBdr}：
-% \option{val} 线型、\option{sz} 线宽（八分之一磅，与 docx 同）、\option{space} 离文字的
-% 距离（磅）、\option{color}（六位十六进制或 \texttt{auto}）。
-% \texttt{border-bottom = \{ val = single , sz = 6 , space = 1 \}} 就是 Word 的“下框线，
-% 0.75 磅，距正文 1 磅”。
+% 框线写在样式的 \option{border} 里（见前面“键”一节），存成 docx 的 \texttt{w:pBdr} 那几项：
+% 线型、线宽（八分之一磅）、距正文（磅）、颜色。
 %
 % 量出来的规则（\file{test/headfoot/README.md}）：下边框画在最后一行行盒底之下
 % \option{space} 处，线与间隙都算进段高；上边框在第一行行盒顶之上。线比段落左右各伸出
@@ -2461,36 +2733,6 @@
 %
 % 相邻两段边框相同时 Word 合成一组、只在组末画，这里不合并，要合并的请只给最后一段写。
 %    \begin{macrocode}
-\keys_define:nn { docxlike / format / border }
-  {
-    val .tl_set:N = \l__docxlike_format_border_val_tl ,
-    sz .tl_set:N = \l__docxlike_format_border_sz_tl ,
-    space .tl_set:N = \l__docxlike_format_border_space_tl ,
-    color .tl_set:N = \l__docxlike_format_border_color_tl ,
-    unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
-  }
-\cs_new_protected:Npn \__docxlike_format_border:nn #1#2
-  {
-    \str_if_eq:nnTF {#2} { auto }
-      { \__docxlike_format_put:nn { border-#1 } { auto } }
-      {
-        \group_begin:
-          \tl_set:Nn \l__docxlike_format_border_val_tl { single }
-          \tl_set:Nn \l__docxlike_format_border_sz_tl { 4 }
-          \tl_set:Nn \l__docxlike_format_border_space_tl { 0 }
-          \tl_set:Nn \l__docxlike_format_border_color_tl { auto }
-          \keys_set:nn { docxlike / format / border } {#2}
-          \__docxlike_format_put:ne { border-#1 }
-            {
-              { \l__docxlike_format_border_val_tl }
-              { \l__docxlike_format_border_sz_tl }
-              { \l__docxlike_format_border_space_tl }
-              { \l__docxlike_format_border_color_tl }
-            }
-        \group_end:
-      }
-  }
 \cs_generate_variant:Nn \__docxlike_format_put:nn { ne }
 %    \end{macrocode}
 %
@@ -2652,11 +2894,11 @@
 %
 % \subsection{制表位}
 %
-% \option{tabs} 照 docx 的 \texttt{w:tabs}：逗号隔开的若干个“类型 位置 前导符”，
-% 类型是 \texttt{left}、\texttt{center}、\texttt{right}，位置从段落左缩进量起，前导符可省，
-% 可写 \texttt{dot}、\texttt{hyphen}、\texttt{underscore}、\texttt{middleDot}。
-% 段落里用 \cs{docxliketab} 表示一个制表符。制表位用完了按 \option{default-tab-stop}
-% （Word 的默认制表位，中文 Word 是 21 磅）往后排。
+% 样式的 \option{tabs} 写成“位置 对齐方式 前导符”，内部存成 docx \texttt{w:tabs} 的
+% “对齐方式 位置 前导符”；位置从段落左缩进量起，前导符可省，取 docx 的名字 \texttt{dot}、
+% \texttt{hyphen}、\texttt{underscore}、\texttt{middleDot}（界面上只有图样）。
+% 段落里用 \cs{docxliketab} 表示一个制表符。制表位用完了按 \option{default-tab-stops}
+% （Word 的“默认制表位”，中文 Word 是 21 磅）往后排。
 %
 % 只排一行：带制表符的段不断行，Word 的页眉页脚几乎都是这样用的。规则是量的：先按
 % 左对齐排开，居中制表位让那一截以停靠点为中心、右制表位让那一截右端贴停靠点，都不压到
@@ -2665,7 +2907,7 @@
 \dim_new:N \g_docxlike_default_tab_stop_dim
 \dim_gset:Nn \g_docxlike_default_tab_stop_dim { 21bp }
 \keys_define:nn { docxlike }
-  { default-tab-stop .dim_gset:N = \g_docxlike_default_tab_stop_dim }
+  { default-tab-stops .dim_gset:N = \g_docxlike_default_tab_stop_dim }
 \msg_new:nnn { docxlike } { tab-outside-paragraph }
   { \token_to_str:N \docxliketab\ is~only~allowed~in~a~paragraph~with~a~format~target. }
 \NewDocumentCommand \docxliketab { }
@@ -2806,7 +3048,7 @@
 %
 % 四个都是全局长度而不是直接写死的数：\cs{normalsize} 每次执行都重读，所以
 % 设置写在导言区哪里都来得及，写进正文也能改。默认值由文档类给，
-% 没写 \option{body} 就一直是那一份。
+% 没写 \texttt{Normal} 就一直是那一份。
 %
 % 改完长度要再调一次 \cs{normalsize}。\hologo{LaTeX} 选定正文字体是在类加载完那一刻，
 % 早于 \cs{AfterPreamble}，只改长度不重选的话这一页排出来的还是旧行距。
@@ -2859,7 +3101,7 @@
 %
 % 撑杆挂在段落的首尾两个钩子上，段间的接缝就都按 Word 的行盒算。首尾各挂一根：
 % 首行那根定这一段的高，末行那根定这一段的深，只挂一根管不到另一头。标题那边
-% 另有一根写在 \option{format} 里，两根重了也没事，行盒取的是最大值。
+% 另有一根写在 \option{styles} 里，两根重了也没事，行盒取的是最大值。
 %
 % 页眉还要单接一次。页眉页脚在输出例程里排，排之前立着“在页眉里”的标志
 % （\cs{l\_docxlike\_format\_in\_header\_bool}），段落钩子见了就什么也不做，所以
@@ -3928,8 +4170,8 @@
 % 之前调。空白文档预设打开它。
 %
 % \emph{标题要在开段之前认出来。} \pkg{ctex} 排标题时先 \cs{noindent} 起段，
-% 再执行 \option{format}，钩子跑的时候标题的字号、行距都还没设，靠
-% \option{format} 里立标志来不及。所以在章节命令本身挂一个 \texttt{cmd/\ldots/before}
+% 再执行 \option{styles}，钩子跑的时候标题的字号、行距都还没设，靠
+% \option{styles} 里立标志来不及。所以在章节命令本身挂一个 \texttt{cmd/\ldots/before}
 % 钩子，记下这一次是哪一级；\texttt{para/before} 见到记号就按那一级的目标算行距与
 % 首行上升部，用完清掉。目标与层级的对应在 \cs{docxlike\_format\_apply\_heading\_to:nn}
 % 里登记，所以错开一格发的那一档也认得。
@@ -3949,7 +4191,7 @@
     \bool_set_false:N \l__docxlike_format_spaced_bool
     \clist_map_inline:nn { space-before , space-after }
       {
-        \__docxlike_format_get:nnNT { body } {##1} \l__docxlike_format_value_tl
+        \__docxlike_format_get:nnNT { Normal } {##1} \l__docxlike_format_value_tl
           { \bool_set_true:N \l__docxlike_format_spaced_bool }
       }
     \bool_if:NT \l__docxlike_format_spaced_bool
@@ -4042,9 +4284,9 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \docxlike_format_apply_body:
   {
-    \__docxlike_format_if_blank:nF { body }
+    \__docxlike_format_if_blank:nF { Normal }
       {
-        \docxlike_format_compute:n { body }
+        \docxlike_format_compute:n { Normal }
         \bool_set_eq:NN \l_docxlike_format_strut_latin_bool \l__docxlike_format_latin_bool
         \dim_gset_eq:NN \g_docxlike_body_size_dim \l_docxlike_format_size_dim
         \dim_gset_eq:NN \g_docxlike_body_lead_dim \l_docxlike_format_lead_dim
@@ -4057,7 +4299,7 @@
         \docxlike_format_penalties:
         \normalsize
         \cs_if_exist:NT \ctexset { \ctexset { autoindent = false } }
-        \__docxlike_format_get:nnNT { body } { alignment } \l__docxlike_format_value_tl
+        \__docxlike_format_get:nnNT { Normal } { alignment } \l__docxlike_format_value_tl
           {
             \prop_get:NVNT \c__docxlike_format_align_prop \l__docxlike_format_value_tl
               \l__docxlike_format_value_tl { \l__docxlike_format_value_tl }
@@ -4109,7 +4351,7 @@
 %
 % \subsection{断字与空行}
 %
-% \emph{断字全文一个开关} \option{format}/\option{hyphenation}，正文、题注、
+% \emph{断字全文一个开关} \option{hyphenation}，正文、题注、
 % 纯西文段一律跟随，一份文档不设两套规矩。
 %
 % 默认\emph{关}。依据三条：样本文档的 Word 导出勾了不断字；样本文档逐字量下来 Word 没有
@@ -4188,7 +4430,7 @@
 % 固定值就是那么高，最小值取两者较大者。
 %
 % \emph{行距与贴格跟正文走。} 回车敲出的空段继承上一段的段落属性，绝大多数空段
-% 敲在正文里，所以默认按 \option{body} 目标现算一遍（\cs{docxlike\_format\_compute:n}，
+% 敲在正文里，所以默认按 \texttt{Normal} 目标现算一遍（\cs{docxlike\_format\_compute:n}，
 % 算完 \cs{l\_docxlike\_format\_line\_unit\_tl}、\cs{l\_docxlike\_format\_line\_value\_tl} 与
 % \cs{l\_docxlike\_format\_snap\_vertical\_bool} 就是正文那一档）。不能拿上一次算过的目标凑数：页眉页脚、表格都会算，留下的是谁
 % 说不准（回归测试里就曾拿到单倍）。贴格的空段与正文的行走同一条换算
@@ -4196,7 +4438,7 @@
 % 这是 2026-09-21 用 Word 探针量的：无网格或段上写了
 % \texttt{snapToGrid=0} 时 Times 单倍 13.8、1.25 倍 17.25，段落标记带
 % \texttt{hint=eastAsia} 也不改变；贴格时单倍 19.55、1.25 倍 24.4。样本文档正文
-% 是 1.25 倍不贴格，所以正文里的空段仍是 17.25。\option{body} 没写行距
+% 是 1.25 倍不贴格，所以正文里的空段仍是 17.25。\texttt{Normal} 没写行距
 % 时退回 1.25 倍不贴格。正文走 \option{line-white} 那一档（版心底齐平）时空段也
 % 照那条换算：视觉白加一个字面高；写了区间只取第一个端点，空段是刚性的。
 %
@@ -4214,11 +4456,11 @@
 % 表后头一段（哪怕是空段）段前一行。曾经试过让空段把后距减掉去凑样本文档（样本里
 % 表后的空段没有段前），没有采用：浮动体的后距不能砍。
 %
-% 可选参数是回车几次；含等号时按键值读，与 \option{format} 族同词汇：
-% \option{size}、\option{line-spacing}（文法同 \cs{\_\_docxlike\_format\_measure:nnnn}）、
-% \option{snap-to-grid} 贴不贴网格（网格没启用时写 true 也不贴）、
-% \option{font-en}/\option{font-zh} 指定段落标记字体，自然行高只认实测值，没量过的
-% 字体报错不瞎给。
+% 可选参数是回车几次；含等号时按键值读，写法与样式同：\option{lines} 几行；
+% \option{font} 里 \option{size}、\option{asian-text-font}、\option{latin-text-font} 指定段落标记的字号
+% 与字体，自然行高只认实测值，没量过的字体报错不瞎给；\option{paragraph} 里 \option{spacing} 的
+% \option{line-spacing} 与 \option{at}，以及 \option{snap-to-grid} 贴不贴网格（网格没启用时写
+% \texttt{true} 也不贴）。
 %    \begin{macrocode}
 \int_new:N \l__docxlike_parmark_lines_int
 \bool_new:N \l__docxlike_parmark_snap_bool
@@ -4315,15 +4557,57 @@
 \keys_define:nn { docxlike / parmark }
   {
     lines .int_set:N = \l__docxlike_parmark_lines_int ,
-    size .code:n = { \__docxlike_parmark_size:n {#1} } ,
-    line-spacing .code:n = { \__docxlike_parmark_spacing:n {#1} } ,
-    snap-to-grid .bool_set:N = \l__docxlike_parmark_snap_bool ,
-    snap-to-grid .default:n = { true } ,
-    font-en .code:n = { \__docxlike_parmark_font:n {#1} } ,
-    font-zh .code:n = { \__docxlike_parmark_font:n {#1} } ,
+    font .code:n = { \__docxlike_keys_set:nn { docxlike / parmark / font } {#1} } ,
+    paragraph .code:n =
+      { \__docxlike_keys_set:nn { docxlike / parmark / paragraph } {#1} } ,
     unknown .code:n =
       { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
   }
+\keys_define:nn { docxlike / parmark / font }
+  {
+    size .code:n = { \__docxlike_parmark_size:n {#1} } ,
+    latin-text-font .code:n = { \__docxlike_parmark_font:n {#1} } ,
+    asian-text-font .code:n = { \__docxlike_parmark_font:n {#1} } ,
+    unknown .code:n =
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+  }
+\keys_define:nn { docxlike / parmark / paragraph }
+  {
+    spacing .code:n = { \__docxlike_parmark_rule:n {#1} } ,
+    snap-to-grid .bool_set:N = \l__docxlike_parmark_snap_bool ,
+    snap-to-grid .default:n = { true } ,
+    unknown .code:n =
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+  }
+\keys_define:nn { docxlike / parmark / spacing }
+  {
+    line-spacing .tl_set:N = \l__docxlike_style_rule_tl ,
+    at .tl_set:N = \l__docxlike_style_at_tl ,
+    unknown .code:n =
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+  }
+\cs_new_protected:Npn \__docxlike_parmark_rule:n #1
+  {
+    \tl_clear:N \l__docxlike_style_rule_tl
+    \tl_clear:N \l__docxlike_style_at_tl
+    \keys_set:nn { docxlike / parmark / spacing } {#1}
+    \tl_if_empty:NF \l__docxlike_style_rule_tl
+      {
+        \__docxlike_parmark_spacing:e
+          {
+            \str_case:Vn \l__docxlike_style_rule_tl
+              {
+                { single } { single }
+                { 1.5-lines } { 1.5 }
+                { double } { double }
+                { multiple } { \l__docxlike_style_at_tl }
+                { exactly } { \l__docxlike_style_at_tl ! }
+                { at-least } { \l__docxlike_style_at_tl + }
+              }
+          }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_parmark_spacing:n { e }
 \cs_new_protected:Npn \__docxlike_parmark_height:
   {
     \dim_compare:nNnTF \l__docxlike_parmark_size_dim > { 0pt }
@@ -4385,8 +4669,8 @@
     \dim_zero:N \l__docxlike_parmark_size_dim
     \fp_set_eq:NN \l__docxlike_parmark_ratio_fp \c__docxlike_parmark_natural_serif_fp
     \tl_set_eq:NN \l__docxlike_parmark_ascent_tl \c_docxlike_format_ascent_latin_tl
-    \docxlike_format_compute:n { body }
-    \__docxlike_format_get:nnNTF { body } { line-spacing } \l__docxlike_parmark_val_tl
+    \docxlike_format_compute:n { Normal }
+    \__docxlike_format_get:nnNTF { Normal } { line-spacing } \l__docxlike_parmark_val_tl
       { \tl_set_eq:NN \l__docxlike_parmark_mode_tl \l_docxlike_format_line_unit_tl }
       {
         \tl_set:Nn \l__docxlike_parmark_mode_tl { multiple }

@@ -74,7 +74,7 @@
 %
 % \emph{页眉那一行的行盒按目标算。} Word 的页眉框顶钉在“页眉距边界”上，框里那一段
 % 的行盒由它自己的字体与行距定：行距 0（范例的页眉段是这么写的）就是自然行高，倍数
-% 就是倍数乘自然行高，基线在盒顶下一个上升部。\option{format}/\option{header} 目标给了
+% 就是倍数乘自然行高，基线在盒顶下一个上升部。\option{styles}/\option{Header} 目标给了
 % 取值就照它算；目标空着就退回小五的四个常数，那是旧版面（博士后）的页眉。
 % 纯西文那一档同字号按 Times 的两个常数算。
 %    \begin{macrocode}
@@ -87,11 +87,11 @@
   }
 \cs_new_protected:Npn \__hit_page_header_line:
   {
-    \docxlike_format_if_blank:nTF { header }
+    \docxlike_format_if_blank:nTF { Header }
       { \__hit_page_header_line_xiaowu: }
       {
         \group_begin:
-          \docxlike_format_compute:n { header }
+          \docxlike_format_compute:n { Header }
           \dim_gset:Nn \g__hit_header_text_ht_dim { \l_docxlike_format_first_dim }
           \dim_gset:Nn \g__hit_header_text_dp_dim
             {
@@ -162,19 +162,19 @@
 %    \begin{macrocode}
 \clist_map_inline:nn
   {
-    { caption-figure } { body } , { caption-table } { body } ,
+    { caption-figure } { Normal } , { caption-table } { Normal } ,
     { caption-sub } { caption-figure } , { caption-note } { caption-figure } ,
-    { table-cell } { body } , { abstract-heading } { body } ,
-    { toc-chapter } { body } , { toc-section } { toc-chapter } ,
+    { table-cell } { Normal } , { abstract-heading } { Normal } ,
+    { toc-chapter } { Normal } , { toc-section } { toc-chapter } ,
     { toc-subsection } { toc-section } , { toc-subsubsection } { toc-subsection } ,
-    { abstract-en } { body } ,
+    { abstract-en } { Normal } ,
     { titlepage-mark } { } , { titlepage-label } { titlepage-mark } ,
     { titlepage-title } { titlepage-mark } , { titlepage-field } { titlepage-mark } ,
     { titlepage-en-mark } { titlepage-mark } ,
     { titlepage-en-degree } { titlepage-en-mark } ,
     { titlepage-en-title } { titlepage-en-mark } ,
     { titlepage-en-field } { titlepage-en-mark } ,
-    { statement-heading } { body } , { authorization-heading } { body } ,
+    { statement-heading } { Normal } , { authorization-heading } { Normal } ,
     { cover-label } { } , { cover-type } { cover-label } ,
     { cover-title } { cover-label } , { cover-subtitle } { cover-title } ,
     { cover-title-en } { cover-title } , { cover-author } { cover-label } ,
@@ -189,19 +189,54 @@
     { report-cover-blank-mid } { report-cover-form }
   }
   { \docxlike_format_target_new:nn #1 }
-\keys_define:nn { docxlike / format }
+%    \end{macrocode}
+%
+% \emph{\option{styles} 键。} \cs{hitsetup} 的 \option{styles} 先由本类的 \texttt{hit / styles}
+% 族过一遍：\option{caption} 一次写图题表题，\option{bilingual-caption} 是题注开关（见
+% \file{hit-caption.dtx}）；其余每一项原样交给 \pkg{docxlike} 的 \cs{docxlike\_format\_set:n}。
+%    \begin{macrocode}
+\keys_define:nn { hit / styles }
   {
-    caption .meta:n = { caption-figure = {#1} , caption-table = {#1} } ,
-    caption / if-raggedbottom .meta:n =
+    caption .code:n =
+      { \docxlike_format_set:n { caption-figure = {#1} , caption-table = {#1} } } ,
+    caption / if-raggedbottom .code:n =
       {
-        caption-figure/if-raggedbottom = {#1} ,
-        caption-table/if-raggedbottom = {#1} ,
+        \docxlike_format_set:n
+          { caption-figure/if-raggedbottom = {#1} , caption-table/if-raggedbottom = {#1} }
       } ,
-    caption / if-flushbottom .meta:n =
+    caption / if-flushbottom .code:n =
       {
-        caption-figure/if-flushbottom = {#1} ,
-        caption-table/if-flushbottom = {#1} ,
+        \docxlike_format_set:n
+          { caption-figure/if-flushbottom = {#1} , caption-table/if-flushbottom = {#1} }
       } ,
+  }
+\str_new:N \l__hit_styles_key_str
+\tl_new:N \l__hit_styles_list_tl
+\cs_new_protected:Npn \hit@styles@set:n #1
+  {
+    \tl_set:Nn \l__hit_styles_list_tl {#1}
+    \tl_replace_all:Nnn \l__hit_styles_list_tl { \par } { }
+    \exp_args:NnnV \keyval_parse:nnn
+      { \__hit_styles_bare:n } { \__hit_styles_item:nn } \l__hit_styles_list_tl
+  }
+\cs_new_protected:Npn \__hit_styles_own:nTF #1
+  {
+    \str_set:Nn \l__hit_styles_key_str {#1}
+    \str_remove_all:Nn \l__hit_styles_key_str { ~ }
+    \keys_if_exist:nVTF { hit / styles } \l__hit_styles_key_str
+  }
+\prg_generate_conditional_variant:Nnn \keys_if_exist:nn { nV } { TF }
+\cs_new_protected:Npn \__hit_styles_bare:n #1
+  {
+    \__hit_styles_own:nTF {#1}
+      { \keys_set:nn { hit / styles } {#1} }
+      { \docxlike_format_set:n {#1} }
+  }
+\cs_new_protected:Npn \__hit_styles_item:nn #1#2
+  {
+    \__hit_styles_own:nTF {#1}
+      { \keys_set:nn { hit / styles } { #1 = {#2} } }
+      { \docxlike_format_set:n { #1 = {#2} } }
   }
 %    \end{macrocode}
 %
@@ -256,13 +291,21 @@
 % 贴着标题排，不再空那一个字；章“第一章”后面照旧空一个字。标志位只在学位
 % 终稿里有，报告没有这根轴，先问存在再问真假。
 %    \begin{macrocode}
+\cs_new:Npn \__hit_heading_level:n #1
+  {
+    \str_case:nn {#1}
+      {
+        { Heading1 } { chapter } { Heading2 } { section }
+        { Heading3 } { subsection } { Heading4 } { subsubsection }
+      }
+  }
 \cs_new:Npn \__hit_heading_hass_nogap_p:n #1
   {
     \bool_lazy_all_p:n
       {
         { \bool_if_exist_p:N \g__hit_hass_bool }
         { \bool_if_p:N \g__hit_hass_bool }
-        { \str_if_eq_p:nn {#1} { section } || \str_if_eq_p:nn {#1} { subsection } }
+        { \str_if_eq_p:nn {#1} { Heading2 } || \str_if_eq_p:nn {#1} { Heading3 } }
       }
   }
 \docxlike_format_set_heading_keys:n
@@ -278,7 +321,7 @@
               {
                 aftername =
                   {
-                    \hit@after@number:nnn {#1}
+                    \hit@after@number:nnn { \__hit_heading_level:n {#1} }
                       { \bool_if:NTF \g__hit_en_bool { en } { zh } }
                       { \hit@heading@number@gap: }
                   } ,
@@ -296,7 +339,7 @@
 %    \begin{macrocode}
 \cs_new:Npn \hit@format@latin@sans:
   { \bool_if:NT \g__hit_heading_latin_sans_bool { \sffamily } }
-\clist_map_inline:nn { chapter , section , subsection , subsubsection }
+\clist_map_inline:nn { Heading1 , Heading2 , Heading3 , Heading4 }
   { \docxlike_format_add_font:nn {#1} { \hit@format@latin@sans: } }
 %    \end{macrocode}
 %
@@ -334,18 +377,18 @@
   {
     \str_case:nn {#1}
       {
-        { chapter }
+        { Heading1 }
           {
             \__hit_docxlike_flag_eq:nnnn {#1} { chapterbold } { bold } { true }
             \__hit_docxlike_flag_eq:nnnn {#1} { chapterhang }
               { indent-special-mode } { hanging }
             \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { font-en } { sans }
           }
-        { section }
+        { Heading2 }
           { \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { font-en } { sans } }
-        { subsection }
+        { Heading3 }
           { \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { font-en } { sans } }
-        { subsubsection }
+        { Heading4 }
           { \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { font-en } { sans } }
         { caption-figure }
           {
