@@ -114,13 +114,13 @@ clean:
 # 它们不是这个目录的内容，是别处的产物，按名删不通配。
 GENERATED = hithesis.cls hithesis.cfg hithesis.sty hithesis.ist hithesis.bst \
             hithesisbook.cls hithesisart.cls hithesisartplus.cls \
-            hit-linebreak.lua \
+            docxlike.sty docxlike.lua \
             hit-logo.pdf zfb.pdf hit-bachelor-report-bottommark.pdf \
             figures/golfer.pdf
 
 # 已经不再生成、但旧版本拷进来过的那几份。留在这张表里，从旧版升上来的目录
 # 才扫得干净；生成物那边删掉一个名字就往这里补一个。
-LEGACY = hit-thesis.cfg hit-report.cfg hit-thesis.cls hit-report.cls
+LEGACY = hit-thesis.cfg hit-report.cfg hit-thesis.cls hit-report.cls banshi.sty banshi.lua zhwordlike.sty zhwordlike.lua hit-linebreak.lua
 
 clean-generated:
 	-@$(RM) $(GENERATED) $(LEGACY)
