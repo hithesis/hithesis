@@ -16,7 +16,8 @@
 %   补 \pkg{longtable} 漏掉的行距胶；关段时停掉段末撑竿钩子（空续段曾撑成幽灵行）；行撑竿
 %   0.9 倍（恰好等于行距时 \hologo{TeX} 退到 lineskip 堆叠）；清空表头盒、局部关掉
 %   \pkg{hyperref} 的锚点（两者落在新页页顶都会吃掉 \cs{topskip} 基线）；收尾按段落
-%   撑竿深度。行间公式段前胶归零、单行公式那一段装进按 Word 模型算的行盒}
+%   撑竿深度。行间公式段前胶归零、单行公式那一段装进按 Word 模型算的行盒，断口的撑竿
+%   只插在已有字的段里（两条公式紧挨着时曾多出一行）}
 %
 % \pkg{amsmath} 一路到数学字体选择这一段，原来每个类一字不差地各写了一遍。
 % 这里合成一份。
@@ -672,6 +673,9 @@
 % 条分式，前面空一行 24.7、不空行只有 19.5）。环境的 \texttt{begin} 钩子在
 % \texttt{\$\$} 之前、还在横排模式里，在那儿把撑杆插进断口，断口行就与别的行
 % 一样深。竖排模式（公式独占段）不插：上一段的段末撑杆本来就在。
+% 横排模式里一个字都还没有的也不插：两条公式紧挨着写时，前一条收尾后段落
+% 接着开，第二条进场那一刻横排列表是空的，插了撑杆就凭空多出一行，两条之间
+% 比 iota 宽 15.9。判空看 \cs{lastnodetype}，空列表是 $-1$。
 %
 % 公式\emph{之后}的断口没有对称的一手：接排的第一行同样是中间行，比模型紧
 % 2\,bp 上下。不补它——\texttt{after} 钩子那一刻看不出接下来是正文还是空行，
@@ -705,7 +709,11 @@
 \dim_new:N \l__hit_display_depth_dim
 \cs_new_protected:Npn \hit@display@want:
   {
-    \mode_if_horizontal:T { \cs_if_exist_use:N \hit@format@strut: }
+    \mode_if_horizontal:T
+      {
+        \int_compare:nNnF { \tex_lastnodetype:D } = { -1 }
+          { \cs_if_exist_use:N \hit@format@strut: }
+      }
     \bool_gset_true:N \g__hit_display_wanted_bool
   }
 \cs_new_protected:Npn \hit@display@open:

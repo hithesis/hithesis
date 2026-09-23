@@ -11,7 +11,8 @@
 %   标签伪粗宋；某一块人数超了先向还有空行的块借；竖排标签按格子高度自动定；决议区用
 %   \pkg{tcolorbox} 跨页续排，余量不够一行时整块挪到下一页；评阅人合并格的宽度明写成
 %   两列之和（\pkg{tabularray} 给合并格的行宽不是两列相加，实测 56\,pt 对 69.5）；
-%   \cs{resolution} 只剩带废弃提示的转发，排过就记闸门}
+%   新版面列宽照 iota 写死，比版心宽出的部分两边探出，评阅人那格顶对齐，决议框排到
+%   本页剩下的整数个网格行；\cs{resolution} 只剩带废弃提示的转发，排过就记闸门}
 %
 % 这一页原先只有两条路：给个 PDF 就贴进来，不给就贴一张空表的位图。位图是扫描来的，
 % 缩放之后发虚，字体与正文两样，选不中也搜不到，英文论文照样出中文表。现在改成直接排。
@@ -129,6 +130,12 @@
 % 缩放的基准页宽。原图标称 437\,pt，但贴进论文时按 \cs{includegraphics} 缩放，
 % 实测下来等效基准是 438.5\,pt——差的那一点来自图的边界框与标称页宽不完全一致。
 % 拿这个数排出来，表格总高与 v3.1e 贴图那版对得上。
+%
+% \emph{新版面不缩放，照 iota 写死列宽。} 原件的表比版心宽：六列 436\,bp，版心
+% 425.2，左右各探出 5.4，居中。iota 的 \texttt{\_columns-stem} 就是这六个数、
+% 行高 21.72，整张表居中放、两边探出去。所以新版面直接用绝对值：表装进一只与版心
+% 同宽的盒子两头 \cs{hss}，决议框按版心宽再向两边各长出那一截（\pkg{tcolorbox} 的
+% \texttt{grow to left/right by}），两者一起居中探出；旧版面照 v3.1e 按版心缩放。
 %    \begin{macrocode}
 \fp_const:Nn \c__hit_res_page_fp { 438.5 }
 %    \end{macrocode}
@@ -145,18 +152,28 @@
 %    \begin{macrocode}
 %    \end{macrocode}
 %
+% 新版面的列宽是 iota 的格线到格线（竖线骑在格线正中），\pkg{tabularray} 的表宽是
+% 各列 \texttt{wd} 加格距再加七道竖线，所以每列减一整道竖线，外沿才落在
+% 436 加半道线处，与 iota 的外沿同位；旧版面仍减半道。
+%
 % 按比例缩放走浮点。写成 \texttt{576.72\cs{linewidth}/437} 会先乘后除，
 % 576.72 $\times$ 426.79 早就越过 \cs{maxdimen}（约 16384\,pt），报 Dimension too large。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_res_scale:Nn #1#2
   {
-    \dim_gset:Nn #1
-      { \fp_to_dim:n { \dim_to_fp:n { \linewidth } * #2 / \c__hit_res_page_fp } }
+    \__hit_layout_msword_active:TF
+      { \dim_gset:Nn #1 { #2 bp } }
+      {
+        \dim_gset:Nn #1
+          { \fp_to_dim:n { \dim_to_fp:n { \linewidth } * #2 / \c__hit_res_page_fp } }
+      }
   }
 \cs_new_protected:Npn \__hit_res_col:Nn #1#2
   {
     \__hit_res_scale:Nn #1 {#2}
-    \dim_gsub:Nn #1 { \c__hit_res_colsep_dim * 2 + \c__hit_res_vrule_dim / 2 }
+    \__hit_layout_msword_active:TF
+      { \dim_gsub:Nn #1 { \c__hit_res_colsep_dim * 2 + \c__hit_res_vrule_dim } }
+      { \dim_gsub:Nn #1 { \c__hit_res_colsep_dim * 2 + \c__hit_res_vrule_dim / 2 } }
   }
 \cs_new_protected:Nn \__hit_resolution_calc:
   {
@@ -168,14 +185,27 @@
 % 21.72\,pt 是两道横线中心之间的距离，所以要减掉一道线宽才是 \texttt{ht}。
 %    \begin{macrocode}
     \dim_gsub:Nn \g__hit_res_row_dim { \c__hit_res_hrule_dim }
-    \__hit_res_col:Nn \g__hit_res_ca_dim  { 33.60 }
-    \__hit_res_col:Nn \g__hit_res_cb_dim  { 42.72 }
-    \__hit_res_col:Nn \g__hit_res_cab_dim { 76.32 }
-    \__hit_res_col:Nn \g__hit_res_cc_dim  { 56.64 }
-    \__hit_res_col:Nn \g__hit_res_cd_dim  { 106.32 }
-    \__hit_res_col:Nn \g__hit_res_ce_dim  { 92.16 }
-    \__hit_res_col:Nn \g__hit_res_cf_dim  { 104.40 }
-    \__hit_res_col:Nn \g__hit_res_conclw_dim { 435.84 }
+    \__hit_layout_msword_active:TF
+      {
+        \__hit_res_col:Nn \g__hit_res_ca_dim  { 33.75 }
+        \__hit_res_col:Nn \g__hit_res_cb_dim  { 42.55 }
+        \__hit_res_col:Nn \g__hit_res_cab_dim { 76.30 }
+        \__hit_res_col:Nn \g__hit_res_cc_dim  { 56.70 }
+        \__hit_res_col:Nn \g__hit_res_cd_dim  { 106.30 }
+        \__hit_res_col:Nn \g__hit_res_ce_dim  { 92.15 }
+        \__hit_res_col:Nn \g__hit_res_cf_dim  { 104.55 }
+        \__hit_res_col:Nn \g__hit_res_conclw_dim { 436.00 }
+      }
+      {
+        \__hit_res_col:Nn \g__hit_res_ca_dim  { 33.60 }
+        \__hit_res_col:Nn \g__hit_res_cb_dim  { 42.72 }
+        \__hit_res_col:Nn \g__hit_res_cab_dim { 76.32 }
+        \__hit_res_col:Nn \g__hit_res_cc_dim  { 56.64 }
+        \__hit_res_col:Nn \g__hit_res_cd_dim  { 106.32 }
+        \__hit_res_col:Nn \g__hit_res_ce_dim  { 92.16 }
+        \__hit_res_col:Nn \g__hit_res_cf_dim  { 104.40 }
+        \__hit_res_col:Nn \g__hit_res_conclw_dim { 435.84 }
+      }
   }
 %    \end{macrocode}
 %
@@ -536,6 +566,10 @@
 %    \end{macrocode}
 %
 % 评阅人那一格跨表头加数据行，并横跨最左两列——那一块没有“职务”这一列。
+% 这一格顶对齐（\texttt{h}），不跟别的格居中：“评阅人（根据实际人数填写）”折成
+% 三行，居中就比表头那一行低 2.2；iota 整张表 \texttt{align: center + top}，
+% 这一格的头一行与表头同基线，原件也是。单行的格子顶对齐与居中排出来一样，
+% 所以只改这一格。
 %
 % \emph{合并格的宽要明写。}\pkg{tabularray} 算 \texttt{c=2} 的格子时行宽不是两列
 % \texttt{wd} 相加（实测 56.03\,pt，两列 69.53），“（根据实际”五个字 60\,pt 放不下
@@ -544,7 +578,7 @@
 %    \begin{macrocode}
         \exp_not:N \SetCell
           [ r = \int_eval:n { \g__hit_res_rev_int + 1 } , c = 2 ]
-          { c , wd = \dim_use:N \g__hit_res_cab_dim }
+          { c , h , wd = \dim_use:N \g__hit_res_cab_dim }
           { \exp_not:N \__hit_res_head: \exp_not:o { \hit@term@resolution@reviewer } }
           & & \exp_not:N \__hit_res_head: \exp_not:o { \hit@term@resolution@name }
           & \exp_not:N \__hit_res_head: \exp_not:o { \hit@term@resolution@title }
@@ -664,12 +698,50 @@
 % 摊了之后行高就不再等于纸质表的 21.72\,pt，这是保底部对齐必然的代价。
 %    \begin{macrocode}
 \box_new:N \l__hit_res_probe_box
+\dim_new:N \g__hit_res_over_dim
+%    \end{macrocode}
+%
+% \emph{新版面的决议框照 iota：排到这一页剩下的整数个网格行。} 旧版面按原图的
+% 总高 576.72 减去上表实际高度，余量不到三行就把余量摊进上表；新版面不走那条，
+% 上表排完看这一页还剩多少，向下取整到网格行，框就是那么高（iota 的
+% \texttt{rows-in-box}）。一行都不剩就整块挪到下一页。剩多少要等上表进了主竖直
+% 列表才读得到，先发一个 10000 的罚分让分页器跑一趟。
+%    \begin{macrocode}
+\bool_new:N \l__hit_res_new_bool
+\prg_new_protected_conditional:Npnn \__hit_res_new_layout: { T , F , TF }
+  {
+    \__hit_layout_msword_active:TF
+      { \dim_compare:nNnTF { \g_hit_msword_lead_dim } > { \c_zero_dim }
+          { \prg_return_true: } { \prg_return_false: } }
+      { \prg_return_false: }
+  }
+\cs_new_protected:Nn \__hit_res_page_rest:
+  {
+    \tex_penalty:D 10000 \scan_stop:
+    \dim_set:Nn \l__hit_res_rest_dim
+      {
+        \fp_to_dim:n
+          {
+            floor
+              (
+                \dim_to_fp:n { \pagegoal - \pagetotal - \pagedepth }
+                / \dim_to_fp:n { \g_hit_msword_lead_dim }
+              )
+            * \dim_to_fp:n { \g_hit_msword_lead_dim }
+          }
+      }
+    \dim_compare:nNnT { \l__hit_res_rest_dim } < { \c_zero_dim }
+      { \dim_zero:N \l__hit_res_rest_dim }
+  }
 \int_new:N \l__hit_res_iter_int
 \dim_new:N \l__hit_res_rest_dim
 \dim_new:N \g__hit_res_boxw_dim
 \cs_new_protected:Nn \__hit_resolution_sheet:
   {
     \bool_set_true:N \l__hit_res_first_bool
+    \__hit_res_new_layout:TF
+      { \bool_set_true:N \l__hit_res_new_bool }
+      { \bool_set_false:N \l__hit_res_new_bool }
     \__hit_resolution_calc:
     \__hit_resolution_count:
     \__hit_res_build:
@@ -695,7 +767,9 @@
 % “行高加一道横线”，二十来行累下来能差三四个点。所以摊完再量一遍，
 % 拿剩下的差再摊，量到差不足 0.1\,pt 为止，最多五轮。
 %    \begin{macrocode}
-    \dim_compare:nNnT { \l__hit_res_rest_dim } < { 3 \baselineskip }
+    \bool_lazy_and:nnT
+      { ! \bool_if_p:N \l__hit_res_new_bool }
+      { \dim_compare_p:nNn { \l__hit_res_rest_dim } < { 3 \baselineskip } }
       {
         \int_zero:N \l__hit_res_iter_int
         \bool_do_until:nn
@@ -728,9 +802,14 @@
 % 上表与决议框之间不能有一点空隙，否则接缝处会露出一道白线。
 % \cs{nointerlineskip} 去掉两者之间的行距。
 %    \begin{macrocode}
+    \dim_gset:Nn \g__hit_res_over_dim
+      { \dim_max:nn { \c_zero_dim } { ( \g__hit_res_boxw_dim - \linewidth ) / 2 } }
     \begin { center }
-      \tl_use:N \l__hit_res_tbl_tl
+      \dim_compare:nNnTF { \g__hit_res_over_dim } > { \c_zero_dim }
+        { \hbox_to_wd:nn { \linewidth } { \hss \tl_use:N \l__hit_res_tbl_tl \hss } }
+        { \tl_use:N \l__hit_res_tbl_tl }
       \par \nointerlineskip
+      \bool_if:NT \l__hit_res_new_bool { \__hit_res_page_rest: }
       \dim_compare:nNnT { \l__hit_res_rest_dim } = { \c_zero_dim }
         { \newpage \bool_set_false:N \l__hit_res_first_bool }
       \__hit_res_conclusion_flow:
@@ -801,21 +880,42 @@
 %
 % 首页的顶线由上表最后一道横线充当，本框不画；续页上面没有表接着，得自己画。
 %    \begin{macrocode}
+\tl_new:N \l__hit_res_width_tl
+\cs_new_protected:Nn \__hit_res_width_keys:
+  {
+    \dim_compare:nNnTF { \g__hit_res_over_dim } > { \c_zero_dim }
+      {
+        \tl_set:Nx \l__hit_res_width_tl
+          {
+            width = \dim_use:N \linewidth ,
+            grow~to~left~by = \dim_use:N \g__hit_res_over_dim ,
+            grow~to~right~by = \dim_use:N \g__hit_res_over_dim
+          }
+      }
+      { \tl_set:Nx \l__hit_res_width_tl { width = \dim_use:N \g__hit_res_boxw_dim } }
+  }
 \cs_new_protected:Nn \__hit_res_conclusion_tcb:nn
   {
+    \__hit_res_width_keys:
     \bool_if:NTF \l__hit_res_first_bool
       {
-        \begin { tcolorbox }
-          [ hit@resolution , width = \dim_use:N \g__hit_res_boxw_dim , #1 ]
+        \use:x
+          {
+            \exp_not:N \begin { tcolorbox }
+              [ hit@resolution , \exp_not:V \l__hit_res_width_tl , \exp_not:n {#1} ]
+          }
           #2
         \end { tcolorbox }
       }
       {
-        \begin { tcolorbox }
-          [
-            hit@resolution , width = \dim_use:N \g__hit_res_boxw_dim ,
-            toprule = \c__hit_res_hrule_dim , #1
-          ]
+        \use:x
+          {
+            \exp_not:N \begin { tcolorbox }
+              [
+                hit@resolution , \exp_not:V \l__hit_res_width_tl ,
+                toprule = \c__hit_res_hrule_dim , \exp_not:n {#1}
+              ]
+          }
           #2
         \end { tcolorbox }
       }

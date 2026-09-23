@@ -9,7 +9,7 @@
 % \changes{v3.2a}{2026/08/24}{封面与内封拆成 \texttt{cover} 与 \texttt{titlepage} 两个模块；
 %   封面改照 Word 范例的段落序列排，本硕博共用一套，空行组合按「校名不动、姓名居中」
 %   加权择优，排不下时按六档结构让步；本科三校区统一，非本部本科那几套版式与具名间距
-%   删掉；学生类别按 \option{degree-type} 取；\cs{makecover} 记下「前置已排」，老写法
+%   删掉；学生类别按 \option{degree-type} 取，新版面研究生都排、本科不排；\cs{makecover} 记下「前置已排」，老写法
 %   不再在文末兜底补排；去掉 \cs{end}\{tabular\} 后的词间空格（\issue[294]）}
 %
 % \emph{这个模块只管封面一。} 内封（扉页）挪到 \file{hit-final-titlepage.dtx}。
@@ -201,15 +201,35 @@
   }
 %    \end{macrocode}
 %
+% \emph{新版面下学生类别那一行研究生一律排，本科不排}，照 iota 的
+% \texttt{degree-type-for}：研究生不写就是学术学位。范例封面上那一行是
+% “（学术/专业学位论文）”二选一的占位，哈尔滨博士也有。旧版面照 v3.1e
+% 的判据（哈尔滨全日制博士不标），那一档钉死不动。三态判的是一个表达式，
+% 要能展开，所以先把版面判完落进一个布尔量。
+%    \begin{macrocode}
+\bool_new:N \l__hit_cover_degree_type_bool
+\cs_new_protected:Npn \__hit_cover_degree_type_default:
+  {
+    \__hit_layout_msword_active:TF
+      { \bool_set:Nn \l__hit_cover_degree_type_bool { ! \g__hit_bachelor_bool } }
+      {
+        \hit@if@show@degree@type@TF
+          { \bool_set_true:N \l__hit_cover_degree_type_bool }
+          { \bool_set_false:N \l__hit_cover_degree_type_bool }
+      }
+  }
+%    \end{macrocode}
+%
 % 页顶到英文题目为止。\meta{挤占} 是挤掉的中英题目之间的空行数。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@cover@upto@en:nn #1#2
   {
+    \__hit_cover_degree_type_default:
     \hit@cover@blank@en:n { 3 }
     \hit@format@par:nn { cover-label } { \hit@cover@document@name }
     \hit@cover@blank@zh:n { 2 }
     \__hit_tristate_if:NnT \g__hit_cover_degree_type_tl
-      { \hit@if@show@degree@type@TF { \c_true_bool } { \c_false_bool } }
+      { \l__hit_cover_degree_type_bool }
       {
         \hit@format@par:nn { cover-type }
           {
@@ -329,6 +349,10 @@
 %    \end{macrocode}
 %
 % 一组取值下的几个关键量。都以磅计，存进浮点。
+%
+% 姓名到年月之间的跨度可能是零：最后一档让步把姓名与年月的固定空行都去掉，
+% 这一组又取零个空行，而姓名那一块本身量出来是零高（v3.1e 的英文封面不排
+% 中文姓名）。这时比例无从谈起，记零，得分只剩校名那一项。
 %    \begin{macrocode}
 \fp_new:N \l__hit_cover_inst_fp
 \fp_new:N \l__hit_cover_span_fp
@@ -372,13 +396,17 @@
         \l__hit_cover_inst_fp - \dim_to_fp:n { \l__hit_cover_iasc_dim }
         - \l__hit_cover_span_fp
       }
-    \fp_set:Nn \l__hit_cover_ratio_fp
+    \fp_compare:nNnTF { \l__hit_cover_span_fp } = { 0 }
+      { \fp_zero:N \l__hit_cover_ratio_fp }
       {
-        ( \l__hit_cover_ratio_fp
-          + 0.5 * \dim_to_fp:n { \l__hit_cover_ha_dim }
-          - \dim_to_fp:n { \l__hit_cover_top_dim }
-          - \dim_to_fp:n { \use:c { l__hit_cover_tu_#1_dim } } )
-        / \l__hit_cover_span_fp
+        \fp_set:Nn \l__hit_cover_ratio_fp
+          {
+            ( \l__hit_cover_ratio_fp
+              + 0.5 * \dim_to_fp:n { \l__hit_cover_ha_dim }
+              - \dim_to_fp:n { \l__hit_cover_top_dim }
+              - \dim_to_fp:n { \use:c { l__hit_cover_tu_#1_dim } } )
+            / \l__hit_cover_span_fp
+          }
       }
   }
 %    \end{macrocode}
