@@ -90,7 +90,7 @@ lineends-verb:
 # 那边 dtx 的副本。改动在那边做、提交，再跑 make banshi-sync 拷过来验收；
 # make banshi-check 看两边是否一致。那个仓库不在 CI 里，这两条只在本机用。
 BANSHI_DIR ?= ../latex-banshi
-BANSHI_DTX = banshi.dtx banshi-msword.dtx banshi-format.dtx banshi-linebreak.dtx
+BANSHI_DTX = banshi.dtx banshi-msword.dtx banshi-format.dtx banshi-linebreak.dtx banshi-preset.dtx
 
 banshi-sync:
 	@test -d $(BANSHI_DIR) || { echo "找不到 $(BANSHI_DIR)，用 BANSHI_DIR=路径 指定"; exit 2; }

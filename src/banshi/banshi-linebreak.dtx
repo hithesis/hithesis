@@ -8,15 +8,14 @@
 %
 % \changes{v3.2a}{2026/09/20}{新增断行层：\hologo{LuaLaTeX} 上不用 TeX 的最优断行，照
 %   Word 的贪心算法逐行首次适配、装不下就压标点。模型照 typst-with-msword-linebreaks 的
-%   msword.rs：按「单元」（开号 + 一个字或一段西文 + 闭号链）判装不装；模式 15 的预算分
+%   msword.rs：按“单元”（开号 + 一个字或一段西文 + 闭号链）判装不装；模式 15 的预算分
 %   裸汉字、紧贴汉字的西文串、其余三路，分母 k + W/M + Γ(g)；2003 到 2010 档按物理容量加
 %   首字形规则；渲染照 Word 的分配（先空格、再标点均摊、再汉西隙；行末闭号自己压半格就够
 %   时行内位不动，2003 挂半格，2007 起原位压半格或整个挂出）；贴着汉字的半格空格不参与
 %   压缩；开号的网格增量在字形后面；？不是压缩位；连续标点缩半格只在字距调整开着时有
-%   （\cs{banshi\_linebreak\_kern\_off:}，学校模板的标题样式都关着）；两个破折号之间可断。
-%   \option{word-compat} 收 11、12、14、15，学校的 doc 原件都是 11，默认 11。
-%   探针 100 个系列 90 个翻转点与 Word 相同，与 typst 逐行对拍
-%   （\texttt{make lineends-typst}）}
+%   （\cs{banshi\_linebreak\_kern\_off:}，样本文档的标题样式都关着）；两个破折号之间可断。
+%   \option{word-compat} 收 11、12、14、15，样本的 doc 原件都是 11，默认 11。
+%   探针 100 个系列 90 个翻转点与 Word 相同，与 typst 逐行对拍}
 % \changes{v3.2a}{2026/09/20}{行盒照 Word 逐行算高（各 run 的字体字号取最大，倍数、贴网格、
 %   固定值三种落法），行盒直接摞，行间只放零宽胶与行间罚分；断点只认 TeX 的合法断点；
 %   parshape、悬挂缩进、定值 leftskip/rightskip、窄版心的段也进 Lua；横向不贴格的段按
@@ -34,7 +33,7 @@
 % 规则不是猜的：模型照 typst-with-msword-linebreaks（\file{msword.rs}，
 % \file{tools/msword-probe/MODEL.md} 是总表）抄，那边拿 \texttt{python-docx} 自造几百个
 % 探针段落让 Word 排、读导出的 PDF 逐字量出来的；这里只换成 LuaTeX 的节点表，再拿自己的
-% 探针（lb2 到 lb8，两档兼容模式）与学校的本科范例逐行校对。全部规则写在 Lua 文件头的
+% 探针（lb2 到 lb8，两档兼容模式）与样本文档逐行校对。全部规则写在 Lua 文件头的
 % 注释里。
 %
 % \subsection{开关}
@@ -45,19 +44,27 @@
 %
 % \option{layout}/\option{word-compat} 是 Word 文件的兼容模式，就是 docx 的
 % \file{settings.xml} 里 \texttt{compatibilityMode} 那个数：\texttt{11}（Word 2003）、
-% \texttt{12}（2007）、\texttt{14}（2010）、\texttt{15}（2013 起）。学校发的原件几乎都是
-% \texttt{doc}，用新版 Word 原样另存都是 11 且带 2003 的三个开关；学校自己发的少数
-% docx/dotx 是 12 或 14；15 只出现在用户点过「转换」的文件里。所以默认 \texttt{11}。
+% \texttt{12}（2007）、\texttt{14}（2010）、\texttt{15}（2013 起）。标定时收集到的原件几乎都是
+% \texttt{doc}，用新版 Word 原样另存都是 11 且带 2003 的三个开关；少数
+% docx/dotx 是 12 或 14；15 只出现在用户点过“转换”的文件里。所以默认 \texttt{11}。
+%
+% \cs{banshi\_linebreak\_rigid\_ragged:} 管不两端对齐的段（左对齐、居中、右对齐）。
+% 这种段 Lua 不接，交回 \hologo{TeX} 断；\hologo{TeX} 会缩词隙与标点的胶多塞一个字，
+% Word 不缩。打开之后交回之前先把段里的胶改成不可缩，只在 \hologo{LuaLaTeX} 上有用。
+% 空白文档预设打开它；居中标题、题注已有的标定是照没开的时候做的，所以默认关。
 %
 % 四档里 11、12、14 塞字的规则一样（有位就给半格）；行末闭号 11 只挂半格，12、14 整个
 % 挂出去、行内再共出半格（12 与 14 逐项量过，一样）；15 另一套，能多塞汉字。这里的 11 是
-% 带 2003 那三个开关的学校原件，12、14 是不带开关的；规则见 Lua 文件头。
+% 带 2003 那三个开关的原件，12、14 是不带开关的；规则见 Lua 文件头。
 %    \begin{macrocode}
 %<*banshi-linebreak>
 \bool_new:N \g__banshi_linebreak_word_bool
 \bool_gset_true:N \g__banshi_linebreak_word_bool
 \int_new:N \g__banshi_linebreak_compat_int
 \int_gset:Nn \g__banshi_linebreak_compat_int { 11 }
+\bool_new:N \g__banshi_linebreak_rigid_bool
+\cs_new_protected:Npn \banshi_linebreak_rigid_ragged:
+  { \bool_gset_true:N \g__banshi_linebreak_rigid_bool }
 \keys_define:nn { banshi }
   {
     linebreak .choice: ,
@@ -91,7 +98,7 @@
 % 回调在 \texttt{begindocument/end} 装：Lua 模块要用 \pkg{luatexja} 的表，
 % 那时它肯定装好了；格宽与正文字号从 \cs{g\_banshi\_msword\_char\_dim} 与
 % \cs{g\_banshi\_body\_size\_dim} 两个寄存器取，也都定下来了。
-% Lua 文件装在 \file{tex/latex/hithesis/} 下，跟类放一起；\texttt{require}
+% Lua 文件跟 \file{banshi.sty} 装在同一个目录；\texttt{require}
 % 只找 \texttt{LUAINPUTS}（\file{scripts/} 与 \file{tex/luatex/}），所以按
 % \texttt{tex} 格式用 \texttt{kpse} 找到再 \texttt{dofile}。
 %    \begin{macrocode}
@@ -129,7 +136,7 @@
 %
 % \begin{macro}{\banshi_linebreak_kern_off:}
 % Word 的连续标点缩半格（“），”“。”）是字体字距调整（\texttt{w:kern}）干的，关了就各占
-% 一格（lb7 探针，两种设置各排一遍）。学校模板正文样式开着，标题样式都关着。
+% 一格（lb7 探针，两种设置各排一遍）。样本文档的正文样式开着，标题样式都关着。
 % 格式层排标题时调这个宏，把属性 \cs{banshi@kern@attr} 设成 0，Lua 见了就不配对。
 % \hologo{XeLaTeX} 上是空操作。
 %    \begin{macrocode}
@@ -146,7 +153,7 @@
 % 行当注释丢掉，其余原样，所以 Lua 代码里的行首不能有 \texttt{\%}。
 %    \begin{macrocode}
 %<*lua>
--- banshi.lua：hithesis 的断行层，照 Word 的贪心断行（LuaTeX linebreak_filter）
+-- banshi.lua：banshi 的断行层，照 Word 的贪心断行（LuaTeX linebreak_filter）
 -- 规则照 typst-with-msword-linebreaks 的 msword.rs 抄（tools/msword-probe/MODEL.md 是总表），
 -- 那边用 Mac Word 16.89 导 PDF、逐字读坐标量出来的；这里只换成 LuaTeX 的节点表。要点：
 --   度量：格 = 字号 + 网格余量（小四 12.4543）；汉字、全角标点各占一格；字距调整开着时
@@ -173,8 +180,8 @@
 --   起行的西文串整个装不下时在装不下的字形处断（紧急断点，超过半个版心的串）。
 --   没抄的：自动断字（Word 默认关）、表格单元格模式的 TeX 接口（M.cell 留着）、按字体
 --   判定东亚符号（这里按 luatexja 交给 jfont 的字算）。
---   验证：~/Downloads/最新版硕博/lb/ 的 lb2–lb8 探针（两档各扫一遍，100 个系列 90 个翻转点
---   与 Word 逐个相同，其余差半步 0.5bp）、本科范例规范章 make lineends 37。
+--   验证：lb2–lb8 探针（两档各扫一遍，100 个系列 90 个翻转点与 Word 逐个相同，
+--   其余差半步 0.5bp）、样本文档一章逐行比行尾差 37。
 local M = {}
 M.version = "v3.2a"
 local node, tex = node, tex
@@ -488,7 +495,7 @@ local function tokenize(head)
       if run and n.penalty < 10000 then flush_run() end
     elseif id == RULE then
       if n.width == 0 then
-        -- 零宽的普通 rule 是类的撑杆；luatexja 给每个汉字挂的那根是 subtype 3，不算
+        -- 零宽的普通 rule 是格式层的撑杆；luatexja 给每个汉字挂的那根是 subtype 3，不算
         if n.subtype == 0 and n.height > strut_h then strut_h = n.height; strut_d = n.depth end
         attach(n)
       else
@@ -1500,7 +1507,7 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
     end
   end
   -- 每个条目的节点跨度补 kern 到账本宽 nw：汉字、闭号补在实体节点后（adj），开号的空白在
-  -- 左边、压缩量从前面扣（pre），网格增量仍在字形后面（adj，范例「用“分析」：开号压
+  -- 左边、压缩量从前面扣（pre），网格增量仍在字形后面（adj，样本文档「用“分析」：开号压
   -- 4.75 时字形起点提前 4.75，后面的一格仍是 12.5；段首的（在 110.0 而不是 110.4），
   -- 伸展量也收在 adj 里；条目前的隙用 kern（gapkern）摆
   local function base_of(k)
@@ -1594,7 +1601,7 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
     if compat == 15 and P.justify then
       local function give(k)
         local t = items[k]
-        -- 贴着汉字的半格空格不压（范例「人称, 采用“分析了……」：闭号压半格、三个开号各出
+        -- 贴着汉字的半格空格不压（样本文档「人称, 采用“分析了……」：闭号压半格、三个开号各出
         -- 4.7，逗号后的半格空格仍是 6.3），与账本里的 space_give 一致
         if t.kind ~= 4 or t.user or t.rigid then return 0 end
         local in_run = (k > 1 and items[k - 1].kind == 4) or (k < #items and items[k + 1].kind == 4)
@@ -1634,12 +1641,12 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
         inline = math.max(need - hang, 0)
         whole_hang = not lt.symbol
       else
-        -- 2007 起：闭号自己压半格就够时只压闭号，行内位一个不动、其余拉开（范例
+        -- 2007 起：闭号自己压半格就够时只压闭号，行内位一个不动、其余拉开（样本文档
         -- 「总结与概括，」超 4.5：逗号起点在右缘内半格，”。与、都是原宽，字距拉到 12.5；
         -- 段末行没有拉开这一说，照下面的办）；
         -- 不够时先由行内位分担（各至多半格）；再不够闭号在原位压成半格、行内位均摊剩下
         -- 的；还不够才整个挂出去，那时行内位只出挂出后还缺的那点（lb3/lb4 探针 d0–d2 与
-        -- 范例「代号和公式等。」：四个位吃得下时闭号原样、闭号起点在右缘内一格；「进行了
+        -- 样本文档「代号和公式等。」：四个位吃得下时闭号原样、闭号起点在右缘内一格；「进行了
         -- 探讨”」三个位吃不下 20.2 时闭号先压半格、三个开号各出 4.7；差得多时起点在右缘上、
         -- 行内位只压 need − p）
         if need <= half + eps and P.justify and not ragged and not hasfil then
@@ -1824,7 +1831,7 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
   if ctx then
     linebox(box, ctx, strut_h, strut_d)
   else
-    -- 没有类的行距参数时退到 TeX 的办法：内容的自然高深，不低于撑杆
+    -- 没有格式层的行距参数时退到 TeX 的办法：内容的自然高深，不低于撑杆
     if box.height < strut_h then box.height = strut_h end
     if box.depth < strut_d then box.depth = strut_d end
   end
@@ -1862,8 +1869,8 @@ local function skip(why)
   return true
 end
 
--- 读类的行距参数：撑杆是按段首字体算的，这里要的是逐行重算用的系数。
--- 类没装这些变量（不走 Word 版面）就返回 nil，行盒退到 TeX 的办法
+-- 读格式层的行距参数：撑杆是按段首字体算的，这里要的是逐行重算用的系数。
+-- 格式层没装这些变量（不走 Word 版面）就返回 nil，行盒退到 TeX 的办法
 local function getbool(name)
   local ok, t = pcall(token.create, name)
   if not ok or not t or t.cmdname ~= "char_given" then return nil end
@@ -1906,7 +1913,7 @@ function M.shape()
   local hsize = tex.hsize
   local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
   local lw, rw = ls.width, rs.width
-  -- 类在 XeTeX 那条路上把整数格除不尽的余量放在 rightskip 里（不到一格），这里自己算格，不减它
+  -- 格式层在 XeTeX 那条路上把整数格除不尽的余量放在 rightskip 里（不到一格），这里自己算格，不减它
   if rw > 0 and rw <= 6 * 65536 then rw = 0 end
   local ps = tex.parshape
   local hi, ha = tex.hangindent, tex.hangafter
@@ -1927,8 +1934,16 @@ end
 
 function M.filter(head, is_display)
   local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
-  -- 可伸的边距（居中、靠左靠右）不是两端对齐，交回 TeX
-  if ls.stretch ~= 0 or rs.stretch ~= 0 or ls.shrink ~= 0 or rs.shrink ~= 0 then return skip("skips") end
+  -- 可伸的边距（居中、靠左靠右）不是两端对齐，交回 TeX。开了 rigid 的话先把段里的胶
+  -- 改成不可缩：Word 左对齐、居中的行不压词隙也不压标点，TeX 却会缩胶多塞一个字
+  if ls.stretch ~= 0 or rs.stretch ~= 0 or ls.shrink ~= 0 or rs.shrink ~= 0 then
+    if getbool("g__banshi_linebreak_rigid_bool") then
+      for g in node.traverse_id(GLUE, head) do
+        if g.shrink_order == 0 then g.shrink = 0 end
+      end
+    end
+    return skip("skips")
+  end
   if M.attr and (node.get_attribute(head, M.attr) or 0) == 0 then return skip("attr") end
   local ok, cell = pcall(tex.getdimen, "g_banshi_msword_char_dim")
   if not ok or not cell or cell == 0 then return skip("nocell") end
@@ -1949,11 +1964,11 @@ function M.filter(head, is_display)
   local bp = 65781.76
   -- 西文字形各加半个余量只在正文字号有（9 到 16pt 的探针：别的字号西文照字体原宽）。
   -- 正好半个（lb5 探针 pn：64 个数字的行在 N=0 翻转，数字宽正是 p/2）。空格按 Word 算账
-  -- 的量加 0.25bp（与汉西隙一样：lb5 的 ps 行在 N=0 翻转，纸面上却量到 3.37；本科范例
+  -- 的量加 0.25bp（与汉西隙一样：lb5 的 ps 行在 N=0 翻转，纸面上却量到 3.37；样本文档
   -- 英文摘要的散排行又只有 3.0，两头都对不上，按翻转点）
   trace("PARAMS em=%.4f body=%.4f chardim=%.4f cell=%.4f inc=%.4f", em / bp, (body or 0) / bp, (ok and cell0 or 0) / bp, cell / bp, inc / bp)
-  -- 段落的横向贴格（format 的 snap-to-grid/horizontal）：关着的段（内封的英文题目、
-  -- 报告首页）Word 按整个版心装、不按整数格数；TeX 那头这时 rightskip 也是零
+  -- 段落的横向贴格（format 的 snap-to-grid/horizontal）：关着的段（封面的英文题目、
+  -- 首页的大标题）Word 按整个版心装、不按整数格数；TeX 那头这时 rightskip 也是零
   local hsnap = getbool("l_banshi_format_snap_horizontal_bool")
   if hsnap == nil then hsnap = true end
   local P = { cell = cell, em = em, bp = bp, excess = inc, grid = hsnap,
@@ -2039,7 +2054,7 @@ local function fix_skips(head)
 end
 
 -- 盒里有没有汉字（jfont 的字形，盒套盒也找）。页眉页脚的行盒按内容定：
--- 纯西文的行按 Times 的行高算，类在 TeX 那头照这个结果换常量
+-- 纯西文的行按 Times 的行高算，TeX 那头照这个结果换常量
 function M.box_has_cjk(n)
   local b = tex.box[n]
   local function walk(list)
