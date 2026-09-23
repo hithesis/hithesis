@@ -56,7 +56,7 @@ compat-regression:
 # 代价是这个目标要机器上装了 Office 字体才能跑。lineends 不进 CI（CI 只跑
 # compat-regression），是本机开发用的量具，可以这么钉。
 #
-# 2026/09/15 起主线是 lualatex：断行由 src/engine/hit-linebreak.dtx 的 Lua 照 Word
+# 2026/09/15 起主线是 lualatex：断行由 src/banshi/banshi-linebreak.dtx 的 Lua 照 Word
 # 的贪心算法做，行差从 78 降到 61。基线是本科范例的 docx 转出来的 PDF，那份 docx
 # 转换时升成了 Word 现行版式 15，而类默认按学校 doc 原件的版式 11 排，所以这里把
 # 模式钉到 15 再比。剩下的 61 是七处平局与语料伪差各自往后串出来的行。
@@ -132,7 +132,7 @@ lineends-self-baseline:
 # TEXINPUTS 指到 src/：这样 install 守卫里写不带目录的文件名即可，
 # make（在根目录跑）和 l3build（把源码拍平到 build/unpacked）都能找到。
 $(TARGETS): $(SOURCES)
-	TEXINPUTS=src:src/engine:src/config:src/flow:src/pages:src/assets:src/manual: xetex -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/banshi:src/config:src/flow:src/pages:src/assets:src/manual: xetex -interaction=nonstopmode src/$(PACKAGE).dtx
 	$(MAKE) --no-print-directory distribute
 
 # .ins 只生成到根目录，示例目录里的那份由这里分发。
@@ -169,7 +169,7 @@ viewdoc:
 ifeq ($(METHOD),latexmk)
 
 $(PACKAGE).pdf: $(TARGETS)
-	TEXINPUTS=src:src/engine:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/banshi:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
 
 else ifneq ($(filter $(METHOD),xelatex lualatex),)
 
@@ -187,11 +187,11 @@ else ifneq ($(filter $(METHOD),xelatex lualatex),)
 # “Extra }”，而源码本身是好的。踩过两次。
 $(PACKAGE).pdf: $(TARGETS)
 	-$(RM) $(PACKAGE).gls $(PACKAGE).glo $(PACKAGE).ind $(PACKAGE).idx
-	TEXINPUTS=src:src/engine:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/banshi:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 	upmendex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
 	makeindex -s gglo.ist -o $(PACKAGE).gls $(PACKAGE).glo
-	TEXINPUTS=src:src/engine:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
-	TEXINPUTS=src:src/engine:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/banshi:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/banshi:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 
 else
 $(error Unknown METHOD: $(METHOD))

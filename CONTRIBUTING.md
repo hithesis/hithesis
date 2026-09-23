@@ -488,7 +488,6 @@ src/pages/
 | `hit-title.dtx` | `title` 键的解析与三种取用 |
 | `hit-caption.dtx` | 双语题注（`\caption{中}[英]`）与 `\bicaption` 兼容 |
 | `hit-subfigure.dtx` | `\subfigure` 兼容层，整个文件到 v4 可删 |
-| `hit-linebreak.dtx` | 断行层：LuaTeX 上照 Word 的贪心断行，Lua 部分解出 `hit-linebreak.lua` |
 | `hit-option-engine.dtx` | 选项声明助手与读标志位的判断函数 |
 
 判断标准是“两档会不会分开改”。会分开改的（封面、页眉、章节标题、目录）留在分档的文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `engine/`。
@@ -496,6 +495,17 @@ src/pages/
 `engine/` 的写法与分档模块不同：文件里只放定义，需要在特定时机执行的部分包成 `\hit@setup@<名>`，由调用处在原来那段代码所在的位置调用。这样抽出来之后生成物的执行顺序不变，能用“生成的 cls 逐字节不变”来验收。
 
 例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hit-eps.dtx` 也两档共享，但它们不走 `engine/`，因为不是拼进 cls 的模块。
+
+照 Word 排版的那一层与哪一份规范都无关，单独放在 `src/banshi/`，生成独立的 `banshi.sty`，类在原来内联它们的位置 `\RequirePackage{banshi}`：
+
+| 文件 | 管什么 |
+|---|---|
+| `banshi.dtx` | 包头 |
+| `banshi-msword.dtx` | Word 页面设置换算成版面参数 |
+| `banshi-format.dtx` | 元素格式：字体、行距、间距、缩进、空段 |
+| `banshi-linebreak.dtx` | 断行层：LuaTeX 上照 Word 的贪心断行，Lua 部分解出 `hit-linebreak.lua` |
+
+它将来要拆成独立仓库（与 iota-hit 底下的 Typst 包 banshi 是姊妹实现），所以学校专有的东西别往这里写。
 
 ### 4.4 一个模块一个职责
 
@@ -530,6 +540,8 @@ src/pages/
 ### 4.5 模块内不写 `\ProvidesPackage`
 
 v3.2a 起模块内容直接拼进 `.cls`，不再生成独立的 `.sty`。在类文件里写 `\ProvidesPackage` 会声明一个并不存在的宏包，日志里出现的身份信息也是假的。
+
+唯一的例外是排版引擎 `banshi`，它是真的宏包，包头写在 `src/banshi/banshi.dtx` 的 `package` 守卫里。
 
 模块开头只写注释标识：
 
