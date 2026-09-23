@@ -87,7 +87,7 @@ lineends-verb:
 	python3 scripts/check-line-ends.py --pdf tests/sample/verb/main.pdf --fixture tests/lineends-verb.tsv
 
 # 与 typst-with-msword-linebreaks 对拍：同一批段落（tests/typst-corpus.txt）两边各排一遍，
-# 逐行比行末。hit-linebreak.lua 是照那个 fork 抄的，Word 只能量翻转点，两个实现之间
+# 逐行比行末。banshi.lua 是照那个 fork 抄的，Word 只能量翻转点，两个实现之间
 # 能逐行比。棘轮只数文本差异：两档各 6 处，全是 URL 段（那边有紧急断点）。要本机有
 # 那个 fork 的二进制（TYPST 环境变量或默认路径），不进 CI
 lineends-typst:

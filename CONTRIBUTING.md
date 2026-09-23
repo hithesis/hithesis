@@ -503,7 +503,7 @@ src/pages/
 | `banshi.dtx` | 包头 |
 | `banshi-msword.dtx` | Word 页面设置换算成版面参数 |
 | `banshi-format.dtx` | 元素格式：字体、行距、间距、缩进、空段 |
-| `banshi-linebreak.dtx` | 断行层：LuaTeX 上照 Word 的贪心断行，Lua 部分解出 `hit-linebreak.lua` |
+| `banshi-linebreak.dtx` | 断行层：LuaTeX 上照 Word 的贪心断行，Lua 部分解出 `banshi.lua` |
 
 它将来要拆成独立仓库（与 iota-hit 底下的 Typst 包 banshi 是姊妹实现），所以学校专有的东西别往这里写。
 

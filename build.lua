@@ -44,7 +44,7 @@ installfiles = {
   "hithesis.sty",
   "banshi.sty",
   "hithesis.ist", "hithesis.bst", "hithesis.cfg",
-  "hit-linebreak.lua",
+  "banshi.lua",
   "hit-logo.pdf", "hit-bachelor-report-bottommark.pdf",
 }
 

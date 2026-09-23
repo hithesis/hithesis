@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """与 typst-with-msword-linebreaks 对拍：同一批段落两边各排一遍，逐行比行末。
 
-hit-linebreak.lua 是照那个 fork 的 msword.rs 抄的，Word 只能量翻转点，两个实现之间
+banshi.lua 是照那个 fork 的 msword.rs 抄的，Word 只能量翻转点，两个实现之间
 却能逐行比。语料是纯文本（一行一段），两边用同一套字体（Times New Roman + 中易宋体）、
 同一个版心（A4，左右 30 mm）、同一个格宽，先用 fork 版 typst 排出参考 PDF，再用类排一遍，
 拿 scripts/check-line-ends.py 按段落锚定逐行比（行文本硬性，行首行末坐标带容差）。

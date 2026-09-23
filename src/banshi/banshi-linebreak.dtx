@@ -13,7 +13,7 @@
 %   首字形规则；渲染照 Word 的分配（先空格、再标点均摊、再汉西隙；行末闭号自己压半格就够
 %   时行内位不动，2003 挂半格，2007 起原位压半格或整个挂出）；贴着汉字的半格空格不参与
 %   压缩；开号的网格增量在字形后面；？不是压缩位；连续标点缩半格只在字距调整开着时有
-%   （\cs{hit@linebreak@kern@off:}，学校模板的标题样式都关着）；两个破折号之间可断。
+%   （\cs{banshi\_linebreak\_kern\_off:}，学校模板的标题样式都关着）；两个破折号之间可断。
 %   \option{word-compat} 收 11、12、14、15，学校的 doc 原件都是 11，默认 11。
 %   探针 100 个系列 90 个翻转点与 Word 相同，与 typst 逐行对拍
 %   （\texttt{make lineends-typst}）}
@@ -21,7 +21,7 @@
 %   固定值三种落法），行盒直接摞，行间只放零宽胶与行间罚分；断点只认 TeX 的合法断点；
 %   parshape、悬挂缩进、定值 leftskip/rightskip、窄版心的段也进 Lua；横向不贴格的段按
 %   整个版心装；汉字缝与汉西隙另记在两个属性上，Lua 装盒时照属性重设（输出例程里
-%   \cs{ltjsetparameter} 不生效，页眉每字曾多 0.4543\,bp）；带 \cs{hit@code@attr} 的
+%   \cs{ltjsetparameter} 不生效，页眉每字曾多 0.4543\,bp）；带 \cs{banshi@code@attr} 的
 %   串（\cs{verb}）不加半格增量，超过 16 个字符的在 \texttt{/ . -} 前可断（Word 文档里
 %   敲的 U+200B 按同一条规则从串里算出来）}
 %
@@ -54,35 +54,35 @@
 % 带 2003 那三个开关的学校原件，12、14 是不带开关的；规则见 Lua 文件头。
 %    \begin{macrocode}
 %<*banshi-linebreak>
-\bool_new:N \g__hit_linebreak_word_bool
-\bool_gset_true:N \g__hit_linebreak_word_bool
-\int_new:N \g__hit_linebreak_compat_int
-\int_gset:Nn \g__hit_linebreak_compat_int { 11 }
+\bool_new:N \g__banshi_linebreak_word_bool
+\bool_gset_true:N \g__banshi_linebreak_word_bool
+\int_new:N \g__banshi_linebreak_compat_int
+\int_gset:Nn \g__banshi_linebreak_compat_int { 11 }
 \keys_define:nn { hit / layout }
   {
     linebreak .choice: ,
-    linebreak / word .code:n = { \bool_gset_true:N  \g__hit_linebreak_word_bool } ,
-    linebreak / tex  .code:n = { \bool_gset_false:N \g__hit_linebreak_word_bool } ,
+    linebreak / word .code:n = { \bool_gset_true:N  \g__banshi_linebreak_word_bool } ,
+    linebreak / tex  .code:n = { \bool_gset_false:N \g__banshi_linebreak_word_bool } ,
     linebreak .value_required:n = true ,
     word-compat .choice: ,
-    word-compat / 11 .code:n = { \int_gset:Nn \g__hit_linebreak_compat_int { 11 } } ,
-    word-compat / 12 .code:n = { \int_gset:Nn \g__hit_linebreak_compat_int { 12 } } ,
-    word-compat / 14 .code:n = { \int_gset:Nn \g__hit_linebreak_compat_int { 14 } } ,
-    word-compat / 15 .code:n = { \int_gset:Nn \g__hit_linebreak_compat_int { 15 } } ,
+    word-compat / 11 .code:n = { \int_gset:Nn \g__banshi_linebreak_compat_int { 11 } } ,
+    word-compat / 12 .code:n = { \int_gset:Nn \g__banshi_linebreak_compat_int { 12 } } ,
+    word-compat / 14 .code:n = { \int_gset:Nn \g__banshi_linebreak_compat_int { 14 } } ,
+    word-compat / 15 .code:n = { \int_gset:Nn \g__banshi_linebreak_compat_int { 15 } } ,
     word-compat .value_required:n = true ,
   }
 %    \end{macrocode}
 %
 % \emph{页眉页脚的字距要绕过 luatexja 的参数栈。} \pkg{luatexja} 的 \texttt{kanjiskip}
 % 是按组层级记的栈参数，\pkg{fancyhdr} 在输出例程里装页眉盒，那时候 \cs{ltjsetparameter}
-% 写下的值到装盒时取不到，用的是正文的。所以 \cs{hit@format@hglue:nn} 设参数的同时把两个
-% 量写进属性 \cs{hit@kanjiskip@attr} 与 \cs{hit@xkanjiskip@attr}（单位 sp），
+% 写下的值到装盒时取不到，用的是正文的。所以 \cs{banshi\_format\_hglue:nn} 设参数的同时把两个
+% 量写进属性 \cs{banshi@kanjiskip@attr} 与 \cs{banshi@xkanjiskip@attr}（单位 sp），
 % Lua 在 \texttt{hpack\_filter} 与 \texttt{pre\_linebreak\_filter} 里把每段汉字缝、汉西隙
 % 的宽改成前一个字身上记的属性值。属性跟着节点走，输出例程里也不例外。
 %
 % \subsection{装回调}
 %
-% 属性 \cs{hit@linebreak@attr} 是逐段的门：段首节点上它为 0 的段交回 TeX 断行。
+% 属性 \cs{banshi@linebreak@attr} 是逐段的门：段首节点上它为 0 的段交回 TeX 断行。
 % 正文默认为 1；不想让 Lua 碰的环境把它清零。Lua 自己只留一道门：\cs{leftskip}
 % 或 \cs{rightskip} 可伸可缩的（居中、靠左靠右）不是两端对齐，交回 TeX。
 % \cs{parshape}、悬挂缩进、定值的边距、窄版心（小页、表格的 X 列）都逐行折成版心宽
@@ -97,29 +97,29 @@
 %    \begin{macrocode}
 \sys_if_engine_luatex:T
   {
-    \newattribute \hit@linebreak@attr
-    \hit@linebreak@attr = 1
-    \newattribute \hit@kanjiskip@attr
-    \newattribute \hit@xkanjiskip@attr
-    \newattribute \hit@kern@attr
+    \newattribute \banshi@linebreak@attr
+    \banshi@linebreak@attr = 1
+    \newattribute \banshi@kanjiskip@attr
+    \newattribute \banshi@xkanjiskip@attr
+    \newattribute \banshi@kern@attr
     \AddToHook { begindocument / end }
       {
-        \bool_if:NT \g__hit_linebreak_word_bool
+        \bool_if:NT \g__banshi_linebreak_word_bool
           {
             \__hit_layout_msword_active:T
               {
                 \tex_directlua:D
                   {
-                    hithesis = hithesis~or~{}
-                    hithesis.linebreak = dofile(
-                      kpse.find_file("hit-linebreak.lua", "tex")~
-                      or~kpse.find_file("hit-linebreak.lua", "lua"))
-                    hithesis.linebreak.compat = \int_use:N \g__hit_linebreak_compat_int
-                    hithesis.linebreak.install(luatexbase.attributes["hit@linebreak@attr"],
-                      luatexbase.attributes["hit@kanjiskip@attr"],
-                      luatexbase.attributes["hit@xkanjiskip@attr"],
-                      luatexbase.attributes["hit@kern@attr"],
-                      luatexbase.attributes["hit@code@attr"])
+                    banshi = banshi~or~{}
+                    banshi.linebreak = dofile(
+                      kpse.find_file("banshi.lua", "tex")~
+                      or~kpse.find_file("banshi.lua", "lua"))
+                    banshi.linebreak.compat = \int_use:N \g__banshi_linebreak_compat_int ;
+                    banshi.linebreak.install(luatexbase.attributes["banshi@linebreak@attr"],
+                      luatexbase.attributes["banshi@kanjiskip@attr"],
+                      luatexbase.attributes["banshi@xkanjiskip@attr"],
+                      luatexbase.attributes["banshi@kern@attr"],
+                      luatexbase.attributes["banshi@code@attr"])
                   }
               }
           }
@@ -127,26 +127,26 @@
   }
 %    \end{macrocode}
 %
-% \begin{macro}{\hit@linebreak@kern@off:}
+% \begin{macro}{\banshi_linebreak_kern_off:}
 % Word 的连续标点缩半格（“），”“。”）是字体字距调整（\texttt{w:kern}）干的，关了就各占
 % 一格（lb7 探针，两种设置各排一遍）。学校模板正文样式开着，标题样式都关着。
-% 格式层排标题时调这个宏，把属性 \cs{hit@kern@attr} 设成 0，Lua 见了就不配对。
+% 格式层排标题时调这个宏，把属性 \cs{banshi@kern@attr} 设成 0，Lua 见了就不配对。
 % \hologo{XeLaTeX} 上是空操作。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@linebreak@kern@off: { }
+\cs_new_protected:Npn \banshi_linebreak_kern_off: { }
 \sys_if_engine_luatex:T
-  { \cs_set_protected:Npn \hit@linebreak@kern@off: { \hit@kern@attr = 0 \scan_stop: } }
+  { \cs_set_protected:Npn \banshi_linebreak_kern_off: { \banshi@kern@attr = 0 \scan_stop: } }
 %</banshi-linebreak>
 %    \end{macrocode}
 %    \end{macro}
 %
 % \subsection{Lua 模块}
 %
-% 下面整段解出来是 \file{hit-linebreak.lua}。docstrip 逐行搬运，\texttt{\%} 开头的
+% 下面整段解出来是 \file{banshi.lua}。docstrip 逐行搬运，\texttt{\%} 开头的
 % 行当注释丢掉，其余原样，所以 Lua 代码里的行首不能有 \texttt{\%}。
 %    \begin{macrocode}
 %<*lua>
--- hit-linebreak.lua：hithesis 的断行层，照 Word 的贪心断行（LuaTeX linebreak_filter）
+-- banshi.lua：hithesis 的断行层，照 Word 的贪心断行（LuaTeX linebreak_filter）
 -- 规则照 typst-with-msword-linebreaks 的 msword.rs 抄（tools/msword-probe/MODEL.md 是总表），
 -- 那边用 Mac Word 16.89 导 PDF、逐字读坐标量出来的；这里只换成 LuaTeX 的节点表。要点：
 --   度量：格 = 字号 + 网格余量（小四 12.4543）；汉字、全角标点各占一格；字距调整开着时
@@ -670,7 +670,7 @@ local function split_run(items, k, g, P)
   table.insert(items, k + 1, b)
 end
 
--- 代码串（\verb，字形带 hit@code@attr）里的软断点：超过 16 个字符的串在 / . - 前可断，
+-- 代码串（\verb，字形带 banshi@code@attr）里的软断点：超过 16 个字符的串在 / . - 前可断，
 -- 头尾四个字符内不断，扩展名（点后不超过五个字符）前不断，连续分隔符与 :// 之间不断。
 -- Word 文档里这些位置是敲进去的 U+200B，这里按同一条规则从串里算出来，切成几个条目，
 -- 条目之间以 soft 记号相连：可断、断处什么也不丢
@@ -1875,19 +1875,19 @@ local function getfactor(name)
   return tonumber(v)
 end
 function M.linectx(strut_h, strut_d)
-  local exact = getbool("l_hit_format_strut_exact_bool")
-  local snap = getbool("l_hit_format_line_snap_bool")
-  local latin = getbool("l_hit_format_strut_latin_bool")
+  local exact = getbool("l_banshi_format_strut_exact_bool")
+  local snap = getbool("l_banshi_format_line_snap_bool")
+  local latin = getbool("l_banshi_format_strut_latin_bool")
   if exact == nil or snap == nil then return nil end
-  local ok, natpara = pcall(tex.getdimen, "l__hit_format_nat_dim")
+  local ok, natpara = pcall(tex.getdimen, "l__banshi_format_nat_dim")
   if not ok or not natpara or natpara <= 0 then return nil end
-  local nat_cjk = getfactor("c__hit_format_natural_tl") or 1.296875
-  local nat_latin = getfactor("c__hit_format_natural_latin_tl") or 1.15
-  local asc_cjk = getfactor("l_hit_format_ascent_tl") or 1.008
-  local asc_latin = getfactor("c__hit_format_ascent_latin_tl") or 0.93261
-  local ok2, asc_add = pcall(tex.getdimen, "c__hit_format_ascent_dim")
+  local nat_cjk = getfactor("c__banshi_format_natural_tl") or 1.296875
+  local nat_latin = getfactor("c__banshi_format_natural_latin_tl") or 1.15
+  local asc_cjk = getfactor("l_banshi_format_ascent_tl") or 1.008
+  local asc_latin = getfactor("c__banshi_format_ascent_latin_tl") or 0.93261
+  local ok2, asc_add = pcall(tex.getdimen, "c__banshi_format_ascent_dim")
   if not ok2 or not asc_add then asc_add = 0.082 * 65781.76 end
-  local ok3, pitch = pcall(tex.getdimen, "g_hit_msword_lead_dim")
+  local ok3, pitch = pcall(tex.getdimen, "g_banshi_msword_lead_dim")
   if not ok3 or not pitch then pitch = 0 end
   local bls = tex.baselineskip.width
   local total = strut_h + strut_d
@@ -1930,14 +1930,14 @@ function M.filter(head, is_display)
   -- 可伸的边距（居中、靠左靠右）不是两端对齐，交回 TeX
   if ls.stretch ~= 0 or rs.stretch ~= 0 or ls.shrink ~= 0 or rs.shrink ~= 0 then return skip("skips") end
   if M.attr and (node.get_attribute(head, M.attr) or 0) == 0 then return skip("attr") end
-  local ok, cell = pcall(tex.getdimen, "g_hit_msword_char_dim")
+  local ok, cell = pcall(tex.getdimen, "g_banshi_msword_char_dim")
   if not ok or not cell or cell == 0 then return skip("nocell") end
   local cell0 = cell
   local em = tex.sp("1em")
-  -- 格宽 = 字号 + 固定余量：正文一格是 g_hit_body_size_dim + 余量（12.4543 里的 0.4543），
+  -- 格宽 = 字号 + 固定余量：正文一格是 g_banshi_body_size_dim + 余量（12.4543 里的 0.4543），
   -- 别的字号只换字号那部分（9 到 16pt 都量过，余量不随字号变）。西文乘 p/em 的平衡
   -- 只在正文字号有，别的字号西文照字体原宽
-  local ok2, body = pcall(tex.getdimen, "g_hit_body_size_dim")
+  local ok2, body = pcall(tex.getdimen, "g_banshi_body_size_dim")
   local inc, atbody = 0, true
   if ok2 and body and body > 0 then
     inc = cell - body
@@ -1954,7 +1954,7 @@ function M.filter(head, is_display)
   trace("PARAMS em=%.4f body=%.4f chardim=%.4f cell=%.4f inc=%.4f", em / bp, (body or 0) / bp, (ok and cell0 or 0) / bp, cell / bp, inc / bp)
   -- 段落的横向贴格（format 的 snap-to-grid/horizontal）：关着的段（内封的英文题目、
   -- 报告首页）Word 按整个版心装、不按整数格数；TeX 那头这时 rightskip 也是零
-  local hsnap = getbool("l_hit_format_snap_horizontal_bool")
+  local hsnap = getbool("l_banshi_format_snap_horizontal_bool")
   if hsnap == nil then hsnap = true end
   local P = { cell = cell, em = em, bp = bp, excess = inc, grid = hsnap,
               latin_add = atbody and inc / 2 or 0,
@@ -2067,17 +2067,17 @@ function M.install(attr, ks, xks, kern, code)
   M.ks_attr, M.xks_attr = ks, xks
   M.code_attr = code
   luatexbase.add_to_callback("linebreak_filter",
-    function(h, d) return M.filter(h, d) end, "hit.linebreak")
+    function(h, d) return M.filter(h, d) end, "banshi.linebreak")
   if ks and xks then
     luatexbase.add_to_callback("hpack_filter",
-      function(h) fix_skips(h); return true end, "hit.skips")
+      function(h) fix_skips(h); return true end, "banshi.skips")
     luatexbase.add_to_callback("pre_linebreak_filter",
-      function(h) fix_skips(h); return true end, "hit.skips")
+      function(h) fix_skips(h); return true end, "banshi.skips")
   end
 end
 function M.uninstall()
-  for _, cb in ipairs({ { "linebreak_filter", "hit.linebreak" }, { "hpack_filter", "hit.skips" },
-                        { "pre_linebreak_filter", "hit.skips" } }) do
+  for _, cb in ipairs({ { "linebreak_filter", "banshi.linebreak" }, { "hpack_filter", "banshi.skips" },
+                        { "pre_linebreak_filter", "banshi.skips" } }) do
     if luatexbase.in_callback(cb[1], cb[2]) then luatexbase.remove_from_callback(cb[1], cb[2]) end
   end
 end
