@@ -1,0 +1,223 @@
+% \iffalse meta-comment
+%
+% hit-banshi.dtx 是类接到排版引擎 banshi 上的那一层
+%
+% \fi
+%
+% \section{接到 \pkg{banshi} 上}
+%
+% \changes{v3.2a}{2026/09/23}{类专有的几件事从 \pkg{banshi} 里挪出来，经它的钩子与登记
+%   接回去：题序后间距、四级标题西文无衬线、旧选项与格式键的兼容桥、全局开关的同步}
+%
+% \pkg{banshi} 只管照 Word 排版，不知道哪一种学位、哪一档报告。类在它的钩子上挂自己的
+% 规矩：标题题序后面空多少（\cs{banshi\_format\_set\_heading\_keys:n}）、哪几级标题的西文
+% 走无衬线（\cs{banshi\_format\_add\_font:nn}）、格式键设完之后回写旧选项的标志位
+% （\cs{banshi\_format\_set\_after\_target:n}）；类自己的开关变了，同步到 \pkg{banshi} 的
+% 全局开关上。
+%
+% ^^A ======================================================================
+% ^^A Module shared-banshi: 类接到 banshi 上的那一层（各档共用）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*shared-banshi>
+%    \end{macrocode}
+%
+% \subsection{题序后间距}
+%
+% \begin{macro}{\hit@heading@number@gap:}
+% 题序与标题之间的空当，新版面的兜底值：一个字宽。用 \texttt{1em}——标题不贴
+% 字符网格，一个汉字的宽度就是 \texttt{em}，跟着标题自己的字号走（章 18\,bp、
+% 节 15\,bp，范例量出来的正是各级自己的字宽）。用户设了
+% \option{after-<级>-number} 词条仍然优先，与旧版面同一条链。英文文档不动：
+% 范例是中文的，管不到它，英文章标题的 \cs{par}（编号独占一行）照旧。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@heading@number@gap:
+  { \skip_horizontal:n { 1em } }
+%    \end{macrocode}
+%
+% 章号与后面内容之间空多少，页眉、目录条目与章标题是同一件事。这里把
+% “章标题那条链”包成一个名字：用户设了 \option{after-chapter-number}
+% 词条用词条，没设走上面的兜底（一个字宽），语言跟文档。页眉直接排它，
+% 目录条目把它装盒量宽再按摆法用（见 \file{hit-final-toc.dtx}）。
+%    \begin{macrocode}
+\cs_new:Npn \hit@chapter@number@gap:
+  {
+    \hit@after@number:nnn { chapter }
+      { \bool_if:NTF \g__hit_en_bool { en } { zh } }
+      { \hit@heading@number@gap: }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{标题的题序后面}
+%
+% \emph{英文报告也发题序后间距，不留 \pkg{ctex} 的默认值 \cs{enspace}。}
+% iota-hit 逐级量 2026 年 9 月版深圳本科英文版那两份表单（号末到名首）：章 18.35／18 ＝ 1.02 个字，
+% 节 15.23／15.12 ＝ 1.01，条 14.05／13.92 ＝ 1.01——与中文版同数。原件那三处
+% 敲的都是两个半角，与中文版一样；中文那边两个半角就是一个全角，英文这边
+% Times 的半角只有 0.25\,em，可排出来仍是一个字，那两个空格各带了约 0.26\,em 的
+% 额外步进。跟排出来的数，不跟敲了几个空格。
+%
+% \emph{只发给报告，不发给英文学位论文。} 英文学位论文的章标题是
+% “\texttt{CHAPTER~1}”独占一行、题名另起一行，那一档的 \option{aftername} 由
+% \cs{hit@chapter@settings@english} 自己管着；这一条在 \cs{AfterPreamble} 才发，
+% 发过去会把它盖掉，题名居中位移半个字（实测英文论文的
+% “\texttt{INTRODUCTION}”右移 9.0，博士后那一档 12.0）。所以条件是
+% “不是英文档，或者不是终稿”。
+%
+% \emph{这一档也写宽了：验过的只有深圳本科英文版那两份表单。} 判据按语种给，
+% 所有英文报告都吃它——本部的英文报告没有一份带标题实例。拿到别的档的英文原件
+% 要重核。
+%
+% 人文社科类的节与条，题序自带全角顿号或括号（“一、”“（一）”），范例里题序
+% 贴着标题排，不再空那一个字；章“第一章”后面照旧空一个字。标志位只在学位
+% 终稿里有，报告没有这根轴，先问存在再问真假。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_heading_hass_nogap_p:n #1
+  {
+    \bool_lazy_all_p:n
+      {
+        { \bool_if_exist_p:N \g__hit_hass_bool }
+        { \bool_if_p:N \g__hit_hass_bool }
+        { \str_if_eq_p:nn {#1} { section } || \str_if_eq_p:nn {#1} { subsection } }
+      }
+  }
+\banshi_format_set_heading_keys:n
+  {
+    \bool_lazy_or:nnT
+      { ! \bool_if_p:N \g__hit_en_bool }
+      { ! \bool_if_p:N \g__hit_final_bool }
+      {
+        \bool_if:nTF { \__hit_heading_hass_nogap_p:n {#1} }
+          { \tl_put_right:Nn #2 { aftername = { } , } }
+          {
+            \tl_put_right:Nn #2
+              {
+                aftername =
+                  {
+                    \hit@after@number:nnn {#1}
+                      { \bool_if:NTF \g__hit_en_bool { en } { zh } }
+                      { \hit@heading@number@gap: }
+                  } ,
+              }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{标题里的西文}
+%
+% 四级标题在西文无衬线开着时发 \cs{sffamily}：\option{font-zh} 已经发了 \cs{heiti}，
+% 再补这个条件，汉字用黑体、西文用无衬线，与目录条目那边的
+% \cs{hit@chapter@entry@font} 同一个写法。只限四级标题，页眉页脚无条件发会串味。
+%    \begin{macrocode}
+\cs_new:Npn \hit@format@latin@sans:
+  { \bool_if:NT \g__hit_heading_latin_sans_bool { \sffamily } }
+\clist_map_inline:nn { chapter , section , subsection , subsubsection }
+  { \banshi_format_add_font:nn {#1} { \hit@format@latin@sans: } }
+%    \end{macrocode}
+%
+% \subsection{旧选项的兼容桥}
+%
+% 六条已经能接上排版的属性写回原来的标志位。整个目标设完再过一遍，因为
+% \option{alignment} 那两条要看最终值，中途改来改去不必每次都写。
+%
+% 六个标志位都只有终稿有。报告不排章，也没有子图题与摘要标题那两处开关，所以写回
+% 之前先看标志位在不在，不在就什么也不做，免得凭空造出一个没人读的布尔。
+%
+% \option{font-en} 与 \option{all-caps} 的标志位是全局的，所以只在伞上认。伞展开成
+% 四个层级，四次都写同一个标志位，结果一样。
+%    \begin{macrocode}
+\tl_new:N \l__hit_banshi_value_tl
+\cs_new_protected:Npn \__hit_banshi_flag_set:nn #1#2
+  {
+    \bool_if_exist:cT { g__hit_#1_bool }
+      {
+        \bool_if:nTF {#2}
+          { \bool_gset_true:c  { g__hit_#1_bool } }
+          { \bool_gset_false:c { g__hit_#1_bool } }
+      }
+  }
+\cs_new_protected:Npn \__hit_banshi_flag_eq:nnnn #1#2#3#4
+  {
+    \banshi_format_get:nnN {#1} {#3} \l__hit_banshi_value_tl
+    \tl_if_empty:NF \l__hit_banshi_value_tl
+      {
+        \__hit_banshi_flag_set:nn {#2}
+          { \str_if_eq_p:Vn \l__hit_banshi_value_tl {#4} }
+      }
+  }
+\banshi_format_set_after_target:n
+  {
+    \str_case:nn {#1}
+      {
+        { chapter }
+          {
+            \__hit_banshi_flag_eq:nnnn {#1} { chapterbold } { bold } { true }
+            \__hit_banshi_flag_eq:nnnn {#1} { chapterhang }
+              { indent-special-mode } { hanging }
+            \__hit_banshi_flag_eq:nnnn {#1} { heading_latin_sans } { font-en } { sans }
+          }
+        { section }
+          { \__hit_banshi_flag_eq:nnnn {#1} { heading_latin_sans } { font-en } { sans } }
+        { subsection }
+          { \__hit_banshi_flag_eq:nnnn {#1} { heading_latin_sans } { font-en } { sans } }
+        { subsubsection }
+          { \__hit_banshi_flag_eq:nnnn {#1} { heading_latin_sans } { font-en } { sans } }
+        { caption-figure }
+          {
+            \__hit_banshi_flag_eq:nnnn {#1} { capcenterlast }
+              { alignment } { last-line-centered }
+          }
+        { caption-table }
+          {
+            \__hit_banshi_flag_eq:nnnn {#1} { capcenterlast }
+              { alignment } { last-line-centered }
+          }
+        { caption-sub }
+          {
+            \__hit_banshi_flag_eq:nnnn {#1} { subcapcenterlast }
+              { alignment } { last-line-centered }
+          }
+        { abstract-heading }
+          { \__hit_banshi_flag_eq:nnnn {#1} { absupper } { all-caps } { true } }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{字号与钩子}
+%
+% 深圳那一档的原创性声明标题用 \cs{xsanhao}（15.9\,bp），格式表里也认这个名字。
+% 行间公式的处理挂到 \pkg{banshi} 的钩子上（西文字体重设在 \file{hit-fonts.dtx} 里定义时就挂上）。
+%    \begin{macrocode}
+\banshi_size_new:nn { xsanhao } { 15.9bp }
+\hook_gput_code:nnn { banshi / display } { hithesis } { \hit@display@hooks: }
+%    \end{macrocode}
+%
+% \subsection{全局开关的同步}
+%
+% 类自己的几个开关与 \pkg{banshi} 的同名开关是同一件事，类这边一改就同步过去：
+% 设底部对齐、文档网格、西文加格、行内代码空格的键，以及类选项处理完之后。
+% 走不走 Word 版面在 \cs{begin}\marg{document} 时定，旧版面下断行层不装。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@banshi@sync:
+  {
+    \bool_gset_eq:NN \g_banshi_ragged_bottom_bool \g__hit_raggedbottom_bool
+    \bool_gset_eq:NN \g_banshi_grid_bool \g__hit_layout_grid_bool
+    \bool_gset_eq:NN \g_banshi_latin_pitch_bool \g__hit_layout_pitch_en_bool
+    \bool_gset_eq:NN \g_banshi_verb_space_visible_bool \g__hit_verb_space_visible_bool
+  }
+\AddToHook { begindocument }
+  {
+    \hit@banshi@sync:
+    \__hit_layout_msword_active:TF
+      { \bool_gset_true:N \g_banshi_word_layout_bool }
+      { \bool_gset_false:N \g_banshi_word_layout_bool }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</shared-banshi>
+%    \end{macrocode}
+%
+% \Finale

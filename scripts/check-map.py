@@ -49,6 +49,7 @@ DESC = {
     "shared-spread": "定宽拉伸排字",
     "shared-date": "中文日期格式",
     "cls-banshi": "加载排版引擎 banshi：Word 页面设置、段落格式、断行",
+    "shared-banshi": "类接到 banshi 上：题序后间距、兼容桥、开关同步",
     "banshi-msword": "Word 页面设置换算成版面参数",
     "banshi-format": "元素格式：字体、行距、间距、缩进",
     "banshi-linebreak": "断行层：LuaTeX 上照 Word 的贪心断行",

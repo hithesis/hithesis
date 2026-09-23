@@ -152,6 +152,102 @@
 %<*banshi-format>
 %    \end{macrocode}
 %
+% \subsection{给文档类的钩子与登记}
+%
+% 两个 \pkg{lthooks} 钩子，文档类往里挂代码：
+% \begin{itemize}
+% \item \texttt{banshi/latin-font-reload}：西文字母加半格余量（\cs{g\_banshi\_latin\_pitch\_bool}）
+%   要重新声明西文字族，\pkg{banshi} 发完 \cs{defaultfontfeatures} 就用这个钩子让文档类
+%   把自己的西文字体重设一遍。钩子是空的就不做这件事。
+% \item \texttt{banshi/display}：装行间公式那一套钩子时顺带执行，文档类在这里接上自己
+%   对行间公式的处理。
+% \end{itemize}
+%    \begin{macrocode}
+\hook_new:n { banshi / latin-font-reload }
+\hook_new:n { banshi / display }
+%    \end{macrocode}
+%
+% 字号名。\option{size} 与 \cs{banshienter} 的字号可以写中文字号的名字，
+% 文档类用 \cs{banshi\_size\_new:nn}\marg{名字}\marg{长度} 加自己的。
+%    \begin{macrocode}
+\prop_new:N \g__banshi_size_prop
+\tl_new:N \l__banshi_size_tl
+\cs_new_protected:Npn \banshi_size_new:nn #1#2
+  { \prop_gput:Nnx \g__banshi_size_prop {#1} { \dim_eval:n {#2} } }
+\cs_generate_variant:Nn \prop_gput:Nnn { Nnx }
+\banshi_size_new:nn { chuhao }  { 42bp }
+\banshi_size_new:nn { xiaochu } { 36bp }
+\banshi_size_new:nn { yihao }   { 26bp }
+\banshi_size_new:nn { xiaoyi }  { 24bp }
+\banshi_size_new:nn { erhao }   { 22bp }
+\banshi_size_new:nn { xiaoer }  { 18bp }
+\banshi_size_new:nn { sanhao }  { 16bp }
+\banshi_size_new:nn { xiaosan } { 15bp }
+\banshi_size_new:nn { sihao }   { 14bp }
+\banshi_size_new:nn { xiaosi }  { 12bp }
+\banshi_size_new:nn { wuhao }   { 10.5bp }
+\banshi_size_new:nn { xiaowu }  { 9bp }
+\banshi_size_new:nn { liuhao }  { 7.5bp }
+\banshi_size_new:nn { xiaoliu } { 6.5bp }
+\banshi_size_new:nn { qihao }   { 5.5bp }
+\banshi_size_new:nn { bahao }   { 5bp }
+%    \end{macrocode}
+%
+% \cs{\_\_banshi\_format\_parend\_guard:} 排在 \texttt{para/end} 钩子里、段末撑杆
+% \cs{banshi\_format\_strut:} 之前，把撑杆焊在段落最后一个字上。\hologo{XeLaTeX} 下
+% 是空操作——那边本来就是焊死的。
+%
+% \textbf{病灶。} 段末的水平列表是「\dots 。\meta{撑杆}\cs{penalty}~10000
+% \cs{parfillskip}」。\pkg{xeCJK} 在句号与撑杆之间什么都不放，撑杆离不开末行。
+% \pkg{luatexja} 会在和文字符与后续节点之间插一段 JFM 边界胶——句号（JFM 里是
+% 半宽字形）后面是「\cs{glue}~6.02\,pt~minus~6.02\,pt」，这段胶是合法断点。
+% 于是当段落末行恰好排满时，TeX 有两个选择：把「边界胶＋撑杆＋\cs{parfillskip}」
+% 压上末行，或在边界胶处断行——断出来的新行只有撑杆和 \cs{parfillskip}，
+% badness 为零，总是胜出。结果是段与段之间凭空多出一行空白，高度正好一个
+% \cs{baselineskip}（撑杆的高深）。末行差一点排满时是另一副面孔：那段
+% minus 胶被压光，句号收成半宽、整行两端撑满，而 \hologo{XeLaTeX} 是自然宽度加
+% \cs{parfillskip} 补白。
+%
+% \textbf{封条是 \cs{ltjfakeboxbdd}。} 它告诉 \pkg{luatexja}「此处按盒子边界
+% 处理」：盒末的尾随边界胶本来就不插（\cs{hbox} 实测如此），于是句号与撑杆之间
+% 不再有断点，两种病症一起消失。段落以普通汉字收尾时 JFM 本来就不在字与撑杆之间
+% 插胶，没病也不受影响；只有以标点收尾的段落走到这条上。
+% 没装 \pkg{luatexja} 时什么也不做。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  {
+    \cs_new_protected:Npn \__banshi_format_parend_guard:
+      { \cs_if_exist_use:N \ltjfakeboxbdd }
+  }
+  { \cs_new_protected:Npn \__banshi_format_parend_guard: { } }
+%    \end{macrocode}
+%
+% \begin{macro}{\banshi_font_latin_bold:}
+% \emph{只加粗西文那一槽。} 黑体没有粗体面，\cs{bfseries} 一发，\pkg{xeCJK} 按
+% \option{AutoFakeBold} 给汉字描一圈边合成粗体（PDF 里是 \texttt{2 Tr} 加一个线宽）。
+% 英文档的标题在原件里是 Times Bold，可夹在里面的汉字不该跟着变形。
+%
+% \cs{addCJKfontfeature} 把当前中文族按新特性重声明一遍，作用域跟着分组走。
+% 两个特性都要关：\option{AutoFakeBold} 管描边合成的那一路，\option{BoldFont}
+% 写成空的管\emph{真有粗体面}的那一路（\texttt{fandol} 那一档的黑体就有一副
+% \file{FandolHei-Bold}，只关伪粗它照样变粗）。两个都关了，\cs{bfseries} 在西文
+% 那一槽照样取粗体面，汉字那一槽落回常规面（实测）。
+%
+% \emph{另外两条路走不通，记在这里省得再试。} 一是把 \cs{CJK@family} 换成一个
+% “粗体面指回常规面”的孪生族：选字时 \pkg{xeCJK} 会从族名重新解析，换了白换。
+% 二是在 \cs{setCJKfamilyfont} 外面包一层顺手造孪生族：\option{fontset} 常用的
+% 那几档根本不走类自己那个分支，字体族是 \pkg{ctex} 声明的，包不到。
+% 没有 \cs{addCJKfontfeature}（没装中文宏包）时只发 \cs{bfseries}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \banshi_font_latin_bold:
+  {
+    \bfseries
+    \cs_if_exist:NT \addCJKfontfeature
+      { \addCJKfontfeature { AutoFakeBold = false , BoldFont = { } } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
 % 目标清单与每个目标的存储。取值存进 \cs{g\_\_banshi\_format\_}\meta{目标}\cs{\_prop}，
 % 带单位的键存两条：值一条、单位一条。
 %    \begin{macrocode}
@@ -236,7 +332,7 @@
       { \prop_new:c { \__banshi_format_name:nnn {#1} {#2} {#3} } }
   }
 \cs_new:Npn \__banshi_format_layer_now:
-  { \bool_if:NTF \g__hit_raggedbottom_bool { ragged } { flush } }
+  { \bool_if:NTF \g_banshi_ragged_bottom_bool { ragged } { flush } }
 \prg_new_protected_conditional:Npnn \__banshi_format_get:nnN #1#2#3 { T , F , TF }
   {
     \prop_get:cnNTF
@@ -413,11 +509,8 @@
     \str_if_eq:nnTF {#1} { auto }
       { \__banshi_format_put:nn { size } { auto } }
       {
-        \dim_if_exist:cTF { c__hit_font_size_#1_dim }
-          {
-            \__banshi_format_put:nn { size }
-              { \dim_use:c { c__hit_font_size_#1_dim } }
-          }
+        \prop_get:NnNTF \g__banshi_size_prop {#1} \l__banshi_size_tl
+          { \__banshi_format_put:nn { size } { \l__banshi_size_tl } }
           { \__banshi_format_put:nn { size } { \dim_eval:n {#1} } }
       }
   }
@@ -773,7 +866,7 @@
     \str_set:Nn \l__banshi_format_target_str {#1}
     \prop_clear:N \l__banshi_format_claim_prop
     \__banshi_keys_set:nn { banshi / format / property } {#2}
-    \__banshi_format_legacy:n {#1}
+    \__banshi_format_after_target:n {#1}
   }
 \clist_map_inline:Nn \c__banshi_format_target_clist
   {
@@ -833,76 +926,15 @@
   }
 %    \end{macrocode}
 %
-% 兼容桥：六条已经能接上排版的属性写回原来的标志位。整个目标设完再过一遍，
-% 因为 \option{alignment} 那两条要看最终值，中途改来改去不必每次都写。
-%
-% 六个标志位都只有终稿有。报告不排章，也没有子图题与
-% 摘要标题那两处开关，所以写回之前先看标志位在不在，不在就什么也不做，
-% 免得凭空造出一个没人读的布尔。
-%
-% \option{font-en} 与 \option{all-caps} 的标志位是全局的，所以只在伞上认。伞展开成
-% 四个层级，四次都写同一个标志位，结果一样。
+% 一个目标设完之后调 \cs{\_\_banshi\_format\_after\_target:n}\marg{目标}。文档类要在这里
+% 读回设置、同步自己的开关（比如旧写法的选项与新键指的是同一件事），就用
+% \cs{banshi\_format\_set\_after\_target:n}\marg{代码} 给出代码，代码里 \texttt{\#1}
+% 是目标名，读设置用 \cs{banshi\_format\_get:nnN}。默认什么也不做。整个目标设完才调，
+% 因为同一目标里的键可能前后改来改去，要看的是最终值。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__banshi_format_flag_set:nn #1#2
-  {
-    \bool_if_exist:cT { g__hit_#1_bool }
-      {
-        \bool_if:nTF {#2}
-          { \bool_gset_true:c  { g__hit_#1_bool } }
-          { \bool_gset_false:c { g__hit_#1_bool } }
-      }
-  }
-\cs_new_protected:Npn \__banshi_format_flag:nn #1#2
-  {
-    \__banshi_format_get:VnNT \l__banshi_format_target_str {#2} \l__banshi_format_head_tl
-      {
-        \__banshi_format_flag_set:nn {#1}
-          { \str_if_eq_p:Vn \l__banshi_format_head_tl { true } }
-      }
-  }
-\cs_new_protected:Npn \__banshi_format_flag_eq:nnn #1#2#3
-  {
-    \__banshi_format_get:VnNT \l__banshi_format_target_str {#2} \l__banshi_format_head_tl
-      {
-        \__banshi_format_flag_set:nn {#1}
-          { \str_if_eq_p:Vn \l__banshi_format_head_tl {#3} }
-      }
-  }
-\cs_new_protected:Npn \__banshi_format_legacy:n #1
-  {
-    \str_case:nn {#1}
-      {
-        { chapter }
-          {
-            \__banshi_format_flag:nn { chapterbold } { bold }
-            \__banshi_format_flag_eq:nnn { chapterhang }
-              { indent-special-mode } { hanging }
-            \__banshi_format_flag_eq:nnn { heading_latin_sans } { font-en } { sans }
-          }
-        { section }       { \__banshi_format_heading_latin: }
-        { subsection }    { \__banshi_format_heading_latin: }
-        { subsubsection } { \__banshi_format_heading_latin: }
-        { caption-figure }
-          {
-            \__banshi_format_flag_eq:nnn { capcenterlast }
-              { alignment } { last-line-centered }
-          }
-        { caption-table }
-          {
-            \__banshi_format_flag_eq:nnn { capcenterlast }
-              { alignment } { last-line-centered }
-          }
-        { caption-sub }
-          {
-            \__banshi_format_flag_eq:nnn { subcapcenterlast }
-              { alignment } { last-line-centered }
-          }
-        { abstract-heading }
-          { \__banshi_format_flag:nn { absupper } { all-caps } }
-      }
-  }
-\cs_new_protected:Npn \__banshi_format_heading_latin:
-  { \__banshi_format_flag_eq:nnn { heading_latin_sans } { font-en } { sans } }
+\cs_new_protected:Npn \__banshi_format_after_target:n #1 { }
+\cs_new_protected:Npn \banshi_format_set_after_target:n #1
+  { \cs_gset_protected:Npn \__banshi_format_after_target:n ##1 {#1} }
 %    \end{macrocode}
 %
 % \cs{banshi\_format\_get:nnN}\marg{目标}\marg{键}\meta{记号列表} 取一条设置，没设过就
@@ -1057,7 +1089,7 @@
 \dim_new:N \l__banshi_format_unit_dim
 \cs_new_protected:Npn \__banshi_format_line_unit:N #1
   {
-    \bool_if:NTF \g__hit_layout_grid_bool
+    \bool_if:NTF \g_banshi_grid_bool
       { \dim_set_eq:NN #1 \g_banshi_msword_lead_dim }
       {
         \__banshi_format_read:nnnN { body } { size } { } \l__banshi_format_value_tl
@@ -1316,7 +1348,7 @@
     \bool_set:Nn \l_banshi_format_snap_vertical_bool
       {
         \str_if_eq_p:Vn \l__banshi_format_value_tl { true }
-        && \bool_if_p:N \g__hit_layout_grid_bool
+        && \bool_if_p:N \g_banshi_grid_bool
         && ! \dim_compare_p:nNn { \g_banshi_msword_lead_dim } = { 0pt }
       }
     \__banshi_format_get:nnNTF {#1} { snap-to-grid-horizontal } \l__banshi_format_value_tl
@@ -1872,7 +1904,7 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \banshi_format_strut:
   {
-    \hit@engine@parend@guard:
+    \__banshi_format_parend_guard:
     \bool_if:NTF \l_banshi_format_strut_latin_bool
       {
         \__banshi_format_strut:nn
@@ -1970,30 +2002,6 @@
   }
 %    \end{macrocode}
 %
-% \begin{macro}{\hit@heading@number@gap:}
-% 题序与标题之间的空当，新版面的兜底值：一个字宽。用 \texttt{1em}——标题不贴
-% 字符网格，一个汉字的宽度就是 \texttt{em}，跟着标题自己的字号走（章 18\,bp、
-% 节 15\,bp，范例量出来的正是各级自己的字宽）。用户设了
-% \option{after-<级>-number} 词条仍然优先，与旧版面同一条链。英文文档不动：
-% 范例是中文的，管不到它，英文章标题的 \cs{par}（编号独占一行）照旧。
-%    \begin{macrocode}
-\cs_new_protected:Npn \hit@heading@number@gap:
-  { \skip_horizontal:n { 1em } }
-%    \end{macrocode}
-%
-% 章号与后面内容之间空多少，页眉、目录条目与章标题是同一件事。这里把
-% “章标题那条链”包成一个名字：用户设了 \option{after-chapter-number}
-% 词条用词条，没设走上面的兜底（一个字宽），语言跟文档。页眉直接排它，
-% 目录条目把它装盒量宽再按摆法用（见 \file{hit-final-toc.dtx}）。
-%    \begin{macrocode}
-\cs_new:Npn \hit@chapter@number@gap:
-  {
-    \hit@after@number:nnn { chapter }
-      { \bool_if:NTF \g__hit_en_bool { en } { zh } }
-      { \hit@heading@number@gap: }
-  }
-%    \end{macrocode}
-% \end{macro}
 %
 % 标题的格式是\emph{覆盖}旧的 \cs{ctexset}，不是追加。追加的话新版面算出来的
 % 格式后面还跟着旧版面那一串，旧的写了什么就甩不掉——本科章标题的
@@ -2016,13 +2024,15 @@
 % 新版面一律不加粗——黑体本身够重，规范也没要求。要加粗就在
 % \option{format} 里写 \option{bold}\texttt{=true}，一处说了算。
 %
-% 覆盖就得把旧格式里\emph{该有}的补齐：旧的 \cs{hit@title@font} 在西文无衬线开着时
-% 发 \cs{sffamily}，这边 \option{font-zh} 已经发了 \cs{heiti}，再补那个条件，汉字
-% 用黑体、西文用无衬线，与目录条目那边的 \cs{hit@chapter@entry@font} 同一个写法。
-% 只限四级标题：页眉页脚也走 \cs{\_\_banshi\_format\_build:n}，无条件发会串味。
+% 文档类可以给某个目标的字体设置追加一段代码：
+% \cs{banshi\_format\_add\_font:nn}\marg{目标}\marg{代码}。比如让某几级标题里的
+% 西文走无衬线，就给那几级登记一段发 \cs{sffamily} 的代码。只追加到登记过的目标上，
+% 页眉页脚也走 \cs{\_\_banshi\_format\_build:n}，无条件发会串味。
 %    \begin{macrocode}
-\cs_new:Npn \banshi_format_latin_sans:
-  { \bool_if:NT \g__hit_heading_latin_sans_bool { \sffamily } }
+\prop_new:N \g__banshi_format_font_extra_prop
+\tl_new:N \l__banshi_format_extra_tl
+\cs_new_protected:Npn \banshi_format_add_font:nn #1#2
+  { \prop_gput:Nnn \g__banshi_format_font_extra_prop {#1} {#2} }
 \cs_new_protected:Npn \__banshi_format_build:n #1
   {
     \__banshi_format_build_font:n {#1}
@@ -2053,8 +2063,8 @@
         \tl_put_right:Nx \l__banshi_format_out_tl
           { \exp_not:c { \l__banshi_format_value_tl } }
       }
-    \clist_if_in:nnT { chapter , section , subsection , subsubsection } {#1}
-      { \tl_put_right:Nn \l__banshi_format_out_tl { \banshi_format_latin_sans: } }
+    \prop_get:NnNT \g__banshi_format_font_extra_prop {#1} \l__banshi_format_extra_tl
+      { \tl_put_right:NV \l__banshi_format_out_tl \l__banshi_format_extra_tl }
     \__banshi_format_pick:nnN {#1} { font-en } \c__banshi_format_latin_prop
     \__banshi_format_read:nnnN {#1} { size } { } \l__banshi_format_value_tl
     \tl_if_empty:NF \l__banshi_format_value_tl
@@ -2072,7 +2082,7 @@
       { \tl_put_right:Nn \l__banshi_format_out_tl { \bfseries } }
     \__banshi_format_read:nnnN {#1} { latin-bold } { false } \l__banshi_format_value_tl
     \str_if_eq:VnT \l__banshi_format_value_tl { true }
-      { \tl_put_right:Nn \l__banshi_format_out_tl { \hit@font@latin@bold: } }
+      { \tl_put_right:Nn \l__banshi_format_out_tl { \banshi_font_latin_bold: } }
     \__banshi_format_pick:nnN {#1} { alignment } \c__banshi_format_align_prop
     \tl_put_right:Nx \l__banshi_format_out_tl
       {
@@ -2213,37 +2223,14 @@
   }
 %    \end{macrocode}
 %
-% \emph{英文报告也发题序后间距，不留 \pkg{ctex} 的默认值 \cs{enspace}。}
-% iota-hit 逐级量 2026 年 9 月版深圳本科英文版那两份表单（号末到名首）：章 18.35／18 ＝ 1.02 个字，
-% 节 15.23／15.12 ＝ 1.01，条 14.05／13.92 ＝ 1.01——与中文版同数。原件那三处
-% 敲的都是两个半角，与中文版一样；中文那边两个半角就是一个全角，英文这边
-% Times 的半角只有 0.25\,em，可排出来仍是一个字，那两个空格各带了约 0.26\,em 的
-% 额外步进。跟排出来的数，不跟敲了几个空格。
-%
-% \emph{只发给报告，不发给英文学位论文。} 英文学位论文的章标题是
-% “\texttt{CHAPTER~1}”独占一行、题名另起一行，那一档的 \option{aftername} 由
-% \cs{hit@chapter@settings@english} 自己管着；这一条在 \cs{AfterPreamble} 才发，
-% 发过去会把它盖掉，题名居中位移半个字（实测英文论文的
-% “\texttt{INTRODUCTION}”右移 9.0，博士后那一档 12.0）。所以条件是
-% “不是英文档，或者不是终稿”。
-%
-% \emph{这一档也写宽了：验过的只有深圳本科英文版那两份表单。} 判据按语种给，
-% 所有英文报告都吃它——本部的英文报告没有一份带标题实例。拿到别的档的英文原件
-% 要重核。
-%
-% 人文社科类的节与条，题序自带全角顿号或括号（“一、”“（一）”），范例里题序
-% 贴着标题排，不再空那一个字；章“第一章”后面照旧空一个字。标志位只在学位
-% 终稿里有，报告没有这根轴，先问存在再问真假。
+% 除了字体与段前段后，文档类还可以往发给 \pkg{ctex} 的键里添东西，比如题序后面的
+% 间距（\option{aftername}）：\cs{banshi\_format\_set\_heading\_keys:n}\marg{代码}，代码里
+% \texttt{\#1} 是目标，\texttt{\#2} 是正在攒的键值记号列表，用 \cs{tl\_put\_right:Nn}
+% 往里添。默认什么也不添。
 %    \begin{macrocode}
-\cs_new:Npn \__banshi_format_hass_nogap_p:n #1
-  {
-    \bool_lazy_all_p:n
-      {
-        { \bool_if_exist_p:N \g__hit_hass_bool }
-        { \bool_if_p:N \g__hit_hass_bool }
-        { \str_if_eq_p:nn {#1} { section } || \str_if_eq_p:nn {#1} { subsection } }
-      }
-  }
+\cs_new_protected:Npn \__banshi_format_heading_keys:nN #1#2 { }
+\cs_new_protected:Npn \banshi_format_set_heading_keys:n #1
+  { \cs_gset_protected:Npn \__banshi_format_heading_keys:nN ##1##2 {#1} }
 \cs_new_protected:Npn \banshi_format_apply_heading:n #1
   { \banshi_format_apply_heading_to:nn {#1} {#1} }
 \cs_new_protected:Npn \banshi_format_apply_heading_to:nn #1#2
@@ -2260,24 +2247,7 @@
                 \cs_if_exist:NT \banshi_linebreak_kern_off: { \exp_not:N \banshi_linebreak_kern_off: }
               } ,
           }
-        \bool_lazy_or:nnT
-          { ! \bool_if_p:N \g__hit_en_bool }
-          { ! \bool_if_p:N \g__hit_final_bool }
-          {
-            \bool_if:nTF { \__banshi_format_hass_nogap_p:n {#1} }
-              { \tl_put_right:Nn \l__banshi_format_keys_tl { aftername = { } , } }
-              {
-                \tl_put_right:Nn \l__banshi_format_keys_tl
-                  {
-                    aftername =
-                      {
-                        \hit@after@number:nnn {#1}
-                          { \bool_if:NTF \g__hit_en_bool { en } { zh } }
-                          { \hit@heading@number@gap: }
-                      } ,
-                  }
-              }
-          }
+        \__banshi_format_heading_keys:nN {#1} \l__banshi_format_keys_tl
         \__banshi_format_get:nnNT {#1} { space-before } \l__banshi_format_coef_tl
           {
             \tl_put_right:Nx \l__banshi_format_keys_tl
@@ -2623,8 +2593,8 @@
   {
     \bool_lazy_all:nT
       {
-        { \bool_if_p:N \g__hit_layout_pitch_en_bool }
-        { \cs_if_exist_p:N \hit@fonts@redo@en: }
+        { \bool_if_p:N \g_banshi_latin_pitch_bool }
+        { ! \hook_if_empty_p:n { banshi / latin-font-reload } }
         {
           ! \bool_lazy_and_p:nn
             { \sys_if_engine_luatex_p: }
@@ -2649,7 +2619,7 @@
                     }
               }
           }
-        \hit@fonts@redo@en:
+        \hook_use:n { banshi / latin-font-reload }
         \normalsize
         \skip_set:Nn \spaceskip
           {
@@ -2728,7 +2698,7 @@
         { \sys_if_engine_luatex_p: }
         { \bool_if_exist_p:N \g__banshi_linebreak_word_bool }
         { \bool_if_p:N \g__banshi_linebreak_word_bool }
-        { \bool_if_p:N \g__hit_raggedbottom_bool }
+        { \bool_if_p:N \g_banshi_ragged_bottom_bool }
       }
       { \prg_return_true: } { \prg_return_false: }
   }
@@ -2751,7 +2721,7 @@
             \AddToHook { begindocument/end }
               {
                 \banshi_format_patch_colroom:
-                \bool_if:NF \g__hit_raggedbottom_bool
+                \bool_if:NF \g_banshi_ragged_bottom_bool
                   { \banshi_format_flush_bottom: }
               }
           }
@@ -3348,7 +3318,7 @@
   { \leavevmode \skip_horizontal:n { \tex_fontdimen:D 2 \tex_font:D } }
 \cs_new_protected:Npn \banshi_format_verb_space:
   {
-    \bool_if:NTF \g__hit_verb_space_visible_bool
+    \bool_if:NTF \g_banshi_verb_space_visible_bool
       { \banshi_format_verb_space_visible: } { \banshi_format_verb_space_cell: }
   }
 \cs_new_protected:Npn \banshi_format_verb_enter:
@@ -3638,7 +3608,7 @@
           }
         \AddToHook { para / begin } { \__banshi_format_para_open: }
         \AddToHook { para / end }   { \__banshi_format_para_close: }
-        \cs_if_exist:NT \hit@display@hooks: { \hit@display@hooks: }
+        \hook_use:n { banshi / display }
         \banshi_format_display_hooks:
         \cs_if_exist:NT \banshi_header_strut:
           { \cs_set_eq:NN \banshi_header_strut: \banshi_format_strut: }
@@ -3796,8 +3766,8 @@
 \prg_generate_conditional_variant:Nnn \str_if_in:Nn { NV } { TF }
 \cs_new_protected:Npn \__banshi_enter_size:n #1
   {
-    \dim_if_exist:cTF { c__hit_font_size_#1_dim }
-      { \dim_set_eq:Nc \l__banshi_enter_size_dim { c__hit_font_size_#1_dim } }
+    \prop_get:NnNTF \g__banshi_size_prop {#1} \l__banshi_size_tl
+      { \dim_set:Nn \l__banshi_enter_size_dim { \l__banshi_size_tl } }
       { \dim_set:Nn \l__banshi_enter_size_dim { #1 } }
   }
 \dim_new:N \l__banshi_enter_asc_dim
@@ -3877,7 +3847,7 @@
     \bool_set:Nn \l_banshi_format_snap_vertical_bool
       {
         \bool_if_p:N \l__banshi_enter_snap_bool
-        && \bool_if_p:N \g__hit_layout_grid_bool
+        && \bool_if_p:N \g_banshi_grid_bool
         && ! \dim_compare_p:nNn { \g_banshi_msword_lead_dim } = { 0pt }
       }
     \str_case:VnF \l__banshi_enter_mode_tl
