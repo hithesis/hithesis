@@ -496,16 +496,17 @@ src/pages/
 
 例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hit-eps.dtx` 也两档共享，但它们不走 `engine/`，因为不是拼进 cls 的模块。
 
-照 Word 排版的那一层与哪一份规范都无关，单独放在 `src/banshi/`，生成独立的 `banshi.sty`，类在原来内联它们的位置 `\RequirePackage{banshi}`：
+照 Word 排版的那一层与哪一份规范都无关，单独放在 `src/zhwordlike/`，生成独立的 `zhwordlike.sty`，类在原来内联它们的位置 `\RequirePackage[preset=none]{zhwordlike}`（单独加载时它会照 Word 空白文档设版面，这里版面由类定）：
 
 | 文件 | 管什么 |
 |---|---|
-| `banshi.dtx` | 包头 |
-| `banshi-msword.dtx` | Word 页面设置换算成版面参数 |
-| `banshi-format.dtx` | 元素格式：字体、行距、间距、缩进、空段 |
-| `banshi-linebreak.dtx` | 断行层：LuaTeX 上照 Word 的贪心断行，Lua 部分解出 `banshi.lua` |
+| `zhwordlike.dtx` | 包头 |
+| `zhwordlike-msword.dtx` | Word 页面设置换算成版面参数 |
+| `zhwordlike-format.dtx` | 元素格式：字体、行距、间距、缩进、空段 |
+| `zhwordlike-linebreak.dtx` | 断行层：LuaTeX 上照 Word 的贪心断行，Lua 部分解出 `zhwordlike.lua` |
+| `zhwordlike-preset.dtx` | 包选项与单独加载时的空白文档预设 |
 
-它的正本在独立仓库 `latex-banshi`（默认与本仓库并列，与 iota-hit 底下的 Typst 包 banshi 是姊妹实现），`src/banshi/` 只是那边 dtx 的副本。改动在 `latex-banshi` 里做、在那边提交，再在这边跑 `make banshi-sync` 拷过来，按平常的量具验收后提交，提交说明里写上那边的提交号（`banshi-sync` 会打印）。`make banshi-check` 看两边是否一致。别在 `src/banshi/` 里直接改，下次同步会被覆盖；学校专有的东西也别往 banshi 里写。
+它的正本在独立仓库 `latex-zhwordlike`（默认与本仓库并列），`src/zhwordlike/` 只是那边 dtx 的副本。改动在 `latex-zhwordlike` 里做、在那边提交，再在这边跑 `make zhwordlike-sync` 拷过来，按平常的量具验收后提交，提交说明里写上那边的提交号（`zhwordlike-sync` 会打印）。`make zhwordlike-check` 看两边是否一致。别在 `src/zhwordlike/` 里直接改，下次同步会被覆盖；学校专有的东西也别往 zhwordlike 里写。
 
 ### 4.4 一个模块一个职责
 
@@ -541,7 +542,7 @@ src/pages/
 
 v3.2a 起模块内容直接拼进 `.cls`，不再生成独立的 `.sty`。在类文件里写 `\ProvidesPackage` 会声明一个并不存在的宏包，日志里出现的身份信息也是假的。
 
-唯一的例外是排版引擎 `banshi`，它是真的宏包，包头写在 `src/banshi/banshi.dtx` 的 `package` 守卫里。
+唯一的例外是排版引擎 `zhwordlike`，它是真的宏包，包头写在 `src/zhwordlike/zhwordlike.dtx` 的 `package` 守卫里。
 
 模块开头只写注释标识：
 

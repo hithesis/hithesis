@@ -25,7 +25,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls banshi-sync banshi-check lineends lineends-self lineends-verb lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls zhwordlike-sync zhwordlike-check lineends lineends-self lineends-verb lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
@@ -56,7 +56,7 @@ compat-regression:
 # 代价是这个目标要机器上装了 Office 字体才能跑。lineends 不进 CI（CI 只跑
 # compat-regression），是本机开发用的量具，可以这么钉。
 #
-# 2026/09/15 起主线是 lualatex：断行由 src/banshi/banshi-linebreak.dtx 的 Lua 照 Word
+# 2026/09/15 起主线是 lualatex：断行由 src/zhwordlike/zhwordlike-linebreak.dtx 的 Lua 照 Word
 # 的贪心算法做，行差从 78 降到 61。基线是本科范例的 docx 转出来的 PDF，那份 docx
 # 转换时升成了 Word 现行版式 15，而类默认按学校 doc 原件的版式 11 排，所以这里把
 # 模式钉到 15 再比。剩下的 61 是七处平局与语料伪差各自往后串出来的行。
@@ -86,24 +86,24 @@ lineends-verb:
 	cd tests/sample/verb && TEXINPUTS="$(CURDIR):" lualatex -interaction=nonstopmode main.tex > /dev/null
 	python3 scripts/check-line-ends.py --pdf tests/sample/verb/main.pdf --fixture tests/lineends-verb.tsv
 
-# 排版引擎 banshi 的正本在独立仓库 latex-banshi（默认与本仓库并列），src/banshi/ 是
-# 那边 dtx 的副本。改动在那边做、提交，再跑 make banshi-sync 拷过来验收；
-# make banshi-check 看两边是否一致。那个仓库不在 CI 里，这两条只在本机用。
-BANSHI_DIR ?= ../latex-banshi
-BANSHI_DTX = banshi.dtx banshi-msword.dtx banshi-format.dtx banshi-linebreak.dtx banshi-preset.dtx
+# 排版引擎 zhwordlike 的正本在独立仓库 latex-zhwordlike（默认与本仓库并列），src/zhwordlike/ 是
+# 那边 dtx 的副本。改动在那边做、提交，再跑 make zhwordlike-sync 拷过来验收；
+# make zhwordlike-check 看两边是否一致。那个仓库不在 CI 里，这两条只在本机用。
+ZHWORDLIKE_DIR ?= ../latex-zhwordlike
+ZHWORDLIKE_DTX = zhwordlike.dtx zhwordlike-msword.dtx zhwordlike-format.dtx zhwordlike-linebreak.dtx zhwordlike-preset.dtx
 
-banshi-sync:
-	@test -d $(BANSHI_DIR) || { echo "找不到 $(BANSHI_DIR)，用 BANSHI_DIR=路径 指定"; exit 2; }
-	@for f in $(BANSHI_DTX); do cp $(BANSHI_DIR)/$$f src/banshi/$$f || exit 1; done
-	@echo "已从 $(BANSHI_DIR) 拷入 $(words $(BANSHI_DTX)) 个 dtx，那边的提交是 $$(git -C $(BANSHI_DIR) rev-parse --short HEAD)"
+zhwordlike-sync:
+	@test -d $(ZHWORDLIKE_DIR) || { echo "找不到 $(ZHWORDLIKE_DIR)，用 ZHWORDLIKE_DIR=路径 指定"; exit 2; }
+	@for f in $(ZHWORDLIKE_DTX); do cp $(ZHWORDLIKE_DIR)/$$f src/zhwordlike/$$f || exit 1; done
+	@echo "已从 $(ZHWORDLIKE_DIR) 拷入 $(words $(ZHWORDLIKE_DTX)) 个 dtx，那边的提交是 $$(git -C $(ZHWORDLIKE_DIR) rev-parse --short HEAD)"
 
-banshi-check:
-	@test -d $(BANSHI_DIR) || { echo "找不到 $(BANSHI_DIR)，用 BANSHI_DIR=路径 指定"; exit 2; }
-	@bad=; for f in $(BANSHI_DTX); do cmp -s $(BANSHI_DIR)/$$f src/banshi/$$f || { echo "src/banshi/$$f 与 $(BANSHI_DIR)/$$f 不一致"; bad=1; }; done; \
-	  test -z "$$bad" && echo "src/banshi/ 与 $(BANSHI_DIR) 一致" || exit 1
+zhwordlike-check:
+	@test -d $(ZHWORDLIKE_DIR) || { echo "找不到 $(ZHWORDLIKE_DIR)，用 ZHWORDLIKE_DIR=路径 指定"; exit 2; }
+	@bad=; for f in $(ZHWORDLIKE_DTX); do cmp -s $(ZHWORDLIKE_DIR)/$$f src/zhwordlike/$$f || { echo "src/zhwordlike/$$f 与 $(ZHWORDLIKE_DIR)/$$f 不一致"; bad=1; }; done; \
+	  test -z "$$bad" && echo "src/zhwordlike/ 与 $(ZHWORDLIKE_DIR) 一致" || exit 1
 
 # 与 typst-with-msword-linebreaks 对拍：同一批段落（tests/typst-corpus.txt）两边各排一遍，
-# 逐行比行末。banshi.lua 是照那个 fork 抄的，Word 只能量翻转点，两个实现之间
+# 逐行比行末。zhwordlike.lua 是照那个 fork 抄的，Word 只能量翻转点，两个实现之间
 # 能逐行比。棘轮只数文本差异：两档各 6 处，全是 URL 段（那边有紧急断点）。要本机有
 # 那个 fork 的二进制（TYPST 环境变量或默认路径），不进 CI
 lineends-typst:
@@ -148,7 +148,7 @@ lineends-self-baseline:
 # TEXINPUTS 指到 src/：这样 install 守卫里写不带目录的文件名即可，
 # make（在根目录跑）和 l3build（把源码拍平到 build/unpacked）都能找到。
 $(TARGETS): $(SOURCES)
-	TEXINPUTS=src:src/engine:src/banshi:src/config:src/flow:src/pages:src/assets:src/manual: xetex -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/zhwordlike:src/config:src/flow:src/pages:src/assets:src/manual: xetex -interaction=nonstopmode src/$(PACKAGE).dtx
 	$(MAKE) --no-print-directory distribute
 
 # .ins 只生成到根目录，示例目录里的那份由这里分发。
@@ -185,7 +185,7 @@ viewdoc:
 ifeq ($(METHOD),latexmk)
 
 $(PACKAGE).pdf: $(TARGETS)
-	TEXINPUTS=src:src/engine:src/banshi:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/zhwordlike:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
 
 else ifneq ($(filter $(METHOD),xelatex lualatex),)
 
@@ -203,11 +203,11 @@ else ifneq ($(filter $(METHOD),xelatex lualatex),)
 # “Extra }”，而源码本身是好的。踩过两次。
 $(PACKAGE).pdf: $(TARGETS)
 	-$(RM) $(PACKAGE).gls $(PACKAGE).glo $(PACKAGE).ind $(PACKAGE).idx
-	TEXINPUTS=src:src/engine:src/banshi:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/zhwordlike:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 	upmendex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
 	makeindex -s gglo.ist -o $(PACKAGE).gls $(PACKAGE).glo
-	TEXINPUTS=src:src/engine:src/banshi:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
-	TEXINPUTS=src:src/engine:src/banshi:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/zhwordlike:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
+	TEXINPUTS=src:src/engine:src/zhwordlike:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 
 else
 $(error Unknown METHOD: $(METHOD))
