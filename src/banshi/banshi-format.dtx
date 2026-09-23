@@ -251,31 +251,29 @@
 % 目标清单与每个目标的存储。取值存进 \cs{g\_\_banshi\_format\_}\meta{目标}\cs{\_prop}，
 % 带单位的键存两条：值一条、单位一条。
 %    \begin{macrocode}
-\clist_const:Nn \c__banshi_format_target_clist
+\clist_new:N \g_banshi_format_target_clist
+\prop_new:N \g__banshi_format_parent_prop
+\cs_new_protected:Npn \banshi_format_target_new:nn #1#2
   {
-    body ,
-    chapter , section , subsection , subsubsection ,
-    caption-figure , caption-table , caption-sub , caption-note ,
-    table-cell , abstract-heading ,
-    toc-chapter , toc-section , toc-subsection , toc-subsubsection ,
-    header , footer , abstract-en ,
-    titlepage-mark , titlepage-label , titlepage-title , titlepage-field ,
-    titlepage-en-mark , titlepage-en-degree , titlepage-en-title ,
-    titlepage-en-field , statement-heading , authorization-heading ,
-    cover-label , cover-type , cover-title , cover-subtitle ,
-    cover-title-en , cover-author , cover-institution , cover-date ,
-    report-cover-form , report-cover-blank ,
-    report-cover-university , report-cover-university-en ,
-    report-cover-stage , report-cover-stage-en ,
-    report-cover-field , report-cover-title , report-cover-blank-mid
-  }
-\clist_map_inline:Nn \c__banshi_format_target_clist
-  {
-    \clist_map_inline:nn { { } , { _ragged } , { _flush } }
+    \clist_if_in:NnF \g_banshi_format_target_clist {#1}
       {
-        \prop_new:c { g__banshi_format_#1##1_prop }
-        \prop_new:c { g__banshi_format_#1##1_default_prop }
+        \clist_gput_right:Nn \g_banshi_format_target_clist {#1}
+        \clist_map_inline:nn { { } , { _ragged } , { _flush } }
+          {
+            \prop_new:c { g__banshi_format_#1##1_prop }
+            \prop_new:c { g__banshi_format_#1##1_default_prop }
+          }
+        \keys_define:nn { banshi / format }
+          {
+            #1 .code:n = { \__banshi_format_target:nn {#1} {##1} } ,
+            #1 / if-raggedbottom .code:n =
+              { \__banshi_format_layer:nnn { ragged } {#1} {##1} } ,
+            #1 / if-flushbottom .code:n =
+              { \__banshi_format_layer:nnn { flush } {#1} {##1} } ,
+          }
       }
+    \tl_if_blank:nF {#2}
+      { \prop_gput:Nnn \g__banshi_format_parent_prop {#1} {#2} }
   }
 %    \end{macrocode}
 %
@@ -319,9 +317,12 @@
 %
 % 这套存储不进 \cs{hitsetup} 的方括号：方括号里只接受类选项，而 \option{bottom}
 % 是排版选项，导言区随时能改，类选项那会儿还不知道它是什么。
+%
+% 文档类写自己那份默认表时把 \cs{g\_banshi\_format\_defaults\_bool} 立起来，写完放下：
+% 这期间写进去的值同时记成“默认值”，\texttt{auto} 回退到的就是它们。
 %    \begin{macrocode}
 \cs_generate_variant:Nn \prop_gput:Nnn { cnx }
-\bool_new:N \g__banshi_format_presetup_bool
+\bool_new:N \g_banshi_format_defaults_bool
 \tl_new:N \l__banshi_format_layer_tl
 \clist_const:Nn \c__banshi_format_layer_clist { ragged , flush }
 \cs_new:Npn \__banshi_format_name:nnn #1#2#3
@@ -362,7 +363,7 @@
       {
         \__banshi_format_store:VVnn \l__banshi_format_target_str
           \l__banshi_format_layer_tl {#1} {#2}
-        \bool_if:NTF \g__banshi_format_presetup_bool
+        \bool_if:NTF \g_banshi_format_defaults_bool
           {
             \__banshi_format_store:VVnnn \l__banshi_format_target_str
               \l__banshi_format_layer_tl { _default } {#1} {#2}
@@ -401,7 +402,7 @@
   {
     \__banshi_format_erase:VVn \l__banshi_format_target_str
       \l__banshi_format_layer_tl {#1}
-    \bool_if:NTF \g__banshi_format_presetup_bool
+    \bool_if:NTF \g_banshi_format_defaults_bool
       {
         \__banshi_format_erase:VVnn \l__banshi_format_target_str
           \l__banshi_format_layer_tl { _default } {#1}
@@ -868,21 +869,13 @@
     \__banshi_keys_set:nn { banshi / format / property } {#2}
     \__banshi_format_after_target:n {#1}
   }
-\clist_map_inline:Nn \c__banshi_format_target_clist
-  {
-    \keys_define:nn { banshi / format }
-      {
-        #1 .code:n = { \__banshi_format_target:nn {#1} {##1} } ,
-        #1 / if-raggedbottom .code:n =
-          { \__banshi_format_layer:nnn { ragged } {#1} {##1} } ,
-        #1 / if-flushbottom .code:n =
-          { \__banshi_format_layer:nnn { flush } {#1} {##1} } ,
-      }
-  }
 \cs_new_protected:Npn \banshi_format_set:n #1
   { \__banshi_keys_set:nn { banshi / format } {#1} }
 \keys_define:nn { banshi }
   { format .code:n = { \banshi_format_set:n {#1} } }
+\banshi_format_target_new:nn { body } { }
+\clist_map_inline:nn { chapter , section , subsection , subsubsection , header , footer }
+  { \banshi_format_target_new:nn {#1} { body } }
 \bool_new:N \g_banshi_format_hyphen_bool
 \keys_define:nn { banshi / format }
   {
@@ -909,17 +902,6 @@
         chapter/if-flushbottom = {#1} , section/if-flushbottom = {#1} ,
         subsection/if-flushbottom = {#1} ,
         subsubsection/if-flushbottom = {#1} ,
-      } ,
-    caption .meta:n = { caption-figure = {#1} , caption-table = {#1} } ,
-    caption / if-raggedbottom .meta:n =
-      {
-        caption-figure/if-raggedbottom = {#1} ,
-        caption-table/if-raggedbottom = {#1} ,
-      } ,
-    caption / if-flushbottom .meta:n =
-      {
-        caption-figure/if-flushbottom = {#1} ,
-        caption-table/if-flushbottom = {#1} ,
       } ,
     unknown .code:n =
       { \msg_warning:nnV { banshi } { unknown-key } \l_keys_key_str } ,
@@ -1015,7 +997,7 @@
     songti = 1.296875 , heiti = 1.296875 , kaishu = 1.296875 ,
     fangsong = 1.296875 , lishu = 1.296875 , xinwei = 1.3218 , none = 1.15 ,
   }
-\tl_const:Nn \c__banshi_format_natural_tl { 1.296875 }
+\tl_const:Nn \c_banshi_format_natural_tl { 1.296875 }
 \tl_const:Nn \c__banshi_format_natural_latin_tl { 1.15 }
 \bool_new:N \l__banshi_format_latin_bool
 \bool_new:N \l_banshi_format_latin_pick_bool
@@ -1023,7 +1005,7 @@
 \tl_new:N \l__banshi_format_latin_tl
 \bool_new:N \l__banshi_format_exact_bool
 \tl_const:Nn \c__banshi_format_ascent_tl { 1.008 }
-\dim_const:Nn \c__banshi_format_ascent_dim { 0.082bp }
+\dim_const:Nn \c_banshi_format_ascent_dim { 0.082bp }
 %    \end{macrocode}
 %
 % \emph{上升部系数按字体分。} 中易那六副字是同一个 1.008，华文新魏不是。
@@ -1039,7 +1021,7 @@
 \prop_const_from_keyval:Nn \c__banshi_format_ascent_prop { xinwei = 0.9208 }
 \tl_new:N \l_banshi_format_ascent_tl
 \tl_set_eq:NN \l_banshi_format_ascent_tl \c__banshi_format_ascent_tl
-\tl_const:Nn \c__banshi_format_exact_tl { 0.8 }
+\tl_const:Nn \c_banshi_format_exact_tl { 0.8 }
 %    \end{macrocode}
 %
 % \emph{缩进。} \option{indent-special} 的三种模式折成一个带正负号的量：
@@ -1199,13 +1181,13 @@
   {
     \dim_add:Nn \l__banshi_format_block_dim { \c__banshi_format_ink_descent_tl #1 }
     \dim_add:Nn \l__banshi_format_base_dim
-      { #2 - \c__banshi_format_ascent_tl #1 - \c__banshi_format_ascent_dim }
+      { #2 - \c__banshi_format_ascent_tl #1 - \c_banshi_format_ascent_dim }
   }
 \cs_new_protected:Npn \__banshi_format_block_down:n #1
   {
     \dim_add:Nn \l__banshi_format_block_dim { \c__banshi_format_ink_ascent_tl #1 }
     \dim_add:Nn \l__banshi_format_base_dim
-      { \c__banshi_format_ascent_tl #1 + \c__banshi_format_ascent_dim }
+      { \c__banshi_format_ascent_tl #1 + \c_banshi_format_ascent_dim }
   }
 \cs_new_protected:Npn \__banshi_format_block_lead:
   {
@@ -1284,38 +1266,12 @@
     \bool_set:Nn \l__banshi_format_latin_line_bool
       { \str_if_eq_p:Vn \l__banshi_format_latin_tl { true } }
   }
-\prop_const_from_keyval:Nn \c__banshi_format_parent_prop
-  {
-    chapter = body , section = body , subsection = body , subsubsection = body ,
-    caption-figure = body , caption-table = body ,
-    caption-sub = caption-figure , caption-note = caption-figure ,
-    table-cell = body , abstract-heading = body , abstract-en = body ,
-    toc-chapter = body , toc-section = toc-chapter ,
-    toc-subsection = toc-section , toc-subsubsection = toc-subsection ,
-    header = body , footer = body ,
-    statement-heading = body , authorization-heading = body ,
-    titlepage-label = titlepage-mark , titlepage-title = titlepage-mark ,
-    titlepage-field = titlepage-mark , titlepage-en-mark = titlepage-mark ,
-    titlepage-en-degree = titlepage-en-mark , titlepage-en-title = titlepage-en-mark ,
-    titlepage-en-field = titlepage-en-mark ,
-    cover-type = cover-label , cover-title = cover-label ,
-    cover-subtitle = cover-title , cover-title-en = cover-title ,
-    cover-author = cover-label , cover-institution = cover-label ,
-    cover-date = cover-label ,
-    report-cover-blank = report-cover-form ,
-    report-cover-university = report-cover-form ,
-    report-cover-university-en = report-cover-university ,
-    report-cover-stage = report-cover-form ,
-    report-cover-stage-en = report-cover-stage ,
-    report-cover-field = report-cover-form , report-cover-title = report-cover-form ,
-    report-cover-blank-mid = report-cover-form ,
-  }
 \tl_new:N \l__banshi_format_parent_tl
 \cs_new_protected:Npn \__banshi_format_snap_axis:nnN #1#2#3
   {
     \__banshi_format_get:nnNF {#1} {#2} #3
       {
-        \prop_get:NnNTF \c__banshi_format_parent_prop {#1} \l__banshi_format_parent_tl
+        \prop_get:NnNTF \g__banshi_format_parent_prop {#1} \l__banshi_format_parent_tl
           { \__banshi_format_snap_axis:VnN \l__banshi_format_parent_tl {#2} #3 }
           { \tl_set:Nn #3 { false } }
       }
@@ -1337,7 +1293,7 @@
       { \str_if_eq_p:Vn \l__banshi_format_value_tl { none } }
     \prop_get:NVNF \c__banshi_format_natural_prop \l__banshi_format_value_tl
       \l__banshi_format_coef_tl { \tl_set_eq:NN \l__banshi_format_coef_tl
-        \c__banshi_format_natural_tl }
+        \c_banshi_format_natural_tl }
     \prop_get:NVNF \c__banshi_format_ascent_prop \l__banshi_format_value_tl
       \l_banshi_format_ascent_tl { \tl_set_eq:NN \l_banshi_format_ascent_tl
         \c__banshi_format_ascent_tl }
@@ -1487,7 +1443,7 @@
     \str_if_eq:VnTF \l__banshi_format_unit_tl { exactly }
       {
         \dim_set:Nn \l_banshi_format_first_dim
-          { \c__banshi_format_exact_tl \l_banshi_format_lead_dim }
+          { \c_banshi_format_exact_tl \l_banshi_format_lead_dim }
       }
       { \__banshi_format_first: }
   }
@@ -1500,8 +1456,8 @@
     \dim_set:Nn \l_banshi_format_first_dim
       {
         \bool_if:NTF \l__banshi_format_latin_bool
-          { \c__banshi_format_ascent_latin_tl } { \c__banshi_format_ascent_tl }
-        \l_banshi_format_size_dim + \c__banshi_format_ascent_dim
+          { \c_banshi_format_ascent_latin_tl } { \c__banshi_format_ascent_tl }
+        \l_banshi_format_size_dim + \c_banshi_format_ascent_dim
       }
     \bool_if:NT \l_banshi_format_snap_vertical_bool
       {
@@ -1727,13 +1683,13 @@
       {
         \dim_set_eq:NN \l__banshi_format_box_dim \baselineskip
         \dim_set:Nn \l__banshi_format_asc_dim
-          { \c__banshi_format_exact_tl \l__banshi_format_box_dim }
+          { \c_banshi_format_exact_tl \l__banshi_format_box_dim }
       }
       {
         \dim_set:Nn \l__banshi_format_box_dim
           { \dim_max:nn { \baselineskip } { \l__banshi_format_nat_dim } }
         \dim_set:Nn \l__banshi_format_asc_dim
-          { #2 \l__banshi_format_strut_dim + \c__banshi_format_ascent_dim }
+          { #2 \l__banshi_format_strut_dim + \c_banshi_format_ascent_dim }
         \bool_if:NT \l_banshi_format_line_snap_bool
           {
             \dim_add:Nn \l__banshi_format_asc_dim
@@ -1749,7 +1705,7 @@
 %    \end{macrocode}
 %
 % \emph{固定值行距的基线。} Word 的 \texttt{w:lineRule="exact"} 下，行盒高被钉死
-% 成给定值，基线落在盒顶下 \cs{c\_\_banshi\_format\_exact\_tl} 倍处，
+% 成给定值，基线落在盒顶下 \cs{c\_banshi\_format\_exact\_tl} 倍处，
 % \emph{与字号无关、与中西文无关}。
 %
 % 这条是量出来的：自造探针 \file{docx}，每页只放一个测试段——这样盒顶就是版心顶，
@@ -1844,7 +1800,7 @@
   }
 \cs_new_protected:Npn \__banshi_format_para_open:
   {
-    \bool_gset_false:N \g__banshi_format_verb_exit_bool
+    \bool_gset_false:N \g_banshi_format_verb_exit_bool
     \bool_if:NF \l_banshi_format_in_header_bool
       {
         \bool_if:NTF \g__banshi_format_blank_para_bool
@@ -1909,11 +1865,11 @@
       {
         \__banshi_format_strut:nn
           { \c__banshi_format_natural_latin_tl }
-          { \c__banshi_format_ascent_latin_tl }
+          { \c_banshi_format_ascent_latin_tl }
       }
       {
         \__banshi_format_strut:nn
-          { \c__banshi_format_natural_tl } { \l_banshi_format_ascent_tl }
+          { \c_banshi_format_natural_tl } { \l_banshi_format_ascent_tl }
       }
   }
 %    \end{macrocode}
@@ -3148,24 +3104,30 @@
   }
 \cs_new_protected:Npn \__banshi_format_boundary_cmd_glue:
   { \xeCJK_if_last_node:nT { CJK } { \__banshi_format_ecglue_emit: } }
-\bool_new:N \g__banshi_format_verb_exit_bool
+%    \end{macrocode}
+%
+% \cs{g\_banshi\_format\_verb\_exit\_bool} 记着“刚从行内代码里出来”，出来之后头一个汉字
+% 前要补汉西隙。文档类里有类似的组（比如自己定义的缩略语命令）也想要这一段，就在组尾调
+% \cs{banshi\_format\_group\_exit:}；需要清掉时把布尔量放下。
+%    \begin{macrocode}
+\bool_new:N \g_banshi_format_verb_exit_bool
 \cs_new_protected:Npn \__banshi_format_sup_orig:n #1 { }
 \cs_new_protected:Npn \__banshi_format_ecglue_guard:
   { \__banshi_format_ecglue_emit: }
-\cs_new_protected:Npn \__banshi_format_group_exit:
-  { \bool_gset_true:N \g__banshi_format_verb_exit_bool }
+\cs_new_protected:Npn \banshi_format_group_exit:
+  { \bool_gset_true:N \g_banshi_format_verb_exit_bool }
 \cs_new_protected:Npn \__banshi_format_num_orig: { }
 \cs_new_protected:Npn \__banshi_format_endannot_orig: { }
 \cs_new_protected:Npn \__banshi_format_ref_orig: { }
 \cs_new_protected:Npn \__banshi_format_verb_exit_mark:
   {
     \bool_if:NTF \l__banshi_format_in_verb_bool
-      { \bool_gset_true:N \g__banshi_format_verb_exit_bool }
-      { \bool_gset_false:N \g__banshi_format_verb_exit_bool }
+      { \bool_gset_true:N \g_banshi_format_verb_exit_bool }
+      { \bool_gset_false:N \g_banshi_format_verb_exit_bool }
   }
 \cs_new_protected:Npn \__banshi_format_exit_clear_hook:n #1
   { \xeCJK_pre_inter_class_toks:nnn { Boundary } {#1}
-      { \bool_gset_false:N \g__banshi_format_verb_exit_bool } }
+      { \bool_gset_false:N \g_banshi_format_verb_exit_bool } }
 \cs_new_protected:Npn \__banshi_format_verb_hook_old:n #1
   { \xeCJK_pre_inter_class_toks:nnn {#1} { Boundary }
       {
@@ -3189,7 +3151,7 @@
             \cs_gset_protected:Npn \textsuperscript #1
               {
                 \__banshi_format_sup_orig:n {#1} \hbox:n { }
-                \bool_gset_false:N \g__banshi_format_verb_exit_bool
+                \bool_gset_false:N \g_banshi_format_verb_exit_bool
               }
             \cs_if_exist:cT { Hy@EndAnnot }
               {
@@ -3198,7 +3160,7 @@
                   {
                     \__banshi_format_endannot_orig:
                     \bool_if:NF \l_banshi_format_in_header_bool
-                      { \__banshi_format_group_exit: }
+                      { \banshi_format_group_exit: }
                   }
               }
             \AddToHook { begindocument / end }
@@ -3211,7 +3173,7 @@
                         \IfValueTF {#1}
                           { \__banshi_format_num_orig: [#1] {#2} }
                           { \__banshi_format_num_orig: {#2} }
-                        \__banshi_format_group_exit:
+                        \banshi_format_group_exit:
                       }
                   }
                 \DeclareCommandCopy \__banshi_format_ref_orig: \ref
@@ -3220,7 +3182,7 @@
                     \IfBooleanTF {#1}
                       { \__banshi_format_ref_orig: * {#2} }
                       { \__banshi_format_ref_orig: {#2} }
-                    \__banshi_format_group_exit:
+                    \banshi_format_group_exit:
                   }
               }
           }
@@ -3243,7 +3205,7 @@
         \xeCJK_pre_inter_class_toks:nnn { Boundary } { Default }
           {
             \__banshi_format_verb_ecglue:
-            \bool_gset_false:N \g__banshi_format_verb_exit_bool
+            \bool_gset_false:N \g_banshi_format_verb_exit_bool
           }
         \cs_gset_protected:Npn \__banshi_format_ecglue_guard:
           {
@@ -3255,14 +3217,14 @@
           \__banshi_format_exit_clear_hook:n
         \xeCJK_pre_inter_class_toks:nnn { Boundary } { CJK }
           {
-            \bool_if:NT \g__banshi_format_verb_exit_bool
+            \bool_if:NT \g_banshi_format_verb_exit_bool
               {
                 \bool_lazy_or:nnF
                   { \int_compare_p:nNn { \tex_lastnodetype:D } = { 11 } }
                   { \int_compare_p:nNn { \tex_lastnodetype:D } = { -1 } }
                   { \__banshi_format_ecglue_emit: }
               }
-            \bool_gset_false:N \g__banshi_format_verb_exit_bool
+            \bool_gset_false:N \g_banshi_format_verb_exit_bool
           }
       }
     \cs_set_protected:Npx \verbatim@font
@@ -3658,7 +3620,7 @@
 % \cs{cs\_set\_eq:NN}），所以上升部唯一还起作用的地方是页首那一行的基线，
 % 也就是 \cs{topskip}。
 %    \begin{macrocode}
-\tl_const:Nn \c__banshi_format_ascent_latin_tl { 0.93261 }
+\tl_const:Nn \c_banshi_format_ascent_latin_tl { 0.93261 }
 %    \end{macrocode}
 %
 % \begin{macro}{\banshi_format_apply_par:n}
@@ -3757,7 +3719,7 @@
 % \end{longtblr}
 %
 % 过原点最小二乘是 1.15014，而且 12\,bp 正好 13.800、16\,bp 正好 18.400。
-% 汉字那一档同法量得 1.29726，与 \cs{c\_\_banshi\_format\_natural\_tl} 的 1.296875
+% 汉字那一档同法量得 1.29726，与 \cs{c\_banshi\_format\_natural\_tl} 的 1.296875
 % 一致。两个数都来自 \pkg{iota-hit-thesis} 的标定，这里独立复量过。
 %    \begin{macrocode}
 \fp_const:Nn \c__banshi_enter_natural_serif_fp { 1.15 }
@@ -3773,7 +3735,7 @@
 \dim_new:N \l__banshi_enter_asc_dim
 \dim_new:N \l__banshi_enter_prev_dim
 \tl_new:N \l__banshi_enter_ascent_tl
-\tl_set_eq:NN \l__banshi_enter_ascent_tl \c__banshi_format_ascent_latin_tl
+\tl_set_eq:NN \l__banshi_enter_ascent_tl \c_banshi_format_ascent_latin_tl
 \cs_new_protected:Npn \__banshi_enter_font:n #1
   {
     \str_case:nnF {#1}
@@ -3782,7 +3744,7 @@
           {
             \fp_set_eq:NN \l__banshi_enter_ratio_fp \c__banshi_enter_natural_serif_fp
             \tl_set_eq:NN \l__banshi_enter_ascent_tl
-              \c__banshi_format_ascent_latin_tl
+              \c_banshi_format_ascent_latin_tl
           }
         { songti }
           {
@@ -3884,7 +3846,7 @@
         \dim_min:nn
           {
             \l__banshi_enter_ascent_tl \l__banshi_enter_base_dim
-            + \c__banshi_format_ascent_dim
+            + \c_banshi_format_ascent_dim
           }
           { \l__banshi_enter_ht_dim }
       }
@@ -3896,7 +3858,7 @@
     \int_set:Nn \l__banshi_enter_lines_int { 1 }
     \dim_zero:N \l__banshi_enter_size_dim
     \fp_set_eq:NN \l__banshi_enter_ratio_fp \c__banshi_enter_natural_serif_fp
-    \tl_set_eq:NN \l__banshi_enter_ascent_tl \c__banshi_format_ascent_latin_tl
+    \tl_set_eq:NN \l__banshi_enter_ascent_tl \c_banshi_format_ascent_latin_tl
     \banshi_format_compute:n { body }
     \__banshi_format_get:nnNTF { body } { line-spacing } \l__banshi_enter_val_tl
       { \tl_set_eq:NN \l__banshi_enter_mode_tl \l_banshi_format_line_unit_tl }
