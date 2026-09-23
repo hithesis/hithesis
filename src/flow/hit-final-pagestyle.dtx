@@ -6,8 +6,8 @@
 %
 % \section{页眉与页脚}
 %
-% \changes{v3.2a}{2026/09/15}{页眉整块（文字加双线）装进几何自管的盒，\pkg{fancyhdr} 只当
-%   搬运工，v4 与 v5 排出同一个页眉；行盒的四个数从 \option{format}/\option{header} 算出
+% \changes{v3.2a}{2026/09/24}{页眉页脚的盒子由类自己搭，不再依赖 \pkg{fancyhdr}（结构照
+%   它的 v5 搬来）；页眉整块（文字加双线）是一只盒；行盒的四个数从 \option{format}/\option{header} 算出
 %   （纯西文的页眉行按 Times 的行盒，字上抬 0.68、双线上抬 1.33，\hologo{LuaLaTeX} 按
 %   盒里有没有汉字判）；横线左右各外伸 1.56\,bp 对齐范例的段落边框；章号与题目的间距
 %   跟随章标题；\option{layout}/\option{header} 的 \option{shown} 与 \option{shift}}
@@ -20,7 +20,7 @@
 %   定义成宏（花括号后换行的空格记号在 \cs{ExplSyntaxOn} 下会消失，CONTRIBUTING §4.7）}
 %
 % ^^A ======================================================================
-% ^^A Module final-pagestyle: 页眉页脚样式（fancyhdr 配置）（hit-thesis）
+% ^^A Module final-pagestyle: 页眉页脚样式（hit-thesis）
 % ^^A ======================================================================
 % \emph{闸认的是正文照哪一档排，不是 \option{stage}。} 深圳本科的开题与中期
 %   \option{stage} 不是 \texttt{final}，可正文与终稿同构，页眉页脚也该走这一套；
@@ -28,26 +28,198 @@
 %   前者在 \file{src/config/hit-layout.dtx} 的取值里，后者是一个部件变体。
 %    \begin{macrocode}
 %<*final-pagestyle>
-\bool_if:NT \g__hit_final_body_bool
+%    \end{macrocode}
+%
+% \subsection{页眉页脚的盒子}
+%
+% \emph{不再装 \pkg{fancyhdr}。} 它的页眉盒在 v4 与 v5 之间重构过一次，跨版本渲染
+% 页眉文字差 3.56\,bp、横线差 7.78\,bp，别人的包一更新，这边的版面就跟着动。这里把
+% hithesis 用到的那部分搬过来自己维护，盒子怎么搭照 v5（TL2024 起）原样，所以换下来
+% 逐页不变。以后要改页眉的排法，就在这里改，改了要量。
+%
+% 搬过来的只有这几样：每个页面样式的奇偶两份页眉与页脚，每份只有中间一栏（左右两栏
+% hithesis 从来不用，照原样留着空盒，版面上不占东西）；页眉线 \cs{headrule} 与两个线宽
+% \cs{headrulewidth}、\cs{footrulewidth}；页眉宽 \cs{headwidth}。这几个名字原先由
+% \pkg{fancyhdr} 给，文档里可能有人改过，名字与用法都照旧。
+%
+% \emph{一份页眉怎么搭。} 中间那一栏是一个 \cs{parbox}，宽 \cs{headwidth}，里面一段居中
+% 的文字，末尾补一根 \cs{strut}；页眉底对齐（\texttt{[b]}），页脚顶对齐（\texttt{[t]}）。
+% 页眉把这一行、\cs{headrule} 依次装进竖盒，盒高超过 \cs{headheight} 就压回
+% \cs{headheight}（盒底不动，只是不报 Overfull）；页脚先放一条 \cs{footrulewidth} 粗的线，
+% 隔 0.3 倍 \cs{normalbaselineskip}，再放那一行，盒高超过 \cs{footskip} 同样压回去。
+% 这只竖盒左对齐放进一个 \cs{headwidth} 宽的横盒，交给 \hologo{LaTeX} 的页眉页脚槽。
+%
+% 排之前先把环境理干净，也照 \pkg{fancyhdr}：\cs{baselinestretch} 设回 1、重选
+% \cs{normalsize}，\cs{hsize} 设成 \cs{headwidth}，\cs{centering} 这几个对齐命令换回
+% 本类装载时的原样。段落钩子不清，改立 \pkg{docxlike} 的“在页眉里”标志：钩子里
+% 只有 \pkg{docxlike} 的两段，见了这个标志什么也不做，效果与清空一样，又不必去碰
+% \hologo{LaTeX} 钩子机制的内部。
+%    \begin{macrocode}
+\dim_new:N \headwidth
+\dim_gset:Nn \headwidth { -123456789sp }
+\cs_new:Npn \headrulewidth { 0.4pt }
+\cs_new:Npn \footrulewidth { 0pt }
+\cs_new_protected:Npn \headrule
+  { { \hrule \@height \headrulewidth \@width \headwidth \vskip -\headrulewidth } }
+\cs_new_protected:Npn \__hit_hf_footrule:
+  { { \hrule \@width \headwidth \@height \footrulewidth } }
+\cs_new_eq:NN \__hit_hf_ps_empty: \ps@empty
+\cs_new_eq:NN \__hit_hf_centering: \centering
+\cs_new_eq:NN \__hit_hf_raggedleft: \raggedleft
+\cs_new_eq:NN \__hit_hf_raggedright: \raggedright
+%    \end{macrocode}
+%
+% 四份内容：奇偶页各一份页眉、一份页脚。写的时候给定 \texttt{o}、\texttt{e} 或
+% \texttt{oe}，内容非空就在末尾补 \cs{strut}。赋值是局部的：页面样式每次换进来都
+% 从头设一遍，与 \pkg{fancyhdr} 的 \cs{fancypagestyle} 一样。
+%    \begin{macrocode}
+\tl_new:N \l__hit_hf_oh_tl
+\tl_new:N \l__hit_hf_eh_tl
+\tl_new:N \l__hit_hf_of_tl
+\tl_new:N \l__hit_hf_ef_tl
+\cs_new_protected:Npn \hit@hf@clear:
   {
-\RequirePackage{fancyhdr}
-\cs_set_eq:NN \hit@original@header@rule \headrule
-\fancypagestyle{hit@empty}{%
-  \fancyhf{}
-  \cs_set_eq:NN \headrule \hit@original@header@rule
-  \cs_set:Npn \headrulewidth {0pt}
-  \cs_set:Npn \footrulewidth {0pt}
-}
+    \tl_clear:N \l__hit_hf_oh_tl
+    \tl_clear:N \l__hit_hf_eh_tl
+    \tl_clear:N \l__hit_hf_of_tl
+    \tl_clear:N \l__hit_hf_ef_tl
+  }
+\cs_new_protected:Npn \__hit_hf_put:nnn #1#2#3
+  {
+    \tl_if_empty:nTF {#3}
+      { \tl_clear:c { l__hit_hf_ #1 #2 _tl } }
+      { \tl_set:cn { l__hit_hf_ #1 #2 _tl } { #3 \strut } }
+  }
+\cs_new_protected:Npn \__hit_hf_set:nnn #1#2#3
+  {
+    \str_case:nn {#2}
+      {
+        { o } { \__hit_hf_put:nnn { o } {#1} {#3} }
+        { e } { \__hit_hf_put:nnn { e } {#1} {#3} }
+        { oe }
+          {
+            \__hit_hf_put:nnn { o } {#1} {#3}
+            \__hit_hf_put:nnn { e } {#1} {#3}
+          }
+      }
+  }
+\cs_new_protected:Npn \hit@hf@head:nn #1#2 { \__hit_hf_set:nnn { h } {#1} {#2} }
+\cs_new_protected:Npn \hit@hf@foot:nn #1#2 { \__hit_hf_set:nnn { f } {#1} {#2} }
+%    \end{macrocode}
+%
+% \cs{hit@pagestyle:nn}\marg{名字}\marg{代码} 定义一个页面样式。换进来时先按
+% \cs{ps@empty} 清掉，再让 \cs{@mkboth} 发标记（章标题要往页眉里送 \cs{leftmark}），
+% 然后执行\meta{代码}设内容。\cs{headwidth} 在第一次换页面样式时定成当时的
+% \cs{textwidth}，以后不再跟着变，也照 \pkg{fancyhdr}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@pagestyle:nn #1#2
+  { \cs_set_protected:cpn { ps@ #1 } { \__hit_hf_proto: #2 } }
+\cs_new_protected:Npn \__hit_hf_proto:
+  {
+    \dim_compare:nNnT { \headwidth } < { 0sp }
+      {
+        \dim_gadd:Nn \headwidth { 123456789sp }
+        \dim_gadd:Nn \headwidth { \textwidth }
+      }
+    \__hit_hf_ps_empty:
+    \cs_set:Npn \@mkboth { \protect \markboth }
+    \cs_set:Npn \@oddhead { \__hit_hf_head:N \l__hit_hf_oh_tl }
+    \cs_set:Npn \@evenhead { \__hit_hf_head:N \l__hit_hf_eh_tl }
+    \cs_set:Npn \@oddfoot { \__hit_hf_foot:N \l__hit_hf_of_tl }
+    \cs_set:Npn \@evenfoot { \__hit_hf_foot:N \l__hit_hf_ef_tl }
+  }
+%    \end{macrocode}
+%
+% 排页眉页脚前的准备。终稿另有一段要在这里做（见下文 \cs{hit@hf@init:}），默认是空的。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@hf@init: { }
+\cs_new_protected:Npn \__hit_hf_reset:
+  {
+    \everypar { }
+    \bool_set_true:N \l_docxlike_format_in_header_bool
+    \cs_set_eq:NN \\ \@normalcr
+    \cs_set_eq:NN \raggedleft \__hit_hf_raggedleft:
+    \cs_set_eq:NN \raggedright \__hit_hf_raggedright:
+    \cs_set_eq:NN \centering \__hit_hf_centering:
+    \cs_set:Npn \baselinestretch { 1 }
+    \dim_set_eq:NN \hsize \headwidth
+    \normalsize
+    \hit@hf@init:
+  }
+\box_new:N \l__hit_hf_box
+\cs_new_protected:Npn \__hit_hf_vbox:nn #1#2
+  {
+    \vbox_set:Nn \l__hit_hf_box {#2}
+    \dim_compare:nNnT { \box_ht:N \l__hit_hf_box } > {#1}
+      { \box_set_ht:Nn \l__hit_hf_box {#1} }
+    \box_use_drop:N \l__hit_hf_box
+  }
+\cs_new_protected:Npn \__hit_hf_parbox:nnn #1#2#3
+  { \parbox [#1] { \headwidth } { #2 \leavevmode \ignorespaces #3 } }
+\cs_new_protected:Npn \__hit_hf_row:Nn #1#2
+  {
+    \hbox_to_wd:nn { \headwidth }
+      {
+        \rlap { \__hit_hf_parbox:nnn {#2} { \raggedright } { } }
+        \hfill
+        \__hit_hf_parbox:nnn {#2} { \centering } {#1}
+        \hfill
+        \llap { \__hit_hf_parbox:nnn {#2} { \raggedleft } { } }
+      }
+  }
+\cs_new_protected:Npn \__hit_hf_head:N #1
+  {
+    \__hit_hf_reset:
+    \hbox_to_wd:nn { \headwidth }
+      {
+        \__hit_hf_vbox:nn { \headheight }
+          {
+            \__hit_hf_row:Nn #1 { b }
+            \vskip 0pt \scan_stop:
+            \headrule
+          }
+      }
+    \tex_hss:D
+  }
+\cs_new_protected:Npn \__hit_hf_foot:N #1
+  {
+    \__hit_hf_reset:
+    \hbox_to_wd:nn { \headwidth }
+      {
+        \__hit_hf_vbox:nn { \footskip }
+          {
+            \vbox_set:Nn \l__hit_hf_box { \__hit_hf_footrule: }
+            \vbox_unpack_drop:N \l__hit_hf_box
+            \vskip 0.3 \normalbaselineskip
+            \__hit_hf_row:Nn #1 { t }
+          }
+      }
+    \tex_hss:D
+  }
 %    \end{macrocode}
 %
 %    \begin{macrocode}
-\fancypagestyle{hit@scanpage}{%
-  \fancyhf{}
-  \fancyfoot[C]{\hit@footer@font\hit@page@number@decorated}
-  \cs_set_eq:NN \headrule \relax
-  \cs_set:Npn \headrulewidth {0pt}
-  \cs_set:Npn \footrulewidth {0pt}
-}
+\bool_if:NT \g__hit_final_body_bool
+  {
+\cs_set_eq:NN \hit@original@header@rule \headrule
+\hit@pagestyle:nn { hit@empty }
+  {
+    \hit@hf@clear:
+    \cs_set_eq:NN \headrule \hit@original@header@rule
+    \cs_set:Npn \headrulewidth { 0pt }
+    \cs_set:Npn \footrulewidth { 0pt }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\hit@pagestyle:nn { hit@scanpage }
+  {
+    \hit@hf@clear:
+    \hit@hf@foot:nn { oe } { \hit@footer@font \hit@page@number@decorated }
+    \cs_set_eq:NN \headrule \relax
+    \cs_set:Npn \headrulewidth { 0pt }
+    \cs_set:Npn \footrulewidth { 0pt }
+  }
 %    \end{macrocode}
 %
 % 页眉那条粗细双线三处都一样，本科页脚的页码格式只此一处。两块都含花括号后
@@ -63,12 +235,12 @@
 % \file{src/docxlike/docxlike-format.dtx}。旧版面的页眉位置是另一套参数定的，
 % 补齐行盒反而会动它。
 %
-% 段落钩子上那根撑杆管不到这里：\pkg{fancyhdr} 把页眉排在 \cs{parbox} 里，
-% \cs{@parboxrestore} 会清掉 \cs{everypar}，钩子不发。
+% 段落钩子上那根撑杆管不到这里：页眉排在 \cs{parbox} 里，排之前立了“在页眉里”的
+% 标志，钩子见了就不打撑杆。
 %
 % 那两条线比版心宽：左右各外伸 1.56\,bp。Word 里页眉的横线是段落的下边框，
 % 边框会伸出段落左右各一小段，范例在 300\,ppi 下量出来两边各 6.5 个像素，
-% 折 1.56\,bp。\cs{headwidth} 是 \pkg{fancyhdr} 的宽度，等于版心宽，
+% 折 1.56\,bp。\cs{headwidth} 是页眉的宽度，等于版心宽，
 % 所以横线要单独加宽再往左挪回去，页眉文字的宽度不受影响。
 %
 % 加宽的写法是定宽 \cs{hbox} 里放一条更宽的 \cs{vrule}，两边各一个 \cs{hss}
@@ -85,23 +257,12 @@
 \dim_const:Nn \c__hit_header_rule_over_dim { 1.56bp }
 %    \end{macrocode}
 %
-% \textbf{页眉几何自管，不交给 \pkg{fancyhdr}。} TL2022/2023 装的
-% \pkg{fancyhdr} 是 v4，v5（TL2024 起）重构过页眉盒；跨版本渲染里页眉文字
-% 差 3.56\,bp、横线差 7.78\,bp。受控探针测下来两版对「单个已知盒」的摆放
-% 逐 bp 相同（连深度响应都一样），差全在内容行与 \cs{headrule} 的构造管线
-% 里。所以把整个页眉做成一只盒：文字行强设成额定高深（实测两个字体档、
-% 中英文行同值，钉成常量），下面按 Word 读数排双线；\pkg{fancyhdr} 拿到的
-% 是单个盒，哪个版本都摆在同一处。行盒强设只在新版面做——判据照表格字体
-% 那处，「网格算出来没有」——旧版面（博士后）的页眉行照自然高深走，
-% v3.1e 的位置一根汗毛不动，旧版面本就只保证编译、不保证跨版本逐像素。
-% \cs{headrulewidth} 恒零，它的画线管线
-% 整个不走。线排不排由 \option{layout}/\option{header-rule} 的三态定，
-% 存进一个布尔供盒子里读。页眉页脚里还得把段撑杆的钩子豁免掉——
-% \pkg{fancyhdr} 把字段内容排进 \cs{parbox} 的段里，段首段尾的正文撑杆
-% （深 7.3\,bp）会把头盒撑破 \cs{headheight}，v4 与 v5 对超高盒的收拾
-% 手法不同，这正是从前两版页眉各排各的一部分原因。\cs{fancyhfinit} 两版
-% 都有、在字段排版前执行，在那儿立一个局部布尔，段钩子见着就不打撑杆；
-% 页眉行的高度反正由额定常量钉死，不靠撑杆。
+% \emph{页眉整块是一只盒。} 文字行强设成额定高深（实测两个字体档、中英文行同值，
+% 钉成常量），下面按 Word 读数排双线，整块装进中间那一栏。\cs{headrulewidth} 恒零，
+% \cs{headrule} 那条线不画。行盒强设只在新版面做，判据照表格字体那处：网格算出来
+% 没有就是旧版面（博士后），页眉行照自然高深走，v3.1e 的位置一根汗毛不动。
+% 线排不排由 \option{layout}/\option{header-rule} 的三态定，存进一个布尔供盒子里读。
+% 页眉行的高度由额定常量钉死，不靠撑杆，所以段钩子里的撑杆在页眉里一律不打。
 %    \begin{macrocode}
 \dim_const:Nn \c__hit_header_text_ht_dim { 9.18826pt }
 \dim_const:Nn \c__hit_header_text_dp_dim { 2.52736pt }
@@ -149,26 +310,24 @@
   }
 \box_new:N \l__hit_header_text_box
 \bool_new:N \g__hit_header_rule_on_bool
-\fancyhfinit
+%    \end{macrocode}
+%
+% 终稿排页眉页脚之前还要把行内代码收尾的标志放下，页眉里的内容不该让正文以为
+% 刚出了一段行内代码。报告那一支从来不放，照旧。
+%    \begin{macrocode}
+\cs_set_protected:Npn \hit@hf@init:
   {
-    \bool_set_true:N \l_docxlike_format_in_header_bool
     \bool_if_exist:NT \g_docxlike_format_verb_exit_bool
       { \bool_gset_false:N \g_docxlike_format_verb_exit_bool }
   }
 %    \end{macrocode}
 %
-% 头盒测高的那道警告关掉：C 栏的 \cs{parbox} 在段里还会带出一段
-% 0.3 倍 \cs{normalbaselineskip} 的深度（豁免了撑杆之后仍在，没再深究），
-% 头盒量出来比 \cs{headheight} 高，\pkg{fancyhdr} 每页警告一次。实排不受
-% 影响——它随手把盒高强设回 \cs{headheight}，v4 与 v5 走的同一个分支，
-% 页眉几何两版逐 bp 实测相同——警告是纯噪音，还会进宏级测试的日志基线。
 %    \begin{macrocode}
-\AtBeginDocument { \cs_if_exist:NT \f@nch@checkfalse { \f@nch@checkfalse } }
 \box_new:N \l__hit_header_panel_box
 \cs_new_protected:Npn \hit@header@panel:n #1
   {
     % 整块挪动（往下为正）：先把块装进盒量出高，再装进同样高的盒里往下推，
-    % 多出来的由底下的可缩胶吃掉。盒高不变，fancyhdr 那头看到的还是同一只盒
+    % 多出来的由底下的可缩胶吃掉。盒高不变，页眉槽那头看到的还是同一只盒
     \vbox_set:Nn \l__hit_header_panel_box { \__hit_header_panel:n {#1} }
     \dim_compare:nNnTF { \g_docxlike_page_head_shift_dim } = { 0pt }
       { \box_use_drop:N \l__hit_header_panel_box }
@@ -290,7 +449,7 @@
   }
 \cs_new_protected:Npn \hit@final@footer
   {
-    \fancyfoot [C]
+    \hit@hf@foot:nn { oe }
       {
         \hit@footer@panel:n
           {
@@ -368,8 +527,8 @@
 %    \begin{macrocode}
 \hit@hook@new:nn { headings-body }
   {
-    \fancyhead [ CO ] { \hit@header@font \leftmark }
-    \fancyhead [ CE ]
+    \hit@header:nn { o } { \hit@header@font \leftmark }
+    \hit@header:nn { e }
       {
         \hit@header@font \hit@term@header@university@zh
         \hit@term@header@degree@level@zh \hit@term@header@document@type
@@ -410,17 +569,16 @@
 % \cs{hit@presetup} 那条路上写的 \texttt{false} 到排版时又是 \texttt{auto}。
 % 这是部件级 \option{layout} 键的管线问题，与这一页无关，另记。
 %    \begin{macrocode}
-\fancypagestyle { hit@headings }
+\cs_new_protected:Npn \hit@header:nn #1#2
+  { \hit@hf@head:nn {#1} { \hit@header@panel:n {#2} } }
+\hit@pagestyle:nn { hit@headings }
   {
-    \fancyhf { }
-    \cs_set_eq:NN \hit@orig@fancyhead \fancyhead
-    \DeclareDocumentCommand \fancyhead { o +m }
-      { \hit@orig@fancyhead [##1] { \hit@header@panel:n {##2} } }
+    \hit@hf@clear:
     \bool_lazy_and:nnTF
       { \bool_if_p:N \g__hit_en_bool } { \bool_if_p:N \g__hit_final_bool }
       {
-        \fancyhead [ C ] { \hit@header@font \leftmark }
-        \fancyfoot [ C ] { \hit@footer@panel:n { \hit@footer@font \hit@page@number@decorated } }
+        \hit@header:nn { oe } { \hit@header@font \leftmark }
+        \hit@hf@foot:nn { oe } { \hit@footer@panel:n { \hit@footer@font \hit@page@number@decorated } }
         \bool_gset_true:N \g__hit_header_rule_on_bool
       }
       {
@@ -428,14 +586,13 @@
         \hit@final@footer
         \hit@final@header@rule@setup
       }
-    \cs_set_eq:NN \fancyhead \hit@orig@fancyhead
     \cs_set:Npn \headrulewidth { 0pt }
     \cs_set:Npn \footrulewidth { 0pt }
   }
-\fancypagestyle { hit@headings@front }
+\hit@pagestyle:nn { hit@headings@front }
   {
     \ps@hit@headings
-    \fancyfoot [C] { \hit@footer@panel:n { \hit@footer@font \hit@page@number@plain } }
+    \hit@hf@foot:nn { oe } { \hit@footer@panel:n { \hit@footer@font \hit@page@number@plain } }
   }
 %    \end{macrocode}
 %

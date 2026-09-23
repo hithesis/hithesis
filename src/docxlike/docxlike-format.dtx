@@ -1794,6 +1794,10 @@
 % 不让 Lua 碰的环境里本来就是 0。已经立着时不再存，不然存下的是 0。段尾也设一次：
 % 续页那一段是 \pkg{tabularray} 自己先用 \cs{noindent} 开的，装表时段早开着，
 % 段首那一句轮不到。
+%
+% 页眉页脚里两个钩子什么也不做：文档类排页眉页脚前立起
+% \cs{l\_docxlike\_format\_in\_header\_bool}，钩子见了就整个跳过，连行内代码收尾的
+% 标志也不放倒。页眉在输出例程里排，那里的段不该改动正文排到一半的状态。
 %    \begin{macrocode}
 \bool_new:N \g__docxlike_format_display_para_bool
 \bool_new:N \g__docxlike_format_blank_para_bool
@@ -1818,9 +1822,9 @@
   }
 \cs_new_protected:Npn \__docxlike_format_para_open:
   {
-    \bool_gset_false:N \g_docxlike_format_verb_exit_bool
     \bool_if:NF \l_docxlike_format_in_header_bool
       {
+        \bool_gset_false:N \g_docxlike_format_verb_exit_bool
         \bool_if:NTF \g__docxlike_format_blank_para_bool
           { \__docxlike_format_blank_para_restore: }
           {
@@ -2274,8 +2278,8 @@
 %    \end{macrocode}
 %
 % \cs{docxlike\_format\_apply\_font:nN}\marg{目标}\meta{宏} 把目标算出来的那串排版命令
-% 存进宏里，供不走 \pkg{ctex} 标题机制的地方用——页眉页脚就是这样，它们由
-% \pkg{fancyhdr} 排，收不到 \cs{ctexset}。目标是空的就不动那个宏，
+% 存进宏里，供不走 \pkg{ctex} 标题机制的地方用——页眉页脚就是这样，它们在
+% 输出例程里排，收不到 \cs{ctexset}。目标是空的就不动那个宏，
 % 文档类原先的定义因此原样保留。
 %    \begin{macrocode}
 \cs_new_protected:Npn \docxlike_format_apply_font:nN #1#2
@@ -2292,7 +2296,7 @@
 % \emph{页眉页脚另走一条。} 三件事只属于页眉页脚，题注、封面字段这些同样用
 % \cs{docxlike\_format\_apply\_font:nN} 的地方不该吃：
 % \begin{itemize}
-% \item \pkg{fancyhdr} 在输出例程里装页眉盒，\pkg{luatexja} 的参数栈那时候失灵，
+% \item 页眉盒在输出例程里装，\pkg{luatexja} 的参数栈那时候失灵，
 %   字距会变成正文的（每字多一格增量）。汉字缝与汉西隙另记在属性上，Lua 装盒时
 %   照属性重设，见 \file{docxlike-linebreak.dtx}；西文的 LetterSpace 也一并去掉，
 %   页眉页脚不在字符网格上。
@@ -2505,8 +2509,8 @@
 % 首行那根定这一段的高，末行那根定这一段的深，只挂一根管不到另一头。标题那边
 % 另有一根写在 \option{format} 里，两根重了也没事，行盒取的是最大值。
 %
-% 页眉还要单接一次。\pkg{fancyhdr} 把页眉排在 \cs{parbox} 里，
-% \cs{@parboxrestore} 清掉了 \cs{everypar}，段落钩子发不到那里，所以
+% 页眉还要单接一次。页眉页脚在输出例程里排，排之前立着“在页眉里”的标志
+% （\cs{l\_docxlike\_format\_in\_header\_bool}），段落钩子见了就什么也不做，所以
 % 文档类可以在页眉的字体命令里留一个空位 \cs{docxlike\_header\_strut:}，
 % 这里把它换成真的撑杆。没留空位的文档类不受影响，所以先看在不在。
 %    \begin{macrocode}
