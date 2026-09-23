@@ -11,7 +11,8 @@
 %   \cs{label}），题注后补 \cs{@currentlabel}；\option{format/bilingual-caption}
 %   默认按学位只有博士开（规范“硕士学位论文只用中文，博士学位论文用中、英两种文字”）；
 %   浮动体的四个间距统一交给 \cs{captionsetup}，\option{style}/\option{float-sep} 可改；
-%   加 \cs{figurenote}；题注的字号行距从 \option{format} 表取}
+%   加 \cs{figurenote}；题注的字号行距从 \option{format} 表取；\cs{caption*} 排不编号的题注，
+%   也认尾随的英文题}
 %
 % 中英文对照的题注不换命令，用户不必记住“这张图要不要双语”再挑命令：
 % \begin{latex}
@@ -188,6 +189,21 @@
       { \hit@original@caption {#2} }
       { \hit@original@caption [#1] {#2} }
   }
+\bool_new:N \l_hit_caption_star_bool
+\cs_new_protected:Npn \hit@star@caption #1#2
+  {
+    \group_begin:
+      \bool_set_true:N \l_hit_caption_star_bool
+      \hit@original@caption * {#1}
+      \bool_lazy_and:nnT
+        { ! \tl_if_novalue_p:n {#2} }
+        { \g__hit_bilingual_caption_bool }
+        {
+          \hit@caption@latin@pick:
+          \hit@original@caption * {#2}
+        }
+    \group_end:
+  }
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@float@sep:}
@@ -208,6 +224,13 @@
 % \end{macro}
 %
 % \cs{caption} 的接管。给了尾随的英文题、并且开关没关死，才走双语。
+%
+% 星号版交还原来的 \cs{caption*}，不编号、不进目录，续图续表的“图 1-1（续图）”
+% 就靠它。签名里不收星号的话，\verb|\caption*{...}| 会把星号当成题注正文排出
+% 一条“图 1-2 *”，后面的花括号组落成一段正文。星号版也认尾随的英文题，双语开着
+% 就在下面再排一条不编号的。原来那个 \cs{caption*} 到了类自己的 \cs{@makecaption}
+% 手里照样带着“图 1-1”的标签，所以这里立一个标志位，\cs{@makecaption} 见了就只排
+% 题注正文（\file{hit-final-float.dtx}）。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@setup@caption
   {
@@ -225,14 +248,18 @@
           }
       }
     \cs_set_eq:NN \hit@original@caption \caption
-    \RenewDocumentCommand \caption { o +m o }
+    \RenewDocumentCommand \caption { s o +m o }
       {
-        \IfNoValueTF {##3}
-          { \hit@single@caption {##1} {##2} }
+        \IfBooleanTF {##1}
+          { \hit@star@caption {##3} {##4} }
           {
-            \bool_if:NTF \g__hit_bilingual_caption_bool
-              { \hit@bilingual@caption {##1} {##2} {##3} }
-              { \hit@single@caption {##1} {##2} }
+            \IfNoValueTF {##4}
+              { \hit@single@caption {##2} {##3} }
+              {
+                \bool_if:NTF \g__hit_bilingual_caption_bool
+                  { \hit@bilingual@caption {##2} {##3} {##4} }
+                  { \hit@single@caption {##2} {##3} }
+              }
           }
       }
 %    \end{macrocode}

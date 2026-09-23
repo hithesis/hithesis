@@ -11,8 +11,9 @@
 %   标签伪粗宋；某一块人数超了先向还有空行的块借；竖排标签按格子高度自动定；决议区用
 %   \pkg{tcolorbox} 跨页续排，余量不够一行时整块挪到下一页；评阅人合并格的宽度明写成
 %   两列之和（\pkg{tabularray} 给合并格的行宽不是两列相加，实测 56\,pt 对 69.5）；
-%   新版面列宽照 iota 写死，比版心宽出的部分两边探出，评阅人那格顶对齐，决议框排到
-%   本页剩下的整数个网格行；\cs{resolution} 只剩带废弃提示的转发，排过就记闸门}
+%   新版面列宽照 iota 写死、行高照 \texttt{docx} 取 21.75，比版心宽出的部分两边探出
+%   （框里的字仍从版心左缘起），评阅人那格顶对齐，多字竖排的首字基线在摞顶下一个
+%   字身上升部，决议框排到本页剩下的整数个网格行；\cs{resolution} 只剩带废弃提示的转发，排过就记闸门}
 %
 % 这一页原先只有两条路：给个 PDF 就贴进来，不给就贴一张空表的位图。位图是扫描来的，
 % 缩放之后发虚，字体与正文两样，选不中也搜不到，英文论文照样出中文表。现在改成直接排。
@@ -177,12 +178,19 @@
   }
 \cs_new_protected:Nn \__hit_resolution_calc:
   {
-    \__hit_res_scale:Nn \g__hit_res_row_dim   { 21.72 }
+    \__hit_layout_msword_active:TF
+      { \__hit_res_scale:Nn \g__hit_res_row_dim { 21.75 } }
+      { \__hit_res_scale:Nn \g__hit_res_row_dim { 21.72 } }
     \__hit_res_scale:Nn \g__hit_res_total_dim { 576.72 }
 %    \end{macrocode}
 %
 % \pkg{tabularray} 的 \texttt{ht} 给的是格子的高度，横线画在它之外。原表量出来的
 % 21.72\,pt 是两道横线中心之间的距离，所以要减掉一道线宽才是 \texttt{ht}。
+%
+% 新版面取 21.75。范例 \texttt{docx} 这张表每行写的是 \texttt{trHeight=425}
+% （最小 0.75\,cm，21.25\,pt），框线 \texttt{sz=4} 半磅，Word 排出来两道线中心
+% 相距 21.25 加半磅：修正版导出的十二行逐行是 21.75，头尾累计 261.07。21.72 是
+% v3.1e 那张位图量的，十二行下来少 0.3，“秘书”那一行就低不过 0.5 的容差。
 %    \begin{macrocode}
     \dim_gsub:Nn \g__hit_res_row_dim { \c__hit_res_hrule_dim }
     \__hit_layout_msword_active:TF
@@ -443,13 +451,20 @@
 % “字号加汉字缝”12.4543，乘出来 12.95，比原表宽 0.47，七个字摞下来差 2.8。
 % \texttt{1em} 是字身宽，与网格无关。
 %
-% \emph{一摞摆在哪，要按 Word 那一摞的高算。} Word 里它是七行固定值行距的段，
-% 高就是七个字距，首行基线在段顶下 0.8 倍字距处（\cs{c\_\_hit\_format\_exact\_tl}）。
+% \emph{一摞摆在哪，要按 Word 那一摞的高算。} Word 里它是一行竖排的字
+% （\texttt{textDirection=tbRlV}），每字占一个字距，字身框贴着这一格的顶、多出来的
+% 半磅落在字后，整摞七个字距居中。所以首字基线在摞顶下一个字身上升部处，中易宋体
+% 是 220/256\,em，小四 10.31。原件实测：格子两道线中心 237.58 与 433.37，
+% 居中后摞顶 291.73，首字基线 302.1，差 10.37。先前按固定值行距的 0.8 倍字距算
+% （9.98），整摞高 0.4。
+%
 % 这边是“行距照旧、字与字之间补一段竖胶”，步进一样，可首尾两行带的是本档的
-% 上升部与行深，整摞比 Word 高一截，居中之后首字高了 1.9。撑杆的高深现量
-% （\cs{hit@format@strut@box:N}），在摞头上补一段 $2S$ 的竖胶把它推回去：
-% \cs{parbox}\oarg{c} 居中时多出来的这一段一半落在上面，所以推下去的正是 $S$。
+% 上升部与行深，整摞比 Word 高一截。撑杆的高深现量（\cs{hit@format@strut@box:N}），
+% 在摞头上补一段竖胶推回去。要首字基线落在居中后的摞顶下 $a$ 处，这段胶是
+% $2a - p - h + d$（$p$ 字距，$h$、$d$ 撑杆的高深）：\cs{parbox}\oarg{c} 居中时
+% 这段胶一半落在上面。
 %    \begin{macrocode}
+\tl_const:Nn \c__hit_res_stack_ascent_tl { 0.859375 }
 \bool_new:N \l__hit_res_stack_tight_bool
 \box_new:N \l__hit_res_strut_box
 \dim_new:N \l__hit_res_shift_dim
@@ -463,7 +478,8 @@
         \hit@format@strut@box:N \l__hit_res_strut_box
         \dim_set:Nn \l__hit_res_shift_dim
           {
-            0.6 \dimexpr \l__hit_res_pitch_dim \relax
+            2 \dimexpr \c__hit_res_stack_ascent_tl em \relax
+            - \l__hit_res_pitch_dim
             - \box_ht:N \l__hit_res_strut_box
             + \box_dp:N \l__hit_res_strut_box
           }
@@ -879,6 +895,10 @@
 %    \end{macrocode}
 %
 % 首页的顶线由上表最后一道横线充当，本框不画；续页上面没有表接着，得自己画。
+%
+% 框向两边探出时，框里的字仍从版心左缘起排。原件这一格的左右边距是 0.19\,cm，
+% 表宽 436 减两份边距正好是版心宽 425.2，所以决议的首字落在 85.0，与正文对齐；
+% 只按 \texttt{colsep} 的 1\,pt 留边，字就跟着框探出去 4\,bp。
 %    \begin{macrocode}
 \tl_new:N \l__hit_res_width_tl
 \cs_new_protected:Nn \__hit_res_width_keys:
@@ -889,7 +909,9 @@
           {
             width = \dim_use:N \linewidth ,
             grow~to~left~by = \dim_use:N \g__hit_res_over_dim ,
-            grow~to~right~by = \dim_use:N \g__hit_res_over_dim
+            grow~to~right~by = \dim_use:N \g__hit_res_over_dim ,
+            left = \dim_eval:n { \g__hit_res_over_dim - \c__hit_res_vrule_dim } ,
+            right = \dim_eval:n { \g__hit_res_over_dim - \c__hit_res_vrule_dim }
           }
       }
       { \tl_set:Nx \l__hit_res_width_tl { width = \dim_use:N \g__hit_res_boxw_dim } }
