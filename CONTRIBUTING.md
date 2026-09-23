@@ -501,7 +501,7 @@ src/pages/
 | 文件 | 管什么 |
 |---|---|
 | `zhwordlike.dtx` | 包头 |
-| `zhwordlike-msword.dtx` | Word 页面设置换算成版面参数 |
+| `zhwordlike-page.dtx` | Word 页面设置换算成版面参数 |
 | `zhwordlike-format.dtx` | 元素格式：字体、行距、间距、缩进、空段 |
 | `zhwordlike-linebreak.dtx` | 断行层：LuaTeX 上照 Word 的贪心断行，Lua 部分解出 `zhwordlike.lua` |
 | `zhwordlike-preset.dtx` | 包选项与单独加载时的空白文档预设 |

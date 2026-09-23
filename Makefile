@@ -90,7 +90,7 @@ lineends-verb:
 # 那边 dtx 的副本。改动在那边做、提交，再跑 make zhwordlike-sync 拷过来验收；
 # make zhwordlike-check 看两边是否一致。那个仓库不在 CI 里，这两条只在本机用。
 ZHWORDLIKE_DIR ?= ../latex-zhwordlike
-ZHWORDLIKE_DTX = zhwordlike.dtx zhwordlike-msword.dtx zhwordlike-format.dtx zhwordlike-linebreak.dtx zhwordlike-preset.dtx
+ZHWORDLIKE_DTX = zhwordlike.dtx zhwordlike-page.dtx zhwordlike-format.dtx zhwordlike-linebreak.dtx zhwordlike-preset.dtx
 
 zhwordlike-sync:
 	@test -d $(ZHWORDLIKE_DIR) || { echo "找不到 $(ZHWORDLIKE_DIR)，用 ZHWORDLIKE_DIR=路径 指定"; exit 2; }

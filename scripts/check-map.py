@@ -50,7 +50,7 @@ DESC = {
     "shared-date": "中文日期格式",
     "cls-zhwordlike": "加载排版引擎 zhwordlike：Word 页面设置、段落格式、断行",
     "shared-zhwordlike": "类接到 zhwordlike 上：题序后间距、兼容桥、开关同步",
-    "zhwordlike-msword": "Word 页面设置换算成版面参数",
+    "zhwordlike-page": "Word 页面设置换算成版面参数",
     "zhwordlike-format": "元素格式：字体、行距、间距、缩进",
     "zhwordlike-linebreak": "断行层：LuaTeX 上照 Word 的贪心断行",
     "shared-caption": "题注与双语题注",

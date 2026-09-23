@@ -44,9 +44,9 @@
 %
 % \option{layout}/\option{word-compat} 是 Word 文件的兼容模式，就是 docx 的
 % \file{settings.xml} 里 \texttt{compatibilityMode} 那个数：\texttt{11}（Word 2003）、
-% \texttt{12}（2007）、\texttt{14}（2010）、\texttt{15}（2013 起）。标定时收集到的原件几乎都是
-% \texttt{doc}，用新版 Word 原样另存都是 11 且带 2003 的三个开关；少数
-% docx/dotx 是 12 或 14；15 只出现在用户点过“转换”的文件里。所以默认 \texttt{11}。
+% \texttt{12}（2007）、\texttt{14}（2010）、\texttt{15}（2013 起）。默认 \texttt{15}：
+% Word 2013 起新建的文档都是这一档。从 \texttt{doc} 原样另存来的文件是 11 且带 2003 的
+% 三个开关，照这种文件排的文档类要显式写 \option{word-compat}\texttt{=11}。
 %
 % \cs{zhwordlike\_linebreak\_rigid\_ragged:} 管不两端对齐的段（左对齐、居中、右对齐）。
 % 这种段 Lua 不接，交回 \hologo{TeX} 断；\hologo{TeX} 会缩词隙与标点的胶多塞一个字，
@@ -61,7 +61,7 @@
 \bool_new:N \g__zhwordlike_linebreak_word_bool
 \bool_gset_true:N \g__zhwordlike_linebreak_word_bool
 \int_new:N \g__zhwordlike_linebreak_compat_int
-\int_gset:Nn \g__zhwordlike_linebreak_compat_int { 11 }
+\int_gset:Nn \g__zhwordlike_linebreak_compat_int { 15 }
 \bool_new:N \g__zhwordlike_linebreak_rigid_bool
 \cs_new_protected:Npn \zhwordlike_linebreak_rigid_ragged:
   { \bool_gset_true:N \g__zhwordlike_linebreak_rigid_bool }
@@ -96,7 +96,7 @@
 % 与缩进，照 TeX 的办法给行盒 shift。
 %
 % 回调在 \texttt{begindocument/end} 装：Lua 模块要用 \pkg{luatexja} 的表，
-% 那时它肯定装好了；格宽与正文字号从 \cs{g\_zhwordlike\_msword\_char\_dim} 与
+% 那时它肯定装好了；格宽与正文字号从 \cs{g\_zhwordlike\_page\_char\_dim} 与
 % \cs{g\_zhwordlike\_body\_size\_dim} 两个寄存器取，也都定下来了。
 % Lua 文件跟 \file{zhwordlike.sty} 装在同一个目录；\texttt{require}
 % 只找 \texttt{LUAINPUTS}（\file{scripts/} 与 \file{tex/luatex/}），所以按
@@ -1888,13 +1888,14 @@ function M.linectx(strut_h, strut_d)
   if exact == nil or snap == nil then return nil end
   local ok, natpara = pcall(tex.getdimen, "l__zhwordlike_format_nat_dim")
   if not ok or not natpara or natpara <= 0 then return nil end
-  local nat_cjk = getfactor("c_zhwordlike_format_natural_tl") or 1.296875
+  -- 汉字的自然行高按这一段的字体（font-zh）查到的那个，不是写死的宋体
+  local nat_cjk = getfactor("l__zhwordlike_format_strut_natural_tl") or 1.296875
   local nat_latin = getfactor("c__zhwordlike_format_natural_latin_tl") or 1.15
   local asc_cjk = getfactor("l_zhwordlike_format_ascent_tl") or 1.008
   local asc_latin = getfactor("c_zhwordlike_format_ascent_latin_tl") or 0.93261
   local ok2, asc_add = pcall(tex.getdimen, "c_zhwordlike_format_ascent_dim")
   if not ok2 or not asc_add then asc_add = 0.082 * 65781.76 end
-  local ok3, pitch = pcall(tex.getdimen, "g_zhwordlike_msword_lead_dim")
+  local ok3, pitch = pcall(tex.getdimen, "g_zhwordlike_page_lead_dim")
   if not ok3 or not pitch then pitch = 0 end
   local bls = tex.baselineskip.width
   local total = strut_h + strut_d
@@ -1945,7 +1946,7 @@ function M.filter(head, is_display)
     return skip("skips")
   end
   if M.attr and (node.get_attribute(head, M.attr) or 0) == 0 then return skip("attr") end
-  local ok, cell = pcall(tex.getdimen, "g_zhwordlike_msword_char_dim")
+  local ok, cell = pcall(tex.getdimen, "g_zhwordlike_page_char_dim")
   if not ok or not cell or cell == 0 then return skip("nocell") end
   local cell0 = cell
   local em = tex.sp("1em")
