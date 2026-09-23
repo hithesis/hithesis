@@ -6,6 +6,8 @@
 %
 % \section{Word 页面设置的换算}
 %
+% \changes{v0.1.0}{2026/09/24}{版面直接设进 \hologo{LaTeX} 的页面参数，不再调用 \pkg{geometry}；
+%   设版面那一步与按页换版面的换入还原可以由文档类换掉}
 % \changes{v3.2a}{2026/09/15}{加 \cs{zhwordlike\_page\_setup:n}，按 Word 的页面设置算出版心、
 %   行距、首行位置与字距；页眉盒高由页眉行盒（按 \option{format}/\option{header} 算）、
 %   \option{header}/\option{rule}/\option{from-text} 与线宽算出，页眉页脚的
@@ -88,7 +90,8 @@
 % 这 34 个格子的右边界，不是对齐到版心右边界——样本文档里首行缩进两格的那一行只有
 % 31 个字，被拉开填满剩下的 32 格，末字落点与满行的 34 字行分毫不差。
 %
-% 算完当场调用 \cs{geometry}，另外把四个量放进全局长度供调用方取用：
+% 算完当场把版面设进 \hologo{LaTeX} 的页面参数（见下文“设进页面参数”），不借别的宏包；
+% 另外把这几个量放进全局长度供调用方取用：
 % \cs{g\_zhwordlike\_page\_lead\_dim}（网格行距）、\cs{g\_zhwordlike\_page\_char\_dim}（网格字距）、
 % \cs{g\_zhwordlike\_page\_glue\_dim}（\cs{CJKglue}，字距减字号）、
 % \cs{g\_zhwordlike\_page\_ecglue\_dim}（\cs{CJKecglue}，汉字与西文之间那一段，
@@ -114,7 +117,7 @@
 %    \begin{macrocode}
 \int_const:Nn \c__zhwordlike_page_twip_int { 144000 }
 \int_const:Nn \c__zhwordlike_page_point_int { 7227 }
-\tl_new:N \g__zhwordlike_page_geometry_page_tl
+\tl_new:N \g__zhwordlike_page_layout_tl
 \dim_new:N \g_zhwordlike_page_lead_dim
 \dim_new:N \g_zhwordlike_page_char_dim
 \int_new:N \g_zhwordlike_page_cells_int
@@ -158,7 +161,22 @@
 \int_new:N \l__zhwordlike_page_lines_int
 \int_new:N \l__zhwordlike_page_chars_int
 \int_new:N \l__zhwordlike_page_cells_int
-\tl_new:N \g__zhwordlike_page_geometry_tl
+%    \end{macrocode}
+%
+% 算出来的版面也放进全局长度，“设进页面参数”那一步读它们；换成别的办法设版面的
+% 文档类（见 \cs{zhwordlike\_page\_set\_apply:n}）也从这里取：纸张宽高、四边页边距、
+% 页眉盒高（\cs{headheight}）、页眉盒到版心的距离（\cs{headsep}）、页脚基线到版心底的
+% 距离（\cs{footskip}）。
+%    \begin{macrocode}
+\dim_new:N \g_zhwordlike_page_paper_width_dim
+\dim_new:N \g_zhwordlike_page_paper_height_dim
+\dim_new:N \g_zhwordlike_page_margin_left_dim
+\dim_new:N \g_zhwordlike_page_margin_right_dim
+\dim_new:N \g_zhwordlike_page_margin_top_dim
+\dim_new:N \g_zhwordlike_page_margin_bottom_dim
+\dim_new:N \g_zhwordlike_page_head_height_dim
+\dim_new:N \g_zhwordlike_page_head_sep_dim
+\dim_new:N \g_zhwordlike_page_foot_skip_dim
 %    \end{macrocode}
 %
 % \option{line-pitch} 与 \option{lines-per-page} 谁都可以不给，所以两个的初值是 0，
@@ -279,8 +297,8 @@
   }
 %    \end{macrocode}
 %
-% 主命令。键是局部的，整段套在组里，出组时自动复位，下一次调用不受这一次影响。三个
-% 产物与传给 \pkg{geometry} 的键值表跨组，所以是全局赋值。
+% 主命令。键是局部的，整段套在组里，出组时自动复位，下一次调用不受这一次影响。
+% 产物都要跨组，所以是全局赋值。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__zhwordlike_page_compute:n #1
   {
@@ -355,36 +373,128 @@
             }
         }
       \int_gset_eq:NN \g_zhwordlike_page_cells_int \l__zhwordlike_page_cells_int
-      \tl_gset:Nx \g__zhwordlike_page_geometry_page_tl
+      \dim_gset_eq:NN \g_zhwordlike_page_paper_width_dim \l__zhwordlike_page_paper_width_dim
+      \dim_gset_eq:NN \g_zhwordlike_page_paper_height_dim \l__zhwordlike_page_paper_height_dim
+      \dim_gset_eq:NN \g_zhwordlike_page_margin_left_dim \l__zhwordlike_page_left_dim
+      \dim_gset_eq:NN \g_zhwordlike_page_margin_right_dim \l__zhwordlike_page_right_dim
+      \dim_gset_eq:NN \g_zhwordlike_page_margin_top_dim \l__zhwordlike_page_top_dim
+      \dim_gset_eq:NN \g_zhwordlike_page_margin_bottom_dim \l__zhwordlike_page_bottom_dim
+      \dim_gset_eq:NN \g_zhwordlike_page_head_height_dim \l__zhwordlike_page_header_height_dim
+      \dim_gset:Nn \g_zhwordlike_page_head_sep_dim
         {
-          left = \dim_use:N \l__zhwordlike_page_left_dim ,
-          right = \dim_use:N \l__zhwordlike_page_right_dim ,
-          top = \dim_use:N \l__zhwordlike_page_top_dim ,
-          bottom = \dim_use:N \l__zhwordlike_page_bottom_dim ,
-          head = \dim_use:N \l__zhwordlike_page_header_height_dim ,
-          headsep = \dim_eval:n
-            {
-              \l__zhwordlike_page_top_dim
-              - \l__zhwordlike_page_header_dim - \l__zhwordlike_page_header_height_dim
-            } ,
-          footskip = \dim_eval:n
-            {
-              \l__zhwordlike_page_bottom_dim
-              - \l__zhwordlike_page_footer_dim + \l__zhwordlike_page_foot_shift_dim
-            } ,
+          \l__zhwordlike_page_top_dim
+          - \l__zhwordlike_page_header_dim - \l__zhwordlike_page_header_height_dim
         }
-      \tl_gset:Nx \g__zhwordlike_page_geometry_tl
+      \dim_gset:Nn \g_zhwordlike_page_foot_skip_dim
         {
-          paperwidth = \dim_use:N \l__zhwordlike_page_paper_width_dim ,
-          paperheight = \dim_use:N \l__zhwordlike_page_paper_height_dim ,
-          \exp_not:V \g__zhwordlike_page_geometry_page_tl
+          \l__zhwordlike_page_bottom_dim
+          - \l__zhwordlike_page_footer_dim + \l__zhwordlike_page_foot_shift_dim
+        }
+      \tl_gset:Nx \g__zhwordlike_page_layout_tl
+        {
+          \dim_use:N \g_zhwordlike_page_margin_left_dim ,
+          \dim_use:N \g_zhwordlike_page_margin_right_dim ,
+          \dim_use:N \g_zhwordlike_page_margin_top_dim ,
+          \dim_use:N \g_zhwordlike_page_margin_bottom_dim ,
+          \dim_use:N \g_zhwordlike_page_head_height_dim ,
+          \dim_use:N \g_zhwordlike_page_head_sep_dim ,
+          \dim_use:N \g_zhwordlike_page_foot_skip_dim
         }
     \group_end:
   }
+%    \end{macrocode}
+%
+% \subsection{设进页面参数}
+%
+% 版面直接设进 \hologo{LaTeX} 的页面参数，不经 \pkg{geometry} 之类的宏包：那些包一改
+% 版本，这边的版面就可能跟着变。要设的是
+% \cs{paperwidth}、\cs{paperheight}、\cs{textwidth}、\cs{textheight}、
+% \cs{oddsidemargin}、\cs{evensidemargin}、\cs{topmargin}、\cs{headheight}、
+% \cs{headsep}、\cs{footskip}，再加引擎自己的 PDF 页面大小（\hologo{LuaTeX} 的
+% \cs{pagewidth}、\cs{pageheight}，\hologo{pdfTeX} 与 \hologo{XeTeX} 的
+% \cs{pdfpagewidth}、\cs{pdfpageheight}）。
+%
+% \hologo{LaTeX} 的左边距与上边距从纸边往里 1 英寸起算，所以 \cs{oddsidemargin} 是左边距
+% 减 1 英寸，\cs{topmargin} 是上边距减 1 英寸再减页眉盒高与页眉盒到版心的距离。Word 不开
+% “对称页边距”时偶数页的左边距与奇数页相同，\cs{evensidemargin} 就等于 \cs{oddsidemargin}。
+%
+% 正文开始以后再设（按页换版面时），\hologo{LaTeX} 在 \cs{begin}\marg{document} 时从
+% \cs{textheight}、\cs{textwidth} 抄出来的那几个量也要跟着改：\cs{@colht}、\cs{@colroom}、
+% \cs{vsize}、\cs{hsize}、\cs{linewidth}、\cs{columnwidth}。
+%
+% \emph{这一步可以换掉。} 自己有一套设版面办法的文档类用
+% \cs{zhwordlike\_page\_set\_apply:n}\marg{代码} 换掉整份设置那一步，用
+% \cs{zhwordlike\_page\_set\_push\_apply:n} 与 \cs{zhwordlike\_page\_set\_pop\_apply:n} 换掉
+% 按页换版面时的换入与还原；\meta{代码} 从上面那几个全局长度取数。默认的换入与还原
+% 是 \cs{zhwordlike\_page\_push\_default:} 与 \cs{zhwordlike\_page\_pop\_default:}，
+% 要在默认之外补几句的，在 \meta{代码} 里先调它们再补。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__zhwordlike_page_params_set:
+  {
+    \dim_set:Nn \textwidth
+      {
+        \g_zhwordlike_page_paper_width_dim
+        - \g_zhwordlike_page_margin_left_dim - \g_zhwordlike_page_margin_right_dim
+      }
+    \dim_set:Nn \textheight
+      {
+        \g_zhwordlike_page_paper_height_dim
+        - \g_zhwordlike_page_margin_top_dim - \g_zhwordlike_page_margin_bottom_dim
+      }
+    \dim_set:Nn \oddsidemargin { \g_zhwordlike_page_margin_left_dim - 1in }
+    \dim_set_eq:NN \evensidemargin \oddsidemargin
+    \dim_set_eq:NN \headheight \g_zhwordlike_page_head_height_dim
+    \dim_set_eq:NN \headsep \g_zhwordlike_page_head_sep_dim
+    \dim_set_eq:NN \footskip \g_zhwordlike_page_foot_skip_dim
+    \dim_set:Nn \topmargin
+      { \g_zhwordlike_page_margin_top_dim - 1in - \headheight - \headsep }
+    \__zhwordlike_page_running_sync:
+  }
+\bool_new:N \g__zhwordlike_page_in_document_bool
+\hook_gput_code:nnn { begindocument } { zhwordlike }
+  { \bool_gset_true:N \g__zhwordlike_page_in_document_bool }
+\cs_new_protected:Npn \__zhwordlike_page_running_sync:
+  {
+    \bool_if:NT \g__zhwordlike_page_in_document_bool
+      { \__zhwordlike_page_running_set: }
+  }
+\cs_new_protected:Npn \__zhwordlike_page_running_set:
+  {
+    \dim_gset_eq:NN \@colht \textheight
+    \dim_gset_eq:NN \@colroom \textheight
+    \dim_gset_eq:NN \vsize \textheight
+    \dim_gset_eq:NN \hsize \textwidth
+    \dim_gset_eq:NN \linewidth \textwidth
+    \dim_gset_eq:NN \columnwidth \textwidth
+  }
+\cs_new_protected:Npn \__zhwordlike_page_paper_set:
+  {
+    \dim_set_eq:NN \paperwidth \g_zhwordlike_page_paper_width_dim
+    \dim_set_eq:NN \paperheight \g_zhwordlike_page_paper_height_dim
+    \cs_if_exist:NTF \tex_pagewidth:D
+      {
+        \tex_pagewidth:D = \paperwidth
+        \tex_pageheight:D = \paperheight
+      }
+      {
+        \cs_if_exist:NT \tex_pdfpagewidth:D
+          {
+            \tex_pdfpagewidth:D = \paperwidth
+            \tex_pdfpageheight:D = \paperheight
+          }
+      }
+  }
+\cs_new_protected:Npn \__zhwordlike_page_apply:
+  {
+    \__zhwordlike_page_paper_set:
+    \__zhwordlike_page_params_set:
+  }
+\cs_new_protected:Npn \zhwordlike_page_set_apply:n #1
+  { \cs_gset_protected:Npn \__zhwordlike_page_apply: {#1} }
 \cs_new_protected:Npn \zhwordlike_page_setup:n #1
   {
     \__zhwordlike_page_compute:n {#1}
-    \exp_args:NV \geometry \g__zhwordlike_page_geometry_tl
+    \__zhwordlike_page_apply:
   }
 %    \end{macrocode}
 %
@@ -392,14 +502,41 @@
 % 不同——\texttt{docGrid} 的 \texttt{linePitch} 是 395 缇，正文是 383。要用的
 % 模块把\emph{自己那一节}的取值写出来，连同当前这一套一起传进来，排完再还原。
 %
-% 算完发现页面几何与当前这一套一模一样，就\emph{不碰} \pkg{geometry}——封面与
-% 正文只差一个行跨度，页边距是一样的，而 \cs{newgeometry} 与 \cs{restoregeometry}
-% 各自要换一次页，还原得也不干净，实测会把那一节整体挪 5.85\,bp。
+% 算完发现页面几何与当前这一套一模一样，就\emph{不动}页面参数——封面与正文常常只差
+% 一个行跨度，页边距是一样的，而换版面要另起一页。
 %
-% 纸张尺寸不进去：\cs{newgeometry} 不收，一篇文档里也不该变。
+% 真要换的时候，换入先 \cs{clearpage}，存下当时的页面参数，再设新的；还原也先
+% \cs{clearpage}，再把存下的设回去。纸张尺寸不换，一篇文档里不该变。
 % \emph{不支持套嵌}，存的只有一层。
 %    \begin{macrocode}
-\tl_new:N \g__zhwordlike_page_save_geometry_tl
+\tl_new:N \g__zhwordlike_page_save_layout_tl
+\clist_const:Nn \c__zhwordlike_page_param_clist
+  {
+    textwidth , textheight , oddsidemargin , evensidemargin , topmargin ,
+    headheight , headsep , footskip
+  }
+\clist_map_inline:Nn \c__zhwordlike_page_param_clist
+  { \dim_new:c { g__zhwordlike_page_save_#1_dim } }
+\cs_new_protected:Npn \zhwordlike_page_push_default:
+  {
+    \clearpage
+    \clist_map_inline:Nn \c__zhwordlike_page_param_clist
+      { \dim_gset_eq:cc { g__zhwordlike_page_save_##1_dim } {##1} }
+    \__zhwordlike_page_params_set:
+  }
+\cs_new_protected:Npn \zhwordlike_page_pop_default:
+  {
+    \clearpage
+    \clist_map_inline:Nn \c__zhwordlike_page_param_clist
+      { \dim_set_eq:cc {##1} { g__zhwordlike_page_save_##1_dim } }
+    \__zhwordlike_page_running_sync:
+  }
+\cs_new_protected:Npn \__zhwordlike_page_push_apply: { \zhwordlike_page_push_default: }
+\cs_new_protected:Npn \__zhwordlike_page_pop_apply: { \zhwordlike_page_pop_default: }
+\cs_new_protected:Npn \zhwordlike_page_set_push_apply:n #1
+  { \cs_gset_protected:Npn \__zhwordlike_page_push_apply: {#1} }
+\cs_new_protected:Npn \zhwordlike_page_set_pop_apply:n #1
+  { \cs_gset_protected:Npn \__zhwordlike_page_pop_apply: {#1} }
 \bool_new:N \g__zhwordlike_page_moved_bool
 \dim_new:N \g__zhwordlike_page_save_lead_dim
 \dim_new:N \g__zhwordlike_page_save_char_dim
@@ -432,20 +569,18 @@
     \dim_gset_eq:NN \g__zhwordlike_page_save_text_dp_dim \g_zhwordlike_header_text_dp_dim
     \dim_gset_eq:NN \g__zhwordlike_page_save_latin_ht_dim \g_zhwordlike_header_latin_ht_dim
     \dim_gset_eq:NN \g__zhwordlike_page_save_latin_dp_dim \g_zhwordlike_header_latin_dp_dim
-    \tl_gset_eq:NN \g__zhwordlike_page_save_geometry_tl
-      \g__zhwordlike_page_geometry_page_tl
+    \tl_gset_eq:NN \g__zhwordlike_page_save_layout_tl \g__zhwordlike_page_layout_tl
     \__zhwordlike_page_compute:n {#1}
-    \tl_if_eq:NNTF \g__zhwordlike_page_geometry_page_tl
-      \g__zhwordlike_page_save_geometry_tl
+    \tl_if_eq:NNTF \g__zhwordlike_page_layout_tl \g__zhwordlike_page_save_layout_tl
       { \bool_gset_false:N \g__zhwordlike_page_moved_bool }
       {
         \bool_gset_true:N \g__zhwordlike_page_moved_bool
-        \exp_args:NV \newgeometry \g__zhwordlike_page_geometry_page_tl
+        \__zhwordlike_page_push_apply:
       }
   }
 \cs_new_protected:Npn \zhwordlike_page_setup_pop:
   {
-    \bool_if:NT \g__zhwordlike_page_moved_bool { \restoregeometry }
+    \bool_if:NT \g__zhwordlike_page_moved_bool { \__zhwordlike_page_pop_apply: }
     \dim_gset_eq:NN \g_zhwordlike_page_lead_dim \g__zhwordlike_page_save_lead_dim
     \dim_gset_eq:NN \g_zhwordlike_page_char_dim \g__zhwordlike_page_save_char_dim
     \dim_gset_eq:NN \g_zhwordlike_page_foot_shift_x_dim
