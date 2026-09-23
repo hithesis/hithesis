@@ -25,7 +25,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls lineends lineends-self lineends-verb lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls banshi-sync banshi-check lineends lineends-self lineends-verb lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
@@ -85,6 +85,22 @@ lineends-self:
 lineends-verb:
 	cd tests/sample/verb && TEXINPUTS="$(CURDIR):" lualatex -interaction=nonstopmode main.tex > /dev/null
 	python3 scripts/check-line-ends.py --pdf tests/sample/verb/main.pdf --fixture tests/lineends-verb.tsv
+
+# 排版引擎 banshi 的正本在独立仓库 latex-banshi（默认与本仓库并列），src/banshi/ 是
+# 那边 dtx 的副本。改动在那边做、提交，再跑 make banshi-sync 拷过来验收；
+# make banshi-check 看两边是否一致。那个仓库不在 CI 里，这两条只在本机用。
+BANSHI_DIR ?= ../latex-banshi
+BANSHI_DTX = banshi.dtx banshi-msword.dtx banshi-format.dtx banshi-linebreak.dtx
+
+banshi-sync:
+	@test -d $(BANSHI_DIR) || { echo "找不到 $(BANSHI_DIR)，用 BANSHI_DIR=路径 指定"; exit 2; }
+	@for f in $(BANSHI_DTX); do cp $(BANSHI_DIR)/$$f src/banshi/$$f || exit 1; done
+	@echo "已从 $(BANSHI_DIR) 拷入 $(words $(BANSHI_DTX)) 个 dtx，那边的提交是 $$(git -C $(BANSHI_DIR) rev-parse --short HEAD)"
+
+banshi-check:
+	@test -d $(BANSHI_DIR) || { echo "找不到 $(BANSHI_DIR)，用 BANSHI_DIR=路径 指定"; exit 2; }
+	@bad=; for f in $(BANSHI_DTX); do cmp -s $(BANSHI_DIR)/$$f src/banshi/$$f || { echo "src/banshi/$$f 与 $(BANSHI_DIR)/$$f 不一致"; bad=1; }; done; \
+	  test -z "$$bad" && echo "src/banshi/ 与 $(BANSHI_DIR) 一致" || exit 1
 
 # 与 typst-with-msword-linebreaks 对拍：同一批段落（tests/typst-corpus.txt）两边各排一遍，
 # 逐行比行末。banshi.lua 是照那个 fork 抄的，Word 只能量翻转点，两个实现之间

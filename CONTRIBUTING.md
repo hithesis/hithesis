@@ -505,7 +505,7 @@ src/pages/
 | `banshi-format.dtx` | 元素格式：字体、行距、间距、缩进、空段 |
 | `banshi-linebreak.dtx` | 断行层：LuaTeX 上照 Word 的贪心断行，Lua 部分解出 `banshi.lua` |
 
-它将来要拆成独立仓库（与 iota-hit 底下的 Typst 包 banshi 是姊妹实现），所以学校专有的东西别往这里写。
+它的正本在独立仓库 `latex-banshi`（默认与本仓库并列，与 iota-hit 底下的 Typst 包 banshi 是姊妹实现），`src/banshi/` 只是那边 dtx 的副本。改动在 `latex-banshi` 里做、在那边提交，再在这边跑 `make banshi-sync` 拷过来，按平常的量具验收后提交，提交说明里写上那边的提交号（`banshi-sync` 会打印）。`make banshi-check` 看两边是否一致。别在 `src/banshi/` 里直接改，下次同步会被覆盖；学校专有的东西也别往 banshi 里写。
 
 ### 4.4 一个模块一个职责
 
