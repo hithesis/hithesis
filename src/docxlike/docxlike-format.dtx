@@ -13,6 +13,9 @@
 %   \option{font} 与 \option{paragraph} 下各有一个 \option{snap-to-grid}，对应 Word 的两处
 %   “对齐到网格”，\texttt{auto} 沿所在位置往上找（\cs{c\_\_docxlike\_format\_parent\_prop}），
 %   根上没写就不贴；另有 \option{hyphenation} 与 \option{default-tab-stops}}
+% \changes{v0.1.0}{2026/09/24}{内部存储照 docx：条目名是 \texttt{w:rPr}、\texttt{w:pPr} 下的元素与
+%   属性路径，值用缇、半磅、百分之一行等 docx 的单位；同一处量的几种写法归成一个槽，写一种
+%   抹掉别的；公开的长度键不带单位时按 \texttt{bp}}
 % \changes{v0.1.0}{2026/09/24}{Word 里没有的键挪出本包：\option{line-white}、\option{white-before}、
 %   \option{white-after}、行距区间与 \texttt{length}、\texttt{last-line-centered}、\option{heading}、
 %   \option{latin-bold}、\option{latin-line}、按版心底分档；换成给文档类的接入点（单位、
@@ -86,28 +89,38 @@
 %
 % 公开的键照 Word 英文界面的原词，按“修改样式 → 格式”菜单分成 \option{font}、
 % \option{paragraph}、\option{tabs}、\option{border} 四组，组内再照对话框的分组嵌套；
-% 全表在手册的“样式”一节。内部存储的条目照 docx 里 \texttt{w:rPr}、\texttt{w:pPr} 的
-% 元素与属性起名，从 docx 转过来时一一对应；一个公开的键可能落进几条：
+% 全表在手册的“样式”一节。内部存储照 docx：条目名是 \texttt{w:rPr}、\texttt{w:pPr} 底下的
+% 元素与属性路径，值用 docx 的单位（缇是二十分之一磅，字号是半磅，按行、按字的量是百分之一，
+% 倍数行距是 240 分之一），从 docx 转过来时原样填进去。一个公开的键可能落进几条：
 % \begin{longtblr}[caption={公开的键与内部存储}, label={tab:impl-format-keys}]
 %   {colspec={l l}}
 % \toprule
 % 公开的键 & 内部条目 \\ \midrule
-% \option{font}/\option{asian-text-font}、\option{latin-text-font} & \texttt{eastAsia}、\texttt{ascii}（\texttt{w:rFonts}） \\
-% \option{font}/\option{font-style} & \texttt{b} \\
-% \option{font}/\option{size}、\option{all-caps} & \texttt{sz}、\texttt{caps} \\
-% \option{font}/\option{character-spacing} & \texttt{spacing}（\texttt{w:rPr} 里那个，带符号的长度） \\
-% \option{font}/\option{snap-to-grid} & \texttt{rPr-snapToGrid} \\
-% \option{paragraph}/\option{alignment} & \texttt{jc}：\texttt{left}、\texttt{center}、\texttt{right}、\texttt{both}、\texttt{distribute} \\
-% \option{paragraph}/\option{indentation} & \texttt{ind-left}、\texttt{ind-right}、\texttt{ind-special}（\texttt{firstLine}、\texttt{hanging}、\texttt{none}）与 \texttt{ind-special-amount} \\
-% \option{paragraph}/\option{spacing} & \texttt{before}、\texttt{after}、\texttt{line}；行距的单位存在 \texttt{line-unit}，取 \texttt{w:lineRule} 的 \texttt{auto}、\texttt{exact}、\texttt{atLeast} \\
-% \option{paragraph}/\option{snap-to-grid} & \texttt{snapToGrid} \\
-% \option{paragraph}/\option{pagination}/\option{keep-with-next} & \texttt{keepNext} \\
-% \option{tabs}、\option{border} & \texttt{tabs}、\texttt{pBdr-top}、\texttt{pBdr-bottom} \\
+% \option{font}/\option{asian-text-font}、\option{latin-text-font} & \texttt{rPr/rFonts/eastAsia}、\texttt{rPr/rFonts/ascii} \\
+% \option{font}/\option{font-style}、\option{all-caps} & \texttt{rPr/b}、\texttt{rPr/caps} \\
+% \option{font}/\option{size} & \texttt{rPr/sz}（半磅） \\
+% \option{font}/\option{character-spacing} & \texttt{rPr/spacing}（缇，带符号） \\
+% \option{font}/\option{snap-to-grid} & \texttt{rPr/snapToGrid} \\
+% \option{paragraph}/\option{alignment} & \texttt{pPr/jc}：\texttt{left}、\texttt{center}、\texttt{right}、\texttt{both}、\texttt{distribute} \\
+% \option{paragraph}/\option{indentation} & \texttt{pPr/ind/} 下的 \texttt{left}、\texttt{leftChars}、\texttt{right}、\texttt{rightChars}、\texttt{firstLine}、\texttt{firstLineChars}、\texttt{hanging}、\texttt{hangingChars} \\
+% \option{paragraph}/\option{spacing} & \texttt{pPr/spacing/} 下的 \texttt{before}、\texttt{beforeLines}、\texttt{after}、\texttt{afterLines}、\texttt{line}、\texttt{lineRule} \\
+% \option{paragraph}/\option{snap-to-grid}、\option{pagination}/\option{keep-with-next} & \texttt{pPr/snapToGrid}、\texttt{pPr/keepNext} \\
+% \option{tabs}、\option{border} & \texttt{pPr/tabs}（每个停靠点“对齐 位置 前导符”，位置是缇）、\texttt{pPr/pBdr/top}、\texttt{pPr/pBdr/bottom} \\
 % \bottomrule
 % \end{longtblr}
-% 带量的条目另有 \meta{条目}\texttt{-unit} 记单位（\texttt{length}、\texttt{chars}、\texttt{line}），
-% 区间的第二个端点记在 \meta{条目}\texttt{-2} 与 \meta{条目}\texttt{-2-unit}。公开的键只写一个端点；
-% 区间、别的单位、样式名的限定词、对齐的扩展取值由文档类经“给文档类的接入点”一节的接口加。
+% 同一处量在 docx 里有几种写法，比如段前按磅是 \texttt{before}、按行是 \texttt{beforeLines}，
+% 写一种就把同一处的别的写法抹掉，这样的一组叫一个槽（\texttt{before}、\texttt{after}、\texttt{line}、
+% \texttt{ind-left}、\texttt{ind-right}、\texttt{ind-special}）。首行缩进写 \texttt{none} 存成
+% \texttt{firstLine = 0}，好挡住上级样式的缩进。
+%
+% Word 里没有的写法（区间、文档类登记的单位）原样记在 \texttt{ext/}\meta{槽} 那几条：
+% \meta{槽}、\meta{槽}\texttt{-unit}，区间的第二个端点在 \meta{槽}\texttt{-2}、\meta{槽}\texttt{-2-unit}。
+% 公开的键只写 Word 的那几种；别的由文档类经“给文档类的接入点”一节的接口加。
+%
+% 从长度折成缇、半磅时保留三位小数：\hologo{TeX} 读 \texttt{bp} 时截掉的不到 1\,sp 会让
+% \texttt{20bp} 变成 399.9999 缇，三位小数刚好收回整数；折回长度时写成 \texttt{bp} 交给
+% \hologo{TeX} 自己读，与直接写 \texttt{bp} 一个 sp 都不差。Word 本身只存整数，从 docx 来的
+% 值就是整数；文档类为了仿真写进来的不是整数也照样存，不强行取整。
 %
 % 行距的“设置值”在内部与模式合成一个词：倍数照写，固定值加 \texttt{!}，最小值加 \texttt{+}。
 % 两个 \option{snap-to-grid} 分属字体与段落，是 Word 本来的样子：段落对话框里那一个
@@ -436,6 +449,98 @@
       { \prg_return_true: } { \prg_return_false: }
   }
 \cs_new_eq:NN \docxlike_format_put:nn \__docxlike_format_put:nn
+\cs_new:Npn \__docxlike_format_twips:n #1
+  { \fp_eval:n { round ( \dim_to_fp:n { \__docxlike_bp:n {#1} } * 1440 / 72.27 , 3 ) } }
+\cs_new:Npn \__docxlike_format_half_points:n #1
+  { \fp_eval:n { round ( \dim_to_fp:n { \__docxlike_bp:n {#1} } * 144 / 72.27 , 3 ) } }
+\cs_new:Npn \__docxlike_format_from_twips:n #1
+  { \fp_eval:n { ( #1 ) / 20 } bp }
+\cs_new:Npn \__docxlike_format_from_half_points:n #1
+  { \fp_eval:n { ( #1 ) / 2 } bp }
+\prop_const_from_keyval:Nn \c__docxlike_format_slot_prop
+  {
+    before =
+      {
+        ext/before , ext/before-unit , ext/before-2 , ext/before-2-unit ,
+        pPr/spacing/beforeLines , pPr/spacing/before
+      } ,
+    after =
+      {
+        ext/after , ext/after-unit , ext/after-2 , ext/after-2-unit ,
+        pPr/spacing/afterLines , pPr/spacing/after
+      } ,
+    line =
+      {
+        ext/line , ext/line-unit , ext/line-2 , ext/line-2-unit ,
+        pPr/spacing/line , pPr/spacing/lineRule
+      } ,
+    ind-left = { pPr/ind/leftChars , pPr/ind/left } ,
+    ind-right = { pPr/ind/rightChars , pPr/ind/right } ,
+    ind-special =
+      {
+        pPr/ind/firstLineChars , pPr/ind/firstLine ,
+        pPr/ind/hangingChars , pPr/ind/hanging
+      } ,
+  }
+\clist_new:N \l__docxlike_format_slot_clist
+\cs_new_protected:Npn \__docxlike_format_slot_keys:n #1
+  {
+    \clist_set:Ne \l__docxlike_format_slot_clist
+      { \prop_item:Nn \c__docxlike_format_slot_prop {#1} }
+  }
+\cs_new_protected:Npn \__docxlike_format_slot_drop:n #1
+  {
+    \__docxlike_format_slot_keys:n {#1}
+    \clist_map_function:NN \l__docxlike_format_slot_clist \__docxlike_format_drop:n
+  }
+\cs_new_protected:Npn \__docxlike_format_slot_restore:n #1
+  {
+    \__docxlike_format_slot_keys:n {#1}
+    \clist_map_function:NN \l__docxlike_format_slot_clist \__docxlike_format_restore:n
+  }
+%    \end{macrocode}
+%
+% 读一个槽：先看当前限定词那一份，那一份里这个槽有任何一条就只用那一份，没有再看
+% 不带限定词的。找到的几条抄进 \cs{l\_\_docxlike\_format\_slot\_prop}。
+%    \begin{macrocode}
+\prop_new:N \l__docxlike_format_slot_prop
+\tl_new:N \l__docxlike_format_slot_now_tl
+\bool_new:N \l__docxlike_format_slot_found_bool
+\cs_new_protected:Npn \__docxlike_format_slot_find:nn #1#2
+  {
+    \prop_clear:N \l__docxlike_format_slot_prop
+    \__docxlike_format_slot_keys:n {#2}
+    \bool_set_false:N \l__docxlike_format_slot_found_bool
+    \tl_set:Ne \l__docxlike_format_slot_now_tl { \__docxlike_format_layer_now: }
+    \tl_if_empty:NF \l__docxlike_format_slot_now_tl
+      {
+        \__docxlike_format_slot_from:e
+          { \__docxlike_format_name:nnn {#1} { \l__docxlike_format_slot_now_tl } { } }
+      }
+    \bool_if:NF \l__docxlike_format_slot_found_bool
+      { \__docxlike_format_slot_from:e { \__docxlike_format_name:nnn {#1} { } { } } }
+  }
+\cs_new_protected:Npn \__docxlike_format_slot_from:n #1
+  {
+    \prop_if_exist:cT {#1}
+      {
+        \clist_map_inline:Nn \l__docxlike_format_slot_clist
+          {
+            \prop_get:cnNT {#1} {##1} \l__docxlike_format_value_tl
+              {
+                \bool_set_true:N \l__docxlike_format_slot_found_bool
+                \prop_put:NnV \l__docxlike_format_slot_prop {##1} \l__docxlike_format_value_tl
+              }
+          }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_format_slot_from:n { e }
+\prg_new_protected_conditional:Npnn \__docxlike_format_slot_if_set:nn #1#2 { T , F , TF }
+  {
+    \__docxlike_format_slot_find:nn {#1} {#2}
+    \bool_if:NTF \l__docxlike_format_slot_found_bool
+      { \prg_return_true: } { \prg_return_false: }
+  }
 \tl_new:N \l_docxlike_format_style_tl
 \tl_new:N \l_docxlike_format_side_tl
 \cs_new_protected:Npn \docxlike_format_line_unit_new:nn #1#2
@@ -467,10 +572,12 @@
 \cs_new_protected:Npn \__docxlike_format_char_spacing:n #1
   {
     \str_if_eq:nnTF {#1} { auto }
-      { \__docxlike_format_put:nn { spacing } { auto } }
-      { \__docxlike_format_put:nn { spacing } { \dim_eval:n {#1} } }
+      { \__docxlike_format_put:nn { rPr/spacing } { auto } }
+      { \__docxlike_format_put:ne { rPr/spacing } { \__docxlike_format_twips:n {#1} } }
   }
 \cs_generate_variant:Nn \__docxlike_format_char_spacing:n { e }
+\cs_generate_variant:Nn \__docxlike_format_half_points:n { V }
+\cs_generate_variant:Nn \__docxlike_format_put:nn { ne }
 %    \end{macrocode}
 %
 % \option{size} 收字号名或长度。名字查 \cs{docxlike\_size\_new:nn} 登记的那张表，
@@ -479,11 +586,14 @@
 \cs_new_protected:Npn \__docxlike_format_size:n #1
   {
     \str_if_eq:nnTF {#1} { auto }
-      { \__docxlike_format_put:nn { sz } { auto } }
+      { \__docxlike_format_put:nn { rPr/sz } { auto } }
       {
         \prop_get:NnNTF \g__docxlike_size_prop {#1} \l__docxlike_size_tl
-          { \__docxlike_format_put:nn { sz } { \l__docxlike_size_tl } }
-          { \__docxlike_format_put:nn { sz } { \dim_eval:n {#1} } }
+          {
+            \__docxlike_format_put:ne { rPr/sz }
+              { \__docxlike_format_half_points:V \l__docxlike_size_tl }
+          }
+          { \__docxlike_format_put:ne { rPr/sz } { \__docxlike_format_half_points:n {#1} } }
       }
   }
 %    \end{macrocode}
@@ -538,21 +648,18 @@
   {
     \__docxlike_format_claim:nn {#2} {#1}
     \str_if_eq:nnTF {#4} { auto }
-      {
-        \clist_map_inline:nn { , -unit , -2 , -2-unit }
-          { \__docxlike_format_put:nn { #2 ##1 } { auto } }
-      }
+      { \__docxlike_format_slot_restore:n {#2} }
       {
         \seq_set_split:Nnn \l__docxlike_format_end_seq { ~ } {#4}
         \seq_remove_all:Nn \l__docxlike_format_end_seq { }
-        \int_case:nnF { \seq_count:N \l__docxlike_format_end_seq }
+        \tl_clear:N \l__docxlike_format_end_ii_unit_tl
+        \tl_clear:N \l__docxlike_format_end_ii_value_tl
+        \int_case:nnTF { \seq_count:N \l__docxlike_format_end_seq }
           {
             { 1 }
               {
                 \__docxlike_format_end:nnne {#2} { } {#3}
                   { \seq_item:Nn \l__docxlike_format_end_seq { 1 } }
-                \__docxlike_format_drop:n { #2 -2 }
-                \__docxlike_format_drop:n { #2 -2-unit }
               }
             { 2 }
               {
@@ -562,9 +669,59 @@
                   { \seq_item:Nn \l__docxlike_format_end_seq { 2 } }
               }
           }
+          {
+            \__docxlike_format_slot_drop:n {#2}
+            \__docxlike_format_end_commit:n {#2}
+          }
           { \__docxlike_bad_value:nnn {#1} {#4} { } }
       }
   }
+%    \end{macrocode}
+%
+% 落槽。行距只写一个端点、单位是 Word 的三种时写成 docx 的 \texttt{w:spacing/@w:line} 与
+% \texttt{@w:lineRule}：倍数是 240 分之一，固定值与最小值是缇。别的（区间、文档类登记的单位、
+% 段前段后按别的度量给）原样记在 \texttt{ext/}\meta{槽} 那几条里。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_format_end_unit_tl
+\tl_new:N \l__docxlike_format_end_value_tl
+\tl_new:N \l__docxlike_format_end_ii_unit_tl
+\tl_new:N \l__docxlike_format_end_ii_value_tl
+\cs_new_protected:Npn \__docxlike_format_end_commit:n #1
+  {
+    \bool_lazy_all:nTF
+      {
+        { \str_if_eq_p:nn {#1} { line } }
+        { \tl_if_empty_p:N \l__docxlike_format_end_ii_unit_tl }
+        {
+          \str_if_eq_p:Vn \l__docxlike_format_end_unit_tl { auto }
+          || \str_if_eq_p:Vn \l__docxlike_format_end_unit_tl { exact }
+          || \str_if_eq_p:Vn \l__docxlike_format_end_unit_tl { atLeast }
+        }
+      }
+      {
+        \__docxlike_format_put_value:nV { pPr/spacing/lineRule } \l__docxlike_format_end_unit_tl
+        \str_if_eq:VnTF \l__docxlike_format_end_unit_tl { auto }
+          {
+            \__docxlike_format_put_value:ne { pPr/spacing/line }
+              { \fp_eval:n { \l__docxlike_format_end_value_tl * 240 } }
+          }
+          {
+            \__docxlike_format_put_value:ne { pPr/spacing/line }
+              { \__docxlike_format_twips:V \l__docxlike_format_end_value_tl }
+          }
+      }
+      {
+        \__docxlike_format_put_value:nV { ext/#1-unit } \l__docxlike_format_end_unit_tl
+        \__docxlike_format_put_value:nV { ext/#1 } \l__docxlike_format_end_value_tl
+        \tl_if_empty:NF \l__docxlike_format_end_ii_unit_tl
+          {
+            \__docxlike_format_put_value:nV { ext/#1-2-unit } \l__docxlike_format_end_ii_unit_tl
+            \__docxlike_format_put_value:nV { ext/#1-2 } \l__docxlike_format_end_ii_value_tl
+          }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_format_put_value:nn { nV , ne }
+\cs_generate_variant:Nn \__docxlike_format_twips:n { V }
 \cs_new_eq:NN \docxlike_format_measure:nnnn \__docxlike_format_measure:nnnn
 %    \end{macrocode}
 %
@@ -611,8 +768,15 @@
   }
 \cs_new_protected:Npn \__docxlike_format_end_put:nnnn #1#2#3#4
   {
-    \__docxlike_format_put_value:nn { #1 #2 -unit } {#3}
-    \__docxlike_format_put:nn { #1 #2 } {#4}
+    \tl_if_empty:nTF {#2}
+      {
+        \tl_set:Nn \l__docxlike_format_end_unit_tl {#3}
+        \tl_set:Nn \l__docxlike_format_end_value_tl {#4}
+      }
+      {
+        \tl_set:Nn \l__docxlike_format_end_ii_unit_tl {#3}
+        \tl_set:Nn \l__docxlike_format_end_ii_value_tl {#4}
+      }
   }
 \cs_generate_variant:Nn \__docxlike_format_end_put:nnnn { nnne }
 \cs_generate_variant:Nn \str_case:nnF { VnF }
@@ -629,14 +793,11 @@
   {
     \__docxlike_format_claim:nn {#1} {#1}
     \str_if_eq:nnTF {#2} { auto }
+      { \__docxlike_format_slot_restore:n {#1} }
       {
-        \clist_map_inline:nn { , -unit , -2 , -2-unit }
-          { \__docxlike_format_put:nn { #1 ##1 } { auto } }
-      }
-      {
-        \__docxlike_format_amount:nnn {#1} { line } {#2}
-        \__docxlike_format_drop:n { #1 -2 }
-        \__docxlike_format_drop:n { #1 -2-unit }
+        \__docxlike_format_slot_drop:n {#1}
+        \__docxlike_format_amount_put:nnnn { pPr/spacing/#1Lines } { line }
+          { pPr/spacing/#1 } {#2}
       }
   }
 %    \end{macrocode}
@@ -645,30 +806,27 @@
 % \texttt{before} 那一路收 \texttt{1 line} 或长度。两种都是数在前、单位词
 % 在后，只有单位词不同，所以走同一个解析器。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__docxlike_format_amount:nnn #1#2#3
+\cs_new_protected:Npn \__docxlike_format_amount_put:nnnn #1#2#3#4
   {
-    \str_if_eq:nnTF {#3} { auto }
-      {
-        \__docxlike_format_put:nn {#1} { auto }
-        \__docxlike_format_put:nn { #1 -unit } { auto }
-      }
-      { \__docxlike_format_amount_aux:nnn {#1} {#2} {#3} }
-  }
-\cs_new_protected:Npn \__docxlike_format_amount_aux:nnn #1#2#3
-  {
-    \__docxlike_format_split:n {#3}
+    \__docxlike_format_split:n {#4}
     \__docxlike_format_one_word:TF
-      {
-        \__docxlike_format_put:nn { #1 -unit } { length }
-        \__docxlike_format_put:nn {#1} { \dim_eval:n {#3} }
-      }
+      { \__docxlike_format_put:ne {#3} { \__docxlike_format_twips:n {#4} } }
       {
         \str_if_eq:VnTF \l__docxlike_format_tail_tl {#2}
           {
-            \__docxlike_format_put:nn { #1 -unit } {#2}
-            \__docxlike_format_put:nn {#1} { \fp_to_decimal:n { \l__docxlike_format_head_tl } }
+            \__docxlike_format_put:ne {#1}
+              { \fp_eval:n { \l__docxlike_format_head_tl * 100 } }
           }
-          { \__docxlike_bad_value:Vnn \l_keys_key_str {#3} { } }
+          { \__docxlike_bad_value:Vnn \l_keys_key_str {#4} { } }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_format_indent_side:nn #1#2
+  {
+    \str_if_eq:nnTF {#2} { auto }
+      { \__docxlike_format_slot_restore:n { ind-#1 } }
+      {
+        \__docxlike_format_slot_drop:n { ind-#1 }
+        \__docxlike_format_amount_put:nnnn { pPr/ind/#1Chars } { chars } { pPr/ind/#1 } {#2}
       }
   }
 %    \end{macrocode}
@@ -681,12 +839,12 @@
     \__docxlike_format_split:n {#1}
     \str_case:VnF \l__docxlike_format_head_tl
       {
-        { auto }
+        { auto } { \__docxlike_format_slot_restore:n { ind-special } }
+        { none }
           {
-            \__docxlike_format_put:nn { ind-special } { auto }
-            \__docxlike_format_amount:nnn { ind-special-amount } { chars } { auto }
+            \__docxlike_format_slot_drop:n { ind-special }
+            \__docxlike_format_put:nn { pPr/ind/firstLine } { 0 }
           }
-        { none } { \__docxlike_format_put:nn { ind-special } { none } }
         { first-line }
           { \__docxlike_format_special_put:nV { firstLine } \l__docxlike_format_rest_tl }
         { hanging }
@@ -698,8 +856,8 @@
 \cs_generate_variant:Nn \__docxlike_format_indent_special:n { e }
 \cs_new_protected:Npn \__docxlike_format_special_put:nn #1#2
   {
-    \__docxlike_format_put:nn { ind-special } {#1}
-    \__docxlike_format_amount:nnn { ind-special-amount } { chars } {#2}
+    \__docxlike_format_slot_drop:n { ind-special }
+    \__docxlike_format_amount_put:nnnn { pPr/ind/#1Chars } { chars } { pPr/ind/#1 } {#2}
   }
 \cs_generate_variant:Nn \__docxlike_format_special_put:nn { nV }
 \keys_define:nn { docxlike / style }
@@ -715,16 +873,16 @@
 \keys_define:nn { docxlike / style / font }
   {
     asian-text-font .code:n =
-      { \__docxlike_format_enum:nnn { eastAsia }
+      { \__docxlike_format_enum:nnn { rPr/rFonts/eastAsia }
           { songti , heiti , kaishu , fangsong , xinwei , dengxian , none } {#1} } ,
     latin-text-font .code:n =
-      { \__docxlike_format_enum:nnn { ascii } { serif , sans , mono } {#1} } ,
+      { \__docxlike_format_enum:nnn { rPr/rFonts/ascii } { serif , sans , mono } {#1} } ,
     font-style .code:n = { \__docxlike_style_font_style:n {#1} } ,
     size .code:n = { \__docxlike_format_size:n {#1} } ,
-    all-caps .code:n = { \__docxlike_format_bool:nn { caps } {#1} } ,
+    all-caps .code:n = { \__docxlike_format_bool:nn { rPr/caps } {#1} } ,
     all-caps .default:n = { true } ,
     character-spacing .code:n = { \__docxlike_style_char_spacing:n {#1} } ,
-    snap-to-grid .code:n = { \__docxlike_format_bool:nn { rPr-snapToGrid } {#1} } ,
+    snap-to-grid .code:n = { \__docxlike_format_bool:nn { rPr/snapToGrid } {#1} } ,
     snap-to-grid .default:n = { true } ,
     unknown .code:n =
       { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
@@ -734,7 +892,7 @@
     alignment .code:n = { \__docxlike_style_alignment:n {#1} } ,
     indentation .code:n = { \__docxlike_style_indentation:n {#1} } ,
     spacing .code:n = { \__docxlike_style_spacing:n {#1} } ,
-    snap-to-grid .code:n = { \__docxlike_format_bool:nn { snapToGrid } {#1} } ,
+    snap-to-grid .code:n = { \__docxlike_format_bool:nn { pPr/snapToGrid } {#1} } ,
     snap-to-grid .default:n = { true } ,
     pagination .code:n =
       { \__docxlike_keys_set:nn { docxlike / style / paragraph / pagination } {#1} } ,
@@ -745,16 +903,16 @@
   {
     \str_case:nnF {#1}
       {
-        { left } { \__docxlike_format_put:nn { jc } { left } }
-        { centered } { \__docxlike_format_put:nn { jc } { center } }
-        { right } { \__docxlike_format_put:nn { jc } { right } }
-        { justified } { \__docxlike_format_put:nn { jc } { both } }
-        { distributed } { \__docxlike_format_put:nn { jc } { distribute } }
-        { auto } { \__docxlike_format_put:nn { jc } { auto } }
+        { left } { \__docxlike_format_put:nn { pPr/jc } { left } }
+        { centered } { \__docxlike_format_put:nn { pPr/jc } { center } }
+        { right } { \__docxlike_format_put:nn { pPr/jc } { right } }
+        { justified } { \__docxlike_format_put:nn { pPr/jc } { both } }
+        { distributed } { \__docxlike_format_put:nn { pPr/jc } { distribute } }
+        { auto } { \__docxlike_format_put:nn { pPr/jc } { auto } }
       }
       {
         \prop_if_in:NnTF \g__docxlike_format_align_extra_prop {#1}
-          { \__docxlike_format_put:nn { jc } {#1} }
+          { \__docxlike_format_put:nn { pPr/jc } {#1} }
           {
             \__docxlike_bad_value:nne { alignment } {#1}
               {
@@ -775,7 +933,7 @@
   }
 \keys_define:nn { docxlike / style / paragraph / pagination }
   {
-    keep-with-next .code:n = { \__docxlike_format_bool:nn { keepNext } {#1} } ,
+    keep-with-next .code:n = { \__docxlike_format_bool:nn { pPr/keepNext } {#1} } ,
     keep-with-next .default:n = { true } ,
     unknown .code:n =
       { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
@@ -792,9 +950,9 @@
   {
     \str_case:nnF {#1}
       {
-        { regular } { \__docxlike_format_put:nn { b } { false } }
-        { bold } { \__docxlike_format_put:nn { b } { true } }
-        { auto } { \__docxlike_format_put:nn { b } { auto } }
+        { regular } { \__docxlike_format_put:nn { rPr/b } { false } }
+        { bold } { \__docxlike_format_put:nn { rPr/b } { true } }
+        { auto } { \__docxlike_format_put:nn { rPr/b } { auto } }
         { italic } { \msg_error:nnn { docxlike } { not-implemented } { font-style~=~italic } }
         { bold-italic }
           { \msg_error:nnn { docxlike } { not-implemented } { font-style~=~bold-italic } }
@@ -812,7 +970,8 @@
   {
     spacing .choices:nn = { normal , expanded , condensed }
       { \tl_set_eq:NN \l__docxlike_style_cs_spacing_tl \l_keys_choice_tl } ,
-    by .dim_set:N = \l__docxlike_style_cs_by_dim ,
+    by .code:n =
+      { \dim_set:Nn \l__docxlike_style_cs_by_dim { \__docxlike_bp:n {#1} } } ,
     unknown .code:n =
       { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
   }
@@ -847,8 +1006,8 @@
 \tl_new:N \l__docxlike_style_by_tl
 \keys_define:nn { docxlike / style / paragraph / indentation }
   {
-    left .code:n = { \__docxlike_format_amount:nnn { ind-left } { chars } {#1} } ,
-    right .code:n = { \__docxlike_format_amount:nnn { ind-right } { chars } {#1} } ,
+    left .code:n = { \__docxlike_format_indent_side:nn { left } {#1} } ,
+    right .code:n = { \__docxlike_format_indent_side:nn { right } {#1} } ,
     special .tl_set:N = \l__docxlike_style_special_tl ,
     by .tl_set:N = \l__docxlike_style_by_tl ,
     unknown .code:n =
@@ -941,11 +1100,15 @@
     \int_compare:nNnT { \l__docxlike_format_count_int } = { 1 }
       {
         \str_if_in:nVTF { 0123456789. } \l__docxlike_format_last_tl
-          { \str_if_eq:nnT {#1} { number } { \bool_set_true:N \l__docxlike_style_at_ok_bool } }
+          { \bool_set_true:N \l__docxlike_style_at_ok_bool }
           { \str_if_eq:nnT {#1} { length } { \bool_set_true:N \l__docxlike_style_at_ok_bool } }
       }
     \bool_if:NTF \l__docxlike_style_at_ok_bool
-      { \__docxlike_style_rule_put:e { \l__docxlike_style_at_tl #2 } }
+      {
+        \str_if_eq:nnTF {#1} { length }
+          { \__docxlike_style_rule_put:e { \__docxlike_bp:V \l__docxlike_style_at_tl #2 } }
+          { \__docxlike_style_rule_put:e { \l__docxlike_style_at_tl #2 } }
+      }
       {
         \__docxlike_bad_value:nVn { at } \l__docxlike_style_at_tl
           { \str_if_eq:nnTF {#1} { number } { a~number } { a~length } }
@@ -966,7 +1129,7 @@
 \cs_new_protected:Npn \__docxlike_style_tabs:n #1
   {
     \str_if_eq:nnTF {#1} { auto }
-      { \__docxlike_format_put:nn { tabs } { auto } }
+      { \__docxlike_format_put:nn { pPr/tabs } { auto } }
       {
         \seq_clear:N \l__docxlike_style_tab_out_seq
         \seq_set_from_clist:Nn \l__docxlike_style_tab_seq {#1}
@@ -975,11 +1138,14 @@
             \seq_put_right:Ne \l__docxlike_style_tab_out_seq
               { \__docxlike_style_tab_swap:w ##1 ~ ~ \q_stop }
           }
-        \__docxlike_format_put:ne { tabs } { \seq_use:Nn \l__docxlike_style_tab_out_seq { , } }
+        \__docxlike_format_put:ne { pPr/tabs } { \seq_use:Nn \l__docxlike_style_tab_out_seq { , } }
       }
   }
 \cs_new:Npn \__docxlike_style_tab_swap:w #1 ~ #2 ~ #3 \q_stop
-  { #2 ~ #1 \tl_if_blank:nF {#3} { ~ \tl_trim_spaces:n {#3} } }
+  {
+    #2 ~ \__docxlike_format_twips:n {#1}
+    \tl_if_blank:nF {#3} { ~ \tl_trim_spaces:n {#3} }
+  }
 %    \end{macrocode}
 %
 % \option{border} 照“边框和底纹”对话框：\option{top}、\option{bottom} 各一组，
@@ -1001,15 +1167,17 @@
   {
     style .tl_set:N = \l__docxlike_style_border_style_tl ,
     color .tl_set:N = \l__docxlike_style_border_color_tl ,
-    width .dim_set:N = \l__docxlike_style_border_width_dim ,
-    from-text .dim_set:N = \l__docxlike_style_border_text_dim ,
+    width .code:n =
+      { \dim_set:Nn \l__docxlike_style_border_width_dim { \__docxlike_bp:n {#1} } } ,
+    from-text .code:n =
+      { \dim_set:Nn \l__docxlike_style_border_text_dim { \__docxlike_bp:n {#1} } } ,
     unknown .code:n =
       { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
   }
 \cs_new_protected:Npn \__docxlike_style_border:nn #1#2
   {
     \str_if_eq:nnTF {#2} { auto }
-      { \__docxlike_format_put:nn { pBdr-#1 } { auto } }
+      { \__docxlike_format_put:nn { pPr/pBdr/#1 } { auto } }
       {
         \group_begin:
           \tl_set:Nn \l__docxlike_style_border_style_tl { single }
@@ -1017,7 +1185,7 @@
           \dim_set:Nn \l__docxlike_style_border_width_dim { 0.5bp }
           \dim_set:Nn \l__docxlike_style_border_text_dim { 1bp }
           \keys_set:nn { docxlike / style / border / side } {#2}
-          \__docxlike_format_put:ne { pBdr-#1 }
+          \__docxlike_format_put:ne { pPr/pBdr/#1 }
             {
               { \l__docxlike_style_border_style_tl }
               { \fp_eval:n { round ( \dim_to_decimal_in_bp:n { \l__docxlike_style_border_width_dim } * 8 , 3 ) } }
@@ -1396,7 +1564,7 @@
     \bool_if:NTF \g_docxlike_grid_bool
       { \dim_set_eq:NN #1 \g_docxlike_page_lead_dim }
       {
-        \__docxlike_format_read:nnnN { Normal } { sz } { } \l__docxlike_format_value_tl
+        \__docxlike_format_sz_read:nN { Normal } \l__docxlike_format_value_tl
         \tl_if_empty:NTF \l__docxlike_format_value_tl
           { \dim_set_eq:NN #1 \g_docxlike_page_lead_dim }
           { \dim_set:Nn #1 { \l__docxlike_format_value_tl } }
@@ -1434,13 +1602,104 @@
       }
   }
 \cs_generate_variant:Nn \__docxlike_format_amount_use:nnN { VVN }
+\tl_new:N \l__docxlike_format_raw_tl
 \cs_new_protected:Npn \__docxlike_format_amount_read:nn #1#2
   {
-    \__docxlike_format_read:nnnN {#1} {#2} { 0pt } \l__docxlike_format_value_tl
-    \__docxlike_format_read:nnnN {#1} { #2 -unit } { length } \l__docxlike_format_unit_tl
-    \__docxlike_format_read:nnnN {#1} { #2 -2 } { } \l__docxlike_format_value_ii_tl
-    \__docxlike_format_read:nnnN {#1} { #2 -2-unit } { } \l__docxlike_format_unit_ii_tl
+    \__docxlike_format_slot_find:nn {#1} {#2}
+    \tl_set:Nn \l__docxlike_format_value_tl { 0pt }
+    \tl_set:Nn \l__docxlike_format_unit_tl { length }
+    \tl_clear:N \l__docxlike_format_value_ii_tl
+    \tl_clear:N \l__docxlike_format_unit_ii_tl
+    \__docxlike_format_ext_read:nTF {#2}
+      { }
+      {
+        \clist_map_inline:Nn \l__docxlike_format_slot_clist
+          {
+            \prop_get:NnNT \l__docxlike_format_slot_prop {##1} \l__docxlike_format_raw_tl
+              {
+                \__docxlike_format_attr_amount:nV {##1} \l__docxlike_format_raw_tl
+                \clist_map_break:
+              }
+          }
+      }
   }
+%    \end{macrocode}
+%
+% 一条 docx 属性折回“值加单位”：名字以 \texttt{Lines} 收尾的是百分之一行，以
+% \texttt{Chars} 收尾的是百分之一字，其余是缇。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_format_attr_amount:nn #1#2
+  {
+    \str_case:enF { \str_range:nnn {#1} { -5 } { -1 } }
+      {
+        { Lines }
+          {
+            \tl_set:Nn \l__docxlike_format_unit_tl { line }
+            \tl_set:Ne \l__docxlike_format_value_tl { \fp_eval:n { #2 / 100 } }
+          }
+        { Chars }
+          {
+            \tl_set:Nn \l__docxlike_format_unit_tl { chars }
+            \tl_set:Ne \l__docxlike_format_value_tl { \fp_eval:n { #2 / 100 } }
+          }
+      }
+      {
+        \tl_set:Nn \l__docxlike_format_unit_tl { length }
+        \tl_set:Ne \l__docxlike_format_value_tl { \__docxlike_format_from_twips:n {#2} }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_format_attr_amount:nn { nV }
+\prg_new_protected_conditional:Npnn \__docxlike_format_ext_read:n #1 { TF }
+  {
+    \prop_get:NnNTF \l__docxlike_format_slot_prop { ext/#1 } \l__docxlike_format_value_tl
+      {
+        \prop_get:NnNF \l__docxlike_format_slot_prop { ext/#1-unit } \l__docxlike_format_unit_tl
+          { \tl_set:Nn \l__docxlike_format_unit_tl { length } }
+        \prop_get:NnNF \l__docxlike_format_slot_prop { ext/#1-2 } \l__docxlike_format_value_ii_tl
+          { \tl_clear:N \l__docxlike_format_value_ii_tl }
+        \prop_get:NnNF \l__docxlike_format_slot_prop { ext/#1-2-unit } \l__docxlike_format_unit_ii_tl
+          { \tl_clear:N \l__docxlike_format_unit_ii_tl }
+        \prg_return_true:
+      }
+      { \prg_return_false: }
+  }
+\cs_new_protected:Npn \__docxlike_format_line_read:n #1
+  {
+    \__docxlike_format_slot_find:nn {#1} { line }
+    \tl_clear:N \l__docxlike_format_value_ii_tl
+    \tl_clear:N \l__docxlike_format_unit_ii_tl
+    \__docxlike_format_ext_read:nTF { line }
+      { }
+      {
+        \prop_get:NnNTF \l__docxlike_format_slot_prop { pPr/spacing/line } \l__docxlike_format_raw_tl
+          {
+            \prop_get:NnNF \l__docxlike_format_slot_prop { pPr/spacing/lineRule }
+              \l__docxlike_format_unit_tl
+              { \tl_set:Nn \l__docxlike_format_unit_tl { auto } }
+            \str_if_eq:VnTF \l__docxlike_format_unit_tl { auto }
+              {
+                \tl_set:Ne \l__docxlike_format_value_tl
+                  { \fp_eval:n { \l__docxlike_format_raw_tl / 240 } }
+              }
+              {
+                \tl_set:Ne \l__docxlike_format_value_tl
+                  { \__docxlike_format_from_twips:V \l__docxlike_format_raw_tl }
+              }
+          }
+          {
+            \tl_set:Nn \l__docxlike_format_value_tl { 1 }
+            \tl_set:Nn \l__docxlike_format_unit_tl { auto }
+          }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_format_sz_read:nN #1#2
+  {
+    \__docxlike_format_get:nnNTF {#1} { rPr/sz } #2
+      { \tl_set:Ne #2 { \__docxlike_format_from_half_points:V #2 } }
+      { \tl_clear:N #2 }
+  }
+\cs_generate_variant:Nn \__docxlike_format_from_twips:n { V }
+\cs_generate_variant:Nn \__docxlike_format_from_half_points:n { V }
 \cs_new_protected:Npn \__docxlike_format_amount_pick:nnN #1#2#3
   {
     \__docxlike_format_amount_read:nn {#1} {#2}
@@ -1477,15 +1736,19 @@
   }
 \cs_new_protected:Npn \__docxlike_format_indent:n #1
   {
-    \__docxlike_format_read:nnnN {#1} { ind-special } { none }
-      \l__docxlike_format_coef_tl
-    \str_if_eq:VnTF \l__docxlike_format_coef_tl { none }
-      { \dim_zero:N \l_docxlike_format_indent_dim }
+    \__docxlike_format_slot_find:nn {#1} { ind-special }
+    \dim_zero:N \l_docxlike_format_indent_dim
+    \clist_map_inline:nn { hangingChars , hanging , firstLineChars , firstLine }
       {
-        \__docxlike_format_amount_pick:nnN {#1} { ind-special-amount }
-          \l_docxlike_format_indent_dim
-        \str_if_eq:VnT \l__docxlike_format_coef_tl { hanging }
-          { \dim_set:Nn \l_docxlike_format_indent_dim { - \l_docxlike_format_indent_dim } }
+        \prop_get:NnNT \l__docxlike_format_slot_prop { pPr/ind/##1 } \l__docxlike_format_raw_tl
+          {
+            \__docxlike_format_attr_amount:nV {##1} \l__docxlike_format_raw_tl
+            \__docxlike_format_amount_use:VVN \l__docxlike_format_unit_tl
+              \l__docxlike_format_value_tl \l_docxlike_format_indent_dim
+            \str_if_eq:eeT { \str_range:nnn {##1} { 1 } { 7 } } { hanging }
+              { \dim_set:Nn \l_docxlike_format_indent_dim { - \l_docxlike_format_indent_dim } }
+            \clist_map_break:
+          }
       }
   }
 %    \end{macrocode}
@@ -1514,12 +1777,12 @@
 \cs_generate_variant:Nn \__docxlike_format_snap_axis:nnN { VnN }
 \cs_new_protected:Npn \docxlike_format_compute:n #1
   {
-    \__docxlike_format_read:nnnN {#1} { sz } { } \l__docxlike_format_value_tl
+    \__docxlike_format_sz_read:nN {#1} \l__docxlike_format_value_tl
     \tl_if_empty:NTF \l__docxlike_format_value_tl
       { \dim_set:Nn \l_docxlike_format_size_dim { \f@size pt } }
       { \dim_set:Nn \l_docxlike_format_size_dim { \l__docxlike_format_value_tl } }
     \__docxlike_format_latin_line:n {#1}
-    \__docxlike_format_read:nnnN {#1} { eastAsia } { songti } \l__docxlike_format_value_tl
+    \__docxlike_format_read:nnnN {#1} { rPr/rFonts/eastAsia } { songti } \l__docxlike_format_value_tl
     \bool_lazy_or:nnT
       { \bool_if_p:N \l_docxlike_format_latin_pick_bool }
       { \bool_if_p:N \l_docxlike_format_latin_line_bool }
@@ -1537,7 +1800,7 @@
       { \tl_set_eq:NN \l__docxlike_format_strut_natural_tl \l__docxlike_format_coef_tl }
     \dim_set:Nn \l_docxlike_format_natural_dim
       { \l__docxlike_format_coef_tl \l_docxlike_format_size_dim }
-    \__docxlike_format_snap_axis:nnN {#1} { snapToGrid }
+    \__docxlike_format_snap_axis:nnN {#1} { pPr/snapToGrid }
       \l__docxlike_format_value_tl
     \bool_set:Nn \l_docxlike_format_snap_vertical_bool
       {
@@ -1545,33 +1808,29 @@
         && \bool_if_p:N \g_docxlike_grid_bool
         && ! \dim_compare_p:nNn { \g_docxlike_page_lead_dim } = { 0pt }
       }
-    \__docxlike_format_get:nnNTF {#1} { rPr-snapToGrid } \l__docxlike_format_value_tl
+    \__docxlike_format_get:nnNTF {#1} { rPr/snapToGrid } \l__docxlike_format_value_tl
       { \bool_set_true:N \l_docxlike_format_hglue_set_bool }
       { \bool_set_false:N \l_docxlike_format_hglue_set_bool }
-    \__docxlike_format_snap_axis:nnN {#1} { rPr-snapToGrid }
+    \__docxlike_format_snap_axis:nnN {#1} { rPr/snapToGrid }
       \l__docxlike_format_value_tl
     \bool_set:Nn \l_docxlike_format_snap_horizontal_bool
       {
         \str_if_eq_p:Vn \l__docxlike_format_value_tl { true }
         && ! \dim_compare_p:nNn { \g_docxlike_page_char_dim } = { 0pt }
       }
-    \__docxlike_format_read:nnnN {#1} { spacing } { auto } \l__docxlike_format_value_tl
+    \__docxlike_format_read:nnnN {#1} { rPr/spacing } { auto } \l__docxlike_format_value_tl
     \str_if_eq:VnTF \l__docxlike_format_value_tl { auto }
       { \dim_zero:N \l_docxlike_format_char_spacing_dim }
       {
-        \dim_set:Nn \l_docxlike_format_char_spacing_dim { \l__docxlike_format_value_tl }
+        \dim_set:Nn \l_docxlike_format_char_spacing_dim
+          { \__docxlike_format_from_twips:V \l__docxlike_format_value_tl }
         \bool_set_true:N \l_docxlike_format_hglue_set_bool
       }
-    \__docxlike_format_read:nnnN {#1} { line } { 1 } \l__docxlike_format_value_tl
-    \__docxlike_format_read:nnnN {#1} { line-unit } { auto }
-      \l__docxlike_format_unit_tl
+    \__docxlike_format_line_read:n {#1}
     \tl_set_eq:NN \l_docxlike_format_line_value_tl \l__docxlike_format_value_tl
     \tl_set_eq:NN \l_docxlike_format_line_unit_tl \l__docxlike_format_unit_tl
     \bool_set:Nn \l__docxlike_format_exact_bool
       { \str_if_eq_p:Vn \l__docxlike_format_unit_tl { exact } }
-    \__docxlike_format_read:nnnN {#1} { line-2 } { } \l__docxlike_format_value_ii_tl
-    \__docxlike_format_read:nnnN {#1} { line-2-unit } { }
-      \l__docxlike_format_unit_ii_tl
     \__docxlike_format_lead:
     \__docxlike_format_space_get:nnnNN {#1} { before } { before }
       \l_docxlike_format_before_dim \l_docxlike_format_before_plus_dim
@@ -2235,7 +2494,7 @@
   {
     \tl_clear:N \l__docxlike_format_out_tl
     \__docxlike_format_latin_line:n {#1}
-    \__docxlike_format_read:nnnN {#1} { eastAsia } { } \l__docxlike_format_value_tl
+    \__docxlike_format_read:nnnN {#1} { rPr/rFonts/eastAsia } { } \l__docxlike_format_value_tl
     \bool_set:Nn \l__docxlike_format_latin_bool
       {
         \str_if_eq_p:Vn \l__docxlike_format_value_tl { none }
@@ -2251,8 +2510,8 @@
       }
     \prop_get:NnNT \g__docxlike_format_font_extra_prop {#1} \l__docxlike_format_extra_tl
       { \tl_put_right:NV \l__docxlike_format_out_tl \l__docxlike_format_extra_tl }
-    \__docxlike_format_pick:nnN {#1} { ascii } \c__docxlike_format_latin_prop
-    \__docxlike_format_read:nnnN {#1} { sz } { } \l__docxlike_format_value_tl
+    \__docxlike_format_pick:nnN {#1} { rPr/rFonts/ascii } \c__docxlike_format_latin_prop
+    \__docxlike_format_sz_read:nN {#1} \l__docxlike_format_value_tl
     \tl_if_empty:NF \l__docxlike_format_value_tl
       {
         \tl_put_right:Nx \l__docxlike_format_out_tl
@@ -2263,11 +2522,11 @@
             \exp_not:N \selectfont
           }
       }
-    \__docxlike_format_read:nnnN {#1} { b } { false } \l__docxlike_format_value_tl
+    \__docxlike_format_read:nnnN {#1} { rPr/b } { false } \l__docxlike_format_value_tl
     \str_if_eq:VnT \l__docxlike_format_value_tl { true }
       { \tl_put_right:Nn \l__docxlike_format_out_tl { \bfseries } }
     \__docxlike_format_font_hook:n {#1}
-    \__docxlike_format_pick:nnN {#1} { jc } \g__docxlike_format_align_prop
+    \__docxlike_format_pick:nnN {#1} { pPr/jc } \g__docxlike_format_align_prop
     \tl_put_right:Nx \l__docxlike_format_out_tl
       {
         \exp_not:c
@@ -2437,7 +2696,7 @@
               } ,
           }
         \__docxlike_format_heading_keys:nN {#1} \l__docxlike_format_keys_tl
-        \__docxlike_format_get:nnNT {#1} { before } \l__docxlike_format_coef_tl
+        \__docxlike_format_slot_if_set:nnT {#1} { before }
           {
             \dim_compare:nNnT { \g__docxlike_format_parskip_dim } > { 0pt }
               {
@@ -2456,7 +2715,7 @@
                   } ,
               }
           }
-        \__docxlike_format_get:nnNT {#1} { after } \l__docxlike_format_coef_tl
+        \__docxlike_format_slot_if_set:nnT {#1} { after }
           {
             \tl_put_right:Nx \l__docxlike_format_keys_tl
               {
@@ -2580,7 +2839,7 @@
       \nointerlineskip
       \__docxlike_format_border_put:nn {#1} { top }
       \l__docxlike_format_par_tl
-      \__docxlike_format_read:nnnN {#1} { caps } { false }
+      \__docxlike_format_read:nnnN {#1} { rPr/caps } { false }
         \l__docxlike_format_value_tl
       \str_if_eq:VnTF \l__docxlike_format_value_tl { true }
         { \__docxlike_format_tabbed:nn {#1} { \MakeUppercase {#2} } }
@@ -2725,7 +2984,7 @@
 \tl_new:N \l__docxlike_format_border_tl
 \cs_new_protected:Npn \__docxlike_format_border_put:nn #1#2
   {
-    \__docxlike_format_read:nnnN {#1} { pBdr-#2 } { } \l__docxlike_format_border_tl
+    \__docxlike_format_read:nnnN {#1} { pPr/pBdr/#2 } { } \l__docxlike_format_border_tl
     \tl_if_empty:NF \l__docxlike_format_border_tl
       {
         \use:e
@@ -2870,7 +3129,7 @@
   }
 \cs_new_protected:Npn \__docxlike_format_tab_line:nn #1#2
   {
-    \__docxlike_format_read:nnnN {#1} { tabs } { } \l__docxlike_format_tabs_tl
+    \__docxlike_format_read:nnnN {#1} { pPr/tabs } { } \l__docxlike_format_tabs_tl
     \seq_set_from_clist:NV \l__docxlike_format_tab_stop_seq \l__docxlike_format_tabs_tl
     \seq_set_split:Nnn \l__docxlike_format_tab_seg_seq { \docxliketab } {#2}
     \seq_pop_left:NN \l__docxlike_format_tab_seg_seq \l__docxlike_format_border_tl
@@ -2906,7 +3165,7 @@
         \dim_set:Nn \l__docxlike_format_tab_x_dim
           { \l__docxlike_format_tab_start_dim + \box_wd:N \l__docxlike_format_tab_seg_box }
       }
-    \__docxlike_format_read:nnnN {#1} { jc } { both } \l__docxlike_format_value_tl
+    \__docxlike_format_read:nnnN {#1} { pPr/jc } { both } \l__docxlike_format_value_tl
     \leavevmode
     \hbox_to_wd:nn { \linewidth }
       {
@@ -2954,7 +3213,7 @@
 \cs_new_protected:Npn \__docxlike_format_tab_stop:w #1 ~ #2 ~ #3 \q_stop
   {
     \tl_set:Nn \l__docxlike_format_tab_stop_kind_tl {#1}
-    \dim_set:Nn \l__docxlike_format_tab_stop_pos_dim {#2}
+    \dim_set:Nn \l__docxlike_format_tab_stop_pos_dim { \__docxlike_format_from_twips:n {#2} }
     \tl_set:Nn \l__docxlike_format_tab_stop_lead_tl {#3}
     \tl_remove_all:Nn \l__docxlike_format_tab_stop_lead_tl { \q_mark }
     \tl_trim_spaces:N \l__docxlike_format_tab_stop_lead_tl
@@ -4131,7 +4390,7 @@
     \bool_set_false:N \l__docxlike_format_spaced_bool
     \clist_map_inline:nn { before , after }
       {
-        \__docxlike_format_get:nnNT { Normal } {##1} \l__docxlike_format_value_tl
+        \__docxlike_format_slot_if_set:nnT { Normal } {##1}
           { \bool_set_true:N \l__docxlike_format_spaced_bool }
       }
     \bool_if:NT \l__docxlike_format_spaced_bool
@@ -4239,7 +4498,7 @@
         \docxlike_format_penalties:
         \normalsize
         \cs_if_exist:NT \ctexset { \ctexset { autoindent = false } }
-        \__docxlike_format_get:nnNT { Normal } { jc } \l__docxlike_format_value_tl
+        \__docxlike_format_get:nnNT { Normal } { pPr/jc } \l__docxlike_format_value_tl
           {
             \prop_get:NVNT \g__docxlike_format_align_prop \l__docxlike_format_value_tl
               \l__docxlike_format_value_tl { \l__docxlike_format_value_tl }
@@ -4438,7 +4697,7 @@
   {
     \prop_get:NnNTF \g__docxlike_size_prop {#1} \l__docxlike_size_tl
       { \dim_set:Nn \l__docxlike_parmark_size_dim { \l__docxlike_size_tl } }
-      { \dim_set:Nn \l__docxlike_parmark_size_dim { #1 } }
+      { \dim_set:Nn \l__docxlike_parmark_size_dim { \__docxlike_bp:n {#1} } }
   }
 \dim_new:N \l__docxlike_parmark_asc_dim
 \dim_new:N \l__docxlike_parmark_prev_dim
@@ -4541,8 +4800,8 @@
                 { 1.5-lines } { 1.5 }
                 { double } { double }
                 { multiple } { \l__docxlike_style_at_tl }
-                { exactly } { \l__docxlike_style_at_tl ! }
-                { at-least } { \l__docxlike_style_at_tl + }
+                { exactly } { \__docxlike_bp:V \l__docxlike_style_at_tl ! }
+                { at-least } { \__docxlike_bp:V \l__docxlike_style_at_tl + }
               }
           }
       }
@@ -4605,8 +4864,11 @@
     \fp_set_eq:NN \l__docxlike_parmark_ratio_fp \c__docxlike_parmark_natural_serif_fp
     \tl_set_eq:NN \l__docxlike_parmark_ascent_tl \c_docxlike_format_ascent_latin_tl
     \docxlike_format_compute:n { Normal }
-    \__docxlike_format_get:nnNTF { Normal } { line } \l__docxlike_parmark_val_tl
-      { \tl_set_eq:NN \l__docxlike_parmark_mode_tl \l_docxlike_format_line_unit_tl }
+    \__docxlike_format_slot_if_set:nnTF { Normal } { line }
+      {
+        \tl_set_eq:NN \l__docxlike_parmark_val_tl \l_docxlike_format_line_value_tl
+        \tl_set_eq:NN \l__docxlike_parmark_mode_tl \l_docxlike_format_line_unit_tl
+      }
       {
         \tl_set:Nn \l__docxlike_parmark_mode_tl { auto }
         \tl_set:Nn \l__docxlike_parmark_val_tl { 1.25 }
