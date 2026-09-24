@@ -43,7 +43,7 @@
   { docxlike~knows~the~docx~names~(decimal,~upperRoman,~chineseCounting,~...)~and~the~field~switch~names~(roman,~CHINESENUM3,~...). }
 \prop_const_from_keyval:Nn \c__docxlike_number_alias_prop
   {
-    Arabic = decimal , arabic = decimal ,
+    Arabic = decimal , arabic = decimal , ARABIC = decimal ,
     roman = lowerRoman , Roman = upperRoman , ROMAN = upperRoman ,
     alphabetic = lowerLetter , ALPHABETIC = upperLetter ,
     ArabicDash = numberInDash ,
@@ -1150,6 +1150,7 @@
         \bool_const:cn { c__docxlike_style_ \l__docxlike_style_key_str _bool } { \c_true_bool }
         \exp_args:Ne \NewMarkClass { docxlike / style / \l__docxlike_style_key_str }
         \exp_args:Ne \NewMarkClass { docxlike / number / \l__docxlike_style_key_str }
+        \exp_args:Ne \NewMarkClass { docxlike / snumber / \l__docxlike_style_key_str }
       }
   }
 \int_step_inline:nnn { 1 } { 9 } { \docxlike_style_new:n { heading #1 } }
@@ -1164,19 +1165,27 @@
 \prop_new:N \g__docxlike_style_first_prop
 \prop_new:N \g__docxlike_style_seen_prop
 \cs_new_protected:Npn \docxlike_style_mark:nnn #1#2#3
+  { \docxlike_style_mark:nnnn {#1} {#2} {#2} {#3} }
+\cs_new_protected:Npn \docxlike_style_mark:nnnn #1#2#3#4
   {
     \__docxlike_style_key:n {#1}
     \cs_if_exist:cTF { c__docxlike_style_ \l__docxlike_style_key_str _bool }
       {
-        \exp_args:Ne \InsertMark { docxlike / style / \l__docxlike_style_key_str } {#3}
+        \exp_args:Ne \InsertMark { docxlike / style / \l__docxlike_style_key_str } {#4}
         \exp_args:Ne \InsertMark { docxlike / number / \l__docxlike_style_key_str } {#2}
+        \exp_args:Ne \InsertMark { docxlike / snumber / \l__docxlike_style_key_str } {#3}
+        \prop_gput:Nen \g__docxlike_style_last_prop { \l__docxlike_style_key_str } {#4}
+        \prop_gput:Nen \g__docxlike_style_last_prop { \l__docxlike_style_key_str / number } {#2}
+        \prop_gput:Nen \g__docxlike_style_last_prop { \l__docxlike_style_key_str / snumber } {#3}
         \prop_if_in:NVF \g__docxlike_style_seen_prop \l__docxlike_style_key_str
           {
             \prop_gput:NVn \g__docxlike_style_seen_prop \l__docxlike_style_key_str { }
             \iow_now:Ne \@auxout
               {
                 \exp_not:N \docxlike@firststyle { \l__docxlike_style_key_str }
-                  { \exp_not:n {#3} } { \exp_not:n {#2} }
+                  { \exp_not:n {#4} } { \exp_not:n {#2} }
+                \exp_not:N \docxlike@firstsnumber { \l__docxlike_style_key_str }
+                  { \exp_not:n {#3} }
               }
           }
       }
@@ -1184,6 +1193,10 @@
   }
 \cs_generate_variant:Nn \prop_if_in:NnF { NV }
 \cs_generate_variant:Nn \prop_gput:Nnn { NV }
+\prop_new:N \g__docxlike_style_last_prop
+\cs_generate_variant:Nn \prop_gput:Nnn { Ne }
+\cs_new_protected:Npn \docxlike@firstsnumber #1#2
+  { \prop_gput:Nnn \g__docxlike_style_first_prop { #1 / snumber } {#2} }
 \cs_new_protected:Npn \docxlike@firststyle #1#2#3
   {
     \prop_gput:Nnn \g__docxlike_style_first_prop {#1} {#2}
@@ -1249,7 +1262,10 @@
 % \item \texttt{PAGE}：页码，没给格式就用本节的页码格式（即 \cs{thepage}）；
 % \item \texttt{NUMPAGES}：全文页数，上一遍编译的数，插进去的空白页也算；
 % \item \texttt{SECTIONPAGES}：本节页数，也是上一遍的数；\texttt{SECTION}：第几节；
-% \item \texttt{STYLEREF}：见上一小节，开关 \texttt{\textbackslash l}、\texttt{\textbackslash n}；
+% \item \texttt{STYLEREF}：见上一小节，开关 \texttt{\textbackslash l}（本页最后一个）、\texttt{\textbackslash n}、
+%   \texttt{\textbackslash r}、\texttt{\textbackslash w}（整个编号，第一章）、\texttt{\textbackslash s}、\texttt{\textbackslash t}
+%   （编号里只留数与分隔符，一）；
+% \item \texttt{SEQ}、\texttt{REF}、\texttt{PAGEREF}：题注编号与交叉引用，见 \file{docxlike-heading.dtx}；
 % \item \texttt{=}：算式，四则运算与括号；
 % \item \texttt{DATE}、\texttt{TIME}、\texttt{CREATEDATE}、\texttt{SAVEDATE}、\texttt{PRINTDATE}：
 %   一律取编译时刻，格式由 \texttt{\textbackslash @} 给；
@@ -1395,7 +1411,13 @@
   }
 \tl_new:N \l__docxlike_field_result_tl
 \int_new:N \l__docxlike_field_section_int
+\tl_new:N \l__docxlike_field_out_tl
 \cs_new_protected:Npn \docxlike_field:n #1
+  {
+    \docxlike_field_result:nN {#1} \l__docxlike_field_out_tl
+    \tl_use:N \l__docxlike_field_out_tl
+  }
+\cs_new_protected:Npn \docxlike_field_result:nN #1#2
   {
     \__docxlike_field_parse:n {#1}
     \int_set:Nn \l__docxlike_field_section_int
@@ -1461,9 +1483,12 @@
         { KEYWORDS } { \__docxlike_field_property:nN { keywords } \scan_stop: }
         { COMMENTS } { \__docxlike_field_property:nN { comments } \scan_stop: }
         { FILENAME } { \tl_set:Ne \l__docxlike_field_result_tl { \jobname } }
+        { SEQ } { \__docxlike_field_seq: }
+        { REF } { \__docxlike_field_ref: }
+        { PAGEREF } { \__docxlike_field_pageref: }
       }
       { \msg_warning:nnV { docxlike } { field-unknown } \l__docxlike_field_name_tl }
-    \__docxlike_field_case:
+    \__docxlike_field_case:N #2
   }
 \cs_generate_variant:Nn \msg_warning:nnn { nnV }
 \cs_generate_variant:Nn \prop_if_in:NnTF { Ne }
@@ -1481,22 +1506,23 @@
       { \int_eval:n {#1} }
       { \docxlike_number_format:Vn \l__docxlike_field_numfmt_tl {#1} }
   }
-\cs_new_protected:Npn \__docxlike_field_case:
+\cs_new_protected:Npn \__docxlike_field_case:N #1
   {
     \str_case:VnF \l__docxlike_field_case_tl
       {
-        { upper } { \text_uppercase:V \l__docxlike_field_result_tl }
-        { lower } { \text_lowercase:V \l__docxlike_field_result_tl }
-        { firstcap } { \text_titlecase_first:V \l__docxlike_field_result_tl }
+        { upper } { \tl_set:Ne #1 { \text_uppercase:V \l__docxlike_field_result_tl } }
+        { lower } { \tl_set:Ne #1 { \text_lowercase:V \l__docxlike_field_result_tl } }
+        { firstcap } { \tl_set:Ne #1 { \text_titlecase_first:V \l__docxlike_field_result_tl } }
         { caps }
           {
             \seq_set_split:NnV \l__docxlike_field_caps_seq { ~ } \l__docxlike_field_result_tl
+            \seq_clear:N \l__docxlike_field_capped_seq
             \seq_map_inline:Nn \l__docxlike_field_caps_seq
               { \seq_put_right:Ne \l__docxlike_field_capped_seq { \text_titlecase_first:n {##1} } }
-            \seq_use:Nn \l__docxlike_field_capped_seq { ~ }
+            \tl_set:Ne #1 { \seq_use:Nn \l__docxlike_field_capped_seq { ~ } }
           }
       }
-      { \tl_use:N \l__docxlike_field_result_tl }
+      { \tl_set_eq:NN #1 \l__docxlike_field_result_tl }
   }
 \cs_generate_variant:Nn \text_uppercase:n { V }
 \cs_generate_variant:Nn \text_lowercase:n { V }
@@ -1517,9 +1543,42 @@
 \prg_generate_conditional_variant:Nnn \clist_if_in:Nn { Ne } { TF }
 \cs_new_protected:Npn \__docxlike_field_styleref:
   {
-    \clist_if_in:NeTF \l__docxlike_field_flags_clist { \tl_to_str:n { n } }
-      { \tl_set:Nn \l__docxlike_field_ref_kind_tl { number } }
-      { \tl_set:Nn \l__docxlike_field_ref_kind_tl { style } }
+    \__docxlike_field_styleref_do:
+    \prg_break_point:
+  }
+\cs_new_protected:Npn \__docxlike_field_styleref_do:
+  {
+    \tl_set:Nn \l__docxlike_field_ref_kind_tl { style }
+    \clist_map_inline:Nn \l__docxlike_field_flags_clist
+      {
+        \str_case:nn {##1}
+          {
+            { n } { \tl_set:Nn \l__docxlike_field_ref_kind_tl { number } }
+            { r } { \tl_set:Nn \l__docxlike_field_ref_kind_tl { number } }
+            { w } { \tl_set:Nn \l__docxlike_field_ref_kind_tl { number } }
+          }
+      }
+    \clist_map_inline:Nn \l__docxlike_field_flags_clist
+      {
+        \str_case:nn {##1}
+          {
+            { s } { \tl_set:Nn \l__docxlike_field_ref_kind_tl { snumber } }
+            { t } { \tl_set:Nn \l__docxlike_field_ref_kind_tl { snumber } }
+          }
+      }
+    \bool_if:NF \l__docxlike_headfoot_in_page_bool
+      {
+        \tl_set:Ne \l__docxlike_field_result_tl
+          {
+            \prop_item:Ne \g__docxlike_style_last_prop
+              {
+                \l__docxlike_style_key_str
+                \str_if_eq:VnF \l__docxlike_field_ref_kind_tl { style }
+                  { / \l__docxlike_field_ref_kind_tl }
+              }
+          }
+        \prg_break:
+      }
     \clist_if_in:NeTF \l__docxlike_field_flags_clist { \tl_to_str:n { l } }
       {
         \tl_set:Ne \l__docxlike_field_result_tl
@@ -1542,9 +1601,9 @@
   {
     \tl_if_blank:nTF {#1}
       {
-        \str_if_eq:nnTF {#2} { number }
-          { \prop_item:Nn \g__docxlike_style_first_prop { #3 / number } }
+        \str_if_eq:nnTF {#2} { style }
           { \prop_item:Nn \g__docxlike_style_first_prop {#3} }
+          { \prop_item:Nn \g__docxlike_style_first_prop { #3 / #2 } }
       }
       { \exp_not:n {#1} }
   }
