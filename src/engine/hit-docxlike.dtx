@@ -212,10 +212,12 @@
   }
 \str_new:N \l__hit_styles_key_str
 \tl_new:N \l__hit_styles_list_tl
+\regex_const:Nn \c__hit_styles_chars_regex { ([0-9.]) \s* chars }
 \cs_new_protected:Npn \hit@styles@set:n #1
   {
     \tl_set:Nn \l__hit_styles_list_tl {#1}
     \tl_replace_all:Nnn \l__hit_styles_list_tl { \par } { }
+    \regex_replace_all:NnN \c__hit_styles_chars_regex { \1 \x{20} ch } \l__hit_styles_list_tl
     \exp_args:NnnV \keyval_parse:nnn
       { \__hit_styles_bare:n } { \__hit_styles_item:nn } \l__hit_styles_list_tl
   }
@@ -262,15 +264,23 @@
 %
 % \pkg{docxlike} 的“如果定义了文档网格，则对齐到网格”照界面写全，叫
 % \option{snap-to-grid-when-document-grid-is-defined}，按字符的单位照英文 Word 写 \texttt{ch}。
-% 本类的样式键要与 Typst 版一致，照旧叫 \option{snap-to-grid}、写 \texttt{2 chars}：前者在字体、
-% 段落、空段三处登记成别名，后者登记成单位的别名。
+% 本类的样式键要与 Typst 版一致，照旧叫 \option{snap-to-grid}、写 \texttt{2 chars}，由类自己
+% 接过去：\option{snap-to-grid} 在 \pkg{docxlike} 字体、段落、空段三组里各加一个同名的键，转给
+% 那边的长名字，\cs{hitenter} 也就跟着认；\texttt{chars} 在 \option{styles} 的入口
+% \cs{hit@styles@set:n} 里改写成 \texttt{ch}，那是用户与本类预设写样式的唯一入口。
 %    \begin{macrocode}
 \clist_map_inline:nn { style / font , style / paragraph , parmark / paragraph }
   {
-    \docxlike_keys_alias:nnn {#1} { snap-to-grid }
-      { snap-to-grid-when-document-grid-is-defined }
+    \keys_define:nn { docxlike / #1 }
+      {
+        snap-to-grid .code:n =
+          {
+            \keys_set:nn { docxlike / #1 }
+              { snap-to-grid-when-document-grid-is-defined = {##1} }
+          } ,
+        snap-to-grid .default:n = { true } ,
+      }
   }
-\docxlike_format_unit_alias:nn { chars } { ch }
 %    \end{macrocode}
 %
 % \subsection{Word 里没有的写法}
