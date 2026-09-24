@@ -108,7 +108,7 @@
 % \option{paragraph}/\option{alignment} & \texttt{pPr/jc}：\texttt{left}、\texttt{center}、\texttt{right}、\texttt{both}、\texttt{distribute} \\
 % \option{paragraph}/\option{indentation} & \texttt{pPr/ind/} 下的 \texttt{left}、\texttt{leftChars}、\texttt{right}、\texttt{rightChars}、\texttt{firstLine}、\texttt{firstLineChars}、\texttt{hanging}、\texttt{hangingChars} \\
 % \option{paragraph}/\option{spacing} & \texttt{pPr/spacing/} 下的 \texttt{before}、\texttt{beforeLines}、\texttt{after}、\texttt{afterLines}、\texttt{line}、\texttt{lineRule} \\
-% \option{paragraph}/\option{snap-to-grid-when-document-grid-is-defined}、\option{pagination}/\option{keep-with-next} & \texttt{pPr/snapToGrid}、\texttt{pPr/keepNext} \\
+% \option{paragraph}/\option{snap-to-grid-when-document-grid-is-defined}、\option{pagination} 的 \option{keep-with-next}、\option{keep-lines-together}、\option{page-break-before} & \texttt{pPr/snapToGrid}、\texttt{pPr/keepNext}、\texttt{pPr/keepLines}、\texttt{pPr/pageBreakBefore} \\
 % \option{tabs}、\option{border} & \texttt{pPr/tabs}（每个停靠点“对齐 位置 前导符”，位置是缇）、\texttt{pPr/pBdr/top}、\texttt{pPr/pBdr/bottom} \\
 % \bottomrule
 % \end{longtblr}
@@ -943,6 +943,10 @@
   {
     keep-with-next .code:n = { \__docxlike_format_bool:nn { pPr/keepNext } {#1} } ,
     keep-with-next .default:n = { true } ,
+    keep-lines-together .code:n = { \__docxlike_format_bool:nn { pPr/keepLines } {#1} } ,
+    keep-lines-together .default:n = { true } ,
+    page-break-before .code:n = { \__docxlike_format_bool:nn { pPr/pageBreakBefore } {#1} } ,
+    page-break-before .default:n = { true } ,
     unknown .code:n =
       { \__docxlike_unknown_key: } ,
   }
@@ -2978,6 +2982,13 @@
 % 起点到右边距之间居中，Word 也是这样（\file{test/numbering} 里悬挂缩进的居中段）。段落链接了
 % 多级列表的某一级时，那一级的缩进压过样式的，首行开头排编号，见 \file{docxlike-numbering.dtx}。
 %
+% \emph{页顶的段前。}Word 在页顶去掉段前：自然换页、分页符之后、段前分页的段都是这样，
+% \hologo{TeX} 在页顶丢掉胶，结果一样。只有全文第一段保留段前（\file{test/headings} 的
+% \file{heads-top*}）。全文第一段（外层的竖直列表上，还没输出过页，当前页也是空的；在盒子
+% 里排的不算，比如先装盒再放的封面）先放一只零高的空盒，
+% 页顶的 \cs{topskip} 算在它上面，再补“段前减 \cs{topskip}”，首行基线就落在上边距加段前
+% 加上升部处。
+%
 % \emph{段前与前一段的段后取大，不相加。}Word 两段之间的距离是前一段的段后与后一段
 % 的段前里大的那个（样本文档里章标题段后 0.8 行、小标题段前 0.5 行，量出来
 % 只有 0.8 行；章标题到节标题也是这样，那一处走 \pkg{ctex} 的 \texttt{beforeskip}
@@ -3003,10 +3014,28 @@
       \__docxlike_format_side_indent:nnN {#1} { ind-right } \l_docxlike_format_right_dim
       \__docxlike_format_number_indent:n {#1}
       \dim_zero:N \parskip
+      \__docxlike_format_read:nnnN {#1} { pPr/pageBreakBefore } { false } \l__docxlike_format_value_tl
+      \str_if_eq:VnT \l__docxlike_format_value_tl { true } { \par \newpage }
       \dim_compare:nNnT { \l_docxlike_format_before_dim } > { \c_zero_dim }
-        { \par \addvspace { \l_docxlike_format_before_dim } }
+        {
+          \par
+          \bool_lazy_all:nTF
+            {
+              { ! \mode_if_inner_p: }
+              { \int_compare_p:nNn { \ReadonlyShipoutCounter } = { 0 } }
+              { \dim_compare_p:nNn { \pagegoal } = { \c_max_dim } }
+            }
+            {
+              \hbox:n { }
+              \nointerlineskip
+              \skip_vertical:n { \l_docxlike_format_before_dim - \topskip }
+            }
+            { \addvspace { \l_docxlike_format_before_dim } }
+        }
       \nointerlineskip
       \__docxlike_format_border_put:nn {#1} { top }
+      \__docxlike_format_read:nnnN {#1} { pPr/keepLines } { false } \l__docxlike_format_value_tl
+      \str_if_eq:VnT \l__docxlike_format_value_tl { true } { \int_set:Nn \interlinepenalty { 10000 } }
       \dim_zero:N \parindent
       \l__docxlike_format_par_tl
       \skip_set:Nn \leftskip { \leftskip + \l_docxlike_format_left_dim }
@@ -3021,9 +3050,30 @@
         { \__docxlike_format_tabbed:nn {#1} {#2} }
       \par
       \__docxlike_format_border_put:nn {#1} { bottom }
-      \dim_compare:nNnT { \l_docxlike_format_after_dim } > { \c_zero_dim }
-        { \skip_vertical:n { \l_docxlike_format_after_dim } }
+      \__docxlike_format_read:nnnN {#1} { pPr/keepNext } { false } \l__docxlike_format_value_tl
+      \tl_gset_eq:NN \g__docxlike_format_keep_tl \l__docxlike_format_value_tl
+      \dim_gset_eq:NN \g__docxlike_format_after_dim \l_docxlike_format_after_dim
     \group_end:
+    \str_if_eq:VnT \g__docxlike_format_keep_tl { true } { \nobreak }
+    \dim_compare:nNnT { \g__docxlike_format_after_dim } > { \c_zero_dim }
+      { \skip_vertical:n { \g__docxlike_format_after_dim } }
+    \str_if_eq:VnT \g__docxlike_format_keep_tl { true } { \__docxlike_format_keep_next: }
+  }
+\tl_new:N \g__docxlike_format_keep_tl
+\dim_new:N \g__docxlike_format_after_dim
+%    \end{macrocode}
+%
+% 段后距加在组外：组里设过的颜色出组时复原，复原的节点落在竖直列表上，段后距放在它前面，
+% 下一段的 \cs{addvspace} 就看不到这道胶，两段之间成了相加（Word 是取大）。
+%
+% \emph{与下段同页。}段后距之前放 \cs{nobreak}，下一段开头照 \hologo{LaTeX} 标题后的办法
+% （\cs{@nobreak}、\cs{everypar}）不在第一行之前断页。Word 的与下段同页也只保证下一段的
+% 第一行跟上（孤行控制开着时是两行）。首行缩进照留，Word 标题后的段落也缩进。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_format_keep_next:
+  {
+    \legacy_if_set_true:n { @afterindent }
+    \use:c { @afterheading }
   }
 %    \end{macrocode}
 %    \end{macro}
