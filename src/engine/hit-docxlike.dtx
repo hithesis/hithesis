@@ -99,11 +99,11 @@
               - \l_docxlike_format_first_dim
             }
           \dim_gset:Nn \g__hit_header_latin_ht_dim
-            { \c_docxlike_format_ascent_latin_tl \l_docxlike_format_size_dim + \c_docxlike_format_ascent_dim }
+            { \l_docxlike_format_ascent_latin_tl \l_docxlike_format_size_dim }
           \dim_gset:Nn \g__hit_header_latin_dp_dim
             {
               \dim_max:nn { \l_docxlike_format_lead_dim }
-                { \c_docxlike_format_natural_latin_tl \l_docxlike_format_size_dim }
+                { \l_docxlike_format_natural_latin_tl \l_docxlike_format_size_dim }
               - \g__hit_header_latin_ht_dim
             }
         \group_end:
@@ -240,6 +240,25 @@
   }
 %    \end{macrocode}
 %
+% \subsection{字体名与字体集}
+%
+% 样式里写的是 Word 的字体名，与学校发的 docx 一样：宋体是 \texttt{SimSun}、黑体 \texttt{SimHei}、
+% 楷体 \texttt{KaiTi}、仿宋 \texttt{FangSong}、隶书 \texttt{LiSu}、华文新魏 \texttt{STXinwei}，西文
+% \texttt{Times New Roman} 与 \texttt{Arial}。行高与上升部按这些名字照 Windows Word 的规则算，
+% 不管本机实际用的是哪一副。切过去用本类与 \pkg{ctex} 的字体命令：\option{fontset} 选的字体集里
+% 没有中易字体时，这些命令指向替身（Fandol、思源等），版面照样按 Word 里那副字算，各字体集之间
+% 一致。
+%    \begin{macrocode}
+\docxlike_font_select_new:nn { SimSun } { \songti }
+\docxlike_font_select_new:nn { SimHei } { \heiti }
+\docxlike_font_select_new:nn { KaiTi } { \kaishu }
+\docxlike_font_select_new:nn { FangSong } { \fangsong }
+\docxlike_font_select_new:nn { LiSu } { \lishu }
+\docxlike_font_select_new:nn { STXinwei } { \xinwei }
+\docxlike_font_select_new:nn { Times~New~Roman } { \rmfamily }
+\docxlike_font_select_new:nn { Arial } { \sffamily }
+%    \end{macrocode}
+%
 % \subsection{Word 里没有的写法}
 %
 % 格式规范有几样 Word 的对话框里没有，\pkg{docxlike} 不收，本类经它的接入点加上（接口见
@@ -347,7 +366,7 @@
 %   块间基线距 = max（正文行距，上块深度 + 下块上升部）+ 段前段后
 % \end{quote}
 % 上块深度是上块行距减上块上升部，上升部用的是排版这一头的
-% $1.008 \times 字号 + 0.082$\,bp，不是墨迹那一头。
+% $1.0078 \times 字号$（中易宋体照 Windows 规则的上升部），不是墨迹那一头。
 %
 % 里头那个 \texttt{max} 是 \hologo{TeX} 的行间胶：两块的行盒接起来还不够正文
 % 的 \cs{baselineskip} 高时，它把差额补上。标题的行盒一般比正文高，补不上，
@@ -364,8 +383,7 @@
 % 块间的上下两块字号不同，得拆开。
 %
 % 两式相减，段前段后就是视觉白加上下两块各自的一项：上块那一项是
-% （0.0927 + 1.008）× 上块字号 + 0.082\,bp − 上块行距，下块那一项是
-% （0.8123 − 1.008）× 下块字号 − 0.082\,bp。
+% （0.0927 + 1.0078）× 上块字号 − 上块行距，下块那一项是（0.8123 − 1.0078）× 下块字号。
 % 上块与下块是谁看方向：\option{white-before} 的上块是正文、下块是这个元素，
 % \option{white-after} 反过来。正文的字号与行距取 \cs{g\_docxlike\_body\_size\_dim}
 % 与 \cs{g\_docxlike\_body\_lead\_dim}，\cs{docxlike\_format\_apply\_body:} 先跑，所以标题
@@ -381,7 +399,6 @@
 % 意思，发过去会改掉排版而不是改掉间距。要的白比两块行盒自带的还窄时，只能
 % 就着行盒，那点差在零点几毫米上。
 %    \begin{macrocode}
-\tl_const:Nn \c__hit_white_ascent_tl { 1.008 }
 \tl_const:Nn \c__hit_white_ink_ascent_tl { 0.8123 }
 \tl_const:Nn \c__hit_white_ink_descent_tl { 0.0927 }
 \clist_const:Nn \c__hit_white_pagetop_clist { Heading1 }
@@ -391,13 +408,13 @@
   {
     \dim_add:Nn \l__hit_white_block_dim { \c__hit_white_ink_descent_tl #1 }
     \dim_add:Nn \l__hit_white_base_dim
-      { #2 - \c__hit_white_ascent_tl #1 - \c_docxlike_format_ascent_dim }
+      { #2 - \c_docxlike_format_ascent_tl #1 }
   }
 \cs_new_protected:Npn \__hit_white_block_down:n #1
   {
     \dim_add:Nn \l__hit_white_block_dim { \c__hit_white_ink_ascent_tl #1 }
     \dim_add:Nn \l__hit_white_base_dim
-      { \c__hit_white_ascent_tl #1 + \c_docxlike_format_ascent_dim }
+      { \c_docxlike_format_ascent_tl #1 }
   }
 \cs_new_protected:Npn \__hit_white_block_lead:
   {
@@ -431,7 +448,8 @@
 %
 % 段前段后的 \texttt{white} 单位：\pkg{docxlike} 算段前段后时把样式名与方向放在
 % \cs{l\_docxlike\_format\_style\_tl}、\cs{l\_docxlike\_format\_side\_tl}，这里照上面的块白换。
-% 上升部系数 1.008 是中易那一系的，与 \pkg{docxlike} 内部那个常数同值。
+% 上升部系数取 \pkg{docxlike} 的 \cs{c\_docxlike\_format\_ascent\_tl}，即中易宋体照 Windows
+% 规则算出的 1.0078125。
 %    \begin{macrocode}
 \docxlike_format_space_unit_new:nn { white }
   {
@@ -633,14 +651,14 @@
           {
             \__hit_docxlike_flag_eq:nnnn {#1} { chapterbold } { rPr/b } { true }
             \__hit_docxlike_flag_hanging:nn {#1} { chapterhang }
-            \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { rPr/rFonts/ascii } { sans }
+            \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { rPr/rFonts/ascii } { Arial }
           }
         { Heading2 }
-          { \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { rPr/rFonts/ascii } { sans } }
+          { \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { rPr/rFonts/ascii } { Arial } }
         { Heading3 }
-          { \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { rPr/rFonts/ascii } { sans } }
+          { \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { rPr/rFonts/ascii } { Arial } }
         { Heading4 }
-          { \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { rPr/rFonts/ascii } { sans } }
+          { \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { rPr/rFonts/ascii } { Arial } }
         { caption-figure }
           {
             \__hit_docxlike_flag_eq:nnnn {#1} { capcenterlast }

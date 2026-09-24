@@ -45,6 +45,8 @@ installfiles = {
   "docxlike.sty",
   "hithesis.ist", "hithesis.bst", "hithesis.cfg",
   "docxlike.lua",
+  "docxlike-font-metrics.lua",
+  "docxlike-font-metrics.def",
   "hit-logo.pdf", "hit-bachelor-report-bottommark.pdf",
 }
 

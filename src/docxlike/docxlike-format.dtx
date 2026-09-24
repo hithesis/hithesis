@@ -13,6 +13,9 @@
 %   \option{font} 与 \option{paragraph} 下各有一个 \option{snap-to-grid}，对应 Word 的两处
 %   “对齐到网格”，\texttt{auto} 沿所在位置往上找（\cs{c\_\_docxlike\_format\_parent\_prop}），
 %   根上没写就不贴；另有 \option{hyphenation} 与 \option{default-tab-stops}}
+% \changes{v0.1.0}{2026/09/24}{字体键收字体名（\texttt{SimSun}、\texttt{宋体}、\texttt{Times New Roman}），
+%   行高与上升部按名字照 Windows Word 的规则由字体度量现算，不再有写死的系数表，首行基线不另加
+%   0.082\,bp；切换字体按名字声明字族，文档类可以用 \cs{docxlike\_font\_select\_new:nn} 指定替身}
 % \changes{v0.1.0}{2026/09/24}{内部存储照 docx：条目名是 \texttt{w:rPr}、\texttt{w:pPr} 下的元素与
 %   属性路径，值用缇、半磅、百分之一行等 docx 的单位；同一处量的几种写法归成一个槽，写一种
 %   抹掉别的；公开的长度键不带单位时按 \texttt{bp}}
@@ -23,8 +26,8 @@
 % \changes{v3.2a}{2026/08/16}{样式名可带文档类登记的限定词（\cs{docxlike\_format\_qualifiers:nn}），
 %   带限定词的取值单独一份，读时先看当前限定词那一份，再看不带的}
 % \changes{v3.2a}{2026/09/13}{\cs{docxlike\_format\_compute:n} 按 Word 的行盒模型换算：自然行高
-%   中易系 1.296875 倍字号、Times 1.15、华文新魏按字体表；上升部 1.008 倍字号加 0.082\,bp
-%   （Times 0.93261）；倍数贴格时取整数格、固定值基线在盒顶下 0.8 倍；“一行”单位
+%   与上升部按字体名照 Windows Word 的规则由字体度量算（中易 1.296875 与 1.0078125、Times 1.1499
+%   与 0.9336）；倍数贴格时取整数格、固定值基线在盒顶下 0.8 倍；“一行”单位
 %   认网格启不启用。四轮标定文档、三十组、一百六十
 %   多条基线，来路在 \file{docxlike-page.dtx}}
 % \changes{v3.2a}{2026/08/29}{\cs{docxlike\_format\_strut:} 把每一行的行盒撑成 Word 的尺寸，
@@ -60,7 +63,7 @@
 % \changes{v3.2a}{2026/08/24}{纯西文段由 \cs{docxlike\_format\_apply\_par:n} 铺版面，与别的段共用
 %   \option{styles} 词汇；首行基线按 Times 的上升部}
 % \changes{v3.2a}{2026/08/24}{新增 \cs{parmark}：模拟 Word 的空回车段，可选参数收行数或
-%   \option{styles} 词汇；自然行高按 Word 重测（西文 1.15、汉字 1.296875）；行距与贴格默认跟当前
+%   \option{styles} 词汇；自然行高按段落标记的字体查；行距与贴格默认跟当前
 %   段落走（Word 里回车出的空段继承上一段的属性，贴格的单倍空段占一整格，实测），
 %   \option{snap-to-grid} 键可改；星号版的空盒之间补零罚分，页底装得下几行装几行；
 %   浮动体的后距照留，空段另算}
@@ -77,7 +80,7 @@
 %   {
 %     styles =
 %       {
-%         Heading 1 = { font = { asian-text-font = heiti , size = xiaoer , font-style = bold } ,
+%         Heading 1 = { font = { asian-text-font = SimHei , size = xiaoer , font-style = bold } ,
 %                       paragraph = { alignment = centered ,
 %                                     spacing = { before = 1 line , after = 1 line ,
 %                                                 line-spacing = multiple , at = 1.5 } } } ,
@@ -873,10 +876,9 @@
 \keys_define:nn { docxlike / style / font }
   {
     asian-text-font .code:n =
-      { \__docxlike_format_enum:nnn { rPr/rFonts/eastAsia }
-          { songti , heiti , kaishu , fangsong , xinwei , dengxian , none } {#1} } ,
+      { \__docxlike_format_put:nn { rPr/rFonts/eastAsia } {#1} } ,
     latin-text-font .code:n =
-      { \__docxlike_format_enum:nnn { rPr/rFonts/ascii } { serif , sans , mono } {#1} } ,
+      { \__docxlike_format_put:nn { rPr/rFonts/ascii } {#1} } ,
     font-style .code:n = { \__docxlike_style_font_style:n {#1} } ,
     size .code:n = { \__docxlike_format_size:n {#1} } ,
     all-caps .code:n = { \__docxlike_format_bool:nn { rPr/caps } {#1} } ,
@@ -1406,46 +1408,23 @@
 % 把收下来的键算成排版参数。规则是从 Word 里量出来的，四轮对照文档、三十组、
 % 一百六十多条基线，量法与来路记在 \file{docxlike-page.dtx}。
 %
-% \emph{字体常数。} 自然行高与字号成正比，系数只跟字体有关：中易那一系
-% （宋、黑、楷、仿、隶）是字号的 1.296875 倍，华文新魏是 1.35，
-% Times~New~Roman 是 1.15。苹方是 1.82，差了四成，所以这个系数必须按字体查，
-% 不能当通用常数。1.296875 是 $332/256$，中易宋体的 \texttt{unitsPerEm} 正好
-% 是 256。这个数是拿一份逐项写死设置的 \texttt{docx} 标定出来的：九个字号各排
-% 一页、每页十几到三十几行，回归出来的行距全部落在
-% $1.25 \times 1.296875 \times 字号$ 上，最大偏差 0.008\,bp。
-%
-% \emph{上升部不是纯比例。} 是 $1.008 \times 字号 + 0.082$\,bp。同一份标定文档
-% 里换了十八个字号（9 到 60\,bp）量首行基线，每个读数有正负 0.12\,bp 的量化
-% 窗口（Word 输出坐标是 $1/300$ 英寸的整数倍），在这十八个约束下扫参数平面，
-% “上升部 = 系数乘字号”这个模型无解——小五要求系数不超过 1.0067，小四要求
-% 不低于 1.0155。加上那个常数项就只剩唯一解，其中五个字号正好卡在窗口边界。
-%
-% 那 0.082\,bp 与“版心顶下移 0.082”在数学上不可分：段间距的算式里前后两段的
-% 常数项相消，它只在每页第一条基线上露面。这里记成上升部的一部分，是因为页首
-% 那一段落在哪由 \cs{topskip} 定，写在这里改一处就够。
-%
-% 本包一律按中易排，不问实际加载的是哪一个宋体，这样各 \option{fontset} 之间
-% 版面一致。
+% \emph{字体常数。} 自然行高与上升部都与字号成正比，系数只跟字体有关，由字体文件里的
+% 度量照 Windows Word 的规则算，见 \file{docxlike-metrics.dtx} 的“按字体名取度量”。中易宋体是
+% 1.296875 与 1.0078125，Times New Roman 是 1.1499 与 0.9336，苹方的行高是 1.82，差了四成，
+% 所以必须按字体查。首行基线就落在上升部处，Windows 不另加常数。
 %
 % \emph{纯西文的段落行距比中文小。} Word 里一行的行高取这一行\emph{实际用到}的
-% 各个字体的最大值，所以同一个设置下，有汉字的行按中易的 1.297 算，纯英文的行
-% 只有 Times 参与，按 1.15 算。样本文档的两份摘要就是这样：中英文摘要的段落设置相同
+% 各个字体的最大值，所以同一个设置下，有汉字的行按东亚字体（中易 1.297）算，纯英文的行
+% 只有西文字体参与（Times 1.15）。样本文档的两份摘要就是这样：中英文摘要的段落设置相同
 % （多倍行距 1.25、不对齐到网格），中文那份量出行距 19.455\,bp，英文那份 17.25\,bp，
 % 正好是 $1.25 \times 1.297 \times 12$ 与 $1.25 \times 1.15 \times 12$。
 %
-% \hologo{LaTeX} 静态看不出一段里有没有汉字，所以要配置说一声：
-% \texttt{eastAsia} 取 \texttt{none} 表示这一处没有中文，行高按西文字体算。
-% 英文摘要、英文目录这类地方写它。
+% \hologo{LaTeX} 静态看不出一段里有没有汉字，所以要有人说一声。逐条内容不同的地方
+% （目录的条目）由排版代码临时立 \cs{l\_docxlike\_format\_latin\_pick\_bool}，
+% \cs{docxlike\_format\_compute:n} 就按西文字体算这一次，判据见 \cs{docxlike\_format\_cjk:nTF}。
 %
-% 逐条内容不同的地方（目录的条目）由排版代码临时说一声：立起
-% \cs{l\_docxlike\_format\_latin\_pick\_bool}，\cs{docxlike\_format\_compute:n} 就当这一次
-% 的 \texttt{eastAsia} 是 \texttt{none}，配置里写的那副字不改。判据见
-% \cs{docxlike\_format\_cjk:nTF}。
-%
-% \emph{按样式立的同一件事。} \texttt{eastAsia}\texttt{=none} 一句管两件：行盒按西文算，
-% 中文字体也不发了。有的文档只要前一件，行盒按 Times 算，可万一夹着汉字，那几个字的
-% 字体照旧。文档类在 \cs{docxlike\_format\_set\_target\_hook:n} 里按样式立
-% \cs{l\_docxlike\_format\_latin\_line\_bool}，只改行盒。
+% \emph{按样式说。} 文档类在 \cs{docxlike\_format\_set\_target\_hook:n} 里按样式立
+% \cs{l\_docxlike\_format\_latin\_line\_bool}，那个样式的行盒就按西文字体算，东亚字体照发。
 %
 % \emph{行盒高。} 也就是 \cs{baselineskip}。倍数写法在对齐到网格时是网格行距的
 % 倍数，关掉时是自然行高的倍数；一行装不下就往上取整到整数个格。固定值原样生效，
@@ -1467,48 +1446,37 @@
 % \texttt{before="391" after="312"}，节条标题是 195，与这条规则一致；标定文档里
 % 把同一种间距重复二十遍回归，也是这三个数。
 %    \begin{macrocode}
-\prop_const_from_keyval:Nn \c__docxlike_format_natural_prop
+\docxlike_font_metric:nNNF { SimSun } \l_tmpa_tl \l_tmpb_tl
   {
-    songti = 1.296875 , heiti = 1.296875 , kaishu = 1.296875 ,
-    fangsong = 1.296875 , lishu = 1.296875 , xinwei = 1.3218 ,
-    dengxian = 1.351334 , none = 1.15 ,
+    \tl_set:Nn \l_tmpa_tl { 1.296875 }
+    \tl_set:Nn \l_tmpb_tl { 1.0078125 }
   }
-\tl_const:Nn \c_docxlike_format_natural_tl { 1.296875 }
-\tl_const:Nn \c_docxlike_format_natural_latin_tl { 1.15 }
+\tl_const:Ne \c_docxlike_format_natural_tl { \l_tmpa_tl }
+\tl_const:Ne \c_docxlike_format_ascent_tl { \l_tmpb_tl }
+\docxlike_font_metric:nNNF { Times~New~Roman } \l_tmpa_tl
+  \l_tmpb_tl
+  {
+    \tl_set:Nn \l_tmpa_tl { 1.14990234375 }
+    \tl_set:Nn \l_tmpb_tl { 0.93359375 }
+  }
+\tl_const:Ne \c_docxlike_format_natural_latin_tl { \l_tmpa_tl }
+\tl_const:Ne \c_docxlike_format_ascent_latin_tl { \l_tmpb_tl }
+\tl_new:N \l_docxlike_format_natural_latin_tl
+\tl_set_eq:NN \l_docxlike_format_natural_latin_tl \c_docxlike_format_natural_latin_tl
+\tl_new:N \l_docxlike_format_ascent_latin_tl
+\tl_set_eq:NN \l_docxlike_format_ascent_latin_tl \c_docxlike_format_ascent_latin_tl
+\tl_new:N \l__docxlike_format_font_tl
 \bool_new:N \l__docxlike_format_latin_bool
 \bool_new:N \l_docxlike_format_latin_pick_bool
 \bool_new:N \l_docxlike_format_latin_line_bool
 \tl_new:N \l__docxlike_format_latin_tl
 \bool_new:N \l__docxlike_format_exact_bool
-\tl_const:Nn \c__docxlike_format_ascent_tl { 1.008 }
-\dim_const:Nn \c_docxlike_format_ascent_dim { 0.082bp }
 %    \end{macrocode}
 %
-% \emph{上升部系数按字体分。} 中易那六副字是同一个 1.008，华文新魏不是。
-% 数取自 Typst 包 \pkg{banshi} 的标定：造探针 \file{docx}（六个字号、单倍行距、每档三段），
-% Word 导成 PDF 逐段量首行基线与步进反推上升部，常数项固定成 0.082 之后
-% 拟合出素 run 的 0.9443。
-%
-% \emph{本包存的是带字宽缩放那一档的 0.9208。} 标定时用到这副字的只有一份
-% 样本首页的两行大标题，写着 \texttt{w:w="90"}，Word 对缩放的 run 走另一条度量路径：
-% 行高从 1.35 变成 1.3218，上升部也跟着缩。所以只存缩放这一档。写 1.008 的话小初那一行的基线要低 2.3。
-%
-% \emph{等线的两个数按中易宋体那条规律推。} 中易宋体的 \texttt{hhea} 行高
-% （上升部加下降部）是 1.0\,em，Word 的自然行高 1.296875 正好是它的 83/64 倍；
-% 多出来的那一截上下平分，上升部 $220/256 + 0.296875/2 = 1.0078$，就是上面那个
-% 1.008。等线（\file{Deng.ttf}）的 \texttt{hhea} 是 $(1659+475)/2048 = 1.041992$，
-% 照推得行高 1.351334、上升部 $1659/2048 + 0.309342/2 = 0.964735$。
-%
-% 拿 Word 16 的新建空白文档核过：网格关、单倍行距，11、16、22\,bp 三个字号逐行量
-% 步进，得 1.3527、1.3520、1.3526，与推算差在 Word 自己 0.25\,bp 的落笔取整以内；
-% 网格开、单倍与 1.1583 倍两档的首行基线推算 11.06 与 12.30，量得 11.03 与 12.28。
-% 空白文档的四级标题（24、20、16、14\,bp）与正文之间的七处步进，推算与实测差在
-% 0.2\,bp 以内，只有正文到二级标题那一处差 0.3。
+% 东亚字体与西文字体的两对系数由样式里的字体名查，见后面“字体”那一段。
 %    \begin{macrocode}
-\prop_const_from_keyval:Nn \c__docxlike_format_ascent_prop
-  { xinwei = 0.9208 , dengxian = 0.964735 }
 \tl_new:N \l_docxlike_format_ascent_tl
-\tl_set_eq:NN \l_docxlike_format_ascent_tl \c__docxlike_format_ascent_tl
+\tl_set_eq:NN \l_docxlike_format_ascent_tl \c_docxlike_format_ascent_tl
 \tl_new:N \l__docxlike_format_strut_natural_tl
 \tl_set_eq:NN \l__docxlike_format_strut_natural_tl \c_docxlike_format_natural_tl
 \tl_const:Nn \c_docxlike_format_exact_tl { 0.8 }
@@ -1782,22 +1750,15 @@
       { \dim_set:Nn \l_docxlike_format_size_dim { \f@size pt } }
       { \dim_set:Nn \l_docxlike_format_size_dim { \l__docxlike_format_value_tl } }
     \__docxlike_format_latin_line:n {#1}
-    \__docxlike_format_read:nnnN {#1} { rPr/rFonts/eastAsia } { songti } \l__docxlike_format_value_tl
-    \bool_lazy_or:nnT
-      { \bool_if_p:N \l_docxlike_format_latin_pick_bool }
-      { \bool_if_p:N \l_docxlike_format_latin_line_bool }
-      { \tl_set:Nn \l__docxlike_format_value_tl { none } }
+    \__docxlike_format_font_metrics:n {#1}
     \bool_set:Nn \l__docxlike_format_latin_bool
-      { \str_if_eq_p:Vn \l__docxlike_format_value_tl { none } }
-    \prop_get:NVNF \c__docxlike_format_natural_prop \l__docxlike_format_value_tl
-      \l__docxlike_format_coef_tl { \tl_set_eq:NN \l__docxlike_format_coef_tl
-        \c_docxlike_format_natural_tl }
-    \prop_get:NVNF \c__docxlike_format_ascent_prop \l__docxlike_format_value_tl
-      \l_docxlike_format_ascent_tl { \tl_set_eq:NN \l_docxlike_format_ascent_tl
-        \c__docxlike_format_ascent_tl }
+      {
+        \bool_if_p:N \l_docxlike_format_latin_pick_bool
+        || \bool_if_p:N \l_docxlike_format_latin_line_bool
+      }
     \bool_if:NTF \l__docxlike_format_latin_bool
-      { \tl_set_eq:NN \l__docxlike_format_strut_natural_tl \c_docxlike_format_natural_tl }
-      { \tl_set_eq:NN \l__docxlike_format_strut_natural_tl \l__docxlike_format_coef_tl }
+      { \tl_set_eq:NN \l__docxlike_format_coef_tl \l_docxlike_format_natural_latin_tl }
+      { \tl_set_eq:NN \l__docxlike_format_coef_tl \l__docxlike_format_strut_natural_tl }
     \dim_set:Nn \l_docxlike_format_natural_dim
       { \l__docxlike_format_coef_tl \l_docxlike_format_size_dim }
     \__docxlike_format_snap_axis:nnN {#1} { pPr/snapToGrid }
@@ -1928,16 +1889,15 @@
 %    \end{macrocode}
 %
 % 基线落点：对齐到网格时行盒居中，关掉时顶对齐。上升部与撑杆取同一个数，按
-% \texttt{eastAsia} 查（\cs{l\_docxlike\_format\_ascent\_tl}）；先前这里写死中易宋体的
-% 1.008，换成等线时 \cs{topskip} 比撑杆高出 0.48\,bp，首行跟着低这么多。
+% 样式的东亚字体查（\cs{l\_docxlike\_format\_ascent\_tl}），纯西文按西文字体查。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__docxlike_format_first:
   {
     \dim_set:Nn \l_docxlike_format_first_dim
       {
         \bool_if:NTF \l__docxlike_format_latin_bool
-          { \c_docxlike_format_ascent_latin_tl } { \l_docxlike_format_ascent_tl }
-        \l_docxlike_format_size_dim + \c_docxlike_format_ascent_dim
+          { \l_docxlike_format_ascent_latin_tl } { \l_docxlike_format_ascent_tl }
+        \l_docxlike_format_size_dim
       }
     \bool_if:NT \l_docxlike_format_snap_vertical_bool
       {
@@ -1960,8 +1920,128 @@
 \prop_new:N \g__docxlike_format_align_prop
 \prop_gset_from_keyval:Nn \g__docxlike_format_align_prop
   { left = \raggedright , center = \centering , right = \raggedleft }
-\prop_const_from_keyval:Nn \c__docxlike_format_latin_prop
-  { serif = \rmfamily , sans = \sffamily , mono = \ttfamily }
+%    \end{macrocode}
+%
+% \emph{字体。} 样式里的字体是名字。按名字取两对系数（东亚字体的自然行高与上升部、西文字体的），
+% 没写东亚字体按 SimSun、没写西文字体按 Times New Roman 取；取不到用这两副的。
+% \cs{docxlike\_format\_font\_metrics:nnnn} 把四个数设进排版时用的那几个量，随字体命令一起
+% 发出去，每个样式的撑杆就用自己字体的数。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_format_font_metrics:n #1
+  {
+    \__docxlike_format_read:nnnN {#1} { rPr/rFonts/eastAsia } { SimSun } \l__docxlike_format_font_tl
+    \docxlike_font_metric:VNNF \l__docxlike_format_font_tl
+      \l__docxlike_format_strut_natural_tl \l_docxlike_format_ascent_tl
+      {
+        \tl_set_eq:NN \l__docxlike_format_strut_natural_tl \c_docxlike_format_natural_tl
+        \tl_set_eq:NN \l_docxlike_format_ascent_tl \c_docxlike_format_ascent_tl
+      }
+    \__docxlike_format_read:nnnN {#1} { rPr/rFonts/ascii } { Times~New~Roman }
+      \l__docxlike_format_font_tl
+    \docxlike_font_metric:VNNF \l__docxlike_format_font_tl
+      \l_docxlike_format_natural_latin_tl \l_docxlike_format_ascent_latin_tl
+      {
+        \tl_set_eq:NN \l_docxlike_format_natural_latin_tl \c_docxlike_format_natural_latin_tl
+        \tl_set_eq:NN \l_docxlike_format_ascent_latin_tl \c_docxlike_format_ascent_latin_tl
+      }
+  }
+\prg_generate_conditional_variant:Nnn \docxlike_font_metric:nNN { V } { F }
+\cs_new_protected:Npn \docxlike_format_font_metrics:nnnn #1#2#3#4
+  {
+    \tl_set:Nn \l__docxlike_format_strut_natural_tl {#1}
+    \tl_set:Nn \l_docxlike_format_ascent_tl {#2}
+    \tl_set:Nn \l_docxlike_format_natural_latin_tl {#3}
+    \tl_set:Nn \l_docxlike_format_ascent_latin_tl {#4}
+  }
+%    \end{macrocode}
+%
+% \emph{按名字切换字体。} 文档类可以说“这个名字在本文档里用什么命令切过去”：
+% \cs{docxlike\_font\_select\_new:nn}\marg{字体名}\marg{代码}，比如字体集里没有 SimSun、要用
+% 替身时。没说过的，东亚字体按名字声明一个中文字族（\pkg{xeCJK} 或 \pkg{ctex} 的
+% \pkg{luatexja} 接口），西文字体按名字声明一个 \pkg{fontspec} 字族，都只声明一次；本机
+% 没有这副字体时警告一次，不切。
+%    \begin{macrocode}
+\prop_new:N \g__docxlike_font_select_prop
+\tl_new:N \l__docxlike_font_code_tl
+\cs_new_protected:Npn \docxlike_font_select_new:nn #1#2
+  {
+    \__docxlike_font_key:n {#1}
+    \prop_gput:NVn \g__docxlike_font_select_prop \l__docxlike_font_key_str {#2}
+  }
+\msg_new:nnnn { docxlike } { font-not-found }
+  { Font~'#1'~is~not~installed;~the~current~font~is~kept. }
+  { Install~it,~or~tell~docxlike~what~to~use~with~\token_to_str:N \docxlike_font_select_new:nn. }
+\cs_new_protected:Npn \docxlike_font_select_east_asian:n #1
+  {
+    \__docxlike_font_key:n {#1}
+    \prop_get:NVNTF \g__docxlike_font_select_prop \l__docxlike_font_key_str
+      \l__docxlike_font_code_tl
+      { \l__docxlike_font_code_tl }
+      { \__docxlike_font_east_asian:n {#1} }
+  }
+\cs_new_protected:Npn \docxlike_font_select_latin:n #1
+  {
+    \__docxlike_font_key:n {#1}
+    \prop_get:NVNTF \g__docxlike_font_select_prop \l__docxlike_font_key_str
+      \l__docxlike_font_code_tl
+      { \l__docxlike_font_code_tl }
+      { \__docxlike_font_latin:n {#1} }
+  }
+\cs_new_protected:Npn \__docxlike_font_east_asian:n #1
+  {
+    \cs_if_exist:NT \CJKfamily
+      {
+        \tl_if_exist:cF { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
+          {
+            \tl_new:c { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
+            \__docxlike_font_if_exist:nTF {#1}
+              {
+                \tl_gset:ce { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
+                  { docxlike-\l__docxlike_font_key_str }
+                \cs_if_exist:NTF \xeCJK_set_family:nnn
+                  { \xeCJK_set_family:enn { docxlike-\l__docxlike_font_key_str } { } {#1} }
+                  {
+                    \cs_if_exist:NT \ctex_ltj_set_family:nnn
+                      { \ctex_ltj_set_family:enn { docxlike-\l__docxlike_font_key_str } { } {#1} }
+                  }
+              }
+              { \msg_warning:nnn { docxlike } { font-not-found } {#1} }
+          }
+        \tl_if_empty:cF { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
+          { \CJKfamily { \tl_use:c { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl } } }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_font_latin:n #1
+  {
+    \cs_if_exist:NT \fontspec_set_family:Nnn
+      {
+        \tl_if_exist:cF { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
+          {
+            \tl_new:c { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
+            \__docxlike_font_if_exist:nTF {#1}
+              {
+                \fontspec_set_family:cnn
+                  { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl } { } {#1}
+                \tl_gset_eq:cc { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
+                  { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
+              }
+              { \msg_warning:nnn { docxlike } { font-not-found } {#1} }
+          }
+        \tl_if_empty:cF { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
+          {
+            \fontfamily { \tl_use:c { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl } }
+            \selectfont
+          }
+      }
+  }
+\prg_new_protected_conditional:Npnn \__docxlike_font_if_exist:n #1 { TF }
+  {
+    \cs_if_exist:NTF \fontspec_font_if_exist:nTF
+      { \fontspec_font_if_exist:nTF {#1} { \prg_return_true: } { \prg_return_false: } }
+      { \prg_return_false: }
+  }
+\cs_generate_variant:Nn \fontspec_set_family:Nnn { cnn }
+\cs_generate_variant:Nn \tl_gset:Nn { ce }
 %    \end{macrocode}
 %
 % \cs{docxlike\_format\_strut:} 是一根零宽的撑杆，把它所在那一行的行盒撑成 Word 的尺寸。
@@ -2176,7 +2256,7 @@
         \dim_set:Nn \l__docxlike_format_box_dim
           { \dim_max:nn { \baselineskip } { \l__docxlike_format_nat_dim } }
         \dim_set:Nn \l__docxlike_format_asc_dim
-          { #2 \l__docxlike_format_strut_dim + \c_docxlike_format_ascent_dim }
+          { #2 \l__docxlike_format_strut_dim }
         \bool_if:NT \l_docxlike_format_line_snap_bool
           {
             \dim_add:Nn \l__docxlike_format_asc_dim
@@ -2351,8 +2431,8 @@
     \bool_if:NTF \l_docxlike_format_strut_latin_bool
       {
         \__docxlike_format_strut:nn
-          { \c_docxlike_format_natural_latin_tl }
-          { \c_docxlike_format_ascent_latin_tl }
+          { \l_docxlike_format_natural_latin_tl }
+          { \l_docxlike_format_ascent_latin_tl }
       }
       {
         \__docxlike_format_strut:nn
@@ -2494,23 +2574,38 @@
   {
     \tl_clear:N \l__docxlike_format_out_tl
     \__docxlike_format_latin_line:n {#1}
-    \__docxlike_format_read:nnnN {#1} { rPr/rFonts/eastAsia } { } \l__docxlike_format_value_tl
+    \__docxlike_format_font_metrics:n {#1}
     \bool_set:Nn \l__docxlike_format_latin_bool
       {
-        \str_if_eq_p:Vn \l__docxlike_format_value_tl { none }
-        || \bool_if_p:N \l_docxlike_format_latin_line_bool
+        \bool_if_p:N \l_docxlike_format_latin_line_bool
         || \bool_if_p:N \l_docxlike_format_latin_pick_bool
       }
-    \bool_lazy_and:nnT
-      { ! \tl_if_empty_p:N \l__docxlike_format_value_tl }
-      { ! \str_if_eq_p:Vn \l__docxlike_format_value_tl { none } }
+    \__docxlike_format_read:nnnN {#1} { rPr/rFonts/eastAsia } { } \l__docxlike_format_value_tl
+    \tl_if_empty:NF \l__docxlike_format_value_tl
       {
-        \tl_put_right:Nx \l__docxlike_format_out_tl
-          { \exp_not:c { \l__docxlike_format_value_tl } }
+        \tl_put_right:Ne \l__docxlike_format_out_tl
+          {
+            \exp_not:N \docxlike_font_select_east_asian:n
+              { \exp_not:V \l__docxlike_format_value_tl }
+          }
       }
     \prop_get:NnNT \g__docxlike_format_font_extra_prop {#1} \l__docxlike_format_extra_tl
       { \tl_put_right:NV \l__docxlike_format_out_tl \l__docxlike_format_extra_tl }
-    \__docxlike_format_pick:nnN {#1} { rPr/rFonts/ascii } \c__docxlike_format_latin_prop
+    \__docxlike_format_read:nnnN {#1} { rPr/rFonts/ascii } { } \l__docxlike_format_value_tl
+    \tl_if_empty:NF \l__docxlike_format_value_tl
+      {
+        \tl_put_right:Ne \l__docxlike_format_out_tl
+          {
+            \exp_not:N \docxlike_font_select_latin:n
+              { \exp_not:V \l__docxlike_format_value_tl }
+          }
+      }
+    \tl_put_right:Ne \l__docxlike_format_out_tl
+      {
+        \exp_not:N \docxlike_format_font_metrics:nnnn
+          { \l__docxlike_format_strut_natural_tl } { \l_docxlike_format_ascent_tl }
+          { \l_docxlike_format_natural_latin_tl } { \l_docxlike_format_ascent_latin_tl }
+      }
     \__docxlike_format_sz_read:nN {#1} \l__docxlike_format_value_tl
     \tl_if_empty:NF \l__docxlike_format_value_tl
       {
@@ -4432,8 +4527,8 @@
             \bool_if:NTF \l_docxlike_format_strut_latin_bool
               {
                 \__docxlike_format_strut_dims:nn
-                  { \c_docxlike_format_natural_latin_tl }
-                  { \c_docxlike_format_ascent_latin_tl }
+                  { \l_docxlike_format_natural_latin_tl }
+                  { \l_docxlike_format_ascent_latin_tl }
               }
               {
                 \__docxlike_format_strut_dims:nn
@@ -4569,30 +4664,6 @@
   }
 %    \end{macrocode}
 %
-% \emph{Times 的上升部系数单独标定}，不借汉字那一档的 1.008。
-%
-% 量法：造一份标定 docx，每个西文行前面放一行 12\,bp 宋体做基准，八个字号各一组，
-% Word 转 PDF 后量相邻基线的步进，减掉基准行的行深（$15.5625 - (1.008 \times 12 +
-% 0.082) = 3.3845$）就是西文的上升部：
-%
-% \begin{longtblr}[caption={Times 上升部的标定}, label={tab:impl-ascent-latin}]
-%   {colspec={l r r r r r r r r}}
-% \toprule
-% 字号   & 9 & 10.5 & 12 & 14 & 16 & 18 & 22 & 24 \\ \midrule
-% 上升部 & 8.316 & 9.816 & 11.316 & 13.116 & 15.116 & 16.916 & 20.616 & 22.416 \\
-% \bottomrule
-% \end{longtblr}
-%
-% 常数项固定成 0.082（与汉字共用）后拟合出 0.93257，另一份独立实现（Typst 包 \pkg{banshi}）
-% 标定的是 0.93261，四位小数一致，取它。两个字体只有系数不同，常数项是同一个。
-%
-% 只落在 \cs{topskip} 上。纯西文段的撑竿本来就停着（上面那句
-% \cs{cs\_set\_eq:NN}），所以上升部唯一还起作用的地方是页首那一行的基线，
-% 也就是 \cs{topskip}。
-%    \begin{macrocode}
-\tl_const:Nn \c_docxlike_format_ascent_latin_tl { 0.93261 }
-%    \end{macrocode}
-%
 % \begin{macro}{\docxlike_format_apply_par:n}
 % \cs{docxlike\_format\_apply\_par:n}\marg{目标} 按目标给\emph{接下来那几段}铺好版面：
 % 字体、字号、行距、首行基线落点、行末余量、断词。与 \cs{docxlike\_format\_par:nn}
@@ -4689,8 +4760,6 @@
 % 汉字那一档同法量得 1.29726，与 \cs{c\_docxlike\_format\_natural\_tl} 的 1.296875
 % 一致。两个数最先见于 Typst 包 \pkg{banshi} 的标定，这里独立复量过。
 %    \begin{macrocode}
-\fp_const:Nn \c__docxlike_parmark_natural_serif_fp { 1.15 }
-\fp_const:Nn \c__docxlike_parmark_natural_songti_fp { 1.296875 }
 \str_const:Nn \c__docxlike_parmark_alpha_str { abcdefghijklmnopqrstuvwxyz }
 \prg_generate_conditional_variant:Nnn \str_if_in:Nn { NV } { TF }
 \cs_new_protected:Npn \__docxlike_parmark_size:n #1
@@ -4705,21 +4774,8 @@
 \tl_set_eq:NN \l__docxlike_parmark_ascent_tl \c_docxlike_format_ascent_latin_tl
 \cs_new_protected:Npn \__docxlike_parmark_font:n #1
   {
-    \str_case:nnF {#1}
-      {
-        { serif }
-          {
-            \fp_set_eq:NN \l__docxlike_parmark_ratio_fp \c__docxlike_parmark_natural_serif_fp
-            \tl_set_eq:NN \l__docxlike_parmark_ascent_tl
-              \c_docxlike_format_ascent_latin_tl
-          }
-        { songti }
-          {
-            \fp_set_eq:NN \l__docxlike_parmark_ratio_fp \c__docxlike_parmark_natural_songti_fp
-            \tl_set_eq:NN \l__docxlike_parmark_ascent_tl \c__docxlike_format_ascent_tl
-          }
-      }
-      { \msg_error:nnn { docxlike } { parmark-font-unmeasured } {#1} }
+    \docxlike_font_metric:nNNT {#1} \l__docxlike_format_coef_tl \l__docxlike_parmark_ascent_tl
+      { \fp_set:Nn \l__docxlike_parmark_ratio_fp { \l__docxlike_format_coef_tl } }
   }
 \cs_new_protected:Npn \__docxlike_parmark_spacing:n #1
   {
@@ -4850,7 +4906,6 @@
         \dim_min:nn
           {
             \l__docxlike_parmark_ascent_tl \l__docxlike_parmark_base_dim
-            + \c_docxlike_format_ascent_dim
           }
           { \l__docxlike_parmark_ht_dim }
       }
@@ -4861,7 +4916,7 @@
     \group_begin:
     \int_set:Nn \l__docxlike_parmark_lines_int { 1 }
     \dim_zero:N \l__docxlike_parmark_size_dim
-    \fp_set_eq:NN \l__docxlike_parmark_ratio_fp \c__docxlike_parmark_natural_serif_fp
+    \fp_set:Nn \l__docxlike_parmark_ratio_fp { \c_docxlike_format_natural_latin_tl }
     \tl_set_eq:NN \l__docxlike_parmark_ascent_tl \c_docxlike_format_ascent_latin_tl
     \docxlike_format_compute:n { Normal }
     \__docxlike_format_slot_if_set:nnTF { Normal } { line }
