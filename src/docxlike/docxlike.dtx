@@ -9,7 +9,7 @@
 % \changes{v3.2a}{2026/09/23}{照 Word 排版的三个模块（页面设置、段落格式、断行）独立成
 %   \pkg{docxlike} 包}
 % \changes{v0.1.0}{2026/09/24}{键名与取值统一写成界面原词的小写加连字符，界面上没有名字的
-%   取 docx 名字的同样写法，写错大小写或照抄 docx 写法时报错给出本包的写法；样式名不计大小写
+%   取 docx 名字的同样写法，写错大小写或照抄 docx 写法时报错给出本包的写法、这一项不生效；样式名不计大小写
 %   与连字符；文档里的命令以 \texttt{docx} 开头}
 %
 % 照 Word 的页面设置、段落格式与断行规则排版的那一层，与具体哪一份格式规范都无关，
@@ -144,13 +144,13 @@
 %    \end{macrocode}
 %
 % 取值来自 docx 名单的键，用 \cs{\_\_docxlike\_ooxml\_value:nnnNTF}\marg{键名}\marg{取值}\marg{docx 名单}
-% \meta{结果}：不计大小写与连字符在名单里找，找到了把 docx 的名字放进 \meta{结果}；写法
-% 与本包的不一样（比如照抄了 docx 的 \texttt{upperRoman}）时报错，说明本包的写法，照样用
-% 找到的那个。
+% \meta{结果}：写法对就把 docx 的名字放进 \meta{结果}、走 \meta{真}；名单里没有走 \meta{假}。
+% 写法不对但认得出（比如照抄了 docx 的 \texttt{upperRoman}）时报错，给出本包的写法，这一项
+% 不生效，两支都不走，\meta{结果}不动。只认一种写法，免得写法分叉。
 %    \begin{macrocode}
 \msg_new:nnnn { docxlike } { value-spelling }
-  { The~value~'#2'~of~the~key~'#1'~is~written~'#3';~using~'#3'. }
-  { Keys~and~values~are~lowercase~words~joined~by~hyphens. }
+  { The~value~'#2'~of~the~key~'#1'~is~written~'#3'. }
+  { Keys~and~values~are~lowercase~words~joined~by~hyphens;~the~setting~is~ignored. }
 \str_new:N \l__docxlike_value_in_str
 \str_new:N \l__docxlike_value_try_str
 \cs_new_protected:Npn \__docxlike_squash:nN #1#2
@@ -160,22 +160,26 @@
     \str_remove_all:Nn #2 { ~ }
   }
 \cs_generate_variant:Nn \__docxlike_squash:nN { V }
+\tl_new:N \l__docxlike_value_found_tl
 \cs_new_protected:Npn \__docxlike_ooxml_value:nnnNTF #1#2#3#4#5#6
   {
     \__docxlike_squash:nN {#2} \l__docxlike_value_in_str
-    \tl_clear:N #4
+    \tl_clear:N \l__docxlike_value_found_tl
     \clist_map_inline:nn {#3}
       {
         \__docxlike_squash:nN {##1} \l__docxlike_value_try_str
         \str_if_eq:NNT \l__docxlike_value_try_str \l__docxlike_value_in_str
-          { \tl_set:Nn #4 {##1} \clist_map_break: }
+          { \tl_set:Nn \l__docxlike_value_found_tl {##1} \clist_map_break: }
       }
-    \tl_if_empty:NTF #4 {#6}
+    \tl_if_empty:NTF \l__docxlike_value_found_tl {#6}
       {
-        \__docxlike_kebab:VN #4 \l__docxlike_kebab_str
-        \str_if_eq:VnF \l__docxlike_kebab_str {#2}
+        \__docxlike_kebab:VN \l__docxlike_value_found_tl \l__docxlike_kebab_str
+        \str_if_eq:VnTF \l__docxlike_kebab_str {#2}
+          {
+            \tl_set_eq:NN #4 \l__docxlike_value_found_tl
+            #5
+          }
           { \msg_error:nnnnV { docxlike } { value-spelling } {#1} {#2} \l__docxlike_kebab_str }
-        #5
       }
   }
 \cs_generate_variant:Nn \__docxlike_ooxml_value:nnnNTF { nVnNTF , nnVNTF }
@@ -186,10 +190,10 @@
 % 本包的写法。
 %    \begin{macrocode}
 \msg_new:nnnn { docxlike } { bad-value-spelling }
-  { The~key~'#1'~does~not~accept~'#2';~it~is~written~'#3'. }
-  { Keys~and~values~are~lowercase~words~joined~by~hyphens. }
+  { The~value~'#2'~of~the~key~'#1'~is~written~'#3'. }
+  { Keys~and~values~are~lowercase~words~joined~by~hyphens;~the~setting~is~ignored. }
 \msg_new:nnnn { docxlike } { unknown-key-spelling }
-  { The~key~'#1'~is~unknown~and~is~being~ignored;~it~is~written~'#2'. }
+  { The~key~'#1'~is~written~'#2';~it~is~being~ignored. }
   { Keys~and~values~are~lowercase~words~joined~by~hyphens. }
 \cs_new_protected:Npn \__docxlike_bad_value_spelling:nnnF #1#2#3#4
   {
