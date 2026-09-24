@@ -21,6 +21,8 @@
 % \begin{itemize}
 % \item \option{label}：\texttt{number}（默认）时 \cs{label} 记 Word 的编号串（第一章），\texttt{counter}
 %   时记 \hologo{LaTeX} 计数器的 \cs{the…}（1），给写惯了“第\cs{ref}\marg{…}章”的文档类；
+%   这时编号也跟着计数器走：排标题前把这一级与上面各级的列表计数照 \hologo{LaTeX} 计数器改过，
+%   \cs{setcounter}\marg{section}\marg{2} 之后的 \cs{subsection} 编成 2.\meta{n}；
 % \item \option{numbered}：一个布尔表达式，排标题时求值，假时这一个不编号（仍进目录，不带编号），
 %   比如前置部分的章写 \verb|numbered = \legacy_if_p:n { @mainmatter }|；
 % \item \option{penalty}：标题前的分页罚分，前面不是标题时加（\hologo{LaTeX} 节标题前的
@@ -202,33 +204,89 @@
     \bool_lazy_or:nnTF { \tl_if_blank_p:n {#3} } { ! \bool_if_p:n { \l__docxlike_heading_numbered_tl } }
       { \bool_set_true:N \l_docxlike_numbering_off_bool }
       {
+        \int_if_exist:cT { c@ #2 } { \refstepcounter {#2} }
         \docxlike_heading_number:nNT {#1} \l__docxlike_heading_num_tl
           {
+            \bool_lazy_and:nnT
+              { \str_if_eq_p:Vn \l__docxlike_heading_label_tl { counter } }
+              { \int_if_exist_p:c { c@ #2 } }
+              {
+                \prop_if_exist:cF
+                  { g__docxlike_heading_counter_ \l__docxlike_numbering_cur_list_tl _prop }
+                  { \prop_new:c { g__docxlike_heading_counter_ \l__docxlike_numbering_cur_list_tl _prop } }
+                \prop_gput:cVn
+                  { g__docxlike_heading_counter_ \l__docxlike_numbering_cur_list_tl _prop }
+                  \l__docxlike_numbering_cur_lvl_tl {#2}
+                \prop_map_inline:cn
+                  { g__docxlike_heading_counter_ \l__docxlike_numbering_cur_list_tl _prop }
+                  {
+                    \bool_lazy_and:nnT
+                      { \int_compare_p:nNn {##1} < { \l__docxlike_numbering_cur_lvl_tl + 1 } }
+                      { \int_if_exist_p:c { c@ ##2 } }
+                      {
+                        \int_gset:cn
+                          { g__docxlike_numbering_ \l__docxlike_numbering_cur_list_tl _ ##1 _int }
+                          { \int_use:c { c@ ##2 } }
+                      }
+                  }
+                \__docxlike_numbering_text:VVN \l__docxlike_numbering_cur_list_tl
+                  \l__docxlike_numbering_cur_lvl_tl \l__docxlike_heading_num_tl
+              }
             \bool_set_true:N \l_docxlike_numbering_pending_bool
             \__docxlike_numbering_stext:VVN \l__docxlike_numbering_cur_list_tl
               \l__docxlike_numbering_cur_lvl_tl \l__docxlike_heading_snum_tl
             \tl_set:Ne \l__docxlike_heading_ref_tl { \l__docxlike_heading_num_tl }
             \regex_replace_once:nnN { [\s\x{3000}]+ \Z } { } \l__docxlike_heading_ref_tl
           }
-        \int_if_exist:cT { c@ #2 }
-          {
-            \refstepcounter {#2}
-            \str_if_eq:VnT \l__docxlike_heading_label_tl { number }
-              { \tl_set_eq:cN { @currentlabel } \l__docxlike_heading_ref_tl }
-          }
+        \bool_lazy_and:nnT
+          { \int_if_exist_p:c { c@ #2 } }
+          { \str_if_eq_p:Vn \l__docxlike_heading_label_tl { number } }
+          { \tl_set_eq:cN { @currentlabel } \l__docxlike_heading_ref_tl }
       }
     \tl_if_blank:VF \l__docxlike_heading_penalty_tl
       {
         \legacy_if:nF { @nobreak }
           { \addpenalty { \l__docxlike_heading_penalty_tl } }
       }
+    \__docxlike_heading_latin:n { \l__docxlike_heading_num_tl #5 }
     \exp_args:NnV \docxlike_format_par:nnn {#1} \l__docxlike_heading_local_tl
       {
         \__docxlike_heading_marks:nnnn {#1} {#2} {#3} {#4}
         #5
       }
+    \mode_if_vertical:T { \tex_prevdepth:D = -1000pt \scan_stop: }
+    \bool_set_false:N \l_docxlike_format_latin_pick_bool
     \bool_set_false:N \l_docxlike_numbering_off_bool
+    \bool_set_false:N \l_docxlike_numbering_pending_bool
   }
+%    \end{macrocode}
+%
+% \emph{标题后的一段贴着段后排。}Word 里下一段的首行行盒紧接在标题的段后下面；\hologo{TeX}
+% 却要按标题末行的行深补一段行间胶，标题行距比正文大时那段胶是负的（目录标题接第一条
+% 少 4.46\,bp）。所以标题排完把 \cs{prevdepth} 设成 $-1000$\,pt，与 \pkg{ctex} 的
+% \option{fixskip} 做的一样。
+%
+% \emph{全是西文的题名按西文行盒排。}Word 的行高取行里实际的字，题名里没有汉字就是西文的
+% 行高与上升部（iota 也这样判）。编号也在这一行里，编号带汉字（“第一章”）就不算全是西文；
+% 编号与题名一起先展开再看。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_heading_text_tl
+\cs_new_protected:Npn \__docxlike_heading_latin:n #1
+  {
+    \group_begin:
+      \cs_set_eq:NN \docxbookmark \use_ii:nn
+      \protected@edef \l__docxlike_heading_text_tl {#1}
+      \regex_match:nVT { [A-Za-z0-9] } \l__docxlike_heading_text_tl
+        {
+          \regex_match:nVF
+            { [\x{2E80}-\x{9FFF}\x{F900}-\x{FAFF}\x{FF00}-\x{FFEF}\x{3000}-\x{303F}] }
+            \l__docxlike_heading_text_tl
+            { \group_insert_after:N \__docxlike_heading_latin_true: }
+        }
+    \group_end:
+  }
+\cs_new_protected:Npn \__docxlike_heading_latin_true:
+  { \bool_set_true:N \l_docxlike_format_latin_pick_bool }
 \cs_new:Npn \__docxlike_heading_level:n #1
   { \str_range:nnn {#1} { -1 } { -1 } }
 \cs_generate_variant:Nn \__docxlike_heading_level:n { V }

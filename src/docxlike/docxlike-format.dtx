@@ -2204,6 +2204,10 @@
 % \cs{ltjsetparameter} 不吃 \hologo{LaTeX} 的胶写法。\hologo{XeLaTeX} 下
 % \cs{ltjsetparameter} 不存在，这一段整个跳过。
 %
+% 全角空格 U+3000 在 Word 里是空格，不是汉字，旁边不加中西文间距（编号
+% “1.1　标题”里数字与全角空格之间没有那一截）；\pkg{luatexja} 把它当汉字，
+% 这里用 \texttt{jaxspmode} 把它两侧的 \texttt{xkanjiskip} 关掉。
+%
 %    \begin{macrocode}
 \tl_const:Nn \c__docxlike_format_ccstretch_tl { 0.02 }
 \tl_const:Nn \c__docxlike_format_ecstretch_tl { 0.02 }
@@ -2253,6 +2257,7 @@
             minus \c__docxlike_format_ecshrink_tl \baselineskip
           }
         \ltjsetparameter { xkanjiskip = \l__docxlike_format_kanji_skip }
+        \ltjsetparameter { jaxspmode = { "3000 , inhibit } }
       }
 %    \end{macrocode}
 %
@@ -3029,7 +3034,14 @@
 % 的段前里大的那个（样本文档里章标题段后 0.8 行、小标题段前 0.5 行，量出来
 % 只有 0.8 行；章标题到节标题也是这样，那一处走 \pkg{ctex} 的 \texttt{beforeskip}
 % 本来就是 \cs{addvspace}）。这里段前也用 \cs{addvspace}，前面是段后那道胶就只补
-% 差额；前面是 \cs{parmark*} 的空段（盒子，不是胶）就整个加。
+% 差额；前面是 \cs{parmark*} 的空段（盒子，不是胶）就整个加。段后那道胶之后若还跟着
+% 看不见的东西（目录条目的 \cs{write}、超链接锚点、\cs{mark}、罚分），\cs{addvspace}
+% 就看不到它了，Word 却照样取大；所以段后放下时记下它的量，下一段开段前中间没有别的段落、
+% \cs{lastskip} 又是零，就直接补差额。主竖直列表上 \cs{lastnodetype} 总是 $-1$，
+% 分不出最后是什么，只能这样认；中间夹了盒子的只有 \cs{parmark*}，它把记下的量清掉。
+% 记与清都只认主竖直列表上的段落：浮动体、脚注这些盒子里的段落（包括盒子里的题注）
+% 不记也不清，标题接浮动体再接标题，Word 里仍是两个标题相邻。盒子里的段落只在 \hologo{LuaTeX} 下分得出
+% （\texttt{tex.nest.ptr}），别的引擎一律算数。
 %    \begin{macrocode}
 \tl_new:N \l__docxlike_format_par_tl
 \dim_new:N \l_docxlike_format_left_dim
@@ -3081,10 +3093,27 @@
                 }
             }
             {
-              \addvspace
+              \bool_lazy_and:nnTF
+                { \dim_compare_p:nNn { \g__docxlike_format_pending_after_dim } > { 0pt } }
+                { \dim_compare_p:nNn { \tex_lastskip:D } = { 0pt } }
                 {
-                  \l_docxlike_format_before_dim
-                  \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
+                  \dim_compare:nNnT
+                    { \l_docxlike_format_before_dim } > { \g__docxlike_format_pending_after_dim }
+                    {
+                      \skip_vertical:n
+                        {
+                          \l_docxlike_format_before_dim
+                          - \g__docxlike_format_pending_after_dim
+                          \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
+                        }
+                    }
+                }
+                {
+                  \addvspace
+                    {
+                      \l_docxlike_format_before_dim
+                      \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
+                    }
                 }
             }
         }
@@ -3121,8 +3150,12 @@
             \__docxlike_format_plus:N \g__docxlike_format_after_plus_dim
           }
       }
+    \mode_if_inner:F
+      { \dim_gset_eq:NN \g__docxlike_format_pending_after_dim \g__docxlike_format_after_dim }
     \str_if_eq:VnT \g__docxlike_format_keep_tl { true } { \__docxlike_format_keep_next: }
   }
+\dim_new:N \g__docxlike_format_pending_after_dim
+
 \tl_new:N \g__docxlike_format_keep_tl
 \dim_new:N \g__docxlike_format_after_dim
 \dim_new:N \g__docxlike_format_after_plus_dim
@@ -3135,7 +3168,15 @@
   {
     \bool_gset_false:N \g_docxlike_section_start_bool
     \dim_gset_eq:NN \g__docxlike_format_prev_after_dim \g__docxlike_format_body_after_dim
+    \__docxlike_format_if_outer_par:T
+      { \dim_gzero:N \g__docxlike_format_pending_after_dim }
   }
+\sys_if_engine_luatex:TF
+  {
+    \cs_new:Npn \__docxlike_format_if_outer_par:T #1
+      { \int_compare:nNnT { \lua_now:n { tex.sprint(-2, tostring(tex.nest.ptr)) } } < { 2 } {#1} }
+  }
+  { \cs_new:Npn \__docxlike_format_if_outer_par:T #1 {#1} }
 %    \end{macrocode}
 %
 % 段后距加在组外：组里设过的颜色出组时复原，复原的节点落在竖直列表上，段后距放在它前面，
@@ -4637,6 +4678,31 @@
           { \CJKecglue } { }
         \xeCJK_replace_inter_class_toks:nnnn { CJK } { HalfLeft }
           { \CJKecglue } { \CJKglue }
+%    \end{macrocode}
+%
+% 全角空格 U+3000 在 Word 里是空格，旁边不加中西文间距，与 \hologo{LuaLaTeX} 那边的
+% \texttt{jaxspmode} 同一件事（见 \cs{docxlike\_format\_hglue:nn}）。\pkg{xeCJK} 把它归在
+% \texttt{CJK} 类里，这里另开一类，各个边界照 \texttt{CJK} 抄（放在最后，上面对
+% \texttt{CJK} 的改动一并带上），再把它与 \texttt{Default}（字母数字）之间的
+% \cs{CJKecglue} 摘掉。
+%    \begin{macrocode}
+        \seq_set_eq:NN \l_tmpa_seq \g__xeCJK_class_seq
+        \xeCJK_new_class:n { DocxlikeIdeoSpace }
+        \__xeCJK_save_CJK_class:n { DocxlikeIdeoSpace }
+        \seq_map_inline:Nn \l_tmpa_seq
+          {
+            \xeCJK_copy_inter_class_toks:nnnn { ##1 } { DocxlikeIdeoSpace }
+              { ##1 } { CJK }
+            \xeCJK_copy_inter_class_toks:nnnn { DocxlikeIdeoSpace } { ##1 }
+              { CJK } { ##1 }
+          }
+        \xeCJK_copy_inter_class_toks:nnnn { DocxlikeIdeoSpace } { DocxlikeIdeoSpace }
+          { CJK } { CJK }
+        \xeCJK_replace_inter_class_toks:nnnn { Default } { DocxlikeIdeoSpace }
+          { \CJKecglue } { }
+        \xeCJK_replace_inter_class_toks:nnnn { DocxlikeIdeoSpace } { Default }
+          { \CJKecglue } { }
+        \xeCJKDeclareCharClass { DocxlikeIdeoSpace } { "3000 }
       }
       {
         \sys_if_engine_luatex:TF
@@ -5128,6 +5194,7 @@
 \NewDocumentCommand \parmark { s O{1} }
   {
     \par
+    \dim_gzero:N \g__docxlike_format_pending_after_dim
     \group_begin:
     \int_set:Nn \l__docxlike_parmark_lines_int { 1 }
     \dim_zero:N \l__docxlike_parmark_size_dim
