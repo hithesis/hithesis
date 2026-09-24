@@ -15,7 +15,8 @@
 %   根上没写就不贴；另有 \option{hyphenation} 与 \option{default-tab-stops}}
 % \changes{v0.1.0}{2026/09/24}{字体键收字体名（\texttt{SimSun}、\texttt{宋体}、\texttt{Times New Roman}），
 %   行高与上升部按名字照 Windows Word 的规则由字体度量现算，不再有写死的系数表，首行基线不另加
-%   0.082\,bp；切换字体按名字声明字族，文档类可以用 \cs{docxlike\_font\_select\_new:nn} 指定替身}
+%   0.082\,bp；切换字体按名字声明字族，文档类可以用 \cs{docxlike\_font\_select\_new:nn} 指定替身，
+%   同一副字体的中英文名、全名跟着一起登记}
 % \changes{v0.1.0}{2026/09/24}{内部存储照 docx：条目名是 \texttt{w:rPr}、\texttt{w:pPr} 下的元素与
 %   属性路径，值用缇、半磅、百分之一行等 docx 的单位；同一处量的几种写法归成一个槽，写一种
 %   抹掉别的；公开的长度键不带单位时按 \texttt{bp}}
@@ -1957,16 +1958,26 @@
 %
 % \emph{按名字切换字体。} 文档类可以说“这个名字在本文档里用什么命令切过去”：
 % \cs{docxlike\_font\_select\_new:nn}\marg{字体名}\marg{代码}，比如字体集里没有 SimSun、要用
-% 替身时。没说过的，东亚字体按名字声明一个中文字族（\pkg{xeCJK} 或 \pkg{ctex} 的
+% 替身时。预设表认得的字体，同一副的别的名字（中文名、全名）一起登记。没说过的，东亚字体按名字声明一个中文字族（\pkg{xeCJK} 或 \pkg{ctex} 的
 % \pkg{luatexja} 接口），西文字体按名字声明一个 \pkg{fontspec} 字族，都只声明一次；本机
 % 没有这副字体时警告一次，不切。
 %    \begin{macrocode}
 \prop_new:N \g__docxlike_font_select_prop
 \tl_new:N \l__docxlike_font_code_tl
+\tl_new:N \l__docxlike_font_group_tl
 \cs_new_protected:Npn \docxlike_font_select_new:nn #1#2
   {
     \__docxlike_font_key:n {#1}
-    \prop_gput:NVn \g__docxlike_font_select_prop \l__docxlike_font_key_str {#2}
+    \prop_get:NVNTF \g__docxlike_font_group_prop \l__docxlike_font_key_str
+      \l__docxlike_font_group_tl
+      {
+        \clist_map_inline:Nn \l__docxlike_font_group_tl
+          {
+            \__docxlike_font_key:n {##1}
+            \prop_gput:NVn \g__docxlike_font_select_prop \l__docxlike_font_key_str {#2}
+          }
+      }
+      { \prop_gput:NVn \g__docxlike_font_select_prop \l__docxlike_font_key_str {#2} }
   }
 \msg_new:nnnn { docxlike } { font-not-found }
   { Font~'#1'~is~not~installed;~the~current~font~is~kept. }

@@ -75,7 +75,7 @@ end
 
 local function read_names(data, off)
   local count, strs = u16(data, off + 2), u16(data, off + 4)
-  local names, seen, fams = {}, {}, {}
+  local names, seen, fams, primary = {}, {}, {}, {}
   for i = 0, count - 1 do
     local r = off + 6 + i * 12
     local plat, enc, id, len, o = u16(data, r), u16(data, r + 2), u16(data, r + 6), u16(data, r + 8), u16(data, r + 10)
@@ -87,10 +87,11 @@ local function read_names(data, off)
       if s and s ~= '' then
         if not seen[s] then seen[s] = true; names[#names + 1] = s end
         if id == 1 or id == 16 then fams[s] = true end
+        if id ~= 16 then primary[s] = true end
       end
     end
   end
-  return names, fams
+  return names, fams, primary
 end
 %    \end{macrocode}
 %
@@ -120,7 +121,8 @@ local function read_face(data, base)
     bold = (fs // 32) % 2 == 1,
     weight = u16(data, os2 + 4),
   }
-  if name then f.names, f.families = read_names(data, name) else f.names, f.families = {}, {} end
+  if name then f.names, f.families, f.primary = read_names(data, name)
+  else f.names, f.families, f.primary = {}, {}, {} end
   return f
 end
 
@@ -264,13 +266,19 @@ function M.table(out, sources)
     if a.path ~= b.path then return a.path < b.path end
     return a.idx < b.idx
   end)
-  local tbl, taken, keys = {}, {}, {}
+  -- 一个名字先给把它当本名（1 号族名、4 号全名、6 号 PostScript 名）的那副字体，
+  -- 只拿它当排版族名（16 号）的往后排：Arial Narrow 的 16 号族名也是 Arial，
+  -- 按路径排在 arial.ttf 前面，不这样 Arial 就会取到 Arial Narrow 的度量
+  local chosen, taken = {}, {}
   for _, e in ipairs(entries) do
-    if not taken[e.fam] then
-      taken[e.fam] = true
+    if not taken[e.fam] then taken[e.fam] = true; chosen[#chosen + 1] = e end
+  end
+  local tbl, keys = {}, {}
+  for pass = 1, 2 do
+    for _, e in ipairs(chosen) do
       for _, nm in ipairs(e.f.names) do
         local k = M.key(nm)
-        if k ~= '' and not tbl[k] then
+        if k ~= '' and not tbl[k] and (pass == 2 or e.f.primary[nm]) then
           tbl[k] = { f = e.f, name = nm, file = e.path:match('[^/]+$') }
           keys[#keys + 1] = k
         end
@@ -298,6 +306,23 @@ function M.table(out, sources)
   for _, k in ipairs(keys) do
     fh:write(M.entry(k, tbl[k].f, tbl[k].name .. ' | ' .. tbl[k].file), '\n')
   end
+  -- 同一副字体的几个名字（英文名、中文名、全名、PostScript 名）记成一组，
+  -- 切换字体时一个名字登记了办法，同组的名字都用它
+  local groups, order = {}, {}
+  for _, k in ipairs(keys) do
+    local f = tbl[k].f
+    if not groups[f] then groups[f] = {}; order[#order + 1] = f end
+    table.insert(groups[f], k)
+  end
+  fh:write('%% 同一副字体的名字，一行一组。\n')
+  local lines = {}
+  for _, f in ipairs(order) do
+    if #groups[f] > 1 then
+      lines[#lines + 1] = '\\docxlike_font_names_new:n { ' .. table.concat(groups[f], ' , ') .. ' }'
+    end
+  end
+  table.sort(lines)
+  for _, l in ipairs(lines) do fh:write(l, '\n') end
   fh:close()
   print(string.format('%d names -> %s', #keys, out))
 end
@@ -514,6 +539,22 @@ return M
           }
       }
   }
+%    \end{macrocode}
+%
+% 同一副字体的几个名字（英文名、中文名、全名、PostScript 名）记成一组：
+% \cs{docxlike\_font\_names\_new:n}\marg{名字表}。预设表里每副有多个名字的字体各有一行；
+% 按名字登记切换办法时，同组的名字一起登记，写 \texttt{宋体} 与写 \texttt{SimSun} 一样。
+% 度量不用这张表，同组的名字在预设表里各有一条、数一样。
+%    \begin{macrocode}
+\prop_new:N \g__docxlike_font_group_prop
+\cs_new_protected:Npn \docxlike_font_names_new:n #1
+  {
+    \clist_map_inline:nn {#1}
+      {
+        \__docxlike_font_key:n {##1}
+        \prop_gput:NVn \g__docxlike_font_group_prop \l__docxlike_font_key_str {#1}
+      }
+  }
 \file_if_exist:nT { docxlike-font-metrics.def }
   {
     \group_begin:
@@ -552,7 +593,7 @@ return M
 \docxlike_font_metrics_new:nnnnnn { adobe黑体stdr } { 1000 } { 967 283 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % Adobe 黑体 Std R | AdobeHeitiStd-Regular.otf
 \docxlike_font_metrics_new:nnnnnn { aptos } { 2048 } { 2068 563 } { 1923 577 0 } { 1923 577 0 } { true latin } % Aptos | Aptos.ttf
 \docxlike_font_metrics_new:nnnnnn { aptosnarrow } { 2048 } { 2068 563 } { 1923 577 0 } { 1923 577 0 } { true latin } % Aptos Narrow | Aptos-Narrow.ttf
-\docxlike_font_metrics_new:nnnnnn { arial } { 2048 } { 1888 431 } { 1916 434 0 } { 1491 431 269 } { false latin } % Arial | ARIALN.TTF
+\docxlike_font_metrics_new:nnnnnn { arial } { 2048 } { 1854 434 } { 1854 434 67 } { 1491 431 307 } { false latin } % Arial | arial.ttf
 \docxlike_font_metrics_new:nnnnnn { arialmt } { 2048 } { 1854 434 } { 1854 434 67 } { 1491 431 307 } { false latin } % ArialMT | arial.ttf
 \docxlike_font_metrics_new:nnnnnn { arialnarrow } { 2048 } { 1888 431 } { 1916 434 0 } { 1491 431 269 } { false latin } % Arial Narrow | ARIALN.TTF
 \docxlike_font_metrics_new:nnnnnn { arialnarrowcorsivo } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Corsivo | ArialNarrowItalic.ttf
@@ -808,6 +849,82 @@ return M
 \docxlike_font_metrics_new:nnnnnn { ＳＴＸｉｎｇｋａｉ } { 1000 } { 761 289 } { 802 289 0 } { 800 200 144 } { false east-asian } % ＳＴＸｉｎｇｋａｉ | STXINGKA.TTF
 \docxlike_font_metrics_new:nnnnnn { ＳＴＸｉｎｗｅｉ } { 1000 } { 781 236 } { 800 236 0 } { 800 200 144 } { false east-asian } % ＳＴＸｉｎｗｅｉ | STXINWEI.TTF
 \docxlike_font_metrics_new:nnnnnn { ＳＴＺｈｏｎｇｓｏｎｇ } { 1000 } { 912 225 } { 1007 318 0 } { 800 200 144 } { false east-asian } % ＳＴＺｈｏｎｇｓｏｎｇ | STZHONGS.TTF
+%% 同一副字体的名字，一行一组。
+\docxlike_font_names_new:n { adobeheitistd , adobeheitistdr , adobeheitistdregular , adobe黑体std , adobe黑体stdr }
+\docxlike_font_names_new:n { adobemingstd , adobemingstdl , adobemingstdlight , adobe明體std , adobe明體stdl }
+\docxlike_font_names_new:n { adobesongstd , adobesongstdl , adobesongstdlight , adobe宋体std , adobe宋体stdl }
+\docxlike_font_names_new:n { arial , arialmt }
+\docxlike_font_names_new:n { arialnarrowcorsivo , arialnarrowcursief , arialnarrowcursiva , arialnarrowdőlt , arialnarrowetzana , arialnarrowitalic , arialnarrowitalique , arialnarrowitálico , arialnarrowkursiv , arialnarrowkursivoitu , arialnarrowkursywa , arialnarrowkurzíva , arialnarrowpoševno , arialnarrowİtalik , arialnarrowΠλάγια , arialnarrowКурсив }
+\docxlike_font_names_new:n { baolisc , baoliscregular , stbaoliscregular , 報隸簡 , 報隸簡標準體 , 报隶简 , 报隶简常规体 }
+\docxlike_font_names_new:n { batang , 바탕 }
+\docxlike_font_names_new:n { caiyun , stcaiyun , 华文彩云 }
+\docxlike_font_names_new:n { cmr10 , cmunrm , computermodern , latinmodernroman , latinmodernroman10regular , lmroman10 , lmroman10regular }
+\docxlike_font_names_new:n { couriernew , couriernewpsmt }
+\docxlike_font_names_new:n { dengxian , dengxianregular , 等线 }
+\docxlike_font_names_new:n { dengxianlight , 等线light }
+\docxlike_font_names_new:n { dotum , 돋움 }
+\docxlike_font_names_new:n { fandolfang , fandolfangr , fandolfangregular }
+\docxlike_font_names_new:n { fandolhei , fandolheiregular }
+\docxlike_font_names_new:n { fandolkai , fandolkairegular }
+\docxlike_font_names_new:n { fandolsong , fandolsongregular }
+\docxlike_font_names_new:n { fangsong , 仿宋 }
+\docxlike_font_names_new:n { fzshuti , fzstkgbk10 , 方正舒体 }
+\docxlike_font_names_new:n { fzyaoti , fzytkgbk10 , 方正姚体 }
+\docxlike_font_names_new:n { gulim , 굴림 }
+\docxlike_font_names_new:n { heitisc , heitisclight , heiti간체 , heiti간체가는체 , stheitisclight , 黑体简 , 黑体简细体 , 黑體簡 , 黑體簡細體 , 黒体簡 , 黒体簡ライト }
+\docxlike_font_names_new:n { hiraginosansgb , hiraginosansgbw3 , 冬青黑体简体中文 , 冬青黑体简体中文w3 , 冬青黑體簡體中文 , 冬青黑體簡體中文w3 }
+\docxlike_font_names_new:n { kaiti , 楷体 }
+\docxlike_font_names_new:n { kaitisc , kaitiscregular , stkaitiscregular , 楷体简 , 楷体简常规体 , 楷體簡 , 楷體簡標準體 }
+\docxlike_font_names_new:n { latinmodernmono , latinmodernmono10regular , lmmono10 , lmmono10regular }
+\docxlike_font_names_new:n { latinmodernmono12regular , lmmono12 , lmmono12regular }
+\docxlike_font_names_new:n { latinmodernroman12regular , lmroman12 , lmroman12regular }
+\docxlike_font_names_new:n { latinmodernsans , latinmodernsans10regular , lmsans10 , lmsans10regular }
+\docxlike_font_names_new:n { latinmodernsans12regular , lmsans12 , lmsans12regular }
+\docxlike_font_names_new:n { libiansc , libianscregular , stlibianscregular , 隶变简 , 隶变简常规体 , 隸變簡 , 隸變簡標準體 }
+\docxlike_font_names_new:n { lisu , 隶书 }
+\docxlike_font_names_new:n { malgungothic , 맑은고딕 }
+\docxlike_font_names_new:n { meiryo , メイリオ }
+\docxlike_font_names_new:n { microsoftjhenghei , microsoftjhengheiregular , 微軟正黑體 }
+\docxlike_font_names_new:n { microsoftyahei , microsoftyaheiregular , 微软雅黑 }
+\docxlike_font_names_new:n { microsoftyaheilight , 微软雅黑light }
+\docxlike_font_names_new:n { microsoftyaheiui , microsoftyaheiuiregular }
+\docxlike_font_names_new:n { mingliu , 細明體 }
+\docxlike_font_names_new:n { msgothic , ＭＳゴシック }
+\docxlike_font_names_new:n { msmincho , ＭＳ明朝 }
+\docxlike_font_names_new:n { mspgothic , ＭＳＰゴシック }
+\docxlike_font_names_new:n { mspmincho , ＭＳＰ明朝 }
+\docxlike_font_names_new:n { notosanssc , notosansscthin }
+\docxlike_font_names_new:n { notoserifcjksc , notoserifcjkscregular }
+\docxlike_font_names_new:n { notoserifsc , notoserifscextralight }
+\docxlike_font_names_new:n { nsimsun , 新宋体 }
+\docxlike_font_names_new:n { palatinolinotype , palatinolinotyperoman }
+\docxlike_font_names_new:n { pingfangsc , pingfangscregular , 苹方简 , 苹方简常规体 , 蘋方簡 , 蘋方簡標準體 }
+\docxlike_font_names_new:n { pmingliu , 新細明體 }
+\docxlike_font_names_new:n { simhei , 黑体 }
+\docxlike_font_names_new:n { simsun , 宋体 }
+\docxlike_font_names_new:n { songtisc , songtiscregular , stsongtiscregular , 宋体简 , 宋体简常规体 , 宋體簡 , 宋體簡標準體 }
+\docxlike_font_names_new:n { stfangsong , 华文仿宋 , ＳＴＦａｎｇｓｏｎｇ }
+\docxlike_font_names_new:n { sthupo , 华文琥珀 , ＳＴＨｕｐｏ }
+\docxlike_font_names_new:n { stkaiti , 华文楷体 , ＳＴＫａｉｔｉ }
+\docxlike_font_names_new:n { stliti , 华文隶书 , ＳＴＬｉｔｉ }
+\docxlike_font_names_new:n { stsong , 华文宋体 , ＳＴＳｏｎｇ }
+\docxlike_font_names_new:n { stxihei , 华文细黑 , ＳＴＸｉｈｅｉ }
+\docxlike_font_names_new:n { stxingkai , 华文行楷 , ＳＴＸｉｎｇｋａｉ }
+\docxlike_font_names_new:n { stxingkaisclight , xingkaisc , xingkaisclight , 行楷简 , 行楷简细体 , 行楷簡 , 行楷簡細體 }
+\docxlike_font_names_new:n { stxinwei , 华文新魏 , ＳＴＸｉｎｗｅｉ }
+\docxlike_font_names_new:n { styuantiscregular , yuantisc , yuantiscregular , 圆体简 , 圆体简常规体 , 圓體簡 , 圓體簡標準體 }
+\docxlike_font_names_new:n { stzhongsong , 华文中宋 , ＳＴＺｈｏｎｇｓｏｎｇ }
+\docxlike_font_names_new:n { texgyreadventor , texgyreadventorregular }
+\docxlike_font_names_new:n { texgyrebonum , texgyrebonumregular }
+\docxlike_font_names_new:n { texgyrecursor , texgyrecursorregular }
+\docxlike_font_names_new:n { texgyreheros , texgyreherosregular }
+\docxlike_font_names_new:n { texgyrepagella , texgyrepagellaregular }
+\docxlike_font_names_new:n { texgyreschola , texgyrescholaregular }
+\docxlike_font_names_new:n { texgyretermes , texgyretermesregular }
+\docxlike_font_names_new:n { timesnewroman , timesnewromanpsmt }
+\docxlike_font_names_new:n { youyuan , 幼圆 }
+\docxlike_font_names_new:n { yugothic , yugothicregular , 游ゴシック , 游ゴシックregular }
+\docxlike_font_names_new:n { yumincho , yuminchoregular , 游明朝 , 游明朝regular }
 %</metrics-table>
 %    \end{macrocode}
 %
