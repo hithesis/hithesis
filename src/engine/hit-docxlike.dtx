@@ -240,6 +240,234 @@
   }
 %    \end{macrocode}
 %
+% \subsection{Word 里没有的写法}
+%
+% 格式规范有几样 Word 的对话框里没有，\pkg{docxlike} 不收，本类经它的接入点加上（接口见
+% \file{src/docxlike/docxlike-format.dtx} 的“给文档类的接入点”）：
+% \begin{itemize}
+% \item 按版心底排法分两套取值：样式名后写 \texttt{/if-raggedbottom} 或 \texttt{/if-flushbottom}。
+%   \option{layout}/\option{bottom}\texttt{=ragged} 按行数与多倍值给的那一版排，\texttt{flush} 按
+%   毫米区间给的那一版排，两套之间没有继承，不是在一套值上加伸缩。限定词带着 \texttt{bottom}
+%   那一截，离开 \option{bottom} 子块也说得清是哪件事；
+% \item \option{heading} 一次写四级标题，\option{heading/if-*} 同理；
+% \item \option{paragraph}/\option{spacing} 里的 \option{line-white}、\option{white-before}、
+%   \option{white-after} 按视觉留白给行距与段前段后，写两个词是区间；\option{line-range} 写行距
+%   区间，如 \texttt{\{1.2 1.25\}}，两个词也可以一头长度一头倍数。它们与 \option{line-spacing}、
+%   \option{before}、\option{after} 写的是同一处，同一个样式里都写了就报错，按后写的算；
+% \item \option{alignment}\texttt{=last-line-centered}：只居中末行，排法在题注那边；
+% \item \option{font} 里的 \option{latin-bold}（只加粗西文那一槽）与 \option{latin-line}
+%   （行盒按西文算，汉字字体照旧）。
+% \end{itemize}
+%    \begin{macrocode}
+\docxlike_format_qualifiers:nn { if-raggedbottom , if-flushbottom }
+  { \bool_if:NTF \g_docxlike_ragged_bottom_bool { if-raggedbottom } { if-flushbottom } }
+\docxlike_format_alignment_new:nn { last-line-centered } { \centering }
+\keys_define:nn { hit / styles }
+  {
+    heading .code:n = { \__hit_styles_heading:nn { } {#1} } ,
+    heading / if-raggedbottom .code:n =
+      { \__hit_styles_heading:nn { /if-raggedbottom } {#1} } ,
+    heading / if-flushbottom .code:n =
+      { \__hit_styles_heading:nn { /if-flushbottom } {#1} } ,
+  }
+\cs_new_protected:Npn \__hit_styles_heading:nn #1#2
+  {
+    \docxlike_format_set:n
+      { Heading1 #1 = {#2} , Heading2 #1 = {#2} , Heading3 #1 = {#2} , Heading4 #1 = {#2} }
+  }
+\keys_define:nn { docxlike / style / paragraph / spacing }
+  {
+    line-white .code:n =
+      {
+        \docxlike_format_spacing_later:n
+          { \docxlike_format_measure:nnnn { line-white } { line } { white } {#1} }
+      } ,
+    line-range .code:n =
+      {
+        \docxlike_format_spacing_later:n
+          { \docxlike_format_measure:nnnn { line-range } { line } { spacing } {#1} }
+      } ,
+    white-before .code:n =
+      { \docxlike_format_measure:nnnn { white-before } { before } { white } {#1} } ,
+    white-after .code:n =
+      { \docxlike_format_measure:nnnn { white-after } { after } { white } {#1} } ,
+  }
+\keys_define:nn { docxlike / style / font }
+  {
+    latin-bold .choices:nn = { true , false }
+      { \docxlike_format_put:nV { latin-bold } \l_keys_choice_tl } ,
+    latin-bold .default:n = true ,
+    latin-line .choices:nn = { true , false }
+      { \docxlike_format_put:nV { latin-line } \l_keys_choice_tl } ,
+    latin-line .default:n = true ,
+  }
+\cs_generate_variant:Nn \docxlike_format_put:nn { nV }
+\tl_new:N \l__hit_docxlike_slot_tl
+\docxlike_format_set_target_hook:n
+  {
+    \docxlike_format_get:nnN {#1} { latin-line } \l__hit_docxlike_slot_tl
+    \str_if_eq:VnT \l__hit_docxlike_slot_tl { true }
+      { \bool_set_true:N \l_docxlike_format_latin_line_bool }
+  }
+\docxlike_format_set_font_hook:n
+  {
+    \docxlike_format_get:nnN {#1} { latin-bold } \l__hit_docxlike_slot_tl
+    \str_if_eq:VnT \l__hit_docxlike_slot_tl { true }
+      { \docxlike_format_emit:n { \__hit_docxlike_latin_bold: } }
+  }
+%    \end{macrocode}
+%
+% \emph{视觉白折基线距。} 这类规范给的全是视觉白，也就是两行之间那条
+% 看得见的空白：正文与款、项标题 3\,--\,4\,mm，条标题 6\,--\,7\,mm。它与基线距
+% 差一个字面高，中易宋体全字符集 20992 个汉字的墨迹高度实测平均 0.9050 em
+% （中位数 0.9102），所以
+% \begin{quote}
+%   基线距 = 视觉白 + 0.9050 × 字号
+% \end{quote}
+%
+% 键名里是 \texttt{white} 不是 \texttt{gap}，这一条不要改回去。OpenType 的
+% \texttt{hhea.lineGap} 与 OS/2 的 \texttt{sTypoLineGap} 早就占了后一个词，
+% 定义是基线距减去 ascent 加 descent，量的是 em 框而不是墨迹。中易宋体的
+% ascent 是 220/256、descent 是 −36/256，加起来正好 1.0 em，所以同一行
+% 12\,bp 正文、基线距 19.453\,bp，按字体度量算是 7.45\,bp（2.63\,mm），
+% 按这里的墨迹算是 8.59\,bp（3.03\,mm）。差 0.4\,mm，而规范给的区间总共
+% 才 1\,mm 宽，够让人按错的定义去核对，然后得出不合规的结论。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_white_ink_tl { 0.9050 }
+\docxlike_format_line_unit_new:nn { white }
+  { \dim_set:Nn #2 { #1 + \c__hit_white_ink_tl \l_docxlike_format_size_dim } }
+%    \end{macrocode}
+%
+% \emph{块白。} \option{white-before} 与 \option{white-after} 量的是上下两块之间
+% 那条看得见的空白：上一块末行的墨迹底，到下一块首行的墨迹顶。段前段后是
+% \hologo{TeX} 那边的量，两者之间隔着两块的行盒，所以要换。
+%
+% 量出来的关系是（\file{testfiles/61-format-white-skip.lvt} 逐条对着）
+% \begin{quote}
+%   块间基线距 = max（正文行距，上块深度 + 下块上升部）+ 段前段后
+% \end{quote}
+% 上块深度是上块行距减上块上升部，上升部用的是排版这一头的
+% $1.008 \times 字号 + 0.082$\,bp，不是墨迹那一头。
+%
+% 里头那个 \texttt{max} 是 \hologo{TeX} 的行间胶：两块的行盒接起来还不够正文
+% 的 \cs{baselineskip} 高时，它把差额补上。标题的行盒一般比正文高，补不上，
+% 所以多数时候取的是后一项；款、项标题的行距比正文小，它的下距就要扣掉这一段。
+% 定行间胶的是外层那个 \cs{baselineskip}，也就是正文的，不是标题自己的——
+% 节标题上距那一处量出来是 22.477\,bp 而不是节标题行距 24.316\,bp，就是这个缘故。
+%
+% 视觉白与基线距差两块的墨迹：
+% \begin{quote}
+%   视觉白 = 块间基线距 − 0.0927 × 上块字号 − 0.8123 × 下块字号
+% \end{quote}
+% 0.8123 与 0.0927 是中易宋体全字符集 20992 个汉字的墨迹上伸与下伸的实测平均，
+% 两个加起来是前面那个 0.9050。行内的白只跟一个字号有关，所以那里用合数；
+% 块间的上下两块字号不同，得拆开。
+%
+% 两式相减，段前段后就是视觉白加上下两块各自的一项：上块那一项是
+% （0.0927 + 1.008）× 上块字号 + 0.082\,bp − 上块行距，下块那一项是
+% （0.8123 − 1.008）× 下块字号 − 0.082\,bp。
+% 上块与下块是谁看方向：\option{white-before} 的上块是正文、下块是这个元素，
+% \option{white-after} 反过来。正文的字号与行距取 \cs{g\_docxlike\_body\_size\_dim}
+% 与 \cs{g\_docxlike\_body\_lead\_dim}，\cs{docxlike\_format\_apply\_body:} 先跑，所以标题
+% 这边读得到。
+%
+% 相邻两级标题（章下面紧接着节）的上块不是正文，这一档不管，按正文算。
+%
+% 章标题总是另起一页，上面没有块，参照物换成版心顶：那一档的上块两项全归零，
+% 量出来基线正好落在版心顶下方一个上升部处。
+%
+% 换出来是负的就取零。\hologo{LaTeX} 的 \cs{@startsection} 把负的段前读成
+% “后一段不缩进”、把负的段后读成“标题与正文串行”，都不是“往上挪一点”的
+% 意思，发过去会改掉排版而不是改掉间距。要的白比两块行盒自带的还窄时，只能
+% 就着行盒，那点差在零点几毫米上。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_white_ascent_tl { 1.008 }
+\tl_const:Nn \c__hit_white_ink_ascent_tl { 0.8123 }
+\tl_const:Nn \c__hit_white_ink_descent_tl { 0.0927 }
+\clist_const:Nn \c__hit_white_pagetop_clist { Heading1 }
+\dim_new:N \l__hit_white_block_dim
+\dim_new:N \l__hit_white_base_dim
+\cs_new_protected:Npn \__hit_white_block_up:nn #1#2
+  {
+    \dim_add:Nn \l__hit_white_block_dim { \c__hit_white_ink_descent_tl #1 }
+    \dim_add:Nn \l__hit_white_base_dim
+      { #2 - \c__hit_white_ascent_tl #1 - \c_docxlike_format_ascent_dim }
+  }
+\cs_new_protected:Npn \__hit_white_block_down:n #1
+  {
+    \dim_add:Nn \l__hit_white_block_dim { \c__hit_white_ink_ascent_tl #1 }
+    \dim_add:Nn \l__hit_white_base_dim
+      { \c__hit_white_ascent_tl #1 + \c_docxlike_format_ascent_dim }
+  }
+\cs_new_protected:Npn \__hit_white_block_lead:
+  {
+    \dim_compare:nNnT { \l__hit_white_base_dim } < { \g_docxlike_body_lead_dim }
+      { \dim_set_eq:NN \l__hit_white_base_dim \g_docxlike_body_lead_dim }
+  }
+\cs_new_protected:Npn \__hit_white_block:nn #1#2
+  {
+    \dim_zero:N \l__hit_white_block_dim
+    \dim_zero:N \l__hit_white_base_dim
+    \str_if_eq:nnTF {#2} { before }
+      {
+        \clist_if_in:NnTF \c__hit_white_pagetop_clist {#1}
+          { \__hit_white_block_down:n { \l_docxlike_format_size_dim } }
+          {
+            \__hit_white_block_up:nn
+              { \g_docxlike_body_size_dim } { \g_docxlike_body_lead_dim }
+            \__hit_white_block_down:n { \l_docxlike_format_size_dim }
+            \__hit_white_block_lead:
+          }
+      }
+      {
+        \__hit_white_block_up:nn
+          { \l_docxlike_format_size_dim } { \l_docxlike_format_lead_dim }
+        \__hit_white_block_down:n { \g_docxlike_body_size_dim }
+        \__hit_white_block_lead:
+      }
+    \dim_sub:Nn \l__hit_white_block_dim { \l__hit_white_base_dim }
+  }
+%    \end{macrocode}
+%
+% 段前段后的 \texttt{white} 单位：\pkg{docxlike} 算段前段后时把样式名与方向放在
+% \cs{l\_docxlike\_format\_style\_tl}、\cs{l\_docxlike\_format\_side\_tl}，这里照上面的块白换。
+% 上升部系数 1.008 是中易那一系的，与 \pkg{docxlike} 内部那个常数同值。
+%    \begin{macrocode}
+\docxlike_format_space_unit_new:nn { white }
+  {
+    \__hit_white_block:VV \l_docxlike_format_style_tl \l_docxlike_format_side_tl
+    \dim_set:Nn #2 { #1 + \l__hit_white_block_dim }
+    \dim_compare:nNnT { #2 } < { 0pt } { \dim_zero:N #2 }
+  }
+\cs_generate_variant:Nn \__hit_white_block:nn { VV }
+%    \end{macrocode}
+%
+% \begin{macro}{\__hit_docxlike_latin_bold:}
+% \emph{只加粗西文那一槽。} 黑体没有粗体面，\cs{bfseries} 一发，\pkg{xeCJK} 按
+% \option{AutoFakeBold} 给汉字描一圈边合成粗体（PDF 里是 \texttt{2 Tr} 加一个线宽）。
+% 英文档的标题在原件里是 Times Bold，可夹在里面的汉字不该跟着变形。
+%
+% \cs{addCJKfontfeature} 把当前中文族按新特性重声明一遍，作用域跟着分组走。
+% 两个特性都要关：\option{AutoFakeBold} 管描边合成的那一路，\option{BoldFont}
+% 写成空的管\emph{真有粗体面}的那一路（\texttt{fandol} 那一档的黑体就有一副
+% \file{FandolHei-Bold}，只关伪粗它照样变粗）。两个都关了，\cs{bfseries} 在西文
+% 那一槽照样取粗体面，汉字那一槽落回常规面（实测）。
+%
+% \emph{另外两条路走不通，记在这里省得再试。} 一是把 \cs{CJK@family} 换成一个
+% “粗体面指回常规面”的孪生族：选字时 \pkg{xeCJK} 会从族名重新解析，换了白换。
+% 二是在 \cs{setCJKfamilyfont} 外面包一层顺手造孪生族：\option{fontset} 常用的
+% 那几档根本不走类自己那个分支，字体族是 \pkg{ctex} 声明的，包不到。
+% 没有 \cs{addCJKfontfeature}（没装中文宏包）时只发 \cs{bfseries}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_docxlike_latin_bold:
+  {
+    \bfseries
+    \cs_if_exist:NT \addCJKfontfeature
+      { \addCJKfontfeature { AutoFakeBold = false , BoldFont = { } } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
 % \subsection{题序后间距}
 %
 % \begin{macro}{\hit@heading@number@gap:}
