@@ -8,9 +8,12 @@
 %
 % \changes{v3.2a}{2026/09/23}{照 Word 排版的三个模块（页面设置、段落格式、断行）独立成
 %   \pkg{docxlike} 包}
+% \changes{v0.1.0}{2026/09/24}{键名与取值统一写成界面原词的小写加连字符，界面上没有名字的
+%   取 docx 名字的同样写法，写错大小写或照抄 docx 写法时报错给出本包的写法；样式名不计大小写
+%   与连字符；文档里的命令以 \texttt{docx} 开头；文档类保留旧键名用 \cs{docxlike\_keys\_alias:nnn}}
 %
 % 照 Word 的页面设置、段落格式与断行规则排版的那一层，与具体哪一份格式规范都无关，
-% 所以单独成包，叫 \pkg{docxlike}。键名用 Word 英文界面上的词。
+% 所以单独成包，叫 \pkg{docxlike}。键名与取值用 Word 英文界面上的原词，小写加连字符。
 %
 % 源码在 \texttt{latex-docxlike} 仓库里，\file{docxlike.ins} 生成 \file{docxlike.sty}
 % 与断行层的 \file{docxlike.lua}。名字照 expl3 的规矩：给文档类用的接口是
@@ -57,7 +60,7 @@
   }
 \msg_new:nnnn { docxlike } { page-no-pitch }
   { Cannot~determine~the~line~pitch~of~the~page~setup. }
-  { Give~'document-grid/lines/pitch'~or~'document-grid/lines/per-page'. }
+  { Give~'document-grid/lines/pitch'~or~'document-grid/lines/lines-per-page'. }
 \msg_new:nnnn { docxlike } { page-patch-failed }
   { Could~not~patch~\token_to_str:N #1. }
   {
@@ -98,10 +101,157 @@
         \tl_set:Nx \l__docxlike_one_of_tl
           { \seq_use:Nn \l__docxlike_one_of_seq { ,~ } ~or~ \l__docxlike_one_of_last_tl }
       }
-    \msg_error:nnnnV { docxlike } { bad-value } {#1} {#2} \l__docxlike_one_of_tl
+    \__docxlike_bad_value_spelling:nnnF {#1} {#2} {#3}
+      { \msg_error:nnnnV { docxlike } { bad-value } {#1} {#2} \l__docxlike_one_of_tl }
   }
 \cs_generate_variant:Nn \msg_error:nnnnn { nnnnV }
 \cs_generate_variant:Nn \__docxlike_bad_value:nnn { V }
+%    \end{macrocode}
+%
+% \subsection{键名与取值的写法}
+%
+% 公开的键名与取值照 Word 界面上的原词，一律小写，空格、冒号换成连字符；界面上只有
+% 图样、没有名字的取值用 docx 里的名字，同样改成小写加连字符（\texttt{thinThickSmallGap}
+% 写 \texttt{thin-thick-small-gap}）。\cs{\_\_docxlike\_kebab:nN} 做这个改写：大写字母前添
+% 连字符再改小写，空格改连字符，连着的连字符并成一个，开头的去掉。反过来，把连字符后
+% 的字母改大写、去掉连字符，就回到 docx 的名字，所以写法之间一一对应。
+%    \begin{macrocode}
+\str_new:N \l__docxlike_kebab_str
+\cs_new_protected:Npn \__docxlike_kebab:nN #1#2
+  {
+    \str_clear:N #2
+    \str_map_inline:nn {#1}
+      {
+        \str_if_in:nnTF { ABCDEFGHIJKLMNOPQRSTUVWXYZ } {##1}
+          { \str_put_right:Ne #2 { - \str_lowercase:n {##1} } }
+          { \str_put_right:Nn #2 {##1} }
+      }
+    \str_replace_all:Nnn #2 { ~ } { - }
+    \str_replace_all:Nnn #2 { : } { - }
+    \__docxlike_kebab_squeeze:N #2
+    \str_if_eq:eeT { \str_head:N #2 } { - }
+      { \str_set:Ne #2 { \str_range:Nnn #2 { 2 } { -1 } } }
+  }
+\cs_new_protected:Npn \__docxlike_kebab_squeeze:N #1
+  {
+    \str_if_in:NnT #1 { -- }
+      {
+        \str_replace_all:Nnn #1 { -- } { - }
+        \__docxlike_kebab_squeeze:N #1
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_kebab:nN { V }
+%    \end{macrocode}
+%
+% 取值来自 docx 名单的键，用 \cs{\_\_docxlike\_ooxml\_value:nnnNTF}\marg{键名}\marg{取值}\marg{docx 名单}
+% \meta{结果}：不计大小写与连字符在名单里找，找到了把 docx 的名字放进 \meta{结果}；写法
+% 与本包的不一样（比如照抄了 docx 的 \texttt{upperRoman}）时报错，说明本包的写法，照样用
+% 找到的那个。
+%    \begin{macrocode}
+\msg_new:nnnn { docxlike } { value-spelling }
+  { The~value~'#2'~of~the~key~'#1'~is~written~'#3';~using~'#3'. }
+  { Keys~and~values~are~lowercase~words~joined~by~hyphens. }
+\str_new:N \l__docxlike_value_in_str
+\str_new:N \l__docxlike_value_try_str
+\cs_new_protected:Npn \__docxlike_squash:nN #1#2
+  {
+    \str_set:Ne #2 { \str_lowercase:n {#1} }
+    \str_remove_all:Nn #2 { - }
+    \str_remove_all:Nn #2 { ~ }
+  }
+\cs_generate_variant:Nn \__docxlike_squash:nN { V }
+\cs_new_protected:Npn \__docxlike_ooxml_value:nnnNTF #1#2#3#4#5#6
+  {
+    \__docxlike_squash:nN {#2} \l__docxlike_value_in_str
+    \tl_clear:N #4
+    \clist_map_inline:nn {#3}
+      {
+        \__docxlike_squash:nN {##1} \l__docxlike_value_try_str
+        \str_if_eq:NNT \l__docxlike_value_try_str \l__docxlike_value_in_str
+          { \tl_set:Nn #4 {##1} \clist_map_break: }
+      }
+    \tl_if_empty:NTF #4 {#6}
+      {
+        \__docxlike_kebab:VN #4 \l__docxlike_kebab_str
+        \str_if_eq:VnF \l__docxlike_kebab_str {#2}
+          { \msg_error:nnnnV { docxlike } { value-spelling } {#1} {#2} \l__docxlike_kebab_str }
+        #5
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_ooxml_value:nnnNTF { nVnNTF , nnVNTF }
+%    \end{macrocode}
+%
+% 取值来自界面的键，写错时 \cs{\_\_docxlike\_bad\_value:nnn} 先看改写成本包的写法后在不在
+% 允许的取值里，在就直说该怎么写。键名也一样：未知的键改写后是个认得的键，警告里给出
+% 本包的写法。
+%    \begin{macrocode}
+\msg_new:nnnn { docxlike } { bad-value-spelling }
+  { The~key~'#1'~does~not~accept~'#2';~it~is~written~'#3'. }
+  { Keys~and~values~are~lowercase~words~joined~by~hyphens. }
+\msg_new:nnnn { docxlike } { unknown-key-spelling }
+  { The~key~'#1'~is~unknown~and~is~being~ignored;~it~is~written~'#2'. }
+  { Keys~and~values~are~lowercase~words~joined~by~hyphens. }
+\cs_new_protected:Npn \__docxlike_bad_value_spelling:nnnF #1#2#3#4
+  {
+    \__docxlike_kebab:nN {#2} \l__docxlike_kebab_str
+    \str_if_eq:VnTF \l__docxlike_kebab_str {#2}
+      {#4}
+      {
+        \bool_set_false:N \l__docxlike_spelling_bool
+        \clist_map_inline:nn {#3}
+          {
+            \str_if_eq:VnT \l__docxlike_kebab_str {##1}
+              { \bool_set_true:N \l__docxlike_spelling_bool \clist_map_break: }
+          }
+        \bool_if:NTF \l__docxlike_spelling_bool
+          {
+            \msg_error:nnnnV { docxlike } { bad-value-spelling } {#1} {#2}
+              \l__docxlike_kebab_str
+          }
+          {#4}
+      }
+  }
+\bool_new:N \l__docxlike_spelling_bool
+\str_new:N \l__docxlike_key_module_str
+\cs_new_protected:Npn \__docxlike_unknown_key:
+  {
+    \__docxlike_kebab:VN \l_keys_key_str \l__docxlike_kebab_str
+    \str_set:Ne \l__docxlike_key_module_str
+      {
+        \str_range:Nnn \l_keys_path_str { 1 }
+          { \str_count:N \l_keys_path_str - \str_count:N \l_keys_key_str - 1 }
+      }
+    \bool_lazy_and:nnTF
+      { ! \str_if_eq_p:VV \l__docxlike_kebab_str \l_keys_key_str }
+      { \keys_if_exist_p:VV \l__docxlike_key_module_str \l__docxlike_kebab_str }
+      {
+        \msg_warning:nnVV { docxlike } { unknown-key-spelling }
+          \l_keys_key_str \l__docxlike_kebab_str
+      }
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str }
+  }
+\prg_generate_conditional_variant:Nnn \keys_if_exist:nn { VV } { p }
+\cs_generate_variant:Nn \msg_warning:nnnn { nnVV }
+%    \end{macrocode}
+%
+% 文档类给本包的键起过别的名字、要照旧收着的，用
+% \cs{docxlike\_keys\_alias:nnn}\marg{键所在的组}\marg{旧名}\marg{本包的名字}，比如
+% \verb|\docxlike_keys_alias:nnn { style / font } { snap-to-grid } { ... }|。旧名不带值时，
+% 本包的键也不带值。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_keys_alias:nnn #1#2#3
+  {
+    \keys_define:nn { docxlike / #1 }
+      {
+        #2 .code:n =
+          {
+            \tl_if_novalue:nTF {##1}
+              { \keys_set:nn { docxlike / #1 } { #3 } }
+              { \keys_set:nn { docxlike / #1 } { #3 = {##1} } }
+          } ,
+        #2 .default:V = \c_novalue_tl ,
+      }
+  }
 %    \end{macrocode}
 %
 % 收长度的公开键照 Word 界面：可以带单位，不带单位按磅，也就是 \texttt{bp}。
@@ -162,7 +312,7 @@
 \keys_define:nn { docxlike }
   {
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \NewDocumentCommand \docxlikesetup { m } { \__docxlike_keys_set:nn { docxlike } {#1} }
 %</package>

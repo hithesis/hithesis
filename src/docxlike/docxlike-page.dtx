@@ -68,7 +68,7 @@
 %
 % \subsection{参数与产物}
 %
-% 尺寸类的键都收长度，\option{per-page} 与 \option{per-line} 收整数。纸张默认 A4。
+% 尺寸类的键都收长度，\option{lines-per-page} 与 \option{characters-per-line} 收整数。纸张默认 A4。
 % 键的分组见下面定义键的那一段。
 %
 % \emph{七、一行只排整数个字，余量留在右边。} 字符网格是一排死格子，一行装得下
@@ -158,18 +158,18 @@
 %     layout = { from-edge = { header = 3cm , footer = 2.3cm } } ,
 %     document-grid =
 %       {
-%         characters = { per-line = 34 , pitch = 12.45bp } ,
-%         lines = { per-page = 33 , pitch = 19.55bp } ,
+%         characters = { characters-per-line = 34 , pitch = 12.45bp } ,
+%         lines = { lines-per-page = 33 , pitch = 19.55bp } ,
 %       } ,
 %   }
 % \end{latex}
 % 每页行数与行距在对话框里是联动的两格，改哪一格另一格跟着变，所以这里后写的算：
-% 写 \option{per-page} 时把行距清零，算的时候由行数推；写 \option{pitch} 就用它。
+% 写 \option{lines-per-page} 时把行距清零，算的时候由行数推；写 \option{pitch} 就用它。
 % 两者的初值都是 0，拿来当“没给”的哨兵。每行字数与字距同理。
 %
-% \option{grid} 是“网格”那一组单选：\texttt{no-grid}（无网格）、\texttt{line-grid-only}
-% （只指定行网格，字距与每行字数不起作用）、\texttt{line-and-character-grid}（指定行和
-% 字符网格）；“文字对齐字符网格”（\texttt{snap-to-characters}）还没有做。不写时不动
+% \option{grid} 是“网格”那一组单选：\texttt{no-grid}（无网格）、\texttt{specify-line-grid-only}
+% （只指定行网格，字距与每行字数不起作用）、\texttt{specify-line-and-character-grid}（指定行和
+% 字符网格）；“文字对齐字符网格”（\texttt{text-snaps-to-character-grid}）还没有做。不写时不动
 % \cs{g\_docxlike\_grid\_bool}，有没有字符网格看给没给字距或每行字数。
 %    \begin{macrocode}
 \tl_new:N \l__docxlike_page_grid_tl
@@ -193,7 +193,7 @@
         \__docxlike_keys_set:nn { docxlike / page-setup / document-grid } {#1}
       } ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / page-setup / margins }
   {
@@ -202,7 +202,7 @@
     left   .code:n = { \dim_set:Nn \l__docxlike_page_left_dim { \__docxlike_bp:n {#1} } } ,
     right  .code:n = { \dim_set:Nn \l__docxlike_page_right_dim { \__docxlike_bp:n {#1} } } ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / page-setup / paper }
   {
@@ -211,7 +211,7 @@
     height .code:n = { \dim_set:Nn \l__docxlike_page_paper_height_dim { \__docxlike_bp:n {#1} } } ,
     height .initial:n = { 297mm } ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / page-setup / layout }
   {
@@ -229,17 +229,28 @@
 \keys_define:nn { docxlike / page-setup / document-grid }
   {
     grid .choices:nn =
-      { no-grid , line-grid-only , line-and-character-grid , snap-to-characters }
+      { no-grid , specify-line-grid-only , specify-line-and-character-grid , text-snaps-to-character-grid }
       {
-        \str_if_eq:VnTF \l_keys_choice_tl { snap-to-characters }
+        \str_if_eq:VnTF \l_keys_choice_tl { text-snaps-to-character-grid }
           {
             \bool_if:NF \l_docxlike_page_replay_bool
               {
                 \msg_error:nnn { docxlike } { not-implemented }
-                  { document-grid / grid~=~snap-to-characters }
+                  { document-grid / grid~=~text-snaps-to-character-grid }
               }
           }
           { \tl_set_eq:NN \l__docxlike_page_grid_tl \l_keys_choice_tl }
+      } ,
+    grid / unknown .code:n =
+      {
+        \bool_if:NF \l_docxlike_page_replay_bool
+          {
+            \__docxlike_bad_value:nnn { grid } {#1}
+              {
+                no-grid , specify-line-grid-only , specify-line-and-character-grid ,
+                text-snaps-to-character-grid
+              }
+          }
       } ,
     characters .code:n =
       {
@@ -253,23 +264,23 @@
   {
     pitch .code:n = { \dim_set:Nn \l__docxlike_page_char_dim { \__docxlike_bp:n {#1} } } ,
     pitch .initial:n = { 0pt } ,
-    per-line .code:n =
+    characters-per-line .code:n =
       {
         \int_set:Nn \l__docxlike_page_chars_int {#1}
         \dim_zero:N \l__docxlike_page_char_dim
       } ,
-    per-line .initial:n = { 0 } ,
+    characters-per-line .initial:n = { 0 } ,
   }
 \keys_define:nn { docxlike / page-setup / document-grid / lines }
   {
     pitch .code:n = { \dim_set:Nn \l__docxlike_page_lead_dim { \__docxlike_bp:n {#1} } } ,
     pitch .initial:n = { 0pt } ,
-    per-page .code:n =
+    lines-per-page .code:n =
       {
         \int_set:Nn \l__docxlike_page_lines_int {#1}
         \dim_zero:N \l__docxlike_page_lead_dim
       } ,
-    per-page .initial:n = { 0 } ,
+    lines-per-page .initial:n = { 0 } ,
   }
 %    \end{macrocode}
 %
@@ -346,13 +357,13 @@
       \str_case:Vn \l__docxlike_page_grid_tl
         {
           { no-grid } { \bool_gset_false:N \g_docxlike_grid_bool }
-          { line-grid-only }
+          { specify-line-grid-only }
             {
               \bool_gset_true:N \g_docxlike_grid_bool
               \dim_zero:N \l__docxlike_page_char_dim
               \int_zero:N \l__docxlike_page_chars_int
             }
-          { line-and-character-grid } { \bool_gset_true:N \g_docxlike_grid_bool }
+          { specify-line-and-character-grid } { \bool_gset_true:N \g_docxlike_grid_bool }
         }
 %    \end{macrocode}
 %

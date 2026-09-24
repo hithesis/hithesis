@@ -10,7 +10,7 @@
 %   \texttt{Normal}、\texttt{Heading 1} 到 \texttt{Heading 4}、\texttt{Header}、\texttt{Footer}，
 %   别的名字写了就新建、基于 \texttt{Normal}。键名照 Word 英文界面，按“字体”“段落”
 %   “制表位”“边框”几个对话框分组嵌套，每键收 \texttt{auto}（交给默认表）；
-%   \option{font} 与 \option{paragraph} 下各有一个 \option{snap-to-grid}，对应 Word 的两处
+%   \option{font} 与 \option{paragraph} 下各有一个 \option{snap-to-grid-when-document-grid-is-defined}，对应 Word 的两处
 %   “对齐到网格”，\texttt{auto} 沿所在位置往上找（\cs{c\_\_docxlike\_format\_parent\_prop}），
 %   根上没写就不贴；另有 \option{hyphenation} 与 \option{default-tab-stops}}
 % \changes{v0.1.0}{2026/09/24}{字体键收字体名（\texttt{SimSun}、\texttt{宋体}、\texttt{Times New Roman}），
@@ -66,7 +66,7 @@
 % \changes{v3.2a}{2026/08/24}{新增 \cs{parmark}：模拟 Word 的空回车段，可选参数收行数或
 %   \option{styles} 词汇；自然行高按段落标记的字体查；行距与贴格默认跟当前
 %   段落走（Word 里回车出的空段继承上一段的属性，贴格的单倍空段占一整格，实测），
-%   \option{snap-to-grid} 键可改；星号版的空盒之间补零罚分，页底装得下几行装几行；
+%   \option{snap-to-grid-when-document-grid-is-defined} 键可改；星号版的空盒之间补零罚分，页底装得下几行装几行；
 %   浮动体的后距照留，空段另算}
 % \changes{v3.2a}{2026/09/21}{\cs{verb} 照 Word 里能一字一字映射的写法排：Consolas 五号，
 %   空格印成 U+02FD 加零罚分（\option{style}/\option{verb-space}\texttt{!=cell} 换成
@@ -104,11 +104,11 @@
 % \option{font}/\option{font-style}、\option{all-caps} & \texttt{rPr/b}、\texttt{rPr/caps} \\
 % \option{font}/\option{size} & \texttt{rPr/sz}（半磅） \\
 % \option{font}/\option{character-spacing} & \texttt{rPr/spacing}（缇，带符号） \\
-% \option{font}/\option{snap-to-grid} & \texttt{rPr/snapToGrid} \\
+% \option{font}/\option{snap-to-grid-when-document-grid-is-defined} & \texttt{rPr/snapToGrid} \\
 % \option{paragraph}/\option{alignment} & \texttt{pPr/jc}：\texttt{left}、\texttt{center}、\texttt{right}、\texttt{both}、\texttt{distribute} \\
 % \option{paragraph}/\option{indentation} & \texttt{pPr/ind/} 下的 \texttt{left}、\texttt{leftChars}、\texttt{right}、\texttt{rightChars}、\texttt{firstLine}、\texttt{firstLineChars}、\texttt{hanging}、\texttt{hangingChars} \\
 % \option{paragraph}/\option{spacing} & \texttt{pPr/spacing/} 下的 \texttt{before}、\texttt{beforeLines}、\texttt{after}、\texttt{afterLines}、\texttt{line}、\texttt{lineRule} \\
-% \option{paragraph}/\option{snap-to-grid}、\option{pagination}/\option{keep-with-next} & \texttt{pPr/snapToGrid}、\texttt{pPr/keepNext} \\
+% \option{paragraph}/\option{snap-to-grid-when-document-grid-is-defined}、\option{pagination}/\option{keep-with-next} & \texttt{pPr/snapToGrid}、\texttt{pPr/keepNext} \\
 % \option{tabs}、\option{border} & \texttt{pPr/tabs}（每个停靠点“对齐 位置 前导符”，位置是缇）、\texttt{pPr/pBdr/top}、\texttt{pPr/pBdr/bottom} \\
 % \bottomrule
 % \end{longtblr}
@@ -127,7 +127,7 @@
 % 值就是整数；文档类为了仿真写进来的不是整数也照样存，不强行取整。
 %
 % 行距的“设置值”在内部与模式合成一个词：倍数照写，固定值加 \texttt{!}，最小值加 \texttt{+}。
-% 两个 \option{snap-to-grid} 分属字体与段落，是 Word 本来的样子：段落对话框里那一个
+% 两个 \option{snap-to-grid-when-document-grid-is-defined} 分属字体与段落，是 Word 本来的样子：段落对话框里那一个
 % （\texttt{w:pPr/w:snapToGrid}）管行网格，字体高级页里那一个（\texttt{w:rPr/w:snapToGrid}）
 % 管字符网格。
 %
@@ -226,11 +226,15 @@
 %    \begin{macrocode}
 \clist_new:N \g_docxlike_format_target_clist
 \prop_new:N \g__docxlike_format_parent_prop
+\prop_new:N \g__docxlike_format_name_prop
 \cs_new_protected:Npn \docxlike_format_target_new:nn #1#2
   {
     \prop_if_exist:cF { g__docxlike_format_#1_prop }
       {
         \clist_gput_right:Nn \g_docxlike_format_target_clist {#1}
+        \__docxlike_squash:nN {#1} \l__docxlike_value_try_str
+        \prop_if_in:NVF \g__docxlike_format_name_prop \l__docxlike_value_try_str
+          { \prop_gput:NVn \g__docxlike_format_name_prop \l__docxlike_value_try_str {#1} }
         \prop_new:c { g__docxlike_format_#1_prop }
         \prop_new:c { g__docxlike_format_#1_default_prop }
         \clist_map_inline:Nn \g__docxlike_format_layer_clist
@@ -261,7 +265,7 @@
 % 而那个默认正是包自己的规矩。所以\texttt{auto} 与“没写这一项”等价，
 % 这也正是它该有的含义。
 %
-% 举一个：\option{snap-to-grid} 的内建默认是 \texttt{true} 且要求文档网格已经
+% 举一个：\option{snap-to-grid-when-document-grid-is-defined} 的内建默认是 \texttt{true} 且要求文档网格已经
 % 立起来，所以写 \texttt{auto} 就是“有网格就贴，没有就不贴”，跟着当前选项走。
 %
 % 数值类的键照样收 \texttt{auto}，含义一样，只是那些键本来就不太用得上。
@@ -872,7 +876,7 @@
     tabs .code:n = { \__docxlike_style_tabs:n {#1} } ,
     border .code:n = { \__docxlike_keys_set:nn { docxlike / style / border } {#1} } ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / style / font }
   {
@@ -885,22 +889,22 @@
     all-caps .code:n = { \__docxlike_format_bool:nn { rPr/caps } {#1} } ,
     all-caps .default:n = { true } ,
     character-spacing .code:n = { \__docxlike_style_char_spacing:n {#1} } ,
-    snap-to-grid .code:n = { \__docxlike_format_bool:nn { rPr/snapToGrid } {#1} } ,
-    snap-to-grid .default:n = { true } ,
+    snap-to-grid-when-document-grid-is-defined .code:n = { \__docxlike_format_bool:nn { rPr/snapToGrid } {#1} } ,
+    snap-to-grid-when-document-grid-is-defined .default:n = { true } ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / style / paragraph }
   {
     alignment .code:n = { \__docxlike_style_alignment:n {#1} } ,
     indentation .code:n = { \__docxlike_style_indentation:n {#1} } ,
     spacing .code:n = { \__docxlike_style_spacing:n {#1} } ,
-    snap-to-grid .code:n = { \__docxlike_format_bool:nn { pPr/snapToGrid } {#1} } ,
-    snap-to-grid .default:n = { true } ,
+    snap-to-grid-when-document-grid-is-defined .code:n = { \__docxlike_format_bool:nn { pPr/snapToGrid } {#1} } ,
+    snap-to-grid-when-document-grid-is-defined .default:n = { true } ,
     pagination .code:n =
       { \__docxlike_keys_set:nn { docxlike / style / paragraph / pagination } {#1} } ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \cs_new_protected:Npn \__docxlike_style_alignment:n #1
   {
@@ -939,7 +943,7 @@
     keep-with-next .code:n = { \__docxlike_format_bool:nn { pPr/keepNext } {#1} } ,
     keep-with-next .default:n = { true } ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 %    \end{macrocode}
 %
@@ -976,7 +980,7 @@
     by .code:n =
       { \dim_set:Nn \l__docxlike_style_cs_by_dim { \__docxlike_bp:n {#1} } } ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \cs_new_protected:Npn \__docxlike_style_char_spacing:n #1
   {
@@ -1014,7 +1018,7 @@
     special .tl_set:N = \l__docxlike_style_special_tl ,
     by .tl_set:N = \l__docxlike_style_by_tl ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \cs_new_protected:Npn \__docxlike_style_indentation:n #1
   {
@@ -1058,7 +1062,7 @@
       } ,
     at .tl_set:N = \l__docxlike_style_at_tl ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \cs_new_protected:Npn \docxlike_format_spacing_later:n #1
   { \tl_put_right:Nn \l__docxlike_style_line_tl {#1} }
@@ -1124,8 +1128,9 @@
 %    \end{macrocode}
 %
 % \option{tabs} 照“制表位”对话框：逗号隔开若干个停靠点，每个写“位置 对齐方式 前导符”，
-% 对齐方式 \texttt{left}、\texttt{center}、\texttt{right}，前导符可省。内部按
-% “对齐方式 位置 前导符”存。
+% 对齐方式 \texttt{left}、\texttt{center}、\texttt{right}，前导符可省，取 \texttt{none}、
+% \texttt{dot}、\texttt{hyphen}、\texttt{underscore}、\texttt{middle-dot}。内部按
+% “对齐方式 位置 前导符”存，前导符用 docx 的名字。
 %    \begin{macrocode}
 \seq_new:N \l__docxlike_style_tab_seq
 \seq_new:N \l__docxlike_style_tab_out_seq
@@ -1137,22 +1142,36 @@
         \seq_clear:N \l__docxlike_style_tab_out_seq
         \seq_set_from_clist:Nn \l__docxlike_style_tab_seq {#1}
         \seq_map_inline:Nn \l__docxlike_style_tab_seq
-          {
-            \seq_put_right:Ne \l__docxlike_style_tab_out_seq
-              { \__docxlike_style_tab_swap:w ##1 ~ ~ \q_stop }
-          }
+          { \__docxlike_style_tab_item:w ##1 ~ ~ \q_stop }
         \__docxlike_format_put:ne { pPr/tabs } { \seq_use:Nn \l__docxlike_style_tab_out_seq { , } }
       }
   }
-\cs_new:Npn \__docxlike_style_tab_swap:w #1 ~ #2 ~ #3 \q_stop
+\tl_new:N \l__docxlike_style_tab_lead_tl
+\cs_new_protected:Npn \__docxlike_style_tab_item:w #1 ~ #2 ~ #3 \q_stop
   {
-    #2 ~ \__docxlike_format_twips:n {#1}
-    \tl_if_blank:nF {#3} { ~ \tl_trim_spaces:n {#3} }
+    \tl_set:Ne \l__docxlike_style_tab_lead_tl { \tl_trim_spaces:n {#3} }
+    \tl_if_empty:NF \l__docxlike_style_tab_lead_tl
+      {
+        \__docxlike_ooxml_value:nVnNTF { tabs } \l__docxlike_style_tab_lead_tl
+          { none , dot , hyphen , underscore , middleDot }
+          \l__docxlike_style_tab_lead_tl { }
+          {
+            \__docxlike_bad_value:nVn { tabs } \l__docxlike_style_tab_lead_tl
+              { none , dot , hyphen , underscore , middle-dot }
+            \tl_clear:N \l__docxlike_style_tab_lead_tl
+          }
+      }
+    \seq_put_right:Ne \l__docxlike_style_tab_out_seq
+      {
+        #2 ~ \__docxlike_format_twips:n {#1}
+        \tl_if_empty:NF \l__docxlike_style_tab_lead_tl { ~ \l__docxlike_style_tab_lead_tl }
+      }
   }
 %    \end{macrocode}
 %
 % \option{border} 照“边框和底纹”对话框：\option{top}、\option{bottom} 各一组，
-% \option{style} 线型（取 docx 的线型名，界面上只有图样）、\option{color}、
+% \option{style} 线型（界面上只有图样，取 docx 的线型名改成小写加连字符，
+% \texttt{thin-thick-small-gap}；\texttt{none} 是无框线）、\option{color}、
 % \option{width} 线宽（长度）、\option{from-text} 距正文。默认单线、自动色、0.5 磅、1 磅。
 %    \begin{macrocode}
 \tl_new:N \l__docxlike_style_border_style_tl
@@ -1164,18 +1183,36 @@
     top .code:n = { \__docxlike_style_border:nn { top } {#1} } ,
     bottom .code:n = { \__docxlike_style_border:nn { bottom } {#1} } ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / style / border / side }
   {
-    style .tl_set:N = \l__docxlike_style_border_style_tl ,
+    style .code:n = { \__docxlike_style_border_style:n {#1} } ,
     color .tl_set:N = \l__docxlike_style_border_color_tl ,
     width .code:n =
       { \dim_set:Nn \l__docxlike_style_border_width_dim { \__docxlike_bp:n {#1} } } ,
     from-text .code:n =
       { \dim_set:Nn \l__docxlike_style_border_text_dim { \__docxlike_bp:n {#1} } } ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
+  }
+\clist_const:Nn \c__docxlike_border_style_clist
+  {
+    single , thick , double , triple , dotted , dashed , dashSmallGap , dotDash ,
+    dotDotDash , thinThickSmallGap , thickThinSmallGap , thinThickThinSmallGap ,
+    thinThickMediumGap , thickThinMediumGap , thinThickThinMediumGap ,
+    thinThickLargeGap , thickThinLargeGap , thinThickThinLargeGap , wave ,
+    doubleWave , dashDotStroked , threeDEmboss , threeDEngrave , outset , inset
+  }
+\cs_new_protected:Npn \__docxlike_style_border_style:n #1
+  {
+    \str_if_eq:nnTF {#1} { none }
+      { \tl_set:Nn \l__docxlike_style_border_style_tl { nil } }
+      {
+        \__docxlike_ooxml_value:nnVNTF { style } {#1} \c__docxlike_border_style_clist
+          \l__docxlike_style_border_style_tl { }
+          { \__docxlike_bad_value:nnn { style } {#1} { } }
+      }
   }
 \cs_new_protected:Npn \__docxlike_style_border:nn #1#2
   {
@@ -1260,13 +1297,15 @@
 %    \end{macrocode}
 %
 % \emph{样式集合。} \option{styles} 里每一项是一个样式：键是 Word 里的样式名
-% （\texttt{Normal}、\texttt{Heading 1}），值是它的格式。样式名去掉空格就是内部的
-% 样式标识（docx 的 \texttt{w:styleId}），\texttt{Heading 1} 与 \texttt{Heading1} 是同一个。
+% （\texttt{Normal}、\texttt{Heading 1}），值是它的格式。样式名是名字，照 Word 原样写；
+% 找样式时不计大小写、空格与连字符，\texttt{Heading 1}、\texttt{Heading1}、\texttt{heading-1}
+% 是同一个。新样式的内部标识（docx 的 \texttt{w:styleId}）是去掉空格的名字。
 % 没登记过的名字第一次写到就新建一个样式，与在 Word 里“新建样式”一样。
 %
 % 样式名后面带 \texttt{/}\meta{限定词} 的，限定词要由文档类登记过，见“限定词”。
 %    \begin{macrocode}
 \str_new:N \l__docxlike_style_name_str
+\tl_new:N \l__docxlike_style_found_tl
 \tl_new:N \l__docxlike_style_layer_tl
 \msg_new:nnnn { docxlike } { unknown-qualifier }
   { The~style~name~'#1/#2'~carries~a~qualifier~no~one~declared. }
@@ -1282,6 +1321,10 @@
         \exp_last_unbraced:NV \__docxlike_styles_split:w
           \l__docxlike_style_name_str \q_stop
       }
+    \__docxlike_squash:VN \l__docxlike_style_name_str \l__docxlike_value_try_str
+    \prop_get:NVNT \g__docxlike_format_name_prop \l__docxlike_value_try_str
+      \l__docxlike_style_found_tl
+      { \str_set:NV \l__docxlike_style_name_str \l__docxlike_style_found_tl }
     \bool_set_true:N \l__docxlike_style_layer_known_bool
     \tl_if_empty:NF \l__docxlike_style_layer_tl
       {
@@ -1723,7 +1766,7 @@
 %    \end{macrocode}
 %
 % 网格行距为零说明没走过 \cs{docxlike\_page\_setup:n}，那时候不存在网格，
-% \option{snap-to-grid} 勾了也没有可对齐的东西，按关掉算。
+% \option{snap-to-grid-when-document-grid-is-defined} 勾了也没有可对齐的东西，按关掉算。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__docxlike_format_latin_line:n #1
   {
@@ -3200,9 +3243,9 @@
 % \subsection{制表位}
 %
 % 样式的 \option{tabs} 写成“位置 对齐方式 前导符”，内部存成 docx \texttt{w:tabs} 的
-% “对齐方式 位置 前导符”；位置从段落左缩进量起，前导符可省，取 docx 的名字 \texttt{dot}、
+% “对齐方式 位置 前导符”；位置从段落左缩进量起，前导符可省，存的是 docx 的名字 \texttt{dot}、
 % \texttt{hyphen}、\texttt{underscore}、\texttt{middleDot}（界面上只有图样）。
-% 段落里用 \cs{docxliketab} 表示一个制表符。制表位用完了按 \option{default-tab-stops}
+% 段落里用 \cs{docxtab} 表示一个制表符。制表位用完了按 \option{default-tab-stops}
 % （Word 的“默认制表位”，中文 Word 是 21 磅）往后排。
 %
 % 只排一行：带制表符的段不断行，Word 的页眉页脚几乎都是这样用的。规则是量的：先按
@@ -3214,8 +3257,8 @@
 \keys_define:nn { docxlike }
   { default-tab-stops .dim_gset:N = \g_docxlike_default_tab_stop_dim }
 \msg_new:nnn { docxlike } { tab-outside-paragraph }
-  { \token_to_str:N \docxliketab\ is~only~allowed~in~a~paragraph~with~a~format~target. }
-\NewDocumentCommand \docxliketab { }
+  { \token_to_str:N \docxtab\ is~only~allowed~in~a~paragraph~with~a~format~target. }
+\NewDocumentCommand \docxtab { }
   { \msg_error:nn { docxlike } { tab-outside-paragraph } }
 \seq_new:N \l__docxlike_format_tab_seg_seq
 \seq_new:N \l__docxlike_format_tab_stop_seq
@@ -3229,7 +3272,7 @@
 \dim_new:N \l__docxlike_format_tab_pos_dim
 \cs_new_protected:Npn \__docxlike_format_tabbed:nn #1#2
   {
-    \tl_if_in:nnTF {#2} { \docxliketab }
+    \tl_if_in:nnTF {#2} { \docxtab }
       { \__docxlike_format_tab_line:nn {#1} {#2} }
       {#2}
   }
@@ -3237,7 +3280,7 @@
   {
     \__docxlike_format_read:nnnN {#1} { pPr/tabs } { } \l__docxlike_format_tabs_tl
     \seq_set_from_clist:NV \l__docxlike_format_tab_stop_seq \l__docxlike_format_tabs_tl
-    \seq_set_split:Nnn \l__docxlike_format_tab_seg_seq { \docxliketab } {#2}
+    \seq_set_split:Nnn \l__docxlike_format_tab_seg_seq { \docxtab } {#2}
     \seq_pop_left:NN \l__docxlike_format_tab_seg_seq \l__docxlike_format_border_tl
     \hbox_set:Nn \l__docxlike_format_tab_line_box { \l__docxlike_format_border_tl }
     \dim_set:Nn \l__docxlike_format_tab_x_dim { \box_wd:N \l__docxlike_format_tab_line_box }
@@ -4740,7 +4783,7 @@
 % 可选参数是回车几次；含等号时按键值读，写法与样式同：\option{lines} 几行；
 % \option{font} 里 \option{size}、\option{asian-text-font}、\option{latin-text-font} 指定段落标记的字号
 % 与字体，自然行高只认实测值，没量过的字体报错不瞎给；\option{paragraph} 里 \option{spacing} 的
-% \option{line-spacing} 与 \option{at}，以及 \option{snap-to-grid} 贴不贴网格（网格没启用时写
+% \option{line-spacing} 与 \option{at}，以及 \option{snap-to-grid-when-document-grid-is-defined} 贴不贴网格（网格没启用时写
 % \texttt{true} 也不贴）。
 %    \begin{macrocode}
 \int_new:N \l__docxlike_parmark_lines_int
@@ -4827,7 +4870,7 @@
     paragraph .code:n =
       { \__docxlike_keys_set:nn { docxlike / parmark / paragraph } {#1} } ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / parmark / font }
   {
@@ -4835,22 +4878,22 @@
     latin-text-font .code:n = { \__docxlike_parmark_font:n {#1} } ,
     asian-text-font .code:n = { \__docxlike_parmark_font:n {#1} } ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / parmark / paragraph }
   {
     spacing .code:n = { \__docxlike_parmark_rule:n {#1} } ,
-    snap-to-grid .bool_set:N = \l__docxlike_parmark_snap_bool ,
-    snap-to-grid .default:n = { true } ,
+    snap-to-grid-when-document-grid-is-defined .bool_set:N = \l__docxlike_parmark_snap_bool ,
+    snap-to-grid-when-document-grid-is-defined .default:n = { true } ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / parmark / spacing }
   {
     line-spacing .tl_set:N = \l__docxlike_style_rule_tl ,
     at .tl_set:N = \l__docxlike_style_at_tl ,
     unknown .code:n =
-      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
+      { \__docxlike_unknown_key: } ,
   }
 \cs_new_protected:Npn \__docxlike_parmark_rule:n #1
   {
