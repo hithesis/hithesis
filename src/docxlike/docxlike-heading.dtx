@@ -15,7 +15,19 @@
 % \cs{docxlike\_heading\_new:Nnn}\meta{命令}\marg{样式}\marg{层级名} 把 \meta{命令} 定义成
 % 标题命令，写法与 \hologo{LaTeX} 的一样，\cs{section}\oarg{目录里的题目}\marg{题目}，
 % 带星号的不编号、不进目录。\meta{层级名} 是 \hologo{LaTeX} 那边的名字（\texttt{section}），
-% 目录条目的层级、计数器、\cs{…mark} 都按它找。题目里的 \cs{docxbookmark} 只在正文里算，写进目录与
+% 目录条目的层级、计数器、\cs{…mark} 都按它找。
+%
+% \cs{docxlike\_heading\_new:Nnnn} 多一个键值表，给文档类用：
+% \begin{itemize}
+% \item \option{label}：\texttt{number}（默认）时 \cs{label} 记 Word 的编号串（第一章），\texttt{counter}
+%   时记 \hologo{LaTeX} 计数器的 \cs{the…}（1），给写惯了“第\cs{ref}\marg{…}章”的文档类；
+% \item \option{numbered}：一个布尔表达式，排标题时求值，假时这一个不编号（仍进目录，不带编号），
+%   比如前置部分的章写 \verb|numbered = \legacy_if_p:n { @mainmatter }|；
+% \item \option{penalty}：标题前的分页罚分，前面不是标题时加（\hologo{LaTeX} 节标题前的
+%   \cs{@secpenalty}）。Word 没有这一项，是文档类自己的选择。
+% \end{itemize}
+% 目录条目、\cs{label} 与页眉标记用的编号去掉末尾的空白（半角空格与全角空格 U+3000）：
+% 编号格式里常在末尾打一个全角空格隔开题名，那是排版用的。题目里的 \cs{docxbookmark} 只在正文里算，写进目录与
 % 页眉标记的那一份剥成只剩文字，免得同一个书签记两回。
 %
 % ^^A ======================================================================
@@ -85,9 +97,27 @@
 % 登记的样式名是“heading \meta{n}”这种 Word 的名字，\meta{n} 取样式标识末尾的数字。
 %    \begin{macrocode}
 \tl_new:N \l__docxlike_heading_num_tl
+\tl_new:N \l__docxlike_heading_ref_tl
 \tl_new:N \l__docxlike_heading_style_tl
-\cs_new_protected:Npn \docxlike_heading_new:Nnn #1#2#3
+\tl_new:N \l__docxlike_heading_label_tl
+\tl_new:N \l__docxlike_heading_numbered_tl
+\tl_new:N \l__docxlike_heading_penalty_tl
+\keys_define:nn { docxlike / heading }
   {
+    label .choices:nn = { number , counter }
+      { \tl_set_eq:NN \l__docxlike_heading_label_tl \l_keys_choice_tl } ,
+    numbered .tl_set:N = \l__docxlike_heading_numbered_tl ,
+    penalty .tl_set:N = \l__docxlike_heading_penalty_tl ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\cs_new_protected:Npn \docxlike_heading_new:Nnn #1#2#3
+  { \docxlike_heading_new:Nnnn #1 {#2} {#3} { } }
+\cs_new_protected:Npn \docxlike_heading_new:Nnnn #1#2#3#4
+  {
+    \tl_set:Nn \l__docxlike_heading_label_tl { number }
+    \tl_set:Nn \l__docxlike_heading_numbered_tl { \c_true_bool }
+    \tl_clear:N \l__docxlike_heading_penalty_tl
+    \keys_set:nn { docxlike / heading } {#4}
     \__docxlike_squash:nN {#2} \l__docxlike_value_try_str
     \prop_get:NVNF \g__docxlike_format_name_prop \l__docxlike_value_try_str
       \l__docxlike_heading_style_tl
@@ -96,22 +126,61 @@
         \tl_remove_all:Nn \l__docxlike_heading_style_tl { ~ }
         \docxlike_format_target_new:Vn \l__docxlike_heading_style_tl { Normal }
       }
-    \exp_args:NNV \__docxlike_heading_define:Nnn #1 \l__docxlike_heading_style_tl {#3}
+    \use:e
+      {
+        \exp_not:N \__docxlike_heading_define:Nnnnnn \exp_not:N #1
+          { \exp_not:V \l__docxlike_heading_style_tl } { \exp_not:n {#3} }
+          { \exp_not:V \l__docxlike_heading_label_tl }
+          { \exp_not:V \l__docxlike_heading_numbered_tl }
+          { \exp_not:V \l__docxlike_heading_penalty_tl }
+      }
     \docxlike_style_new:e { heading ~ \__docxlike_heading_level:V \l__docxlike_heading_style_tl }
   }
 \cs_generate_variant:Nn \docxlike_style_new:n { e }
-\cs_new_protected:Npn \__docxlike_heading_define:Nnn #1#2#3
+\cs_new_protected:Npn \__docxlike_heading_define:Nnnnnn #1#2#3#4#5#6
   {
     \RenewDocumentCommand #1 { s o m }
       {
+        \tl_set:Nn \l__docxlike_heading_label_tl {#4}
+        \tl_set:Nn \l__docxlike_heading_numbered_tl {#5}
+        \tl_set:Nn \l__docxlike_heading_penalty_tl {#6}
+        \tl_clear:N \l__docxlike_heading_local_tl
+        \tl_set:Nn \l__docxlike_heading_short_tl {##3}
+        \IfValueT {##2} { \__docxlike_heading_option:n {##2} }
         \IfBooleanTF {##1}
-          { \__docxlike_heading_title:nnnnn {#2} {#3} { } {##3} {##3} }
-          {
-            \IfValueTF {##2}
-              { \__docxlike_heading_title:nnnnn {#2} {#3} { n } {##2} {##3} }
-              { \__docxlike_heading_title:nnnnn {#2} {#3} { n } {##3} {##3} }
-          }
+          { \__docxlike_heading_title:nnnVn {#2} {#3} { } \l__docxlike_heading_short_tl {##3} }
+          { \__docxlike_heading_title:nnnVn {#2} {#3} { n } \l__docxlike_heading_short_tl {##3} }
       }
+  }
+%    \end{macrocode}
+%
+% \emph{可选参数。}没有等号时是目录里的短标题，与 \hologo{LaTeX} 一样；有等号时是键值表：
+% \option{toc} 是短标题，其余是这一个标题的局部格式，键与 \option{styles} 里的样式一样
+% （\option{font}、\option{paragraph}……），对应 Word 里在这一段上直接设的格式，压过样式：
+% \begin{latex}
+% \chapter[paragraph = { spacing = { line-spacing = multiple , at = 1.3 } }]{绪论}
+% \end{latex}
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_heading_local_tl
+\tl_new:N \l__docxlike_heading_short_tl
+\cs_new_protected:Npn \__docxlike_heading_option:n #1
+  {
+    \tl_if_in:nnTF {#1} { = }
+      {
+        \keyval_parse:nnn
+          { \__docxlike_heading_local:n }
+          { \__docxlike_heading_local:nn }
+          {#1}
+      }
+      { \tl_set:Nn \l__docxlike_heading_short_tl {#1} }
+  }
+\cs_new_protected:Npn \__docxlike_heading_local:n #1
+  { \tl_put_right:Nn \l__docxlike_heading_local_tl { #1 , } }
+\cs_new_protected:Npn \__docxlike_heading_local:nn #1#2
+  {
+    \str_if_eq:nnTF {#1} { toc }
+      { \tl_set:Nn \l__docxlike_heading_short_tl {#2} }
+      { \tl_put_right:Nn \l__docxlike_heading_local_tl { #1 = {#2} , } }
   }
 \tl_new:N \l__docxlike_heading_toc_tl
 \cs_new_protected:Npn \__docxlike_heading_title:nnnnn #1#2#3#4#5
@@ -121,6 +190,7 @@
     \exp_args:NnnnV \__docxlike_heading:nnnnn {#1} {#2} {#3} \l__docxlike_heading_toc_tl {#5}
   }
 \cs_generate_variant:Nn \__docxlike_heading:nnnnn { nnnV }
+\cs_generate_variant:Nn \__docxlike_heading_title:nnnnn { nnnV }
 \cs_new_protected:Npn \__docxlike_heading:nnnnn #1#2#3#4#5
   {
     \par
@@ -128,7 +198,8 @@
     \tl_clear:N \l__docxlike_heading_num_tl
     \tl_clear:N \l__docxlike_heading_snum_tl
     \__docxlike_heading_epoch:e { \__docxlike_heading_level:n {#1} }
-    \tl_if_blank:nTF {#3}
+    \tl_clear:N \l__docxlike_heading_ref_tl
+    \bool_lazy_or:nnTF { \tl_if_blank_p:n {#3} } { ! \bool_if_p:n { \l__docxlike_heading_numbered_tl } }
       { \bool_set_true:N \l_docxlike_numbering_off_bool }
       {
         \docxlike_heading_number:nNT {#1} \l__docxlike_heading_num_tl
@@ -136,14 +207,22 @@
             \bool_set_true:N \l_docxlike_numbering_pending_bool
             \__docxlike_numbering_stext:VVN \l__docxlike_numbering_cur_list_tl
               \l__docxlike_numbering_cur_lvl_tl \l__docxlike_heading_snum_tl
+            \tl_set:Ne \l__docxlike_heading_ref_tl { \l__docxlike_heading_num_tl }
+            \regex_replace_once:nnN { [\s\x{3000}]+ \Z } { } \l__docxlike_heading_ref_tl
           }
         \int_if_exist:cT { c@ #2 }
           {
             \refstepcounter {#2}
-            \tl_set_eq:cN { @currentlabel } \l__docxlike_heading_num_tl
+            \str_if_eq:VnT \l__docxlike_heading_label_tl { number }
+              { \tl_set_eq:cN { @currentlabel } \l__docxlike_heading_ref_tl }
           }
       }
-    \docxlike_format_par:nn {#1}
+    \tl_if_blank:VF \l__docxlike_heading_penalty_tl
+      {
+        \legacy_if:nF { @nobreak }
+          { \addpenalty { \l__docxlike_heading_penalty_tl } }
+      }
+    \exp_args:NnV \docxlike_format_par:nnn {#1} \l__docxlike_heading_local_tl
       {
         \__docxlike_heading_marks:nnnn {#1} {#2} {#3} {#4}
         #5
@@ -155,26 +234,32 @@
 \cs_generate_variant:Nn \__docxlike_heading_level:n { V }
 %    \end{macrocode}
 %
+% \cs{…mark} 与 \hologo{LaTeX} 一样只给不带星号的标题发（带星号的由文档类自己写标记）；
+% 给 \texttt{STYLEREF} 的登记所有标题都做，Word 认的是样式。
+%
 % 页眉标记与目录条目放在标题这一段\emph{里面}，与 \hologo{LaTeX} 自己的标题一样。放在段外
 % 的竖直列表上，标题与标题之间就夹着标记或写文件的节点，下一段的 \cs{addvspace} 看不到
 % 前一段的段后，两段之间成了段后加段前，Word 是取大的那个。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__docxlike_heading_marks:nnnn #1#2#3#4
   {
-    \tl_set_eq:NN \l_docxlike_field_parnum_tl \l__docxlike_heading_num_tl
+    \tl_set_eq:NN \l_docxlike_field_parnum_tl \l__docxlike_heading_ref_tl
     \docxlike_style_mark:eVVn
       { heading ~ \__docxlike_heading_level:n {#1} }
-      \l__docxlike_heading_num_tl \l__docxlike_heading_snum_tl {#4}
-    \bool_set_true:N \l_docxlike_heading_own_mark_bool
-    \cs_if_exist_use:cT { #2 mark } { {#4} }
-    \bool_set_false:N \l_docxlike_heading_own_mark_bool
+      \l__docxlike_heading_ref_tl \l__docxlike_heading_snum_tl {#4}
     \tl_if_blank:nF {#3}
       {
-        \tl_if_empty:NTF \l__docxlike_heading_num_tl
+        \bool_set_true:N \l_docxlike_heading_own_mark_bool
+        \cs_if_exist_use:cT { #2 mark } { {#4} }
+        \bool_set_false:N \l_docxlike_heading_own_mark_bool
+      }
+    \tl_if_blank:nF {#3}
+      {
+        \tl_if_empty:NTF \l__docxlike_heading_ref_tl
           { \addcontentsline { toc } {#2} {#4} }
           {
             \addcontentsline { toc } {#2}
-              { \protect \numberline { \exp_not:V \l__docxlike_heading_num_tl } #4 }
+              { \protect \numberline { \exp_not:V \l__docxlike_heading_ref_tl } #4 }
           }
       }
   }
@@ -409,6 +494,88 @@
           }
       }
       { }
+  }
+%    \end{macrocode}
+%
+%
+% \subsection{拦下 \pkg{ctex} 的冲突设置}
+%
+% 标题、首行缩进、行距由本包照 Word 排时，\pkg{ctex} 的同类设置会跟着插一手。
+% \cs{docxlike\_ctex\_block:} 把它们拦下：\cs{ctexset} 换成一个过滤器，顶层的键里各级标题
+% （\texttt{part} 到 \texttt{subparagraph}）、\texttt{appendix}、\texttt{autoindent}、
+% \texttt{linestretch} 不交给 \pkg{ctex}，每个键报一次警告，其余照交；旧写法 \cs{CTEXsetup}
+% 整个拦下。本包自己要给 \pkg{ctex} 发的设置走 \cs{\_\_docxlike\_ctexset:n}，用拦截前的那一份。
+% 空白预设在导言区结束时调它；标题还交给 \pkg{ctex} 排的文档类不调。没加载 \pkg{ctex} 时
+% 什么也不做。
+%    \begin{macrocode}
+\msg_new:nnnn { docxlike } { ctex-ignored }
+  { The~ctex~setting~'#1'~is~ignored:~docxlike~lays~out~headings,~indents~and~line~spacing~like~Word. }
+  { Set~it~with~docxlike's~styles~and~multilevel~lists~instead. }
+\bool_new:N \g__docxlike_ctex_blocked_bool
+\tl_new:N \l__docxlike_ctex_pass_tl
+\prop_new:N \g__docxlike_ctex_warned_prop
+\clist_const:Nn \c__docxlike_ctex_blocked_clist
+  {
+    part , chapter , section , subsection , subsubsection , paragraph , subparagraph ,
+    appendix , autoindent , linestretch
+  }
+\cs_new_protected:Npn \__docxlike_ctexset:n #1
+  {
+    \bool_if:NTF \g__docxlike_ctex_blocked_bool
+      { \__docxlike_ctexset_orig:n {#1} }
+      { \ctexset {#1} }
+  }
+\cs_new_protected:Npn \__docxlike_ctexset_orig:n #1 { }
+\cs_new_protected:Npn \docxlike_ctex_block:
+  {
+    \bool_if:NF \g__docxlike_ctex_blocked_bool
+      {
+        \cs_if_exist:NT \ctexset
+          {
+            \bool_gset_true:N \g__docxlike_ctex_blocked_bool
+            \cs_gset_protected:Npn \__docxlike_ctexset_orig:n ##1
+              { \keys_set:nn { ctex } {##1} }
+            \cs_gset_protected:Npn \ctexset ##1 { \__docxlike_ctex_filter:n {##1} }
+            \cs_if_exist:NT \CTEXsetup
+              {
+                \RenewDocumentCommand \CTEXsetup { o m }
+                  { \__docxlike_ctex_warn:n { \CTEXsetup } }
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_ctex_filter:n #1
+  {
+    \tl_clear:N \l__docxlike_ctex_pass_tl
+    \keyval_parse:nnn
+      { \__docxlike_ctex_key:nn } { \__docxlike_ctex_key:nn } {#1}
+    \tl_if_empty:NF \l__docxlike_ctex_pass_tl
+      { \exp_args:NV \__docxlike_ctexset_orig:n \l__docxlike_ctex_pass_tl }
+  }
+\cs_new_protected:Npn \__docxlike_ctex_key:nn #1#2
+  {
+    \exp_args:Ne \__docxlike_ctex_key_head:nnn
+      { \__docxlike_ctex_head:w #1 / \q_stop }
+      {#1} {#2}
+  }
+\cs_new:Npn \__docxlike_ctex_head:w #1 / #2 \q_stop { \tl_trim_spaces:n {#1} }
+\cs_new_protected:Npn \__docxlike_ctex_key_head:nnn #1#2#3
+  {
+    \clist_if_in:NnTF \c__docxlike_ctex_blocked_clist {#1}
+      { \__docxlike_ctex_warn:n {#1} }
+      {
+        \tl_if_novalue:nTF {#3}
+          { \tl_put_right:Nn \l__docxlike_ctex_pass_tl { #2 , } }
+          { \tl_put_right:Nn \l__docxlike_ctex_pass_tl { #2 = {#3} , } }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_ctex_warn:n #1
+  {
+    \prop_if_in:NnF \g__docxlike_ctex_warned_prop {#1}
+      {
+        \prop_gput:Nnn \g__docxlike_ctex_warned_prop {#1} { }
+        \msg_warning:nnn { docxlike } { ctex-ignored } {#1}
+      }
   }
 %    \end{macrocode}
 %
