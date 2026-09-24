@@ -2982,12 +2982,20 @@
 % 起点到右边距之间居中，Word 也是这样（\file{test/numbering} 里悬挂缩进的居中段）。段落链接了
 % 多级列表的某一级时，那一级的缩进压过样式的，首行开头排编号，见 \file{docxlike-numbering.dtx}。
 %
-% \emph{页顶的段前。}Word 在页顶去掉段前：自然换页、分页符之后、段前分页的段都是这样，
-% \hologo{TeX} 在页顶丢掉胶，结果一样。只有全文第一段保留段前（\file{test/headings} 的
-% \file{heads-top*}）。全文第一段（外层的竖直列表上，还没输出过页，当前页也是空的；在盒子
-% 里排的不算，比如先装盒再放的封面）先放一只零高的空盒，
-% 页顶的 \cs{topskip} 算在它上面，再补“段前减 \cs{topskip}”，首行基线就落在上边距加段前
-% 加上升部处。
+% \emph{页顶的段前。}Word 在页顶去掉段前：自然换页、分页符之后都是这样，\hologo{TeX} 在页顶
+% 丢掉胶，结果一样。保留的有两种（\file{test/headings} 的 \file{heads-top*}、\file{heads-sect*}）：
+% 新一节的第一段（全文第一段也算，两种兼容模式一样），与勾了段前分页的段（兼容模式低于 15；
+% Word 2013 起的兼容模式分页后去掉）。所以要让章标题在新页页顶保住段前，照 Word 的做法是
+% 分页后插一个连续分节符，本包与 docx 同构，也是这样。
+%
+% 保留下来的不是整段段前，而是“段前减前一段的段后”，不够减就没有：Word 照常按两段取大排，
+% 前一段的段后落在上一页（分节符那一段段后 0、8、20、40\,bp 时，段前 24\,bp 的标题在新页上
+% 留 24、16、4、0）。每段结束时记下它的段后：按样式排的段自己记，正文段落开头就记成正文
+% 样式的段后。新一节的标记由 \cs{docxsectionbreak} 立起，文档开头也立着，下一段开头时放倒。
+%
+% 要保留时（外层的竖直列表上、当前页是空的；在盒子里排的不算，比如先装盒再放的封面），
+% 先放一只零高的空盒，页顶的 \cs{topskip} 算在它上面，再补“留下的段前减 \cs{topskip}”，
+% 首行基线就落在上边距加留下的段前加上升部处。
 %
 % \emph{段前与前一段的段后取大，不相加。}Word 两段之间的距离是前一段的段后与后一段
 % 的段前里大的那个（样本文档里章标题段后 0.8 行、小标题段前 0.5 行，量出来
@@ -3015,20 +3023,34 @@
       \__docxlike_format_number_indent:n {#1}
       \dim_zero:N \parskip
       \__docxlike_format_read:nnnN {#1} { pPr/pageBreakBefore } { false } \l__docxlike_format_value_tl
-      \str_if_eq:VnT \l__docxlike_format_value_tl { true } { \par \newpage }
+      \bool_set_false:N \l__docxlike_format_top_keep_bool
+      \str_if_eq:VnT \l__docxlike_format_value_tl { true }
+        {
+          \par \newpage
+          \int_compare:nNnT { \g__docxlike_linebreak_compat_int } < { 15 }
+            { \bool_set_true:N \l__docxlike_format_top_keep_bool }
+        }
       \dim_compare:nNnT { \l_docxlike_format_before_dim } > { \c_zero_dim }
         {
           \par
           \bool_lazy_all:nTF
             {
               { ! \mode_if_inner_p: }
-              { \int_compare_p:nNn { \ReadonlyShipoutCounter } = { 0 } }
+              {
+                \l__docxlike_format_top_keep_bool
+                || \g_docxlike_section_start_bool
+              }
               { \dim_compare_p:nNn { \pagegoal } = { \c_max_dim } }
             }
             {
               \hbox:n { }
               \nointerlineskip
-              \skip_vertical:n { \l_docxlike_format_before_dim - \topskip }
+              \skip_vertical:n
+                {
+                  \dim_max:nn { 0pt }
+                    { \l_docxlike_format_before_dim - \g__docxlike_format_prev_after_dim }
+                  - \topskip
+                }
             }
             { \addvspace { \l_docxlike_format_before_dim } }
         }
@@ -3054,6 +3076,7 @@
       \tl_gset_eq:NN \g__docxlike_format_keep_tl \l__docxlike_format_value_tl
       \dim_gset_eq:NN \g__docxlike_format_after_dim \l_docxlike_format_after_dim
     \group_end:
+    \dim_gset_eq:NN \g__docxlike_format_prev_after_dim \g__docxlike_format_after_dim
     \str_if_eq:VnT \g__docxlike_format_keep_tl { true } { \nobreak }
     \dim_compare:nNnT { \g__docxlike_format_after_dim } > { \c_zero_dim }
       { \skip_vertical:n { \g__docxlike_format_after_dim } }
@@ -3061,6 +3084,16 @@
   }
 \tl_new:N \g__docxlike_format_keep_tl
 \dim_new:N \g__docxlike_format_after_dim
+\bool_new:N \l__docxlike_format_top_keep_bool
+\dim_new:N \g__docxlike_format_prev_after_dim
+\dim_new:N \g__docxlike_format_body_after_dim
+\bool_new:N \g_docxlike_section_start_bool
+\bool_gset_true:N \g_docxlike_section_start_bool
+\hook_gput_code:nnn { para / begin } { docxlike }
+  {
+    \bool_gset_false:N \g_docxlike_section_start_bool
+    \dim_gset_eq:NN \g__docxlike_format_prev_after_dim \g__docxlike_format_body_after_dim
+  }
 %    \end{macrocode}
 %
 % 段后距加在组外：组里设过的颜色出组时复原，复原的节点落在竖直列表上，段后距放在它前面，
@@ -4717,6 +4750,7 @@
         \dim_gset_eq:NN \g_docxlike_body_stretch_dim \l_docxlike_format_stretch_dim
         \dim_gset_eq:NN \g_docxlike_body_first_dim \l_docxlike_format_first_dim
         \dim_gset_eq:NN \g_docxlike_body_indent_dim \l_docxlike_format_indent_dim
+        \dim_gset_eq:NN \g__docxlike_format_body_after_dim \l_docxlike_format_after_dim
         \bool_set_eq:NN \l_docxlike_format_line_snap_bool \l_docxlike_format_snap_vertical_bool
         \dim_set_eq:NN \topskip \g_docxlike_body_first_dim
         \docxlike_format_reserve_depth:
