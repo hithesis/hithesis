@@ -63,7 +63,7 @@ compat-regression:
 lineends:
 	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex -g \
 	  -interaction=nonstopmode \
-	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}\AddToHook{class/hithesis/after}{\hitsetup{layout={word-compat=15}}}' final.tex \
+	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}\AddToHook{class/hithesis/after}{\hitsetup{layout={compatibility-mode=word-2013}}}' final.tex \
 	  > /dev/null
 	python3 scripts/check-line-ends.py --pdf examples/demo/final.pdf --max-diff 21
 
@@ -133,7 +133,7 @@ lineends-self-baseline:
 	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' final.tex \
 	  > /dev/null
 	{ echo '# 行末基线，由 scripts/check-line-ends.py --gen 生成'; \
-	  echo '# 来源：examples/demo/final.pdf，lualatex，fontset=windows，word-compat 默认（11）'; \
+	  echo '# 来源：examples/demo/final.pdf，lualatex，fontset=windows，兼容模式默认（Word 2003）'; \
 	  echo '# 用途：新版面轨的自比对，钉住 Lua 断行层的现状；改断行规则后确认差异都是有意的，再用 make lineends-self-baseline 重制'; \
 	  python3 scripts/check-line-ends.py --gen examples/demo/final.pdf | tail -n +3; } > tests/lineends-demo.tsv
 

@@ -71,11 +71,15 @@ def typ_source(paras, compat, pitch):
     return '\n'.join(lines)
 
 
+# docx 里 compatibilityMode 的数对到 Word 版本名，docxlike 的 compatibility-mode 收后者
+COMPAT_NAME = {11: 'word-2003', 12: 'word-2007', 14: 'word-2010', 15: 'word-2013'}
+
+
 def tex_source(paras, compat):
     lines = [
         r'\documentclass[stage=final,degree-level=doctor,campus=harbin,fontset=windows]{hithesis}',
         r'\hitsetup{struct={frontmatter={cover=false,abstract=false,table-of-contents=false},backmatter={}}}',
-        r'\hitsetup{layout={word-compat=%d}}' % compat,
+        r'\hitsetup{layout={compatibility-mode=%s}}' % COMPAT_NAME[compat],
         r'\begin{document}',
         # 没写摘要的文档在文末补前置时会报 \hit@abstract@zh 未定义，给两个空摘要
         r'\begin{abstract-zh}\end{abstract-zh}\begin{abstract-en}\end{abstract-en}',

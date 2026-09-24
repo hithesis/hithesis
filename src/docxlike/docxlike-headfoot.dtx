@@ -9,15 +9,16 @@
 % \changes{v0.1.0}{2026/09/24}{照 Word 的模型排页眉页脚：每节首页、奇数页、偶数页三份，
 %   没给就沿用前一节；页眉顶在页眉距、页脚底在页脚距；页码格式、域、段落边框、制表位}
 %
-% Word 的页眉页脚挂在节上。每节最多三份页眉、三份页脚：首页（\texttt{first}）、
-% 偶数页（\texttt{even}）、其余页（\texttt{default}）。首页那份只在本节开了
-% \option{title-pg} 时用，偶数页那份只在全文开了 \option{even-and-odd-headers} 时用。
+% Word 的页眉页脚挂在节上。每节最多三份页眉、三份页脚：首页、偶数页、其余页。首页那份
+% 只在本节开了“首页不同”时用，偶数页那份只在全文开了“奇偶页不同”时用。
 % 某一份本节没给，就用前一节的同一份，一直往前找，这就是 Word 的“链接到前一节”。
 % 这些规则与下面的数都是在 Word 里量的，量法与原始数据在 \file{test/headfoot}。
 %
-% 键名与取值照 docx 里的写法（\texttt{w:titlePg} 写作 \option{title-pg}，
-% \texttt{w:pgNumType} 的 \texttt{w:fmt} 写作 \option{pg-num-type}/\option{fmt}，
-% 格式名 \texttt{upperRoman}、\texttt{chineseCounting} 原样），从 docx 转过来时一一对应。
+% 键名照 Word 的界面：“首页不同”“奇偶页不同”在页面设置的版式页上，是
+% \option{page-setup}/\option{layout} 里的 \option{different-first-page} 与
+% \option{different-odd-and-even}；页码格式是 \option{page-number-format}。编号格式在界面上
+% 只有样例没有名字，取值用 docx 里 \texttt{w:fmt} 的写法（\texttt{upperRoman}、
+% \texttt{chineseCounting}）。内部存储用 docx 的名字，从 docx 转过来时一一对应。
 %
 % ^^A ======================================================================
 % ^^A Module docxlike-headfoot: 页眉页脚、节与域
@@ -475,36 +476,85 @@
 %
 % \subsection{节}
 %
-% 节从 1 起编号。每节有自己的一张属性表：\option{title-pg}（首页不同）、
-% \option{pg-num-type}/\option{fmt}（页码格式）、\option{pg-num-type}/\option{start}
-% （从几起编页码，空着就接着前一节编）。新的一节从前一节抄一份属性，只有
-% \option{start} 不抄；从 docx 转过来时每节的属性都写全，抄不抄都一样。
+% 节从 1 起编号。每节有自己的一张属性表，存的是 docx 里 \texttt{w:sectPr} 的名字：
+% \texttt{title-pg}（首页不同）、\texttt{fmt}（页码格式）、\texttt{start}（从几起编页码，
+% 空着就接着前一节编）。新的一节从前一节抄一份属性，只有 \texttt{start} 不抄；从 docx
+% 转过来时每节的属性都写全，抄不抄都一样。
 %
-% \cs{docxlikesection}\oarg{分节符}\marg{键值表} 开新的一节。分节符照 docx 的
-% \texttt{w:type}：\texttt{nextPage}（默认，另起一页）、\texttt{oddPage}、
-% \texttt{evenPage}（另起奇数页、偶数页，缺一页就插一张空白页）、\texttt{continuous}
+% 写的时候照 Word 的界面：“首页不同”是页面设置版式页上的
+% \option{page-setup}/\option{layout}/\option{different-first-page}，页码格式是“页码格式”
+% 对话框 \option{page-number-format}，里面 \option{number-format}（编号格式）与
+% \option{start-at}（起始页码）。
+%
+% \cs{docxlikesectionbreak}\oarg{分节符}\marg{键值表} 开新的一节，键值表写新一节的属性。
+% 分节符照 Word“分隔符”菜单：\texttt{next-page}（默认，另起一页）、\texttt{odd-page}、
+% \texttt{even-page}（另起奇数页、偶数页，缺一页就插一张空白页）、\texttt{continuous}
 % （不换页）。连续分节时，分节所在那一页还算前一节，下一页起才是新的一节，
 % 页眉页脚看的是页顶那一刻在哪一节。
+%
+% 一节自己的页边距、纸张、文档网格还没有做，在分节时写了报错。
 %    \begin{macrocode}
 \int_new:N \g_docxlike_section_int
 \int_gset:Nn \g_docxlike_section_int { 1 }
 \prop_new:c { g__docxlike_section_1_prop }
 \bool_new:N \g_docxlike_headfoot_even_odd_bool
 \tl_new:N \l__docxlike_section_type_tl
+\msg_new:nnnn { docxlike } { section-page-setup }
+  { Page~setup~'#1'~cannot~be~set~per~section~yet. }
+  {
+    Only~'layout/different-first-page'~may~be~given~at~a~section~break.~
+    The~key~is~ignored.
+  }
 \keys_define:nn { docxlike / section }
   {
-    title-pg .code:n =
-      { \__docxlike_section_put:nn { title-pg } {#1} } ,
-    title-pg .default:n = true ,
-    pg-num-type .code:n =
-      { \keys_set:nn { docxlike / section / pg-num-type } {#1} } ,
+    page-setup .code:n =
+      { \__docxlike_keys_set:nn { docxlike / section / page-setup } {#1} } ,
+    page-number-format .code:n =
+      { \__docxlike_keys_set:nn { docxlike / page-number-format } {#1} } ,
     unknown .code:n =
       { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
   }
-\keys_define:nn { docxlike / section / pg-num-type }
+\keys_define:nn { docxlike / section / page-setup }
   {
-    fmt .code:n = { \__docxlike_section_put:nn { fmt } {#1} } ,
-    start .code:n = { \__docxlike_section_put:nn { start } {#1} } ,
+    layout .code:n =
+      { \__docxlike_keys_set:nn { docxlike / section / page-setup / layout } {#1} } ,
+    unknown .code:n =
+      { \msg_error:nnV { docxlike } { section-page-setup } \l_keys_key_str } ,
+  }
+\keys_define:nn { docxlike / section / page-setup / layout }
+  {
+    different-first-page .choices:nn = { true , false }
+      { \__docxlike_section_put:nV { title-pg } \l_keys_choice_tl } ,
+    different-first-page .default:n = true ,
+    unknown .code:n =
+      {
+        \msg_error:nne { docxlike } { section-page-setup }
+          { layout / \l_keys_key_str }
+      } ,
+  }
+\keys_define:nn { docxlike / page-setup / layout }
+  {
+    different-first-page .choices:nn = { true , false }
+      {
+        \bool_if:NF \l_docxlike_page_replay_bool
+          { \__docxlike_section_put:nV { title-pg } \l_keys_choice_tl }
+      } ,
+    different-first-page .default:n = true ,
+    different-odd-and-even .choices:nn = { true , false }
+      {
+        \bool_if:NF \l_docxlike_page_replay_bool
+          {
+            \str_if_eq:VnTF \l_keys_choice_tl { true }
+              { \bool_gset_true:N \g_docxlike_headfoot_even_odd_bool }
+              { \bool_gset_false:N \g_docxlike_headfoot_even_odd_bool }
+          }
+      } ,
+    different-odd-and-even .default:n = true ,
+  }
+\keys_define:nn { docxlike / page-number-format }
+  {
+    number-format .code:n = { \__docxlike_section_put:nn { fmt } {#1} } ,
+    start-at .code:n = { \__docxlike_section_put:nn { start } {#1} } ,
     unknown .code:n =
       { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str } ,
   }
@@ -514,24 +564,24 @@
       {#1} {#2}
   }
 \cs_generate_variant:Nn \prop_gput:Nnn { cnx }
+\cs_generate_variant:Nn \__docxlike_section_put:nn { nV }
+\cs_generate_variant:Nn \msg_error:nnn { nne }
 \cs_new:Npn \__docxlike_section_get:nn #1#2
   { \prop_item:cn { g__docxlike_section_ #1 _prop } {#2} }
 \keys_define:nn { docxlike }
   {
-    even-and-odd-headers .bool_gset:N = \g_docxlike_headfoot_even_odd_bool ,
-    even-and-odd-headers .default:n = true ,
-    section .code:n =
+    page-number-format .code:n =
       {
-        \keys_set:nn { docxlike / section } {#1}
+        \__docxlike_keys_set:nn { docxlike / page-number-format } {#1}
         \__docxlike_section_thepage:
       } ,
   }
 %    \end{macrocode}
 %
 % 开新节。先按分节符换页，再立新节号、抄属性、设页码。页码重设发生在换页之后，
-% 所以新节第一页的页码就是 \option{start}。奇偶页不同开着时，Word 保证相邻两页
+% 所以新节第一页的页码就是 \option{start-at}。奇偶页不同开着时，Word 保证相邻两页
 % 页码奇偶不同：新节重设的页码若与上一页同奇偶，中间插一张整页空白（不排页眉页脚），
-% \texttt{oddPage}、\texttt{evenPage} 两种分节符同理。
+% \texttt{odd-page}、\texttt{even-page} 两种分节符同理。
 %    \begin{macrocode}
 \int_new:N \g__docxlike_section_page_int
 \int_new:N \g__docxlike_headfoot_page_section_int
@@ -546,11 +596,14 @@
             \__docxlike_section_open:n {#2}
             \__docxlike_section_mark:
           }
-        { nextPage } { \__docxlike_section_page:nn { } {#2} }
-        { oddPage } { \__docxlike_section_page:nn { odd } {#2} }
-        { evenPage } { \__docxlike_section_page:nn { even } {#2} }
+        { next-page } { \__docxlike_section_page:nn { } {#2} }
+        { odd-page } { \__docxlike_section_page:nn { odd } {#2} }
+        { even-page } { \__docxlike_section_page:nn { even } {#2} }
       }
-      { \__docxlike_bad_value:nnn { section } {#1} { nextPage , oddPage , evenPage , continuous } }
+      {
+        \__docxlike_bad_value:nnn { section~break } {#1}
+          { next-page , continuous , even-page , odd-page }
+      }
   }
 \cs_new_protected:Npn \__docxlike_section_open:n #1
   {
@@ -636,11 +689,12 @@
       }
   }
 \tl_new:N \l__docxlike_section_fmt_tl
-\NewDocumentCommand \docxlikesection { O { nextPage } m }
+\NewDocumentCommand \docxlikesectionbreak { O { next-page } m }
   { \docxlike_section_new:nn {#1} {#2} }
 %    \end{macrocode}
 %
-% 第一节的属性写在导言区（\verb|\docxlikesetup{ section = { ... } }|），页码格式当场换进
+% 第一节的属性写在导言区（\verb|\docxlikesetup{ page-number-format = { ... } }| 与
+% \option{page-setup}/\option{layout}/\option{different-first-page}），页码格式当场换进
 % \cs{thepage}，起始页码到 \cs{begin}\marg{document} 时设。
 %    \begin{macrocode}
 \hook_gput_code:nnn { begindocument / end } { docxlike }
@@ -684,8 +738,9 @@
 % \subsection{页眉页脚的内容}
 %
 % \cs{docxlikeheader}\oarg{类}\marg{内容} 与 \cs{docxlikefooter} 给当前这一节设一份页眉、
-% 页脚，\meta{类}照 docx 的 \texttt{w:type}：\texttt{default}（默认）、\texttt{first}、
-% \texttt{even}。\meta{内容}是若干段，空行或 \cs{par} 分段，每段按 Word 的 \texttt{Header}、
+% 页脚，\meta{类}照 Word 编辑页眉时标签上的字：不写是“页眉”，\texttt{first-page}
+% 是“首页页眉”，\texttt{even-page} 是“偶数页页眉”，\texttt{odd-page} 是“奇数页页眉”，与不写
+% 是同一份。内部照 docx 的 \texttt{w:type} 存成 \texttt{default}、\texttt{first}、\texttt{even}。\meta{内容}是若干段，空行或 \cs{par} 分段，每段按 Word 的 \texttt{Header}、
 % \texttt{Footer} 两个样式排；
 % 某一段要另加格式，写成 \cs{docxlikepar}\oarg{格式}\marg{文字}。
 %
@@ -696,17 +751,23 @@
   {
     \str_case:nnF {#2}
       {
-        { default } { } { first } { } { even } { }
+        { } { \__docxlike_headfoot_set:nnn {#1} { default } {#3} }
+        { odd-page } { \__docxlike_headfoot_set:nnn {#1} { default } {#3} }
+        { first-page } { \__docxlike_headfoot_set:nnn {#1} { first } {#3} }
+        { even-page } { \__docxlike_headfoot_set:nnn {#1} { even } {#3} }
       }
-      { \__docxlike_bad_value:nnn { #1 } {#2} { default , first , even } }
+      { \__docxlike_bad_value:nnn { #1 } {#2} { first-page , even-page , odd-page } }
+  }
+\cs_new_protected:Npn \__docxlike_headfoot_set:nnn #1#2#3
+  {
     \bool_gset_true:N \g__docxlike_headfoot_used_bool
     \tl_gclear_new:c { g__docxlike_hf_ \int_use:N \g_docxlike_section_int _ #1 _ #2 _tl }
     \tl_gset:cn { g__docxlike_hf_ \int_use:N \g_docxlike_section_int _ #1 _ #2 _tl } {#3}
     \bool_if:NT \g__docxlike_page_in_document_bool { \__docxlike_headfoot_room_now: }
   }
-\NewDocumentCommand \docxlikeheader { O { default } +m }
+\NewDocumentCommand \docxlikeheader { O { } +m }
   { \docxlike_headfoot_set:nnn { header } {#1} {#2} }
-\NewDocumentCommand \docxlikefooter { O { default } +m }
+\NewDocumentCommand \docxlikefooter { O { } +m }
   { \docxlike_headfoot_set:nnn { footer } {#1} {#2} }
 %    \end{macrocode}
 %
