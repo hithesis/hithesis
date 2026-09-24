@@ -2972,6 +2972,12 @@
 % 备好，这里只补 \option{all-caps} 和段落自身的缩进与段前段后。封面这类不走
 % 章节命令的地方用它排每一段，取值就和正文标题共用一套 \option{styles} 词汇。
 %
+% \emph{缩进。}目标的排版命令（末尾的撑杆起段）执行完，再把左缩进加进 \cs{leftskip}、右缩进
+% 加进 \cs{rightskip}，这两样到段末才读；首行缩进（悬挂时为负）是段首的一个 \cs{kern}。样式的
+% 对齐方式（\cs{centering} 这类）会清掉 \cs{parindent}，所以不用它。居中时 \hologo{TeX} 在首行
+% 起点到右边距之间居中，Word 也是这样（\file{test/numbering} 里悬挂缩进的居中段）。段落链接了
+% 多级列表的某一级时，那一级的缩进压过样式的，首行开头排编号，见 \file{docxlike-numbering.dtx}。
+%
 % \emph{段前与前一段的段后取大，不相加。}Word 两段之间的距离是前一段的段后与后一段
 % 的段前里大的那个（样本文档里章标题段后 0.8 行、小标题段前 0.5 行，量出来
 % 只有 0.8 行；章标题到节标题也是这样，那一处走 \pkg{ctex} 的 \texttt{beforeskip}
@@ -2979,17 +2985,35 @@
 % 差额；前面是 \cs{parmark*} 的空段（盒子，不是胶）就整个加。
 %    \begin{macrocode}
 \tl_new:N \l__docxlike_format_par_tl
+\dim_new:N \l_docxlike_format_left_dim
+\dim_new:N \l_docxlike_format_right_dim
+\cs_new_protected:Npn \__docxlike_format_side_indent:nnN #1#2#3
+  {
+    \__docxlike_format_amount_read:nn {#1} {#2}
+    \__docxlike_format_amount_use:VVN \l__docxlike_format_unit_tl
+      \l__docxlike_format_value_tl #3
+  }
+\cs_new_protected:Npn \__docxlike_format_number_indent:n #1 { }
+\cs_new_protected:Npn \__docxlike_format_number_put:n #1 { }
 \cs_new_protected:Npn \docxlike_format_par:nn #1#2
   {
     \group_begin:
       \docxlike_format_apply_font:nN {#1} \l__docxlike_format_par_tl
-      \dim_zero:N \parindent
+      \__docxlike_format_side_indent:nnN {#1} { ind-left } \l_docxlike_format_left_dim
+      \__docxlike_format_side_indent:nnN {#1} { ind-right } \l_docxlike_format_right_dim
+      \__docxlike_format_number_indent:n {#1}
       \dim_zero:N \parskip
       \dim_compare:nNnT { \l_docxlike_format_before_dim } > { \c_zero_dim }
         { \par \addvspace { \l_docxlike_format_before_dim } }
       \nointerlineskip
       \__docxlike_format_border_put:nn {#1} { top }
+      \dim_zero:N \parindent
       \l__docxlike_format_par_tl
+      \skip_set:Nn \leftskip { \leftskip + \l_docxlike_format_left_dim }
+      \skip_set:Nn \rightskip { \rightskip + \l_docxlike_format_right_dim }
+      \dim_compare:nNnF { \l_docxlike_format_indent_dim } = { \c_zero_dim }
+        { \kern \l_docxlike_format_indent_dim }
+      \__docxlike_format_number_put:n {#1}
       \__docxlike_format_read:nnnN {#1} { rPr/caps } { false }
         \l__docxlike_format_value_tl
       \str_if_eq:VnTF \l__docxlike_format_value_tl { true }
