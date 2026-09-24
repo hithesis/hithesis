@@ -38,7 +38,7 @@ STY_SECTION = "示例宏包"
 DEFINE = re.compile(
     r"\\(?:cs_new(?:_protected)?(?:_nopar)?:(?:Npn|cpn)"
     r"|cs_set(?:_protected)?(?:_nopar)?:(?:Npn|cpn)"
-    r"|New(?:Expandable)?DocumentCommand|RenewDocumentCommand|DeclareRobustCommand"
+    r"|New(?:Expandable)?DocumentCommand|RenewDocumentCommand|DeclareRobustCommand|NewCommandCopy"
     r"|newcommand\*?|renewcommand\*?|def|gdef"
     r"|NewDocumentEnvironment|RenewDocumentEnvironment|newenvironment\*?|renewenvironment\*?"
     r"|newfloatlist|newfixedcaption)\s*\\?\{?\\([a-zA-Z]+)(?![a-zA-Z_:])"
