@@ -8,7 +8,7 @@
 %
 % \changes{v0.1.0}{2026/09/25}{多级列表：照“定义新多级列表”对话框定义各级，按 Word 的规则
 %   计数、重编、跳级，生成编号串，编号跟着段落标记的“全部大写字母”；级别可以链接到样式；
-%   编号后跟的空格、制表符与编号装在一个盒里，后文汉字前不补中西文间距}
+%   编号后跟的空格、制表符与编号装在一个盒里，后文汉字前不补中西文间距；编号串里面也不加}
 %
 % Word 的编号是多级列表：一个列表最多九级，每一级有自己的编号格式、起始值、重编规则、
 % 编号位置与编号后面跟什么。标题、题注里的章号、有序列表都是它。规则是在 Windows Word 里
@@ -549,11 +549,43 @@
 % \cs{l\_\_docxlike\_numbering\_cur\_lvl\_tl} 里。编号后跟的空格与制表符用胶排，和编号装在
 % 同一个盒子里：断行层按盒子末尾的字定它与后文之间的中西文间距，末尾是胶就不加。编号以数字
 % 结尾、题名以汉字起头时 Word 不加这段间距，因为两者之间隔着空格或制表符（Mac Word 实测，
-% 博士后研究报告模板“1.1 课题研究的背景和意义”）。编号的字符格式是段落标记的（样式的）再叠这一级的
+% 博士后研究报告模板“1.1 课题研究的背景和意义”）。编号串里面也不加中西文间距：Mac Word 实测
+% 18 磅的列表编号“第1章”，“第”到“1”步进 18.5、“1”到“章”9.25，同样的字敲进标题段里是 23.03
+% 与 13.75，两边各多 4.5。盒里把自动间距关掉（\pkg{luatexja} 的 \texttt{autoxspacing}，
+% \pkg{xeCJK} 的 \cs{CJKecglue} 与它的寄存器）。字距增量照样有：贴字符网格的段里每个汉字后面
+% 一份，正文字号时西文字形半份，盒里汉字缝之外的那几处由 Lua 补（\hologo{XeLaTeX} 不补）；
+% 模板里“第”到“1”是 18.5。编号的字符格式是段落标记的（样式的）再叠这一级的
 % \option{font}，“全部大写字母”也在里面：开着时编号跟着大写（Windows Word 实测，
 % \file{test/headings/heads-caps}）。
 %    \begin{macrocode}
 \tl_new:N \l_docxlike_field_parnum_tl
+\cs_new_protected:Npn \__docxlike_numbering_grid:
+  {
+    \bool_if:NT \l_docxlike_format_snap_horizontal_bool
+      {
+        \sys_if_engine_luatex:T
+          {
+            \tex_directlua:D
+              {
+                if~docxlike~and~docxlike.linebreak~then~
+                  docxlike.linebreak.grid_box( \int_use:N \l__docxlike_numbering_box ,
+                    \dim_to_decimal_in_sp:n { \__docxlike_format_grid_glue: } ,
+                    \dim_compare:nNnTF { \g__docxlike_numbering_size_dim } = { \g_docxlike_body_size_dim }
+                      { true } { false } )~
+                end
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_numbering_no_xspace:
+  {
+    \cs_if_exist:NTF \ltjsetparameter
+      { \ltjsetparameter { autoxspacing = false } }
+      {
+        \cs_set_eq:NN \CJKecglue \prg_do_nothing:
+        \skip_if_exist:NT \l__xeCJK_ecglue_skip { \skip_zero:N \l__xeCJK_ecglue_skip }
+      }
+  }
 \cs_new_protected:Npn \__docxlike_numbering_layout:n #1
   {
     \tl_set_eq:NN \l_docxlike_field_parnum_tl \l__docxlike_numbering_text_tl
@@ -561,12 +593,14 @@
     \hbox_set:Nn \l__docxlike_numbering_box
       {
         \l__docxlike_numbering_font_tl
+        \__docxlike_numbering_no_xspace:
         \str_if_eq:VnTF \g__docxlike_numbering_caps_tl { true }
           { \exp_args:NV \MakeUppercase \l__docxlike_numbering_text_tl }
           { \l__docxlike_numbering_text_tl }
         \str_if_eq:eeT { \__docxlike_numbering_cur:n { suff } } { space }
           { \skip_horizontal:n { 0.27783203125 \g__docxlike_numbering_size_dim } }
       }
+    \__docxlike_numbering_grid:
     \dim_set:Nn \l__docxlike_numbering_start_dim
       { \l_docxlike_format_left_dim + \l_docxlike_format_indent_dim }
     \str_case:enF { \__docxlike_numbering_cur:n { lvlJc } }

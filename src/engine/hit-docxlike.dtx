@@ -7,7 +7,8 @@
 % \section{接到 \pkg{docxlike} 上}
 %
 % \changes{v3.2a}{2026/09/25}{章节标题交给 \pkg{docxlike} 排的共用一层（终稿与深圳本科报告）；
-%   给 \pkg{ctex} 的标题发样式的那一层删去}
+%   给 \pkg{ctex} 的标题发样式的那一层删去；中文学位论文的章号照范例敲进题名（列表编号里
+%   不加中西文间距，范例的“第1章”是手敲的），博士后照模板仍用列表编号}
 % \changes{v3.2a}{2026/09/23}{类专有的几件事从 \pkg{docxlike} 里挪出来，经它的钩子与登记
 %   接回去：题序后间距、四级标题西文无衬线、旧选项与格式键的兼容桥、全局开关的同步}
 %
@@ -660,15 +661,43 @@
 % \cs{\_\_hit\_heading\_emit:Nnnnnn}\meta{标题命令}\marg{层级名}\marg{样式标识}\marg{星号}\marg{可选参数}\marg{题名}
 % 发一个标题，\meta{标题命令} 是 \pkg{docxlike} 定义的，\marg{星号} 空或 \texttt{*}；编号不编号
 % 事先放在 \cs{l\_\_hit\_heading\_numbered\_bool} 里。
+%
+% \emph{中文学位论文的章号敲进题名。}范例里的“第1章”“附录A”是手敲的正文，不是列表编号：
+% Word 在列表编号串里不加中西文间距，敲进正文的才加，范例量出来是加了的。所以这一级照范例
+% 排：编号照旧由列表编（计数、\cs{ref}、目录、页眉都与别的级一样），只是不让 \pkg{docxlike}
+% 放编号，调带星号的那一版，编好的串连同题名前那两个半角空格一起敲进段里；目录条目与页眉
+% 标记也放在段里，与 \pkg{docxlike} 自己的放法一样。博士后的模板用的是列表编号，英文版的
+% “Chapter~1”没有汉字，都不走这一条。
 %    \begin{macrocode}
+\tl_new:N \l__hit_heading_num_tl
+\tl_new:N \l__hit_heading_ref_tl
+\tl_new:N \l__hit_heading_toc_tl
+\cs_new_protected:Npn \__hit_heading_typed_marks:nnn #1#2#3
+  {
+    \bool_set_true:N \l_docxlike_heading_own_mark_bool
+    \cs_if_exist_use:cT { #1 mark } { {#3} }
+    \bool_set_false:N \l_docxlike_heading_own_mark_bool
+    \addcontentsline { toc } {#1} { \protect \numberline {#2} #3 }
+  }
+\prg_new_conditional:Npnn \__hit_heading_typed:n #1 { TF }
+  {
+    \bool_lazy_and:nnTF
+      { \str_if_eq_p:nn {#1} { chapter } }
+      { ! \g__hit_postdoc_bool && ! \g__hit_en_bool }
+      { \prg_return_true: } { \prg_return_false: }
+  }
 \cs_new_protected:Npn \__hit_heading_emit:Nnnnnn #1#2#3#4#5#6
   {
+    \tl_set:Nn \l__hit_heading_toc_tl {#6}
     \IfNoValueTF {#5}
       { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#6} , } }
       {
         \tl_if_in:nnTF {#5} { = }
           { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#6} , #5 , } }
-          { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#5} , } }
+          {
+            \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#5} , }
+            \tl_set:Nn \l__hit_heading_toc_tl {#5}
+          }
       }
     \tl_set:Nn \l__hit_heading_body_tl {#6}
     \tl_if_empty:nTF {#4}
@@ -676,17 +705,37 @@
         \bool_if:NTF \l__hit_heading_numbered_bool
           {
             \__hit_heading_sync:nn {#3} {#2}
-            \tl_set:Ne \l__hit_heading_body_tl
-              { \__hit_heading_after:n {#2} \exp_not:n {#6} }
+            \__hit_heading_typed:nTF {#2}
+              { \__hit_heading_typed:Nnnn #1 {#2} {#3} {#6} }
+              {
+                \tl_set:Ne \l__hit_heading_body_tl
+                  { \__hit_heading_after:n {#2} \exp_not:n {#6} }
+                \use:e
+                  {
+                    \exp_not:N #1
+                    [ \exp_not:V \l__hit_heading_local_tl ]
+                    { \exp_not:V \l__hit_heading_body_tl }
+                  }
+              }
           }
-          { \tl_put_right:Nn \l__hit_heading_local_tl { numbering = none , } }
+          {
+            \tl_put_right:Nn \l__hit_heading_local_tl { numbering = none , }
+            \use:e
+              {
+                \exp_not:N #1
+                [ \exp_not:V \l__hit_heading_local_tl ]
+                { \exp_not:V \l__hit_heading_body_tl }
+              }
+          }
       }
-      { \bool_set_false:N \l__hit_heading_numbered_bool }
-    \use:e
       {
-        \exp_not:N #1 #4
-        [ \exp_not:V \l__hit_heading_local_tl ]
-        { \exp_not:V \l__hit_heading_body_tl }
+        \bool_set_false:N \l__hit_heading_numbered_bool
+        \use:e
+          {
+            \exp_not:N #1 *
+            [ \exp_not:V \l__hit_heading_local_tl ]
+            { \exp_not:V \l__hit_heading_body_tl }
+          }
       }
     \bool_if:NT \l__hit_heading_numbered_bool
       {
@@ -695,6 +744,30 @@
             \exp_not:N \protected@edef \exp_not:N \@currentlabel
               { \exp_not:c { p@ #2 } \exp_not:c { the #2 } }
           }
+      }
+  }
+\cs_new_protected:Npn \__hit_heading_typed:Nnnn #1#2#3#4
+  {
+    \refstepcounter {#2}
+    \docxlike_heading_number:nNT {#3} \l__hit_heading_num_tl { }
+    \tl_set:Ne \l__hit_heading_ref_tl { \l__hit_heading_num_tl }
+    \regex_replace_once:nnN { [\s\x{3000}]+ \Z } { } \l__hit_heading_ref_tl
+    \tl_set:Ne \l__hit_heading_body_tl
+      {
+        \exp_not:N \NoCaseChange
+          {
+            \exp_not:N \__hit_heading_typed_marks:nnn {#2}
+              { \exp_not:V \l__hit_heading_ref_tl }
+              { \exp_not:V \l__hit_heading_toc_tl }
+          }
+        \exp_not:V \l__hit_heading_num_tl
+        \__hit_heading_after:n {#2} \exp_not:n {#4}
+      }
+    \use:e
+      {
+        \exp_not:N #1 *
+        [ \exp_not:V \l__hit_heading_local_tl ]
+        { \exp_not:V \l__hit_heading_body_tl }
       }
   }
 \cs_new_protected:Npn \__hit_heading_section:Nnnnnnn #1#2#3#4#5#6#7

@@ -2074,6 +2074,33 @@ local function fix_skips(head)
   end
 end
 
+-- 编号盒补网格增量：贴字符网格的段里 Word 给编号串的每个汉字后面加一份增量，正文字号时西文
+-- 字形加半份（与断行层给正文的一样）。盒里两个汉字之间的汉字缝已经是网格胶，那一处不补；
+-- 编号里不加中西文间距，汉字后面跟着西文的地方就没有胶，要补上
+function M.grid_box(n, inc, atbody)
+  local b = tex.box[n]
+  if not b or inc <= 0 then return end
+  local head, added = b.list, 0
+  for g in traverse(head) do
+    if g.id == GLYPH then
+      local add = 0
+      if is_jfont(g.font) then
+        local nx = g.next
+        if not (nx and nx.id == GLUE and is_kanjiskip(nx)) then add = inc end
+      elseif atbody then
+        add = inc / 2
+      end
+      if add > 0 then
+        local k = node.new(KERN); k.kern = add
+        head = node.insert_after(head, g, k)
+        added = added + add
+      end
+    end
+  end
+  b.list = head
+  b.width = b.width + added
+end
+
 -- 盒里有没有汉字（jfont 的字形，盒套盒也找）。页眉页脚的行盒按内容定：
 -- 纯西文的行按 Times 的行高算，TeX 那头照这个结果换常量
 function M.box_has_cjk(n)
