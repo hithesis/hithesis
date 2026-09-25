@@ -61,6 +61,10 @@
 %   \cs{docxlike\_format\_stack\_line:n}}
 % \changes{v3.2a}{2026/08/24}{纯西文段由 \cs{docxlike\_format\_apply\_par:n} 铺版面，与别的段共用
 %   \option{styles} 词汇；首行基线按 Times 的上升部}
+% \changes{v3.2a}{2026/09/26}{字符格式：\option{font-style} 放开斜体与粗斜体（中文字体与没有斜体
+%   字面的西文字体照 Word 斜切），新增 \option{underline-style}、\option{underline-color}、
+%   \option{superscript}、\option{subscript}、样式的 \option{style-type} 与 \cs{docxrun}；下划线与
+%   上下标在 \hologo{LuaLaTeX} 上记在属性里，出页前由 \file{docxlike-run.lua} 落到节点上，断行照常}
 % \changes{v3.2a}{2026/09/26}{只写了行距的目标也发 \cs{fontsize}（先前只看字号，行距落不下去）；
 %   \cs{parmark} 收段前段后，与别的段同一本账}
 % \changes{v3.2a}{2026/08/24}{新增 \cs{parmark}：模拟 Word 的空回车段，可选参数收行数或
@@ -100,7 +104,9 @@
 % \toprule
 % 公开的键 & 内部条目 \\ \midrule
 % \option{font}/\option{asian-text-font}、\option{latin-text-font} & \texttt{rPr/rFonts/eastAsia}、\texttt{rPr/rFonts/ascii} \\
-% \option{font}/\option{font-style}、\option{all-caps} & \texttt{rPr/b}、\texttt{rPr/caps} \\
+% \option{font}/\option{font-style}、\option{all-caps} & \texttt{rPr/b}、\texttt{rPr/i}、\texttt{rPr/caps} \\
+% \option{font}/\option{underline-style}、\option{underline-color} & \texttt{rPr/u}、\texttt{rPr/u/color}（六位十六进制） \\
+% \option{font}/\option{superscript}、\option{subscript} & \texttt{rPr/vertAlign}：\texttt{superscript}、\texttt{subscript}、\texttt{baseline} \\
 % \option{font}/\option{size} & \texttt{rPr/sz}（半磅） \\
 % \option{font}/\option{character-spacing} & \texttt{rPr/spacing}（缇，带符号） \\
 % \option{font}/\option{snap-to-grid-when-document-grid-is-defined} & \texttt{rPr/snapToGrid} \\
@@ -880,6 +886,7 @@
     border .code:n = { \__docxlike_keys_set:nn { docxlike / style / border } {#1} } ,
     numbering .choices:nn = { none }
       { \__docxlike_format_put:nn { pPr/numPr/numId } { 0 } } ,
+    style-type .code:n = { \__docxlike_style_type:n {#1} } ,
     unknown .code:n =
       { \__docxlike_unknown_key: } ,
   }
@@ -893,6 +900,12 @@
     size .code:n = { \__docxlike_format_size:n {#1} } ,
     all-caps .code:n = { \__docxlike_format_bool:nn { rPr/caps } {#1} } ,
     all-caps .default:n = { true } ,
+    underline-style .code:n = { \__docxlike_style_underline:n {#1} } ,
+    underline-color .code:n = { \__docxlike_style_underline_color:n {#1} } ,
+    superscript .code:n = { \__docxlike_style_vert_align:nn { superscript } {#1} } ,
+    superscript .default:n = { true } ,
+    subscript .code:n = { \__docxlike_style_vert_align:nn { subscript } {#1} } ,
+    subscript .default:n = { true } ,
     kerning-for-fonts .code:n = { \__docxlike_style_kern:n {#1} } ,
     character-spacing .code:n = { \__docxlike_style_char_spacing:n {#1} } ,
     snap-to-grid-when-document-grid-is-defined .code:n = { \__docxlike_format_bool:nn { rPr/snapToGrid } {#1} } ,
@@ -985,8 +998,8 @@
   }
 %    \end{macrocode}
 %
-% \option{font-style} 照“字形”下拉框：\texttt{regular}、\texttt{bold}；\texttt{italic} 与
-% \texttt{bold-italic} 还没有做，写了报错，不静默放过。
+% \option{font-style} 照“字形”下拉框：\texttt{regular}、\texttt{italic}、\texttt{bold}、
+% \texttt{bold-italic}，一个词定两条（\texttt{rPr/b} 与 \texttt{rPr/i}）。
 %    \begin{macrocode}
 \msg_new:nnnn { docxlike } { not-implemented }
   { '#1'~is~not~implemented~yet. }
@@ -995,15 +1008,107 @@
   {
     \str_case:nnF {#1}
       {
-        { regular } { \__docxlike_format_put:nn { rPr/b } { false } }
-        { bold } { \__docxlike_format_put:nn { rPr/b } { true } }
-        { auto } { \__docxlike_format_put:nn { rPr/b } { auto } }
-        { italic } { \msg_error:nnn { docxlike } { not-implemented } { font-style~=~italic } }
-        { bold-italic }
-          { \msg_error:nnn { docxlike } { not-implemented } { font-style~=~bold-italic } }
+        { regular } { \__docxlike_style_font_style:nn { false } { false } }
+        { italic } { \__docxlike_style_font_style:nn { false } { true } }
+        { bold } { \__docxlike_style_font_style:nn { true } { false } }
+        { bold-italic } { \__docxlike_style_font_style:nn { true } { true } }
+        { auto } { \__docxlike_style_font_style:nn { auto } { auto } }
       }
-      { \__docxlike_bad_value:nnn { font-style } {#1} { regular , bold , italic , bold-italic } }
+      { \__docxlike_bad_value:nnn { font-style } {#1} { regular , italic , bold , bold-italic } }
   }
+\cs_new_protected:Npn \__docxlike_style_font_style:nn #1#2
+  {
+    \__docxlike_format_put:nn { rPr/b } {#1}
+    \__docxlike_format_put:nn { rPr/i } {#2}
+  }
+%    \end{macrocode}
+%
+% \option{underline-style} 照“下划线线型”下拉框：\texttt{none}、\texttt{single}（单线）、
+% \texttt{words-only}（“字下加线”，空格不画），存成 \texttt{rPr/u} 的 \texttt{none}、
+% \texttt{single}、\texttt{words}。别的线型（双线、粗线、点线、波浪线）Word 画成什么样没有量过，
+% 写了报错。\option{underline-color} 是“下划线颜色”：\texttt{auto} 跟着字的颜色，别的写
+% 六位十六进制（\texttt{FF0000}）或 \pkg{l3color} 认得的颜色表达式（\texttt{red}、
+% \texttt{blue!50}），存成 docx 那样的六位十六进制。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_style_underline:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        { none } { \__docxlike_format_put:nn { rPr/u } { none } }
+        { single } { \__docxlike_format_put:nn { rPr/u } { single } }
+        { words-only } { \__docxlike_format_put:nn { rPr/u } { words } }
+        { auto } { \__docxlike_format_put:nn { rPr/u } { auto } }
+        { double } { \msg_error:nnn { docxlike } { not-implemented } { underline-style~=~double } }
+        { thick } { \msg_error:nnn { docxlike } { not-implemented } { underline-style~=~thick } }
+        { dotted } { \msg_error:nnn { docxlike } { not-implemented } { underline-style~=~dotted } }
+        { dash } { \msg_error:nnn { docxlike } { not-implemented } { underline-style~=~dash } }
+        { wave } { \msg_error:nnn { docxlike } { not-implemented } { underline-style~=~wave } }
+      }
+      { \__docxlike_bad_value:nnn { underline-style } {#1} { none , single , words-only } }
+  }
+\tl_new:N \l__docxlike_style_color_tl
+\cs_new_protected:Npn \__docxlike_style_underline_color:n #1
+  {
+    \str_if_eq:nnTF {#1} { auto }
+      { \__docxlike_format_put:nn { rPr/u/color } { auto } }
+      {
+        \regex_match:nnTF { \A [0-9A-Fa-f]{6} \Z } {#1}
+          { \tl_set:Ne \l__docxlike_style_color_tl { \str_uppercase:n {#1} } }
+          { \color_export:nnN {#1} { HTML } \l__docxlike_style_color_tl }
+        \__docxlike_format_put:nV { rPr/u/color } \l__docxlike_style_color_tl
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_format_put:nn { nV }
+%    \end{macrocode}
+%
+% \option{superscript} 与 \option{subscript} 是“效果”里的两个勾，勾一个另一个就去掉，两个都
+% 不勾是 \texttt{baseline}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_style_vert_align:nn #1#2
+  {
+    \str_case:nnF {#2}
+      {
+        { true } { \__docxlike_format_put:nn { rPr/vertAlign } {#1} }
+        { false } { \__docxlike_format_put:nn { rPr/vertAlign } { baseline } }
+        { auto } { \__docxlike_format_put:nn { rPr/vertAlign } { auto } }
+      }
+      { \__docxlike_bad_value:nnn {#1} {#2} { true , false } }
+  }
+%    \end{macrocode}
+%
+% \option{style-type} 是“新建样式”对话框的“样式类型”：\texttt{paragraph}（默认）或
+% \texttt{character}。字符样式只带字体一组，用在 \cs{docxrun} 里，不挂在 \texttt{Normal}
+% 底下（docx 里它的根是“默认段落字体”，本身什么也不设）。
+%    \begin{macrocode}
+\prop_new:N \g__docxlike_format_type_prop
+\cs_new_protected:Npn \__docxlike_style_type:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        { paragraph }
+          {
+            \prop_gremove:NV \g__docxlike_format_type_prop \l__docxlike_format_target_str
+            \prop_if_in:NVF \g__docxlike_format_parent_prop \l__docxlike_format_target_str
+              {
+                \str_if_eq:VnF \l__docxlike_format_target_str { Normal }
+                  {
+                    \prop_gput:NVn \g__docxlike_format_parent_prop
+                      \l__docxlike_format_target_str { Normal }
+                  }
+              }
+          }
+        { character }
+          {
+            \prop_gput:NVn \g__docxlike_format_type_prop \l__docxlike_format_target_str
+              { character }
+            \prop_gremove:NV \g__docxlike_format_parent_prop \l__docxlike_format_target_str
+          }
+      }
+      { \__docxlike_bad_value:nnn { style-type } {#1} { paragraph , character } }
+  }
+\cs_generate_variant:Nn \prop_gremove:Nn { NV }
+\cs_generate_variant:Nn \prop_gput:Nnn { NVn }
+\cs_generate_variant:Nn \prop_if_in:NnF { NV }
 %    \end{macrocode}
 %
 % \option{character-spacing} 照“字体 → 高级”的字符间距：\option{spacing} 是
@@ -2185,6 +2290,13 @@
 % 西文字体按名字声明一个 \pkg{fontspec} 字族，都只声明一次；本机没有这副字体时警告一次，不切。
 % \cs{newjfontfamily} 定义的切换命令（连同它里面那一个 \texttt{\meta{命令}~code}）是局部的，
 % 字体常在段落的组里第一次用到，出组就没了，所以声明之后改成全局的。
+%
+% 中文字体没有斜体字面，Word 的斜体是斜切出来的，倾角 18.4°，斜切系数 $\tan 18.4^\circ$
+% 约 0.3333，声明中文字族时带上。西文字体有斜体字面的用真的（Times New Roman），没有的
+% （等线）同样斜切：先照常声明，\pkg{fontspec} 没登记出斜体字形的，带上斜切再声明一次。粗体没有照办：中易宋体、黑体这些没有粗体字面，Word 描边
+% 合成，线宽是字号的 1/35；等线、微软雅黑有真粗体字面，Word 用真的。\pkg{fontspec} 的
+% \texttt{AutoFakeBold} 不分有没有，一律描边，所以没加；要描边的由文档类照
+% \cs{docxlike\_font\_select\_new:nn} 自己声明。
 %    \begin{macrocode}
 \prop_new:N \g__docxlike_font_select_prop
 \tl_new:N \l__docxlike_font_code_tl
@@ -2235,13 +2347,14 @@
               {
                 \cs_if_exist:NTF \xeCJK_set_family:nnn
                   {
-                    \xeCJK_set_family:enn { docxlike-\l__docxlike_font_key_str } { } {#1}
+                    \xeCJK_set_family:enn { docxlike-\l__docxlike_font_key_str }
+                      { AutoFakeSlant = 0.3333 , BoldItalicFeatures = { FakeSlant = 0.3333 } } {#1}
                     \tl_gset:ce { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
                       { \exp_not:N \CJKfamily { docxlike-\l__docxlike_font_key_str } }
                   }
                   {
                     \exp_args:Nc \newjfontfamily { docxlike@jf@ \l__docxlike_font_key_str }
-                      [ JFM = zh_CN/quanjiao ] {#1}
+                      [ JFM = zh_CN/quanjiao , AutoFakeSlant = 0.3333 , BoldItalicFeatures = { FakeSlant = 0.3333 } ] {#1}
                     \cs_gset_eq:cc { docxlike@jf@ \l__docxlike_font_key_str }
                       { docxlike@jf@ \l__docxlike_font_key_str }
                     \cs_if_exist:cT { docxlike@jf@ \l__docxlike_font_key_str \c_space_tl code }
@@ -2269,6 +2382,13 @@
               {
                 \fontspec_set_family:cnn
                   { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl } { } {#1}
+                \cs_if_exist:cF
+                  { TU / \tl_use:c { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl } / m / it }
+                  {
+                    \fontspec_set_family:cnn
+                      { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
+                      { AutoFakeSlant = 0.3333 , BoldItalicFeatures = { FakeSlant = 0.3333 } } {#1}
+                  }
                 \tl_gset_eq:cc { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
                   { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
               }
@@ -2906,6 +3026,10 @@
     \__docxlike_format_read:nnnN {#1} { rPr/b } { false } \l__docxlike_format_value_tl
     \str_if_eq:VnT \l__docxlike_format_value_tl { true }
       { \tl_put_right:Nn \l__docxlike_format_out_tl { \bfseries } }
+    \__docxlike_format_read:nnnN {#1} { rPr/i } { false } \l__docxlike_format_value_tl
+    \str_if_eq:VnT \l__docxlike_format_value_tl { true }
+      { \tl_put_right:Nn \l__docxlike_format_out_tl { \itshape } }
+    \__docxlike_format_effects:n {#1}
     \__docxlike_format_font_hook:n {#1}
     \__docxlike_format_pick:nnN {#1} { pPr/jc } \g__docxlike_format_align_prop
     \__docxlike_format_read:nnnN {#1} { pPr/autoSpaceDE } { true } \l__docxlike_format_autospace_tl
@@ -2976,6 +3100,391 @@
   { \hbox_set:Nn #1 { \docxlike_format_strut: } }
 %    \end{macrocode}
 % \end{macro}
+
+%
+% \subsection{字符格式}
+%
+% 下划线与上下标是 run 上的格式（\texttt{rPr/u}、\texttt{rPr/vertAlign}），样式里写了就管
+% 整段，\cs{docxrun} 里写了就管那一截。\hologo{LuaLaTeX} 上两样都记在属性上，出页前由
+% \file{docxlike-run.lua} 落到节点上：下划线按段画一道线，上下标挪字形的纵向偏移，断行照常。
+%
+% \emph{下划线的位置与粗细。} 线心在基线下 0.135\,em、粗 0.05\,em，em 是这一截字的字号。
+% 在 Word 里量的：中易宋体加 Times New Roman，12、24、48 磅三档，纯汉字、纯西文、数字、
+% 混排四种 run 一个数（48 磅那档全落在 0.135/0.050 上；12 磅那档在 0.123 到 0.173 之间晃，
+% 那是 Word 按设备像素取整）。粗体西文 run 在 Word 里线粗一倍，这一档没有另设。
+%
+% \emph{哪些地方画线。} 带同一个属性值的节点连成一段。段里夹着的不带属性的 kern、罚点、
+% whatsit 算在段里：\pkg{luatexja} 与断行层插的网格增量、标点挤压都是新建的 kern，不带属性。
+% 不带属性的胶把段断开，那是 run 外面的空格。段首段尾不落在 kern 与边距胶上（首行缩进、
+% \cs{leftskip}、\cs{rightskip} 不画），段尾紧跟的 kern 要吃进来，那是末一个字的网格增量；
+% 末一个字是闭标点、后面是 JFM 胶的，胶也吃进来，段首是开标点、前面是 JFM 胶的同理，Word
+% 里那半格是标点自己的字宽。\texttt{words-only} 在空格处断开。字号不同的字各画各的。
+%
+% 盒子带着属性、又排在行里的（\cs{docxrun} 里的 \cs{makebox}）当一整块画，Word 里在空格或
+% 制表符上加下划线留出的填写线就是这样来的；行盒本身带着属性（整段划线时 \cs{par} 在组里）
+% 就往里找，不整行画。
+%
+% \emph{上下标。} Word 的字号只住在半磅格上。西文：字号取 0.65 倍字号凑到半磅，上标抬
+% “原字号减新字号”，下标沉 0.08 倍原字号；汉字：字号取 0.5 倍凑到半磅，上标抬新字号那么多，
+% 下标沉 0.0625 倍原字号凑到半磅。12 磅正文的上标西文 8 磅抬 4 磅，汉字 6 磅抬 6 磅。汉字
+% 那一档靠 \pkg{luatexja} 的当前中文字体属性单独定：先按汉字字号选一次字体，记下中文字体，
+% 再按西文字号选，把中文字体放回去。
+%
+% \hologo{XeLaTeX} 上没有属性。\cs{docxrun} 里的下划线与上下标退成装盒：下划线在盒下画线，
+% 上下标整盒升降、汉字随西文字号，这一截不能断行。样式里写的警告一次、不画。
+%    \begin{macrocode}
+\bool_new:N \g__docxlike_run_used_bool
+\msg_new:nnnn { docxlike } { run-needs-luatex }
+  { '#1'~in~a~style~needs~LuaLaTeX;~it~is~ignored. }
+  { Use~it~in~\token_to_str:N \docxrun,~or~compile~with~LuaLaTeX. }
+\tl_new:N \l__docxlike_run_u_tl
+\tl_new:N \l__docxlike_run_ucolor_tl
+\tl_new:N \l__docxlike_run_va_tl
+\cs_new_protected:Npn \__docxlike_format_effects_read:n #1
+  {
+    \__docxlike_format_read:nnnN {#1} { rPr/u } { } \l__docxlike_run_u_tl
+    \__docxlike_format_read:nnnN {#1} { rPr/u/color } { auto } \l__docxlike_run_ucolor_tl
+    \__docxlike_format_read:nnnN {#1} { rPr/vertAlign } { } \l__docxlike_run_va_tl
+  }
+\cs_new_protected:Npn \__docxlike_format_effects:n #1
+  {
+    \__docxlike_format_effects_read:n {#1}
+    \tl_if_empty:NF \l__docxlike_run_u_tl
+      {
+        \tl_put_right:Ne \l__docxlike_format_out_tl
+          {
+            \exp_not:N \docxlike_format_underline:nn
+              { \l__docxlike_run_u_tl } { \l__docxlike_run_ucolor_tl }
+          }
+      }
+    \tl_if_empty:NF \l__docxlike_run_va_tl
+      {
+        \tl_put_right:Ne \l__docxlike_format_out_tl
+          { \exp_not:N \docxlike_format_vert_align:n { \l__docxlike_run_va_tl } }
+      }
+  }
+%    \end{macrocode}
+%
+% 上下标的字号与升降，磅数算在 \cs{l\_\_docxlike\_run\_latin\_fp} 等四个量里。
+%    \begin{macrocode}
+\fp_new:N \l__docxlike_run_size_fp
+\fp_new:N \l__docxlike_run_latin_fp
+\fp_new:N \l__docxlike_run_cjk_fp
+\fp_new:N \l__docxlike_run_raise_fp
+\fp_new:N \l__docxlike_run_cjk_raise_fp
+\cs_new_protected:Npn \__docxlike_run_script:n #1
+  {
+    \fp_set:Nn \l__docxlike_run_size_fp { \dim_to_decimal_in_bp:n { \f@size pt } }
+    \fp_set:Nn \l__docxlike_run_latin_fp { round ( 1.3 * \l__docxlike_run_size_fp ) / 2 }
+    \fp_set:Nn \l__docxlike_run_cjk_fp { round ( \l__docxlike_run_size_fp ) / 2 }
+    \str_if_eq:nnTF {#1} { superscript }
+      {
+        \fp_set:Nn \l__docxlike_run_raise_fp
+          { \l__docxlike_run_size_fp - \l__docxlike_run_latin_fp }
+        \fp_set_eq:NN \l__docxlike_run_cjk_raise_fp \l__docxlike_run_cjk_fp
+      }
+      {
+        \fp_set:Nn \l__docxlike_run_raise_fp { - 0.08 * \l__docxlike_run_size_fp }
+        \fp_set:Nn \l__docxlike_run_cjk_raise_fp
+          { - round ( 0.125 * \l__docxlike_run_size_fp ) / 2 }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_run_script_font:
+  {
+    \cs_if_exist:NTF \ltj@curjfnt
+      {
+        \fontsize { \fp_use:N \l__docxlike_run_cjk_fp bp } { \f@baselineskip }
+        \selectfont
+        \int_set:Nn \l__docxlike_run_jfont_int { \ltj@curjfnt }
+        \fontsize { \fp_use:N \l__docxlike_run_latin_fp bp } { \f@baselineskip }
+        \selectfont
+        \ltj@curjfnt = \l__docxlike_run_jfont_int
+      }
+      {
+        \fontsize { \fp_use:N \l__docxlike_run_latin_fp bp } { \f@baselineskip }
+        \selectfont
+      }
+  }
+\int_new:N \l__docxlike_run_jfont_int
+%    \end{macrocode}
+%
+% \hologo{LuaLaTeX} 上的两个效果命令。下划线颜色登记成序号交给 Lua，属性里存序号。
+%    \begin{macrocode}
+\prop_new:N \g__docxlike_run_color_prop
+\int_new:N \g__docxlike_run_color_int
+\tl_new:N \l__docxlike_run_color_tl
+\sys_if_engine_luatex:TF
+  {
+    \newattribute \docxlike@ul@attr
+    \newattribute \docxlike@ulc@attr
+    \newattribute \docxlike@ulsz@attr
+    \newattribute \docxlike@va@attr
+    \newattribute \docxlike@vaja@attr
+    \cs_new_protected:Npn \__docxlike_run_used:
+      {
+        \bool_if:NF \g__docxlike_run_used_bool
+          {
+            \bool_gset_true:N \g__docxlike_run_used_bool
+            \lua_now:n { docxlike.run.used = true }
+          }
+      }
+    \cs_new_protected:Npn \docxlike_format_underline:nn #1#2
+      {
+        \str_case:nnF {#1}
+          {
+            { single } { \docxlike@ul@attr = 1 \scan_stop: }
+            { words } { \docxlike@ul@attr = 2 \scan_stop: }
+          }
+          { \unsetattribute \docxlike@ul@attr }
+        \docxlike@ulsz@attr = \dim_to_decimal_in_sp:n { \f@size pt } \scan_stop:
+        \str_if_eq:nnTF {#2} { auto }
+          { \unsetattribute \docxlike@ulc@attr }
+          {
+            \prop_get:NnNF \g__docxlike_run_color_prop {#2} \l__docxlike_run_color_tl
+              {
+                \int_gincr:N \g__docxlike_run_color_int
+                \tl_set:Ne \l__docxlike_run_color_tl { \int_use:N \g__docxlike_run_color_int }
+                \prop_gput:NnV \g__docxlike_run_color_prop {#2} \l__docxlike_run_color_tl
+                \lua_now:e { docxlike.run.color(\l__docxlike_run_color_tl, "#2") }
+              }
+            \docxlike@ulc@attr = \l__docxlike_run_color_tl \scan_stop:
+          }
+        \__docxlike_run_used:
+      }
+    \cs_new_protected:Npn \docxlike_format_vert_align:n #1
+      {
+        \str_case:nnF {#1}
+          {
+            { superscript } { \__docxlike_run_vert_align:n {#1} }
+            { subscript } { \__docxlike_run_vert_align:n {#1} }
+          }
+          {
+            \unsetattribute \docxlike@va@attr
+            \unsetattribute \docxlike@vaja@attr
+          }
+      }
+    \cs_new_protected:Npn \__docxlike_run_vert_align:n #1
+      {
+        \__docxlike_run_script:n {#1}
+        \__docxlike_run_script_font:
+        \docxlike@va@attr
+          = \dim_to_decimal_in_sp:n { \fp_use:N \l__docxlike_run_raise_fp bp } \scan_stop:
+        \docxlike@vaja@attr
+          = \dim_to_decimal_in_sp:n { \fp_use:N \l__docxlike_run_cjk_raise_fp bp } \scan_stop:
+        \__docxlike_run_used:
+      }
+    \lua_now:n
+      {
+        docxlike~=~docxlike~or~{}
+        docxlike.run~=~dofile(kpse.find_file("docxlike-run.lua",~"tex")~
+          or~kpse.find_file("docxlike-run.lua",~"lua"))
+        docxlike.run.install(luatexbase.attributes["docxlike@ul@attr"],
+          luatexbase.attributes["docxlike@ulc@attr"],
+          luatexbase.attributes["docxlike@ulsz@attr"],
+          luatexbase.attributes["docxlike@va@attr"],
+          luatexbase.attributes["docxlike@vaja@attr"])
+      }
+  }
+  {
+    \cs_new_protected:Npn \docxlike_format_underline:nn #1#2
+      { \str_if_eq:nnF {#1} { none } { \__docxlike_run_warn:n { underline-style } } }
+    \cs_new_protected:Npn \docxlike_format_vert_align:n #1
+      { \str_if_eq:nnF {#1} { baseline } { \__docxlike_run_warn:n {#1} } }
+    \cs_new_protected:Npn \__docxlike_run_warn:n #1
+      {
+        \bool_if_exist:cF { g__docxlike_run_warned_#1_bool }
+          {
+            \bool_new:c { g__docxlike_run_warned_#1_bool }
+            \msg_warning:nnn { docxlike } { run-needs-luatex } {#1}
+          }
+      }
+  }
+\cs_generate_variant:Nn \prop_gput:Nnn { NnV }
+%    \end{macrocode}
+%
+% \begin{macro}{\docxrun,\docxlike_format_run:nn}
+% \cs{docxrun}\oarg{键}\marg{内容} 是 docx 里的一个 run：\meta{键} 是“字体”对话框里那组键
+% （不用外面再套 \option{font}），外加 \option{style}\texttt{=}\meta{字符样式}。写了的照写，
+% 没写的跟着所在的段。样式里的设置先落，直接写的压在上面，与 Word 一样。
+% \option{character-spacing}、\option{kerning-for-fonts}、\option{snap-to-grid-when-document-grid-is-defined}
+% 在 run 上还没有做，写了报错。Word 的粗、斜、全大写在字符样式与段落样式之间是“取反”的
+% （粗体段落里套粗体字符样式变回不粗），这里按直接格式处理，写 \texttt{true} 就是粗。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_run_style_tl
+\tl_new:N \l__docxlike_run_keys_tl
+\tl_new:N \l__docxlike_run_target_tl
+\tl_new:N \l__docxlike_run_caps_tl
+\tl_new:N \l__docxlike_run_type_tl
+\msg_new:nnnn { docxlike } { not-character-style }
+  { '#1'~is~not~a~character~style. }
+  { Declare~it~with~'style-type~=~character'~in~'styles';~the~style~is~ignored. }
+\keys_define:nn { docxlike / run }
+  { style .tl_set:N = \l__docxlike_run_style_tl }
+\docxlike_format_target_new:nn { docxlike-run } { }
+\prop_gput:Nnn \g__docxlike_format_type_prop { docxlike-run } { character }
+\cs_new_protected:Npn \docxlike_format_run:nn #1#2
+  {
+    \group_begin:
+      \tl_clear:N \l__docxlike_run_style_tl
+      \keys_set_known:nnN { docxlike / run } {#1} \l__docxlike_run_keys_tl
+      \tl_set:Nn \l__docxlike_run_target_tl { docxlike-run }
+      \tl_if_empty:NF \l__docxlike_run_style_tl
+        {
+          \__docxlike_squash:VN \l__docxlike_run_style_tl \l__docxlike_value_try_str
+          \prop_get:NVNTF \g__docxlike_format_name_prop \l__docxlike_value_try_str
+            \l__docxlike_format_value_tl
+            {
+              \prop_get:NVNTF \g__docxlike_format_type_prop \l__docxlike_format_value_tl
+                \l__docxlike_run_type_tl
+                { \tl_set_eq:NN \l__docxlike_run_target_tl \l__docxlike_format_value_tl }
+                {
+                  \msg_error:nnV { docxlike } { not-character-style }
+                    \l__docxlike_run_style_tl
+                }
+            }
+            { \msg_error:nnV { docxlike } { not-character-style } \l__docxlike_run_style_tl }
+        }
+      \tl_set:Ne \l__docxlike_run_keys_tl { font = { \exp_not:V \l__docxlike_run_keys_tl } }
+      \use:e
+        {
+          \exp_not:N \docxlike_format_with:nnn { \l__docxlike_run_target_tl }
+            { \exp_not:V \l__docxlike_run_keys_tl }
+            { \exp_not:N \__docxlike_format_run_build:n { \l__docxlike_run_target_tl } }
+        }
+      \l__docxlike_format_out_tl
+      \__docxlike_run_content:n {#2}
+    \group_end:
+  }
+\cs_generate_variant:Nn \msg_error:nnn { nnV }
+\cs_generate_variant:Nn \__docxlike_squash:nN { VN }
+\cs_generate_variant:Nn \prop_get:NnNTF { NVNTF }
+\NewDocumentCommand \docxrun { O { } +m } { \docxlike_format_run:nn {#1} {#2} }
+%    \end{macrocode}
+% \end{macro}
+%
+% 算一个 run 发什么。与 \cs{\_\_docxlike\_format\_build\_font:n} 不同的是没写的一律不发，
+% 写了 \texttt{false} 的发 \cs{mdseries}、\cs{upshape} 把段里的粗、斜挡掉。字号改了行距
+% 不动，行高交给断行层按行里最大的字算。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_format_run_build:n #1
+  {
+    \tl_clear:N \l__docxlike_format_out_tl
+    \__docxlike_format_read:nnnN {#1} { rPr/rFonts/eastAsia } { } \l__docxlike_format_value_tl
+    \tl_if_empty:NF \l__docxlike_format_value_tl
+      {
+        \tl_put_right:Ne \l__docxlike_format_out_tl
+          {
+            \exp_not:N \docxlike_font_select_east_asian:n
+              { \exp_not:V \l__docxlike_format_value_tl }
+          }
+      }
+    \__docxlike_format_read:nnnN {#1} { rPr/rFonts/ascii } { } \l__docxlike_format_value_tl
+    \tl_if_empty:NF \l__docxlike_format_value_tl
+      {
+        \tl_put_right:Ne \l__docxlike_format_out_tl
+          {
+            \exp_not:N \docxlike_font_select_latin:n
+              { \exp_not:V \l__docxlike_format_value_tl }
+          }
+      }
+    \__docxlike_format_sz_read:nN {#1} \l__docxlike_format_value_tl
+    \tl_if_empty:NF \l__docxlike_format_value_tl
+      {
+        \tl_put_right:Ne \l__docxlike_format_out_tl
+          {
+            \exp_not:N \fontsize { \l__docxlike_format_value_tl }
+              { \exp_not:N \f@baselineskip }
+            \exp_not:N \selectfont
+          }
+      }
+    \__docxlike_format_read:nnnN {#1} { rPr/b } { } \l__docxlike_format_value_tl
+    \str_case:VnT \l__docxlike_format_value_tl
+      {
+        { true } { \tl_put_right:Nn \l__docxlike_format_out_tl { \bfseries } }
+        { false } { \tl_put_right:Nn \l__docxlike_format_out_tl { \mdseries } }
+      }
+      { }
+    \__docxlike_format_read:nnnN {#1} { rPr/i } { } \l__docxlike_format_value_tl
+    \str_case:VnT \l__docxlike_format_value_tl
+      {
+        { true } { \tl_put_right:Nn \l__docxlike_format_out_tl { \itshape } }
+        { false } { \tl_put_right:Nn \l__docxlike_format_out_tl { \upshape } }
+      }
+      { }
+    \__docxlike_format_read:nnnN {#1} { rPr/caps } { } \l__docxlike_run_caps_tl
+    \clist_map_inline:nn
+      {
+        { rPr/spacing } { character-spacing } ,
+        { rPr/kern } { kerning-for-fonts } ,
+        { rPr/snapToGrid } { snap-to-grid-when-document-grid-is-defined }
+      }
+      { \__docxlike_run_unsupported:nnn {#1} ##1 }
+    \sys_if_engine_luatex:TF
+      { \__docxlike_format_effects:n {#1} }
+      { \__docxlike_format_effects_read:n {#1} }
+  }
+\cs_new_protected:Npn \__docxlike_run_unsupported:nnn #1#2#3
+  {
+    \__docxlike_format_get:nnNT {#1} {#2} \l__docxlike_format_value_tl
+      { \msg_error:nnn { docxlike } { not-implemented } { #3~in~\token_to_str:N \docxrun } }
+  }
+%    \end{macrocode}
+%
+% 内容。全大写套 \cs{MakeUppercase}；\hologo{XeLaTeX} 的下划线与上下标在这里装盒。
+%    \begin{macrocode}
+\box_new:N \l__docxlike_run_box
+\cs_new_protected:Npn \__docxlike_run_content:n #1
+  {
+    \str_if_eq:VnTF \l__docxlike_run_caps_tl { true }
+      { \__docxlike_run_xe:n { \MakeUppercase {#1} } }
+      { \__docxlike_run_xe:n {#1} }
+  }
+\sys_if_engine_luatex:TF
+  { \cs_new_protected:Npn \__docxlike_run_xe:n #1 {#1} }
+  {
+    \cs_new_protected:Npn \__docxlike_run_xe:n #1
+      {
+        \bool_lazy_and:nnTF
+          { \tl_if_empty_p:N \l__docxlike_run_va_tl }
+          { \tl_if_empty_p:N \l__docxlike_run_u_tl }
+          {#1}
+          {
+            \str_case:VnF \l__docxlike_run_va_tl
+              {
+                { superscript } { \__docxlike_run_script:n { superscript } }
+                { subscript } { \__docxlike_run_script:n { subscript } }
+              }
+              {
+                \fp_zero:N \l__docxlike_run_raise_fp
+                \fp_set:Nn \l__docxlike_run_latin_fp { \dim_to_decimal_in_bp:n { \f@size pt } }
+              }
+            \hbox_set:Nn \l__docxlike_run_box
+              {
+                \fontsize { \fp_use:N \l__docxlike_run_latin_fp bp } { \f@baselineskip }
+                \selectfont
+                #1
+              }
+            \str_case:VnT \l__docxlike_run_u_tl { { single } { } { words } { } }
+              {
+                \hbox_set:Nn \l__docxlike_run_box
+                  {
+                    \box_use:N \l__docxlike_run_box
+                    \tex_kern:D - \box_wd:N \l__docxlike_run_box
+                    \__docxlike_run_xe_color:
+                    \rule [ - 0.16 em ] { \box_wd:N \l__docxlike_run_box } { 0.05 em }
+                  }
+              }
+            \box_move_up:nn { \fp_use:N \l__docxlike_run_raise_fp bp }
+              { \box_use:N \l__docxlike_run_box }
+          }
+      }
+    \cs_new_protected:Npn \__docxlike_run_xe_color:
+      {
+        \str_if_eq:VnF \l__docxlike_run_ucolor_tl { auto }
+          { \color_select:nn { HTML } { \l__docxlike_run_ucolor_tl } }
+      }
+  }
+%    \end{macrocode}
 %
 % 两道胶的取值。\cs{CJKglue} 是汉字之间的：吃网格就取网格那一份，不吃就取零，
 % 再加上 \texttt{spacing}。两项相加是 Word 的算法，\texttt{docGrid} 的字距被
@@ -5397,6 +5906,217 @@
 %
 %    \begin{macrocode}
 %</docxlike-format>
+%    \end{macrocode}
+%
+% \subsection{\file{docxlike-run.lua}}
+%
+% 出页前走一遍整页：先挪上下标的字形，再画下划线。没用过这两样的文档不走。规则见前面
+% “字符格式”一节。
+%    \begin{macrocode}
+%<*run-lua>
+local M = { used = false, colors = {} }
+
+local HLIST, VLIST = node.id("hlist"), node.id("vlist")
+local GLYPH, GLUE, KERN = node.id("glyph"), node.id("glue"), node.id("kern")
+local PENALTY, WHATSIT, RULE = node.id("penalty"), node.id("whatsit"), node.id("rule")
+local has_attr = node.has_attribute
+local traverse = node.traverse
+local ul_attr, ulc_attr, ulsz_attr, va_attr, vaja_attr
+local icflag_attr = luatexbase.attributes["ltj@icflag"]
+
+local SINGLE, WORDS = 1, 2
+-- 线心在基线下 0.135 em，粗 0.05 em
+local CENTER, THICK = 0.135, 0.05
+
+local closing, opening = {}, {}
+for _, c in utf8.codes("，。、；：？！）」』】〕〉》”’") do closing[c] = true end
+for _, c in utf8.codes("（「『【〔〈《“‘") do opening[c] = true end
+
+local function jfonts()
+  return luatexja and luatexja.jfont and luatexja.jfont.font_metric_table
+end
+
+local sizes = {}
+local function fsize(f)
+  local s = sizes[f]
+  if not s then
+    local t = font.getfont(f)
+    s = t and t.size or 0
+    sizes[f] = s
+  end
+  return s
+end
+
+-- 节点里头一个（last 为真时末一个）字形；标点在 luatexja 包的盒里
+local function edge_glyph(n, last)
+  if n.id == GLYPH then return n end
+  if n.id == HLIST or n.id == VLIST then
+    local m = n.head
+    if m and last then m = node.tail(m) end
+    while m do
+      local g = edge_glyph(m, last)
+      if g then return g end
+      if last then m = m.prev else m = m.next end
+    end
+  end
+end
+
+local function seg_size(n)
+  local g = edge_glyph(n, false)
+  if g then return fsize(g.font) end
+end
+
+local function is_space(n)
+  return n.id == GLUE and (n.subtype == 13 or n.subtype == 14)
+end
+
+-- luatexja 从 JFM 来的胶（标点的半格）
+local function is_jfm_glue(n)
+  if n.id ~= GLUE or not icflag_attr then return false end
+  local pic = has_attr(n, icflag_attr)
+  return pic ~= nil and pic >= 4 and pic < 68
+end
+
+-- 段首段尾能落的节点：字、行里的盒、有宽的线、用户的胶与空格（字下加线时空格除外）
+local function solid(n, v)
+  local id = n.id
+  if id == GLYPH or id == HLIST then return true end
+  if id == RULE then return n.width > 0 end
+  if id == GLUE then
+    local st = n.subtype
+    if st == 13 or st == 14 then return v == SINGLE end
+    if st == 0 then
+      local pic = icflag_attr and has_attr(n, icflag_attr)
+      return not pic or pic < 4
+    end
+  end
+  return false
+end
+
+-- 段里夹着的、不带属性也不断段的节点
+local function bridge(n)
+  local id = n.id
+  return id == KERN or id == PENALTY or id == WHATSIT or (id == RULE and n.width == 0)
+end
+
+local function colorstack(cmd, data)
+  local w = node.new(WHATSIT, "pdf_colorstack")
+  w.stack = 0
+  w.command = cmd
+  if data then w.data = data end
+  return w
+end
+
+local function draw(box, first, last, lastsolid, size, v)
+  local head = box.head
+  -- 段尾：末一个字的网格增量与挤压 kern；闭标点后的半格
+  local t = last.next
+  while t and t.id == KERN and (has_attr(t, ul_attr) or v) == v do
+    last = t
+    t = t.next
+  end
+  if t and is_jfm_glue(t) then
+    local g = edge_glyph(lastsolid, true)
+    if g and closing[g.char] then last = t end
+  end
+  -- 段首：开标点前的半格
+  local p = first.prev
+  if p and is_jfm_glue(p) then
+    local g = edge_glyph(first, false)
+    if g and opening[g.char] then first = p end
+  end
+  local w = node.dimensions(box.glue_set, box.glue_sign, box.glue_order, first, last.next)
+  if w <= 0 or not size or size <= 0 then return last end
+  local c, th = CENTER * size, THICK * size
+  local r = node.new(RULE)
+  r.width, r.height, r.depth = w, -math.floor(c - th / 2 + 0.5), math.floor(c + th / 2 + 0.5)
+  local k = node.new(KERN)
+  k.kern = -w
+  local col = ulc_attr and has_attr(first, ulc_attr) or (ulc_attr and has_attr(lastsolid, ulc_attr))
+  local data = col and M.colors[col]
+  if data then head = node.insert_before(head, first, colorstack(1, data)) end
+  head = node.insert_before(head, first, r)
+  if data then head = node.insert_before(head, first, colorstack(2)) end
+  head = node.insert_before(head, first, k)
+  box.head = head
+  return last
+end
+
+local function underline(box)
+  local n = box.head
+  while n do
+    local v = has_attr(n, ul_attr)
+    if v and solid(n, v) then
+      local first, last = n, n
+      local size = seg_size(n)
+      local m = n.next
+      while m do
+        local mv = has_attr(m, ul_attr)
+        if mv == v then
+          if v == WORDS and is_space(m) then break end
+          local ms = m.id ~= GLUE and seg_size(m) or nil
+          if ms and size and ms ~= size then break end
+          size = size or ms
+          if solid(m, v) then last = m end
+        elseif mv ~= nil or not bridge(m) then
+          break
+        end
+        m = m.next
+      end
+      n = draw(box, first, last, last, size or has_attr(first, ulsz_attr), v).next
+    else
+      n = n.next
+    end
+  end
+end
+
+local function walk(box)
+  for m in traverse(box.head) do
+    local id = m.id
+    if id == VLIST or (id == HLIST and not (box.id == HLIST and has_attr(m, ul_attr))) then
+      walk(m)
+    end
+  end
+  if box.id == HLIST then underline(box) end
+end
+
+local function shift(box)
+  local jf = jfonts()
+  for n in traverse(box.head) do
+    local id = n.id
+    if id == GLYPH then
+      local a, j = has_attr(n, va_attr), has_attr(n, vaja_attr)
+      if a or j then
+        local d
+        if jf and jf[n.font] then d = j else d = a end
+        if d and d ~= 0 then n.yoffset = n.yoffset + d end
+      end
+    elseif id == HLIST or id == VLIST then
+      shift(n)
+    end
+  end
+end
+
+function M.color(i, hex)
+  local r, g, b = tonumber(hex:sub(1, 2), 16), tonumber(hex:sub(3, 4), 16), tonumber(hex:sub(5, 6), 16)
+  local c = string.format("%.4f %.4f %.4f", r / 255, g / 255, b / 255)
+  -- 细的线 LuaTeX 画成描边，填充色与描边色都要设
+  M.colors[i] = c .. " rg " .. c .. " RG"
+end
+
+function M.install(ul, ulc, ulsz, va, vaja)
+  ul_attr, ulc_attr, ulsz_attr, va_attr, vaja_attr = ul, ulc, ulsz, va, vaja
+  luatexbase.add_to_callback("pre_shipout_filter", function(h)
+    if M.used then
+      shift(h)
+      walk(h)
+    end
+    return true
+  end, "docxlike.run")
+end
+
+return M
+%</run-lua>
 %    \end{macrocode}
 %
 % \Finale

@@ -502,7 +502,7 @@ src/pages/
 |---|---|
 | `docxlike.dtx` | 包头 |
 | `docxlike-page.dtx` | Word 页面设置换算成版面参数 |
-| `docxlike-format.dtx` | 元素格式：字体、行距、间距、缩进、空段 |
+| `docxlike-format.dtx` | 元素格式：字体、行距、间距、缩进、空段、字符格式；下划线与上下标的 Lua 部分解出 `docxlike-run.lua` |
 | `docxlike-linebreak.dtx` | 断行层：LuaTeX 上照 Word 的贪心断行，Lua 部分解出 `docxlike.lua` |
 | `docxlike-headfoot.dtx` | 页眉页脚、节、域与编号格式，照 Word 的模型 |
 | `docxlike-preset.dtx` | 包选项与单独加载时的空白文档预设 |
