@@ -278,11 +278,24 @@
 \cs_generate_variant:Nn \prop_gput:Nnn { NVe }
 \prg_new_protected_conditional:Npnn \docxlike_numbering_style:nNN #1#2#3 { T , F , TF }
   {
-    \prop_get:NnNTF \g_docxlike_numbering_style_prop {#1} \l__docxlike_numbering_value_tl
+    \__docxlike_numbering_none:nTF {#1}
+      { \prg_return_false: }
       {
-        \tl_set:Ne #2 { \tl_item:Nn \l__docxlike_numbering_value_tl { 1 } }
-        \tl_set:Ne #3 { \tl_item:Nn \l__docxlike_numbering_value_tl { 2 } }
-        \prg_return_true:
+        \prop_get:NnNTF \g_docxlike_numbering_style_prop {#1} \l__docxlike_numbering_value_tl
+          {
+            \tl_set:Ne #2 { \tl_item:Nn \l__docxlike_numbering_value_tl { 1 } }
+            \tl_set:Ne #3 { \tl_item:Nn \l__docxlike_numbering_value_tl { 2 } }
+            \prg_return_true:
+          }
+          { \prg_return_false: }
+      }
+  }
+\prg_new_protected_conditional:Npnn \__docxlike_numbering_none:n #1 { TF }
+  {
+    \__docxlike_format_get:nnNTF {#1} { pPr/numPr/numId } \l__docxlike_numbering_value_tl
+      {
+        \str_if_eq:VnTF \l__docxlike_numbering_value_tl { 0 }
+          { \prg_return_true: } { \prg_return_false: }
       }
       { \prg_return_false: }
   }
@@ -353,6 +366,27 @@
       }
   }
 \cs_generate_variant:Nn \__docxlike_numbering_step:nn { e }
+%    \end{macrocode}
+%
+% \emph{设置编号值。} Word 的“设置编号值”（\texttt{w:lvlOverride/w:startOverride}）：
+% \cs{docxlike\_numbering\_set\_value:nnn}\marg{列表}\marg{级别}\marg{各级的值}，级别从 1 数，
+% 各级的值用逗号隔开，写到这一级为止（\texttt{4,2,3}）；之后这一级的下一个编号就是这一串，
+% 上面各级取给的值，下面各级照常重编。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_numbering_set_value:nnn #1#2#3
+  {
+    \__docxlike_numbering_known:nT {#1}
+      {
+        \int_step_inline:nn { \clist_count:n {#3} }
+          {
+            \int_gset:cn { g__docxlike_numbering_ \l__docxlike_numbering_list_str _ \int_eval:n { ##1 - 1 } _int }
+              {
+                \clist_item:nn {#3} {##1}
+                \int_compare:nNnT {##1} = { \clist_count:n {#3} } { - 1 }
+              }
+          }
+      }
+  }
 \cs_generate_variant:Nn \tl_if_blank:nTF { e }
 %    \end{macrocode}
 %

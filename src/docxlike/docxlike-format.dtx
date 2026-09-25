@@ -110,6 +110,7 @@
 % \option{paragraph}/\option{spacing} & \texttt{pPr/spacing/} 下的 \texttt{before}、\texttt{beforeLines}、\texttt{after}、\texttt{afterLines}、\texttt{line}、\texttt{lineRule} \\
 % \option{paragraph}/\option{snap-to-grid-when-document-grid-is-defined}、\option{pagination} 的 \option{keep-with-next}、\option{keep-lines-together}、\option{page-break-before} & \texttt{pPr/snapToGrid}、\texttt{pPr/keepNext}、\texttt{pPr/keepLines}、\texttt{pPr/pageBreakBefore} \\
 % \option{tabs}、\option{border} & \texttt{pPr/tabs}（每个停靠点“对齐 位置 前导符”，位置是缇）、\texttt{pPr/pBdr/top}、\texttt{pPr/pBdr/bottom} \\
+% \option{numbering}\texttt{ = none}（“编号”按钮里的“无”） & \texttt{pPr/numPr/numId} 为 \texttt{0}：链接了列表的样式这一段不编号 \\
 % \bottomrule
 % \end{longtblr}
 % 同一处量在 docx 里有几种写法，比如段前按磅是 \texttt{before}、按行是 \texttt{beforeLines}，
@@ -876,6 +877,8 @@
       { \__docxlike_keys_set:nn { docxlike / style / paragraph } {#1} } ,
     tabs .code:n = { \__docxlike_style_tabs:n {#1} } ,
     border .code:n = { \__docxlike_keys_set:nn { docxlike / style / border } {#1} } ,
+    numbering .choices:nn = { none }
+      { \__docxlike_format_put:nn { pPr/numPr/numId } { 0 } } ,
     unknown .code:n =
       { \__docxlike_unknown_key: } ,
   }
@@ -1992,16 +1995,18 @@
 % 没写东亚字体按 SimSun、没写西文字体按文档的默认西文字体取（\cs{g\_docxlike\_format\_default\_latin\_tl}，
 % 相当于 docx 里 \texttt{docDefaults} 的 \texttt{rFonts/ascii}，初值 Times New Roman，空白预设改成等线）；
 % 取不到用 SimSun 与 Times New Roman 的。
-% \emph{平衡单字节与双字节字符。} Word“高级”选项里版式那一组的
-% \option{balance-sbcs-characters-and-dbcs-characters}（docx 里是 \texttt{compat} 底下的
-% \texttt{balanceSingleByteDoubleByteWidth}，学校的模板都开着）。开着时贴着汉字的半角空格、
-% 连着的几个半角空格各占半格（半个字加半份字距，字距是当时汉字之间实际的那一段，
-% 记在 \cs{l\_docxlike\_format\_ccglue\_dim}），西文词间的单个空格不变（Windows Word
-% 实测：15 磅标题“1.1  Introduction”两个空格各 7.45，“Hello World”仍是 3.75）。空格的字形
-% 还是西文字体的，不抬行高。本包眼下只在标题编号后敲的字里（\option{after-number}）照这条排，
-% 正文的空格由断行层按自己的规矩排。\cs{docxlike\_format\_sbcs\_space:} 是这样一个空格，
-% 做成不伸缩的胶而不是 kern：\pkg{luatexja} 看得穿 kern，会在编号与题名的汉字之间补一段中西文
-% 间距，隔着胶就不补（Word 在空格旁也不加）。
+% \emph{平衡单字节与双字节字符。} docx 设置里 \texttt{w:compat} 底下的
+% \texttt{w:balanceSingleByteDoubleByteWidth}，Word 界面在“高级”选项的版式那一组，
+% 键名 \option{balance-sbcs-characters-and-dbcs-characters}，学校的模板都开着。Windows Word 实测
+% （\file{test/headings} 的 \file{heads-balance-*}，兼容模式 11）：开着时正文里贴着汉字的半角空格、
+% 连着的几个半角空格各占半格（半个字加半份当时的字距），西文词间的单个空格不变（15 磅标题
+% “1.1  Introduction”两个空格各 7.45，“Hello World”仍是 3.75）；空格的字形还是西文字体的，
+% 不抬行高。编号格式里的空格不受它管。本包自己排的段落（\cs{docxlike\_format\_par:nn}）排之前
+% 照这条改一遍内容里的空格（半个字按当时的字号 \cs{f@size} 算，不按最近一次算过的样式）：最外层的空格记号与 \verb|\ |，前后挨着空格或汉字的换成
+% \cs{docxlike\_format\_sbcs\_space:}；两边都是汉字的空格记号不动，那是源码换行留下的，\pkg{xeCJK}
+% 与 \pkg{luatexja} 本来就不排它（要在两个汉字之间敲空格写 \verb|\ |）。这个空格做成不伸缩的胶而不是 kern：\pkg{luatexja} 看得穿
+% kern，会在前面的西文与后面的汉字之间补一段中西文间距，隔着胶就不补。正文段落的空格由
+% 断行层按自己的规矩排。
 %
 % 调用方立了 \cs{l\_docxlike\_format\_asian\_ascent\_bool} 时，西文那一对的上升部换成东亚的
 % （取大），行深不变，自然行高跟着加：西文题名配带汉字的编号就是这样的行盒（见
@@ -2052,7 +2057,98 @@
 \cs_new_protected:Npn \docxlike_format_sbcs_space:
   {
     \skip_horizontal:n
-      { ( \l_docxlike_format_size_dim + \l_docxlike_format_ccglue_dim ) / 2 }
+      { ( \f@size pt + \l_docxlike_format_ccglue_dim ) / 2 }
+  }
+\seq_new:N \l__docxlike_format_balance_seq
+\seq_new:N \l__docxlike_format_balance_kind_seq
+\int_new:N \l__docxlike_format_balance_depth_int
+\tl_new:N \l__docxlike_format_balance_tl
+\tl_new:N \l__docxlike_format_balance_item_tl
+\tl_const:Ne \c__docxlike_format_cspace_tl { \exp_not:N \exp_not:n { \exp_not:c { ~ } } }
+\cs_new_protected:Npn \__docxlike_format_balance:N #1
+  {
+    \seq_clear:N \l__docxlike_format_balance_seq
+    \seq_clear:N \l__docxlike_format_balance_kind_seq
+    \int_zero:N \l__docxlike_format_balance_depth_int
+    \tl_analysis_map_inline:Nn #1
+      {
+        \int_compare:nNnT { "##3 } = { 2 } { \int_decr:N \l__docxlike_format_balance_depth_int }
+        \tl_set:Nn \l__docxlike_format_balance_item_tl {##1}
+        \seq_put_right:Nn \l__docxlike_format_balance_seq {##1}
+        \seq_put_right:Ne \l__docxlike_format_balance_kind_seq
+          {
+            \int_compare:nNnTF { \l__docxlike_format_balance_depth_int } = { 0 }
+              {
+                \int_compare:nNnTF { "##3 } = { 10 }
+                  { s }
+                  {
+                    \tl_if_eq:NNTF \l__docxlike_format_balance_item_tl \c__docxlike_format_cspace_tl
+                      { x }
+                      {
+                        \bool_lazy_and:nnTF
+                          { \int_compare_p:nNn { "##3 } > { 10 } }
+                          { \__docxlike_format_cjk_code_p:n {##2} }
+                          { c } { o }
+                      }
+                  }
+              }
+              { o }
+          }
+        \int_compare:nNnT { "##3 } = { 1 } { \int_incr:N \l__docxlike_format_balance_depth_int }
+      }
+    \tl_clear:N \l__docxlike_format_balance_tl
+    \int_step_inline:nn { \seq_count:N \l__docxlike_format_balance_seq }
+      {
+        \bool_lazy_all:nTF
+          {
+            { \__docxlike_format_balance_space_p:n {##1} }
+            {
+              \__docxlike_format_balance_space_p:n { ##1 - 1 }
+              || \str_if_eq_p:ee { \__docxlike_format_balance_kind:n { ##1 - 1 } } { c }
+              || \__docxlike_format_balance_space_p:n { ##1 + 1 }
+              || \str_if_eq_p:ee { \__docxlike_format_balance_kind:n { ##1 + 1 } } { c }
+            }
+            {
+              ! (
+                \str_if_eq_p:ee { \__docxlike_format_balance_kind:n {##1} } { s }
+                && \str_if_eq_p:ee { \__docxlike_format_balance_kind:n { ##1 - 1 } } { c }
+                && \str_if_eq_p:ee { \__docxlike_format_balance_kind:n { ##1 + 1 } } { c }
+              )
+            }
+          }
+          { \tl_put_right:Nn \l__docxlike_format_balance_tl { \exp_not:N \docxlike_format_sbcs_space: } }
+          {
+            \tl_put_right:Ne \l__docxlike_format_balance_tl
+              { \seq_item:Nn \l__docxlike_format_balance_seq {##1} }
+          }
+      }
+    \tl_set:Ne #1 { \l__docxlike_format_balance_tl }
+  }
+\prg_new_conditional:Npnn \__docxlike_format_balance_space:n #1 { p }
+  {
+    \bool_lazy_or:nnTF
+      { \str_if_eq_p:ee { \__docxlike_format_balance_kind:n {#1} } { s } }
+      { \str_if_eq_p:ee { \__docxlike_format_balance_kind:n {#1} } { x } }
+      { \prg_return_true: } { \prg_return_false: }
+  }
+\cs_new:Npn \__docxlike_format_balance_kind:n #1
+  {
+    \int_compare:nNnTF {#1} < { 1 } { o }
+      {
+        \int_compare:nNnTF {#1} > { \seq_count:N \l__docxlike_format_balance_kind_seq } { o }
+          { \seq_item:Nn \l__docxlike_format_balance_kind_seq { \int_eval:n {#1} } }
+      }
+  }
+\prg_new_conditional:Npnn \__docxlike_format_cjk_code:n #1 { p }
+  {
+    \bool_lazy_or:nnTF
+      { \int_compare_p:nNn {#1} > { "2E7F } && \int_compare_p:nNn {#1} < { "A000 } }
+      {
+        ( \int_compare_p:nNn {#1} > { "F8FF } && \int_compare_p:nNn {#1} < { "FB00 } )
+        || ( \int_compare_p:nNn {#1} > { "FEFF } && \int_compare_p:nNn {#1} < { "FFF0 } )
+        || \int_compare_p:nNn {#1} > { "1FFFF }
+      }
+      { \prg_return_true: } { \prg_return_false: }
   }
 \tl_new:N \g_docxlike_format_default_latin_tl
 \tl_gset:Nn \g_docxlike_format_default_latin_tl { Times~New~Roman }
@@ -3092,6 +3188,7 @@
 % （\texttt{tex.nest.ptr}），别的引擎一律算数。
 %    \begin{macrocode}
 \tl_new:N \l__docxlike_format_par_tl
+\tl_new:N \l__docxlike_format_content_tl
 \dim_new:N \l_docxlike_format_left_dim
 \dim_new:N \l_docxlike_format_right_dim
 \cs_new_protected:Npn \__docxlike_format_side_indent:nnN #1#2#3
@@ -3176,11 +3273,20 @@
       \dim_compare:nNnF { \l_docxlike_format_indent_dim } = { \c_zero_dim }
         { \kern \l_docxlike_format_indent_dim }
       \__docxlike_format_number_put:n {#1}
+      \tl_set:Nn \l__docxlike_format_content_tl {#2}
+      \bool_if:NT \g_docxlike_format_balance_bool
+        { \__docxlike_format_balance:N \l__docxlike_format_content_tl }
       \__docxlike_format_read:nnnN {#1} { rPr/caps } { false }
         \l__docxlike_format_value_tl
       \str_if_eq:VnTF \l__docxlike_format_value_tl { true }
-        { \__docxlike_format_tabbed:nn {#1} { \MakeUppercase {#2} } }
-        { \__docxlike_format_tabbed:nn {#1} {#2} }
+        {
+          \use:e
+            {
+              \exp_not:N \__docxlike_format_tabbed:nn {#1}
+                { \exp_not:N \MakeUppercase { \exp_not:V \l__docxlike_format_content_tl } }
+            }
+        }
+        { \exp_args:NnV \__docxlike_format_tabbed:nn {#1} \l__docxlike_format_content_tl }
       \par
       \__docxlike_format_border_put:nn {#1} { bottom }
       \__docxlike_format_read:nnnN {#1} { pPr/keepNext } { false } \l__docxlike_format_value_tl
