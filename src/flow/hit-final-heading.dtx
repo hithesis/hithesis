@@ -10,7 +10,7 @@
 %   \pkg{ctex}，旧版面那几段 \cs{ctexset} 删掉：编号来自链接到标题样式的多级列表，编号后照原件在
 %   题名前敲两个半角空格；两行的章题第二行照整行居中；四级标题后紧接标题时段前不再丢；英文版
 %   章号独占一行是题名前敲的换行，章标题全大写是标题样式的“全部大写字母”，全是西文的章题按
-%   西文行盒排}
+%   西文行盒排；博士后照模板用自己的列表，编号后跟空格，节以下悬挂 28.8、36、43.2\,bp}
 % \changes{v3.2a}{2026/09/13}{章节命令迁到 expl3；\cs{clubpenalty} 的赋值加
 %   花括号（裸写时 \hologo{TeX} 的数字扫描把标题后首段开头的数字一并吃进赋值，
 %   「1828年」变「年」）；人文社科类的层次编号第一章／一、／（一）／1.；页眉收排印用的标题}
@@ -429,11 +429,49 @@
 % 编号格式照 Word 定义多级列表的写法：章“第\%1章”（英文版“Chapter~\%1”），节以下“\%1.\%2”等，
 % 章名取词条 \option{chapter-name}。人文社科类照范例：章用中文数字，节“一、”、条“（一）”，
 % 款“1.”。附录换一套列表：章“附录A”（本科“附录1”，英文版“Appendix~A”），节“A.1”。
+% 博士后照《博士后研究工作报告模板》的列表：章“第\%1章”，节以下“\%1.\%2”等，编号后跟空格
+% （lvl 的 \texttt{suff}），节、条、款悬挂 576、720、864 缇，章的缩进被标题样式压成零。
 % \changes{v3.1d}{2025/03/03}{根据 \issue[220] 为英文摘要标题增加 chapterbold 的判断}
 % \option{chapterbold} 开着时中文版里英文摘要的标题加粗，用标题的局部格式给；英文版的章标题
 % 一律不加粗，这一条不管它。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_heading_docxlike_lists:
+  {
+    \bool_if:NTF \g__hit_postdoc_bool
+      { \__hit_heading_postdoc_list: }
+      { \__hit_heading_thesis_list: }
+    \bool_if:NTF \g__hit_bachelor_bool
+      { \__hit_heading_appendix_list:n { decimal } }
+      { \__hit_heading_appendix_list:n { upper-letter } }
+    \bool_if:NT \g__hit_postdoc_bool
+      {
+        \docxlikesetup
+          {
+            multilevel-lists = { hit-appendix = {
+              level-1 = { follow-number-with = space } , level-2 = { follow-number-with = space } ,
+              level-3 = { follow-number-with = space } , level-4 = { follow-number-with = space } ,
+            } }
+          }
+      }
+    \__hit_heading_link:nn { hit-headings } { 4 }
+  }
+\cs_new_protected:Npn \__hit_heading_postdoc_list:
+  {
+    \docxlikesetup
+      {
+        multilevel-lists = { hit-headings = {
+          level-1 = { enter-formatting-for-number = \__hit_heading_term:nn { chapter-name } { 1 } \% 1 \__hit_heading_term:nn { chapter-name } { 2 } ,
+                      follow-number-with = space , aligned-at = 0bp , text-indent-at = 0bp } ,
+          level-2 = { enter-formatting-for-number = \% 1 . \% 2 , follow-number-with = space ,
+                      aligned-at = 0bp , text-indent-at = 28.8bp } ,
+          level-3 = { enter-formatting-for-number = \% 1 . \% 2 . \% 3 , follow-number-with = space ,
+                      aligned-at = 0bp , text-indent-at = 36bp } ,
+          level-4 = { enter-formatting-for-number = \% 1 . \% 2 . \% 3 . \% 4 , follow-number-with = space ,
+                      aligned-at = 0bp , text-indent-at = 43.2bp } ,
+        } }
+      }
+  }
+\cs_new_protected:Npn \__hit_heading_thesis_list:
   {
     \bool_if:NTF \g__hit_hass_bool
       {
@@ -460,10 +498,6 @@
             } }
           }
       }
-    \bool_if:NTF \g__hit_bachelor_bool
-      { \__hit_heading_appendix_list:n { decimal } }
-      { \__hit_heading_appendix_list:n { upper-letter } }
-    \__hit_heading_link:nn { hit-headings } { 4 }
   }
 \cs_new_protected:Npn \__hit_heading_appendix_list:n #1
   {

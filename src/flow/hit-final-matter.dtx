@@ -6,6 +6,8 @@
 %
 % \section{前置、正文与后置的切换}
 %
+% \changes{v3.2a}{2026/09/25}{博士后的后置照模板：致谢挪到成果之前，原创性声明默认不排；
+%   目录第一章之前的空段由 \option{toc}/\option{blank} 管，默认只在博士后排}
 % \changes{v3.2a}{2026/09/13}{学位论文的骨架宏排列顺序照规范写死，\option{struct} 收
 %   摘要、正文各章、符号表、缩略语表、图表公式索引各成部件；文献表调总出口
 %   \cs{hit@bib@print:} 按后端分发；右开页走 \cs{hit@clear@odd@page:}
@@ -100,11 +102,26 @@
 % （不看文档别怪我）。
 % \changes{v2.0.11}{2018/06/27}{设置第一章必须在奇数页}
 %
-% 原先目录里第一章之前会空一行，由 \option{tocblank} 控制。规范中没有这一条，
-% 整段去掉，\option{tocblank} 写了也不起作用。
+% 目录里第一章之前空一行，由 \option{toc}/\option{blank} 管。规范没有这一条，学位论文的
+% 范例也没有；博士后研究报告的模板有：前置部分的条目与“第1章”之间是一个空的正文段
+% （Normal 样式，不是目录样式），所以 \texttt{auto} 只在博士后为真。空段写进 \file{.toc}，
+% 排的是 \cs{hitenter*}：行高由 Normal 现算，落在页首也不丢，与 Word 的空段同构。行距写明
+% 单倍：模板正文段上直接写的 1.1 倍，本类记在 Normal 里（见 \file{hit-layout.dtx}），这个空段
+% 没写，用的是样式的单倍，贴格后正好一格（模板 18.25 与 17.78，两行合 36.03）。英文版不空，
+% v3.1e 就是这样。
 %    \begin{macrocode}
+\cs_new_protected:Npn \hit@toc@blank
+  { \hitenter * [ paragraph = { spacing = { line-spacing = single } } ] }
 \cs_set:Npn \mainmatter
   {
+    \bool_if:NF \g__hit_en_bool
+      {
+        \__hit_tristate_if:NnT \g__hit_toc_blank_tl { \bool_if_p:N \g__hit_postdoc_bool }
+          {
+            \addtocontents { toc } { \hit@toc@blank }
+            \addtocontents { toe } { \hit@toc@blank }
+          }
+      }
 %    \end{macrocode}
 %
 % 添加英文版限制
@@ -194,7 +211,18 @@
 %    \end{macrocode}
 % \end{macro}
 %
+%
+% 博士后的书序照《博士后研究工作报告模板》：参考文献之后先排致谢，再排两份成果（博士生期间、
+% 博士后期间）、个人简历与永久通讯地址，没有原创性声明。v3.1e 示例里博后那一段注释掉的书序
+% 也是这样。两份成果同属 \option{publications} 这一个部件，简历与通讯地址同属
+% \option{resume}，文件里各用 \env{doctorpublication}、\env{correspondingaddr} 起那一页；
+% 这里只挪致谢，原创性声明的 \texttt{auto} 在博士后为假。
 %    \begin{macrocode}
+\cs_new_protected:Npn \__hit_backmatter_acknowledgements:
+  {
+    \hit@structure@here:nnn { acknowledgements } { back }
+      { \exp_args:Nv \include { g__hit_structure_acknowledgements_tl } }
+  }
 \cs_set_protected:Npn \hitbackmatter
   {
     \bool_gset_true:N \g__hit_matter_back_bool
@@ -206,17 +234,17 @@
           \hit@structure@input:n { appendix }
         \end { appendix }
       }
+    \bool_if:NT \g__hit_postdoc_bool { \__hit_backmatter_acknowledgements: }
     \hit@structure@include:n { publications }
     % 答辩决议:规范只对博士要求,auto 即「是博士才排」。原先这条三态是手写在
     % 这里的,现在收进 \cs{hit@structure@scanned:nnnn} 统一处理
     \hit@structure@scanned:nnnn { defense } { hit@resolution@place }
       { \bool_if_p:N \g__hit_doctor_bool } { \hit@resolution@place }
     \hit@structure@include:n { index }
-    % 原创性声明与使用权限:规范要求都有,auto 即排
+    % 原创性声明与使用权限:规范要求都有,auto 即排;博士后的模板没有
     \hit@structure@scanned:nnnn { declarations } { hit@declarations@place }
-      { \c_true_bool } { \hit@declarations@place }
-    \hit@structure@here:nnn { acknowledgements } { back }
-      { \exp_args:Nv \include { g__hit_structure_acknowledgements_tl } }
+      { ! \g__hit_postdoc_bool } { \hit@declarations@place }
+    \bool_if:NF \g__hit_postdoc_bool { \__hit_backmatter_acknowledgements: }
     \hit@structure@include:n { resume }
   }
 %    \end{macrocode}

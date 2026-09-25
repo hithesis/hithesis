@@ -36,7 +36,7 @@
 %   双语题注的英文行因此按 Times 的上升部）；空的段落片段不成行
 %   （公式独占一段时上下不再各多一行）；\hologo{LuaLaTeX} 下段末带封条}
 % \changes{v3.2a}{2026/08/16}{正文接 \cs{normalsize}：字号、行距、首行基线、首行缩进四个
-%   全局长度；\cs{rightskip} 收字符网格的余量；换页判据改成末行盒底：Lua 断行档
+%   全局长度；\cs{rightskip} 收字符网格的余量，居中与右对齐的段同样按整数个格排；换页判据改成末行盒底：Lua 断行档
 %   \cs{maxdepth} 归零、每行的深度都算进页（每行的盒就是 Word 的行盒），其余档
 %   版心底留一个行深（\cs{@colroom} 补丁、\texttt{flush} 档页底留白刚性）；
 %   孤行寡行四个罚分归零}
@@ -53,7 +53,8 @@
 %   中西文胶，\cs{verb}、\cs{num}、\cs{ref}、上标、链接的组边界补给老版，\cs{CJKecglue}
 %   带闸不叠双份}
 % \changes{v3.2a}{2026/09/20}{按目标排段的几个入口：\cs{docxlike\_format\_par:nn}（段前用
-%   \cs{addvspace}，Word 的段前与前一段的段后取大不相加）、\cs{docxlike\_format\_par:nnn} 与
+%   \cs{addvspace}，Word 的段前与前一段的段后取大不相加；兼容选项
+%   \option{dont-use-html-paragraph-auto-spacing} 开着时相加）、\cs{docxlike\_format\_par:nnn} 与
 %   \cs{docxlike\_format\_with:nnn} 临时覆盖、\cs{docxlike\_format\_apply\_font:nN} 一族、
 %   页眉页脚的 \cs{docxlike\_format\_apply\_hf:nN}、块与块之间照“上块行深加下块上升部”贴排的
 %   \cs{docxlike\_format\_stack\_line:n}}
@@ -2043,10 +2044,13 @@
   }
 \bool_new:N \l_docxlike_format_asian_ascent_bool
 \bool_new:N \g_docxlike_format_balance_bool
+\bool_new:N \g__docxlike_format_add_spacing_bool
 \keys_define:nn { docxlike }
   {
     balance-sbcs-characters-and-dbcs-characters .bool_gset:N = \g_docxlike_format_balance_bool ,
     balance-sbcs-characters-and-dbcs-characters .default:n = true ,
+    dont-use-html-paragraph-auto-spacing .bool_gset:N = \g__docxlike_format_add_spacing_bool ,
+    dont-use-html-paragraph-auto-spacing .default:n = true ,
   }
 \cs_new_protected:Npn \docxlike_format_sbcs_space:
   {
@@ -2821,6 +2825,18 @@
       { \tl_put_right:Nn \l__docxlike_format_out_tl { \bfseries } }
     \__docxlike_format_font_hook:n {#1}
     \__docxlike_format_pick:nnN {#1} { pPr/jc } \g__docxlike_format_align_prop
+    \bool_if:NT \l_docxlike_format_snap_horizontal_bool
+      {
+        \str_case:VnT \l__docxlike_format_value_tl { { center } { } { right } { } }
+          {
+            \tl_put_right:Nx \l__docxlike_format_out_tl
+              {
+                \bool_if:NTF \l_docxlike_format_snap_vertical_bool
+                  { \exp_not:N \__docxlike_format_align_slack:n { \exp_not:N \g_docxlike_page_slack_dim } }
+                  { \exp_not:N \__docxlike_format_align_slack:n { \exp_not:N \__docxlike_format_grid_glue: } }
+              }
+          }
+      }
     \tl_put_right:Nx \l__docxlike_format_out_tl
       {
         \exp_not:c
@@ -2902,6 +2918,20 @@
         - \g_docxlike_page_cells_int \g_docxlike_body_size_dim
         - \l__docxlike_format_gaps_int \l__docxlike_format_glue_dim
       }
+  }
+%    \end{macrocode}
+%
+% 居中与右对齐的段也按这个行宽排：Word 在整数个格里居中，不是在整个版心里。博士后研究报告
+% 模板的章标题（贴格，版心 425.15\,bp，34 个格占 423.45）“摘要”首字在 292.63、“永久通讯地址”
+% 在 255.60，按整数格居中算得 292.52 与 255.62，按版心居中要各右移 0.86。右对齐同理，行末落在
+% 第 $n$ 个格的末端。不贴行网格时扣一个字距增量，与正文同一条规矩。
+% \cs{\_\_docxlike\_format\_align\_slack:n} 排在 \cs{centering}、\cs{raggedleft} 之后，把余量
+% 加进它们设好的那段填充胶。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_format_align_slack:n #1
+  {
+    \docxlike_format_slack:
+    \skip_set:Nn \rightskip { \rightskip + #1 }
   }
 \cs_new:Npn \__docxlike_format_hglue_cc:
   {
@@ -3062,6 +3092,16 @@
 % 就看不到它了，Word 却照样取大；所以段后放下时记下它的量，下一段开段前中间没有别的段落、
 % \cs{lastskip} 又是零，就直接补差额。主竖直列表上 \cs{lastnodetype} 总是 $-1$，
 % 分不出最后是什么，只能这样认；中间夹了盒子的只有 \cs{parmark*}，它把记下的量清掉。
+%
+% \emph{兼容选项“不使用 HTML 段落自动间距”开着时相加。} docx 设置里 \texttt{w:compat} 底下的
+% \texttt{w:doNotUseHTMLParagraphAutoSpacing}，键名 \option{dont-use-html-paragraph-auto-spacing}。
+% 开着时两段之间是前一段的段后加后一段的段前（\file{test/headings} 的 \file{heads-html}、
+% \file{heads-sect3-html}，在 \file{heads}、\file{heads-sect3} 上只加这一个选项：每处段界都多出段后与
+% 段前里小的那个，正文段后 8、一级标题段前 24 从 24 变 32）。这时段前不再与前一段的段后比，整段
+% 加上。正文段的段后不作为胶排出来（正文段之间的距离折进 \cs{parskip}），正文接按样式排的段时
+% 补在段前里：段后已经排出来的记在 \cs{g\_\_docxlike\_format\_after\_placed\_bool}，按样式排的段排完立起，
+% 主竖直列表上的正文段起头时放倒。新一节开头与段前分页的段在页顶留整段段前（前一段的段后留在上一页；这一条是照相加推的，
+% 那两份探针里没有排到页顶的例子）。博士后研究报告的模板开着它，学位论文的范例都没开。
 % 记与清都只认主竖直列表上的段落：浮动体、脚注这些盒子里的段落（包括盒子里的题注）
 % 不记也不清，标题接浮动体再接标题，Word 里仍是两个标题相邻。盒子里的段落只在 \hologo{LuaTeX} 下分得出
 % （\texttt{tex.nest.ptr}），别的引擎一律算数。
@@ -3111,32 +3151,48 @@
               \nointerlineskip
               \skip_vertical:n
                 {
-                  \dim_max:nn { 0pt }
-                    { \l_docxlike_format_before_dim - \g__docxlike_format_prev_after_dim }
+                  \bool_if:NTF \g__docxlike_format_add_spacing_bool
+                    { \l_docxlike_format_before_dim }
+                    {
+                      \dim_max:nn { 0pt }
+                        { \l_docxlike_format_before_dim - \g__docxlike_format_prev_after_dim }
+                    }
                   - \topskip
                 }
             }
             {
-              \bool_lazy_and:nnTF
-                { \dim_compare_p:nNn { \g__docxlike_format_pending_after_dim } > { 0pt } }
-                { \dim_compare_p:nNn { \tex_lastskip:D } = { 0pt } }
+              \bool_if:NTF \g__docxlike_format_add_spacing_bool
                 {
-                  \dim_compare:nNnT
-                    { \l_docxlike_format_before_dim } > { \g__docxlike_format_pending_after_dim }
+                  \skip_vertical:n
                     {
-                      \skip_vertical:n
-                        {
-                          \l_docxlike_format_before_dim
-                          - \g__docxlike_format_pending_after_dim
-                          \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
-                        }
+                      \l_docxlike_format_before_dim
+                      \bool_if:NF \g__docxlike_format_after_placed_bool
+                        { + \g__docxlike_format_prev_after_dim }
+                      \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
                     }
                 }
                 {
-                  \addvspace
+                  \bool_lazy_and:nnTF
+                    { \dim_compare_p:nNn { \g__docxlike_format_pending_after_dim } > { 0pt } }
+                    { \dim_compare_p:nNn { \tex_lastskip:D } = { 0pt } }
                     {
-                      \l_docxlike_format_before_dim
-                      \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
+                      \dim_compare:nNnT
+                        { \l_docxlike_format_before_dim } > { \g__docxlike_format_pending_after_dim }
+                        {
+                          \skip_vertical:n
+                            {
+                              \l_docxlike_format_before_dim
+                              - \g__docxlike_format_pending_after_dim
+                              \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
+                            }
+                        }
+                    }
+                    {
+                      \addvspace
+                        {
+                          \l_docxlike_format_before_dim
+                          \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
+                        }
                     }
                 }
             }
@@ -3174,6 +3230,7 @@
       \dim_gset_eq:NN \g__docxlike_format_after_plus_dim \l_docxlike_format_after_plus_dim
     \group_end:
     \dim_gset_eq:NN \g__docxlike_format_prev_after_dim \g__docxlike_format_after_dim
+    \bool_gset_true:N \g__docxlike_format_after_placed_bool
     \str_if_eq:VnT \g__docxlike_format_keep_tl { true } { \nobreak }
     \dim_compare:nNnT { \g__docxlike_format_after_dim } > { \c_zero_dim }
       {
@@ -3195,6 +3252,7 @@
 \bool_new:N \l__docxlike_format_top_keep_bool
 \dim_new:N \g__docxlike_format_prev_after_dim
 \dim_new:N \g__docxlike_format_body_after_dim
+\bool_new:N \g__docxlike_format_after_placed_bool
 \bool_new:N \g_docxlike_section_start_bool
 \bool_gset_true:N \g_docxlike_section_start_bool
 \hook_gput_code:nnn { para / begin } { docxlike }
@@ -3202,7 +3260,10 @@
     \bool_gset_false:N \g_docxlike_section_start_bool
     \dim_gset_eq:NN \g__docxlike_format_prev_after_dim \g__docxlike_format_body_after_dim
     \__docxlike_format_if_outer_par:T
-      { \dim_gzero:N \g__docxlike_format_pending_after_dim }
+      {
+        \dim_gzero:N \g__docxlike_format_pending_after_dim
+        \bool_gset_false:N \g__docxlike_format_after_placed_bool
+      }
   }
 \sys_if_engine_luatex:TF
   {
@@ -4731,7 +4792,7 @@
 % \emph{正文的对齐与段间距只在写了的时候发。} \option{alignment} 查的是标题用的
 % 那张表，\texttt{left} 发 \cs{raggedright}，两端对齐与分散对齐不发（\hologo{TeX}
 % 本来就两端对齐）。段前段后折成 \cs{parskip}：正文段接正文段，两段之间是前一段的
-% 段后与后一段的段前取大，每一对都是同一个数，页首页尾那一截 \hologo{TeX} 在分页处
+% 段后与后一段的段前取大（兼容选项“不使用 HTML 段落自动间距”开着时相加），每一对都是同一个数，页首页尾那一截 \hologo{TeX} 在分页处
 % 丢掉，与 Word 丢段前段后的地方一致。两个都没写就不碰 \cs{parskip}，文档类
 % 原先给的值（可能带伸缩量）照旧。
 %
@@ -4775,7 +4836,11 @@
     \bool_if:NT \l__docxlike_format_spaced_bool
       {
         \dim_gset:Nn \g__docxlike_format_parskip_dim
-          { \dim_max:nn { \l_docxlike_format_before_dim } { \l_docxlike_format_after_dim } }
+          {
+            \bool_if:NTF \g__docxlike_format_add_spacing_bool
+              { \l_docxlike_format_before_dim + \l_docxlike_format_after_dim }
+              { \dim_max:nn { \l_docxlike_format_before_dim } { \l_docxlike_format_after_dim } }
+          }
         \skip_set:Nn \parskip { \g__docxlike_format_parskip_dim }
       }
   }

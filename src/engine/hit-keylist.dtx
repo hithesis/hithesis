@@ -16,7 +16,8 @@
 %   \option{after-}\meta{层级}\option{-number} 一批）、\texttt{bib}（按
 %   kebab-biblatex-gb7714 的词汇重起名，\option{style} 进 \option{bibtex} 子组）、
 %   \texttt{style}、\texttt{toc}（挪到共享层，报告也认）、\texttt{math}。
-%   旧名照常生效，用一次提示一次；\option{tocblank} 废弃不再起作用}
+%   旧名照常生效，用一次提示一次；\option{tocblank} 改名 \option{toc}/\option{blank}，
+%   改三态，\texttt{auto} 只在博士后为真}
 % \changes{v3.2a}{2026/09/15}{加 \texttt{layout} 族：收 Word「页面设置」与「文档网格」
 %   两个对话框上的键，按四个选项卡分组嵌套，转给 \cs{docxlike\_page\_setup:n}；
 %   页底策略 \option{bottom} 取 \texttt{ragged}／\texttt{flush}；带部件表，各部件把
@@ -167,11 +168,13 @@
 % \option{depth} 数的是级数，学位论文有章、报告没有，所以两边换算到
 % \cs{tocdepth} 差一。
 %
-% \option{english} 只有终稿做得了事，报告一份文档只排一份目录，
-% 语言跟着类选项 \option{lang} 走。报告在自己那半把这个键改成一条提示。
+% \option{english} 与 \option{blank} 只有终稿做得了事：报告一份文档只排一份目录，
+% 语言跟着类选项 \option{lang} 走；报告的目录也没有章，没有“第一章之前”可空。
+% 报告在自己那半把这两个键改成提示。
 %    \begin{macrocode}
 \tl_new:N \g__hit_bib_style_tl    \tl_gset:Nn \g__hit_bib_style_tl   { hithesis }
 \tl_new:N \g__hit_toc_english_tl  \tl_gset:Nn \g__hit_toc_english_tl { auto }
+\tl_new:N \g__hit_toc_blank_tl    \tl_gset:Nn \g__hit_toc_blank_tl   { auto }
 \tl_new:N \g__hit_toc_latin_natural_tl
 \tl_gset:Nn \g__hit_toc_latin_natural_tl { auto }
 \int_new:N \g__hit_toc_depth_int  \int_gset:Nn \g__hit_toc_depth_int { 3 }
@@ -179,6 +182,8 @@
 \keys_define:nn { hit / toc }
   {
     english .code:n = { \__hit_tristate_set:Nn \g__hit_toc_english_tl {#1} } ,
+    blank .code:n = { \__hit_tristate_set:Nn \g__hit_toc_blank_tl {#1} } ,
+    blank .default:n = true ,
     latin-natural .code:n =
       { \__hit_tristate_set:Nn \g__hit_toc_latin_natural_tl {#1} } ,
     latin-natural .default:n = true ,
@@ -1049,8 +1054,7 @@
 % \cs{documentclass} 里传排版类选项单独报。
 %
 % 另有一张废弃表，记的是没有新名可改的选项。这类键照旧认，只是什么也不做，
-% 提示里说清为什么。\option{tocblank} 插的那个空行规范里没有，所以整条去掉，
-% 行为等同于原先的 \option{tocblank}\texttt{=false}。\option{newgeometry} 与 \option{zijv}
+% 提示里说清为什么。\option{newgeometry} 与 \option{zijv}
 % 管的是旧版面的版心与字距，旧版面在 v3.2a 移除，这两个一并废弃。
 % \option{glue} 和 \option{raggedbottom} 在 v3.1e 同时承担两件事：调旧版面那套手写的
 % 伸缩量，以及决定页底排不排齐。旧版面移除之后只剩页底那一件，提示里写新写法，
@@ -1066,7 +1070,6 @@
 %    \begin{macrocode}
 \prop_gset_from_keyval:Nn \g__hit_removed_option_prop
   {
-    tocblank = { 目录里第一章之前不再插空行，规范里没有这一条 } ,
     newgeometry = { 旧版面在~v3.2a~移除，版心照现行规范排，要改写~layout~族 } ,
     zijv = { 旧版面在~v3.2a~移除，字距由~layout~的字符网格定 } ,
   }
@@ -1074,6 +1077,7 @@
   {
     arialtoc         = { toc = { latin-sans = ... } } ,
     tocfour          = { toc = { depth = 4 } } ,
+    tocblank         = { toc = { blank = ... } } ,
     engtoc           = { toc = { english = ... } } ,
     arialtitle       = { styles = { heading = { font = { latin-text-font = Arial } } } } ,
     chapterbold      = { styles = { Heading 1 = { font = { font-style = bold } } } } ,
@@ -1327,12 +1331,20 @@
     unknown .code:n =
       { \msg_warning:nnV { hithesis } { unknown-key } \l_keys_key_str } ,
   }
+%    \end{macrocode}
+%
+% \option{layout} 里直接转给 \pkg{docxlike} 的几个键：断行、兼容模式、断词，以及兼容选项
+% “不使用 HTML 段落自动间距”（开着时两段之间段后加段前，博士后研究报告的模板开着）。
+%    \begin{macrocode}
 \keys_define:nn { hit / layout }
   {
     linebreak .code:n = { \keys_set:nn { docxlike } { linebreak = {#1} } } ,
     compatibility-mode .code:n =
       { \keys_set:nn { docxlike } { compatibility-mode = {#1} } } ,
     hyphenation .code:n = { \keys_set:nn { docxlike } { hyphenation = {#1} } } ,
+    dont-use-html-paragraph-auto-spacing .code:n =
+      { \keys_set:nn { docxlike } { dont-use-html-paragraph-auto-spacing = {#1} } } ,
+    dont-use-html-paragraph-auto-spacing .default:n = true ,
   }
 \keys_define:nn { hit }
   {
