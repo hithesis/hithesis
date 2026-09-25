@@ -6,6 +6,10 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/26}{单字步进照 Windows Word 实测（探针 adv1--adv5）：网格增量只看字体的
+%   “对齐到网格”；平衡选项开着时汉字加增量与两份 \texttt{w:spacing}、西文每个字形加半个增量与一份，
+%   不分字号（先前西文只在正文字号加）；居中、右对齐在兼容模式 15 以下、\texttt{adjustRightInd}
+%   开着且有字符网格时按整数格宽，否则按整个版心；贴字符网格的居中段也由断行层排}
 % \changes{v3.2a}{2026/09/26}{没有字符网格的文档里，本包照样式设了居中、右对齐的段也由断行层排：格宽
 %   取字号、不按整数格装，行首（居中两头）补 fil；Word 行末的闭号不用挤时照全宽算，TeX 那边 JFM
 %   把它算成半格，居中偏右 3.5\,bp（博士后封皮“哈尔滨工业大学（哈尔滨）”）。只认
@@ -640,7 +644,7 @@ local function natural(items, P)
           while i <= n and items[i].kind == 4 and not items[i].user do i = i + 1 end
           if i <= n and wide_next(items[i]) then ctx = true end
         end
-        if ctx then it.nw = (it.size + P.excess) / 2; it.rigid = true
+        if ctx then it.nw = P.half_space or (it.size + P.excess) / 2; it.rigid = true
         else it.nw = it.w + P.space_add; it.rigid = false end
       end
       it.spot = false
@@ -1381,7 +1385,8 @@ local function decide(items, P, shape, indent)
           local add = gn.width + (it.code and 0 or P.latin_add)
           if acc + add <= capacity + eps then acc = acc + add; g = i else break end
         end
-        if g >= 1 and g < it.gn then
+        -- 按实际的字形表判断：gn 与字形表长度可以不等，拆在最后一个字形后会拆出空的后半段
+        if g >= 1 and g < #it.glist then
           split_run(items, ts, g, P)
           n = #items
           last = ts
@@ -1905,8 +1910,14 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
       local fil = node.new(GLUE); fil.stretch = 65536; fil.stretch_order = 2
       node.insert_after(head, node.tail(head), fil)
     end
-    if line.capacity < measure then
-      local kn = node.new(KERN); kn.kern = measure - line.capacity
+    -- 对齐范围：兼容模式低于 15、“自动调整右缩进”开着、这一节有字符网格时是整数个格（节的格宽），
+    -- 否则整个版心（探针 adv1、adv3、adv4）
+    local area = measure
+    if M.compat < 15 and P.adjust_right and not P.nogrid and P.cell0 and P.cell0 > 0 then
+      area = math.floor(measure / P.cell0 + 1e-6) * P.cell0
+    end
+    if area < measure then
+      local kn = node.new(KERN); kn.kern = measure - area
       node.insert_after(head, node.tail(head), kn)
     end
   elseif ragged and not hasfil then
@@ -2013,8 +2024,10 @@ function M.shape()
   local hsize = tex.hsize
   local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
   local lw, rw = ls.width, rs.width
-  -- 格式层在 XeTeX 那条路上把整数格除不尽的余量放在 rightskip 里（不到一格），这里自己算格，不减它
-  if rw > 0 and rw <= 6 * 65536 then rw = 0 end
+  -- 格式层在 XeTeX 那条路上把整数格除不尽的余量放在 rightskip 里（不到一格），这里自己算格，不减它。
+  -- 小页里格数少，余量可以超过 6pt，与格式层当时算的余量相等也照余量算
+  local okS, slack = pcall(tex.getdimen, "g_docxlike_page_slack_dim")
+  if rw > 0 and (rw <= 6 * 65536 or (okS and slack and math.abs(rw - slack) <= 2)) then rw = 0 end
   local ps = tex.parshape
   local hi, ha = tex.hangindent, tex.hangafter
   return function(li)
@@ -2073,16 +2086,10 @@ function M.filter(head, is_display)
     if align == "justify" then return skip("nocell") end
     if align == "left" then return to_tex(head, "nocell") end
     cell = em
-  elseif align ~= "justify" then
-    -- 贴字符网格的不两端对齐段暂时照旧交回 TeX：Word 在这种段里行末那个字后面加不加网格增量、
-    -- 标题上用字距模拟网格的样式怎么算，还没有对清（章标题对 Windows 导出件，交回 TeX 差 0.24，
-    -- 这里算差 0.7）
-    return to_tex(head, "skips")
   end
   local cell0 = cell
   -- 格宽 = 字号 + 固定余量：正文一格是 g_docxlike_body_size_dim + 余量（12.4543 里的 0.4543），
-  -- 别的字号只换字号那部分（9 到 16pt 都量过，余量不随字号变）。西文乘 p/em 的平衡
-  -- 只在正文字号有，别的字号西文照字体原宽
+  -- 别的字号只换字号那部分（9 到 16pt 都量过，余量不随字号变）
   local ok2, body = pcall(tex.getdimen, "g_docxlike_body_size_dim")
   local inc, atbody = 0, true
   if ok2 and body and body > 0 and not nogrid then
@@ -2093,25 +2100,41 @@ function M.filter(head, is_display)
   local items, indent, strut_h, strut_d = tokenize(head)
   if #items == 0 then return true end
   local bp = 65781.76
-  -- 西文字形各加半个余量只在正文字号有（9 到 16pt 的探针：别的字号西文照字体原宽）。
-  -- 正好半个（lb5 探针 pn：64 个数字的行在 N=0 翻转，数字宽正是 p/2）。空格按 Word 算账
+  -- 西文字形各加半个余量（lb5 探针 pn：64 个数字的行在 N=0 翻转，数字宽正是 p/2）。先前按断行
+  -- 翻转点只给正文字号，Windows 的渲染实测（adv4）10.5 到 16 磅都加。空格按 Word 算账
   -- 的量加 0.25bp（与汉西隙一样：lb5 的 ps 行在 N=0 翻转，纸面上却量到 3.37；样本文档
   -- 英文摘要的散排行又只有 3.0，两头都对不上，按翻转点）
   trace("PARAMS em=%.4f body=%.4f chardim=%.4f cell=%.4f inc=%.4f", em / bp, (body or 0) / bp, (ok and cell0 or 0) / bp, cell / bp, inc / bp)
   -- 段落的横向贴格（format 的 snap-to-grid-when-document-grid-is-defined）：关着的段（封面的英文题目、
   -- 首页的大标题）Word 按整个版心装、不按整数格数；TeX 那头这时 rightskip 也是零
-  local hsnap = getbool("l_docxlike_format_snap_horizontal_bool")
+  -- 横向贴格、字距、adjustRightInd 读段落量（format 在把样式套到段落上时设，正文是 Normal 的）
+  local pre = "l_docxlike_format_par_"
+  local hsnap = getbool(pre .. "snap_horizontal_bool")
   if hsnap == nil then hsnap = true end
   if nogrid then hsnap = false end
-  local P = { cell = cell, em = em, bp = bp, excess = inc, grid = hsnap,
-              latin_add = atbody and inc / 2 or 0,
+  -- 单字步进照 Windows Word 实测（探针 adv1–adv5）：网格增量只看字体的“对齐到网格”，不贴的 run
+  -- 一点不加；开着“平衡单字节与双字节字符”时汉字两个单位、西文一个，增量与字距（w:spacing）
+  -- 按单位分：汉字 +增量 +2s，西文每个字形 +增量/2 +s，贴汉字的空格占汉字格的一半再 +2s；
+  -- 不平衡时一律 +增量 +s。西文加半个增量不分字号
+  local balance = getbool("g_docxlike_format_balance_bool") ~= false
+  local okS, spacing = pcall(tex.getdimen, pre .. "char_spacing_dim")
+  if not okS or not spacing then spacing = 0 end
+  local grid_inc = hsnap and inc or 0
+  local sp2 = balance and 2 * spacing or spacing
+  cell = em + grid_inc + sp2
+  local P = { cell = cell, em = em, bp = bp, excess = grid_inc + sp2, grid = hsnap,
+              latin_add = (hsnap and (balance and inc / 2 or inc) or 0) + spacing,
+              half_space = (em + grid_inc) / 2 + sp2, cell0 = cell0, nogrid = nogrid,
+              adjust_right = getbool(pre .. "adjust_right_bool") ~= false,
               space_add = (inc > 0) and 0.25 * bp or 0,
               compat = M.compat, ari = not M.ari0, table_cell = M.cell,
               justify = align == "justify", align = align, autospace = true, compress = true,
-              balance = getbool("g_docxlike_format_balance_bool") ~= false,
+              balance = balance,
               autospace_de = getbool("l_docxlike_format_autospace_de_bool") ~= false,
               autospace_dn = getbool("l_docxlike_format_autospace_dn_bool") ~= false,
               eps = 0.03 * bp }
+  trace("STEP cell=%.4f latin_add=%.4f half_space=%.4f", P.cell / bp, P.latin_add / bp, P.half_space / bp)
+  trace("STEP snap=%s spacing=%.4f balance=%s", tostring(hsnap), spacing / bp, tostring(balance))
   soft_split(items, P)
   local lines = decide(items, P, M.shape(), indent)
   local ctx = M.linectx(strut_h, strut_d)
@@ -2194,23 +2217,27 @@ local function fix_skips(head)
   end
 end
 
--- 编号盒补网格增量：贴字符网格的段里 Word 给编号串的每个汉字后面加一份增量，正文字号时西文
--- 字形加半份（与断行层给正文的一样）。盒里两个汉字之间的汉字缝已经是网格胶，那一处不补；
--- 编号里不加中西文间距，汉字后面跟着西文的地方就没有胶，要补上
-function M.grid_box(n, inc, atbody)
+-- 编号盒补字距增量，规矩与断行层给正文的一样（Windows 实测 adv1–adv5）：平衡选项开着时汉字
+-- +增量 +2s、西文每个字形 +增量/2 +s，关着一律 +增量 +s，不分字号；s 是 w:spacing，增量只在
+-- 字体贴网格时有。盒里汉字接汉字的地方已经有汉字缝（增量 +s），只补差；编号里不加中西文间距，
+-- 汉字后面跟着西文的地方没有胶，整份补上
+function M.grid_box(n, inc, spacing, balance)
   local b = tex.box[n]
-  if not b or inc <= 0 then return end
+  if not b then return end
+  local ec = inc + (balance and 2 or 1) * spacing
+  local el = (balance and inc / 2 or inc) + spacing
+  if ec == 0 and el == 0 then return end
   local head, added = b.list, 0
   for g in traverse(head) do
     if g.id == GLYPH then
-      local add = 0
+      local add
       if is_jfont(g.font) then
         local nx = g.next
-        if not (nx and nx.id == GLUE and is_kanjiskip(nx)) then add = inc end
-      elseif atbody then
-        add = inc / 2
+        if nx and nx.id == GLUE and is_kanjiskip(nx) then add = ec - nx.width else add = ec end
+      else
+        add = el
       end
-      if add > 0 then
+      if add ~= 0 then
         local k = node.new(KERN); k.kern = add
         head = node.insert_after(head, g, k)
         added = added + add

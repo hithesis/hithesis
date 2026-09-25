@@ -6,6 +6,8 @@
 %
 % \section{编号}
 %
+% \changes{v0.1.0}{2026/09/26}{编号盒补字距增量与 \texttt{w:spacing} 照正文的规矩，西文不分字号
+%   （节标题“4.1”小三号，先前少三个半份增量，题名首字比 Windows Word 偏左 0.68）}
 % \changes{v0.1.0}{2026/09/25}{多级列表：照“定义新多级列表”对话框定义各级，按 Word 的规则
 %   计数、重编、跳级，生成编号串，编号跟着段落标记的“全部大写字母”；级别可以链接到样式；
 %   编号后跟的空格、制表符与编号装在一个盒里，后文汉字前不补中西文间距；编号串里面也不加}
@@ -552,8 +554,9 @@
 % 博士后研究报告模板“1.1 课题研究的背景和意义”）。编号串里面也不加中西文间距：Mac Word 实测
 % 18 磅的列表编号“第1章”，“第”到“1”步进 18.5、“1”到“章”9.25，同样的字敲进标题段里是 23.03
 % 与 13.75，两边各多 4.5。盒里把自动间距关掉（\pkg{luatexja} 的 \texttt{autoxspacing}，
-% \pkg{xeCJK} 的 \cs{CJKecglue} 与它的寄存器）。字距增量照样有：贴字符网格的段里每个汉字后面
-% 一份，正文字号时西文字形半份，盒里汉字缝之外的那几处由 Lua 补（\hologo{XeLaTeX} 不补）；
+% \pkg{xeCJK} 的 \cs{CJKecglue} 与它的寄存器）。字距增量与 \texttt{w:spacing} 照样有，规矩与正文
+% 一样（见 \file{docxlike-linebreak.dtx}）：平衡选项开着时每个汉字后面一份增量加两份字距、西文字形
+% 半份增量加一份字距，不分字号；盒里汉字缝之外的那几处由 Lua 补（\hologo{XeLaTeX} 不补）；
 % 模板里“第”到“1”是 18.5。编号的字符格式是段落标记的（样式的）再叠这一级的
 % \option{font}，“全部大写字母”也在里面：开着时编号跟着大写（Windows Word 实测，
 % \file{test/headings/heads-caps}）。
@@ -561,17 +564,20 @@
 \tl_new:N \l_docxlike_field_parnum_tl
 \cs_new_protected:Npn \__docxlike_numbering_grid:
   {
-    \bool_if:NT \l_docxlike_format_snap_horizontal_bool
+    \sys_if_engine_luatex:T
       {
-        \sys_if_engine_luatex:T
+        \bool_lazy_or:nnT
+          { \l_docxlike_format_snap_horizontal_bool }
+          { ! \dim_compare_p:nNn { \g__docxlike_numbering_spacing_dim } = { 0pt } }
           {
             \tex_directlua:D
               {
                 if~docxlike~and~docxlike.linebreak~then~
                   docxlike.linebreak.grid_box( \int_use:N \l__docxlike_numbering_box ,
-                    \dim_to_decimal_in_sp:n { \__docxlike_format_grid_glue: } ,
-                    \dim_compare:nNnTF { \g__docxlike_numbering_size_dim } = { \g_docxlike_body_size_dim }
-                      { true } { false } )~
+                    \bool_if:NTF \l_docxlike_format_snap_horizontal_bool
+                      { \dim_to_decimal_in_sp:n { \__docxlike_format_grid_glue: } } { 0 } ,
+                    \dim_to_decimal_in_sp:n { \g__docxlike_numbering_spacing_dim } ,
+                    \bool_if:NTF \g_docxlike_format_balance_bool { true } { false } )~
                 end
               }
           }
@@ -644,6 +650,7 @@
       \__docxlike_format_build_font:n {#1}
       \tl_gset_eq:NN \g__docxlike_numbering_font_tl \l__docxlike_format_out_tl
       \dim_gset_eq:NN \g__docxlike_numbering_size_dim \l_docxlike_format_size_dim
+      \dim_gset_eq:NN \g__docxlike_numbering_spacing_dim \l_docxlike_format_char_spacing_dim
       \__docxlike_format_read:nnnN {#1} { rPr/caps } { false } \l__docxlike_numbering_value_tl
       \tl_gset_eq:NN \g__docxlike_numbering_caps_tl \l__docxlike_numbering_value_tl
     \group_end:
@@ -653,6 +660,7 @@
 \tl_new:N \g__docxlike_numbering_font_tl
 \tl_new:N \g__docxlike_numbering_caps_tl
 \dim_new:N \g__docxlike_numbering_size_dim
+\dim_new:N \g__docxlike_numbering_spacing_dim
 \cs_generate_variant:Nn \__docxlike_format_target:nn { ne }
 %    \end{macrocode}
 %

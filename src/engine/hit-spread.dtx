@@ -6,6 +6,8 @@
 %
 % \section{字间距撑开}
 %
+% \changes{v3.2a}{2026/09/26}{\option{heading-spread} 的默认值照范例改成两个半角空格，按平衡
+%   选项排成半格；取值以控制空格打头时 \cs{hit@spread@by:nn} 插它本身}
 % \changes{v3.2a}{2026/08/28}{加 \cs{hit@spread@by:nn} 与 \cs{hit@spread@to:nn}：标题的
 %   字间距从常量取值里抽出来（撑开写进取值会漏进目录条目与 PDF 书签），封面字段标签
 %   分散对齐到固定宽度，底层统一走 \env{CJKfilltwosides}；两个参数都 \texttt{f} 展开
@@ -41,10 +43,13 @@
 % 报 Missing number。撑开多少是按变体定的
 % （\option{heading-spread}），博士后那一档三个标题都不撑开，取的就是空值。
 %
-% \option{heading-spread} 的默认值是 \texttt{1em}，也就是一个全角字宽：Word 版
-% 模板里「结论」两字之间是两个半角空格，宋体的半角空格是半个字宽，两个正好一个字。
-% 不用 \cs{ccwd}——那是「字宽加字距」，\cs{frontmatter} 里的
-% \cs{ziju}\marg{0.05580808} 一开，它就比一个字宽多 5.6\%。
+% 参数一以控制空格 \verb|\ | 打头时，插的是参数一本身，不是 \cs{hspace}：两字之间敲的就是
+% 那几个空格。\option{heading-spread} 的默认值是两个控制空格，照范例原件：「摘\ \ 要」
+% 「结\ \ 论」「目\ \ 录」两字之间敲的是两个半角空格。原件开着“平衡单字节与双字节字符”，
+% 贴着汉字的空格各占半格（半个字加半个网格增量，再加两份字距），这时每个空格换成
+% \pkg{docxlike} 的 \cs{docxlike\_format\_sbcs\_space:}，与它排段落里的空格同一条规矩。
+% 先前默认 \texttt{1em}：没有网格增量，标题 1 那 $-0.2$\,磅字距也没减，与 Windows Word
+% 导出件比，「摘\ \ 要」首字偏左 0.19，「目\ \ 录」偏右 0.13。写长度的照旧插 \cs{hspace}。
 %
 %    \begin{macrocode}
 %<*shared-spread>
@@ -52,11 +57,33 @@
 %
 %    \begin{macrocode}
 \tl_new:N \l__hit_spread_tl
+\tl_new:N \l__hit_spread_gap_tl
 \bool_new:N \l__hit_spread_first_bool
-\prg_generate_conditional_variant:Nnn \tl_if_blank:n { f } { TF }
+\tl_const:Ne \c__hit_spread_cspace_tl { \exp_not:c { ~ } }
+\cs_new_eq:Nc \__hit_spread_cspace: { ~ }
 \cs_new_protected:Npn \hit@spread@by:nn #1#2
   {
-    \tl_if_blank:fTF {#1} { #2 } { \__hit_spread_by:nn {#1} {#2} }
+    \tl_set:Nf \l__hit_spread_gap_tl {#1}
+    \tl_if_blank:VTF \l__hit_spread_gap_tl {#2}
+      {
+        \tl_if_head_eq_meaning:VNTF \l__hit_spread_gap_tl \__hit_spread_cspace:
+          {
+            \__hit_spread_sbcs:
+            \__hit_spread_by:Vn \l__hit_spread_gap_tl {#2}
+          }
+          { \__hit_spread_by:nn { \hspace {#1} } {#2} }
+      }
+  }
+\cs_new_protected:Npn \__hit_spread_sbcs:
+  {
+    \cs_if_exist:NT \docxlike_format_sbcs_space:
+      {
+        \bool_if:NT \g_docxlike_format_balance_bool
+          {
+            \exp_args:NNV \tl_replace_all:Nnn \l__hit_spread_gap_tl
+              \c__hit_spread_cspace_tl { \docxlike_format_sbcs_space: }
+          }
+      }
   }
 \cs_new_protected:Npn \__hit_spread_by:nn #1#2
   {
@@ -66,10 +93,11 @@
       {
         \bool_if:NTF \l__hit_spread_first_bool
           { \bool_set_false:N \l__hit_spread_first_bool }
-          { \hspace {#1} }
+          {#1}
         ##1
       }
   }
+\cs_generate_variant:Nn \__hit_spread_by:nn { V }
 %    \end{macrocode}
 %
 % \cs{hit@spread@to:nn}\marg{宽度}\marg{文本} 把文本分散对齐到固定宽度。封面上

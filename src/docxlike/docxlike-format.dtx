@@ -65,6 +65,11 @@
 %   字面的西文字体照 Word 斜切），新增 \option{underline-style}、\option{underline-color}、
 %   \option{superscript}、\option{subscript}、样式的 \option{style-type} 与 \cs{docxrun}；下划线与
 %   上下标在 \hologo{LuaLaTeX} 上记在属性里，出页前由 \file{docxlike-run.lua} 落到节点上，断行照常}
+% \changes{v3.2a}{2026/09/26}{新增段落键
+%   \option{automatically-adjust-right-indent-when-document-grid-is-defined}（\texttt{pPr/adjustRightInd}）；
+%   平衡的半角空格照 Windows Word 实测排成半个字加半个网格增量再加两份 \texttt{w:spacing}（先前是
+%   一份的一半）；横向贴格、字距、\texttt{adjustRightInd} 另存成段落量，只在把样式套到段落上时设，
+%   断行层读它们（最近一次 compute 常是页眉页脚的）}
 % \changes{v3.2a}{2026/09/26}{只写了行距的目标也发 \cs{fontsize}（先前只看字号，行距落不下去）；
 %   \cs{parmark} 收段前段后，与别的段同一本账}
 % \changes{v3.2a}{2026/08/24}{新增 \cs{parmark}：模拟 Word 的空回车段，可选参数收行数或
@@ -112,6 +117,7 @@
 % \option{font}/\option{snap-to-grid-when-document-grid-is-defined} & \texttt{rPr/snapToGrid} \\
 % \option{paragraph}/\option{alignment} & \texttt{pPr/jc}：\texttt{left}、\texttt{center}、\texttt{right}、\texttt{both}、\texttt{distribute} \\
 % \option{paragraph}/\option{indentation} & \texttt{pPr/ind/} 下的 \texttt{left}、\texttt{leftChars}、\texttt{right}、\texttt{rightChars}、\texttt{firstLine}、\texttt{firstLineChars}、\texttt{hanging}、\texttt{hangingChars} \\
+% \option{indentation}/\option{automatically-adjust-right-indent-when-document-grid-is-defined} & \texttt{pPr/adjustRightInd} \\
 % \option{paragraph}/\option{spacing} & \texttt{pPr/spacing/} 下的 \texttt{before}、\texttt{beforeLines}、\texttt{after}、\texttt{afterLines}、\texttt{line}、\texttt{lineRule} \\
 % \option{paragraph}/\option{snap-to-grid-when-document-grid-is-defined}、\option{pagination} 的 \option{keep-with-next}、\option{keep-lines-together}、\option{page-break-before} & \texttt{pPr/snapToGrid}、\texttt{pPr/keepNext}、\texttt{pPr/keepLines}、\texttt{pPr/pageBreakBefore} \\
 % \option{paragraph}/\option{asian-typography} 的 \option{automatically-adjust-space-between-asian-and-latin-text}、\option{automatically-adjust-space-between-asian-text-and-numbers} & \texttt{pPr/autoSpaceDE}、\texttt{pPr/autoSpaceDN} \\
@@ -1160,6 +1166,9 @@
     right .code:n = { \__docxlike_format_indent_side:nn { right } {#1} } ,
     special .tl_set:N = \l__docxlike_style_special_tl ,
     by .tl_set:N = \l__docxlike_style_by_tl ,
+    automatically-adjust-right-indent-when-document-grid-is-defined .code:n =
+      { \__docxlike_format_bool:nn { pPr/adjustRightInd } {#1} } ,
+    automatically-adjust-right-indent-when-document-grid-is-defined .default:n = { true } ,
     unknown .code:n =
       { \__docxlike_unknown_key: } ,
   }
@@ -1689,7 +1698,31 @@
 \dim_new:N \l_docxlike_format_char_spacing_dim
 \bool_new:N \l_docxlike_format_snap_vertical_bool
 \bool_new:N \l_docxlike_format_snap_horizontal_bool
+\bool_new:N \l_docxlike_format_adjust_right_bool
+\bool_set_true:N \l_docxlike_format_adjust_right_bool
 \bool_new:N \l_docxlike_format_hglue_set_bool
+%    \end{macrocode}
+%
+% 横向贴格、字距与 \texttt{adjustRightInd} 是段落的属性，断行层在段末读。上面那几个局部量
+% 是最近一次 compute 的结果，页眉页脚、封面字段取字体也会算（\cs{docxlike\_format\_apply\_font:nN}
+% 把结果留给调用方），正文段落排到段末时留下的常是别的样式的值。所以另设三个段落量，只在把样式
+% 套到段落上的地方抄一次：排正文设 \texttt{Normal} 时、\cs{docxlike\_format\_par:nn}、
+% \cs{docxlike\_format\_apply\_par:n}（\cs{\_\_docxlike\_format\_par\_props:}）。
+%    \begin{macrocode}
+\bool_new:N \l_docxlike_format_par_snap_horizontal_bool
+\bool_set_true:N \l_docxlike_format_par_snap_horizontal_bool
+\dim_new:N \l_docxlike_format_par_char_spacing_dim
+\bool_new:N \l_docxlike_format_par_adjust_right_bool
+\bool_set_true:N \l_docxlike_format_par_adjust_right_bool
+\cs_new_protected:Npn \__docxlike_format_par_props:
+  {
+    \bool_set_eq:NN \l_docxlike_format_par_snap_horizontal_bool
+      \l_docxlike_format_snap_horizontal_bool
+    \dim_set_eq:NN \l_docxlike_format_par_char_spacing_dim
+      \l_docxlike_format_char_spacing_dim
+    \bool_set_eq:NN \l_docxlike_format_par_adjust_right_bool
+      \l_docxlike_format_adjust_right_bool
+  }
 \tl_new:N \l_docxlike_format_line_value_tl
 \tl_new:N \l_docxlike_format_line_unit_tl
 %    \end{macrocode}
@@ -1980,6 +2013,9 @@
         \str_if_eq_p:Vn \l__docxlike_format_value_tl { true }
         && ! \dim_compare_p:nNn { \g_docxlike_page_char_dim } = { 0pt }
       }
+    \__docxlike_format_read:nnnN {#1} { pPr/adjustRightInd } { true } \l__docxlike_format_value_tl
+    \bool_set:Nn \l_docxlike_format_adjust_right_bool
+      { ! \str_if_eq_p:Vn \l__docxlike_format_value_tl { false } }
     \__docxlike_format_read:nnnN {#1} { rPr/spacing } { auto } \l__docxlike_format_value_tl
     \str_if_eq:VnTF \l__docxlike_format_value_tl { auto }
       { \dim_zero:N \l_docxlike_format_char_spacing_dim }
@@ -2142,7 +2178,8 @@
 % \texttt{w:balanceSingleByteDoubleByteWidth}，Word 界面在“高级”选项的版式那一组，
 % 键名 \option{balance-sbcs-characters-and-dbcs-characters}，学校的模板都开着。Windows Word 实测
 % （\file{test/headings} 的 \file{heads-balance-*}，兼容模式 11）：开着时正文里贴着汉字的半角空格、
-% 连着的几个半角空格各占半格（半个字加半份当时的字距），西文词间的单个空格不变（15 磅标题
+% 连着的几个半角空格各占半格（半个字加半个网格增量，再加两份 \texttt{w:spacing}：汉字两个单位，
+% 字距按单位分，见 \file{docxlike-linebreak.dtx}；探针 adv4、adv5），西文词间的单个空格不变（15 磅标题
 % “1.1  Introduction”两个空格各 7.45，“Hello World”仍是 3.75）；空格的字形还是西文字体的，
 % 不抬行高。编号格式里的空格不受它管。本包自己排的段落（\cs{docxlike\_format\_par:nn}）排之前
 % 照这条改一遍内容里的空格（半个字按当时的字号 \cs{f@size} 算，不按最近一次算过的样式）：最外层的空格记号与 \verb|\ |，前后挨着空格或汉字的换成
@@ -2201,9 +2238,15 @@
     dont-use-html-paragraph-auto-spacing .default:n = true ,
   }
 \cs_new_protected:Npn \docxlike_format_sbcs_space:
+  { \skip_horizontal:n { \f@size pt / 2 + \l__docxlike_format_sbcs_dim } }
+\dim_new:N \l__docxlike_format_sbcs_dim
+\cs_new_protected:Npn \__docxlike_format_sbcs_set:n #1
+  { \dim_set:Nn \l__docxlike_format_sbcs_dim {#1} }
+\cs_new:Npn \__docxlike_format_sbcs_extra:
   {
-    \skip_horizontal:n
-      { ( \f@size pt + \l_docxlike_format_ccglue_dim ) / 2 }
+    \bool_if:NT \l_docxlike_format_snap_horizontal_bool
+      { ( \__docxlike_format_grid_glue: ) / 2 + }
+    2 \l_docxlike_format_char_spacing_dim
   }
 \seq_new:N \l__docxlike_format_balance_seq
 \seq_new:N \l__docxlike_format_balance_kind_seq
@@ -2541,6 +2584,7 @@
 \cs_new_protected:Npn \docxlike_format_hglue:nn #1#2
   {
     \dim_set:Nn \l_docxlike_format_ccglue_dim { \dim_eval:n {#1} }
+    \dim_set:Nn \l__docxlike_format_sbcs_dim { \l_docxlike_format_ccglue_dim / 2 }
     \cs_set:Npx \CJKglue
       {
         \exp_not:N \hskip \dim_eval:n {#1}
@@ -3113,6 +3157,8 @@
             \exp_not:N \docxlike_format_hglue:nn
               { \dim_eval:n { \__docxlike_format_hglue_cc: } }
               { \dim_eval:n { \__docxlike_format_hglue_ec: } }
+            \exp_not:N \__docxlike_format_sbcs_set:n
+              { \dim_eval:n { \__docxlike_format_sbcs_extra: } }
           }
         \bool_if:NTF \l__docxlike_format_latin_bool
           { \exp_not:N \docxlike_format_latin_true: }
@@ -3558,20 +3604,38 @@
   { \g_docxlike_page_char_dim - \g_docxlike_body_size_dim }
 %    \end{macrocode}
 %
-% 整数格除不尽的那点余量。一行放得下 $n$ 个格（\cs{g\_docxlike\_page\_cells\_int}，
-% 只跟版心宽与字距有关，由版面那层算），$n$ 个字连着排占 $n$ 个字号加 $n-1$ 段
-% 字距胶，版心宽减掉它就是余量。字号是元素的量，所以算法在这一层。
+% 整数格除不尽的那点余量。一行放得下 $n$ 个格，$n$ 个字连着排占 $n$ 个字号加 $n-1$ 段
+% 字距胶，版心宽减掉它就是余量。字号是元素的量，所以算法在这一层。格数按当时的
+% \cs{textwidth} 数：正文里就是版面那层算的 \cs{g\_docxlike\_page\_cells\_int}；小页里
+% \hologo{LaTeX} 把 \cs{textwidth} 设成小页宽，照整页的格数减会得出负的一大截（博士后
+% 示例里并排图的题注是 $-253.89$\,bp），题注溢出小页、断行层又据此把行宽算成整个版心。
 %    \begin{macrocode}
 \int_new:N \l__docxlike_format_gaps_int
+\int_new:N \l__docxlike_format_cells_int
 \dim_new:N \l__docxlike_format_glue_dim
 \cs_new_protected:Npn \docxlike_format_slack:
   {
     \dim_set:Nn \l__docxlike_format_glue_dim { \__docxlike_format_grid_glue: }
-    \int_set:Nn \l__docxlike_format_gaps_int { \g_docxlike_page_cells_int - 1 }
+    \dim_compare:nNnTF { \g_docxlike_page_char_dim } = { 0pt }
+      { \int_set_eq:NN \l__docxlike_format_cells_int \g_docxlike_page_cells_int }
+      {
+        \int_set:Nn \l__docxlike_format_cells_int
+          {
+            \fp_to_int:n
+              {
+                floor
+                  (
+                    \dim_to_decimal:n { \textwidth }
+                    / \dim_to_decimal:n { \g_docxlike_page_char_dim }
+                  )
+              }
+          }
+      }
+    \int_set:Nn \l__docxlike_format_gaps_int { \l__docxlike_format_cells_int - 1 }
     \dim_gset:Nn \g_docxlike_page_slack_dim
       {
         \textwidth
-        - \g_docxlike_page_cells_int \g_docxlike_body_size_dim
+        - \l__docxlike_format_cells_int \g_docxlike_body_size_dim
         - \l__docxlike_format_gaps_int \l__docxlike_format_glue_dim
       }
   }
@@ -3785,6 +3849,7 @@
   {
     \group_begin:
       \docxlike_format_apply_font:nN {#1} \l__docxlike_format_par_tl
+      \__docxlike_format_par_props:
       \__docxlike_format_side_indent:nnN {#1} { ind-left } \l_docxlike_format_left_dim
       \__docxlike_format_side_indent:nnN {#1} { ind-right } \l_docxlike_format_right_dim
       \__docxlike_format_number_indent:n {#1}
@@ -5620,6 +5685,7 @@
   {
         \docxlike_format_compute:n { Normal }
         \bool_set_eq:NN \l_docxlike_format_strut_latin_bool \l__docxlike_format_latin_bool
+        \__docxlike_format_par_props:
         \dim_gset_eq:NN \g_docxlike_body_size_dim \l_docxlike_format_size_dim
         \dim_gset_eq:NN \g_docxlike_body_lead_dim \l_docxlike_format_lead_dim
         \dim_gset_eq:NN \g_docxlike_body_stretch_dim \l_docxlike_format_stretch_dim
@@ -5648,6 +5714,7 @@
           {
             \docxlike_format_hglue:nn
               { \__docxlike_format_hglue_cc: } { \__docxlike_format_hglue_ec: }
+            \__docxlike_format_sbcs_set:n { \__docxlike_format_sbcs_extra: }
             \bool_if:NT \l_docxlike_format_snap_horizontal_bool
               {
                 \bool_if:NTF \l_docxlike_format_snap_vertical_bool
@@ -5697,6 +5764,7 @@
     \__docxlike_format_if_blank:nF {#1}
       {
         \docxlike_format_apply_font:nN {#1} \l__docxlike_format_par_tl
+        \__docxlike_format_par_props:
         \cs_set_eq:NN \__docxlike_format_strut_saved: \docxlike_format_strut:
         \cs_set_eq:NN \docxlike_format_strut: \prg_do_nothing:
         \l__docxlike_format_par_tl
