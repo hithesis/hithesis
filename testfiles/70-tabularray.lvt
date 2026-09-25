@@ -1,0 +1,45 @@
+% \pkg{tabularray} 与老写法共用一套表格值。类必装它（决议页在用），booktabs
+% 库由钩子带上，文档什么都不用写。本测试绑 2025 版接口（caption-en 外参的
+% \cs{DeclareTblrKeys}），旧 TL 上由 build.lua 的 legacy 名单跳过。
+%
+% 三个断言：单元格边距——同内容的 tblr 与 tabular 排出同宽（colsep 接上
+% \cs{tabcolsep}，各环境 begin 钩子里追加）；表内字号——包在 \env{table}
+% 浮动里的 tblr 比裸的窄一号（两级钩子把浮动里压到五号）；表题的间隔——
+% caption-sep 模板展开出的宽度等于 \cs{hit@caption@separator} 按表那条链
+% 排出的宽度。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=doctor,campus=harbin]{hithesis}
+\begin{document}
+\START
+\makeatletter
+\ExplSyntaxOn
+\TEST{tblr~and~tabular~same~width}{
+  \hbox_set:Nn \l_tmpa_box { \begin{tblr}{ll} 甲 & 乙 \\ \end{tblr} }
+  \hbox_set:Nn \l_tmpb_box { \begin{tabular}{ll} 甲 & 乙 \\ \end{tabular} }
+  \iow_term:x { tblr = \dim_use:N \box_wd:N \l_tmpa_box }
+  \iow_term:x { tabular = \dim_use:N \box_wd:N \l_tmpb_box }
+}
+\TEST{float~squeezes~tblr~to~wuhao}{
+  \group_begin:
+  \bool_set_true:N \l__hit_table_float_bool
+  \UseHook { env/tblr/begin }
+  \iow_term:x { floatsize = \f@size }
+  \group_end:
+  \iow_term:x { outersize = \f@size }
+}
+\TEST{caption~en~key~is~registered}{
+  \keys_if_exist:nnTF { tabularray / table/outer } { caption-en }
+    { \iow_term:n { caption-en~registered } }
+    { \iow_term:n { caption-en~MISSING } }
+}
+\TEST{caption~sep~matches~the~chain}{
+  \hbox_set:Nn \l_tmpa_box { \UseTblrTemplate { caption-sep } { default } }
+  \iow_term:x { tblrsep = \dim_use:N \box_wd:N \l_tmpa_box }
+  \group_begin:
+  \cs_set:Npn \@captype { table }
+  \hbox_set:Nn \l_tmpb_box { \hit@caption@separator }
+  \iow_term:x { chainsep = \dim_use:N \box_wd:N \l_tmpb_box }
+  \group_end:
+}
+\ExplSyntaxOff
+\END

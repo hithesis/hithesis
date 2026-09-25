@@ -1,0 +1,558 @@
+% \iffalse meta-comment
+%
+% hit-engine.dtx 是引擎层
+%
+% \fi
+%
+% \section{引擎层}
+%
+% \changes{v3.2a}{2026/09/20}{新增引擎层，模板 \hologo{XeLaTeX} 与 \hologo{LuaLaTeX} 都能编，
+%   报错文案里推荐引擎 \texttt{lualatex} 排在前面；\cs{CJKglue} 的直接改写、
+%   \cs{hit@engine@cjk@char:n}、\cs{hit@engine@latin@chars:n} 收进这里；
+%   东八区的今天（\cs{c\_sys\_year\_int} 跟编译机器
+%   时区走，国外编译封面日期差一天）；下划线按 Word 画：线心在基线下 0.135\,em、粗 0.05\,em}
+%
+% 中文排版的活儿是 \pkg{ctex} 干的，而 \pkg{ctex} 两个引擎都支持：\hologo{XeLaTeX} 底下它调 \pkg{xeCJK}，
+% \hologo{LuaLaTeX} 底下调 \pkg{luatexja}。挡在门口的是模板自己直接用的那几个
+% \pkg{xeCJK} 专属接口——它们在 \pkg{luatexja} 底下没有同名的东西。
+%
+% 本文件把这几处收成一层薄封装：每个功能给一个 \cs{hit@engine@} 开头的名字，
+% 底下按引擎分两套实现，调用方一处 \cs{sys\_if\_engine} 都不用写。加引擎只动这里。
+%
+% \textbf{排在装配表第三位。} 要早于 \file{hit-fonts.dtx}（第五位，字体族里要用
+% 字符归类）、\file{hit-footnote.dtx}（字形探测）、\file{hit-spread.dtx}（定宽拉伸）
+% 与 \file{docxlike-format.dtx}（字距）。
+%
+%    \begin{macrocode}
+%<*shared-engine>
+%    \end{macrocode}
+%
+% \subsection{引擎守卫}
+%
+% 引擎是先决条件，不对就不必再往下走，所以守卫在装配表里排得比选项模块还早。
+% \hologo{pdfTeX} 与 \texttt{latex} 仍旧挡在门外：那两个引擎不认 OpenType，中文得走
+% \pkg{CJK} 那一套，与本模板的字体子系统是两条路。
+%    \begin{macrocode}
+\bool_lazy_or:nnF
+  { \sys_if_engine_xetex_p: }
+  { \sys_if_engine_luatex_p: }
+  { \ClassError { hithesis } { Please~use:~\MessageBreak~lualatex~(or~xelatex) } { } }
+%    \end{macrocode}
+%
+% \subsection{把码位归成汉字}
+%
+% \cs{hit@engine@cjk@chars:n}\marg{码位列表} 把列出的码位当汉字排，让它们从中文
+% 字体取字形。用处见 \file{src/engine/hit-fonts.dtx}：\texttt{□} 这类几何符号按
+% Unicode 区块归了西文，西文字体里没有就整个字排丢了。
+%
+% 两个引擎的分法不一样。\pkg{xeCJK} 是逐个码位声明字符类，一个码位一句；
+% \pkg{luatexja} 是先把一批码位定义成一个「字符范围」，再把整个范围划归和文，
+% 两句管一批。范围号 \pkg{luatexja} 预定义了 1--8、留给用户 1--217，这里从 100
+% 起编，离预定义的那几个远一点；每调用一次占一个号。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  {
+    \int_new:N \g__hit_engine_range_int
+    \int_gset:Nn \g__hit_engine_range_int { 100 }
+    \cs_new_protected:Npn \hit@engine@cjk@chars:n #1
+      {
+        \int_gincr:N \g__hit_engine_range_int
+        \exp_args:Nx \ltjdefcharrange
+          { \int_use:N \g__hit_engine_range_int } {#1}
+        \exp_args:Nx \ltjsetparameter
+          { jacharrange = { + \int_use:N \g__hit_engine_range_int } }
+      }
+  }
+  {
+    \cs_new_protected:Npn \hit@engine@cjk@chars:n #1
+      { \clist_map_inline:nn {#1} { \xeCJKDeclareCharClass { CJK } {##1} } }
+  }
+%    \end{macrocode}
+%
+% \cs{hit@engine@latin@chars:n}\marg{码位列表} 反过来：把列出的码位交回西文，
+% 让它们从西文字体取字形。破折号要用它，见 \file{src/engine/hit-fonts.dtx}。
+%
+% \pkg{xeCJK} 那边把字符类改成 \texttt{Default}——那一类的意思就是「\pkg{xeCJK}
+% 不管」，字形跟当前字体走。\pkg{luatexja} 那边把码位划成一个范围再从和文里减掉，
+% 范围号与上面同一条序列。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  {
+    \cs_new_protected:Npn \hit@engine@latin@chars:n #1
+      {
+        \int_gincr:N \g__hit_engine_range_int
+        \exp_args:Nx \ltjdefcharrange
+          { \int_use:N \g__hit_engine_range_int } {#1}
+        \exp_args:Nx \ltjsetparameter
+          { jacharrange = { - \int_use:N \g__hit_engine_range_int } }
+      }
+  }
+  {
+    \cs_new_protected:Npn \hit@engine@latin@chars:n #1
+      { \clist_map_inline:nn {#1} { \xeCJKDeclareCharClass { Default } {##1} } }
+  }
+%    \end{macrocode}
+%
+% \subsection{汉字之间的字距}
+%
+% \cs{hit@engine@cjkglue@zero:} 把汉字之间的那段胶归零，
+% \cs{hit@engine@cjkglue@set:nn}\marg{汉字间}\marg{中西文间} 给它们设值。
+% 两个都是局部的，写在组里出组即还原。
+%
+% \pkg{xeCJK} 把这两段胶做成两个宏 \cs{CJKglue} 与 \cs{CJKecglue}，改它们等于改
+% 排版时插进去的东西；\pkg{luatexja} 做成两个参数 \texttt{kanjiskip} 与
+% \texttt{xkanjiskip}，走 \cs{ltjsetparameter}。名字不同，管的是同一件事。
+%
+% 取值先过一趟 \texttt{skip} 寄存器，是为了让两条路吃同一种写法：调用方按
+% \hologo{LaTeX} 的胶写法给 \texttt{12pt~\cs{@plus}~0.08\cs{baselineskip}}，
+% \pkg{xeCJK} 那边原样贴进 \cs{hskip}，\pkg{luatexja} 那边由寄存器吃掉再交出去。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  {
+    \skip_new:N \l__hit_engine_glue_skip
+    \cs_new_protected:Npn \hit@engine@cjkglue@zero:
+      { \ltjsetparameter { kanjiskip = \c_zero_skip } }
+    \cs_new_protected:Npn \hit@engine@cjkglue@set:nn #1#2
+      {
+        \skip_set:Nn \l__hit_engine_glue_skip {#1}
+        \ltjsetparameter { kanjiskip = \l__hit_engine_glue_skip }
+        \skip_set:Nn \l__hit_engine_glue_skip {#2}
+        \ltjsetparameter { xkanjiskip = \l__hit_engine_glue_skip }
+      }
+  }
+  {
+    \cs_new_protected:Npn \hit@engine@cjkglue@zero:
+      {
+        \cs_set_eq:NN \CJKglue \prg_do_nothing:
+        \cs_set_eq:NN \CJKecglue \prg_do_nothing:
+      }
+    \cs_new_protected:Npn \hit@engine@cjkglue@set:nn #1#2
+      {
+        \cs_set:Npx \CJKglue { \exp_not:N \hskip \exp_not:n {#1} }
+        \cs_set:Npx \CJKecglue { \exp_not:N \hskip \exp_not:n {#2} }
+      }
+  }
+%    \end{macrocode}
+%
+% 有几处只想按住汉字之间那一段，中西文之间的照旧，所以再给一个只管汉字间的。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  {
+    \cs_new_protected:Npn \hit@engine@cjkglue@zero@cc:
+      { \ltjsetparameter { kanjiskip = \c_zero_skip } }
+  }
+  {
+    \cs_new_protected:Npn \hit@engine@cjkglue@zero@cc:
+      { \cs_set_eq:NN \CJKglue \prg_do_nothing: }
+  }
+%    \end{macrocode}
+%
+% \subsection{按汉字排一个字符}
+%
+% \cs{hit@engine@cjk@char:n}\marg{字符} 把一个字符按汉字排：中文字体、汉字类。
+% 给占位叉「××××」这类用——\texttt{×}（U+00D7）平时归半角标点类，字形取西文
+% 字体是对的（英文正文里的乘号就该是 Times 的），可范例分类号那四个叉印的是
+% 宋体形，值里逐字用这个宏点名。参数收字符本身，不收码位：配置层的取值在
+% \pkg{expl3} 之外记号化，\texttt{"D7} 那种十六进制在那儿会碎。
+%
+% \hologo{XeLaTeX} 这边在\emph{分组里}把这个字符临时声明进汉字类——
+% \cs{XeTeXcharclass} 赋值随分组，出组即还原，正文里的乘号一根汗毛不动
+% （实测组内宋体、组外 Times）。\pkg{xeCJK} 的 \cs{CJKsymbol} 帮不上忙，
+% 它就是 \cs{use:n}，字体切换在类对的记号表里。\pkg{luatexja} 有现成的
+% \cs{ltjjachar}，按 JAchar 排一个码位。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  {
+    \cs_new_protected:Npn \hit@engine@cjk@char:n #1
+      { \ltjjachar `#1 \scan_stop: }
+  }
+  {
+    \cs_new_protected:Npn \hit@engine@cjk@char:n #1
+      {
+        \group_begin:
+        \xeCJKDeclareCharClass { CJK } { \int_value:w `#1 }
+        #1
+        \group_end:
+      }
+  }
+\cs_new_eq:NN \hit@engine@cjk@char \hit@engine@cjk@char:n
+%    \end{macrocode}
+%
+% \subsection{今天（东八区）}
+%
+% \cs{g\_\_hit\_engine\_today\_year\_int}、\cs{\ldots month\ldots}、
+% \cs{\ldots day\ldots} 是东八区的今天。\pkg{expl3} 的 \cs{c\_sys\_year\_int}
+% 一族是编译机器的本地时间，不带时区；引擎各有一条拿得到时区的路：
+%
+% \hologo{XeLaTeX} 的 \cs{creationdate} 给
+% \texttt{D:20260830001418+08'00'} 这种串，本地时刻连着时区偏移。按偏移折回
+% UTC 再加八小时，跨天最多挪一天（偏移在 $-12$ 到 $+14$ 小时之间），月初年初
+% 的进退位按月长算，闰年按四百年规则。串的末尾也可能是 \texttt{Z}（UTC）或者
+% 什么都没有，都当零偏移。\texttt{SOURCE\_DATE\_EPOCH} 一样管用——
+% \texttt{FORCE\_SOURCE\_DATE} 下 \cs{creationdate} 从环境变量来，回归测试
+% 钉日期的做法不受影响。
+%
+% \hologo{LuaLaTeX} 没有 \cs{creationdate}，一句
+% \texttt{os.date} 拿 UTC 加八小时，不用自己算进退位。格式串里不能出现
+% \texttt{\%}——它在生成的类文件里是注释符，行尾会被整个吃掉、花括号失衡，
+% \cs{sys\_if\_engine\_luatex:TF} 扫参数时把后面整段定义吞进这个分支（踩过：
+% 三个解析函数全成了残废，东八区悄悄退回本地日期）。所以取
+% \texttt{os.date("!*t")} 的表字段，一个 \texttt{\%} 都不用。
+%
+% 两条路都不通（\cs{creationdate} 不在或者串认不出）就退回本地时间。
+%    \begin{macrocode}
+\int_new:N \g__hit_engine_today_year_int
+\int_new:N \g__hit_engine_today_month_int
+\int_new:N \g__hit_engine_today_day_int
+\int_gset_eq:NN \g__hit_engine_today_year_int \c_sys_year_int
+\int_gset_eq:NN \g__hit_engine_today_month_int \c_sys_month_int
+\int_gset_eq:NN \g__hit_engine_today_day_int \c_sys_day_int
+%    \end{macrocode}
+%
+% 解析放在用不用得上都无害的形状里：串长不够、打头不是 \texttt{D:}，
+% 就什么都不改。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_engine_today_parse:n #1
+  { \exp_args:Nx \__hit_engine_today_split:n { \tl_to_str:n {#1} } }
+\int_new:N \l__hit_engine_offset_int
+\int_new:N \l__hit_engine_total_int
+\cs_new_protected:Npn \__hit_engine_today_split:n #1
+  {
+    \int_compare:nNnT { \str_count:n {#1} } > { 15 }
+      {
+        \str_if_eq:eeT { \str_range:nnn {#1} { 1 } { 2 } } { D: }
+          {
+            \__hit_engine_today_set:xxxxxx
+              { \str_range:nnn {#1} {  3 } {  6 } }
+              { \str_range:nnn {#1} {  7 } {  8 } }
+              { \str_range:nnn {#1} {  9 } { 10 } }
+              { \str_range:nnn {#1} { 11 } { 12 } }
+              { \str_range:nnn {#1} { 13 } { 14 } }
+              { \str_range:nnn {#1} { 17 } { \str_count:n {#1} } }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 偏移那一截是 \texttt{+08'00'}、\texttt{-06'30'}、\texttt{Z} 或空。
+% 折成分钟，认不出当零。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_engine_today_offset:n #1
+  {
+    \int_zero:N \l__hit_engine_offset_int
+    \int_compare:nNnT { \str_count:n {#1} } > { 5 }
+      {
+        \bool_lazy_or:nnT
+          { \str_if_eq_p:ee { \str_head:n {#1} } { + } }
+          { \str_if_eq_p:ee { \str_head:n {#1} } { - } }
+          {
+            \int_set:Nn \l__hit_engine_offset_int
+              {
+                \str_range:nnn {#1} { 2 } { 3 } * 60
+                + \str_range:nnn {#1} { 5 } { 6 }
+              }
+            \str_if_eq:eeT { \str_head:n {#1} } { - }
+              {
+                \int_set:Nn \l__hit_engine_offset_int
+                  { - \l__hit_engine_offset_int }
+              }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 本地时刻减本地偏移是 UTC，再加 480 分钟是东八区。整除 1440 得跨天数，
+% 只会是 $-1$、$0$ 或 $+1$；日在月里进退位，月长按闰年查。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_engine_today_set:nnnnnn #1#2#3#4#5#6
+  {
+    \__hit_engine_today_offset:n {#6}
+    \int_gset:Nn \g__hit_engine_today_year_int {#1}
+    \int_gset:Nn \g__hit_engine_today_month_int {#2}
+    \int_gset:Nn \g__hit_engine_today_day_int {#3}
+    \int_set:Nn \l__hit_engine_total_int
+      { #4 * 60 + #5 - \l__hit_engine_offset_int + 480 }
+    \int_compare:nNnT { \l__hit_engine_total_int } < { 0 }
+      { \__hit_engine_today_shift:n { -1 } }
+    \int_compare:nNnT { \l__hit_engine_total_int } > { 1439 }
+      { \__hit_engine_today_shift:n { 1 } }
+  }
+\cs_generate_variant:Nn \__hit_engine_today_set:nnnnnn { xxxxxx }
+\cs_new:Npn \__hit_engine_month_days:nn #1#2
+  {
+    \int_case:nnF {#2}
+      {
+        { 2 }
+          {
+            \int_compare:nNnTF
+              { \int_mod:nn {#1} { 4 } +
+                \int_compare_p:nNn { \int_mod:nn {#1} { 100 } } = { 0 }
+                - \int_compare_p:nNn { \int_mod:nn {#1} { 400 } } = { 0 } }
+              = { 0 }
+              { 29 } { 28 }
+          }
+        { 4 } { 30 } { 6 } { 30 } { 9 } { 30 } { 11 } { 30 }
+      }
+      { 31 }
+  }
+\cs_new_protected:Npn \__hit_engine_today_shift:n #1
+  {
+    \int_gadd:Nn \g__hit_engine_today_day_int {#1}
+    \int_compare:nNnT { \g__hit_engine_today_day_int } < { 1 }
+      {
+        \int_gadd:Nn \g__hit_engine_today_month_int { -1 }
+        \int_compare:nNnT { \g__hit_engine_today_month_int } < { 1 }
+          {
+            \int_gset:Nn \g__hit_engine_today_month_int { 12 }
+            \int_gadd:Nn \g__hit_engine_today_year_int { -1 }
+          }
+        \int_gset:Nn \g__hit_engine_today_day_int
+          {
+            \__hit_engine_month_days:nn
+              { \g__hit_engine_today_year_int }
+              { \g__hit_engine_today_month_int }
+          }
+      }
+    \int_compare:nNnT
+      { \g__hit_engine_today_day_int } >
+      {
+        \__hit_engine_month_days:nn
+          { \g__hit_engine_today_year_int }
+          { \g__hit_engine_today_month_int }
+      }
+      {
+        \int_gset:Nn \g__hit_engine_today_day_int { 1 }
+        \int_gadd:Nn \g__hit_engine_today_month_int { 1 }
+        \int_compare:nNnT { \g__hit_engine_today_month_int } > { 12 }
+          {
+            \int_gset:Nn \g__hit_engine_today_month_int { 1 }
+            \int_gadd:Nn \g__hit_engine_today_year_int { 1 }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 算一次就定死。必须放在定义之后：写在前面时加载期的 Undefined control sequence
+% 被 nonstopmode 咽掉，东八区悄悄退回本地日期，只有探针测试抓得出。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  {
+    \int_gset:Nn \g__hit_engine_today_year_int
+      { \directlua { tex.sprint ( os.date ( "!*t" , os.time ( ) + 28800 ) .year ) } }
+    \int_gset:Nn \g__hit_engine_today_month_int
+      { \directlua { tex.sprint ( os.date ( "!*t" , os.time ( ) + 28800 ) .month ) } }
+    \int_gset:Nn \g__hit_engine_today_day_int
+      { \directlua { tex.sprint ( os.date ( "!*t" , os.time ( ) + 28800 ) .day ) } }
+  }
+  {
+    \cs_if_exist:NT \creationdate
+      { \exp_args:Nx \__hit_engine_today_parse:n { \creationdate } }
+  }
+%    \end{macrocode}
+%
+% \subsection{定宽分散对齐}
+%
+% \cs{hit@engine@spread@to:nn}\marg{宽度}\marg{文本} 把文本分散对齐到给定宽度，
+% 撑开的是汉字之间那段胶——所以 \texttt{学院（部} 不会在左括号后面多出一格。
+% 对外的名字是 \file{src/engine/hit-spread.dtx} 的 \cs{hit@spread@to}。
+%
+% \pkg{xeCJK} 那边现成：\pkg{xeCJKfntef} 的 \env{CJKfilltwosides}。
+% \pkg{luatexja} 那边没有对应的环境，照 \cls{thuthesis} 的写法自己搭：
+% \texttt{kanjiskip} 本来就是那段胶，把它的伸展量设足再套进定宽
+% \cs{makebox}，撑开的位置与量都一样。
+%
+% \textbf{伸展量取 \texttt{filll}，盒子取 \oarg{l} 而不是 \oarg{s}。} 这两条是配套的：
+% \cs{makebox}\oarg{宽度}\oarg{l} 会在内容右边垫一个 \cs{hfil}，而 \texttt{filll}
+% 比 \texttt{fil} 高一阶，字距那段胶总是先被撑开、垫的那个吃不到伸展量。好处是
+% 内容里一段汉字字距都没有时（纯西文标签）不会报 underfull，而是老老实实左对齐。
+% \cls{thuthesis} 的 \cs{thu@fixed@box} 就是这么写的，取值也照抄它的
+% \texttt{0pt~plus~2filll~minus~1filll}。
+%
+% \textbf{内容撑不满才有意义。} 两条路都不处理内容比给定宽度还宽的情形：
+% \env{CJKfilltwosides} 是个 \env{minipage}，会折行；这边的 \cs{makebox} 会溢出。
+% 要「压进这个宽度」写 \cs{makebox}\oarg{宽度}\oarg{s}，见 \file{hit-spread.dtx}。
+%
+% ^^A TODO(v3.2b)：\cls{thuthesis} 两个引擎共用这一套，不碰 \env{CJKfilltwosides}。
+% ^^A 这边 \hologo{XeLaTeX} 仍走原环境，是为了不动既有的排版基线。等 make smoke
+% ^^A 验过两者逐页相同，再把 \hologo{XeLaTeX} 也并过来，这个分支就能收掉。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  {
+    \cs_new_protected:Npn \hit@engine@spread@to:nn #1#2
+      {
+        \group_begin:
+          \ltjsetparameter { kanjiskip = { 0pt~plus~2filll~minus~1filll } }
+          \makebox [ #1 ] [ l ] {#2}
+        \group_end:
+      }
+  }
+  {
+    \cs_new_protected:Npn \hit@engine@spread@to:nn #1#2
+      { \begin { CJKfilltwosides } [b] {#1} #2 \end { CJKfilltwosides } }
+  }
+%    \end{macrocode}
+%
+% \subsection{当前中文字体里有没有这个字}
+%
+% \cs{hit@engine@if@cjk@glyph:nTF}\marg{码位} 问当前中文字体有没有这个码位的
+% 字形。\cs{quan} 拿它决定是用字体自带的带圈数字，还是自己画一个。
+%
+% \pkg{xeCJK} 那边 \cs{XeTeXcharglyph} 问的是「当前字体」，而
+% \cs{\_\_hit\_use\_cjk\_font:} 已经把当前字体切成了中文字体，直接问即可。
+%
+% \pkg{luatexja} 那边中文字体不是「当前字体」——它另挂一个和文字体，字体号存在
+% \cs{ltj@curjfnt} 属性里，\cs{fontname}\cs{font} 拿到的仍是西文字体。所以得绕到
+% Lua 那边按属性取出字体号再查字形表。属性没设（不在中文字体环境里）时当作没有。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  {
+    \cs_new:Npn \__hit_engine_glyph:n #1
+      {
+        \tex_directlua:D
+          {
+            local~a = luatexbase.attributes['ltj@curjfnt']
+            local~i = a~and~tex.attribute[a]
+            local~f = (i~and~i >= 0)~and~font.getfont(i)
+            if~f~and~f.characters~and~f.characters[\int_eval:n {#1}]
+              then~tex.print('1')~else~tex.print('0')~end
+          }
+      }
+    \prg_new_conditional:Npnn \hit@engine@if@cjk@glyph:n #1 { p , TF }
+      {
+        \int_compare:nNnTF { \__hit_engine_glyph:n {#1} } > { 0 }
+          { \prg_return_true: } { \prg_return_false: }
+      }
+  }
+  {
+    \prg_new_conditional:Npnn \hit@engine@if@cjk@glyph:n #1 { p , TF }
+      {
+        \int_compare:nNnTF { \XeTeXcharglyph \int_eval:n {#1} } > { 0 }
+          { \prg_return_true: } { \prg_return_false: }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{把当前字体切成中文字体}
+%
+% \cs{hit@engine@use@cjk@font:} 让接下来的西文字符也从中文字体取字形。
+% \cs{quan} 画圈时圈里的数字要跟正文宋体一致，得真的切过去，光选中文字族不够。
+%
+% \pkg{xeCJK} 底下中文字族就是个 NFSS 字族，\cs{usefont} 切过去即可。
+%
+% \pkg{luatexja} 底下办不到，那边是空操作。和文字体不走 NFSS 字族这条路，
+% 字体号另挂在 \cs{ltj@curjfnt} 属性上，拿 \cs{CJK@family} 去 \cs{usefont}
+% 只会落回默认西文字体（实测 \cs{fontname}\cs{font} 仍是 \pkg{lmroman}）。
+% 把数字那段码位划归和文倒是能达到目的，但 \cs{ltjdefcharrange} 是全局的，
+% 写在组里也退不回来，整篇的数字都会跟着换字体，代价太大。
+%
+% 后果只落在 \cs{quan} 画圈那一支上：圈里的数字取自西文字体，比
+% \hologo{XeLaTeX} 那边细一点。字体自带带圈字符时走的是另一支，不受影响，
+% 而常见的几档中文字体都自带 \texttt{①}--\texttt{⑳}，所以多数文档看不出差别。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  { \cs_new_protected:Npn \hit@engine@use@cjk@font: { } }
+  {
+    \cs_new_protected:Npn \hit@engine@use@cjk@font:
+      { \usefont { \f@encoding } { \CJK@family } { m } { n } }
+  }
+%    \end{macrocode}
+%
+% \subsection{装载基础类之后要补的两件事}
+%
+% \cs{hit@engine@postload:} 由两个 \file{*-deps.dtx} 调用。本文件整体排在
+% \cs{LoadClass} 之前，那时 \pkg{luatexja} 还没装，\cs{ltjdefcharrange} 之类
+% 一个都不存在，所以凡是要\emph{执行}的都推到这里，本文件里只管\emph{定义}。
+% \hologo{XeLaTeX} 下它是空的。
+%
+% \textbf{一、带圈数字归成汉字。} \cs{quan} 排脚注号时先问字体有没有现成的
+% \texttt{①}，有就直接排那个码位。\pkg{luatexja} 按区块把
+% \texttt{U+2460}--\texttt{U+24FF} 归了西文，于是那一句排出来去找 Times New
+% Roman，字体里没有就整个排丢了（日志里一句 Missing character，纸面上什么都没有）。
+% 归成汉字之后从中文字体取，与 \hologo{XeLaTeX} 排的是同一个字形。
+% \cls{thuthesis} 的 \cs{ltjdefcharrange}\marg{6} 里也把这一段划了回去。
+%
+% 三段码位与 \cs{\_\_hit\_quan\_slot:n} 的三段一一对应：1--20 在
+% \texttt{U+2460}，21--35 在 \texttt{U+3251}，36--50 在 \texttt{U+32B1}。
+%
+% \hologo{XeLaTeX} 不需要这一句：那边 \cs{\_\_hit\_use\_cjk\_font:} 已经把当前
+% 字体整个切成了中文字体，码位归哪一类都取得到字形。
+%
+% \textbf{二、下划线那一族。} 拿 \pkg{ulem} 顶出 \pkg{xeCJKfntef} 的几个命令。
+%
+% 类自己一处都不调这几个命令，它们是给用户写正文用的，手册里也写着。老论文里
+% 写了 \cs{CJKunderline} 的，换个引擎不该编不过，所以顶一下。
+%
+% \textbf{顶不出来的两个。} \cs{CJKunderanyline} 与 \cs{CJKunderanysymbol} 要
+% 自定义线型与符号，\pkg{ulem} 没有对得上的东西，不给。用到它们的文档在
+% \hologo{LuaLaTeX} 下会报未定义，得改用 \hologo{XeLaTeX} 编。
+%
+% \textbf{断行行为不一样。} \pkg{xeCJKfntef} 认汉字，\pkg{ulem} 是按盒子拆的，
+% 长段落里的断点位置会与 \hologo{XeLaTeX} 有出入。短语上看不出来，整段加下划线
+% 就明显了。
+%
+% 类自己一处都不调这几个命令，它们是给用户写正文用的，手册里也写着。老论文里
+% 写了 \cs{CJKunderline} 的，换个引擎不该编不过，所以顶一下。
+%
+% \textbf{顶不出来的两个。} \cs{CJKunderanyline} 与 \cs{CJKunderanysymbol} 要
+% 自定义线型与符号，\pkg{ulem} 没有对得上的东西，不给。用到它们的文档在
+% \hologo{LuaLaTeX} 下会报未定义，得改用 \hologo{XeLaTeX} 编。
+%
+% \textbf{断行行为不一样。} \pkg{xeCJKfntef} 认汉字，\pkg{ulem} 是按盒子拆的，
+% 长段落里的断点位置会与 \hologo{XeLaTeX} 有出入。短语上看不出来，整段加下划线
+% 就明显了。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  {
+    \cs_new_protected:Npn \hit@engine@postload:
+      {
+        \hit@engine@cjk@chars:n
+          { "2460 - "2473 , "3251 - "325F , "32B1 - "32BF }
+        \cs_set_eq:NN \CJKunderline \uline
+        \cs_set_eq:NN \CJKunderdblline \uuline
+        \cs_set_eq:NN \CJKunderwave \uwave
+        \cs_set_eq:NN \CJKsout \sout
+        \cs_set_eq:NN \CJKxout \xout
+        \cs_set_eq:NN \CJKunderdot \dotuline
+        \cs_set_eq:NN \CJKunderdashline \dashuline
+      }
+  }
+  { \cs_new_protected:Npn \hit@engine@postload: { } }
+%    \end{macrocode}
+%
+% \textbf{三、下划线的位置与粗细按 Word。}Word 是一个 run 一条线，线心在
+% 基线下 0.135\,em、粗 0.05\,em，纯汉字、纯西文、数字、混排四种 run 一个数。
+% 自己造 docx 在 macOS Word 上量的（中易宋体 + Times，12/24/48\,pt 三档；
+% 大字号躲开 Word 输出坐标 1/300 英寸的取整，48\,pt 那档四种 run 全落在
+% 0.135/0.050 上，12\,pt 那档在 0.123～0.173 之间晃，那是它按设备像素取整）。
+% 与 iota-hit 的实测同数。粗体西文 run 在 Word 里线粗一倍（0.10\,em），
+% 这一档不另设。
+%
+% 不设的话 \pkg{ulem} 按字体的 (j 深度自动取，\pkg{xeCJKfntef} 默认 0.20\,em，
+% 两边都在基线下 0.235\,em 上下、粗 0.4\,pt（12\,pt 上 0.033\,em），比 Word
+% 低了近一倍、细了三成。
+%
+% \pkg{ulem} 的线由 \cs{ULdepth}（下缘）与 \cs{ULthickness} 定：下缘取
+% 0.16\,em、粗 0.05\,em，线心正好 0.135。\cs{ULdepth} 是长度寄存器，不能在
+% 加载时按 em 定死，改成在它自动取深度那一步（\cs{UL@setULdepth}）按当时
+% 字体算。\pkg{xeCJKfntef} 的 \texttt{depth} 是线的\emph{上缘}（实测 0.16 给
+% 出线心 0.185），取 0.11\,em；那对键收的是 token 列表，用时才求值，直接写
+% em。两边都量过：12\,pt 上线心 0.1350、粗 0.0500。挂在两个包的加载钩子上，
+% 哪个引擎装哪个都吃得到。
+%    \begin{macrocode}
+\AddToHook { package / ulem / after }
+  {
+    \cs_set:Npn \UL@setULdepth { \dim_set:Nn \ULdepth { 0.16em } }
+    \cs_set:Npn \ULthickness { 0.05em }
+  }
+\AddToHook { package / xeCJKfntef / after }
+  { \xeCJKsetup { underline = { depth = 0.11em , thickness = 0.05em } } }
+%    \end{macrocode}
+%
+% 伪粗体不分引擎：系数是按 Word 实测定的数字（见 \file{src/engine/hit-fonts.dtx}），
+% 数字两个引擎都吃（\pkg{luaotfload} 的 \texttt{embolden} 只是不吃布尔值）。
+%
+%    \begin{macrocode}
+%</shared-engine>
+%    \end{macrocode}
+%
+% \Finale

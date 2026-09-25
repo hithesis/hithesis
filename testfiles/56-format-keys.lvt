@@ -1,0 +1,224 @@
+% hit/format 族：照 Word 的字体与段落对话框描述一个元素怎么排。
+%
+% 四件事：各种取值写法都解析得对；伞展开成逐级；六个兼容桥写回原来的标志位；
+% 取值不认识时报错。
+%
+% 走旧版面，好让 format 的各个目标一开始都是空的：新版面会先发一整份默认配置
+% 进去，混在一起就看不出这里设的是哪几条了。
+%
+% 当草稿用的目标要挑旧版面下也空着的。目录那四个 toc-* 不行：它们的默认值
+% 不挂 layout 条件，旧版面下也发（见 src/config/hit-layout.dtx）。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master,campus=harbin,
+               v2-layout={graduate=two}]{hithesis}
+\begin{document}
+\START
+\ExplSyntaxOn
+\cs_new_protected:Npn \DUMP #1
+  {
+    \iow_term:x { [#1] }
+    \prop_map_inline:cn { g__docxlike_format_#1_prop }
+      { \iow_term:x { ~~ ##1 ~ = ~ ##2 } }
+  }
+\cs_new_protected:Npn \FLAG #1
+  { \iow_term:x { #1 ~ = ~ \bool_if:cTF { g__hit_#1_bool } { true } { false } } }
+\cs_new_protected:Npn \DUMPALL #1
+  {
+    \clist_map_inline:nn { { } , { _if-raggedbottom } , { _if-flushbottom } }
+      {
+        \iow_term:x { [#1##1] }
+        \prop_map_inline:cn { g__docxlike_format_#1##1_prop }
+          { \iow_term:x { ~~ ####1 ~ = ~ ####2 } }
+      }
+  }
+\ExplSyntaxOff
+
+% 字号收名字也收长度；行距三种模式；间距与缩进的两种单位
+\TEST{value~parsing}{
+  \hitsetup
+    {
+      styles =
+        {
+          Heading1 = {
+            font = { asian-text-font = SimHei, size = xiaoer, font-style = bold, snap-to-grid = false },
+            paragraph = { alignment = centered, snap-to-grid = false, indentation = { special = hanging, by = 4 chars }, spacing = { line-spacing = multiple, at = 1.5, before = 1 line, after = 12bp }, pagination = { keep-with-next = true } },
+          } ,
+          Heading2 = {
+            font = { size = 15bp },
+            paragraph = { indentation = { left = 2 chars, right = 0pt }, spacing = { line-spacing = exactly, at = 25bp } },
+          } ,
+          Heading3 = { paragraph = { spacing = { line-spacing = single } } } ,
+          Heading4 = {
+            paragraph = { indentation = { special = none }, spacing = { line-spacing = at-least, at = 20bp } },
+          } ,
+        }
+    }
+  \DUMP{Heading1}
+  \DUMP{Heading2}
+  \DUMP{Heading3}
+  \DUMP{Heading4}
+}
+
+% 伞展开成四级，写完伞再单设某一级仍然管用
+\TEST{umbrella~expands}{
+  \hitsetup
+    {
+      styles =
+        {
+          heading = { font = { size = sanhao } } ,
+          Heading3 = { font = { size = sihao } } ,
+          caption = { paragraph = { alignment = centered } } ,
+        }
+    }
+  \DUMP{Heading1}
+  \DUMP{Heading3}
+  \DUMP{caption-figure}
+  \DUMP{caption-table}
+}
+
+% 六个兼容桥：写新键，读旧标志位
+\TEST{legacy~bridge}{
+  \hitsetup
+    {
+      styles =
+        {
+          Heading1 = { font = { font-style = regular }, paragraph = { indentation = { special = none } } } ,
+          caption = { paragraph = { alignment = last-line-centered } } ,
+          caption-sub = { paragraph = { alignment = last-line-centered } } ,
+          abstract-heading = { font = { all-caps = true } } ,
+          heading = { font = { latin-text-font = Arial } } ,
+        }
+    }
+  \FLAG{chapterbold}
+  \FLAG{chapterhang}
+  \FLAG{capcenterlast}
+  \FLAG{subcapcenterlast}
+  \FLAG{absupper}
+  \FLAG{heading_latin_sans}
+}
+
+% 反向：换成别的取值，标志位跟着回去
+\TEST{legacy~bridge~back}{
+  \hitsetup
+    {
+      styles =
+        {
+          Heading1 = { font = { font-style = bold }, paragraph = { indentation = { special = hanging, by = 2 chars } } } ,
+          caption = { paragraph = { alignment = justified } } ,
+          heading = { font = { latin-text-font = Times New Roman } } ,
+        }
+    }
+  \FLAG{chapterbold}
+  \FLAG{chapterhang}
+  \FLAG{capcenterlast}
+  \FLAG{heading_latin_sans}
+}
+
+% 区间：两个词就是区间，两个端点各存各的单位，可以一头长度一头倍数
+\TEST{measure~range}{
+  \hitsetup
+    {
+      styles =
+        {
+          Heading1 = { paragraph = { spacing = { line-range = {1.2 1.25} } } } ,
+          Heading2 = { paragraph = { spacing = { line-white = 8mm 7mm } } } ,
+          Heading3 = { paragraph = { spacing = { line-range = {3mm 2} } } } ,
+        }
+    }
+  \DUMP{Heading1}
+  \DUMP{Heading2}
+  \DUMP{Heading3}
+}
+
+% 写回一个词，上一次留下的第二个端点要抹掉
+\TEST{range~back~to~single}{
+  \hitsetup{ styles = { Heading1 = { paragraph = { spacing = { line-spacing = single } } } } }
+  \DUMP{Heading1}
+}
+
+% 两个键量的是同一件事，同一个目标里都写了要报错，按后写的算
+\TEST{measure~clash}{
+  \hitsetup
+    { styles = { Heading4 = { paragraph = { spacing = { line-spacing = multiple, at = 1.5, line-white = 3mm } } } } }
+  \DUMP{Heading4}
+}
+
+% 分档：限定词挂在目标名后面，写进哪一档就进哪一份存储
+\TEST{bottom~layers}{
+  \hitsetup
+    {
+      styles =
+        {
+          caption-sub = { font = { asian-text-font = SimHei } } ,
+          caption-sub/if-raggedbottom =
+            { paragraph = { spacing = { line-spacing = multiple, at = 1.2, before = 1 line } } } ,
+          caption-sub/if-flushbottom =
+            { paragraph = { spacing = { line-range = {1.2 1.25}, white-before = 10mm } } } ,
+        }
+    }
+  \DUMPALL{caption-sub}
+}
+
+% 档外再写一条同名的键，两个档里那一条要让位，不然默认表会盖住用户刚写的
+\TEST{plain~key~shadows~layers}{
+  \hitsetup{ styles = { caption-sub = { paragraph = { spacing = { line-spacing = single } } } } }
+  \DUMPALL{caption-sub}
+}
+
+% 档外写 line-spacing、档里写 line-white 不算冲突，判重的表每个目标各一份
+\TEST{layer~clash~is~scoped}{
+  \hitsetup
+    {
+      styles =
+        {
+          cover-title = { paragraph = { spacing = { line-spacing = multiple, at = 1.25 } } } ,
+          cover-title/if-flushbottom = { paragraph = { spacing = { line-white = 3mm 4mm } } } ,
+        }
+    }
+  \DUMPALL{cover-title}
+}
+
+% 伞也带限定词，一次发四级
+\TEST{umbrella~with~layer}{
+  \hitsetup
+    { styles = { heading/if-flushbottom = { paragraph = { spacing = { white-before = 5mm } } } } }
+  \DUMPALL{Heading4}
+}
+
+% snap-to-grid 写布尔或 auto 是两轴的简写，两轴一起落
+\TEST{snap~scalar~sets~both~axes}{
+  \hitsetup{ styles = { cover-author = { font = { snap-to-grid = true }, paragraph = { snap-to-grid = true } } } }
+  \DUMP{cover-author}
+}
+
+% 写子块只落写到的那一轴，另一轴保持原样
+\TEST{snap~subblock~sets~one~axis}{
+  \hitsetup{ styles = { cover-author = { font = { snap-to-grid = false } } } }
+  \DUMP{cover-author}
+}
+
+% auto 与别的键一样是“删掉这一条”，两轴一起删
+\TEST{snap~auto~clears~both~axes}{
+  \hitsetup{ styles = { cover-author = { font = { snap-to-grid = auto }, paragraph = { snap-to-grid = auto } } } }
+  \DUMP{cover-author}
+}
+
+% char-spacing 是带符号的长度：负数紧缩、正数加宽、零是标准。正号写不写都行
+\TEST{char~spacing~signed~length}{
+  \hitsetup{ styles = { cover-institution = { font = { character-spacing = { spacing = condensed, by = 0.2bp } } } } }
+  \DUMP{cover-institution}
+  \hitsetup{ styles = { cover-institution = { font = { character-spacing = { spacing = expanded, by = 1bp } } } } }
+  \DUMP{cover-institution}
+  \hitsetup{ styles = { cover-institution = { font = { character-spacing = { spacing = expanded, by = 1bp } } } } }
+  \DUMP{cover-institution}
+  \hitsetup{ styles = { cover-institution = { font = { character-spacing = { spacing = normal } } } } }
+  \DUMP{cover-institution}
+}
+
+% 子块里写不认识的轴要报警告
+\TEST{snap~unknown~axis}{
+  \hitsetup{ styles = { cover-date = { paragraph = { sideways = true } } } }
+  \DUMP{cover-date}
+}
+\END
+\end{document}

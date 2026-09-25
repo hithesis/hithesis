@@ -1,0 +1,87 @@
+% \iffalse meta-comment
+%
+% hit-report-matter.dtx 是报告的文档骨架
+%
+% \fi
+%
+% \section{报告的文档骨架}
+%
+% \changes{v3.2a}{2026/09/14}{报告的骨架宏与学位论文同名；文献表调总出口 \cs{hit@bib@print:}；
+%   正文照终稿排的那一档页码制式跟着终稿}
+%
+% ^^A ======================================================================
+% ^^A Module report-matter: 报告的骨架宏（hit-report）
+% ^^A ======================================================================
+%
+% 与学位论文的 \cs{hitfrontmatter}、\cs{hitbackmatter} 同名，这样一个目录里
+% 三份主文件的正文部分长得一样，只有第一行的 \option{stage} 不同。
+%
+% 报告没有前后文之分，\cls{ctexart} 底下 \cs{frontmatter} 根本不存在，所以
+% 骨架宏没法跟学位论文共用一份。报告的前置只有封面，后置只有参考文献。
+%
+%    \begin{macrocode}
+%<*report-matter>
+\bool_if:NF \g__hit_final_bool
+  {
+%    \end{macrocode}
+%
+% \emph{页码制式跟着正文那一档走。} 报告默认整篇一个制式；正文照终稿排的那一档
+% 与终稿一样分两段——前置（目录）罗马数字，正文另起一段从 1 数。原件的页脚
+% 逐页量过就是这样：目录印 \texttt{I}、正文印 \texttt{-1-}。
+%
+% 章另起一页也在这儿开：这一档正文的顶级按章排（见 \file{src/hithesis.dtx} 的层级
+% 错位），章就得另起一页。顶级可能是 \cs{section} 也可能是 \cs{chapter}（见
+% \file{src/flow/hit-report-heading.dtx} 的标题层级），所以不往哪个命令上挂补丁，
+% 只立 \cs{g\_\_hit\_report\_top\_break\_bool}，由顶级那一支换页。
+% 类自己排的前置与后置按原级走，排的时候立 \cs{g\_\_hit\_report\_heading\_raw\_bool}。
+%
+% \emph{不能走 \pkg{ctex} 的 \option{break} 键。} 那个键在 \cs{@startsection} 里
+% 挂在 \cs{if@nobreak} 的假支上——标题底下没正文时这个开关还立着（\hologo{LaTeX}
+% 不在标题与它的头一段之间断页），换页就被跳过。示例里 1.2 底下正好没字，
+% 章 2 于是跟在同一页上。所以在顶级标题前面无条件发一次换页。
+%
+% \emph{换页之后那一段的段前也要留住。} \hologo{TeX} 把换页处的竖胶丢掉，而
+% Word 在页首照进段前：原件的章标题基线量到 137.98 ＝ 版心顶 107.75 加段前 12
+% 加上升部 18.23，丢了就只剩 125.98。这一档的标题由 \pkg{docxlike} 排，换完页立起它的
+% “新一节开头”标记，标题自己留住段前，与终稿的章一样（见
+% \file{src/flow/hit-report-heading.dtx}）。\cs{topskip} 归零是当初换页后垫 \cs{hrule} 那一招
+% 留下的，标题已经用不着它；去掉会动正文分页（示例开题报告 12 页变 11 页），哪一边对得上
+% 原件还没核，先留着。
+%    \begin{macrocode}
+\cs_set_protected:Npn \hitfrontmatter
+  {
+    \bool_gset_true:N \g__hit_matter_front_bool
+    \bool_gset_true:N \g__hit_report_heading_raw_bool
+    \hit@structure@input:n { cover }
+    \makecover
+    \bool_gset_false:N \g__hit_report_heading_raw_bool
+  }
+\cs_set_protected:Npn \hitmainmatter
+  {
+    \bool_gset_true:N \g__hit_matter_main_bool
+    \bool_if:NT \g__hit_final_body_bool
+      {
+        \clearpage
+        \legacy_if_gset_true:n { @mainmatter }
+        \pagenumbering { arabic }
+        \pagestyle { hit@headings }
+        \dim_zero:N \topskip
+        \bool_gset_true:N \g__hit_report_top_break_bool
+      }
+    \hit@structure@input@list:n { mainmatter }
+  }
+\cs_set_protected:Npn \hitbackmatter
+  {
+    \bool_gset_true:N \g__hit_matter_back_bool
+    \bool_gset_true:N \g__hit_report_heading_raw_bool
+    \hit@structure@part:nn { bibliography }
+      {
+        \hit@bib@print:
+      }
+    \bool_gset_false:N \g__hit_report_heading_raw_bool
+  }
+  }
+%</report-matter>
+%    \end{macrocode}
+%
+% \Finale

@@ -1,44 +1,129 @@
-# hithesis 哈尔滨工业大学LaTeX论文模板
-
-[![招生](https://img.shields.io/badge/初砚硕课题组招生-进行中-green)](https://dustincys.github.io/cn/2025/03/jobad/)
+# hithesis：哈尔滨工业大学 LaTeX 论文模板
 
 [![Test](https://github.com/hithesis/hithesis/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/hithesis/hithesis/actions/workflows/test.yml)
-
-[![GitHub tag (latest by date)](https://img.shields.io/github/v/tag/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
+[![GitHub release](https://img.shields.io/github/v/release/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
 [![CTAN](https://img.shields.io/ctan/v/hithesis)](https://ctan.org/pkg/hithesis)
-![GitHub repo size](https://img.shields.io/github/repo-size/hithesis/hithesis)
-<!-- [![GitHub All Releases](https://img.shields.io/github/downloads/dustincys/hithesis/total)](https://github.com/dustincys/hithesis/tags)  -->
 
-<a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/"><img alt="知识共享许可协议" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/88x31.png" /></a><br />本作品采用<a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">知识共享署名-非商业性使用 4.0 国际许可协议</a>进行许可。
+hithesis 用于排版哈尔滨工业大学一校三区的本科、硕士和博士毕业论文（设计），
+也支持开题报告、中期报告、英文论文和博士后出站报告。现行接口只有一个文档类
+`hithesis`，交付物由 `stage=final|proposal|interim` 选择。
 
-## What's hithesis?
+模板已收录于 [CTAN](https://ctan.org/pkg/hithesis)。发行版适合直接使用；`dev`
+分支包含尚未发布的改动，升级前应先用自己的论文完整编译一次。完整说明见项目生成的
+`hithesis.pdf`。
 
-hithesis is a LaTeX thesis template package for Harbin Institute of Technology (all 3 campuses) supporting bachelor, master, doctor dissertations, postdoc report, thesis proposal and midterm report, *both Chinese and English version*.
+English summary: hithesis is a LaTeX class for HIT theses, dissertations,
+proposals, interim reports and postdoctoral reports on all three campuses.
+Chinese and English final documents are supported.
 
-Files/Codes in hithesis may be distributed and/or modified under the conditions of the LaTeX Project Public License, either version 1.3a of this license or (at your option) any later version. The latest version of this license is in:
+## 快速开始
 
-[http://www.latex-project.org/lppl.txt](http://www.latex-project.org/lppl.txt)
+从仓库源码使用时，先生成并分发类文件：
 
-and version 1.3a or later is part of all distributions of LaTeX version 2004/10/01 or later.
+```shell
+make cls
+cd examples/demo
+make final       # 学位论文
+make report      # 开题或中期报告
+```
 
-Files/Codes in hithesis also under the protection of license of [Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)](http://creativecommons.org/licenses/by-nc/4.0/).
+默认引擎是 LuaLaTeX。XeLaTeX 仍能编译，但模板的 Word 式断行和逐行行高计算只在
+LuaLaTeX 下启用。一份即将提交的稿件不要中途换引擎。
 
-## hithesis是什么？
+最小的类选项写法如下：
 
-一个简单易用的哈尔滨工业大学学位论文LaTeX模板，现包括一校三区本科、硕士、博士开题、中期和毕业论文，包括博后出站报告和英文毕业论文格式。
-hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXLive将自带窝工模板。
+```latex
+\documentclass[
+  stage=final,
+  degree-level=doctor,
+  campus=harbin
+]{hithesis}
+```
 
-## hithesis版本更新说明
+建议复制 [`examples/demo/`](examples/demo/) 再改。`final.tex` 排学位论文，
+`report.tex` 排开题或中期报告，`info.tex` 放两者共用的作者、题目和院系信息。
 
-~~版本号：vX.Y.Z 中，X表示重大不兼容改进，Y表示功能改进，Z表示非功能的bug补丁。~~
-由于 `\changes` 命令的排序方便，现将版本号的表示法更新，vX.Y.Z 形式的最后一版为 v3.0.22，接下来改为 v3.1a。
+## 支持范围
 
-版本号：vX.YZ 中，X 表示重大的不兼容改进，Y 表示功能改进，Z 表示非功能的 bug 补丁。其中 X, Y 为数字，Z 为小写字母。
+| 校区 | 学位 | 终稿 | 开题 | 中期 |
+| --- | --- | :---: | :---: | :---: |
+| 哈尔滨 | 本科、硕士、博士 | 支持 | 支持 | 支持 |
+| 深圳 | 本科、硕士、博士 | 支持 | 支持 | 支持 |
+| 威海 | 本科、硕士、博士 | 支持 | 支持 | 支持 |
 
-## 窝工规范以及模板支持
+另支持博士后出站报告和英文学位论文。不同校区、学位和材料的封面与正文规则由类选项
+分流，不需要换文档类。
 
-### 窝工规范
+## 版式能力
+
+- 封面、内封、中英文摘要、目录、声明页、答辩决议和博士后封面按校区与学位选择。
+- 支持双语题注、图表清单、符号表、缩略语表、中英文索引和成果页。
+- 参考文献可选 BibTeX 或 biber；表格与长表使用 `tabularray`，子图使用 `subcaption`。
+- 打印版可按学位启用右开页；图书馆电子版可关闭空白页。
+- 排版数值来自学校规范和 Word 范例的测量。两者冲突时，手册或源码注释会写明取舍。
+
+## 安装
+
+模板支持 TeX Live 2022 及以上版本，排版基准是 TeX Live 2026。LuaLaTeX 和
+XeLaTeX 都需要 OpenType 中文字体；没有学校常用字体时可用 TeX Live 自带的 Fandol。
+
+最省事的做法是安装完整 TeX Live。精简安装可按
+[`.github/tl_packages`](.github/tl_packages) 补齐项目实际用到的宏包：
+
+```shell
+tlmgr install $(grep -v '^#' .github/tl_packages)
+```
+
+示例中的 EPS 插图还需要 Ghostscript。只想使用 CTAN 发行版时，不必生成类文件；
+直接复制示例并按本机 TeX 发行版的方式编译即可。
+
+## 从源码生成
+
+有 `make` 时运行：
+
+```shell
+make cls
+```
+
+这会从 `.dtx` 源码生成 `hithesis.cls`、`hithesis.cfg`、参考文献与索引样式，
+并复制到示例目录。没有 `make` 时可直接运行：
+
+```shell
+xetex src/hithesis.dtx
+```
+
+CTAN 源码包也可以按惯例运行 `latex hithesis.ins`。仓库里的
+`src/hithesis.dtx` 含中文，直接解包时使用 `xetex`，不要用 plain `tex`。
+
+用户手册由下面的命令生成：
+
+```shell
+make manual
+```
+
+## 编译论文
+
+示例目录已经带有 `latexmkrc`，通常只需：
+
+```shell
+cd examples/demo
+latexmk final.tex
+```
+
+也可以运行 `make final` 或 `make report`。手工编译需要按参考文献后端运行
+BibTeX 或 biber，并重复运行 LuaLaTeX 直到交叉引用稳定；要生成主题索引时还需运行
+`splitindex`。具体命令和两条参考文献路线见用户手册。
+
+## 打印版与电子版
+
+博士论文通常双面打印，本科和硕士通常单面打印。需要每章从右页开始时设置
+`openright=true`；只想在个别位置换到右页，可关闭该选项并在目标位置写
+`\cleardoublepage`。
+
+图书馆电子版一般不留右开页产生的空白页，设置 `library=true` 即可。这个选项会
+同时关闭 `openright`。
+
+## 规范来源
 
 | 校区   | 学位                                   | 撰写规范                                                                                                                                                                                   | Word排版范例                                                                                                                                                                               | 更新日期   |
 | ------ | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
@@ -58,350 +143,59 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 | 哈尔滨 | 硕博毕业论文所有（含有部分英文版说明） | [研究生学位论文或者实践成果写作指南](https://hitgs.hit.edu.cn/2025/0331/c17373a365618/page.htm) | [研究生学位论文书写范例（理工类）](https://hitgs.hit.edu.cn/2021/0513/c17373a317228/page.htm)<br>[研究生学位论文书写范例（人文社科类）](https://hitgs.hit.edu.cn/2021/0508/c17373a317224/page.htm)<br>[博士研究生学位论文书写范例（理工类）](https://hitgs.hit.edu.cn/2021/0513/c17461a318415/page.htm)<br>[博士研究生学位论文书写范例（人文社科类）](https://hitgs.hit.edu.cn/2021/0508/c17461a318413/page.htm) | 2026-03-20 |
 | 哈尔滨 | 博后                                   | -                                                                                                                                                                                          | [出站报告以及封皮](http://rsc.hit.edu.cn/2015/1209/c10906a212031/page.htm)                                                                                                                 | 2015-12-09 |
 
-### 歧义说明
+项目没有替学校解决规范本身的矛盾。已知问题包括版心、行距、章节标题是否加粗、
+中英文摘要标题大小写、页眉横线，以及规范和 Word 范例对每行字数的不同要求：
+[版心说明](http://yanshuo.site/cn/2017/06/hithesisregulation/)、
+[本科生行距说明](http://yanshuo.site/cn/2017/06/hithesissiyuan/)。
 
-- 规范自身歧义之处：[版芯歧义](http://yanshuo.site/cn/2017/06/hithesisregulation/)和[本科生行距歧义](http://yanshuo.site/cn/2017/06/hithesissiyuan/)。
+## 下载、提问与维护
 
-- 规范与Word模板的歧义：
-  - 在[规范](http://hitgs.hit.edu.cn/aa/fd/c3425a109309/page.htm)中规定和[研究生word排版范例](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)的中文目录中出现的“ABSTRACT”和“Abstract”的写法歧义（规格严格功夫到家！！！）。
-  - [《哈尔滨工业大学本科生毕业论文撰写规范》](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)与[本科生论文word排版范例](http://jwc.hit.edu.cn/2566/list.htm)中章节标题是否加粗有歧义
-  - 本科生论文官方模板的页眉页码格式混乱，有的有页码横线有的没有，有的有页眉有的没有。
-  - 规范规定一行33个字，Word模板34个字。
+- 稳定版：[GitHub Releases](https://github.com/hithesis/hithesis/releases)
+- TeX 发行版：[CTAN](https://ctan.org/pkg/hithesis)
+- 问题与缺陷：[GitHub Issues](https://github.com/hithesis/hithesis/issues)
+- QQ 群：259959600、851792460、704864357
 
-- Word模板自身歧义：
-  - Contradictory font size of section title in English version of Word template
+提问时请附最小示例、完整日志、TeX Live 版本和使用的引擎。项目只实现公开的学校规范；
+院系或评审老师提出的临时口径，需要提供原始文件或可复核的截图。
 
-### hithesis 支持
+开发约定、模块边界和检查命令见 [`CONTRIBUTING.md`](CONTRIBUTING.md)。hithesis
+源自 [PlutoThesis](https://github.com/dustincys/PlutoThesis)，并参考了 thuthesis
+等高校论文模板的实现。
 
-- [x] 哈尔滨校区本科毕业设计
-- [x] 哈尔滨校区硕士毕业论文
-- [x] 哈尔滨校区博士毕业论文
-- [x] 哈尔滨校区本科毕业设计开题
-- [x] 哈尔滨校区本科毕业设计中期
-- [x] 哈尔滨校区硕士毕业设计开题
-- [x] 哈尔滨校区硕士毕业设计中期
-- [x] 哈尔滨校区博士毕业设计开题
-- [x] 哈尔滨校区博士毕业设计中期
-- [x] 哈尔滨校区博后出站报告
-- [x] 威海校区本科毕业设计
-- [x] 威海校区硕士毕业论文
-- [x] 威海校区博士毕业论文
-- [x] 威海校区本科毕业设计开题
-- [x] 威海校区本科毕业设计中期
-- [x] 威海校区硕士毕业设计开题
-- [x] 威海校区硕士毕业设计中期
-- [x] 威海校区博士毕业设计开题
-- [x] 威海校区博士毕业设计中期
-- [x] 威海校区博后出站报告
-- [x] 深圳校区硕士毕业论文
-- [x] 深圳校区本科毕业设计
-- [x] 深圳校区博士毕业论文
-- [x] 深圳校区本科毕业设计开题
-- [x] 深圳校区本科毕业设计中期
-- [x] 深圳校区硕士毕业设计开题
-- [x] 深圳校区硕士毕业设计中期
-- [x] 深圳校区博士毕业设计开题
-- [x] 深圳校区博士毕业设计中期
-- [x] 深圳校区博后出站报告
-- [x] English version of thesis
+## 版本号
 
-## 模板特点
+v3 使用 `vX.Yz`，最后一版是 v3.2x。v4 起改用 `vX.YYYYz`：
 
-### 呆萌的操作，傲娇的效果
+| 段 | 含义 |
+| --- | --- |
+| X | 架构版本，整体重写时进位 |
+| YYYY | 服务的毕业年份 |
+| z | 该年份内的版本，从 `a` 开始 |
 
-- 极限程度实现了[《哈尔滨工业大学研究生学位论文撰写规范》](https://hitgs.hit.edu.cn/2025/0331/c17461a365618/page.htm)、[《哈尔滨工业大学本科生毕业论文撰写规范》](http://jwc.hit.edu.cn/2014/0504/c4305a116176/page.htm)
-- 这是[PlutoThesis](https://github.com/dustincys/PlutoThesis)的终极进化，PlutoThesis废弃不再维护。
-- 更傻更简单的选项，例如论文主文件，只需要在文档类的括号中填写本硕博选项，字体选项（设置弹性间距或者刚性间距），文科生选项（目录可以设成四级目录），非全日制类型等，轻松设定目标格式。
-- 更聪明更简单的自适应格式，例如图题和标题，标题字号在字数超过两行时自动由五号变小五号，实现自适应（硕博规范规定，字数多时用五号）
-- 自动化中英文索引（博士规范要求，有需要时候添加）
-- 自动化表格和图片目录（英文版）
-- 自动化生成术语词汇表（英文版）
-- 图书馆提交论文级的电子版
-- ……
+开发版在字母后加月日，例如 `v4.2026a0813`；发布时去掉月日。年份写进版本号后，
+可以直接看出手上的模板服务哪个毕业季，字符串顺序也与新旧版本的时间顺序一致。
 
-### 矫正PlutoThesis的不足
+## 许可
 
-- 纠正PlutoThesis页面向下溢出
-- 纠正PlutoThesis不符合规范要求的各层次题序及标题不得置于页面的最后两行，改为不得置于最后一行（孤行），从此解决了饱受诟病的空白大的问题。
-- 纠正PlutoThesis行间距与标题段前段后距离统统设置为1.6倍行距的问题
-- 更强大的版芯设置，满足所有需求
-- 补充了PlutoThesis没有的符号表、索引两项
-- 字体设置符合CTeX的自动识别系统功能
-- 纠正PlutoThesis中图片中一些距离设置
-- 添加了符合规范要求的“图注在图题之上的设置”
-- 纠正PlutoThesis的双语图、表题中英语的非两端对齐问题
-- 添加了PlutoThesis中没有的图题最后一行居中且两端对齐格式
-- 添加了所有的图形排版格式
-- 纠正了附录中标题错误
-- 纠正了博士论文右翻页问题
-- 添加扫描替换功能，替换之后、页码目录书签自动设置
-- 添加思源宋体设置，再也不用害怕奇怪字打不出来了
-- 添加文科生、非全日制同等学力封面格式
-- 添加PlutoThesis没有的说明文档
-- ……
+源码按 LaTeX Project Public License 1.3c 或后续版本发布。仓库中的文档内容同时采用
+[CC BY-NC 4.0](http://creativecommons.org/licenses/by-nc/4.0/) 许可。
 
-### 为了窝工的规格严格、功夫到家
+## 赞助
 
-- 行间距、段前后距离设置精确到小数后四位， 例如 1bp = 1.00374pt，1mm = 2.84526pt， 按照窝工之要求，行距在3mm～4mm之间，换算之后为20.50398～23.33863bp，严格符合规范要求，哪怕是显微镜级别
-- 规范明确规定，数字间空格要求为汉字宽度的四分之一（形式类似与 12 2345 和 0.123 456 这样多于3位以上的整数或小数）。默认情况下在LaTeX中任何人工输入的空格均不正确（“\:”为4/18汉字宽度，“\;”为5/18汉字宽度，所以PlutoThesis中的数字间宽度错误）。hithesis模板中定义了精准的数字间宽度。
-- 重写了一堆重要函数，例如章节标题由原来的`BiChapter{}{}`方式进化为`chapter{}[]`，极大简化，后面方括号中为可选括号，硕本可以不用，用了自动忽略
-- 严格符合（满足）两个规范要求，由于规范中有矛盾之处，例如本科生的标题段前距离有两处不一样的规定，刚性行距尽量满足行数（要求约33行）要求。
-- 规范中给出了行距区间，为了规格严格，设置了弹性行距
-- ……
+hithesis 由维护者在业余时间开发。如果模板帮你省下了排版时间，可以赞助下面的维护者。
 
-## 关于模板的命名和其他说明
-
-### 模板的命名
-
-本模板对PlutoThesis中的核心代码进行了彻底深入的修改。
-PlutoThesis中没有采用cls，这种文档类的模式，代码与正文内容耦合程度大难以维护，本科模板和硕博模板难以融合。
-由于冥王星已经不是太阳系C9之一，所以不继续使用PlutoThesis命名。
-
-hithesis, 既含窝工hit，也是说用的“嗨！”，读作“嗨thesis”。
-
-### 关于模板的下载地址
-
-模板有三个下载地址：
-
-1. github: [https://github.com/hithesis/hithesis](https://github.com/hithesis/hithesis)
-2. ~~gitee: [https://gitee.com/dustincys/hithesis](https://gitee.com/dustincys/hithesis)~~
-3. CTAN: [https://ctan.org/pkg/hithesis](https://ctan.org/pkg/hithesis)
-
-github和gitee的版本是同步且是最新的模板。
-CTAN的版本一般会比较落后，但在每年年底会同步为最新版本。
-
-### 关于hithesis的线上讨论区
-
-- QQ群: 259959600
-   ![hithesis 1群](https://github.com/user-attachments/assets/ec6ffc89-8bda-4742-bf57-b3f1ef81400c)
-
-- 微信公众号
-
-   ![石见石页](https://raw.githubusercontent.com/dustincys/cn/assets/qrcode_for_gh_af6e07ba273e_258.jpg)
-
-### 关于查重
-
-注意：窝工的论文查重可以使用pdf查重！！！！！！！
-
-另外一点注意：查重的pdf一定要确保能够正常复制汉字。有些系统自动识别的汉字字体，
-会出现无法正常复制的情况（可能是系统的字体映射出现了误差）。一般需要在主文件的
-选项中明确声明使用哪一种fontset。
-
-### 关于LaTeX软件的安装
-
-#### 平台
-
-- 推荐使用开源系统 Linux
-- 推荐使用开源编辑器 [Spacemacs](https://www.spacemacs.org/)
-
-#### 中文字体
-
-- 推荐使用LaTeX安装包自带的开源中文字体集[fandol](https://www.ctan.org/pkg/fandol)
-
-#### LaTeX安装包介绍
-
-不推荐安装完整版TeXLive/MiKTeX/MacTeX，因为太费时间。
-如果不介意在自己房子里放进一堆小破烂，那么浪费硬盘空间完全不是问题，即使99%的模板八百年都用不到。
-
-所以推荐安装非完整版TeXLive/MiKTeX/MacTex。不完整的安装包有的支持自动安装缺失package，有的不支持，需要手动安装。
-
-要手动装的话，hithesis 用到的宏包都列在 [`.github/tl_packages`](.github/tl_packages) 里。
-这份清单是拿实际编译过程中的文件记录反查出来的，可以直接喂给 `tlmgr`：
-
-```shell
-tlmgr install $(grep -v '^#' .github/tl_packages)
-```
-
-另外 `examples/` 里的 `.eps` 插图要系统装了 ghostscript 才能转。
-
-| LaTeX安装包  | 是否支持非完整安装         | 平台          | 是否支持自动安装Package | 最小满足hithesis安装脚本                                                                                                           |
-| ------------ | -------------------------- | ------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| TeXLive      | 是，称为BasicTeX           | WIN/Mac/Linux | 否                      | [install-TeXLive_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TeXLive_hithesis.sh)     |
-| MiKTeX       | 是                         | WIN/Mac/Linux | 是                      | [install-MiKTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-MiKTeX_hithesis.sh)       |
-| MacTeX       | 否，MacTeX官方推荐BasicTeX | Mac           | 否                      | [install BasicTeX on Mac](https://github.com/dustincys/hithesis/blob/mac/.github/workflows/test2.yml)                              |
-| TinyTeX      | 自身就是最Mini的安装包     | Linux/Mac     | 否                      | [install-TinyTeX_hithesis.sh](https://github.com/dustincys/hithesis/blob/master/.github/workflows/install-TinyTeX_hithesis.sh)      |
-
-<!-- 强烈推荐安装TinyTeX，只占不到300M左右，如果用开源字体集合fandol不用额外安装字体。 -->
-
-<!-- #### docker 镜像 [tinytex-hithesis](https://hub.docker.com/r/dustincys/tinytex-hithesis)
-
-[![Docker Image Version (latest by date)](https://img.shields.io/docker/v/dustincys/tinytex-hithesis?style=plastic)](https://hub.docker.com/r/dustincys/tinytex-hithesis)
-[![Docker Image Size (latest by date)](https://img.shields.io/docker/image-size/dustincys/tinytex-hithesis?style=plastic)](https://hub.docker.com/r/dustincys/tinytex-hithesis)
-
-[tinytex-hithesis](https://hub.docker.com/r/dustincys/tinytex-hithesis)构建策略是基于最轻量Alpine Linux（5MB）系统安装最轻量的TinyTeX和最小的hithesis依赖包集合。[还能有比这还要**更快更节省空间更方便部署更良心**的安装和使用hithesis的方法么？](https://5b0988e595225.cdn.sohucs.com/images/20171216/1f6862975513431cbb744c3f6e25c971.gif)
-
-- 第一步，下载[tinytex-hithesis](https://hub.docker.com/r/dustincys/tinytex-hithesis)镜像，
-
-      docker pull dustincys/tinytex-hithesis:latest
-
-- 第二步，在hithesis根目录下执行抽取格式
-
-      docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest latex hithesis.ins
-
-- 第三步，在hithesis毕业论文文件夹hitbook或报告文件夹report下执行以下命令进行编译
-
-      docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make thesis
-
-      docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make report
-
-  或者在根目录编译文档
-
-      docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest make doc
-
-  或者直接在hitbook或报告文件夹report下执行
-
-      docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest latexmk
-
-编译过程可以参照下一节模板的编译方法。
-
-使用Docker可以使本地安装不再受平台限制、随时部署，不再受bug、字体、环境变量困扰。诸位上仙、大侠、刀客、头领可以任性地、随意地、抽象地、写实地设置别名，最终完成羽化、飞升。
-
-    alias xelatex='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest xelatex'
-    alias splitindex='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest splitindex'
-    alias bibtex='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest bibtex'
-    alias latexmk='docker run --rm -i  -v $(pwd):/home/runner dustincys/tinytex-hithesis:latest latexmk'
-    ... -->
-
-### 模板的编译方法
-
-1. 生成论文格式文件(第一步要生成 *.cls，*.ist，然后再生成论文)
-
-   - 推荐：一条命令生成并分发到各示例目录
-
-         make cls
-
-   - 没有 make 的话，直接调 TeX
-
-         latex hithesis.ins
-
-     这条命令只把生成物放在当前目录。示例目录是独立可用的，要把用到的那份类文件、
-     配置文件、`.bst` 与 `.eps` 复制过去，例如：
-
-         cp hithesisbook.cls hithesis.ist hithesis.bst \
-            hitszthesis.bst *.eps examples/hitbook/chinese/
-         cp golfer.eps examples/hitbook/chinese/figures/
-
-   - 装了 TeX Live 的话也可以用 l3build（随 TeX 发行，三平台通用）
-
-         l3build unpack
-
-2. 生成好格式后，下一步进入到示例文件夹中
-
-       examples
-       ├── hitart
-       │   ├── reportplus  %深圳校区博士中期报告
-       │   └── reports     %除去深圳校区博士中期报告的一校三区本硕博开题、中期报告
-       └── hitbook
-           ├── chinese     %一校三区本硕博毕业论文以及博后出站报告
-           └── english     %一校三区本硕博英文版毕业论文
-
-3. 生成论文方式
-
-   - 手动狙击（源文件更改后每次编译逐行命令输入一轮）
-
-     - hitbook/chinese 文件夹中
-
-           xelatex -shell-escape thesis.tex
-           bibtex thesis
-           xelatex -shell-escape thesis.tex
-           xelatex -shell-escape thesis.tex
-           splitindex thesis -- -s hithesis.ist  # 自动生成索引
-           xelatex -shell-escape thesis.tex
-
-     - hitbook/english 文件夹中
-
-           xelatex -shell-escape thesis.tex
-           bibtex thesis
-           xelatex -shell-escape thesis.tex
-           xelatex -shell-escape thesis.tex
-
-     - hitart/{reports,reportplus}文件夹中
-
-           xelatex -shell-escape report.tex
-           bibtex report
-           xelatex -shell-escape report.tex
-           xelatex -shell-escape report.tex
-
-   - 半自动精确射击（源文件更改后每次编译敲一次）
-
-         make thesis
-
-   - 全自动火力覆盖（只需要输入一次命令，源文件更改后自动识别更改自动编译）
-
-         latexmk
-
-4. 生成文档（没什么用，因为有文档也基本没人看）
-
-   - 手动狙击（逐行命令输入一轮）
-
-         xelatex src/hithesis.dtx
-         makeindex -s gind.ist -o hithesis.ind hithesis.idx
-         makeindex -s gglo.ist -o hithesis.gls hithesis.glo
-         xelatex src/hithesis.dtx
-         xelatex src/hithesis.dtx
-
-   - 半自动精确射击（编译敲一次）
-
-         make doc
-
-### 打印版、电子版
-
-注意，一般情况下，博士论文的打印版要求双面打印，本硕单面。
-博士论文在双面打印成册时，规范中没有明确规定是否要右翻页（右翻页是每一章的起始位
-置位于书的右侧页面），所以会出现DIY（或身不由己DIY）哪一处右翻页。
-`openright`选项设置为真时，会将所有章（即所有部分，包括前文和后文）起始设置成右翻页。
-如果想DIY（或身不由己DIY）在什么地方右翻页，将这个选项设置为false，然后在目标位
-置添加`\cleardoublepage`命令即可。
-
-最后向图书管提交的电子版不是右翻页且要求没有任何空白页，这时只需要设置选项`library=true`
-即可，这时候会强制`openright=false`。然后什么都不用做，就会出现如同`Sirius`同学
-的这种“书签还没整明白，论文居然已经通过了”的情况。
-
-### 幻灯片
-
-有些强迫症刀客喜欢用Beamer，推荐[progressbar主题](https://github.com/dustincys/progressbar)，
-能够使用[pympress](https://github.com/Cimbali/pympress)播放双屏提示。
-[progressbar主题](https://github.com/dustincys/progressbar)在幻灯片上边排列毕业论文章节链接，在下边有进度指示条，十分适合展示结构复杂的毕业论文内容。
-
-### 关于hithesis的博客
-
-- [2022-06-19 hithesis的二代目掌门](https://yanshuo.site/cn/2022/06/hithesis/)
-- [2022-03-04 hithesis 如何使用 docker](https://yanshuo.site/cn/2022/03/hithesis/)
-- [2021-11-16 如何维护hithesis（三）](https://yanshuo.site/cn/2021/11/hithesis3/)
-- [2021-11-16 如何维护hithesis（二）](https://yanshuo.site/cn/2021/11/hithesis2/)
-- [2021-11-15 如何维护hithesis（一）](https://yanshuo.site/cn/2021/11/hithesis/)
-- [2020-05-24 hithesis v3 进化](https://yanshuo.site/cn/2020/05/hithesisv3/)
-- [2020-02-09 hithesis的“昨天今天和明天”](https://yanshuo.site/cn/2020/01/hithesis/)
-- [2017-08-29 发布到了CTAN](https://yanshuo.site/cn/2017/08/ctan/)
-- [2017-06-22 规范的正确打开方式](https://yanshuo.site/cn/2017/06/hithesisregulation/)
-- [2017-06-16 为了大唐中兴！](https://yanshuo.site/cn/2017/06/hithesissiyuan/)
-
-
-### 其他说明
-
-- hithesis的维护和创造基于开源式爱心发电精神，所以千万不要向作者提出无礼请求。
-- 作者由于工作繁忙，不再无偿解决一些用户要求（例如前面文档中[已经解决的算法格式各实验室要求不一致](https://github.com/dustincys/PlutoThesis#%E6%B2%A1%E6%9C%89%E6%98%8E%E7%A1%AE%E8%A6%81%E6%B1%82%E7%9A%84%E6%A0%BC%E5%BC%8F)问题）。
-- 本模板以PlutoThesis为核心基础，参考了CTAN中清华大学薛瑞尼所开发的thuthesis以及其分支重庆大学等毕业论文模板的代码开发而来
-- 学校教务处和研究生院提供了规范和[研究生word模板](http://hitgs.hit.edu.cn/ab/1f/c3425a109343/page.htm)以及[本科生word模板](http://jwc.hit.edu.cn/2566/list.htm)，此模板仅为规范的参考实现，不保证格式审查老师不提意见。任何由于使用本模板而引起的论文格式审查问题均与本模板作者无关
-
-### Apply to sponsor
-
-We have spent a lot time and long been involved in developing/maintaining
-this open source project.
-I'd be humbled and grateful if you could financially support hithesis.
-
-|                Contributer                 |                                          WeChat                                          |                                          Alipay                                          |
+|                   维护者                   |                                          微信                                           |                                          支付宝                                          |
 | :----------------------------------------: | :--------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------: |
 |    [@syvshc](https://github.com/syvshc)    | ![szh_wechat](https://raw.githubusercontent.com/hithesis/hithesis/images/szh_wechat.jpg) | ![szh_alipay](https://raw.githubusercontent.com/hithesis/hithesis/images/szh_alipay.jpg) |
 | [@dustincys](https://github.com/dustincys) | ![cys_wechat](https://raw.githubusercontent.com/dustincys/hifvwm/screenshots/wechat.jpg) |     ![sys_alipay](http://wx3.sinaimg.cn/large/61dccbaaly1fizali9tafj20k00ucgos.jpg)      |
 | [@xiF616](https://github.com/xiF616) | ![616_wechat](https://raw.githubusercontent.com/hithesis/hithesis/images/616_wechat.jpg) | ![616_alipay](https://raw.githubusercontent.com/hithesis/hithesis/images/616_alipay.jpg) |
 | [@SchrodingerBlume](https://github.com/SchrodingerBlume) | ![SchrodingerBlume_wechat](https://raw.githubusercontent.com/SchrodingerBlume/hithesis/images/SchrodingerBlume_wechat.png) | ![SchrodingerBlume_alipay](https://raw.githubusercontent.com/SchrodingerBlume/hithesis/images/SchrodingerBlume_alipay.jpg) |
 
-Or Zelle quick pay: yanshuoc@gmail.com
+Zelle：yanshuoc@gmail.com
 
-### Sponsor List
+### 赞助记录
 
-Please contact me if I missed to add any sponsor. Thank you so much.
+名单如有遗漏，请联系维护者补充。
 
 | Time       | Name      | Comments        |
 | ---------- | --------- | --------------- |
@@ -430,7 +224,7 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2022-10-18 | cyf       | WeChat          |
 | 2023-02-28 | hidadeng  | QQ              |
 | 2023-04-16 | Yang      | Alipay          |
-| 2023-04-28 | Lin | Alipay |
+| 2023-04-28 | Lin       | Alipay          |
 | 2023-05-11 | hzy       | WeChat          |
 | 2023-09-05 | 曹世达    | Wechat          |
 | 2023-11-30 | JerryLiu  | WeChat          |
@@ -438,9 +232,10 @@ Please contact me if I missed to add any sponsor. Thank you so much.
 | 2024-04-09 | 老学水    | Alipay          |
 | 2024-04-10 | csat      | WeChat          |
 | 2024-04-14 | Cen       | WeChat          |
-| 2025-01-14 | 沉梦昂志  |  WeChat         |
-| 2025-03-10 |  xw       |Alipay           |
+| 2025-01-14 | 沉梦昂志  | WeChat          |
+| 2025-03-10 |  xw       | Alipay          |
 | 2025-04-09 | Lrz       | WeChat          |
-| 2026-01-03 | 无题      |  Alipay         |
+| 2026-01-03 | 无题      | Alipay          |
 | 2026-01-26 | *新       | WeChat          |
 | 2026-03-20 | 青云      | WeChat          |
+| 2026-08-01 | w*r       | WeChat.         |

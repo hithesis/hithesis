@@ -1,0 +1,234 @@
+% \iffalse meta-comment
+%
+% Copyright (C) 2017- by Yanshuo Chu <yanshuoc@gmail.com>
+%
+% This file may be distributed and/or modified under the
+% conditions of the LaTeX Project Public License, either version 1.3a
+% of this license or (at your option) any later version.
+% The latest version of this license is in:
+%
+% http://www.latex-project.org/lppl.txt
+%
+% and version 1.3a or later is part of all distributions of LaTeX
+% version 2004/10/01 or later.
+%
+% \fi
+%
+% \section{配置队列（presetup）}
+%
+% \changes{v3.2a}{2026/09/13}{配置队列机制单独成一份，\file{src/config/} 只放值；条件里的
+%   取值认连字符、带数字的另立对照表、前缀 \texttt{!!} 取反；\cs{hit@presetup@scope} 给
+%   一整段配置挂共同条件；加 \cs{hitusepackage} 按交付物加载宏包}
+%
+% \emph{这一份是机制，不是取值。} 记一条配置、给一段配置挂条件、把队列回放出来，
+% 全在这里；取值在 \file{src/config/} 下按关切分的那几份里。
+%
+% 拆出来之前它与一千九百行取值同在一个文件。合并成一个 cls 之前挪不动：
+% \pkg{docstrip} 的输入表是全局只增的，那个文件在装配线上排第二位、自己就调用了
+% 一百多次 \cs{hit@presetup}，而 engine 排在一百多行之后，定义必须早于调用。
+% 只剩一个输出之后这条限制没了。
+%
+%    \begin{macrocode}
+%<*shared-presetup>
+\seq_new:N \g__hit_presetup_seq
+\seq_new:N \l__hit_presetup_value_seq
+\seq_new:N \l__hit_presetup_group_seq
+\bool_new:N \l__hit_presetup_all_bool
+\bool_new:N \l__hit_presetup_any_bool
+\bool_new:N \l__hit_presetup_hit_bool
+\NewDocumentCommand \hit@presetup { O{} +m }
+  { \seq_gput_right:Nn \g__hit_presetup_seq { { keys } {#1} {#2} } }
+\NewDocumentCommand \hit@preconfig { O{} +m }
+  { \seq_gput_right:Nn \g__hit_presetup_seq { { code } {#1} {#2} } }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@presetup@scope}
+% \cs{hit@presetup@scope}\marg{条件} 给后面每一条 \cs{hit@presetup} 再挂一个条件，
+% 直到下一次调用改掉它；参数写空就撤销。条件写法与可选参数那个完全一样。
+%
+% \emph{为什么不把条件写进每一行。} 两份 \file{cfg} 合成一份之后，原先靠「这行在
+% 哪个文件里」分开的一百多行要改成靠条件分开。逐行加 \texttt{stage!=final} 的话，
+% 本来就带条件的那四十多行得把新条件与旧条件揉成一句，而条件里的分号是「或」、
+% 逗号是「且」，揉的时候要按分号分配一遍，一行揉错就静默少排一段。
+%
+% \emph{两个条件各判各的，不拼字符串。} 段条件与行条件分别求值，都成立才回放。
+% 所以行条件里的分号还是原来那个分号，合并前后逐字不动。
+%
+% 段条件也排进同一个队列，回放时按遇到的顺序改当前段条件——记的时候还没解析选项，
+% 当场判不了。
+%    \begin{macrocode}
+\tl_new:N \g__hit_presetup_scope_tl
+\bool_new:N \l__hit_presetup_scope_bool
+\NewDocumentCommand \hit@presetup@scope { m }
+  { \seq_gput_right:Nn \g__hit_presetup_seq { { scope } {#1} { } } }
+%    \end{macrocode}
+% \end{macro}
+%
+% 文件全程在 \pkg{expl3} 语境里——\cs{ProvidesExplClass} 已经开好了，这里不要再写
+% \cs{ExplSyntaxOn}/\cs{ExplSyntaxOff}：多写一对 \texttt{Off} 会把后面所有共享模块
+% 的语境一起关掉，踩过一次，症状是 \cs{bool\_new:N} 未定义。
+%
+% 条件求值。每个子句形如 \texttt{选项=取值}，取值可以用竖线并列。选项名只用来给
+% 人读，判断看的是取值对应的标志位 \cs{g\_\_hit\_}\meta{取值}\cs{\_bool}——
+% \option{degree-level}、\option{campus}、\option{stage}、\option{lang} 四族的取值都是
+% 这么存的，名字全局唯一。
+%
+% 取值里的连字符折成下划线再去查：选项取值一律用连字符分词，\pkg{expl3} 的
+% 变量名一律用下划线，折一下两边就能对上，条件写出来跟别处的选项取值一个样。
+%
+% 取值里带数字的（\option{v2-layout}）得另查一张表。
+% \hologo{TeX} 的控制序列名只收字母，\cs{g\_\_hit\_v4\_layout\_bool} 读到
+% \texttt{4} 就断了，前半截 \cs{g\_\_hit\_v} 成了命令、后半截成了普通文字，
+% 既不报错也不生效。所以标志位那一头把数字写成词，两头由这张表接上。
+%    \begin{macrocode}
+\tl_new:N \l__hit_presetup_name_tl
+\tl_new:N \l__hit_presetup_alias_tl
+\bool_new:N \l__hit_presetup_not_bool
+\prop_const_from_keyval:Nn \c__hit_presetup_alias_prop
+  {
+    v2-layout = layout-two ,
+  }
+%    \end{macrocode}
+%
+% 取值前面加 \texttt{!} 就是取反：\option{layout}\texttt{=!v2-layout} 读作
+% 「不是旧版面」。新版面是默认，不该为它另立一个名字——从前写
+% \option{layout}\texttt{=v4-layout}，背后那个 \cs{g\_\_hit\_layout\_four\_bool}
+% 只是 \cs{g\_\_hit\_layout\_two\_bool} 的取反，给默认值编了个版本号当名字。
+%
+% \texttt{!} 在这里是被解析的文本，不是控制序列的名字，所以不受
+% 「名字只收 catcode 11 的字母」那条限制。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_presetup_negate:n #1
+  {
+    \tl_if_head_eq_charcode:nNTF {#1} !
+      {
+        \bool_set_true:N \l__hit_presetup_not_bool
+        \tl_set:Nx \l__hit_presetup_name_tl { \tl_tail:n {#1} }
+      }
+      { \bool_set_false:N \l__hit_presetup_not_bool }
+  }
+\cs_new_protected:Npn \__hit_presetup_clause:w #1 = #2 \q_stop
+  {
+    \bool_set_false:N \l__hit_presetup_any_bool
+    \seq_set_split:Nnn \l__hit_presetup_value_seq { | } {#2}
+    \seq_map_inline:Nn \l__hit_presetup_value_seq
+      {
+        \tl_set:Nx \l__hit_presetup_name_tl { \tl_trim_spaces:n {##1} }
+        \exp_args:NV \__hit_presetup_negate:n \l__hit_presetup_name_tl
+        \prop_get:NVNT \c__hit_presetup_alias_prop \l__hit_presetup_name_tl
+          \l__hit_presetup_alias_tl
+          { \tl_set_eq:NN \l__hit_presetup_name_tl \l__hit_presetup_alias_tl }
+        \tl_put_left:Nn  \l__hit_presetup_name_tl { g__hit_ }
+        \tl_put_right:Nn \l__hit_presetup_name_tl { _bool }
+        \tl_replace_all:Nnn \l__hit_presetup_name_tl { - } { _ }
+        \bool_if_exist:cTF { \l__hit_presetup_name_tl }
+          {
+            \bool_if:cTF { \l__hit_presetup_name_tl }
+              {
+                \bool_if:NF \l__hit_presetup_not_bool
+                  { \bool_set_true:N \l__hit_presetup_any_bool }
+              }
+              {
+                \bool_if:NT \l__hit_presetup_not_bool
+                  { \bool_set_true:N \l__hit_presetup_any_bool }
+              }
+          }
+          { \msg_warning:nnn { hithesis } { unknown-condition } {##1} }
+      }
+    \bool_if:NF \l__hit_presetup_any_bool
+      { \bool_set_false:N \l__hit_presetup_all_bool }
+  }
+\cs_new_protected:Npn \hit@if@condition:nT #1#2
+  {
+    \bool_set_false:N \l__hit_presetup_hit_bool
+    \seq_set_split:Nnn \l__hit_presetup_group_seq { ; } {#1}
+    \seq_map_inline:Nn \l__hit_presetup_group_seq
+      {
+        \bool_set_true:N \l__hit_presetup_all_bool
+        \clist_map_inline:nn {##1} { \__hit_presetup_clause:w ####1 \q_stop }
+        \bool_if:NT \l__hit_presetup_all_bool
+          { \bool_set_true:N \l__hit_presetup_hit_bool }
+      }
+    \bool_if:NT \l__hit_presetup_hit_bool {#2}
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hitusepackage}
+% \cs{hitusepackage}\oarg{条件}\marg{宏包表}：条件成立才加载，条件写法与
+% \cs{hitsetup} 的那个可选参数完全一样。
+% \begin{latex}
+% \hitusepackage[stage=proposal]{lipsum, siunitx={per-mode=symbol, detect-all}}
+% \end{latex}
+% 宏包表里带选项的写成 \meta{包名}\texttt{=}\marg{选项}。选项用花括号不用方括号：
+% 外层是逗号表，方括号里的逗号会被外层拆开，花括号护得住。
+%
+% \textbf{按写的顺序加载。} 宏包之间的先后常常有讲究，这里不排序、不去重，
+% 用户写什么顺序就是什么顺序。
+%
+% 一份主文件管几种交付物时，导言区是共用的，\cs{usepackage} 对谁都生效。
+% 只有某一种要的包就写进这个命令。
+%
+% 只能在导言区用。\cs{usepackage} 本身就是导言区限定，而 \cs{hitsetup} 正文里也能用，
+% 两者混在一起用户迟早写错位置，所以单开一个命令，进正文就报错说清该挪到哪。
+%    \begin{macrocode}
+\NewDocumentCommand \hitusepackage { O{} +m }
+  { \hit@if@condition:nT {#1} { \clist_map_inline:nn {#2} { \__hit_usepackage:n {##1} } } }
+\cs_new_protected:Npn \__hit_usepackage:n #1
+  {
+    \tl_if_in:nnTF {#1} { = }
+      { \__hit_usepackage_with_options:w #1 \q_stop }
+      { \exp_args:Nx \usepackage { \tl_trim_spaces:n {#1} } }
+  }
+\cs_new_protected:Npn \__hit_usepackage_with_options:w #1 = #2 \q_stop
+  {
+    \use:x
+      {
+        \exp_not:N \usepackage [ \exp_not:n {#2} ]
+          { \tl_trim_spaces:n {#1} }
+      }
+  }
+\AtBeginDocument
+  {
+    \RenewDocumentCommand \hitusepackage { O{} +m }
+      { \msg_error:nn { hithesis } { usepackage-in-body } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_presetup_one:nnn #1#2#3
+  {
+    \str_if_eq:nnTF {#1} { scope }
+      { \tl_gset:Nn \g__hit_presetup_scope_tl {#2} }
+      {
+        \bool_set_true:N \l__hit_presetup_scope_bool
+        \tl_if_empty:NF \g__hit_presetup_scope_tl
+          {
+            \bool_set_false:N \l__hit_presetup_scope_bool
+            \exp_args:NV \hit@if@condition:nT \g__hit_presetup_scope_tl
+              { \bool_set_true:N \l__hit_presetup_scope_bool }
+          }
+        \bool_if:NT \l__hit_presetup_scope_bool
+          {
+            \hit@if@condition:nT {#2}
+              { \str_if_eq:nnTF {#1} { code } {#3} { \hitsetup {#3} } }
+          }
+      }
+  }
+\cs_new_protected:Npn \hit@apply@presetup
+  {
+    \tl_gclear:N \g__hit_presetup_scope_tl
+    \bool_gset_true:N \g_docxlike_format_defaults_bool
+    \seq_map_inline:Nn \g__hit_presetup_seq { \__hit_presetup_one:nnn ##1 }
+    \bool_gset_false:N \g_docxlike_format_defaults_bool
+  }
+%    \end{macrocode}
+%
+% 校区名。值只有校区两个字，「（威海）」的括号、「深圳校区」的「校区」都在用的地方
+% 拼——同一个校区名在封面上带括号、在深圳本科页眉上跟着「校区」，那是版式的事，
+% 不是这个值的事。三个类共用一份。
+%    \begin{macrocode}
+%</shared-presetup>
+%    \end{macrocode}
+%
+% \Finale

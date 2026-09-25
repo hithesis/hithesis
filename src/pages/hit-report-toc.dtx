@@ -1,0 +1,300 @@
+% \iffalse meta-comment
+%
+% hit-report-toc.dtx 是开题报告的目录
+%
+% \fi
+%
+% \section{开题报告的目录}
+%
+% \changes{v3.2a}{2026/09/14}{报告的目录认 \option{toc}/\option{depth} 与
+%   \option{toc}/\option{latin-sans}；底类换 \cls{ctexbook} 后 \pkg{tocloft} 的三个量设回
+%   节模式；正文照终稿排的那一档目录也照 Word 排（标题走章标题那一套、条目步进由盒贴排
+%   模型算、每行排到制表位、折行缩进至题名首字、目录页带页眉）}
+%
+% \option{depth} 数的是级数。报告是 \cls{ctexart}，最高一级是节，
+% \cs{tocdepth} 恰好等于级数；学位论文有章，那边要减一。
+%
+% 跟终稿一样放在 \cs{AtBeginDocument}：类文件执行时导言区的
+% \cs{hitsetup} 还没跑，写在那里的 \option{depth} 会被漏掉。
+%    \begin{macrocode}
+%<*report-toc>
+\bool_if:NF \g__hit_final_bool
+  {
+\AtBeginDocument
+  { \setcounter { tocdepth } { \g__hit_toc_depth_int } }
+%\ifboolexpr{ {bool {hit@shenzhen} or bool {hit@weihai}} and bool {hit@master} }{
+  % renew \CTEX@toc@width@n,
+  % add width of a space to numwidth (stored in \@tempdima)
+  \cs_set_protected:Npn \CTEX@toc@width@n #1
+  {
+    % 用自家的临时盒,不借 \cs{l\_\_ctex\_tmp\_box}:宏体是我们自己写的,
+    % 借私有盒白担一份跨版本风险
+    \hbox_set:Nn \l_tmpa_box {#1\,}
+    \dim_set:Nn \@tempdima
+      {
+        \dim_max:nn { \@tempdima }
+          { \box_wd:N \l_tmpa_box }
+      }
+  }
+\RequirePackage[subfigure]{tocloft}
+%    \end{macrocode}
+%
+% \emph{\pkg{tocloft} 按「有没有 \cs{chapter}」分叉的那几处。} 它在加载时用
+% \cs{@cftifundefined}\{chapter\} 定一个开关，之后四处按它取不同的值。底类
+% 从 \cls{ctexart} 换成 \cls{ctexbook} 之后 \cs{chapter} 就存在了，这个开关翻
+% 真，四处跟着变：
+%
+% \begin{itemize}
+% \item \cs{cftsecindent} 由 0\,em 变 1.5\,em——整张目录右移一截。报告显式设过
+%   \cs{cftsubsecindent} 与 \cs{cftsubsubsecindent}，恰恰没设这一个。
+% \item \cs{cftbeforetoctitleskip} 由 3.5\,ex 变 50\,pt。
+% \item \cs{cfttitlecommand} 由 \cs{cftsection} 换成 \cs{cftchapter}，前者用
+%   \cs{vspace}、后者用 \cs{vspace*}；目录标题永远在页首，不带星的那份会被丢弃，
+%   带星的会真排出来。所以这一条不是把长度压回去就完事。
+% \item \cs{cfttoctitlefont}——这一个报告本来就在下面覆盖，不用管。
+% \end{itemize}
+%
+% \emph{按值设回去，不去动那个开关。} 另一条路是加载前后把 \cs{chapter} 藏起来
+% 再还原，让 \pkg{tocloft} 以为没有章。那样做 \cs{l@chapter} 与整套
+% \cs{cftchap*} 就都不会定义，而报告现在是可以排章的（写了 \cs{chapter} 就有），
+% 目录里那一级就没有格式可用。所以让它照常进有章模式，只把这三个量设回来。
+%    \begin{macrocode}
+\dim_set:Nn \cftsecindent { 0em }
+\dim_set:Nn \cftbeforetoctitleskip { 3.5ex \@plus 1ex \@minus .2ex }
+\cs_set:Npn \cfttitlecommand #1 { \cftsection {#1} }
+%    \end{macrocode}
+%
+% \emph{还有一处不是取值而是写法。} \cs{l@section} 的段前，节模式下是
+% \cs{addpenalty}\cs{@secpenalty} 加 \cs{addvspace}，章模式下换成裸的
+% \cs{vskip}。两者不等价：\cs{addvspace} 与前一条目留下的胶\emph{合并}取大者，
+% \cs{vskip} 是直接叠上去，所以章模式下每个节条目前面都会多出一段。实测目录页
+% 整体下移 9\,bp。照节模式那份重写一遍。
+%
+% 这是 \pkg{tocloft} 四处分叉里唯一一处「设个值压不回来」的，其余三处上面都
+% 按值设回去了。
+%    \begin{macrocode}
+\cs_set:Npn \l@section #1#2
+  {
+    \int_compare:nNnT { \c@tocdepth } > { 0 }
+      {
+        \addpenalty \@secpenalty
+        \addvspace { \cftbeforesecskip }
+        \group_begin:
+          \skip_set_eq:NN \leftskip \cftsecindent
+          \skip_set_eq:NN \rightskip \@tocrmarg
+          \skip_set:Nn \parfillskip { - \rightskip }
+          \dim_set_eq:NN \parindent \cftsecindent
+          \@afterindenttrue
+          \int_set:Nn \interlinepenalty { \@M }
+          \leavevmode
+          \dim_set:Nn \@tempdima { \cftsecnumwidth }
+          \skip_set:Nn \skip@ { \parfillskip }
+          \skip_zero:N \parfillskip
+          { \cftsecfont #1 }
+          \nobreak
+          \skip_set_eq:NN \parfillskip \skip@
+          \cftsecfillnum {#2}
+        \group_end:
+      }
+  }
+\cs_set:Npn \cfttoctitlefont  { \hfill \xiaoer \heiti }
+\cs_set:Npn \cftaftertoctitle { \hfill \mbox { } }
+\cs_set:Npn \cftsecfont       { \hit@toc@font \heiti }
+\cs_set:Npn \cftsubsecfont    { \normalfont \hit@toc@font }
+\cs_set:Npn \cftsubsubsecfont { \normalfont \hit@toc@font }
+\cs_set:Npn \cftsecpagefont   { }
+\cs_set:Npn \cftsecdotsep     { \cftdotsep }
+\cs_set:Npn \cftsecleader     { \cftdotfill { \cftsecdotsep } }
+\cs_set:Npn \cftdotsep        { 1 }
+\dim_set:Nn \cftaftertoctitleskip {40pt}
+\dim_set:Nn \cftbeforesecskip {1.2ex}
+\dim_set:Nn \cftbeforesubsecskip {1.2ex}
+\dim_set:Nn \cftbeforesubsubsecskip {1.2ex}
+\dim_set:Nn \cftsubsecindent {1em}% 目录中subsection的缩进
+\dim_set:Nn \cftsubsubsecindent {2em}% 目录中subsubsection的缩进
+%  \setlength{\cftsecnumwidth}{1.5em}
+%  \setlength{\cftsubsecnumwidth}{0em}
+%  \setlength{\cftsubsubsecnumwidth}{0em}
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{根据 \issue[228] 更新深圳硕士中期目录样式}
+% \changes{v3.1d}{2025/03/03}{将目录格式统一成深圳样式，除去深圳硕士开题报告的目录页有页眉}
+%    \begin{macrocode}
+%  \ifhit@shenzhen
+%    \ifhit@interim
+\dim_set:Nn \cftsecnumwidth {1em}% 目录中的section条目序号和标题之间的距离
+\dim_set:Nn \cftsubsecnumwidth {1.7em}% 目录中的subsection条目序号和标题之间的距离
+\dim_set:Nn \cftsubsubsecnumwidth {2.4em}% 目录中的subsubsection条目序号和标题之间的距离
+%    \end{macrocode}
+%
+% \emph{正文照终稿排的那一档，目录也照 Word 排。}深圳本科那两份原件的目录，
+% 标题那一块与正文的章标题是同一档：段前一行、黑体小二居中、段后 0.8 行，
+% 基线落在版心顶起 30.23（原件量得整页 137.98），与正文第一章的标题同数。
+% 所以标题直接用 \cs{docxlike\_format\_par:nn} 按 \option{Heading 1} 那个样式排，
+% \pkg{tocloft} 的 \cs{cftbeforetoctitleskip} 与 \cs{cftaftertoctitleskip}
+% 一并归零，间距全由 \option{styles} 给。
+%
+% 条目走共享层的 \cs{hit@toc@line@metrics:nn}，与终稿那一份目录同一个模型；
+% 行深从标题那一块起算（\cs{docxlike\_format\_stack\_seed:n}）。级要错开一格：报告的
+% 节就是章，所以节传 1、条传 2、款传 3。
+%
+% \cs{cftbeforesecskip} 那三条要归零。步进整个由模型给，再叠一段 \texttt{1.2ex}
+% 就成了 25.94，原件是 19.45。
+%
+% 三个条目体是\emph{裹}一层，不重写：\pkg{tocloft} 的那几个宏体里还有点线、
+% 页码、悬挂那一串，重抄一遍迟早对不上。\cs{baselineskip} 在条目组外设，组里
+% 没人动它，排到 \cs{par} 时读的就是这个值。
+%
+% \emph{条目每一行都排到制表位。} \pkg{tocloft} 的 \cs{l@section} 把
+% \cs{rightskip} 设成 \cs{@tocrmarg}（\hologo{LaTeX} 的默认 2.55\,em），
+% 于是折行条目的\emph{每一行}都提前 30.6 收住；末行由 \cs{parfillskip} 抵消，
+% 只有它排到制表位。原件不是这样：折行的那几行一直排到制表位，只有末行给点线与
+% 页码让路（iota-hit 对原件的复刻件里首行末字右缘 499.05，这边 479.62）。
+% 所以 \cs{@tocrmarg} 归零。它是个\emph{宏}不是长度寄存器
+% （\hologo{LaTeX} 里 \cs{def}\cs{@tocrmarg}\{2.55em\}），要用 \cs{cs\_set:Npn} 改。
+%
+% \emph{折行之后缩进至题名首字。} 指南 3.6 写着「对于超过一行的目录内容提前换行，
+% 换行后缩进至相应标题第一个字符处」。\pkg{tocloft} 的续行回到 \cs{leftskip}
+% （一级 85.05、二级 97.05），不是题名首字。悬挂多宽只有排完题序才知道，
+% 所以在算宽体里把它全局导出，排到 \cs{par} 之前设进 \cs{hangindent}——
+% 与终稿那一份目录同一个办法（\file{hit-final-toc.dtx} 的
+% \cs{g\_\_hit\_toc\_hang\_dim}）。
+%
+% \emph{悬挂量要减掉 \cs{leftskip} 里已经含的那一截。} \pkg{tocloft} 的
+% \cs{l@subsection} 与 \cs{l@subsubsection} 在排题序之前把 \cs{cft\ldots numwidth}
+% 加进了 \cs{leftskip}，而本文件自己那一份 \cs{l@section} 没加。所以悬挂量按
+% 「本级缩进加题序盒宽减当前 \cs{leftskip}」算，三级都对：一级
+% $0+18-0=18$，二级 $12+27-32.4=6.6$，续行落在 103.05 与 124.05。
+%
+% \emph{题序那一格按实宽加一个字，不按额定列宽。} \pkg{tocloft} 的
+% \cs{cftsecnumwidth} 那三个是\emph{额定}列宽（1\,em／1.7\,em／2.4\,em），
+% 题序排进去靠左、右边剩多少就是题名前的空当：「1」剩 6.00、「1.1」剩 5.40。
+% 原件里那一格恒是一个字（小四 12.00，逐条量 iota-hit 的复刻件），与题序几位数
+% 无关——跟终稿那一份目录的 \option{number-align}\texttt{=natural} 同一个模型。
+% 所以把 \CTeX\ 的算宽体换成「实宽加一个字」，不再与额定列宽取大。
+%
+% \emph{点线与页码那一格照终稿那一份。} 点距垫零：范例的引导点是 Times 句点
+% 自然堆出来的，步进 3.0\,bp 恰是句点自己的字身宽，垫 1\,mu 堆出来的 4.33 明显稀
+% （终稿那一份早就垫零了，见 \file{hit-final-toc.dtx}）。页码那一格从
+% \pkg{tocloft} 的定宽 \cs{@pnumwidth} 改成实宽的盒：定宽盒里页码靠右排，
+% 左边空出来的一截点线填不进去，一位数的页码前面因此空 16\,bp
+% （实测末点 484.39，原件 501.00）。
+%
+% \emph{点网格的原点还差一格宽的余数。} Word 把点钉在以\emph{页左缘}为原点、
+% 按点距排的一张网格上（iota-hit 对范例逐条量过首点，对点距取余一律
+% 0.05\,--\,0.15，也就是 Word 自身 0.24 的落笔量化）；\hologo{TeX} 的
+% \cs{leaders} 也钉网格，可原点是\emph{行盒左缘}，也就是版心左缘 85.05。
+% 两者差 85.05 对 3 取余的 1.05，于是每条点线整体左移 1.05、末点落在 499.05
+% 而不是 501.00，页码前面空 2.18 而不是 0.20，条数各多一个。
+% \cs{leaders} 的原点挪不动（要挪得把整条条目装进一个位置已知的盒子，
+% 与折行冲突），这一格先记下来。
+%
+% 页首那一段段前 \hologo{TeX} 会在分页处丢掉，Word 不丢，所以标题前先发一条
+% 零高的 \cs{hrule} 把这一页垫成非空，\cs{topskip} 一并归零。标题这一段照“标题 1”
+% 排，段上写“编号：无”：正文的“标题 1”链接着编号列表，目录标题不编号。
+%
+% \cs{topskip} 只在\emph{目录那一组}里归零，不发到组外。\pkg{tocloft} 的
+% \cs{tableofcontents} 把标题与条目整个裹在一对 \cs{begingroup} 里，目录这几页
+% 的头一个盒子都在组内落下，够用；发到组外的话，后面 \cs{clearpage} 与
+% \env{titlepage} 收尾那两下会各排出一张空白页（实测多两张，页码 II 与 -1-）。
+%    \begin{macrocode}
+\dim_new:N \g__hit_report_toc_hang_dim
+\bool_if:NT \g__hit_final_body_bool
+  {
+    \dim_zero:N \cftbeforetoctitleskip
+    \dim_zero:N \cftaftertoctitleskip
+    \dim_zero:N \cftbeforesecskip
+    \dim_zero:N \cftbeforesubsecskip
+    \dim_zero:N \cftbeforesubsubsecskip
+    \cs_set:Npn \cfttitlecommand #1
+      {
+        \@cftpagestyle
+        \dim_zero:N \topskip
+        \hrule ~ height ~ \c_zero_dim
+        \bool_set_false:N \l_docxlike_format_latin_pick_bool
+        \docxlike_format_par:nnn { Heading1 } { numbering = none } { \use:c { cft #1 titlename } }
+        \use:c { cftmark #1 }
+        \docxlike_format_stack_seed:n { Heading1 }
+        \dim_set:Nn \lineskiplimit { - \maxdimen }
+        \@afterheading
+      }
+    \cs_new_eq:NN \__hit_report_toc_sec:nn       \l@section
+    \cs_new_eq:NN \__hit_report_toc_subsec:nn    \l@subsection
+    \cs_new_eq:NN \__hit_report_toc_subsubsec:nn \l@subsubsection
+    \cs_set:Npn \l@section #1#2
+      {
+        \hit@toc@line@metrics:nn { 1 } {#1}
+        \__hit_report_toc_sec:nn {#1} {#2}
+      }
+    \cs_set:Npn \l@subsection #1#2
+      {
+        \hit@toc@line@metrics:nn { 2 } {#1}
+        \__hit_report_toc_subsec:nn {#1} {#2}
+      }
+    \cs_set:Npn \l@subsubsection #1#2
+      {
+        \hit@toc@line@metrics:nn { 3 } {#1}
+        \__hit_report_toc_subsubsec:nn {#1} {#2}
+      }
+    \cs_set_protected:Npn \CTEX@toc@width@n #1
+      {
+        \hbox_set:Nn \l_tmpa_box { #1 \hit@chapter@number@gap: }
+        \dim_set:Nn \@tempdima { \box_wd:N \l_tmpa_box }
+        \dim_gset_eq:NN \g__hit_report_toc_hang_dim \@tempdima
+      }
+    \cs_set:Npn \@tocrmarg { 0pt }
+    \cs_set:Npn \cftdotsep { 0 }
+    \clist_map_inline:nn { sec , subsec , subsubsec }
+      {
+        \cs_set:cpn { cft #1 fillnum } ##1
+          {
+            { \use:c { cft #1 leader } } \nobreak
+            \hbox:n { \use:c { cft #1 pagefont } ##1 }
+            \use:c { cft #1 afterpnum }
+            \dim_set:Nn \hangindent
+              {
+                \use:c { cft #1 indent } + \g__hit_report_toc_hang_dim
+                - \leftskip
+              }
+            \int_set:Nn \hangafter { 1 }
+            \par
+          }
+      }
+  }
+%    \fi
+%  \fi
+%  \ifboolexpr{ bool {hit@weihai} or bool {hit@interim}}{\tocloftpagestyle{empty}}{\tocloftpagestyle{hit@shenzhen@headings@front}}
+\bool_if:NTF \g__hit_final_body_bool
+  { \tocloftpagestyle { hit@headings@front } }
+  {
+    \bool_lazy_and:nnTF
+      { \bool_if_p:N \g__hit_shenzhen_bool }
+      {
+        \bool_lazy_and_p:nn
+          { \bool_if_p:N \g__hit_master_bool }
+          { \bool_if_p:N \g__hit_proposal_bool }
+      }
+      { \tocloftpagestyle { hit@shenzhen@headings@front } }
+      { \tocloftpagestyle { empty } }
+  }
+%    \end{macrocode}
+%
+% \emph{深圳本科那两份的目录页带页眉。} 原件逐页量过：正文有页眉的那几份里，
+% 只有深圳硕士与博士的\emph{中期}目录页是空的（那一份的说明页写着「目录不需有
+% 页眉」），别的都带。本部三份整篇没有页眉，与这条无关。
+%
+% 正文照终稿排的那一档，目录页就用正文那一个页面样式，不另做一个。
+%    \begin{macrocode}
+%}{
+  % \renewcommand\tableofcontents{%
+  %     \thispagestyle{empty}
+  %     \ifboolexpr{ bool {hit@shenzhen} and bool {hit@master} and bool {hit@interim} }%
+  %       {\patchcmd{\l@section}{\bfseries}{\heiti}{}{}}{}
+  %     \normalsize\@starttoc{toc}
+  %   }
+%}
+  }
+%</report-toc>
+%    \end{macrocode}
+%
+% \Finale

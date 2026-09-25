@@ -1,0 +1,199 @@
+% \iffalse meta-comment
+%
+% Copyright (C) 2017- by Yanshuo Chu <yanshuoc@gmail.com>
+%
+% This file may be distributed and/or modified under the
+% conditions of the LaTeX Project Public License, either version 1.3a
+% of this license or (at your option) any later version.
+% The latest version of this license is in:
+%
+% http://www.latex-project.org/lppl.txt
+%
+% and version 1.3a or later is part of all distributions of LaTeX
+% version 2004/10/01 or later.
+%
+% \fi
+%
+% \section{勾选框}
+%
+% \changes{v3.2a}{2026/09/15}{勾选框单开一个模块，本科内封与深圳本科报告首页共用；两个框
+%   照官方 PDF 抠出来的轮廓画，\hologo{LuaTeX} 上用 \texttt{pdfextension literal}
+%   （\texttt{pdf:content} 是 xdvipdfmx 的 special，LuaTeX 会原样写进内容流）}
+%
+% ^^A ======================================================================
+% ^^A Module shared-checkbox: 两处共用的空框与打勾框
+% ^^A ======================================================================
+%
+% 两处在用：本科内封头一行的「毕业论文／毕业设计」，与深圳本科报告首页
+% 2026 年 9 月版新加的那一行。原先只写在内封那个模块里，而那个模块只在终稿
+% 才编进类，报告取不到。
+%
+% \emph{为什么不直接用那个字。} Word 那两个框是 Wingdings~2 的私有位
+% （\texttt{U+F0A3} 空框、\texttt{U+F052} 打勾），这副字本机未必有；
+% \texttt{□}~\texttt{U+25A1} 在不同宋体里大小差得不少；\pkg{amssymb} 只为一个
+% 方块引一个包不值，而且它会动数学字体。
+%
+% \emph{所以存轮廓，自己画。} 数取自 iota-hit 的 \texttt{src/blocks/checkbox.typ}，
+% 那边是从官方内封（本科毕业论文（设计）书写范例（理工类）第 3 页，以及带勾的
+% 那一版）嵌进 PDF 里的那副字上抠的：\texttt{mutool extract} 取出字体，
+% \pkg{fontTools} 读 glyph 53 与 133 的轮廓，按 \texttt{unitsPerEm} 2048
+% 归一化成 em。与字体无关，形状分毫不差。
+%
+% \emph{与 iota 的坐标差一次翻转。} 那边的 $y$ 从字形顶往下量，这里是 PDF
+% 的坐标系，$y$ 从基线往上，所以存进来的是 $\text{字形高}-y$。
+%
+% 先前那一版是 \cs{framebox} 套 \cs{resizebox} 里一个 \cs{checkmark}：方框尺寸
+% 对得上，勾是描的，形不对，还挂着数学字体。
+%
+% \begin{macro}{\hit@empty@box}
+% \begin{macro}{\hit@checked@box}
+%    \begin{macrocode}
+%<*shared-checkbox>
+%    \end{macrocode}
+%
+% \emph{路径攒成一串 PDF 算符再一次发出去。} \cs{special}\marg{pdf:content~…}
+% 把原始算符插在当前点上，原点正是基线上的落笔处（实测），所以存的 em 坐标
+% 乘上字号就能直接用。
+%
+% 二次贝塞尔要转成三次：PDF 只有 \texttt{c}。起点 $P_0$、控制点 $C$、终点
+% $P_2$ 对应的两个三次控制点是 $P_0+\frac23(C-P_0)$ 与 $P_2+\frac23(C-P_2)$。
+% 当前点自己记着，\cs{hit@cb@q:nnnn} 要用。
+%    \begin{macrocode}
+\fp_new:N \l__hit_cb_scale_fp
+\fp_new:N \l__hit_cb_cx_fp
+\fp_new:N \l__hit_cb_cy_fp
+\tl_new:N \l__hit_cb_path_tl
+\dim_new:N \l__hit_cb_em_dim
+\cs_new:Npn \__hit_cb_n:n #1
+  { \fp_eval:n { round ( ( #1 ) * \l__hit_cb_scale_fp , 4 ) } }
+\cs_new_protected:Npn \hit@cb@m:nn #1#2
+  {
+    \tl_put_right:Nx \l__hit_cb_path_tl
+      { \__hit_cb_n:n {#1} ~ \__hit_cb_n:n {#2} ~ m ~ }
+    \fp_set:Nn \l__hit_cb_cx_fp {#1}
+    \fp_set:Nn \l__hit_cb_cy_fp {#2}
+  }
+\cs_new_protected:Npn \hit@cb@l:nn #1#2
+  {
+    \tl_put_right:Nx \l__hit_cb_path_tl
+      { \__hit_cb_n:n {#1} ~ \__hit_cb_n:n {#2} ~ l ~ }
+    \fp_set:Nn \l__hit_cb_cx_fp {#1}
+    \fp_set:Nn \l__hit_cb_cy_fp {#2}
+  }
+\cs_new_protected:Npn \hit@cb@q:nnnn #1#2#3#4
+  {
+    \tl_put_right:Nx \l__hit_cb_path_tl
+      {
+        \__hit_cb_n:n { \l__hit_cb_cx_fp + 2 * ( #1 - \l__hit_cb_cx_fp ) / 3 } ~
+        \__hit_cb_n:n { \l__hit_cb_cy_fp + 2 * ( #2 - \l__hit_cb_cy_fp ) / 3 } ~
+        \__hit_cb_n:n { #3 + 2 * ( #1 - #3 ) / 3 } ~
+        \__hit_cb_n:n { #4 + 2 * ( #2 - #4 ) / 3 } ~
+        \__hit_cb_n:n {#3} ~ \__hit_cb_n:n {#4} ~ c ~
+      }
+    \fp_set:Nn \l__hit_cb_cx_fp {#3}
+    \fp_set:Nn \l__hit_cb_cy_fp {#4}
+  }
+\cs_new_protected:Npn \hit@cb@h: { \tl_put_right:Nn \l__hit_cb_path_tl { h ~ } }
+%    \end{macrocode}
+%
+% \emph{字位宽 $0.891$\,em}（\texttt{trace} 里的 adv，实测 $96.050-85.025=11.025$
+% 正是 12\,pt 上的它）。盒子给死这个宽，高深都是零：Word 那边这两个框是\emph{文字}、
+% 受行距管，深圳本科报告首页那一行写着 \texttt{w:line="380"} 固定值 19\,pt，
+% 字比它高就挤出去，行仍是 19。零高盒因此不参与撑行，框照旧画在基线上。
+%
+% 填充走奇偶规则（\texttt{f*}），框才是空心的。不发颜色算符，跟着当前文字色走。
+%
+% \emph{框与后面那几个字之间不发空格。} 那 $0.891$ 的字位宽里本来就含着右边距
+% （墨迹只到 $0.80713$），Word 的 run 是「☐毕业论文」，中间一个字符都没有。
+% 先前那一版的框是 \cs{framebox}\texttt{[8pt]}，宽度正好卡着墨迹、没有边距，
+% 所以后面补了个 \cs{nobreakspace}；换成字位宽之后那个空格就是多的。
+%
+% \emph{一个 em 取 \cs{f@size}，不取 \cs{1em}。} 后者是当前\emph{西文}字体的
+% \texttt{quad}，换一副字就可能不等于字号；撑杆（\cs{docxlike\_format\_strut:}）也是
+% 按 \cs{f@size} 算的，两处一个口径。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@cb@draw:n #1
+  {
+    \group_begin:
+      \dim_set:Nn \l__hit_cb_em_dim { \f@size pt }
+      \fp_set:Nn \l__hit_cb_scale_fp
+        { \dim_to_fp:n { \l__hit_cb_em_dim } / \dim_to_fp:n { 1bp } }
+      \tl_clear:N \l__hit_cb_path_tl
+      #1
+      \hbox_to_wd:nn { 0.891 \l__hit_cb_em_dim }
+        {
+          % pdf:content 是 xdvipdfmx 的 special；LuaTeX 写 PDF 不经过它，
+          % 同样的话要用 pdfextension literal 发，不然 special 原样落进内容流，
+          % 读 PDF 的工具报 unknown keyword: content
+          \sys_if_engine_luatex:TF
+            { \pdfextension literal { q ~ \l__hit_cb_path_tl f* ~ Q } }
+            { \tex_special:D { pdf:content ~ q ~ \l__hit_cb_path_tl f* ~ Q } }
+          \hfil
+        }
+    \group_end:
+  }
+%    \end{macrocode}
+%
+% \emph{空框}：外框 $0.08447$ 到 $0.80713$ 见方、内框缩进一个线宽 $0.04834$，
+% 两条闭合子路径加奇偶填充就是一副空心边框。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@empty@box
+  {
+    \hit@cb@draw:n
+      {
+        \hit@cb@m:nn { 0.13281 } { 0.04834 }
+        \hit@cb@l:nn { 0.75928 } { 0.04834 }
+        \hit@cb@l:nn { 0.75928 } { 0.67481 }
+        \hit@cb@l:nn { 0.13281 } { 0.67481 }
+        \hit@cb@h:
+        \hit@cb@m:nn { 0.08447 } { 0.00000 }
+        \hit@cb@l:nn { 0.08447 } { 0.72266 }
+        \hit@cb@l:nn { 0.80713 } { 0.72266 }
+        \hit@cb@l:nn { 0.80713 } { 0.00000 }
+        \hit@cb@h:
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{打勾框}：同一副框，外加一道勾；勾尖冲出框外，到 $y=0.76562$、
+% $x=0.86279$，所以这一个比空框高一点。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@checked@box
+  {
+    \hit@cb@draw:n
+      {
+        \hit@cb@m:nn { 0.42188 } { 0.18115 }
+        \hit@cb@l:nn { 0.40039 } { 0.16699 }
+        \hit@cb@q:nnnn { 0.37256 } { 0.14892 } { 0.35254 } { 0.13085 }
+        \hit@cb@q:nnnn { 0.34863 } { 0.14843 } { 0.33301 } { 0.18750 }
+        \hit@cb@l:nn { 0.32227 } { 0.21533 }
+        \hit@cb@q:nnnn { 0.28564 } { 0.30566 } { 0.26050 } { 0.34155 }
+        \hit@cb@q:nnnn { 0.23535 } { 0.37744 } { 0.20605 } { 0.38037 }
+        \hit@cb@q:nnnn { 0.24561 } { 0.41650 } { 0.27539 } { 0.41650 }
+        \hit@cb@q:nnnn { 0.31543 } { 0.41650 } { 0.36377 } { 0.30761 }
+        \hit@cb@l:nn { 0.38135 } { 0.26855 }
+        \hit@cb@q:nnnn { 0.50879 } { 0.49707 } { 0.72021 } { 0.67480 }
+        \hit@cb@l:nn { 0.13232 } { 0.67480 }
+        \hit@cb@l:nn { 0.13232 } { 0.04833 }
+        \hit@cb@l:nn { 0.75879 } { 0.04833 }
+        \hit@cb@l:nn { 0.75879 } { 0.65771 }
+        \hit@cb@q:nnnn { 0.64551 } { 0.55419 } { 0.55493 } { 0.42602 }
+        \hit@cb@q:nnnn { 0.46436 } { 0.29785 } { 0.42188 } { 0.18115 }
+        \hit@cb@h:
+        \hit@cb@m:nn { 0.80713 } { 0.69873 }
+        \hit@cb@l:nn { 0.80713 } { 0.00000 }
+        \hit@cb@l:nn { 0.08447 } { 0.00000 }
+        \hit@cb@l:nn { 0.08447 } { 0.72265 }
+        \hit@cb@l:nn { 0.78271 } { 0.72265 }
+        \hit@cb@q:nnnn { 0.81934 } { 0.74804 } { 0.84863 } { 0.76562 }
+        \hit@cb@l:nn { 0.86279 } { 0.74023 }
+        \hit@cb@q:nnnn { 0.83887 } { 0.72314 } { 0.80713 } { 0.69873 }
+        \hit@cb@h:
+      }
+  }
+%</shared-checkbox>
+%    \end{macrocode}
+% \end{macro}
+% \end{macro}
+%
+% \Finale

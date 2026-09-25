@@ -1,0 +1,926 @@
+% \iffalse meta-comment
+%
+% hit-docxlike.dtx 是类接到排版引擎 docxlike 上的那一层
+%
+% \fi
+%
+% \section{接到 \pkg{docxlike} 上}
+%
+% \changes{v3.2a}{2026/09/25}{章节标题交给 \pkg{docxlike} 排的共用一层（终稿与深圳本科报告）；
+%   给 \pkg{ctex} 的标题发样式的那一层删去}
+% \changes{v3.2a}{2026/09/23}{类专有的几件事从 \pkg{docxlike} 里挪出来，经它的钩子与登记
+%   接回去：题序后间距、四级标题西文无衬线、旧选项与格式键的兼容桥、全局开关的同步}
+%
+% \pkg{docxlike} 只管照 Word 排版，不知道哪一种学位、哪一档报告。类在它上面挂自己的规矩：
+% 章节标题交给它排时本类要的那几件事（编号后敲的空白、“编号：无”、设置编号值、\cs{label}）、
+% 哪几级标题的西文走无衬线（\cs{docxlike\_format\_add\_font:nn}）、格式键设完之后回写旧选项的
+% 标志位（\cs{docxlike\_format\_set\_after\_target:n}）；类自己的开关变了，同步到 \pkg{docxlike}
+% 的全局开关上。
+%
+% ^^A ======================================================================
+% ^^A Module shared-docxlike: 类接到 docxlike 上的那一层（各档共用）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*shared-docxlike>
+%    \end{macrocode}
+%
+% \subsection{页眉槽}
+%
+% \changes{v3.2a}{2026/09/24}{页眉槽的高、页眉线、页眉页脚的挪动与显隐从 \pkg{docxlike} 挪到类里，
+%   \pkg{docxlike} 只照 Word 的模型排自己的页眉页脚；数一个没改}
+%
+% 本类的页眉页脚不走 \pkg{docxlike} 自己那一套（Word 模型的页眉页脚），而是在
+% \hologo{LaTeX} 的页眉槽里排一整块“文字加双线”，所以要自己的 \cs{headheight}：页眉那一行的
+% 行盒高加离字距离、粗线、0.75\,bp 的间隙与 0.75\,bp 的细线（范例的页眉段落下框线是
+% \texttt{thinThickSmallGap}，线型的构成见 \pkg{docxlike} 的段落边框）。这几件借
+% \pkg{docxlike} 页面设置的接入点接上：键加在 \texttt{docxlike / page-setup} 族里，与版面的其余键
+% 写在同一串；算版面时给出 \cs{headheight} 与页脚基线的修正；按页换版面时存取下面这几个全局量。
+%
+% 键与 \option{layout} 的对应在 \file{hit-keylist.dtx}：\option{header}/\option{rule} 的
+% \option{width} 与 \option{from-text}，\option{header}、\option{footer} 的 \option{shift}
+% （量出来的补偿，往下、往右为正）与 \option{shown}（\texttt{auto} 按档）。
+%    \begin{macrocode}
+\keys_define:nn { docxlike / page-setup }
+  {
+    header-rule-width       .dim_set:N = \l__hit_page_rule_width_dim ,
+    header-rule-width       .initial:n = { 2.25bp } ,
+    header-rule-from-text   .dim_set:N = \l__hit_page_rule_text_dim ,
+    header-rule-from-text   .initial:n = { 1bp } ,
+    footer-shift-vertical   .dim_set:N = \l__hit_page_foot_shift_dim ,
+    footer-shift-vertical   .initial:n = { 0pt } ,
+    footer-shift-horizontal .dim_set:N = \l__hit_page_foot_shift_x_dim ,
+    footer-shift-horizontal .initial:n = { 0pt } ,
+    header-shift-vertical   .dim_set:N = \l__hit_page_head_shift_dim ,
+    header-shift-vertical   .initial:n = { 0pt } ,
+    header-shift-horizontal .dim_set:N = \l__hit_page_head_shift_x_dim ,
+    header-shift-horizontal .initial:n = { 0pt } ,
+    header-shown .tl_set:N = \l__hit_page_header_shown_tl ,
+    header-shown .initial:n = { auto } ,
+    footer-shown .tl_set:N = \l__hit_page_footer_shown_tl ,
+    footer-shown .initial:n = { auto } ,
+  }
+\dim_new:N \g__hit_page_rule_width_dim
+\dim_new:N \g__hit_page_rule_text_dim
+\dim_new:N \g__hit_page_head_shift_dim
+\dim_new:N \g__hit_page_head_shift_x_dim
+\dim_new:N \g__hit_page_foot_shift_x_dim
+\tl_new:N \g__hit_page_header_shown_tl
+\tl_new:N \g__hit_page_footer_shown_tl
+\tl_gset:Nn \g__hit_page_header_shown_tl { auto }
+\tl_gset:Nn \g__hit_page_footer_shown_tl { auto }
+\dim_new:N \g__hit_header_text_ht_dim
+\dim_new:N \g__hit_header_text_dp_dim
+\dim_new:N \g__hit_header_latin_ht_dim
+\dim_new:N \g__hit_header_latin_dp_dim
+%    \end{macrocode}
+%
+% \emph{页眉那一行的行盒按目标算。} Word 的页眉框顶钉在“页眉距边界”上，框里那一段
+% 的行盒由它自己的字体与行距定：行距 0（范例的页眉段是这么写的）就是自然行高，倍数
+% 就是倍数乘自然行高，基线在盒顶下一个上升部。\option{styles}/\option{Header} 目标给了
+% 取值就照它算；目标空着就退回小五的四个常数，那是旧版面（博士后）的页眉。
+% 纯西文那一档同字号按 Times 的两个常数算。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_page_header_line_xiaowu:
+  {
+    \dim_gset:Nn \g__hit_header_text_ht_dim { 9.18826pt }
+    \dim_gset:Nn \g__hit_header_text_dp_dim { 2.52736pt }
+    \dim_gset:Nn \g__hit_header_latin_ht_dim { 8.50727pt }
+    \dim_gset:Nn \g__hit_header_latin_dp_dim { 1.88153pt }
+  }
+\cs_new_protected:Npn \__hit_page_header_line:
+  {
+    \docxlike_format_if_blank:nTF { Header }
+      { \__hit_page_header_line_xiaowu: }
+      {
+        \group_begin:
+          \docxlike_format_compute:n { Header }
+          \dim_gset:Nn \g__hit_header_text_ht_dim { \l_docxlike_format_first_dim }
+          \dim_gset:Nn \g__hit_header_text_dp_dim
+            {
+              \dim_max:nn { \l_docxlike_format_lead_dim } { \l_docxlike_format_natural_dim }
+              - \l_docxlike_format_first_dim
+            }
+          \dim_gset:Nn \g__hit_header_latin_ht_dim
+            { \l_docxlike_format_ascent_latin_tl \l_docxlike_format_size_dim }
+          \dim_gset:Nn \g__hit_header_latin_dp_dim
+            {
+              \dim_max:nn { \l_docxlike_format_lead_dim }
+                { \l_docxlike_format_natural_latin_tl \l_docxlike_format_size_dim }
+              - \g__hit_header_latin_ht_dim
+            }
+        \group_end:
+      }
+  }
+\docxlike_page_set_compute:n
+  {
+    \__hit_page_header_line:
+    \dim_set:Nn \l_docxlike_page_head_height_dim
+      {
+        \g__hit_header_text_ht_dim + \g__hit_header_text_dp_dim
+        + \l__hit_page_rule_text_dim + \l__hit_page_rule_width_dim + 1.5bp
+      }
+    \dim_set_eq:NN \l_docxlike_page_foot_skip_offset_dim \l__hit_page_foot_shift_dim
+    \dim_gset_eq:NN \g__hit_page_foot_shift_x_dim \l__hit_page_foot_shift_x_dim
+    \dim_gset_eq:NN \g__hit_page_rule_width_dim \l__hit_page_rule_width_dim
+    \dim_gset_eq:NN \g__hit_page_rule_text_dim \l__hit_page_rule_text_dim
+    \dim_gset_eq:NN \g__hit_page_head_shift_dim \l__hit_page_head_shift_dim
+    \dim_gset_eq:NN \g__hit_page_head_shift_x_dim \l__hit_page_head_shift_x_dim
+    \tl_gset_eq:NN \g__hit_page_header_shown_tl \l__hit_page_header_shown_tl
+    \tl_gset_eq:NN \g__hit_page_footer_shown_tl \l__hit_page_footer_shown_tl
+  }
+%    \end{macrocode}
+%
+% 按页换版面时存取这几个量。存只存一层，与 \pkg{docxlike} 自己的一样。
+%    \begin{macrocode}
+\clist_const:Nn \c__hit_page_saved_dim_clist
+  {
+    page_rule_width , page_rule_text , page_head_shift , page_head_shift_x , page_foot_shift_x ,
+    header_text_ht , header_text_dp , header_latin_ht , header_latin_dp
+  }
+\clist_const:Nn \c__hit_page_saved_tl_clist { page_header_shown , page_footer_shown }
+\clist_map_inline:Nn \c__hit_page_saved_dim_clist { \dim_new:c { g__hit_save_ #1 _dim } }
+\clist_map_inline:Nn \c__hit_page_saved_tl_clist { \tl_new:c { g__hit_save_ #1 _tl } }
+\docxlike_page_set_save:n
+  {
+    \clist_map_inline:Nn \c__hit_page_saved_dim_clist
+      { \dim_gset_eq:cc { g__hit_save_ ##1 _dim } { g__hit_ ##1 _dim } }
+    \clist_map_inline:Nn \c__hit_page_saved_tl_clist
+      { \tl_gset_eq:cc { g__hit_save_ ##1 _tl } { g__hit_ ##1 _tl } }
+  }
+\docxlike_page_set_restore:n
+  {
+    \clist_map_inline:Nn \c__hit_page_saved_dim_clist
+      { \dim_gset_eq:cc { g__hit_ ##1 _dim } { g__hit_save_ ##1 _dim } }
+    \clist_map_inline:Nn \c__hit_page_saved_tl_clist
+      { \tl_gset_eq:cc { g__hit_ ##1 _tl } { g__hit_save_ ##1 _tl } }
+  }
+%    \end{macrocode}
+%
+% \subsection{类自己的格式目标}
+%
+% \pkg{docxlike} 只带通用的几个目标（正文、四级标题、页眉页脚），题注、表格单元格、
+% 目录条目、摘要标题、内封、封面、报告首页这些由类登记，第二个参数是贴网格取
+% \texttt{auto} 时回退去看的上级。\option{caption} 是图题表题的伞。
+%    \begin{macrocode}
+\clist_map_inline:nn
+  {
+    { caption-figure } { Normal } , { caption-table } { Normal } ,
+    { caption-sub } { caption-figure } , { caption-note } { caption-figure } ,
+    { table-cell } { Normal } , { abstract-heading } { Normal } ,
+    { toc-chapter } { Normal } , { toc-section } { toc-chapter } ,
+    { toc-subsection } { toc-section } , { toc-subsubsection } { toc-subsection } ,
+    { abstract-en } { Normal } ,
+    { titlepage-mark } { } , { titlepage-label } { titlepage-mark } ,
+    { titlepage-title } { titlepage-mark } , { titlepage-field } { titlepage-mark } ,
+    { titlepage-en-mark } { titlepage-mark } ,
+    { titlepage-en-degree } { titlepage-en-mark } ,
+    { titlepage-en-title } { titlepage-en-mark } ,
+    { titlepage-en-field } { titlepage-en-mark } ,
+    { statement-heading } { Normal } , { authorization-heading } { Normal } ,
+    { cover-label } { } , { cover-type } { cover-label } ,
+    { cover-title } { cover-label } , { cover-subtitle } { cover-title } ,
+    { cover-title-en } { cover-title } , { cover-author } { cover-label } ,
+    { cover-institution } { cover-label } , { cover-date } { cover-label } ,
+    { report-cover-form } { } , { report-cover-blank } { report-cover-form } ,
+    { report-cover-university } { report-cover-form } ,
+    { report-cover-university-en } { report-cover-university } ,
+    { report-cover-stage } { report-cover-form } ,
+    { report-cover-stage-en } { report-cover-stage } ,
+    { report-cover-field } { report-cover-form } ,
+    { report-cover-title } { report-cover-form } ,
+    { report-cover-blank-mid } { report-cover-form }
+  }
+  { \docxlike_format_target_new:nn #1 }
+%    \end{macrocode}
+%
+% \emph{\option{styles} 键。} \cs{hitsetup} 的 \option{styles} 先由本类的 \texttt{hit / styles}
+% 族过一遍：\option{caption} 一次写图题表题，\option{bilingual-caption} 是题注开关（见
+% \file{hit-caption.dtx}）；其余每一项原样交给 \pkg{docxlike} 的 \cs{docxlike\_format\_set:n}。
+%    \begin{macrocode}
+\keys_define:nn { hit / styles }
+  {
+    caption .code:n =
+      { \docxlike_format_set:n { caption-figure = {#1} , caption-table = {#1} } } ,
+    caption / if-raggedbottom .code:n =
+      {
+        \docxlike_format_set:n
+          { caption-figure/if-raggedbottom = {#1} , caption-table/if-raggedbottom = {#1} }
+      } ,
+    caption / if-flushbottom .code:n =
+      {
+        \docxlike_format_set:n
+          { caption-figure/if-flushbottom = {#1} , caption-table/if-flushbottom = {#1} }
+      } ,
+  }
+\str_new:N \l__hit_styles_key_str
+\tl_new:N \l__hit_styles_list_tl
+\regex_const:Nn \c__hit_styles_chars_regex { ([0-9.]) \s* chars }
+\cs_new_protected:Npn \hit@styles@set:n #1
+  {
+    \tl_set:Nn \l__hit_styles_list_tl {#1}
+    \tl_replace_all:Nnn \l__hit_styles_list_tl { \par } { }
+    \regex_replace_all:NnN \c__hit_styles_chars_regex { \1 \x{20} ch } \l__hit_styles_list_tl
+    \exp_args:NnnV \keyval_parse:nnn
+      { \__hit_styles_bare:n } { \__hit_styles_item:nn } \l__hit_styles_list_tl
+  }
+\cs_new_protected:Npn \__hit_styles_own:nTF #1
+  {
+    \str_set:Nn \l__hit_styles_key_str {#1}
+    \str_remove_all:Nn \l__hit_styles_key_str { ~ }
+    \keys_if_exist:nVTF { hit / styles } \l__hit_styles_key_str
+  }
+\prg_generate_conditional_variant:Nnn \keys_if_exist:nn { nV } { TF }
+\cs_new_protected:Npn \__hit_styles_bare:n #1
+  {
+    \__hit_styles_own:nTF {#1}
+      { \keys_set:nn { hit / styles } {#1} }
+      { \docxlike_format_set:n {#1} }
+  }
+\cs_new_protected:Npn \__hit_styles_item:nn #1#2
+  {
+    \__hit_styles_own:nTF {#1}
+      { \keys_set:nn { hit / styles } { #1 = {#2} } }
+      { \docxlike_format_set:n { #1 = {#2} } }
+  }
+%    \end{macrocode}
+%
+% \subsection{字体名与字体集}
+%
+% 样式里写的是 Word 的字体名，与学校发的 docx 一样：宋体是 \texttt{SimSun}、黑体 \texttt{SimHei}、
+% 楷体 \texttt{KaiTi}、仿宋 \texttt{FangSong}、隶书 \texttt{LiSu}、华文新魏 \texttt{STXinwei}，西文
+% \texttt{Times New Roman} 与 \texttt{Arial}。行高与上升部按这些名字照 Windows Word 的规则算，
+% 不管本机实际用的是哪一副。切过去用本类与 \pkg{ctex} 的字体命令：\option{fontset} 选的字体集里
+% 没有中易字体时，这些命令指向替身（Fandol、思源等），版面照样按 Word 里那副字算，各字体集之间
+% 一致。样式里写中文名 \texttt{宋体}、\texttt{华文新魏} 也一样，同一副字体的几个名字在 docxlike
+% 的预设表里是一组，这里登记一个，同组的跟着登记。
+%    \begin{macrocode}
+\docxlike_font_select_new:nn { SimSun } { \songti }
+\docxlike_font_select_new:nn { SimHei } { \heiti }
+\docxlike_font_select_new:nn { KaiTi } { \kaishu }
+\docxlike_font_select_new:nn { FangSong } { \fangsong }
+\docxlike_font_select_new:nn { LiSu } { \lishu }
+\docxlike_font_select_new:nn { STXinwei } { \xinwei }
+\docxlike_font_select_new:nn { Times~New~Roman } { \rmfamily }
+\docxlike_font_select_new:nn { Arial } { \sffamily }
+%    \end{macrocode}
+%
+% \pkg{docxlike} 的“如果定义了文档网格，则对齐到网格”照界面写全，叫
+% \option{snap-to-grid-when-document-grid-is-defined}，按字符的单位照英文 Word 写 \texttt{ch}。
+% 本类的样式键要与 Typst 版一致，照旧叫 \option{snap-to-grid}、写 \texttt{2 chars}，由类自己
+% 接过去：\option{snap-to-grid} 在 \pkg{docxlike} 字体、段落、空段三组里各加一个同名的键，转给
+% 那边的长名字，\cs{hitenter} 也就跟着认；\texttt{chars} 在 \option{styles} 的入口
+% \cs{hit@styles@set:n} 里改写成 \texttt{ch}，那是用户与本类预设写样式的唯一入口。
+%    \begin{macrocode}
+\clist_map_inline:nn { style / font , style / paragraph , parmark / paragraph }
+  {
+    \keys_define:nn { docxlike / #1 }
+      {
+        snap-to-grid .code:n =
+          {
+            \keys_set:nn { docxlike / #1 }
+              { snap-to-grid-when-document-grid-is-defined = {##1} }
+          } ,
+        snap-to-grid .default:n = { true } ,
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{Word 里没有的写法}
+%
+% 格式规范有几样 Word 的对话框里没有，\pkg{docxlike} 不收，本类经它的接入点加上（接口见
+% \file{src/docxlike/docxlike-format.dtx} 的“给文档类的接入点”）：
+% \begin{itemize}
+% \item 按版心底排法分两套取值：样式名后写 \texttt{/if-raggedbottom} 或 \texttt{/if-flushbottom}。
+%   \option{layout}/\option{bottom}\texttt{=ragged} 按行数与多倍值给的那一版排，\texttt{flush} 按
+%   毫米区间给的那一版排，两套之间没有继承，不是在一套值上加伸缩。限定词带着 \texttt{bottom}
+%   那一截，离开 \option{bottom} 子块也说得清是哪件事；
+% \item \option{heading} 一次写四级标题，\option{heading/if-*} 同理；
+% \item \option{paragraph}/\option{spacing} 里的 \option{line-white}、\option{white-before}、
+%   \option{white-after} 按视觉留白给行距与段前段后，写两个词是区间；\option{line-range} 写行距
+%   区间，如 \texttt{\{1.2 1.25\}}，两个词也可以一头长度一头倍数。它们与 \option{line-spacing}、
+%   \option{before}、\option{after} 写的是同一处，同一个样式里都写了就报错，按后写的算；
+% \item \option{alignment}\texttt{=last-line-centered}：只居中末行，排法在题注那边；
+% \item \option{font} 里的 \option{latin-bold}（只加粗西文那一槽）与 \option{latin-line}
+%   （行盒按西文算，汉字字体照旧）。
+% \end{itemize}
+%    \begin{macrocode}
+\docxlike_format_qualifiers:nn { if-raggedbottom , if-flushbottom }
+  { \bool_if:NTF \g_docxlike_ragged_bottom_bool { if-raggedbottom } { if-flushbottom } }
+\docxlike_format_alignment_new:nn { last-line-centered } { \centering }
+\keys_define:nn { hit / styles }
+  {
+    heading .code:n = { \__hit_styles_heading:nn { } {#1} } ,
+    heading / if-raggedbottom .code:n =
+      { \__hit_styles_heading:nn { /if-raggedbottom } {#1} } ,
+    heading / if-flushbottom .code:n =
+      { \__hit_styles_heading:nn { /if-flushbottom } {#1} } ,
+  }
+\cs_new_protected:Npn \__hit_styles_heading:nn #1#2
+  {
+    \docxlike_format_set:n
+      { Heading1 #1 = {#2} , Heading2 #1 = {#2} , Heading3 #1 = {#2} , Heading4 #1 = {#2} }
+  }
+\keys_define:nn { docxlike / style / paragraph / spacing }
+  {
+    line-white .code:n =
+      {
+        \docxlike_format_spacing_later:n
+          { \docxlike_format_measure:nnnn { line-white } { line } { white } {#1} }
+      } ,
+    line-range .code:n =
+      {
+        \docxlike_format_spacing_later:n
+          { \docxlike_format_measure:nnnn { line-range } { line } { spacing } {#1} }
+      } ,
+    white-before .code:n =
+      { \docxlike_format_measure:nnnn { white-before } { before } { white } {#1} } ,
+    white-after .code:n =
+      { \docxlike_format_measure:nnnn { white-after } { after } { white } {#1} } ,
+  }
+\keys_define:nn { docxlike / style / font }
+  {
+    latin-bold .choices:nn = { true , false }
+      { \docxlike_format_put:nV { latin-bold } \l_keys_choice_tl } ,
+    latin-bold .default:n = true ,
+    latin-line .choices:nn = { true , false }
+      { \docxlike_format_put:nV { latin-line } \l_keys_choice_tl } ,
+    latin-line .default:n = true ,
+  }
+\cs_generate_variant:Nn \docxlike_format_put:nn { nV }
+\tl_new:N \l__hit_docxlike_slot_tl
+\docxlike_format_set_target_hook:n
+  {
+    \docxlike_format_get:nnN {#1} { latin-line } \l__hit_docxlike_slot_tl
+    \str_if_eq:VnT \l__hit_docxlike_slot_tl { true }
+      { \bool_set_true:N \l_docxlike_format_latin_line_bool }
+  }
+\docxlike_format_set_font_hook:n
+  {
+    \docxlike_format_get:nnN {#1} { latin-bold } \l__hit_docxlike_slot_tl
+    \str_if_eq:VnT \l__hit_docxlike_slot_tl { true }
+      { \docxlike_format_emit:n { \__hit_docxlike_latin_bold: } }
+  }
+%    \end{macrocode}
+%
+% \emph{视觉白折基线距。} 这类规范给的全是视觉白，也就是两行之间那条
+% 看得见的空白：正文与款、项标题 3\,--\,4\,mm，条标题 6\,--\,7\,mm。它与基线距
+% 差一个字面高，中易宋体全字符集 20992 个汉字的墨迹高度实测平均 0.9050 em
+% （中位数 0.9102），所以
+% \begin{quote}
+%   基线距 = 视觉白 + 0.9050 × 字号
+% \end{quote}
+%
+% 键名里是 \texttt{white} 不是 \texttt{gap}，这一条不要改回去。OpenType 的
+% \texttt{hhea.lineGap} 与 OS/2 的 \texttt{sTypoLineGap} 早就占了后一个词，
+% 定义是基线距减去 ascent 加 descent，量的是 em 框而不是墨迹。中易宋体的
+% ascent 是 220/256、descent 是 −36/256，加起来正好 1.0 em，所以同一行
+% 12\,bp 正文、基线距 19.453\,bp，按字体度量算是 7.45\,bp（2.63\,mm），
+% 按这里的墨迹算是 8.59\,bp（3.03\,mm）。差 0.4\,mm，而规范给的区间总共
+% 才 1\,mm 宽，够让人按错的定义去核对，然后得出不合规的结论。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_white_ink_tl { 0.9050 }
+\docxlike_format_line_unit_new:nn { white }
+  { \dim_set:Nn #2 { #1 + \c__hit_white_ink_tl \l_docxlike_format_size_dim } }
+%    \end{macrocode}
+%
+% \emph{块白。} \option{white-before} 与 \option{white-after} 量的是上下两块之间
+% 那条看得见的空白：上一块末行的墨迹底，到下一块首行的墨迹顶。段前段后是
+% \hologo{TeX} 那边的量，两者之间隔着两块的行盒，所以要换。
+%
+% 量出来的关系是（\file{testfiles/61-format-white-skip.lvt} 逐条对着）
+% \begin{quote}
+%   块间基线距 = max（正文行距，上块深度 + 下块上升部）+ 段前段后
+% \end{quote}
+% 上块深度是上块行距减上块上升部，上升部用的是排版这一头的
+% $1.0078 \times 字号$（中易宋体照 Windows 规则的上升部），不是墨迹那一头。
+%
+% 里头那个 \texttt{max} 是 \hologo{TeX} 的行间胶：两块的行盒接起来还不够正文
+% 的 \cs{baselineskip} 高时，它把差额补上。标题的行盒一般比正文高，补不上，
+% 所以多数时候取的是后一项；款、项标题的行距比正文小，它的下距就要扣掉这一段。
+% 定行间胶的是外层那个 \cs{baselineskip}，也就是正文的，不是标题自己的——
+% 节标题上距那一处量出来是 22.477\,bp 而不是节标题行距 24.316\,bp，就是这个缘故。
+%
+% 视觉白与基线距差两块的墨迹：
+% \begin{quote}
+%   视觉白 = 块间基线距 − 0.0927 × 上块字号 − 0.8123 × 下块字号
+% \end{quote}
+% 0.8123 与 0.0927 是中易宋体全字符集 20992 个汉字的墨迹上伸与下伸的实测平均，
+% 两个加起来是前面那个 0.9050。行内的白只跟一个字号有关，所以那里用合数；
+% 块间的上下两块字号不同，得拆开。
+%
+% 两式相减，段前段后就是视觉白加上下两块各自的一项：上块那一项是
+% （0.0927 + 1.0078）× 上块字号 − 上块行距，下块那一项是（0.8123 − 1.0078）× 下块字号。
+% 上块与下块是谁看方向：\option{white-before} 的上块是正文、下块是这个元素，
+% \option{white-after} 反过来。正文的字号与行距取 \cs{g\_docxlike\_body\_size\_dim}
+% 与 \cs{g\_docxlike\_body\_lead\_dim}，\cs{docxlike\_format\_apply\_body:} 先跑，所以标题
+% 这边读得到。
+%
+% 相邻两级标题（章下面紧接着节）的上块不是正文，这一档不管，按正文算。
+%
+% 章标题总是另起一页，上面没有块，参照物换成版心顶：那一档的上块两项全归零，
+% 量出来基线正好落在版心顶下方一个上升部处。
+%
+% 换出来是负的就取零。\hologo{LaTeX} 的 \cs{@startsection} 把负的段前读成
+% “后一段不缩进”、把负的段后读成“标题与正文串行”，都不是“往上挪一点”的
+% 意思，发过去会改掉排版而不是改掉间距。要的白比两块行盒自带的还窄时，只能
+% 就着行盒，那点差在零点几毫米上。
+%    \begin{macrocode}
+\tl_const:Nn \c__hit_white_ink_ascent_tl { 0.8123 }
+\tl_const:Nn \c__hit_white_ink_descent_tl { 0.0927 }
+\clist_const:Nn \c__hit_white_pagetop_clist { Heading1 }
+\dim_new:N \l__hit_white_block_dim
+\dim_new:N \l__hit_white_base_dim
+\cs_new_protected:Npn \__hit_white_block_up:nn #1#2
+  {
+    \dim_add:Nn \l__hit_white_block_dim { \c__hit_white_ink_descent_tl #1 }
+    \dim_add:Nn \l__hit_white_base_dim
+      { #2 - \c_docxlike_format_ascent_tl #1 }
+  }
+\cs_new_protected:Npn \__hit_white_block_down:n #1
+  {
+    \dim_add:Nn \l__hit_white_block_dim { \c__hit_white_ink_ascent_tl #1 }
+    \dim_add:Nn \l__hit_white_base_dim
+      { \c_docxlike_format_ascent_tl #1 }
+  }
+\cs_new_protected:Npn \__hit_white_block_lead:
+  {
+    \dim_compare:nNnT { \l__hit_white_base_dim } < { \g_docxlike_body_lead_dim }
+      { \dim_set_eq:NN \l__hit_white_base_dim \g_docxlike_body_lead_dim }
+  }
+\cs_new_protected:Npn \__hit_white_block:nn #1#2
+  {
+    \dim_zero:N \l__hit_white_block_dim
+    \dim_zero:N \l__hit_white_base_dim
+    \str_if_eq:nnTF {#2} { before }
+      {
+        \clist_if_in:NnTF \c__hit_white_pagetop_clist {#1}
+          { \__hit_white_block_down:n { \l_docxlike_format_size_dim } }
+          {
+            \__hit_white_block_up:nn
+              { \g_docxlike_body_size_dim } { \g_docxlike_body_lead_dim }
+            \__hit_white_block_down:n { \l_docxlike_format_size_dim }
+            \__hit_white_block_lead:
+          }
+      }
+      {
+        \__hit_white_block_up:nn
+          { \l_docxlike_format_size_dim } { \l_docxlike_format_lead_dim }
+        \__hit_white_block_down:n { \g_docxlike_body_size_dim }
+        \__hit_white_block_lead:
+      }
+    \dim_sub:Nn \l__hit_white_block_dim { \l__hit_white_base_dim }
+  }
+%    \end{macrocode}
+%
+% 段前段后的 \texttt{white} 单位：\pkg{docxlike} 算段前段后时把样式名与方向放在
+% \cs{l\_docxlike\_format\_style\_tl}、\cs{l\_docxlike\_format\_side\_tl}，这里照上面的块白换。
+% 上升部系数取 \pkg{docxlike} 的 \cs{c\_docxlike\_format\_ascent\_tl}，即中易宋体照 Windows
+% 规则算出的 1.0078125。
+%    \begin{macrocode}
+\docxlike_format_space_unit_new:nn { white }
+  {
+    \__hit_white_block:VV \l_docxlike_format_style_tl \l_docxlike_format_side_tl
+    \dim_set:Nn #2 { #1 + \l__hit_white_block_dim }
+    \dim_compare:nNnT { #2 } < { 0pt } { \dim_zero:N #2 }
+  }
+\cs_generate_variant:Nn \__hit_white_block:nn { VV }
+%    \end{macrocode}
+%
+% \begin{macro}{\__hit_docxlike_latin_bold:}
+% \emph{只加粗西文那一槽。} 黑体没有粗体面，\cs{bfseries} 一发，\pkg{xeCJK} 按
+% \option{AutoFakeBold} 给汉字描一圈边合成粗体（PDF 里是 \texttt{2 Tr} 加一个线宽）。
+% 英文档的标题在原件里是 Times Bold，可夹在里面的汉字不该跟着变形。
+%
+% \cs{addCJKfontfeature} 把当前中文族按新特性重声明一遍，作用域跟着分组走。
+% 两个特性都要关：\option{AutoFakeBold} 管描边合成的那一路，\option{BoldFont}
+% 写成空的管\emph{真有粗体面}的那一路（\texttt{fandol} 那一档的黑体就有一副
+% \file{FandolHei-Bold}，只关伪粗它照样变粗）。两个都关了，\cs{bfseries} 在西文
+% 那一槽照样取粗体面，汉字那一槽落回常规面（实测）。
+%
+% \emph{另外两条路走不通，记在这里省得再试。} 一是把 \cs{CJK@family} 换成一个
+% “粗体面指回常规面”的孪生族：选字时 \pkg{xeCJK} 会从族名重新解析，换了白换。
+% 二是在 \cs{setCJKfamilyfont} 外面包一层顺手造孪生族：\option{fontset} 常用的
+% 那几档根本不走类自己那个分支，字体族是 \pkg{ctex} 声明的，包不到。
+% 没有 \cs{addCJKfontfeature}（没装中文宏包）时只发 \cs{bfseries}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_docxlike_latin_bold:
+  {
+    \bfseries
+    \cs_if_exist:NT \addCJKfontfeature
+      { \addCJKfontfeature { AutoFakeBold = false , BoldFont = { } } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{题序后间距}
+%
+% \begin{macro}{\hit@heading@number@gap:}
+% 页眉与目录条目里章号后面的空当，兜底值一个字宽。用 \texttt{1em}，跟着各处自己的字号走。
+% 用户设了 \option{after-chapter-number} 词条仍然优先。标题本身不用它：编号后的空白是题名前
+% 敲的两个半角空格，见下文。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@heading@number@gap:
+  { \skip_horizontal:n { 1em } }
+%    \end{macrocode}
+%
+% 章号与后面内容之间空多少，页眉与目录条目是同一件事。这里把这条链包成一个
+% 名字：用户设了 \option{after-chapter-number} 词条用词条，没设走上面的兜底
+% （一个字宽），语言跟文档。页眉直接排它，
+% 目录条目把它装盒量宽再按摆法用（见 \file{hit-final-toc.dtx}）。
+%    \begin{macrocode}
+\cs_new:Npn \hit@chapter@number@gap:
+  {
+    \hit@after@number:nnn { chapter }
+      { \bool_if:NTF \g__hit_en_bool { en } { zh } }
+      { \hit@heading@number@gap: }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{标题交给 \pkg{docxlike} 排}
+%
+% 章节标题是按样式排的一段，编号来自链接到标题样式的多级列表，与 docx 同构。终稿与深圳本科
+% 那两份报告（正文照终稿排的那一档）都这样排，列表与层级各自定（\file{hit-final-heading.dtx}、
+% \file{hit-report-heading.dtx}），这里是两边共用的一层。旧版面、博士后与其余报告的标题样式是
+% 空的，标题还是 \pkg{ctex} 排的，各自的 \cs{ctexset} 写在那两个文件里。
+%
+% \pkg{docxlike} 的标题命令只管 Word 里有的东西：标题样式、链接的列表编号、段落上的“编号：无”。
+% 本类要的几件事在外面这一层做（\cs{\_\_hit\_heading\_emit:Nnnnnn}）：前置部分的章与
+% \cs{secnumdepth} 以下的标题写“编号：无”；\cs{setcounter} 改过的计数器先设进列表（Word 的
+% “设置编号值”），列表第几级对哪个计数器记在 \cs{g\_\_hit\_heading\_levels\_clist}；编号了的标题在
+% 题名前敲编号后的空白，目录与页眉拿不带空白的题名；\cs{label} 记计数器（\cs{ref} 出“1”，作者写
+% “第\cs{ref}\{…\}章”）；节以下标题前加 \cs{@secpenalty}，前面是标题时不加。
+%
+% 编号后的空白照原件在题名前敲两个半角空格：原件的兼容选项开着“平衡单字节与双字节字符”
+% （\pkg{docxlike} 的 \option{balance-sbcs-characters-and-dbcs-characters}，在本文件打开），两个空格
+% 各占半格，合起来一个字；空格是西文字形，不抬行高，全是西文的题名仍按西文行盒。Windows Word
+% 实测，编号格式里的半角空格不受这个选项管，只有半个字，全角空格又会把西文题名的上升部抬成
+% 黑体的。英文版量出来也是一个字（iota-hit 量 2026 年 9 月版深圳本科英文版那两份表单，号末到
+% 名首：章 18.35／18，节 15.23／15.12，条 14.05／13.92），原件敲的同样是两个半角。英文学位论文的
+% 章号独占一行，题名前敲的是换行（Word 的 Shift+Enter），这一行照样居中。人文社科类的节与条题序
+% 自带顿号或括号（“一、”“（一）”），范例里题序贴着标题排，不敲。空白取
+% \option{after-}\meta{级}\option{-number} 词条，没设就是上面这些。人文社科那根轴只有终稿有，
+% 先问标志位在不在。
+%    \begin{macrocode}
+\tl_new:N \l__hit_heading_local_tl
+\tl_new:N \l__hit_heading_body_tl
+\tl_new:N \l__hit_heading_list_tl
+\tl_new:N \l__hit_heading_lvl_tl
+\bool_new:N \l__hit_heading_numbered_bool
+\clist_new:N \g__hit_heading_levels_clist
+\clist_gset:Nn \g__hit_heading_levels_clist { chapter , section , subsection , subsubsection }
+\cs_new:Npn \__hit_heading_gap:n #1
+  {
+    \bool_if:NTF \g__hit_en_bool
+      {
+        \hit@after@number:nnn {#1} { en }
+          {
+            \str_if_eq:nnTF {#1} { chapter }
+              { \exp_not:N \break } { \c_space_tl \c_space_tl }
+          }
+      }
+      { \hit@after@number:nnn {#1} { zh } { \c_space_tl \c_space_tl } }
+  }
+\cs_new:Npn \__hit_heading_after:n #1
+  {
+    \bool_lazy_all:nF
+      {
+        { \bool_if_exist_p:N \g__hit_hass_bool }
+        { \bool_if_p:N \g__hit_hass_bool }
+        { \str_if_eq_p:nn {#1} { section } || \str_if_eq_p:nn {#1} { subsection } }
+      }
+      { \__hit_heading_gap:n {#1} }
+  }
+\cs_new:Npn \__hit_heading_term:nn #1#2
+  { \tl_if_exist:cT { g__hit_term_ctex_ #1 _tl } { \clist_item:cn { g__hit_term_ctex_ #1 _tl } {#2} } }
+%    \end{macrocode}
+%
+% 列表 \meta{名字} 的第 1 到第 \meta{n} 级依次链接到“标题 1”到“标题 \meta{n}”。标题样式勾
+% “与下段同页”，关掉“为字体调整字间距”：范例的标题样式就是这样，\pkg{ctex} 那条路一律这样排。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_heading_link:nn #1#2
+  {
+    \int_step_inline:nn {#2}
+      {
+        \docxlikesetup
+          { multilevel-lists = { #1 = { level-##1 = { link-level-to-style = Heading~##1 } } } }
+      }
+  }
+\cs_new_protected:Npn \__hit_heading_styles:
+  {
+    \docxlike_format_set:n
+      {
+        Heading1 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
+        Heading2 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
+        Heading3 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
+        Heading4 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
+      }
+  }
+\cs_new_protected:Npn \__hit_heading_sync:nn #1#2
+  {
+    \docxlike_numbering_style:nNNT {#1} \l__hit_heading_list_tl \l__hit_heading_lvl_tl
+      {
+        \docxlike_numbering_set_value:eee { \l__hit_heading_list_tl }
+          { \int_eval:n { \l__hit_heading_lvl_tl + 1 } }
+          {
+            \int_step_function:nN { \l__hit_heading_lvl_tl + 1 }
+              \__hit_heading_sync_value:n
+          }
+      }
+  }
+\cs_new:Npn \__hit_heading_sync_value:n #1
+  {
+    \int_compare:nNnT {#1} > { 1 } { , }
+    \int_eval:n
+      {
+        \int_use:c { c@ \clist_item:Nn \g__hit_heading_levels_clist {#1} }
+        \int_compare:nNnT {#1} = { \l__hit_heading_lvl_tl + 1 } { + 1 }
+      }
+  }
+\cs_generate_variant:Nn \docxlike_numbering_set_value:nnn { eee }
+%    \end{macrocode}
+%
+% \cs{\_\_hit\_heading\_emit:Nnnnnn}\meta{标题命令}\marg{层级名}\marg{样式标识}\marg{星号}\marg{可选参数}\marg{题名}
+% 发一个标题，\meta{标题命令} 是 \pkg{docxlike} 定义的，\marg{星号} 空或 \texttt{*}；编号不编号
+% 事先放在 \cs{l\_\_hit\_heading\_numbered\_bool} 里。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_heading_emit:Nnnnnn #1#2#3#4#5#6
+  {
+    \IfNoValueTF {#5}
+      { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#6} , } }
+      {
+        \tl_if_in:nnTF {#5} { = }
+          { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#6} , #5 , } }
+          { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#5} , } }
+      }
+    \tl_set:Nn \l__hit_heading_body_tl {#6}
+    \tl_if_empty:nTF {#4}
+      {
+        \bool_if:NTF \l__hit_heading_numbered_bool
+          {
+            \__hit_heading_sync:nn {#3} {#2}
+            \tl_set:Ne \l__hit_heading_body_tl
+              { \__hit_heading_after:n {#2} \exp_not:n {#6} }
+          }
+          { \tl_put_right:Nn \l__hit_heading_local_tl { numbering = none , } }
+      }
+      { \bool_set_false:N \l__hit_heading_numbered_bool }
+    \use:e
+      {
+        \exp_not:N #1 #4
+        [ \exp_not:V \l__hit_heading_local_tl ]
+        { \exp_not:V \l__hit_heading_body_tl }
+      }
+    \bool_if:NT \l__hit_heading_numbered_bool
+      {
+        \use:e
+          {
+            \exp_not:N \protected@edef \exp_not:N \@currentlabel
+              { \exp_not:c { p@ #2 } \exp_not:c { the #2 } }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_heading_section:Nnnnnnn #1#2#3#4#5#6#7
+  {
+    \par
+    \legacy_if:nF { @nobreak } { \addpenalty { \@secpenalty } }
+    \tl_clear:N \l__hit_heading_local_tl
+    \bool_set:Nn \l__hit_heading_numbered_bool { \int_compare_p:nNn { \c@secnumdepth } > {#7} }
+    \__hit_heading_emit:Nnnnnn #1 {#2} {#3} {#4} {#5} {#6}
+  }
+\cs_generate_variant:Nn \__hit_heading_section:Nnnnnnn { c }
+%    \end{macrocode}
+%
+% \cs{\_\_hit\_heading\_section\_new:Nnnnn}\meta{命令}\marg{层级名}\marg{样式名}\marg{样式标识}\marg{门槛}
+% 把 \meta{命令} 定义成节一级的标题命令（\verb|s o m|），按 \marg{样式名} 排；\cs{secnumdepth} 大于
+% \marg{门槛} 时编号。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_heading_section_new:Nnnnn #1#2#3#4#5
+  {
+    \exp_args:Nc \DeclareDocumentCommand { __hit_dl_ #2 :w } { s o m } { }
+    \exp_args:Nc \docxlike_heading_new:Nnn { __hit_dl_ #2 :w } {#3} {#2}
+    \DeclareDocumentCommand #1 { s o m }
+      {
+        \IfBooleanTF {##1}
+          { \__hit_heading_section:cnnnnnn { __hit_dl_ #2 :w } {#2} {#4} { * } {##2} {##3} {#5} }
+          { \__hit_heading_section:cnnnnnn { __hit_dl_ #2 :w } {#2} {#4} { } {##2} {##3} {#5} }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{字距与 \pkg{ctex} 同步}
+%
+% \pkg{docxlike} 设字符网格的字距时（\cs{docxlike\_format\_hglue:nn}）只管 \pkg{xeCJK} 与
+% \pkg{luatexja}，设完发钩子 \texttt{docxlike/hglue}。本类还在 \pkg{ctex} 上，它有自己一份：
+% \pkg{ctex} 的 \cs{CJKglue} 读 \cs{l\_\_ctex\_ccglue\_skip}，字号变化时由
+% \cs{\_\_ctex\_update\_stretch\_auxi:} 重设，重设前先问 \cs{ctex\_if\_ccglue\_touched:}（比的是
+% \cs{CJKglue} 与 \cs{\_\_ctex\_ccglue:} 的 meaning）。\TeX~Live 2026 的 \cs{ctex\_update\_ccglue:}
+% 会把 \cs{\_\_ctex\_ccglue:} 同步过去，判断准；2025 的不同步，设的字距会在 \cs{begin\{document\}}
+% 里被盖回 \pkg{ctex} 自己那份（实测 2025 下整篇字距都是裸字号）。所以寄存器一起设，谁赢都是
+% 同一个值。
+%
+% \cs{ccwd} 是“\cs{CJKglue} 的宽 $+$ 字号”，由 \cs{ctex\_update\_ccwd:} 算。\pkg{ctex} 换字号时走
+% \cs{ctex\_update\_stretch:}，先把 \cs{ccwd} 设成纯字号，再按分支决定要不要重算；TL2025 及以前
+% 默认走的 \cs{\_\_ctex\_update\_stretch\_auxii:} 没有“动过 \cs{CJKglue} 没有”的判断，\cs{ccwd} 停在
+% 纯字号上，少 0.456\,pt。TL2026 给它补上了同一条判断；旧版没有就在这里补，判据照 \pkg{ctex}
+% 自己那一段，原来的函数体留作兜底，第一次设字距时补一次（\pkg{ctex} 在导言区之后还会重定义它，
+% 加载时补会被盖掉）。补了之后 \cs{ccwd} 在 2024 到 2026 上取值一致。
+%    \begin{macrocode}
+\bool_new:N \g__hit_ctex_ccwd_patched_bool
+\hook_gput_code:nnn { docxlike / hglue } { hithesis }
+  {
+    \cs_if_exist:NT \l__ctex_ccglue_skip
+      { \skip_set:Nn \l__ctex_ccglue_skip { \l_docxlike_format_ccglue_dim } }
+    \cs_if_exist:NT \ctex_update_ccwd: { \ctex_update_ccwd: }
+    \bool_lazy_all:nT
+      {
+        { \cs_if_exist_p:N \ctex_if_ccglue_touched:TF }
+        { \cs_if_exist_p:N \__ctex_update_stretch_auxii: }
+        { ! \bool_if_p:N \g__hit_ctex_ccwd_patched_bool }
+      }
+      {
+        \bool_gset_true:N \g__hit_ctex_ccwd_patched_bool
+        \cs_gset_eq:NN \__hit_ctex_stretch_orig: \__ctex_update_stretch_auxii:
+        \cs_gset_protected:Npn \__ctex_update_stretch_auxii:
+          {
+            \ctex_if_ccglue_touched:TF
+              { \ctex_update_ccwd: }
+              { \__hit_ctex_stretch_orig: }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 这几步只在 \texttt{Normal} 样式写过时做（旧版面与博士后不写，正文照 \pkg{ctex} 排）。
+% 正文交给 \pkg{docxlike} 之前先关掉 \pkg{ctex} 的 \option{autoindent}（“首行缩进跟着字号走，恒为
+% 两个汉字宽”，每次换字号都重设 \cs{parindent}；Word 的首行缩进存盘时就折成了绝对长度）。排完正文、
+% 有字符网格时（网格步进是排正文时才算出来的）再停掉 \pkg{ctex} 挂在字号变化上的 \cs{ctex\_update\_ccglue:}：TL2025 下它判不出我们动过
+% \cs{CJKglue}，换字号就把字距冲回裸字号；停成空操作两版都稳，实测汉字步进都是 12.5040，没有网格的
+% 文档里 \cs{ziju} 还要靠它。排完把 \cs{ccwd} 设成网格步进：\pkg{docxlike} 是先换字号再改字距的，
+% 那一次重算读到的还是 \pkg{ctex} 自己的字距。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@docxlike@apply@body:
+  {
+    \docxlike_format_if_blank:nF { Normal } { \ctexset { autoindent = false } }
+    \docxlike_format_apply_body:
+    \docxlike_format_if_blank:nF { Normal }
+      {
+        \dim_compare:nNnF { \g_docxlike_page_char_dim } = { 0pt }
+          {
+            \cs_if_exist:NT \ctex_update_ccglue:
+              { \cs_set_eq:NN \ctex_update_ccglue: \prg_do_nothing: }
+            \cs_if_exist:NT \ccwd { \dim_set_eq:NN \ccwd \g_docxlike_page_char_dim }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{标题里的西文}
+%
+% 四级标题在西文无衬线开着时发 \cs{sffamily}：\option{font-zh} 已经发了 \cs{heiti}，
+% 再补这个条件，汉字用黑体、西文用无衬线，与目录条目那边的
+% \cs{hit@chapter@entry@font} 同一个写法。只限四级标题，页眉页脚无条件发会串味。
+%    \begin{macrocode}
+\cs_new:Npn \hit@format@latin@sans:
+  { \bool_if:NT \g__hit_heading_latin_sans_bool { \sffamily } }
+\clist_map_inline:nn { Heading1 , Heading2 , Heading3 , Heading4 }
+  { \docxlike_format_add_font:nn {#1} { \hit@format@latin@sans: } }
+%    \end{macrocode}
+%
+% \subsection{旧选项的兼容桥}
+%
+% 六条已经能接上排版的属性写回原来的标志位。整个目标设完再过一遍，因为
+% \option{alignment} 那两条要看最终值，中途改来改去不必每次都写。
+%
+% 六个标志位都只有终稿有。报告不排章，也没有子图题与摘要标题那两处开关，所以写回
+% 之前先看标志位在不在，不在就什么也不做，免得凭空造出一个没人读的布尔。
+%
+% \option{latin-text-font} 与 \option{all-caps} 的标志位是全局的，所以只在伞上认。伞展开成
+% 四个层级，四次都写同一个标志位，结果一样。
+%    \begin{macrocode}
+\tl_new:N \l__hit_docxlike_value_tl
+\cs_new_protected:Npn \__hit_docxlike_flag_set:nn #1#2
+  {
+    \bool_if_exist:cT { g__hit_#1_bool }
+      {
+        \bool_if:nTF {#2}
+          { \bool_gset_true:c  { g__hit_#1_bool } }
+          { \bool_gset_false:c { g__hit_#1_bool } }
+      }
+  }
+\cs_new_protected:Npn \__hit_docxlike_flag_eq:nnnn #1#2#3#4
+  {
+    \docxlike_format_get:nnN {#1} {#3} \l__hit_docxlike_value_tl
+    \tl_if_empty:NF \l__hit_docxlike_value_tl
+      {
+        \__hit_docxlike_flag_set:nn {#2}
+          { \str_if_eq_p:Vn \l__hit_docxlike_value_tl {#4} }
+      }
+  }
+%    \end{macrocode}
+%
+% 悬挂缩进在 docx 里是 \texttt{w:ind/@w:hanging} 或 \texttt{@w:hangingChars}，首行缩进是
+% \texttt{firstLine} 那两个。四个里写过任何一个才写回标志位，是悬挂的那两个才为真。
+%    \begin{macrocode}
+\bool_new:N \l__hit_docxlike_written_bool
+\bool_new:N \l__hit_docxlike_hanging_bool
+\cs_new_protected:Npn \__hit_docxlike_flag_hanging:nn #1#2
+  {
+    \bool_set_false:N \l__hit_docxlike_written_bool
+    \bool_set_false:N \l__hit_docxlike_hanging_bool
+    \clist_map_inline:nn { hangingChars , hanging , firstLineChars , firstLine }
+      {
+        \docxlike_format_get:nnN {#1} { pPr/ind/##1 } \l__hit_docxlike_value_tl
+        \tl_if_empty:NF \l__hit_docxlike_value_tl
+          {
+            \bool_set_true:N \l__hit_docxlike_written_bool
+            \str_if_eq:eeT { \str_range:nnn {##1} { 1 } { 7 } } { hanging }
+              { \bool_set_true:N \l__hit_docxlike_hanging_bool }
+          }
+      }
+    \bool_if:NT \l__hit_docxlike_written_bool
+      { \__hit_docxlike_flag_set:nn {#2} { \l__hit_docxlike_hanging_bool } }
+  }
+\docxlike_format_set_after_target:n
+  {
+    \str_case:nn {#1}
+      {
+        { Heading1 }
+          {
+            \__hit_docxlike_flag_eq:nnnn {#1} { chapterbold } { rPr/b } { true }
+            \__hit_docxlike_flag_hanging:nn {#1} { chapterhang }
+            \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { rPr/rFonts/ascii } { Arial }
+          }
+        { Heading2 }
+          { \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { rPr/rFonts/ascii } { Arial } }
+        { Heading3 }
+          { \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { rPr/rFonts/ascii } { Arial } }
+        { Heading4 }
+          { \__hit_docxlike_flag_eq:nnnn {#1} { heading_latin_sans } { rPr/rFonts/ascii } { Arial } }
+        { caption-figure }
+          {
+            \__hit_docxlike_flag_eq:nnnn {#1} { capcenterlast }
+              { pPr/jc } { last-line-centered }
+          }
+        { caption-table }
+          {
+            \__hit_docxlike_flag_eq:nnnn {#1} { capcenterlast }
+              { pPr/jc } { last-line-centered }
+          }
+        { caption-sub }
+          {
+            \__hit_docxlike_flag_eq:nnnn {#1} { subcapcenterlast }
+              { pPr/jc } { last-line-centered }
+          }
+        { abstract-heading }
+          { \__hit_docxlike_flag_eq:nnnn {#1} { absupper } { rPr/caps } { true } }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{字号与钩子}
+%
+% 深圳那一档的原创性声明标题用 \cs{xsanhao}（15.9\,bp），格式表里也认这个名字。
+% 行间公式的处理挂到 \pkg{docxlike} 的钩子上（西文字体重设在 \file{hit-fonts.dtx} 里定义时就挂上）。
+%    \begin{macrocode}
+\docxlike_size_new:nn { xsanhao } { 15.9bp }
+\hook_gput_code:nnn { docxlike / display } { hithesis } { \hit@display@hooks: }
+%    \end{macrocode}
+%
+% \emph{兼容模式显式写 Word 2003。} \pkg{docxlike} 默认 Word 2013（2013 起新建的文档）；
+% 学校发的原件都是 \texttt{doc}，原样另存是 2003 档且带 2003 的三个开关，本类的断行照它们
+% 标定。写在加载时，用户的 \option{layout}/\option{compatibility-mode} 排在后面，照用户的。
+% 原件的兼容选项里还开着“平衡单字节与双字节字符”（\texttt{balanceSingleByteDoubleByteWidth}），
+% 标题编号后敲的两个半角空格因此各占半格，合起来一个字。
+%    \begin{macrocode}
+\keys_set:nn { docxlike }
+  { compatibility-mode = word-2003 , balance-sbcs-characters-and-dbcs-characters }
+%    \end{macrocode}
+%
+% \subsection{全局开关的同步}
+%
+% 类自己的几个开关与 \pkg{docxlike} 的同名开关是同一件事，类这边一改就同步过去：
+% 设底部对齐、文档网格、西文加格、行内代码空格的键，以及类选项处理完之后。
+% 走不走 Word 版面在 \cs{begin}\marg{document} 时定，旧版面下断行层不装。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@docxlike@sync:
+  {
+    \bool_gset_eq:NN \g_docxlike_ragged_bottom_bool \g__hit_raggedbottom_bool
+    \bool_gset_eq:NN \g_docxlike_grid_bool \g__hit_layout_grid_bool
+    \bool_gset_eq:NN \g_docxlike_latin_pitch_bool \g__hit_layout_pitch_en_bool
+    \bool_gset_eq:NN \g_docxlike_verb_space_visible_bool \g__hit_verb_space_visible_bool
+  }
+\AddToHook { begindocument }
+  {
+    \hit@docxlike@sync:
+    \__hit_layout_msword_active:TF
+      { \bool_gset_true:N \g_docxlike_word_layout_bool }
+      { \bool_gset_false:N \g_docxlike_word_layout_bool }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</shared-docxlike>
+%    \end{macrocode}
+%
+% \Finale

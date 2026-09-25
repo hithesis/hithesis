@@ -1,0 +1,979 @@
+% \iffalse meta-comment
+%
+% Copyright (C) 2017- by Yanshuo Chu <yanshuoc@gmail.com>
+%
+% This file may be distributed and/or modified under the
+% conditions of the LaTeX Project Public License, either version 1.3a
+% of this license or (at your option) any later version.
+% The latest version of this license is in:
+%
+% http://www.latex-project.org/lppl.txt
+%
+% and version 1.3a or later is part of all distributions of LaTeX
+% version 2004/10/01 or later.
+%
+% \fi
+%
+% \section{文档类选项}
+%
+% \changes{v3.2a}{2026/09/13}{两份选项模块合成一份，终稿与报告的差别由 \option{stage}
+%   分岔：\option{stage} 是一个选择项，默认 \texttt{final}，取值 \texttt{proposal}
+%   与 \texttt{interim}（v3.1e 的 \texttt{opening}、\texttt{midterm} 走废弃期），
+%   \cs{g\_\_hit\_final\_bool} 与「排不排章」都由它推出来；条件里可写
+%   \texttt{stage!=final}；引擎检查挪进 \file{src/engine/hit-engine.dtx}}
+% \changes{v3.2a}{2026/09/13}{学位与类别：\option{type} 改名 \option{degree-level}
+%   （旧名走废弃期），毕业设计并进它写成 \texttt{bachelor*}（\option{design} 废弃）；
+%   加 \option{degree-type} 分学术与专业学位、\option{category} 分理工类与人文社科类
+%   （\texttt{hss} 收作 \texttt{hass} 的别名）；\option{degree-level}\texttt{!=postdoc}
+%   定死 \option{stage}\texttt{!=final}，原先写了别的 \option{stage} 会一路炸到丢掉
+%   \cs{begin\{document\}}}
+% \changes{v3.2a}{2026/09/13}{深圳本科：终稿重定向到本部本科模板；开题与中期是深圳
+%   自己发的表单，不翻成本部，正文照终稿排}
+% \changes{v3.2a}{2026/08/15}{字体选项：\option{fontset-en}、\option{fontset-zh}、
+%   \option{fontset-math} 收「哪一套」的名字，与顶层 \option{fontset} 同词根（中途的
+%   \option{font}／\option{cjk-font}／\option{font-en}／\option{font-zh} 都还认）；
+%   数学引擎换成 \pkg{unicode-math}，\option{newtxmath} 降级为 \option{math-font}
+%   的一档，加 \option{math-style}；加 \option{windows-font-dir}；siyuan fontset 去掉；
+%   伪粗体系数由 2 改 2.85，按 Word 实测}
+% \changes{v3.2a}{2026/08/25}{改名与三态：\option{newgeometry} 改成 \option{v2-layout}
+%   （本科与硕博分开，硕博不写就是新版面），\option{arialtitle} 改名
+%   \option{style}/\option{heading-latin-sans}，\option{tocfour} 改名
+%   \option{toc}/\option{depth}，\option{tocblank} 废弃，\option{language} 补上兼容路径；
+%   \option{subtitle} 改三态；右开页收成「一个三态总闸 + 四个跳页点 + 一张按学位的
+%   默认表」走 \cs{hit@openright:n}；\option{bsfrontpagenumberline} 的条件默认值原先
+%   写在 \cs{ProcessKeyOptions} 之前恒为真，改由三态取值承载；加 \option{cover-script}；
+%   \option{split-entry} 默认改 \texttt{true}}
+% \changes{v3.2a}{2026/08/28}{类内部不再用 \cs{ifthenelse}（加 \cs{hit@if@same@TF}）；
+%   \option{style/glue} 的伸缩量抽成 \cs{hit@glue@skip} 与 \cs{hit@glue@font@size}；
+%   加 \cs{g\_\_hit\_new\_layout\_bool}；只挑取值的三个组合判断删掉，取值已进词条表}
+%
+% \cs{documentclass} 上接受的选项：声明、默认值，以及 \cs{ProcessKeyOptions}
+% 之后按材料、校区与学位补齐的那批后处理。
+%
+% \emph{终稿与报告合用这一份。} 原先是 \file{hit-final-options.dtx} 与
+% \file{hit-report-options.dtx} 两份，各自声明同一批选项。同一批选项声明两遍在一个
+% 类里过不去：\cs{hit@define@choice@option} 里的 \cs{bool\_new:c} 撞名就报错。
+% 所以每个选项在这里只声明一次，取值取两边的并集，差别放到
+% \cs{ProcessKeyOptions} 之后按 \option{stage} 分岔。
+%
+% ^^A ======================================================================
+% ^^A Module shared-options: 文档类选项的声明与后处理（stage/campus/fontset 等）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*shared-options>
+%    \end{macrocode}
+%
+% 引擎检查在 \file{src/engine/hit-engine.dtx}，那个文件比这里更早。理由不变——
+% 它是先决条件，引擎不对就不必再往下走。
+%
+% 此处添加book控制项，用于cfg中定理等控制
+% \changes{v3.0.0}{2020/05/21}{此处添加book控制项，用于cfg中定理等控制}
+%
+% 键名带连字符时（如 \option{cjk-font}）不能直接拿来拼控制序列，另给一个把键名与
+% 变量名分开的版本。
+%
+% \option{degree-level} 是学位层次，不叫 \option{type}：与 \option{stage} 并列时
+% 两个名字都读作「种类」，谁也说不清哪个管学位哪个管交付物。
+%
+% 旧名 \option{type} 照旧生效，转发到 \option{degree-level}，并提示一次。取值判断看的是
+% \cs{g\_\_hit\_}\meta{取值}\cs{\_bool}，跟键名无关，所以内部代码一处不用改。
+%    \begin{macrocode}
+
+\clist_const:Nn \c__hit_degree_clist { bachelor , master , doctor , postdoc }
+\clist_map_inline:Nn \c__hit_degree_clist { \bool_new:c { g__hit_#1_bool } }
+%    \end{macrocode}
+%
+% \textbf{取值末尾的星号表示毕业设计。} 本科封面上「毕业论文」与「毕业设计」是一对
+% 勾选框，两者互斥，说的又都是「这份东西是什么」，与学位层次是同一件事，所以并进
+% \option{degree-level}：\texttt{bachelor} 勾毕业论文，\texttt{bachelor*} 勾毕业设计。
+%
+% 星号只对本科有意义。别的学位写了不报错，但那一对勾选框只出现在本科封面上。
+%
+% \emph{标志位叫 practice 不叫 design。} 本科封面那对勾选框问的是「交上去的是
+% 写出来的论文，还是做出来的成果」，硕博的「学位论文／实践成果」问的是同一件事，
+% 将来并成一根轴是自然的。正名取 \texttt{practice}：实践成果那份指南的成果类型
+% 表里，「产品设计报告」「方案设计报告」本来就是实践成果的\emph{子类}，拿子类
+% 当正名别扭。这一轮只统一词，不建轴——研究生实践成果的词条我们一条都没有，
+% 轴上只有一档等于先给自己造一层机制。\option{design} 这个键名照旧留着。
+%    \begin{macrocode}
+\bool_new:N \g__hit_practice_bool
+\bool_new:N \g__hit_degree_given_bool
+\seq_new:N \l__hit_degree_seq
+\cs_new_protected:Npn \__hit_degree_pick:n #1
+  {
+    \clist_map_inline:Nn \c__hit_degree_clist
+      { \bool_gset_false:c { g__hit_##1_bool } }
+    \bool_if_exist:cTF { g__hit_#1_bool }
+      { \bool_gset_true:c { g__hit_#1_bool } }
+      { \hit@bad@value:nnn { degree-level } {#1}
+          { bachelor , bachelor* , master , doctor , postdoc } }
+  }
+\cs_new_protected:Npn \__hit_degree_level:n #1
+  {
+    \bool_gset_true:N \g__hit_degree_given_bool
+    \seq_set_split:Nnn \l__hit_degree_seq { * } {#1}
+    \bool_gset:Nn \g__hit_practice_bool
+      { \int_compare_p:nNn { \seq_count:N \l__hit_degree_seq } > { 1 } }
+    \exp_args:Nx \__hit_degree_pick:n { \seq_item:Nn \l__hit_degree_seq { 1 } }
+  }
+\keys_define:nn { hit / class }
+  {
+    degree-level .code:n = { \__hit_degree_level:n {#1} } ,
+    type .code:n = { \keys_set:nn { hit / class } { degree-level = #1 } } ,
+  }
+%    \end{macrocode}
+%
+% \option{design} 是旧写法，照旧能用，写了提示一次。它只管勾选框，不动学位层次。
+%    \begin{macrocode}
+\keys_define:nn { hit / class }
+  {
+    design .code:n =
+      {
+        \__hit_warn_once:nnn { design } { merged-option }
+          { degree-level=bachelor* }
+        \str_if_eq:nnTF {#1} { true }
+          { \bool_gset_true:N  \g__hit_practice_bool }
+          { \bool_gset_false:N \g__hit_practice_bool }
+      } ,
+    design .default:n = { true } ,
+  }
+%    \end{macrocode}
+%
+% \option{degree-type} 分学术学位与专业学位，默认 \texttt{academic}。
+% \option{degree-level} 管的是学士硕士博士，跟学术还是专业是两个维度，所以分成两个选项。
+%
+% 取值造出 \cs{g\_\_hit\_academic\_bool} 与 \cs{g\_\_hit\_professional\_bool}，
+% 于是 \cs{hitsetup}\oarg{degree-type=professional} 这样的条件也能写。
+%    \begin{macrocode}
+\hit@define@choice@option{degree-type}{}{academic,professional}{academic}
+%    \end{macrocode}
+%
+% \option{category} 分理工类与人文社科类，默认 \texttt{stem}。学校的写作指南
+% 与书写范例各有两份（\texttt{g-stem}／\texttt{g-hss}、\texttt{d-stem}／
+% \texttt{s-hss}），两份指南的打印要求逐条一样，差在正文层次的编号
+% （人文：第一章／一、／（一）／1.）；两份范例又各自多出几处实现上的差别
+% （人文：正文与目录固定值 23 磅、文献表半角标号、成果组名走节标题那一档）。
+% 取值造出 \cs{g\_\_hit\_stem\_bool} 与 \cs{g\_\_hit\_hass\_bool}，
+% \cs{hitsetup}\oarg{category=hass} 这样的条件也能写。名字取 hass
+% （humanities, arts and social sciences），与 iota-hit 同名。
+%
+% \emph{\texttt{hss} 是它的别名。} 学校那两份指南的文件名是 \file{g-stem.docx}
+% 与 \file{g-hss.docx}，用户照文件名写 \texttt{category=hss} 也该认。正名取
+% \texttt{hass} 是为了把艺术学兜进来——学校那句适用范围只点了哲学、法学、文学
+% 三个门类，艺术学两边都没提，而哈工大有艺术类专业。别名与 \option{stage} 的
+% \texttt{opening}／\texttt{midterm} 同一套办法：声明进取值表，解析完折成正名。
+%    \begin{macrocode}
+\hit@define@choice@option{category}{}{stem,hass,hss}{stem}
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{模板默认是 \option{bachelor}，为页脚做准备}
+%    \begin{macrocode}
+\bool_lazy_any:nF
+  {
+    { \bool_if_p:N \g__hit_master_bool }
+    { \bool_if_p:N \g__hit_doctor_bool }
+    { \bool_if_p:N \g__hit_postdoc_bool }
+  }
+  { \bool_gset_true:N \g__hit_bachelor_bool }
+%    \end{macrocode}
+%
+% \changes{v2.0.0}{2018/06/14}{此处添加geometry选项}
+% \changes{v3.0.0}{2020/05/20}{此处添加博后选项}
+% 两个都声明，缺一个的话条件求值会撞上不存在的标志位。
+%
+% \option{stage} 是一个普通的选择项，默认 \texttt{final}。六个取值一次声明完：
+% 三个正名加两个废弃名，再加 \texttt{mid-term} 那个更早的写法。废弃名也得声明，
+% 不然写了旧名的条件会掉进另一条提示；归一化排在 \cs{ProcessKeyOptions} 之后。
+%
+% 终稿那一档的标志位叫 \cs{g\_\_hit\_final\_bool}：词条查表是按档位值反查
+% \cs{g\_\_hit\_}\meta{取值}\cs{\_bool} 的（见 \file{hit-key-engine.dtx} 的
+% \cs{\_\_hit\_axis\_context\_try:n}），轴表把这一档叫 \texttt{final}。没有「类身份」
+% 标志位：类合成一份之后它只是 \option{stage} 推出来的影子。要分的那件事是
+% \emph{正文照哪一档排}，见下面的 \cs{g\_\_hit\_final\_body\_bool} 与
+% \cs{g\_\_hit\_report\_body\_bool}。\cs{g\_\_hit\_chapter\_bool} 留着：排不排章
+% 跟着材料走，终稿排、报告不排。
+%    \begin{macrocode}
+\hit@define@choice@option{stage}{}{final,proposal,interim,mid-term,opening,midterm}{final}
+\bool_new:N \g__hit_chapter_bool
+%    \end{macrocode}
+%
+% 校区没写就是哈尔滨。两个具名条件与「这份材料叫什么」那个宏只有报告用，定义在
+% 这里对终稿无害：终稿那边一处也不调，条件本身也不成立。
+%    \begin{macrocode}
+\hit@define@choice@option{campus}{}{shenzhen,weihai,harbin}{}
+\hit@define@condition{not@shenzhen}{ ! \g__hit_shenzhen_bool }
+\hit@define@condition{shenzhen@doctor@interim}
+  { \g__hit_shenzhen_bool && \g__hit_doctor_bool && \g__hit_interim_bool }
+\cs_new:Npn \hit@stage@name
+  {
+    \bool_if:NTF \g__hit_proposal_bool
+      { \hit@term@base@stage@proposal }
+      { \hit@if@option@T { interim } { \hit@term@base@stage@interim } }
+  }
+%    \end{macrocode}
+%
+% \option{toc} 把「排不排目录」转给 \option{struct} 族，终稿也认，不然会掉进
+% \texttt{unknown} 转给 \pkg{ctex} 再报一条。
+%
+% \option{cover-script} 管封面上那两处美术字：本科报告封面底下的
+% 「哈尔滨工业大学教务处制」（隶书）与深圳本科报告首页的校名与文种（华文新魏）。
+% \texttt{auto}（默认）有字体就排字体、没有就贴事先转好的 PDF，\texttt{font} 与
+% \texttt{image} 各自钉死。两条路排出来逐像素一致，见 \file{src/engine/hit-fonts.dtx}。
+%    \begin{macrocode}
+\keys_define:nn { hit / class }
+  {
+    toc .code:n =
+      { \tl_gset:cn { g__hit_structure_table-of-contents_tl } {#1} } ,
+    toc .default:n = { true } ,
+  }
+\hit@declare@class@key{cover-script}
+\cs_gset_nopar:Npn \hit@cover@script { auto }
+\cs_gset_protected:cpn { cover-script } #1
+  { \cs_gset_nopar:Npn \hit@cover@script {#1} }
+\bool_lazy_or:nnF
+  { \bool_if_p:N \g__hit_weihai_bool } { \bool_if_p:N \g__hit_shenzhen_bool }
+  { \bool_gset_true:N \g__hit_harbin_bool }
+%    \end{macrocode}
+%
+% 此处添加语言选项
+% \changes{v3.0.0}{2020/05/20}{此处添加语言选项}
+%    \begin{macrocode}
+\exp_args:NnnV \hit@define@choice@option {lang} {} \c__hit_lang_clist {}
+%    \end{macrocode}
+%
+% \emph{\option{language} 的兼容要转发值，不能只提示。} 旧名对照表
+% \cs{g\_\_hit\_renamed\_load\_option\_prop} 只发一句「已改名」，那对
+% \option{type} 够用——\texttt{type=doctor} 的取值在 \option{degree-level} 下
+% 原样可用，另有一条 \texttt{.code:n} 把它转过去。\option{language} 不行：
+% 取值也换了词（\texttt{chinese}/\texttt{english} 对 \texttt{zh}/\texttt{en}），
+% 得译一道。
+%
+% 漏了这一条的后果是静默走错：老文档写 \option{language}\texttt{=english}，
+% 当前类既不认也不提示，整份按中文排（旧版面兼容回归里英文书的致谢、目录、
+% 章标题全是中文，参照那边是 \texttt{ACKNOWLEDGEMENTS}、\texttt{Contents}、
+% \texttt{CHAPTER 1}）。
+%    \begin{macrocode}
+\keys_define:nn { hit / class }
+  {
+    language .code:n =
+      {
+        \__hit_warn_once:nnn { language } { renamed-load-option } { lang }
+        \str_case:nnF {#1}
+          {
+            { chinese } { \keys_set:nn { hit / class } { lang = zh } }
+            { english } { \keys_set:nn { hit / class } { lang = en } }
+            { zh }      { \keys_set:nn { hit / class } { lang = zh } }
+            { en }      { \keys_set:nn { hit / class } { lang = en } }
+          }
+          { \hit@bad@value@warn:nnn { language } {#1} { chinese , english } }
+      } ,
+  }
+\bool_if:NF \g__hit_en_bool { \bool_gset_true:N \g__hit_zh_bool }
+%    \end{macrocode}
+%
+% \changes{v2.0.0}{2018/06/14}{此处添加geometry选项}
+% 版面按新规范排是默认，旧版面靠 \option{v2-layout} 显式要回来。它必须写在
+% \cs{documentclass} 的可选参数里：版心决定整份文档怎么分页，\pkg{geometry} 要在
+% 基础类前后就定下来，挪进 \cs{hitsetup} 太晚。
+% \begin{latex}
+% \documentclass[v2-layout={bachelor=true}]{hithesis}
+% \documentclass[v2-layout={graduate=two}]{hithesis}
+% \end{latex}
+%
+% 本科与硕博分成两个键：\texttt{one}/\texttt{two} 管的只是硕博那一套，本科另有自己的
+% 旧版面（深圳本科可能还要用一阵），所以 \option{bachelor} 是个真假开关，
+% \option{graduate} 才收 \texttt{one}/\texttt{two}。博士后不在 \option{graduate} 里：
+% 它有自己一套参数，直接上新版面，不留旧的。\option{newgeometry} 的 \texttt{no}
+% 取值没有对应物，那是 PlutoThesis 时代留下的版心，与现行规范差得太远。
+%    \begin{macrocode}
+\hit@define@boolean@option@as{v2-layout-bachelor}{layout_two_bachelor}{false}
+\hit@define@choice@option{v2-layout-graduate}{layout_two_graduate_}{one,two}{}
+\keys_define:nn { hit / class }
+  {
+    v2-layout .code:n = { \keys_set:nn { hit / v2-layout } {#1} } ,
+    newgeometry .code:n = { \__hit_legacy_layout_two:n {#1} } ,
+  }
+\keys_define:nn { hit / v2-layout }
+  {
+    bachelor .code:n =
+      { \keys_set:nn { hit / class } { v2-layout-bachelor = #1 } } ,
+    bachelor .default:n = { true } ,
+    graduate .code:n =
+      { \keys_set:nn { hit / class } { v2-layout-graduate = #1 } } ,
+    glue .code:n = { \keys_set:nn { hit / class } { glue = #1 } } ,
+    glue .default:n = { true } ,
+    bottom .choice: ,
+    bottom / ragged .code:n = { \bool_gset_true:N  \g__hit_raggedbottom_bool } ,
+    bottom / flush  .code:n = { \bool_gset_false:N \g__hit_raggedbottom_bool } ,
+    bottom .value_required:n = true ,
+  }
+%    \end{macrocode}
+%
+% v3.1e 的 \option{newgeometry} 管的是所有学位，所以旧文档写它时两边都要开，
+% 这样版面一字不变。\texttt{no} 已经没有对应的新写法，报一句然后当 \texttt{two} 走；
+% \texttt{two} 要显式设上，不然硕博会落到新版面去。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_legacy_layout_two:n #1
+  {
+    \str_if_eq:nnTF {#1} { no }
+      {
+        \msg_warning:nnn { hithesis } { removed-option } { newgeometry=no }
+        \keys_set:nn { hit / class } { v2-layout-graduate = two }
+      }
+      { \keys_set:nn { hit / class } { v2-layout-graduate = #1 } }
+    \keys_set:nn { hit / class } { v2-layout-bachelor = true }
+  }
+%    \end{macrocode}
+%
+% 设置字距选项，因为word和规范不一致
+% \changes{v3.0.13}{2020/11/10}{设置字距选项，因为word和规范不一致}
+%    \begin{macrocode}
+\hit@define@choice@option{zijv}{ziju_}{regu,word}{}
+%    \end{macrocode}
+%
+% \changes{v3.1c}{2023/04/16}{设置中文参考文献中相邻两个标号使用逗号“,”还是短线“-”。\issue[137]}
+%    \begin{macrocode}
+\hit@define@choice@option{citetwo}{citetwo_}{comma,endash}{endash}
+%    \end{macrocode}
+%
+% 章节标题里的西文是否用无衬线体（默认关闭）。
+% 目录那个开关在共享层，旧名 \option{arialtoc} 与另外两个目录旧名一起处理。
+%    \begin{macrocode}
+\hit@define@boolean@option@as{arialtitle}{heading_latin_sans}{false}
+%    \end{macrocode}
+%
+% 中文本科模板中章标题是否加粗，默认是
+% \changes{v3.0.01}{2020/06/06}{中文本科模板中章标题是否加粗，默认是}
+%    \begin{macrocode}
+\hit@define@boolean@option{chapterbold}{true}
+%    \end{macrocode}
+%
+% \changes{v1.0.03}{2017/08/29}{默认开启raggedbottom}
+% \option{raggedbottom} 选项（默认开启）。如果不开启这个选项，会出现一页中尽量上
+% 下对齐，段的间距大。如果开启，尽量使段间距保持一致，页面底部出现空白。
+%    \begin{macrocode}
+\hit@define@boolean@option{raggedbottom}{true}
+\bool_new:N \g__hit_raggedbottom_given_bool
+\keys_define:nn { hit / class }
+  {
+    raggedbottom .code:n =
+      {
+        \bool_gset_true:N \g__hit_raggedbottom_given_bool
+        \str_if_eq:nnTF {#1} { false }
+          { \bool_gset_false:N \g__hit_raggedbottom_bool }
+          { \bool_gset_true:N \g__hit_raggedbottom_bool }
+      } ,
+    raggedbottom .default:n = { true } ,
+  }
+\hit@define@boolean@option{glue}{false}
+\hit@define@boolean@option{chapterhang}{true}
+\hit@define@boolean@option{fulltime}{true}
+\hit@define@boolean@option{etitleauto}{false}
+%    \end{macrocode}
+%
+% 要不要排副标题。默认 \texttt{auto}，即 \option{title} 的取值里带了 \oarg{副标题}
+% 就排。写死 \texttt{true} 或 \texttt{false} 可以强制。
+%    \begin{macrocode}
+\tl_new:N \g__hit_subtitle_tl  \tl_gset:Nn \g__hit_subtitle_tl { auto }
+\keys_define:nn { hit / class }
+  { subtitle .code:n = { \__hit_tristate_set:Nn \g__hit_subtitle_tl {#1} } ,
+    subtitle .default:n = { true } , }
+\hit@define@boolean@option{debug}{false}
+\hit@define@boolean@option{print}{false}
+%    \end{macrocode}
+%
+% \changes{v2.0.0}{2018/06/14}{此处删除newgeometry选项}
+% 是否使用右开页（默认否）。
+%    \begin{macrocode}
+\hit@define@boolean@option{openright}{false}
+%    \end{macrocode}
+%
+% \changes{v2.0.10}{2019/06/25}{此处添加是否为提交图书馆电子版}
+% 是否为提交图书馆电子版。
+%    \begin{macrocode}
+\hit@define@boolean@option{library}{false}
+%    \end{macrocode}
+%
+% \subsection{右开页}
+%
+% 全篇一共四个地方要决定跳不跳到右手页：内封那一串、前置、正文入口、后置。
+% 从前这四处各判各的——前置、后置与 \cs{hit@clear@page} 看 \option{openright}，
+% 内封那一串只看 \option{library}，正文入口看「博士且非图书馆版」，学位耦合还
+% 藏在 \option{oneside}/\option{twoside} 里（本硕单面，于是 \cs{cleardoublepage}
+% 自动退化成 \cs{clearpage}）。同一件事四种写法，加起来才看得出默认形态。
+%
+% 现在收成三层，取值层层可覆盖，每层都收 \texttt{auto} 表示「我不表态，交给
+% 上一层」：
+% \begin{itemize}
+% \item 单点：\option{style}/\option{open-right} 收
+%       \texttt{\{titlepage=…,frontmatter=…,mainmatter=…,backmatter=…\}}
+% \item 总闸：\option{style}/\option{open-right} 直接给 \texttt{true} 或
+%       \texttt{false}，四个点一起定
+% \item 默认表：总闸是 \texttt{auto} 时按学位查 \cs{c\_\_hit\_openright\_auto\_prop}
+% \end{itemize}
+%
+% \option{library} 不再是独立的一路判断，它就是把总闸压成 \texttt{false}——
+% 图书馆版要的「不跳、不留空白、页码连续」正是四个点全不跳。
+%
+% 默认表与 iota 的同名表一致：内封那一串只有博士跳，其余三个点各学位都不跳。
+%
+% 本硕那一格取 \texttt{false} 而不是 \texttt{true}，是因为跳页不再经过
+% \cs{cleardoublepage}。从前它绑着 \cs{if@twoside}，本硕单面时写 \texttt{true}
+% 与 \texttt{false} 输出一样；现在 \cs{hit@clear@odd@page:} 不看单双面，写
+% \texttt{true} 就真会补空白页，取值必须是想要的那个。指南 3.8 写死本科「单面
+% 复印或胶印」，单面没有右手页可言，所以是 \texttt{false}。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@openright:n}
+% \cs{hit@openright:n}\marg{点} 按上面三层解析，跳就发 \cs{hit@clear@odd@page:}，
+% 不跳就发 \cs{clearpage}。前者不看 \cs{if@twoside}，本硕单面时开关一样管用。默认表按学位查不着时退回本科那一档。
+%    \begin{macrocode}
+\tl_new:N \l__hit_openright_value_tl
+\tl_new:N \g__hit_matter_now_tl
+\tl_gset:Nn \g__hit_matter_now_tl { frontmatter }
+\cs_new_protected:Npn \__hit_openright_resolve:n #1
+  {
+    \tl_set_eq:Nc \l__hit_openright_value_tl { g__hit_openright_#1_tl }
+    \str_if_eq:VnT \l__hit_openright_value_tl { auto }
+      { \tl_set_eq:NN \l__hit_openright_value_tl \g__hit_openright_tl }
+    \str_if_eq:VnT \l__hit_openright_value_tl { auto }
+      {
+        \tl_set_eq:Nc \l__hit_openright_value_tl
+          { g__hit_openright_default_#1_tl }
+      }
+  }
+\cs_new_protected:Npn \hit@openright:n #1
+  {
+    \__hit_openright_resolve:n {#1}
+    \str_if_eq:VnTF \l__hit_openright_value_tl { true }
+      { \hit@clear@odd@page: } { \clearpage }
+  }
+%    \end{macrocode}
+%    \end{macro}
+%
+% 图题和标题最后一行是否居中对齐（默认是，非规范要求）。
+% \changes{v1.0.06}{2017/10/25}{此处更改了选项的名称}
+%    \begin{macrocode}
+\hit@define@boolean@option{capcenterlast}{false}
+%    \end{macrocode}
+%
+% 子图图题和标题最后一行是否居中对齐（默认是，非规范要求）。
+% \changes{v1.0.06}{2017/10/25}{此处添加子图最后一行图题是否居中选项}
+%    \begin{macrocode}
+\hit@define@boolean@option{subcapcenterlast}{false}
+%    \end{macrocode}
+%
+% 中文目录中Abstract是否均为大写
+% \changes{v1.0.13}{2018/04/05}{此处添加中文目录中Abstract是否均为大写选项}
+%    \begin{macrocode}
+\hit@define@boolean@option{absupper}{false}
+%    \end{macrocode}
+%
+% 此处添加控制本科论文的页码横线选项
+% \changes{v1.0.15}{2018/06/05}{添加控制本科论文的页码横线选项}
+% 由于本科论文模板的页码格式现已统一，修改bsmainpagenumberline默认设置为true
+% \changes{v3.0.16}{2021/11/29}{由于本科论文模板的页码格式现已统一，修改bsmainpagenumberline默认设置为true}
+%    \begin{macrocode}
+\hit@define@boolean@option{bsmainpagenumberline}{true}
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{哈尔滨本科要求 \cmd{\frontmatter} 中的页脚也要有横线，希望以后会统一。\issue[172]}
+% 这个选项的默认值随校区与学位而变，交给三态取值处理：\texttt{auto}
+% 时按哈尔滨本科为真解析，用户写了具体值就用具体值。
+%    \begin{macrocode}
+\hit@define@boolean@option{bsfrontpagenumberline}{false}
+\hit@define@boolean@option{bsheadrule}{true}
+%    \end{macrocode}
+%
+% 数学字体是否使用新罗马
+% \changes{v2.0.05}{2018/12/05}{添加数学字体开关}
+%    \begin{macrocode}
+\hit@define@boolean@option{newtxmath}{false}
+\hit@define@string@option@as{fontset-math}{mathfont}
+\keys_define:nn { hit / class }
+  { math-font .tl_gset:c = { hit@mathfont } , }
+\hit@define@string@option@as{math-style}{mathstyle}
+%    \end{macrocode}
+%
+% 此处应广大刀客要求添加一参考文献分割开关
+% \changes{v2.0.03}{2018/10/08}{添加参考文献分割开关}
+% \option{bib}/\option{split-entry} 决定一条参考文献能不能跨页断开。默认 \texttt{true}，
+% 也就是允许断：关着的时候一条长文献宁可整条推到下一页，页底就留一大块白。
+% 各学位各校区一个值，不分家。
+%    \begin{macrocode}
+\hit@define@boolean@option{splitbibitem}{true}
+%    \end{macrocode}
+%
+% 此处添加英文目录开关
+% \changes{v3.0.11}{2020/10/29}{此处添加英文目录开关}
+%    \begin{macrocode}
+\hit@define@boolean@option{engtoc}{false}
+\hit@define@string@option{fontset}
+%    \end{macrocode}
+%
+% 西文字体。原来一律用 TeX Gyre Termes（Times 的克隆），但学校要求的是
+% Times New Roman，Windows 与 macOS 上本来就有。\option{auto} 按 \option{fontset}
+% 决定：\texttt{windows}、\texttt{mac} 用 Times New Roman，其余用 TeX Gyre Termes。
+%    \begin{macrocode}
+\hit@define@string@option@as{fontset-en}{font@en}
+%    \end{macrocode}
+%
+% 中文字体。不写就照旧把 \option{fontset} 转给 \pkg{ctexbook}，由 \pkg{ctex} 设置；
+% 写了就由模板自己设，\pkg{ctexbook} 收到的是 \texttt{fontset=none}。这样默认行为
+% 一点没变，想换字体来源的人才走新路。
+%    \begin{macrocode}
+\hit@define@string@option@as{fontset-zh}{font@zh}
+\tl_gset:cn { hit@font@zh } { auto }
+%    \end{macrocode}
+%
+% 中易字体所在的目录，给「字体文件在、但系统没登记」的场合用。默认当前目录，
+% 也就是把 \file{Simsun.ttc} 之类拷在文稿旁边即可。
+%    \begin{macrocode}
+\hit@define@string@option@as{windows-font-dir}{windows@font@dir}
+\tl_gset:cn { hit@windows@font@dir } { . }
+%    \end{macrocode}
+%
+% 三个分项与顶层 \option{fontset} 是默认值链：分项不写就是 \texttt{auto}，
+% \texttt{auto} 去查 \option{fontset}，查不到按平台猜。写了具体值就以分项为准。
+% 与 \option{styles} 里 \option{font} 下的
+% \option{asian-text-font}/\option{latin-text-font} 不是一回事——
+% 那两个选的是「这个元素用哪种字形」，这三个选的是「整篇文档用哪套字体文件」。
+%    \begin{macrocode}
+\keys_define:nn { hit / class }
+  {
+    font       .tl_gset:c = { hit@font@en } ,
+    cjk-font   .tl_gset:c = { hit@font@zh } ,
+    font-en    .tl_gset:c = { hit@font@en } ,
+    font-zh    .tl_gset:c = { hit@font@zh } ,
+  }
+\keys_define:nn { hit / class }
+  {
+    unknown .code:n = { \hit@pass@or@warn { ctexbook } {#1} } ,
+  }
+%    \end{macrocode}
+%
+% 解析转发到模块的选项。
+%
+% \option{tocfour} 只有开关两档，说的其实是目录排到第几级。新名
+% \option{toc}~=~\{~\option{depth}~=~\texttt{4}~\} 直接写级数，
+% 规范里用得到的是 \texttt{3} 与 \texttt{4}。旧名照旧生效，
+% \texttt{true} 当 \texttt{4}、\texttt{false} 当 \texttt{3}。
+%
+% \option{tocblank} 废弃，不再有对应的新名。它插的那个空行规范里没有，
+% 写了也不起作用。
+%    \begin{macrocode}
+\tl_new:N \g__hit_page_number_line_mainmatter_tl   \tl_gset:Nn \g__hit_page_number_line_mainmatter_tl  { auto }
+\tl_new:N \g__hit_page_number_line_frontmatter_tl  \tl_gset:Nn \g__hit_page_number_line_frontmatter_tl { auto }
+\tl_new:N \g__hit_header_rule_tl      \tl_gset:Nn \g__hit_header_rule_tl     { auto }
+\keys_define:nn { hit / class }
+  {
+    tocfour  .code:n =
+      {
+        \str_if_eq:nnTF {#1} { false }
+          { \int_gset:Nn \g__hit_toc_depth_int { 3 } }
+          { \int_gset:Nn \g__hit_toc_depth_int { 4 } }
+      } ,
+    tocblank .code:n = { } ,
+    engtoc   .code:n = { \tl_gset:Nn \g__hit_toc_english_tl {#1} } ,
+    arialtoc .code:n =
+      {
+        \str_if_eq:nnTF {#1} { false }
+          { \bool_gset_false:N \g__hit_toc_latin_sans_bool }
+          { \bool_gset_true:N \g__hit_toc_latin_sans_bool }
+      } ,
+    arialtoc .default:n = { true } ,
+    bsmainpagenumberline  .code:n = { \tl_gset:Nn \g__hit_page_number_line_mainmatter_tl  {#1} } ,
+    bsfrontpagenumberline .code:n = { \tl_gset:Nn \g__hit_page_number_line_frontmatter_tl {#1} } ,
+    bsheadrule            .code:n = { \tl_gset:Nn \g__hit_header_rule_tl     {#1} } ,
+    tocfour  .default:n = { true } , tocblank .default:n = { true } ,
+    engtoc   .default:n = { true } ,
+    bsmainpagenumberline  .default:n = { true } ,
+    bsfrontpagenumberline .default:n = { true } ,
+    bsheadrule            .default:n = { true } ,
+  }
+\ProcessKeyOptions [~hit~/~class~]
+%    \end{macrocode}
+%
+% 旧取值一并声明进选择项，解析完再归一化成新取值。子键的写法不行：
+% \cs{hit@define@choice@option} 生成的是一个整体的 \texttt{stage~.code:n}，
+% 它自己查取值表，\texttt{stage/opening} 这样的子键根本不会被查到。
+%
+% 归一化要把 \texttt{final} 一并关掉：用户写了 \texttt{stage!=opening}，
+% 选择项会把 \texttt{final} 置假、\texttt{opening} 置真，这里再把
+% \texttt{opening} 翻成 \texttt{proposal}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_stage_migrate:nn #1#2
+  {
+    \bool_if:cT { g__hit_#1_bool }
+      {
+        \msg_warning:nnnn { hithesis } { renamed-value } {#1} {#2}
+        \bool_gset_false:c { g__hit_#1_bool }
+        \bool_gset_true:c  { g__hit_#2_bool }
+      }
+  }
+\clist_map_inline:nn { { opening } { proposal } , { midterm } { interim } }
+  { \__hit_stage_migrate:nn #1 }
+\bool_if:cT { g__hit_mid-term_bool }
+  {
+    \bool_gset_false:c { g__hit_mid-term_bool }
+    \bool_gset_true:N  \g__hit_interim_bool
+  }
+%    \end{macrocode}
+%
+% \emph{\option{degree-level}\texttt{!=postdoc} 定死 \option{stage}\texttt{!=final}。}
+% 博士后不写开题与中期，这两个选项存在一个不可能的组合。显式写了别的
+% \option{stage} 时在日志里说一句，不写就静默。
+%    \begin{macrocode}
+\bool_if:NT \g__hit_postdoc_bool
+  {
+    \bool_if:NF \g__hit_final_bool
+      {
+        \clist_map_inline:nn { proposal , interim , mid-term , opening , midterm }
+          {
+            \bool_if:cT { g__hit_#1_bool }
+              { \msg_warning:nnn { hithesis } { postdoc-forces-final } {#1} }
+            \bool_gset_false:c { g__hit_#1_bool }
+          }
+        \bool_gset_true:N \g__hit_final_bool
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{\option{stage} 取值不认识时兜底成 \texttt{final}。} 选择项那一头已经报过
+% 「不接受这个取值」，但它把三个标志位全置假就收手了，落到这里三档一个都不成立。
+% 不兜底的话 \cs{g\_\_hit\_final\_bool} 为假，整份文档会按报告排——用户只是把
+% \texttt{interim} 拼错，拿到的却是另一种交付物。
+%
+% 不能改成硬失败：这里已经在类文件里，报错之后后面整份文档都没有类可用，
+% 几百条错一条都指不到病根。
+%    \begin{macrocode}
+\bool_lazy_any:nF
+  {
+    { \bool_if_p:N \g__hit_final_bool }
+    { \bool_if_p:N \g__hit_proposal_bool }
+    { \bool_if_p:N \g__hit_interim_bool }
+  }
+  {
+    \msg_warning:nn { hithesis } { stage-fallback }
+    \bool_gset_true:N \g__hit_final_bool
+  }
+%    \end{macrocode}
+%
+% \cs{g\_\_hit\_chapter\_bool} 跟着 \option{stage} 走：终稿排章，开题与中期不排。
+%    \begin{macrocode}
+\bool_if:NT \g__hit_final_bool
+  { \bool_gset_true:N \g__hit_chapter_bool }
+%    \end{macrocode}
+%
+% 报告没有英文目录，\option{toc}\texttt{!=\{english!=...\}} 写了发一句提示。
+% 这一句要排在 \option{stage} 定下来之后，所以不能留在 \file{hit-keylist.dtx}——
+% 那个模块比选项模块早一位，那时 \cs{g\_\_hit\_final\_bool} 还没造出来。
+% \texttt{hit/toc} 族本身在那边声明，这里只是往里补一个键。
+%    \begin{macrocode}
+\bool_if:NF \g__hit_final_bool
+  {
+    \keys_define:nn { hit / toc }
+      { english .code:n = { \msg_warning:nn { hithesis } { no-toc-english } } }
+  }
+%    \end{macrocode}
+%
+% \emph{终稿专有的那几个键族，报告这一档发一句提示。} 两份键表合成一份之后，
+% \cs{hitsetup} 顶层的 \option{cover}、\option{titlepage}、\option{math}、
+% \option{defense}、\option{abbr} 五个键族在报告里也认了，可它们背后的排版
+% 都在终稿专有的模块里。\option{abbr} 会当场报未定义（它的处理器在
+% \file{hit-final-glossary.dtx}），另外四个更糟，悄悄什么也不做。
+%
+% 所以在报告这一档把这五个键重新声明成一句提示，报出键族名。比合并之前那条
+% 笼统的「不认识的键」多说了一句为什么。
+%    \begin{macrocode}
+\bool_if:NF \g__hit_final_bool
+  {
+    \clist_map_inline:nn { cover , titlepage , defense }
+      {
+        \keys_define:nn { hit }
+          { #1 .code:n = { \msg_warning:nnn { hithesis } { key-final-only } { #1 } } }
+      }
+  }
+%    \end{macrocode}
+%
+% 别名折成正名。得排在 \cs{ProcessKeyOptions} 之后：声明处那一刻取值还没解析，
+% 标志位全是假的。与 \option{stage} 那两个旧取值同一套办法，见
+% 上面 \cs{\_\_hit\_stage\_migrate:nn} 那一段。这里不发
+% 提示——\texttt{hss} 是正式别名不是废弃名，学校的文件名就叫 \file{g-hss.docx}。
+%    \begin{macrocode}
+\bool_if:NT \g__hit_hss_bool
+  {
+    \bool_gset_false:N \g__hit_hss_bool
+    \bool_gset_true:N  \g__hit_hass_bool
+    \bool_gset_false:N \g__hit_stem_bool
+  }
+%    \end{macrocode}
+%
+% \emph{深圳校区本科的\emph{终稿}按本部排。} 学校没有单独的深圳本科毕业论文模板，
+% 所以这一档翻成哈尔滨，旧深圳本科模板代码暂时保留。
+%
+% \emph{开题与中期不翻。} 深圳校区自己发了《本科毕业论文（设计）开题报告》与
+% 《本科毕业论文（设计）中期报告》两份表单，与本部那两份不是一回事。翻成本部
+% 就等于把这两份表单整个丢掉——v3.2a 之前正是这样，深圳本科的开题与中期排出来
+% 与哈尔滨那两份逐字符相同。
+%    \begin{macrocode}
+\bool_lazy_all:nT
+  {
+    { \bool_if_p:N \g__hit_shenzhen_bool }
+    { \bool_if_p:N \g__hit_bachelor_bool }
+    { \bool_if_p:N \g__hit_final_bool }
+  }
+  {
+    \bool_gset_false:N \g__hit_shenzhen_bool
+    \bool_gset_true:N \g__hit_harbin_bool
+  }
+%    \end{macrocode}
+%
+% \emph{深圳本科那两份报告的\emph{正文}照终稿排。} 学校发的两份原件里，首页是
+% 表单，正文那一节的页面设置与终稿一字不差：版心、行距、跳页、页码、图表编号
+% 都是论文那一套，只有首页、页眉、页脚是表单自己的。这一条照 iota-hit 的
+% \texttt{src/flow/stage.typ} 里那个判据，它是拆开三份 \file{.docx} 的
+% \texttt{w:sectPr} 与 \texttt{w:docGrid} 逐个数比出来的。
+%
+% 标志位另起一个名字，不借 \cs{g\_\_hit\_final\_bool}：那一个问的是「这份是不是
+% 终稿」，这一个问的是「正文照不照终稿排」，两件事。条件写
+% \texttt{body=final-body}——条件求值只看取值不看轴名，所以轴名写什么都行，
+% 写 \texttt{body} 是为了读的人知道它管的是正文那一层。
+%
+% \emph{标志位的名字里是下划线，条件里写连字符。} 条件求值查标志位时会把取值里的
+% 连字符折成下划线（见 \file{src/engine/hit-presetup.dtx}），所以
+% \texttt{final-body} 查的是 \cs{g\_\_hit\_final\_body\_bool}。名字里带连字符的话
+% 查不到，条件恒假，而它只发一条「不认识的条件」的提示——整段版面配置会安静地
+% 不生效，踩过一次。
+%    \begin{macrocode}
+\bool_new:N \g__hit_final_body_bool
+\bool_new:N \g__hit_report_body_bool
+\bool_lazy_or:nnTF
+  { \bool_if_p:N \g__hit_final_bool }
+  {
+    \bool_lazy_and_p:nn
+      { \bool_if_p:N \g__hit_shenzhen_bool }
+      { \bool_if_p:N \g__hit_bachelor_bool }
+  }
+  { \bool_gset_true:N \g__hit_final_body_bool }
+  { \bool_gset_true:N \g__hit_report_body_bool }
+%    \end{macrocode}
+%
+% 校区与学位这时才定下来，\option{bsfrontpagenumberline} 的默认值在此补齐。
+% 用户显式设过就不动。
+%    \begin{macrocode}
+
+%    \end{macrocode}
+%
+% 用户至少要提供一个选项，指定学位。
+% \changes{v3.0.0}{2020/05/20}{此处添加博后选项}
+%
+% \emph{终稿这一档触发不到。} 选项解析之前有一段兜底，在 \option{master}、
+% \option{doctor}、\option{postdoc} 都未置位时把 \option{bachelor} 置真，
+% 而那段兜底在 \cs{ProcessKeyOptions} 之前执行，所以到这里
+% \option{bachelor} 一定为真，四个条件不可能同时落空。实测
+% \cs{documentclass}\oarg{campus=harbin} 不给 \option{type} 时不报错，
+% 直接按本科排版。改动会让不写 \option{type} 的文档从「默认本科」变成报错，
+% 属用户可见变更，此处只记录。
+%
+% \emph{报告那两档照旧要写。} 那边原先靠「取值表里没有 postdoc」来报错，
+% 现在取值表是两档的并集，postdoc 也认了，所以改成看用户写没写
+% （\cs{g\_\_hit\_degree\_given\_bool}）与写的是不是 \texttt{postdoc}。
+% 材料本身也要写：\option{stage} 现在有默认值 \texttt{final}，落到报告这一支
+% 就说明用户写了 \texttt{proposal} 或 \texttt{interim}，不必再查。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@error@degree@level
+  {
+    \ClassError { hithesis }
+      {
+        \MessageBreak Please~specify~thesis~type~in~option:~
+        \MessageBreak type=[bachelor~|~master~|~doctor~|~postdoc]
+      }
+      { }
+  }
+\cs_new_protected:Npn \hit@error@degree@level@report
+  {
+    \ClassError { hithesis }
+      {
+        \MessageBreak Please~specify~thesis~type~in~option:~
+        \MessageBreak type=[bachelor~|~master~|~doctor]~
+      }
+  }
+\bool_if:NTF \g__hit_final_bool
+  {
+    \bool_lazy_any:nF
+      {
+        { \bool_if_p:N \g__hit_bachelor_bool }
+        { \bool_if_p:N \g__hit_master_bool }
+        { \bool_if_p:N \g__hit_doctor_bool }
+        { \bool_if_p:N \g__hit_postdoc_bool }
+      }
+      { \hit@error@degree@level }
+  }
+  {
+    \bool_lazy_or:nnT
+      { ! \bool_if_p:N \g__hit_degree_given_bool }
+      { \bool_if_p:N \g__hit_postdoc_bool }
+      { \hit@error@degree@level@report }
+  }
+%    \end{macrocode}
+%
+% 深圳博士中期不自动排目录，页底也不留活动余量（用户显式写过就不动）。
+%    \begin{macrocode}
+\bool_if:NF \g__hit_final_bool
+  {
+    \bool_new:N \g__hit_report_toc_auto_bool
+    \bool_gset_true:N \g__hit_report_toc_auto_bool
+    \hit@if@shenzhen@doctor@interim
+      {
+        \bool_gset_false:N \g__hit_report_toc_auto_bool
+        \bool_if:NF \g__hit_raggedbottom_given_bool
+          { \bool_gset_false:N \g__hit_raggedbottom_bool }
+      }
+  }
+%    \end{macrocode}
+%
+% 使用 \hologo{XeTeX}\ 引擎时，\pkg{fontspec} 宏包会被 \pkg{xeCJK} 自动调用。传递
+% 给 \pkg{fontspec} 宏包 \option{no-math} 选项，避免部分数学符号字体自动调整
+% 为 CMR。其他引擎下没有这个问题，这一行会被无视。
+%    \begin{macrocode}
+\PassOptionsToPackage{no-math}{fontspec}
+%    \end{macrocode}
+%
+% \pkg{newtx} 更新至 v1.7 版本后与 \pkg{ctex} 宏包冲突, 需要手动引入 \option{nofontspec} 选项. 判断方法为是否存在 v1.7 更新后的新宏包 \pkg{newtx.sty}
+% \changes{v3.0.17}{2022/02/23}{\pkg{newtx} 更新至 v1.7 版本后与 \pkg{ctex} 宏包冲突, 需要手动引入 \option{nofontspec} 选项. 判断方法为是否存在 v1.7 更新后的新宏包 \pkg{newtx.sty}}
+% 载入单双面打印设置，本、硕单面，博士双面。
+%    \begin{macrocode}
+\bool_if:NTF \g__hit_final_bool
+  {
+    \bool_lazy_or:nnT
+      { \bool_if_p:N \g__hit_bachelor_bool }
+      { \bool_if_p:N \g__hit_master_bool }
+      { \PassOptionsToClass { oneside } { book } }
+    \bool_if:NT \g__hit_doctor_bool
+      { \PassOptionsToClass { twoside } { book } }
+    \PassOptionsToClass { openany } { ctexbook }
+  }
+  { \PassOptionsToClass { oneside } { ctexbook } }
+%    \end{macrocode}
+%
+% \changes{v1.0.02}{2017/08/27}{添加了思源字体说明}
+% 设置字体。宋体没有粗体，而标题要求粗宋，于是面临 \CTeX\ 那个经典的伪粗体 bug：
+% 「首次出现伪粗体字体之后的正常字体无法复制」。自带粗宋的字体不必走伪粗体，
+% 模板早年为此提供过一个 \texttt{siyuan} fontset，现在 \pkg{ctex} 的
+% \texttt{ubuntu} 用的 Noto CJK 就是同一套思源，这一档已经去掉。
+%
+% \pkg{ifthen} 模板自己已经不用了（三处 \cs{ifthenelse} 换成了 \cs{hit@if@same@TF}），
+% 留着是怕旧论文里直接写了 \cs{ifthenelse} 而没自己加载。
+%    \begin{macrocode}
+\RequirePackage{ifthen}
+\bool_lazy_and:nnT
+  { \str_if_eq_p:Vn \hit@font@zh { auto } }
+  { ! \tl_if_empty_p:N \hit@fontset }
+  { \tl_gclear:N \hit@font@zh }
+\tl_if_empty:NTF \hit@font@zh
+  {
+%    \end{macrocode}
+%
+% 2.85 的来历与量法记在 \file{src/engine/hit-fonts.dtx} 的
+% \cs{c\_\_hit\_font\_fakebold\_tl} 那一段。这里不能引那个常量：选项在类
+% 选项处理期就要传给 \pkg{xeCJK}，那时字体模块还没载入。
+%    \begin{macrocode}
+    \PassOptionsToPackage { AutoFakeBold=2.85 } { xeCJK }
+    \tl_if_empty:NF \hit@fontset
+      { \PassOptionsToClass { fontset=\hit@fontset } { ctexbook } }
+  }
+  { \PassOptionsToClass { fontset=none } { ctexbook } }
+%    \end{macrocode}
+%
+% 设置字距默认选项
+% \changes{v3.0.13}{2020/11/10}{设置字距默认选项}
+%    \begin{macrocode}
+\bool_lazy_or:nnF
+  { \bool_if_p:N \g__hit_ziju_regu_bool }
+  { \bool_if_p:N \g__hit_ziju_word_bool }
+  { \bool_gset_true:N \g__hit_ziju_regu_bool }
+%    \end{macrocode}
+%
+% \changes{v3.0.13}{2020/11/10}{重新设置geometry的默认选项}
+% 走哪套版面在这里定死一次，后面读标志位就行。本科与硕博都走新版面，同一套取值，
+% 见 \file{src/config/hit-layout.dtx}。博士后还留在旧版面上：那一档另有一套参数，
+% 还没量。
+%
+% 退回旧版面：本科写 \option{v2-layout}\texttt{=\{bachelor=true\}}，硕博写
+% \option{v2-layout}\texttt{=\{graduate=one\}} 或 \texttt{two}。深圳本科可能还要
+% 用一阵旧的，所以这个后路留着。
+%
+% \option{graduate} 原先不写也兜底成 \texttt{two}，那时候硕博只有旧版面一条路，
+% 兜底是为了在两组旧尺寸里选一组。现在不写等于要新版面，所以兜底挪进旧版面那一支：
+% 只有真的走旧版面又没指明是哪一组时才补 \texttt{two}，博士后就落在这一条上。
+%    \begin{macrocode}
+\bool_new:N \g__hit_layout_two_bool
+\bool_if:NT \g__hit_final_bool
+  {
+    \bool_lazy_and:nnT
+      { \bool_if_p:N \g__hit_bachelor_bool }
+      { \bool_if_p:N \g__hit_layout_two_bachelor_bool }
+      { \bool_gset_true:N \g__hit_layout_two_bool }
+    \bool_lazy_and:nnT
+      {
+        \bool_lazy_or_p:nn
+          { \bool_if_p:N \g__hit_master_bool }
+          { \bool_if_p:N \g__hit_doctor_bool }
+      }
+      {
+        \bool_lazy_or_p:nn
+          { \bool_if_p:N \g__hit_layout_two_graduate_one_bool }
+          { \bool_if_p:N \g__hit_layout_two_graduate_two_bool }
+      }
+      { \bool_gset_true:N \g__hit_layout_two_bool }
+    \bool_if:NT \g__hit_postdoc_bool
+      { \bool_gset_true:N \g__hit_layout_two_bool }
+    \bool_if:NT \g__hit_layout_two_bool
+      {
+        \bool_lazy_or:nnF
+          { \bool_if_p:N \g__hit_layout_two_graduate_one_bool }
+          { \bool_if_p:N \g__hit_layout_two_graduate_two_bool }
+          { \bool_gset_true:N \g__hit_layout_two_graduate_two_bool }
+      }
+  }
+\__hit_layout_bottom_apply:
+%    \end{macrocode}
+%
+% 读标志位的那族判断函数（\cs{hit@if@option@TF} 等）定义在
+% \file{src/engine/hit-option-engine.dtx}，各个类共用。按校区、学位组合出来的判断由
+% \cs{hit@define@condition} 生成，一条一行。名字摊开写，读条件本身就知道判的是什么。
+%
+% 现在只剩 \cs{hit@if@show@degree@type}，决定要不要在封面上标出学生类别；它是
+% \option{degree-type} 那个三态选项的 \texttt{auto} 分支，用户写显式值就盖过去。
+%
+% 参数从 expl3 之外传进来，里面的空格照原样保留。注意原写法里 \cs{fi} 之后的
+% 空格会被记号化跳过，换成以 \texttt{\}} 结尾之后那个空格就成了真的空格，
+% 所以替换时要把它一起吃掉。
+%
+% 标题前后的间距与行距。\option{style/glue} 开时给伸缩量，关时是固定值。
+% 两个函数都可展开，所以能直接写在 \cs{ctexset} 的取值里。
+
+%
+% \cs{hit@if@same@TF}\marg{甲}\marg{乙}\marg{真}\marg{假} 比两段文字是否相同。不能用
+% \cs{str\_if\_eq:eeTF}，那是完全展开后比较，遇上 \cs{hspace} 这类不可展开的命令
+% 会留下悬空的 \cs{fi}；被比的正是章标题，\cs{cabstractcname} 在非本科档就是
+% 「摘\cs{hspace}\marg{\cs{ccwd}}要」。这里照 \cs{ifthenelse}\marg{\cs{equal}…}
+% 的做法先各自 \cs{protected@edef} 一遍，把 robust 命令挡住，再比记号表。
+%    \begin{macrocode}
+\tl_new:N \l__hit_compare_first_tl
+\tl_new:N \l__hit_compare_second_tl
+\hit@define@condition{show@degree@type}{ ! ( ! \g__hit_shenzhen_bool && ! \g__hit_master_bool && \g__hit_fulltime_bool ) }
+%    \end{macrocode}
+%
+% 选项处理完，把类的几个全局开关同步给 \pkg{docxlike}，见 \file{src/engine/hit-docxlike.dtx}。
+%    \begin{macrocode}
+\hit@docxlike@sync:
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</shared-options>
+%    \end{macrocode}
+%
+% \Finale

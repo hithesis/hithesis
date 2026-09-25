@@ -1,0 +1,353 @@
+% \iffalse meta-comment
+%
+% hit-final-bib.dtx 是参考文献页
+%
+% \fi
+%
+% \section{参考文献页}
+%
+% \changes{v3.2a}{2026/08/16}{引用样式与著录列表参数抽到 \file{hit-bibstyle.dtx} 与报告
+%   共用；\pkg{gbt7714} 挪到导言区末尾装（它无条件拉 \pkg{natbib}，在类里装死了用户换
+%   文献方案的路），装前先探 \pkg{biblatex}；\cs{bibstyle@inline} 改用转接宏，行内引用的
+%   括号与分隔跟 \option{brackets-in-cite}／\option{comma-in-cite}；传统一线补
+%   \cs{printbibliography} 与 \pkg{bibentry}，\option{compress-min} 走官方
+%   \texttt{mincompress}；终稿的 biblatex 排版配置与传统一线同一套版面}
+% \changes{v3.2a}{2026/09/20}{全角标号：哈尔滨本科与威海硕博也排，标号后不留空、悬挂到
+%   标号宽，照三份范例；哪几档排、标号后间距、人文的悬挂挪到 \pkg{gbt7714} 的钩子之外
+%   给 \pkg{biblatex} 那条线读；两个方括号用 \cs{mbox} 保住自己的空白（\pkg{luatexja}
+%   把盒子两端当行首行尾压掉，标号窄了 12\,bp）}
+%
+% ^^A ======================================================================
+% ^^A Module final-bib: 参考文献加载与 natbib/gbt7714 设置（hit-thesis）
+% ^^A ======================================================================
+%
+% 底下走 \pkg{gbt7714}。\cs{bibstyle@inline} 由它带，不用自己定义。加载完之后
+% 引用样式与著录列表的参数在共享层 \file{hit-bibstyle.dtx}，排在本模块之前。
+%
+% \pkg{gbt7714} 不在类加载期装，挪到导言区末尾（\texttt{begindocument/before}
+% 钩子）。它内部无条件 \cs{RequirePackage}\marg{natbib}，而 \pkg{natbib} 与
+% \pkg{biblatex} 一族互斥——在类里就装上，等于替用户把文献方案定死了。挪到
+% 导言区末尾，用户导言区写的东西才有先说话的机会，这也是 thuthesis 的做法。
+%
+% 配置分两截：装载那一句挂 \texttt{begindocument/before}；其余全挂
+% \texttt{package/gbt7714/after}。后者不能并进前者：\pkg{gbt7714} 会重定义
+% \env{thebibliography}，本模块的重定义必须排在它之后才能赢，而且用户要是自己
+% 在导言区提前装了 \pkg{gbt7714}，配置也得跟着那次装载走。
+% 装载带一道侦测：\pkg{biblatex} 在（\option{backend}\texttt{=biber} 由类装的，
+% 或用户自己装的，都一样）就不装 \pkg{gbt7714}——两族互斥，见
+% \file{hit-bibstyle.dtx} 的守卫。
+%    \begin{macrocode}
+%<*final-bib>
+\bool_if:NT \g__hit_final_bool
+  {
+%    \end{macrocode}
+%
+% \pkg{bibentry} 与 \pkg{gbt7714} 一起装：成果页（\env{publist}，见
+% \file{hit-final-backmatter.dtx}）要按文献键把某一条的著录文字排在任意位置，
+% 传统一线的现成机制就是它。它是 \pkg{natbib} 自带的，\pkg{gbt7714} 内部装
+% \pkg{natbib}，所以排在后面。用不上成果页的文档也只是多一个包，不改任何排版。
+%    \begin{macrocode}
+\AddToHook { begindocument / before }
+  {
+    \@ifpackageloaded { biblatex }
+      { }
+      {
+        \RequirePackage[sort&compress]{gbt7714}
+        \RequirePackage{bibentry}
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{标号的三个取值在类加载时就定，不放进 \pkg{gbt7714} 的钩子。}下面那个
+% 钩子只在传统线装了 \pkg{gbt7714} 时才跑，\pkg{biblatex} 那条线从不进去；
+% 先前“全角档标号后不留空”写在钩子里，\pkg{biblatex} 的著录列表读到的还是
+% 半个字宽。这里只留下判断与取值，钩子里只剩改写 \cs{@biblabel} 那一句。
+%
+% 哪几档全角：深圳，以及哈尔滨、威海的本硕博，人文社科类除外。全角档标号后
+% 不留空（三份范例，见下面 \cs{@biblabel} 那一节）。
+%
+% 人文社科类另一个样。两份人文范例（博士 \texttt{s-hss}、本科）的文献表与
+% 成果页条目一致：半角“[1]”、后面一个西文空格（Word 导出逐字量，“]”右缘到
+% 正文 6.0，一个 Times 空格加字符间距）、折行悬挂 426 缇（21.3\,bp，docx 里
+% \texttt{hangingChars=171}），悬挂比“[1] ”还宽 3.9，续行比首行正文右缩一截；
+% 两位数标号时悬挂不变。指南的著录示例印的是全角方括号，两份范例整篇都是半角，
+% 照范例。悬挂那一档三处共用（传统线、\pkg{biblatex} 线、成果页）。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bib_fullwidth_bool
+\bool_lazy_all:nT
+  {
+    { ! \bool_if_p:N \g__hit_hass_bool }
+    {
+      \bool_if_p:N \g__hit_shenzhen_bool ||
+      (
+        ( \bool_if_p:N \g__hit_harbin_bool || \bool_if_p:N \g__hit_weihai_bool )
+        &&
+        (
+          \bool_if_p:N \g__hit_bachelor_bool || \bool_if_p:N \g__hit_master_bool
+          || \bool_if_p:N \g__hit_doctor_bool
+        )
+      )
+    }
+  }
+  {
+    \bool_gset_true:N \g__hit_bib_fullwidth_bool
+    \tl_gset:Nn \g__hit_bib_labelsep_tl { 0pt }
+  }
+\bool_if:NT \g__hit_hass_bool
+  { \tl_gset:Nn \g__hit_bib_labelsep_tl { 0.25em } }
+\cs_new_protected:Npn \hit@bib@hang:
+  {
+    \bool_if:NT \g__hit_hass_bool
+      {
+        \dim_set:Nn \leftmargin { 1.775em }
+        \dim_set:Nn \itemindent { \labelwidth + \labelsep - \leftmargin }
+      }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\AddToHook { package / gbt7714 / after }
+  {
+\cs_gset:Npn \bibstyle@inline
+  {
+    \bibpunct { \hit@bib@cite@open: } { \hit@bib@cite@close: }
+      { \hit@bib@cite@sep: } {n} {,} {,}
+    \cs_gset:Npn \NAT@spacechar { \ }
+  }
+\citestyle{numerical}
+%    \end{macrocode}
+%
+% \changes{v3.1a}{2022/05/17}{按照 \hitszthesis{} 生成深圳校区的参考文献样式 \texttt{hitszthesis.bst}。\issue[97]}
+% \begin{macro}{\@biblabel}
+% 设置参考文献列表的序号中的括号为中文括号。
+% \changes{v3.1b}{2022/06/06}{将 ［］前加上 \cs{mbox\{\}} 来获得正确的序号长度}
+% 在［\#1］前加上 \cs{mbox\{\}} 来获得正确的序号长度，否则会因为 \hologo{XeLaTeX}下的标点挤压而计算错误，这里应该整个包裹起来，否则换行后缩进会有问题。
+% \changes{v3.1d}{2025/03/03}{按着 \issue[211] 来修改，将 \cs{mbox\{\}} 包住整个 label}
+% \changes{v3.1d}{2025/03/03}{按照 \issue[215] 将哈尔滨硕博毕业论文的参考文献序号也改为全角}
+% \emph{全角标号后不留空。}三份范例（博士理工范例 PDF、研究生范例、本科理工
+% 范例用 Word 导出）的参考文献表一个样：标号“［1］”全角方括号，正文紧跟
+% 在“］”后（只隔字符间距 0.25\,bp），折行悬挂正好落在标号的右缘。先前的半
+% 个字宽间距追到 2017 年 init 就在，从没量过。深圳那一档早前按 \issue[97]
+% 已是零，本科理工范例也是全角，所以哈尔滨本科并进同一档。
+%
+% 间距存在共用层的 \cs{g\_\_hit\_bib\_labelsep\_tl} 里（见
+% \file{hit-bibstyle.dtx}），这里只改一次，传统线、\pkg{biblatex} 线都读它；
+% 成果页的标号后是两个宋体空格，那是另一个数，见
+% \file{hit-final-backmatter.dtx}。威海硕博与本部的规范已完全一致（页眉那支
+% 也已并进本部，见 \file{hit-final-pagestyle.dtx}），文献表从没另有规定，先前
+% 排半角只是没被点名，一并进全角档。
+%
+% \emph{方括号的空白要保住。}\pkg{luatexja} 把 \cs{mbox} 的两端当成行首行尾，
+% 按 JFM 把行首开号的左半格、行尾闭号的右半格压掉，标号盒子只剩 18\,bp；
+% 列表再把它右对齐到 \cs{labelwidth}，开号就探进左边距半格。范例（三份 Word
+% 导出都一样）的标号是三个整格：「［」在版心左缘 85.0、「1」97.3、「］」103.8、
+% 正文 116.0。两端各垫一个空盒子，JFM 看到的就不是盒边了。\hologo{XeLaTeX}
+% 那条线本来就不压盒边，垫了也不动。
+%    \begin{macrocode}
+\bool_if:NT \g__hit_bib_fullwidth_bool
+  { \cs_set:Npn \@biblabel #1 { \mbox { \mbox { } ［#1］ \mbox { } } } }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{environment}{thebibliography}
+% 修改默认的 \env{thebibliography} 环境来适应间距的要求。
+%    \begin{macrocode}
+\RenewDocumentEnvironment{thebibliography}{m}{%
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{更改完全角符号后的半角点号可能出现在行首，规避一下}
+% 这里我直接贴一个 issue 的链接：\href{https://github.com/CTeX-org/ctex-kit/issues/701}{CTeX-Kit \#701}
+%    \begin{macrocode}
+  % \xeCJKDeclareCharClass{FullRight}{"002E}%
+  \hit@clear@page\phantomsection%
+  \hit@appendix@chapter*{\bibname}[\hit@term@bibliography@heading@en]
+  \normalsize
+%    \end{macrocode}
+% \changes{v3.1b}{2022/06/06}{修改深圳校区的 \cs{labelsep} 为 0pt}
+%    \begin{macrocode}
+  \hit@bib@list:nnn {#1} { \hit@bib@labelsep: } { \hit@bib@hang: }
+  \hit@bib@list@rules:
+%    \end{macrocode}
+% \changes{v2.0.07}{2019/03/02}{添加flushbottom到thebibliography环境中}
+%    \begin{macrocode}
+  \flushbottom
+%    \end{macrocode}
+%    \begin{macrocode}
+}
+{\cs_set_nopar:Npn \@noitemerr
+  {\@latex@warning{Empty `thebibliography' environment}}%
+\endlist\frenchspacing}
+%    \end{macrocode}
+% \end{environment}
+%    \begin{macrocode}
+\cs_set:Npn \NAT@cite #1#2#3
+      {\ifNAT@swa\NAT@@open\if*#2*\else#2\NAT@spacechar\fi
+        #1\NAT@@close\if*#3*\else\textsuperscript{#3}\fi\else#1\fi\endgroup}
+%    \end{macrocode}
+%
+% \pkg{biblatex} 一线排文献表写 \cs{printbibliography}。传统一线也给一个同名
+% 命令（\cs{providecommand}，装了 \pkg{biblatex} 时轮不到它），指到总出口。
+% \cs{supercite} 同理：\pkg{biblatex} 核心自带，传统一线补一个别名——这条线
+% 的 \cs{cite} 本来就是上标，语义正好。\cs{citep} 与 \cs{citet} 不用补，
+% \pkg{natbib} 与 gb 系 cbx 各自都带（cbx 特意做过与 natbib 的防冲突处理）
+% \cs{hit@bib@print:}，于是正文里一句 \cs{printbibliography} 两条路线通用——
+% 前提是文献库写在 \option{struct} 的 \option{bibliography} 里。
+% thuthesis 的主文档要求用户按后端二选一注释切换，这里不用。
+%    \begin{macrocode}
+\providecommand \printbibliography { \hit@bib@print: }
+\providecommand \supercite { \cite }
+%    \end{macrocode}
+%
+% \option{compress-min} 的现值补落给 \pkg{gbt7714.sty} 的 \texttt{mincompress}
+% ——键（或旧类选项 \option{citetwo}）多半在装载之前就设了。之后再设由键码
+% 自己落，见 \file{hit-keylist.dtx}。
+%    \begin{macrocode}
+\hit@bib@cite@compress@apply:
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\bibauthor}
+% \cs{bibauthor}\marg{作者表} 由 \file{.bst} 调用，按 \option{bibmaxauthor} 截断，
+% 按 \option{bibauthorupper} 决定要不要全大写。两个类各留一份而没有并进
+% \file{hit-bibstyle.dtx}：单个作者的排法用 \cs{exp\_args:NNe} 在定义时就把
+% \option{bibauthorupper} 的取值展开定死，得排在 \cs{ProcessKeyOptions} 之后，
+% 而共享层排在类骨架之前。
+%    \begin{macrocode}
+\exp_args:NNe \cs_new:Nn \g_bib_author_cs:n {
+    \bool_if:NTF \g_bib_authorupper_bool {
+        \exp_not:N \text_uppercase:n {#1}
+    } {
+        {#1}
+    }
+}
+\NewDocumentCommand{\bibauthor}{m}{
+  \int_zero:N \l_tmpa_int
+  \exp_args:Ne \tl_map_inline:nn {
+    \exp_args:Ne \tl_tail:n {#1}
+  } {
+    \int_compare:nNnT
+      \l_tmpa_int = \g_bib_maxauthor_int {
+      \prg_break:n {\tl_head:N {#1}}
+    }
+    \int_incr:N \l_tmpa_int
+    \g_bib_author_cs:n {##1}
+  }
+  \prg_break_point:
+}
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\citeup}
+% 上标引用宏 \cs{citeup}，语义属引用，不属浮动体。
+%    \begin{macrocode}
+\NewDocumentCommand \citeup { m } { \textsuperscript { \cite {#1} } }
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{biblatex 一线}
+%
+% \option{backend}\texttt{=biber} 时的排版配置。机制在
+% \file{hit-bibstyle.dtx}：\pkg{biblatex} 装载完先跑共用的选项换算，再跑这里的
+% \cs{hit@bib@biblatex@setup:}。目标是与上面 \env{thebibliography} 那一套排出
+% 同一个版面，参数逐项对照着搬。
+%
+% \begin{macro}{\hit@bib@biber@heading:,\hit@bib@biber@env@begin:}
+% 标题与著录列表。标题三句照抄 \env{thebibliography} 的开头。列表参数对照
+% \cs{hit@bib@list:nn}：最宽标号那格 \pkg{biblatex} 自己量好放在
+% \cs{labelnumberwidth} 里，不用 \cs{settowidth}；\cs{usecounter} 一句不搬，
+% 序号由 \pkg{biblatex} 排，不走 \texttt{enumiv}。间距与分页惩罚与传统一线
+% 逐项相同。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@bib@biber@heading:
+  {
+    \hit@clear@page \phantomsection
+    \hit@appendix@chapter * { \bibname } [ \hit@term@bibliography@heading@en ]
+    \normalsize
+  }
+\cs_new_protected:Npn \hit@bib@biber@env@begin:
+  {
+    \list
+      {
+        \printtext [ labelnumberwidth ]
+          { \printfield { labelprefix } \printfield { labelnumber } }
+      }
+      {
+        \str_if_eq:VnT \g_bib_labelalign_str { left }
+          { \RenewDocumentCommand \makelabel { m } { ##1 \hfill } }
+        \dim_set:Nn \labelwidth { \labelnumberwidth }
+        \dim_set:Nn \labelsep { \hit@bib@labelsep: }
+        \dim_set:Nn \itemindent { 0pt }
+        \dim_set:Nn \leftmargin { \labelsep + \labelwidth }
+        \skip_zero:N \itemsep
+        \skip_zero:N \parsep
+        \hit@bib@hang:
+      }
+    \sloppy \frenchspacing
+    \flushbottom
+    \hit@if@option@TF { splitbibitem }
+      {
+        \clubpenalty 0
+        \@clubpenalty \clubpenalty
+        \widowpenalty 0
+        \interlinepenalty -50
+      }
+      {
+        \clubpenalty 4000
+        \@clubpenalty \clubpenalty
+        \widowpenalty 4000
+        \interlinepenalty 4000
+      }
+    \sfcode `\. \@m
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@bib@biblatex@setup:}
+% 全角序号的条件与上面 \cs{@biblabel} 是同一份：深圳，或哈尔滨的硕博。落实
+% 走 \pkg{biblatex-gb7714-2015} 的架子：它把序号标签的处理器挂进了每个条目的
+% 选项链（\texttt{gbbiblabel} 选项，处理器叫 \cs{gbbiblabelopt@<值>}），排版时
+% 逐条重放，导言区里直接改 \cs{mkgbnumlabel} 会被重放盖掉（实测）。所以注册
+% 一个自家的处理器、把选项值设成它，重放替我们装。另一半校区装半角处理器，
+% 免得 \option{punct}\texttt{=full} 的方括号补丁把序号标签也带成全角——
+% 标签的全半角归校区管，跟传统一线的 \cs{@biblabel} 同一份条件。
+% gb 系样式才有这一套，认 \cs{mkgbnumlabel} 在不在。
+%
+% \cs{citeup} 在 \pkg{biblatex} 一线就是 \cs{cite}——gb7714-2015 的 \cs{cite}
+% 本来就是上标带方括号，再套 \cs{textsuperscript} 会叠两层。
+% 末尾把 \option{compress-min} 的现值补落到 \texttt{gbrefcompress}
+% 计数器上——键可能在 \option{backend} 之前、\pkg{biblatex} 还没装时就设了。
+%    \begin{macrocode}
+\cs_new:cpn { gbbiblabelopt@hitfullwidth }
+  { \renewcommand { \mkgbnumlabel } [1] { \mbox { \mbox { } ［##1］ \mbox { } } } }
+\cs_new:cpn { gbbiblabelopt@hithalfwidth }
+  { \renewcommand { \mkgbnumlabel } [1] { \mbox { [##1] } } }
+\cs_new_protected:Npn \hit@bib@biblatex@setup:
+  {
+    \cs_if_exist:NT \mkgbnumlabel
+      {
+        \bool_lazy_or:nnTF
+          { \bool_if_p:N \g__hit_shenzhen_bool }
+          {
+            \bool_lazy_and_p:nn
+              { \bool_if_p:N \g__hit_harbin_bool }
+              {
+                \bool_lazy_or_p:nn
+                  { \bool_if_p:N \g__hit_master_bool }
+                  { \bool_if_p:N \g__hit_doctor_bool }
+              }
+          }
+          { \ExecuteBibliographyOptions { gbbiblabel = hitfullwidth } }
+          { \ExecuteBibliographyOptions { gbbiblabel = hithalfwidth } }
+      }
+    \defbibheading { bibliography } [ \bibname ] { \hit@bib@biber@heading: }
+    \defbibenvironment { bibliography }
+      { \hit@bib@biber@env@begin: } { \endlist \frenchspacing } { \item }
+    \RenewDocumentCommand \citeup { m } { \cite {##1} }
+    \hit@bib@cite@compress@apply:
+  }
+  }
+%</final-bib>
+%    \end{macrocode}
+% \end{macro}
+%
+% \Finale

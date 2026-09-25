@@ -1,0 +1,57 @@
+% snap-to-grid 的 auto 沿所在位置往上找：表题嵌在正文里、子图题嵌在图题里、
+% 内封字段嵌在内封里。默认表没写的轴取上级的，根上也没写就是不贴。用户写 auto
+% 是退回默认表，默认表明写了 true/false 就以它为准，不往上找。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=doctor,campus=harbin]{hithesis}
+\makeatletter
+\ExplSyntaxOn
+\cs_new_protected:Npn \snapshow #1
+  {
+    \group_begin:
+    \docxlike_format_compute:n {#1}
+    \iow_term:x
+      {
+        #1 ~ 纵=\bool_if:NTF \l_docxlike_format_snap_vertical_bool { true } { false }
+        ~ 横=\bool_if:NTF \l_docxlike_format_snap_horizontal_bool { true } { false }
+        ~ 自己写了横=\bool_if:NTF \l_docxlike_format_hglue_set_bool { true } { false }
+      }
+    \group_end:
+  }
+\ExplSyntaxOff
+\makeatother
+\begin{document}
+\START
+\makeatletter
+\TEST{默认表：正文不贴纵格、贴横格；表题两轴都没写，跟正文}{
+  \snapshow{Normal}
+  \snapshow{caption-table}
+  \snapshow{caption-sub}
+}
+\TEST{正文改贴纵格，题注跟着；明写 false 的不跟}{
+  \hitsetup{styles={Normal={ paragraph = { snap-to-grid = true } }}}
+  \snapshow{Normal}
+  \snapshow{caption-table}
+  \snapshow{caption-sub}
+  \snapshow{table-cell}
+  \hitsetup{styles={caption-figure={ paragraph = { snap-to-grid = false } }}}
+  \snapshow{caption-figure}
+  \snapshow{caption-sub}
+  \hitsetup{styles={Normal={ paragraph = { snap-to-grid = auto } }, caption-figure={ paragraph = { snap-to-grid = auto } }}}
+}
+\TEST{横轴也沿上级：正文关掉横格，表题跟着关；节标题自己写了 false，不动}{
+  \snapshow{caption-table}
+  \hitsetup{styles={Normal={ font = { snap-to-grid = false } }}}
+  \snapshow{caption-table}
+  \snapshow{Heading2}
+  \hitsetup{styles={Normal={ font = { snap-to-grid = auto } }}}
+}
+\TEST{用户写 auto 先退回默认表，默认表明写了就不往上找}{
+  \hitsetup{styles={cover-subtitle={ paragraph = { snap-to-grid = true } }}}
+  \snapshow{cover-subtitle}
+  \hitsetup{styles={cover-subtitle={ paragraph = { snap-to-grid = auto } }}}
+  \snapshow{cover-subtitle}
+  \snapshow{cover-title}
+}
+\makeatother
+\END
+\end{document}

@@ -1,0 +1,99 @@
+% \iffalse meta-comment
+%
+% Copyright (C) 2017- by Yanshuo Chu <yanshuoc@gmail.com>
+%
+% This file may be distributed and/or modified under the
+% conditions of the LaTeX Project Public License, either version 1.3a
+% of this license or (at your option) any later version.
+% The latest version of this license is in:
+%
+% http://www.latex-project.org/lppl.txt
+%
+% and version 1.3a or later is part of all distributions of LaTeX
+% version 2004/10/01 or later.
+%
+% \fi
+%
+% \section{正文的字体与字号}
+% \changes{v3.2a}{2026/09/13}{终稿与报告的字号并进一份，主体在 \file{src/engine/hit-fonts.dtx}；
+%   正文字号与行距从 \cs{g\_docxlike\_body\_size\_dim}、\cs{g\_docxlike\_body\_lead\_dim} 取，
+%   这里只给默认值}
+%
+% ^^A ======================================================================
+% ^^A Module flow-fonts: 正文字号、中英文主字体与字号宏命令（\wuhao 等）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*flow-fonts>
+%    \end{macrocode}
+%
+% 正文的字号与行距。两个数在这里只是默认值，真正的取值由 \option{styles} 的
+% \option{Normal} 样式算出来，机制见 \file{src/docxlike/docxlike-format.dtx} 的「接到正文上」。
+% \cs{normalsize} 每次执行都重读这两个长度，所以导言区里改得动。
+%
+% 字号两档一样，行距与 \cs{normalsize} 分档，所以下面按 \option{stage} 分两段。
+%    \begin{macrocode}
+\hit@setup@fonts
+\dim_gset:Nn \g_docxlike_body_size_dim { 12bp }
+%    \end{macrocode}
+%
+% \subsection{终稿的行距}
+%
+% 20.50394\,bp 这个默认行距是旧版面的，来路是 v3.1e 的写法，与规范里
+% 「多倍行距 1.25」算出来的 19.455\,bp 不是一个数。新版面下会被盖掉。
+%
+% \cs{hit@body@lead@skip:} 只有终稿这一支调。它读
+% \cs{g\_\_hit\_layout\_two\_bool}，而报告没有 \option{v2-layout} 这个选项，
+% 那个标志位在报告里不存在，所以报告那一段自己写伸缩量，不经过它。
+%    \begin{macrocode}
+\bool_if:NT \g__hit_final_bool
+  {
+    \dim_gset:Nn \g_docxlike_body_lead_dim { 20.50394bp }
+    \cs_new:Npn \hit@body@lead@skip:
+      {
+        \bool_if:NTF \g__hit_layout_two_bool
+          { \hit@glue@skip{\dim_use:N \g_docxlike_body_lead_dim}{2.834646bp} }
+          {
+            \dim_use:N \g_docxlike_body_lead_dim
+            \dim_compare:nNnF { \g_docxlike_body_stretch_dim } = { 0pt }
+              { ~ plus ~ \dim_use:N \g_docxlike_body_stretch_dim }
+          }
+      }
+    \cs_set:Npn \normalsize
+      {
+        \@setfontsize \normalsize { \g_docxlike_body_size_dim }
+          { \hit@body@lead@skip: }
+        \hit@display@skips@auto:n { 8pt }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{开题与中期报告的行距}
+%
+% 深圳博士中期那一份行距是 15\,bp 且不给伸缩量，其余 20.50394\,bp。
+%    \begin{macrocode}
+\bool_if:NF \g__hit_final_bool
+  {
+    \hit@if@shenzhen@doctor@interim@TF
+      {
+        \dim_gset:Nn \g_docxlike_body_lead_dim { 15bp }
+        \cs_set:Npn \normalsize
+          {
+            \@setfontsize \normalsize { \g_docxlike_body_size_dim }
+              { \g_docxlike_body_lead_dim }
+            \hit@display@skips@auto:n { 6pt }
+          }
+      }
+      {
+        \dim_gset:Nn \g_docxlike_body_lead_dim { 20.50394bp }
+        \cs_set:Npn \normalsize
+          {
+            \@setfontsize \normalsize { \g_docxlike_body_size_dim }
+              { \hit@glue@skip{\dim_use:N \g_docxlike_body_lead_dim}{2.834646bp} }
+            \hit@display@skips@auto:n { 8pt }
+          }
+      }
+  }
+%</flow-fonts>
+%    \end{macrocode}
+%
+% \Finale

@@ -1,0 +1,180 @@
+% \iffalse meta-comment
+%
+% hit-report-float.dtx 是开题报告的浮动体
+%
+% \fi
+%
+% \section{开题报告的浮动体}
+%
+% \changes{v3.2a}{2026/09/14}{题号与题名之间改调共享层的 \cs{hit@caption@separator}
+%   （发 \pkg{ccaption} 的 \cs{captiondelim}，\pkg{caption} 的 \texttt{labelsep} 到不了
+%   正题注），兜底中文一个字、英文一个西文空格；哈尔滨与威海本科开题的图表公式编号
+%   排「图 X-X」；正文照终稿排的那一档也排「图 1-1」（编号跟着节走），图表与正文之间
+%   不留空，题注上下的间距从 \option{caption-*} 取}
+%
+% ^^A ======================================================================
+% ^^A Module report-floats: 浮动体默认行为与双语题注（hit-report）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*report-floats>
+\bool_if:NF \g__hit_final_bool
+  {
+%    \end{macrocode}
+%
+% \emph{深圳本科那两份报告的图表与正文贴着排。} 那两份原件的图块与表块前后都
+% 没有空段，上下都是 0。终稿那一档的规矩是「空一行」（指南 2.12），这一档不是。
+% 走到这一支的只有它：正文照终稿排、\option{stage} 却不是 \texttt{final}。
+%
+% 挂在 \texttt{begindocument/end} 上，与终稿那一处同一个时机，不然会被它盖掉。
+%
+% \emph{这三个数还没有对应的版面键。} 它们从 v3.1e 起就写在这一层，只是把
+% 「空一行」换算成长度；哪天第二档也要自己的数，再抽成 \option{layout} 里的一个键。
+%
+% \emph{题注上下那两段间距从 \option{styles} 取。} 报告的 \cs{@makecaption} 是
+% \pkg{ccaption} 的，它读 \cs{abovecaptionskip} 与 \cs{belowcaptionskip}，
+% 而那两个是 \hologo{LaTeX} 的类默认值（10\,pt／0），与 Word 无关：中文报告的
+% 表题因此比原件低 18.54。
+%
+% 取值去 \file{docx} 里读。2026 年 9 月版深圳本科\emph{中文}中期原件：图段、
+% 图题、表题、表格全是光 \texttt{w:line="300" w:lineRule="auto" snapToGrid=0}，
+% 段上一个 \texttt{w:before}／\texttt{w:after} 都没写，四个空当都是零。
+% \emph{英文}那一份不同：图题走 \texttt{caption} 样式、段上写着
+% \texttt{w:before="0" w:after="60"}（段后 3\,bp）与 \texttt{w:line="360"}（1.5 倍）；
+% 表题走「题注-tab」样式、段上写着 \texttt{w:beforeLines="20"}（0.2 行 ＝ 2.4\,bp），
+% 样式里 \texttt{w:after="0"}。
+%
+% 落法是排题注之前按图还是表挑一个 \option{styles} 目标，把算出来的段前段后写进
+% 那两个长度。目标名与 \cs{hit@caption@font:} 那一处同一个拼法。
+%
+% \emph{段前自己发，不交给 \cs{abovecaptionskip}。} \pkg{ccaption} 的
+% \cs{@makecaption} 在发那一段之前先问 \cs{ifdim}\cs{prevdepth}\texttt{>-99pt}，
+% 而表题排在浮动体的\emph{顶端}，那会儿 \cs{prevdepth} 是 $-1000$，整段被跳过——
+% 英文报告的表题段前 2.4\,bp 因此一直发不出去。所以 \cs{abovecaptionskip} 归零，
+% 段前由这边自己 \cs{skip\_vertical:n}；图题那一头两条路等价（图在题注之前，
+% \cs{prevdepth} 正常）。
+%
+% \emph{字号行距也从这一档取。} \pkg{ccaption} 的 \cs{@makecaption} 不调
+% \cs{hit@caption@font:}（只有终稿那一份调），报告的题注因此跟着正文排成小四，
+% 规范要的是五号。\pkg{ccaption} 给了 \cs{captionnamefont} 与
+% \cs{captiontitlefont} 两个口子，题号与题名各发一次。
+%
+% \emph{裹一层，不用 \cs{pretocmd}。} 那条补丁命令把宏体 detokenize 之后按
+% \emph{当时}的 catcode 重扫，而这一处发在 \texttt{begindocument/end} 上，
+% 那会儿 \texttt{:} 与 \texttt{@} 都不是字母，插进去的名字当场碎掉
+% （实测报 \texttt{Undefined~control~sequence}，接着一串
+% \texttt{Improper}~\cs{prevdepth}）。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_report_makecaption:nn #1#2 { }
+\cs_new_protected:Npn \hit@report@caption@skips:
+  {
+    \use:x { \docxlike_format_compute:n { caption- \hit@caption@type: } }
+    \skip_zero:N \abovecaptionskip
+    \skip_set:Nn \belowcaptionskip { \l_docxlike_format_after_dim }
+    \dim_compare:nNnT { \l_docxlike_format_before_dim } > { \c_zero_dim }
+      { \skip_vertical:n { \l_docxlike_format_before_dim } }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+    \bool_if:NT \g__hit_final_body_bool
+      {
+        \AddToHook { begindocument / end }
+          {
+            \skip_zero:N \intextsep
+            \skip_zero:N \textfloatsep
+            \skip_zero:N \floatsep
+            \captionnamefont { \hit@caption@font: }
+            \captiontitlefont { \hit@caption@font: }
+            \cs_set_eq:NN \__hit_report_makecaption:nn \@makecaption
+            \cs_set:Npn \@makecaption #1#2
+              {
+                \hit@report@caption@skips:
+                \__hit_report_makecaption:nn {#1} {#2}
+              }
+          }
+      }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% 题号与题名之间的间隔。报告走 \pkg{caption} 的 \texttt{labelsep}，那个键只认
+% 名字，所以自己声明两个，各读一个常量，常量为空就退回原来的 \texttt{space}，
+% 也就是一个空格。
+%
+% 两处 \cs{captionsetup} 各自先 \cs{RequirePackage}\marg{caption}，声明得排在加载
+% 之后，所以包成一个宏在两处都调一次。
+%
+% \emph{兜底跟共享层走。} 先前这三条各自把兜底写成 \cs{space}（一个西文空格，
+%  小四下 3.0），中文报告的题注因此排成「表2-1 叶轮主要参数表」只空 3.0；
+% 原件与 iota-hit 的复刻件都是空一个字（12.0）。共享层的
+% \cs{hit@caption@separator} 本来就按图表分、按语种分、兜底是
+% \cs{hit@caption@separator@fallback}（有网格数就 \cs{hskip}\cs{ccwd}），
+% 终稿那一份 \cs{@makecaption} 用的就是它，报告直接调同一个。
+% \emph{\texttt{labelsep} 到不了正题注。} \file{hit-flow-deps.dtx} 在
+% \pkg{subcaption}（它自己带进 \pkg{caption}）之后又加载了 \pkg{ccaption}，
+% 而 \pkg{ccaption} 把 \cs{@makecaption} 整个换掉了，分隔符读的是它自己的
+% \cs{@contdelim}。所以上面那两条声明发出去一直没作数，报告的题注从头到尾印的是
+% \pkg{ccaption} 的默认值「\texttt{:~}」。这里补发一次 \cs{captiondelim}，
+% 图与表按 \cs{@captype} 各读各的常量；两条旧声明留着，子题注那一头还走它们。
+%
+% 语言跟着文档走。先前这儿写死 \texttt{zh}——那会儿报告没有 \option{lang}，
+% 现在有了。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@report@declare@caption@separator:
+  {
+    \DeclareCaptionLabelSeparator { hit@figure@number } { \hit@caption@separator }
+    \DeclareCaptionLabelSeparator { hit@table@number }  { \hit@caption@separator }
+    \captiondelim { \hit@caption@separator }
+  }
+%    \end{macrocode}
+%
+% 深圳硕士中期把图注排成「图 1-1 标题」的格式。
+%    \begin{macrocode}
+\bool_lazy_and:nnT
+  { \bool_if_p:N \g__hit_shenzhen_bool }
+  {
+    \bool_lazy_and_p:nn
+      { \bool_if_p:N \g__hit_master_bool }
+      { \bool_if_p:N \g__hit_interim_bool }
+  }
+  {
+    \RequirePackage { caption }
+    \hit@report@declare@caption@separator:
+    \cs_set:Npn \thefigure { \thesection - \arabic { figure } }
+    \captionsetup [ figure ] { labelsep=hit@figure@number }
+  }
+%    \end{macrocode}
+%
+% \emph{正文照终稿排的那一档一并进来。} 深圳本科那两份报告的第一级写的是
+% \cs{section}、按章排，题注也该是「图 1-1」。iota-hit 对原件的复刻件里中英两版
+% 都是这个写法（「图1-1」「Figure 1-1」）；先前这边只认本部与威海的本科开题，
+% 深圳本科排出来是 \cls{ctexart} 的「图 1:」。
+%    \begin{macrocode}
+\bool_lazy_or:nnT
+  { \bool_if_p:N \g__hit_final_body_bool }
+  {
+    \bool_lazy_all_p:n
+      {
+        { ! \bool_if_p:N \g__hit_shenzhen_bool }
+        { \bool_if_p:N \g__hit_bachelor_bool }
+        { \bool_if_p:N \g__hit_proposal_bool }
+      }
+  }
+  {
+    \RequirePackage { caption }
+    \hit@report@declare@caption@separator:
+    \cs_set:Npn \thefigure { \thesection - \arabic { figure } }
+    \cs_set:Npn \thetable { \thesection - \arabic { table } }
+    \cs_set:Npn \theequation { \thesection - \arabic { equation } }
+    \captionsetup [ figure ] { labelsep=hit@figure@number }
+    \captionsetup [ table ]  { labelsep=hit@table@number }
+    \@addtoreset { figure }   { section }
+    \@addtoreset { table }    { section }
+    \@addtoreset { equation } { section }
+  }
+  }
+%</report-floats>
+%    \end{macrocode}
+%
+% \Finale

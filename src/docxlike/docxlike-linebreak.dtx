@@ -1,0 +1,2114 @@
+% \iffalse meta-comment
+%
+% docxlike-linebreak.dtx 是断行层：LuaTeX 上照 Word 的贪心断行
+%
+% \fi
+%
+% \section{断行层}
+%
+% \changes{v3.2a}{2026/09/20}{新增断行层：\hologo{LuaLaTeX} 上不用 TeX 的最优断行，照
+%   Word 的贪心算法逐行首次适配、装不下就压标点。模型照 typst-with-msword-linebreaks 的
+%   msword.rs：按“单元”（开号 + 一个字或一段西文 + 闭号链）判装不装；模式 15 的预算分
+%   裸汉字、紧贴汉字的西文串、其余三路，分母 k + W/M + Γ(g)；2003 到 2010 档按物理容量加
+%   首字形规则；渲染照 Word 的分配（先空格、再标点均摊、再汉西隙；行末闭号自己压半格就够
+%   时行内位不动，2003 挂半格，2007 起原位压半格或整个挂出）；贴着汉字的半格空格不参与
+%   压缩；开号的网格增量在字形后面；？不是压缩位；连续标点缩半格只在字距调整开着时有
+%   （\cs{docxlike\_linebreak\_kern\_off:}，样本文档的标题样式都关着）；两个破折号之间可断。
+%   \option{compatibility-mode} 分 Word 2003、2007、2010、2013 四档，样本的 doc 原件都是 2003。
+%   探针 100 个系列 90 个翻转点与 Word 相同，与 typst 逐行对拍}
+% \changes{v3.2a}{2026/09/20}{行盒照 Word 逐行算高（各 run 的字体字号取最大，倍数、贴网格、
+%   固定值三种落法），行盒直接摞，行间只放零宽胶与行间罚分；断点只认 TeX 的合法断点；
+%   parshape、悬挂缩进、定值 leftskip/rightskip、窄版心的段也进 Lua；横向不贴格的段按
+%   整个版心装；汉字缝与汉西隙另记在两个属性上，Lua 装盒时照属性重设（输出例程里
+%   \cs{ltjsetparameter} 不生效，页眉每字曾多 0.4543\,bp）；带 \cs{docxlike@code@attr} 的
+%   串（\cs{verb}）不加半格增量，超过 16 个字符的在 \texttt{/ . -} 前可断（Word 文档里
+%   敲的 U+200B 按同一条规则从串里算出来）}
+%
+% Word 排一段是逐行贪心：这一行能装几个装几个，下一个字装不下，先看能不能把
+% 行内的标点压一压塞进来，塞不进就换行；行首不能是闭号，行尾不能是开号，碰上了
+% 先压标点再悬挂。TeX 是全段最优，两边永远对不上。\hologo{LuaLaTeX} 的
+% \texttt{linebreak\_filter} 回调把整段的节点表交给 Lua，Lua 自己切行、自己定
+% 每处胶与 kern 的宽、自己装盒，TeX 只管把行盒往下摞。
+%
+% 规则不是猜的：模型照 typst-with-msword-linebreaks（\file{msword.rs}，
+% \file{tools/msword-probe/MODEL.md} 是总表）抄，那边拿 \texttt{python-docx} 自造几百个
+% 探针段落让 Word 排、读导出的 PDF 逐字量出来的；这里只换成 LuaTeX 的节点表，再拿自己的
+% 探针（lb2 到 lb8，两档兼容模式）与样本文档逐行校对。全部规则写在 Lua 文件头的
+% 注释里。
+%
+% \subsection{开关}
+%
+% \option{linebreak} 取 \texttt{word}（默认）或 \texttt{tex}。
+% \texttt{word} 只在 \hologo{LuaLaTeX} 且走 Word 版面时生效，
+% \hologo{XeLaTeX} 上没有这条路，写了也当 \texttt{tex}。
+%
+% \option{compatibility-mode} 是 Word 文件的兼容模式，Word 在标题栏上写“兼容模式”，
+% 取值照版本名：\texttt{word-2003}、\texttt{word-2007}、\texttt{word-2010}、\texttt{word-2013}
+% （2013 及以后）。docx 的 \file{settings.xml} 里存的是 \texttt{compatibilityMode} 那个数，
+% 依次是 11、12、14、15，内部也按这个数存。默认 \texttt{word-2013}：Word 2013 起新建的
+% 文档都是这一档。从 \texttt{doc} 原样另存来的文件是 2003 档且带 2003 的三个开关，照这种
+% 文件排的文档类要显式写 \option{compatibility-mode}\texttt{=word-2003}。
+%
+% \cs{docxlike\_linebreak\_rigid\_ragged:} 管不两端对齐的段（左对齐、居中、右对齐）。
+% 这种段 Lua 不接，交回 \hologo{TeX} 断；\hologo{TeX} 会缩词隙与标点的胶多塞一个字，
+% Word 不缩。打开之后交回之前先把段里的胶改成不可缩，只在 \hologo{LuaLaTeX} 上有用。
+% 空白文档预设打开它；居中标题、题注已有的标定是照没开的时候做的，所以默认关。
+%
+% 四档里 11、12、14 塞字的规则一样（有位就给半格）；行末闭号 11 只挂半格，12、14 整个
+% 挂出去、行内再共出半格（12 与 14 逐项量过，一样）；15 另一套，能多塞汉字。这里的 11 是
+% 带 2003 那三个开关的原件，12、14 是不带开关的；规则见 Lua 文件头。
+%    \begin{macrocode}
+%<*docxlike-linebreak>
+\bool_new:N \g__docxlike_linebreak_word_bool
+\bool_gset_true:N \g__docxlike_linebreak_word_bool
+\int_new:N \g__docxlike_linebreak_compat_int
+\int_gset:Nn \g__docxlike_linebreak_compat_int { 15 }
+\bool_new:N \g__docxlike_linebreak_rigid_bool
+\cs_new_protected:Npn \docxlike_linebreak_rigid_ragged:
+  { \bool_gset_true:N \g__docxlike_linebreak_rigid_bool }
+\keys_define:nn { docxlike }
+  {
+    linebreak .choice: ,
+    linebreak / word .code:n = { \bool_gset_true:N  \g__docxlike_linebreak_word_bool } ,
+    linebreak / tex  .code:n = { \bool_gset_false:N \g__docxlike_linebreak_word_bool } ,
+    linebreak .value_required:n = true ,
+    compatibility-mode .choice: ,
+    compatibility-mode / word-2003 .code:n =
+      { \int_gset:Nn \g__docxlike_linebreak_compat_int { 11 } } ,
+    compatibility-mode / word-2007 .code:n =
+      { \int_gset:Nn \g__docxlike_linebreak_compat_int { 12 } } ,
+    compatibility-mode / word-2010 .code:n =
+      { \int_gset:Nn \g__docxlike_linebreak_compat_int { 14 } } ,
+    compatibility-mode / word-2013 .code:n =
+      { \int_gset:Nn \g__docxlike_linebreak_compat_int { 15 } } ,
+    compatibility-mode .value_required:n = true ,
+  }
+%    \end{macrocode}
+%
+% \emph{页眉页脚的字距要绕过 luatexja 的参数栈。} \pkg{luatexja} 的 \texttt{kanjiskip}
+% 是按组层级记的栈参数，页眉盒在输出例程里装，那时候 \cs{ltjsetparameter}
+% 写下的值到装盒时取不到，用的是正文的。所以 \cs{docxlike\_format\_hglue:nn} 设参数的同时把两个
+% 量写进属性 \cs{docxlike@kanjiskip@attr} 与 \cs{docxlike@xkanjiskip@attr}（单位 sp），
+% Lua 在 \texttt{hpack\_filter} 与 \texttt{pre\_linebreak\_filter} 里把每段汉字缝、汉西隙
+% 的宽改成前一个字身上记的属性值。属性跟着节点走，输出例程里也不例外。
+%
+% \subsection{装回调}
+%
+% 属性 \cs{docxlike@linebreak@attr} 是逐段的门：段首节点上它为 0 的段交回 TeX 断行。
+% 正文默认为 1；不想让 Lua 碰的环境把它清零。Lua 自己只留一道门：\cs{leftskip}
+% 或 \cs{rightskip} 可伸可缩的（居中、靠左靠右）不是两端对齐，交回 TeX。
+% \cs{parshape}、悬挂缩进、定值的边距、窄版心（小页、表格的 X 列）都逐行折成版心宽
+% 与缩进，照 TeX 的办法给行盒 shift。
+%
+% 回调在 \texttt{begindocument/end} 装：Lua 模块要用 \pkg{luatexja} 的表，
+% 那时它肯定装好了；格宽与正文字号从 \cs{g\_docxlike\_page\_char\_dim} 与
+% \cs{g\_docxlike\_body\_size\_dim} 两个寄存器取，也都定下来了。
+% Lua 文件跟 \file{docxlike.sty} 装在同一个目录；\texttt{require}
+% 只找 \texttt{LUAINPUTS}（\file{scripts/} 与 \file{tex/luatex/}），所以按
+% \texttt{tex} 格式用 \texttt{kpse} 找到再 \texttt{dofile}。
+%    \begin{macrocode}
+\sys_if_engine_luatex:T
+  {
+    \newattribute \docxlike@linebreak@attr
+    \docxlike@linebreak@attr = 1
+    \newattribute \docxlike@kanjiskip@attr
+    \newattribute \docxlike@xkanjiskip@attr
+    \newattribute \docxlike@kern@attr
+    \AddToHook { begindocument / end }
+      {
+        \bool_if:NT \g__docxlike_linebreak_word_bool
+          {
+            \bool_if:NT \g_docxlike_word_layout_bool
+              {
+                \tex_directlua:D
+                  {
+                    docxlike = docxlike~or~{}
+                    docxlike.linebreak = dofile(
+                      kpse.find_file("docxlike.lua", "tex")~
+                      or~kpse.find_file("docxlike.lua", "lua"))
+                    docxlike.linebreak.compat = \int_use:N \g__docxlike_linebreak_compat_int ;
+                    docxlike.linebreak.install(luatexbase.attributes["docxlike@linebreak@attr"],
+                      luatexbase.attributes["docxlike@kanjiskip@attr"],
+                      luatexbase.attributes["docxlike@xkanjiskip@attr"],
+                      luatexbase.attributes["docxlike@kern@attr"],
+                      luatexbase.attributes["docxlike@code@attr"])
+                  }
+              }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\docxlike_linebreak_kern_off:}
+% Word 的连续标点缩半格（“），”“。”）是字体字距调整（\texttt{w:kern}）干的，关了就各占
+% 一格（lb7 探针，两种设置各排一遍）。样本文档的正文样式开着，标题样式都关着。
+% 样式的 \option{kerning-for-fonts} 关着（或字号在阈值以下）时格式层调这个宏，把属性
+% \cs{docxlike@kern@attr} 设成 0，Lua 见了就不配对；开着时调 \cs{docxlike\_linebreak\_kern\_on:}
+% 把属性撤掉。\hologo{XeLaTeX} 上都是空操作。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_linebreak_kern_off: { }
+\cs_new_protected:Npn \docxlike_linebreak_kern_on: { }
+\sys_if_engine_luatex:T
+  {
+    \cs_set_protected:Npn \docxlike_linebreak_kern_off: { \docxlike@kern@attr = 0 \scan_stop: }
+    \cs_set_protected:Npn \docxlike_linebreak_kern_on:
+      { \docxlike@kern@attr = -"7FFFFFFF \scan_stop: }
+  }
+%</docxlike-linebreak>
+%    \end{macrocode}
+%    \end{macro}
+%
+% \subsection{Lua 模块}
+%
+% 下面整段解出来是 \file{docxlike.lua}。docstrip 逐行搬运，\texttt{\%} 开头的
+% 行当注释丢掉，其余原样，所以 Lua 代码里的行首不能有 \texttt{\%}。
+%    \begin{macrocode}
+%<*lua>
+-- docxlike.lua：docxlike 的断行层，照 Word 的贪心断行（LuaTeX linebreak_filter）
+-- 规则照 typst-with-msword-linebreaks 的 msword.rs 抄（tools/msword-probe/MODEL.md 是总表），
+-- 那边用 Mac Word 16.89 导 PDF、逐字读坐标量出来的；这里只换成 LuaTeX 的节点表。要点：
+--   度量：格 = 字号 + 网格余量（小四 12.4543）；汉字、全角标点各占一格；字距调整开着时
+--     后接标点的闭号缩半格、开号后接开号前一个缩半格（？两侧都不缩）；西文字形各加半个
+--     余量（Word 的「平衡半角与全角字符宽度」，只在正文字号）；汉西隙按字体的量加
+--     0.25bp（模式 15）或余量的四分之一（2003 到 2010 档），西文空格加 0.25bp（msword.rs
+--     是余量的五分之一，按自己的探针改）；贴着汉字（或盒子、公式）的空格锁成半格且
+--     刚性；交给 jfont 排却不是汉字的符号一格一个、旁边不加隙，不能起行的（℃ °）当闭号挂。
+--   单元：一次断行决策的对象——开号们 + 一个汉字或一段西文 + 后面的闭号链（含紧跟的
+--     西文闭标点）。单元装不下时看它的溢出量是否不超过预算。
+--   模式 15（2013 起）：预算由前面的 k 个压缩位（各至多半格）、行里的汉西隙（k=0 时是
+--     小池子、k≥1 时是扣项）、单元自身的宽 u（压不掉超过 u·k/(k+W/M)，W/M 是行到这个
+--     单元为止的自然宽比版心，行满时就是 k/(k+1)）与挂出（最后一个闭号整格）决定；
+--     裸汉字、紧贴汉字的西文串两路直接用量出来的式子，其余是拟合式；
+--     西文语境的空格各压四分之一、总共不过 1.85 个空格。只在两端对齐的段落压缩、挂出。
+--   模式 11/12/14：物理容量 = 每个位半格 + 每个汉西隙半个隙；西文单元要首字形按自然宽
+--     已在版心内才压；闭号链挂半格（11）或整格（12/14）；adjustRightInd 开着时版心按
+--     整数格取整（页面版心取整再减缩进）。
+--   断点：照 TeX 的合法断点（胶、罚分、disc），叠上 Word 的首尾字符禁则；连字符后
+--     只有模式 15 能断；-10000 的罚分是强制换行。代码串（\verb）另有软断点，见 soft_split。
+--   渲染：压缩按预算的分配画（先空格、再标点均摊、再汉西隙；行末闭号 2003 挂半格、
+--     2007 起整个挂出去或原位压半格）；伸展先给西文空格（5/6 个）与汉西隙（一个），
+--     之后行里所有的缝一起涨。行盒逐行照 Word 算高（linebox）。
+--   起行的西文串整个装不下时在装不下的字形处断（紧急断点，超过半个版心的串）。
+--   没抄的：自动断字（Word 默认关）、表格单元格模式的 TeX 接口（M.cell 留着）、按字体
+--   判定东亚符号（这里按 luatexja 交给 jfont 的字算）。
+--   验证：lb2–lb8 探针（两档各扫一遍，100 个系列 90 个翻转点与 Word 逐个相同，
+--   其余差半步 0.5bp）、样本文档一章逐行比行尾差 37。
+local M = {}
+M.version = "v3.2a"
+local node, tex = node, tex
+local traverse = node.traverse
+local GLYPH, GLUE, KERN, PENALTY, RULE, HLIST, VLIST, WHATSIT, MATH, DISC, LOCALPAR =
+  node.id("glyph"), node.id("glue"), node.id("kern"), node.id("penalty"), node.id("rule"),
+  node.id("hlist"), node.id("vlist"), node.id("whatsit"), node.id("math"), node.id("disc"), node.id("local_par")
+local INS, MARK, ADJUST = node.id("ins"), node.id("mark"), node.id("adjust")
+local attr_icflag = luatexbase.attributes['ltj@icflag']
+local IC = luatexja.icflag_table
+
+local function set_of(s)
+  local t = {}
+  for _, c in utf8.codes(s) do t[c] = true end
+  return t
+end
+-- ===== 字符表（照 typst-with-msword-linebreaks 的 msword.rs）=====
+local closers = set_of("。，、；：？！）》〉”’」』】］．｝〕〗〙〛")
+local openers = set_of("（《〈「『【“‘［｛〔〖〘〚")
+-- Word 从不压缩的闭号（探针 0/68）
+local never_compressed = set_of("？")
+-- 全角符号里当西文处理的：波浪线、破折号、间隔号、连接号（两侧不加汉西隙）
+local latinish = set_of("～—–·")
+-- 西文标点的禁则：行首不能是这些，行尾不能是那些
+local ascii_close = set_of(".,;:!?)]}%")
+local ascii_open = set_of("([{")
+local ascii_bracket_close = set_of(")]}")
+-- Word 默认的「首尾字符设置」：不能起行、不能收行的字符（全角标点之外的）
+local no_line_start = set_of("!%),.:;>?]}¢¨°·ˇˉ―‖’”…‰′″›℃∶")
+local no_line_end = set_of("$([{£¥·‘“〈《「『【〔〖〝")
+-- 连接号类：Word 不把它们从前面的西文上断开
+local connectors = set_of("—–―…‖～")
+
+M.trace = false
+M.compat = 11   -- Word 兼容模式：11（2003）、12/14（2007/2010）、15（2013 起）
+M.snap = false  -- 段落贴行网格（Word 的 snapToGrid）
+M.ari0 = true   -- 模式 ≤14：adjustRightInd=0 时装到版心，否则整数格（adjust_right_indent）
+M.cell = false  -- 段落在表格单元格里：闭号只压半格不挂出，老模式不按整格
+local function trace(...)
+  if M.trace then texio.write_nl("term and log", "HG| " .. string.format(...)) end
+end
+
+local function is_jfont(f)
+  return luatexja.jfont.font_metric_table[f] ~= nil
+end
+local function icflag(n)
+  return node.get_attribute(n, attr_icflag) or 0
+end
+local function is_jfmglue(n)
+  local ic = icflag(n)
+  return ic >= IC.FROM_JFM and ic < IC.KANJI_SKIP
+end
+local function is_kanjiskip(n)
+  local ic = icflag(n)
+  return ic == IC.KANJI_SKIP or ic == IC.KANJI_SKIP_JFM
+end
+local function is_xkanjiskip(n)
+  local ic = icflag(n)
+  return ic == IC.XKANJI_SKIP or ic == IC.XKANJI_SKIP_JFM
+end
+-- 汉字、假名、谚文与各种全角字符
+local function is_wide(c)
+  if not c then return false end
+  return (c >= 0x2E80 and c <= 0x2FDF) or (c >= 0x3000 and c <= 0x30FF) or (c >= 0x3100 and c <= 0x33FF)
+    or (c >= 0x3400 and c <= 0x9FFF) or (c >= 0xAC00 and c <= 0xD7AF) or (c >= 0x1100 and c <= 0x11FF)
+    or (c >= 0xF900 and c <= 0xFAFF) or (c >= 0xFE30 and c <= 0xFE4F) or (c >= 0xFF00 and c <= 0xFF60)
+    or (c >= 0xFFE0 and c <= 0xFFE6) or (c >= 0x20000 and c <= 0x3134F)
+end
+-- 与汉字之间要加汉西隙的西文：拉丁、希腊、西里尔字母与数字
+local function is_alnum(c)
+  if not c then return false end
+  return (c >= 48 and c <= 57) or (c >= 65 and c <= 90) or (c >= 97 and c <= 122)
+    or (c >= 0xC0 and c <= 0x24F and c ~= 0xD7 and c ~= 0xF7) or (c >= 0x370 and c <= 0x4FF)
+    or (c >= 0x1E00 and c <= 0x1EFF)
+end
+local function is_digit(c)
+  return c and c >= 48 and c <= 57
+end
+-- 字号与字体自己的空格宽：按字体号缓存。空格要字体的（fontdimen 2）：类为了 XeTeX 那条路
+-- 把 spaceskip 设成了字体空格加两份增量，luaotfload 的 LetterSpace 又往胶里加一份，
+-- Word 的空格就是字体空格再加半个余量（natural 里加）
+local sizecache, spacecache = {}, {}
+local function fsize(fid)
+  local s = sizecache[fid]
+  if not s then
+    local f = font.getfont(fid)
+    s = (f and f.size) or tex.sp("1em")
+    sizecache[fid] = s
+  end
+  return s
+end
+local function fspace(fid)
+  local s = spacecache[fid]
+  if not s then
+    local f = font.getfont(fid)
+    s = (f and f.parameters and f.parameters.space) or 0
+    spacecache[fid] = s
+  end
+  return s
+end
+-- luaotfload 的 LetterSpace 往每个字形后面的 kern 里加的量（kerncharacters 乘 quad）；
+-- 字体自己的字距对（Word 开着字距调整时照用）是 kern 减去这一份
+local lscache = {}
+local function fletter(fid)
+  local v = lscache[fid]
+  if not v then
+    local f = font.getfont(fid)
+    local kc = f and f.properties and f.properties.kerncharacters
+    v = 0
+    if kc and kc ~= "max" and f.parameters and f.parameters.quad then v = kc * f.parameters.quad end
+    lscache[fid] = v
+  end
+  return v
+end
+
+local function nodewidth(g)
+  local id = g.id
+  if id == GLYPH or id == HLIST or id == VLIST or id == RULE then return g.width
+  elseif id == GLUE then return g.width
+  elseif id == KERN then return g.kern
+  elseif id == DISC then
+    local w = 0
+    for h in traverse(g.replace) do if h.id == GLYPH then w = w + h.width elseif h.id == KERN then w = w + h.kern end end
+    return w
+  else return 0 end
+end
+local function spanwidth(it)
+  local w = 0
+  local g = it.first
+  while g do w = w + nodewidth(g); if g == it.last then break end; g = g.next end
+  return w
+end
+
+-- 盒子头尾的字符（往里找第一个与最后一个字形，盒套盒也找）。字形外侧还有胶的
+-- （标题编号盒里「1.1」后面带着一段空）就不算有头尾，两侧不再加隙
+local function box_ends(b)
+  local hd, tl, lead_glue, trail_glue
+  local function walk(list)
+    for g in traverse(list) do
+      if g.id == GLYPH then
+        if not hd then hd = g.char end
+        tl = g.char; trail_glue = false
+      elseif (g.id == HLIST or g.id == VLIST) and g.shift == 0 then
+        walk(g.list)
+      elseif g.id == GLUE and g.width ~= 0 then
+        if not hd then lead_glue = true end
+        trail_glue = true
+      end
+    end
+  end
+  walk(b.list)
+  if lead_glue then hd = nil end
+  if trail_glue then tl = nil end
+  return hd, tl
+end
+
+-- 把节点表切成条目：kind 0 汉字（或东亚符号） 1 闭号 2 开号 3 西文串/盒子 4 空格
+-- 每个条目记 w（西文串是字形宽之和 gw 加手写 kern 的 kw；汉字是 JFM 的字宽；空格是
+-- 胶的宽）、size（字号）、首末字符、首次末字形宽；串里的字体字距（subtype 0，含
+-- LetterSpace 加的那些）不计宽，渲染时清零重设。core 是条目最后一个实体节点，断行
+-- 合法性从它往后查。东亚符号：交给 jfont 排、却不是汉字的字（℃、×、希腊字母…）——Word
+-- 在 eastAsia 提示下也是这么分的：一格一个、旁边不加汉西隙；不能起行的那些当闭号挂
+local function tokenize(head)
+  local items = {}
+  local run = nil
+  local lastsize, lastfont = nil, nil
+  local function flush_run()
+    if run then items[#items + 1] = run; run = nil end
+  end
+  local function put(kind, first, last, w, c, size)
+    flush_run()
+    items[#items + 1] = { kind = kind, first = first, last = last, core = last, w = w, c = c, size = size or lastsize or tex.sp("1em") }
+    return items[#items]
+  end
+  local function attach(n)
+    if run then run.last = n elseif #items > 0 then items[#items].last = n end
+  end
+  local function is_code(g)
+    return M.code_attr and (node.get_attribute(g, M.code_attr) or 0) ~= 0
+  end
+  local function addglyph(n, c, w)
+    local size = fsize(n.font)
+    lastsize = size; lastfont = n.font
+    if not run then
+      run = { kind = 3, first = n, last = n, gw = 0, gn = 0, kw = 0, head = c, tail = c, kerns = {}, glist = {},
+              size = size, head_w = w, second_w = 0, tail_w = w, c = c }
+    end
+    if is_code(n) then run.code = true end
+    run.last = n; run.core = n; run.gw = run.gw + w; run.gn = run.gn + 1; run.tail = c; run.tail_w = w
+    if run.gn == 2 then run.second_w = w end
+    run.glist[#run.glist + 1] = n
+    -- 只有最后一个西文闭标点挂（`(word),`、`[12].` 挂 3bp，`(2019)` 4bp）
+    run.tail_hang = ascii_close[c] and w or 0
+  end
+  -- 交给 jfont 排的字：汉字/全角标点占一格，别的东亚符号按自己的宽
+  local function putja(n, c, w, size)
+    lastsize = size
+    if closers[c] then put(1, n, n, size, c, size)
+    elseif openers[c] then put(2, n, n, size, c, size)
+    elseif not is_wide(c) then
+      local it = put((no_line_start[c] and not connectors[c]) and 1 or 0, n, n, w, c, size)
+      it.symbol = true
+    else put(0, n, n, size, c, size) end
+  end
+  local n = head
+  local indent = 0
+  local strut_h, strut_d = 0, 0
+  local lead = nil   -- 第一个条目之前的节点（链接起点这类 whatsit），要归进第一行
+  while n do
+    local id = n.id
+    local nxt = n.next
+    if #items == 0 and not run and not lead and id ~= LOCALPAR and not (id == HLIST and n.subtype == 3) then lead = n end
+    if id == LOCALPAR then
+    elseif id == HLIST and n.subtype == 3 then
+      -- 缩进盒不进任何条目（渲染时另放一个），它前面的东西也不要
+      indent = n.width
+      lead = nil
+    elseif id == GLYPH then
+      local c = n.char
+      if is_jfont(n.font) and not latinish[c] then
+        putja(n, c, n.width, fsize(n.font))
+      else
+        -- 波浪线、破折号：单独成串（全角的占一格；Word 不把它们与前面的西文连着断，但后面可断）
+        if latinish[c] then flush_run() end
+        addglyph(n, c, n.width)
+        if latinish[c] then flush_run() end
+      end
+    elseif id == HLIST and icflag(n) == IC.PACKED then
+      local g = n.head
+      while g and g.id ~= GLYPH do g = g.next end
+      local c = g and g.char or 0
+      local size = g and fsize(g.font) or lastsize or tex.sp("1em")
+      -- 装成盒的标点：盒宽是半格，另一半在后面的 JFM 胶里；符号按盒宽
+      putja(n, c, n.width, size)
+    elseif id == GLUE then
+      if is_kanjiskip(n) then
+        attach(n)
+      elseif is_xkanjiskip(n) then
+        attach(n)
+        local it = run or items[#items]
+        if it and n.width ~= 0 then it.xk = true end
+      elseif is_jfmglue(n) then
+        if #items > 0 and not run and (items[#items].kind == 1 or items[#items].kind == 2) and not items[#items].jfmglue then
+          items[#items].last = n; items[#items].jfmglue = n
+        else
+          attach(n)
+        end
+      elseif n.subtype == 13 or n.subtype == 12 then
+        -- 词间空格：宽按字体自己的空格，不按 spaceskip（见 fspace）
+        local w = lastfont and fspace(lastfont) or 0
+        if w <= 0 then w = n.width end
+        put(4, n, n, w, nil)
+      elseif n.subtype == 0 and n.width > 0 then
+        -- 手写的 \hskip、\hspace：可断的位置，宽照它自己的（ulem 的负胶、leaders 不算）
+        local it = put(4, n, n, n.width, nil)
+        it.user = true; it.rigid = true
+      else
+        attach(n)
+      end
+    elseif id == KERN then
+      if run then
+        run.last = n
+        if n.subtype == 0 then
+          -- 字体的 kern：去掉 LetterSpace 加的那份，剩下的是字距对，计宽、渲染时照设
+          local real = n.kern - (lastfont and fletter(lastfont) or 0)
+          if math.abs(real) < 16 then real = 0 end
+          run.kerns[#run.kerns + 1] = { n, real }
+          run.kw = run.kw + real
+        else
+          run.kw = run.kw + n.kern; run.core = n
+        end
+      else
+        attach(n)
+      end
+    elseif id == DISC then
+      -- 明写的连字符在 LuaTeX 里是 disc（replace 里放着字形）：计宽，后面（模式 15）可断
+      -- replace 里的 kern 是 LetterSpace 加的，不计（渲染时清零）
+      local w, c, code = 0, nil, false
+      for g in traverse(n.replace) do
+        if g.id == GLYPH then w = w + g.width; c = g.char; code = code or is_code(g) end
+      end
+      if c and code and n.prev then
+        -- 代码串里的连字符：把 disc 拆掉，replace 里的字形回到主表当普通字形，整串是一个
+        -- 条目，断点由 soft_split 按 Word 文档里的写法给（模式 15 的连字符后断也在那里）
+        local rep = n.replace
+        n.replace = nil
+        local prev, after = n.prev, n.next
+        local tail = node.tail(rep)
+        prev.next = rep; rep.prev = prev
+        tail.next = after; if after then after.prev = tail end
+        n.next = nil; n.prev = nil
+        node.free(n)
+        nxt = rep
+      elseif c then
+        local size = lastsize or tex.sp("1em")
+        if not run then
+          run = { kind = 3, first = n, last = n, gw = 0, gn = 0, kw = 0, head = c, tail = c, kerns = {}, glist = {},
+                  size = size, head_w = w, second_w = 0, tail_w = w, c = c }
+        end
+        run.last = n; run.core = n; run.gw = run.gw + w; run.gn = run.gn + 1; run.tail = c; run.tail_w = w
+        if run.gn == 2 then run.second_w = w end
+        run.discs = run.discs or {}; run.discs[#run.discs + 1] = n
+        run.tail_hang = 0
+        if c == 45 then flush_run() end
+      else
+        attach(n)
+      end
+    elseif id == PENALTY then
+      -- 串里明写的可断点（\allowbreak、url 的断点）：串到此为止，后面可断
+      attach(n)
+      if run and n.penalty < 10000 then flush_run() end
+    elseif id == RULE then
+      if n.width == 0 then
+        -- 零宽的普通 rule 是格式层的撑杆；luatexja 给每个汉字挂的那根是 subtype 3，不算
+        if n.subtype == 0 and n.height > strut_h then strut_h = n.height; strut_d = n.depth end
+        attach(n)
+      else
+        local it = put(3, n, n, n.width, nil)
+        it.rigid = true; it.frame = true
+      end
+    elseif id == MATH then
+      local last = n
+      local m = n.next
+      while m and m.id ~= MATH do last = m; m = m.next end
+      if m then last = m end
+      flush_run()
+      items[#items + 1] = { kind = 3, first = n, last = last, core = last, w = node.dimensions(n, last.next),
+                            math = true, rigid = true, frame = true, size = lastsize or tex.sp("1em") }
+      nxt = last.next
+    elseif id == HLIST or id == VLIST then
+      flush_run()
+      -- 盒子（\mbox、ulem 的下划线、siunitx 的数）：看它头尾的字形定两侧的隙；
+      -- 抬高压低的盒子（上下标、脚注号）不加隙
+      local hd, tl
+      if n.shift == 0 then hd, tl = box_ends(n) end
+      items[#items + 1] = { kind = 3, first = n, last = n, core = n, w = n.width, rigid = true, frame = true,
+                            head = hd, tail = tl, size = lastsize or tex.sp("1em") }
+    else
+      attach(n)
+    end
+    n = nxt
+  end
+  flush_run()
+  for _, it in ipairs(items) do
+    if it.kind == 3 and it.gn then it.w = it.gw + it.kw; it.glyphs = true else it.gn = it.gn or 0 end
+  end
+  if lead and items[1] and items[1].first ~= lead then items[1].first = lead end
+  return items, indent, strut_h, strut_d
+end
+
+-- 字距调整开着没有（Word 的 w:kern）：属性没设或非 0 就是开着
+local function kern_on(it)
+  if not M.kern_attr or not it.core then return true end
+  local v = node.get_attribute(it.core, M.kern_attr)
+  return v == nil or v ~= 0
+end
+
+-- 汉西隙：字号的四分之一再加余量的五分之一（余量 = 格宽 − 字号）；模式 15 的那一份
+-- 取 max(余量/5, (余量 − 0.26bp)·0.46) 再封顶 0.2bp。这是 msword.rs 的公式，整套翻转点
+-- 探针（lb2–lb8，108 组）它只错 6 组、都在半格之内；曾试过「模式 15 加 0.25bp、其余加
+-- 余量的四分之一」，错 9 组，纸面上量到的 3.57 与 3.227 也不是算账用的数
+local function auto_at(P, size)
+  if not P.autospace then return 0 end
+  local ex = P.excess
+  if P.compat == 15 then
+    return size / 4 + math.min(math.max(ex / 5, (ex - 0.26 * P.bp) * 0.46), 0.2 * P.bp)
+  end
+  return size / 4 + ex / 5
+end
+
+-- 自然宽（账本）：每个条目自己的宽 nw、与前一条目之间的隙 gap、是不是压缩位 spot、
+-- 后接标点缩成半格 paired（整格记在 full）
+local function natural(items, P)
+  local n = #items
+  local function wide(t)
+    return t.kind == 0 or t.symbol or t.frame or (P.compat ~= 15 and (t.kind == 1 or t.kind == 2))
+  end
+  local function wide_next(t) return wide(t) or t.kind == 1 or t.kind == 2 end
+  local function symbol_width(it)
+    local latin1 = it.c and it.c >= 0xA1 and it.c <= 0xFF
+    if it.w < it.size * 0.9 or (P.compat == 15 and latin1) then return it.w + P.latin_add end
+    return it.w + P.excess
+  end
+  for k = 1, n do
+    local it, prev, nx = items[k], items[k - 1], items[k + 1]
+    local gap = 0
+    -- 后接标点缩半格：字距调整开着才有；闭号后接闭号/开号，开号后接开号；？两侧都不缩
+    local paired = false
+    if (it.kind == 1 or it.kind == 2) and not it.symbol and nx and kern_on(it) and not never_compressed[it.c] then
+      local ok = (it.kind == 1 and (nx.kind == 1 or nx.kind == 2)) or (it.kind == 2 and nx.kind == 2)
+      paired = ok and not never_compressed[nx.c] and not nx.symbol
+    end
+    it.paired = paired
+    if it.kind == 0 then
+      it.nw = it.symbol and symbol_width(it) or (it.w + P.excess)
+      it.spot = false
+    elseif it.kind == 1 and it.symbol then
+      -- 不能起行的符号（℃、°）：像闭号一样挂；只有间隔号有空白可压
+      it.full = symbol_width(it); it.nw = it.full
+      it.spot = (it.c == 0xB7)
+    elseif it.kind == 1 then
+      it.full = it.w + P.excess
+      it.nw = paired and it.full / 2 or it.full
+      it.spot = (not paired) and not never_compressed[it.c]
+    elseif it.kind == 2 then
+      it.full = it.w + P.excess
+      it.nw = paired and it.full / 2 or it.full
+      -- 紧跟在别的标点后面的开号没有自己的空白可让，除非那个标点已经缩成半格
+      it.spot = (not paired) and not (prev and (prev.kind == 1 or prev.kind == 2) and not prev.paired and not prev.symbol)
+    elseif it.kind == 3 then
+      if it.rigid then it.nw = it.w
+      elseif latinish[it.c] and it.w >= it.size * 0.9 then it.nw = it.w + P.excess
+      else it.nw = it.w + (it.code and 0 or P.latin_add) * it.gn end
+      if prev and prev.kind == 0 and not prev.symbol and is_alnum(it.head) then gap = auto_at(P, prev.size) end
+      it.spot = false
+    else
+      if it.user then
+        it.nw = it.w
+      else
+        -- 贴着汉字（或盒子、公式）的空格占半格、刚性，连成串的空格也是；老模式里贴着
+        -- 全角标点的也算；全角标点前面的空格各模式都是半格
+        local double = (prev and prev.kind == 4 and not prev.user) or (nx and nx.kind == 4 and not nx.user)
+        local ctx = double
+        if not ctx then
+          local i = k - 1
+          while i >= 1 and items[i].kind == 4 and not items[i].user do i = i - 1 end
+          if i >= 1 and wide(items[i]) then ctx = true end
+        end
+        if not ctx then
+          local i = k + 1
+          while i <= n and items[i].kind == 4 and not items[i].user do i = i + 1 end
+          if i <= n and wide_next(items[i]) then ctx = true end
+        end
+        if ctx then it.nw = (it.size + P.excess) / 2; it.rigid = true
+        else it.nw = it.w + P.space_add; it.rigid = false end
+      end
+      it.spot = false
+    end
+    if prev and prev.kind == 3 and it.kind == 0 and not it.symbol and is_alnum(prev.tail) then
+      -- 混合字号量的：隙跟着前一个字的字号走
+      gap = auto_at(P, prev.size)
+    end
+    it.gap = gap
+  end
+end
+
+-- 把西文串 items[k] 在第 g 个字形后拆成两个条目（起行的长串装不下时 Word 在装不下的那个
+-- 字形处断：紧急断点）。后半段接在 k+1 的位置
+local function split_run(items, k, g, P)
+  local it = items[k]
+  local a = {}
+  for key, v in pairs(it) do a[key] = v end
+  local b = {}
+  for key, v in pairs(it) do b[key] = v end
+  local ga, gb = {}, {}
+  for i, n in ipairs(it.glist) do if i <= g then ga[#ga + 1] = n else gb[#gb + 1] = n end end
+  a.glist, b.glist = ga, gb
+  a.last = ga[#ga]; a.core = a.last; a.gn = #ga
+  b.first = gb[1]; b.core = gb[#gb]; b.gn = #gb
+  local function sumw(list) local w = 0; for _, n in ipairs(list) do w = w + n.width end; return w end
+  a.gw, b.gw = sumw(ga), sumw(gb)
+  a.tail = a.last.char; a.tail_w = a.last.width; a.tail_hang = ascii_close[a.tail] and a.tail_w or 0
+  b.head = b.first.char; b.head_w = b.first.width; b.c = b.head
+  b.second_w = (#gb >= 2) and gb[2].width or 0
+  a.second_w = (#ga >= 2) and ga[2].width or 0
+  -- 字距与 disc 按节点位置分家
+  local ka, kb = {}, {}
+  for _, e in ipairs(it.kerns or {}) do
+    local n = e[1]
+    local before = false
+    local q = a.last
+    while q do if q == n then before = true; break end; q = q.prev end
+    if before then ka[#ka + 1] = e else kb[#kb + 1] = e end
+  end
+  a.kerns, b.kerns = ka, kb
+  a.kw, b.kw = 0, 0
+  for _, e in ipairs(ka) do a.kw = a.kw + e[2] end
+  for _, e in ipairs(kb) do b.kw = b.kw + e[2] end
+  local da, db = {}, {}
+  for _, d in ipairs(it.discs or {}) do
+    local before = false
+    local q = a.last
+    while q do if q == d then before = true; break end; q = q.prev end
+    if before then da[#da + 1] = d else db[#db + 1] = d end
+  end
+  a.discs, b.discs = da, db
+  a.w, b.w = a.gw + a.kw, b.gw + b.kw
+  local ladd = it.code and 0 or P.latin_add
+  a.nw, b.nw = a.w + ladd * a.gn, b.w + ladd * b.gn
+  b.gap = 0
+  a.emergency = true
+  items[k] = a
+  table.insert(items, k + 1, b)
+end
+
+-- 代码串（\verb，字形带 docxlike@code@attr）里的软断点：超过 16 个字符的串在 / . - 前可断，
+-- 头尾四个字符内不断，扩展名（点后不超过五个字符）前不断，连续分隔符与 :// 之间不断。
+-- Word 文档里这些位置是敲进去的 U+200B，这里按同一条规则从串里算出来，切成几个条目，
+-- 条目之间以 soft 记号相连：可断、断处什么也不丢
+local soft_sep = set_of("/.-")
+local function soft_split(items, P)
+  local k = 1
+  while k <= #items do
+    local it = items[k]
+    if it.kind == 3 and it.code and it.glyphs and it.gn >= 2 and #it.glist == it.gn then
+      local n = it.gn
+      local cuts = {}
+      for i = 2, n - 1 do
+        local c = it.glist[i].char
+        local pc = it.glist[i - 1].char
+        local before = n > 16 and i >= 5 and i <= n - 4 and soft_sep[c] and not soft_sep[pc] and pc ~= 58
+          and not (c == 46 and n - i <= 5)
+        -- Word 2013 起在连字符后也断（后面是数字不断），这条不分长短
+        local after = P.compat == 15 and pc == 45 and not is_digit(c) and c ~= 45
+        if before or after then cuts[#cuts + 1] = i - 1 end
+      end
+      local base = 0
+      for _, cut in ipairs(cuts) do
+        split_run(items, k, cut - base, P)
+        items[k].emergency = nil
+        items[k].soft = true
+        items[k].code = true; items[k + 1].code = true
+        base = cut
+        k = k + 1
+      end
+    end
+    k = k + 1
+  end
+end
+
+-- 一行 first..last 的自然宽（行首行尾的空格不算，段首的算）
+local function width_of(items, first, last)
+  local w = 0
+  for k = first, last do
+    local it = items[k]
+    local skipit = it.kind == 4 and not it.user and ((k == first and first > 1) or k == last)
+    if not skipit then
+      w = w + ((it.paired and k == last) and it.full or it.nw)
+      if k > first then w = w + it.gap end
+    end
+  end
+  return w
+end
+
+-- 贪心断行：返回行表
+local function decide(items, P, shape, indent)
+  natural(items, P)
+  local n = #items
+  local p = P.cell
+  local half = p / 2
+  local compat = P.compat
+  local eps = P.eps
+  local bp = P.bp
+  local ex = P.excess
+  local auto = auto_at(P, p - ex)
+  local scale = auto / (3.09 * bp)
+  local justify = P.justify or compat ~= 15
+  -- 本行的版心宽：主循环逐行设，预算里 W/M 那一项要读它
+  local measure = 0
+
+  -- 行里第一个不是空格的条目
+  local function text_start(first)
+    local k = first
+    while k + 1 <= n and items[k].kind == 4 do k = k + 1 end
+    return k
+  end
+  -- first..last-1 里的压缩位；行首的开号没有空白可让
+  local function spots(first, last)
+    local start = text_start(first)
+    local c = 0
+    for k = first, last - 1 do
+      local it = items[k]
+      if it.spot and not (it.kind == 2 and k == start) then c = c + 1 end
+    end
+    return c
+  end
+  -- first+1..upto 里的汉西隙个数
+  local function autos_in(first, upto)
+    local c = 0
+    for k = first + 1, upto do if items[k].gap > 0 then c = c + 1 end end
+    return c
+  end
+  -- 模式 15：行里的汉西隙让压缩总额少一点（12pt 缩进扫描：两个位时 1/2/3/4/6 个隙
+  -- 0.85/1.35/1.7/2.0/2.4bp，一个位减半，位多时慢慢再少）
+  local function penalty(k, gaps)
+    if gaps <= 0 or k == 0 then return 0 end
+    local base = 1.35 * bp * (math.log(1 + gaps) / math.log(3))
+    local factor = (k == 1) and 0.5 or (math.max(1.5 - 0.07 * k, 0.6) / 1.36)
+    return base * factor
+  end
+  -- 汉西隙总共能压多少：一个隙半个，四个起一整个（紧贴被塞字的串两侧两个）
+  local function auto_cap(gaps, adjacent)
+    if gaps == 0 and adjacent then return 0.5 * bp
+    elseif gaps == 0 then return 0
+    elseif adjacent then return auto
+    else return math.min(auto / 2 + (gaps - 1) * bp, auto) end
+  end
+  -- 紧挨着条目 j 前面的那段西文串（连同空格）从哪起
+  local function run_before(first, j)
+    if j <= first or j < 2 then return nil end
+    local pk = items[j - 1].kind
+    if pk ~= 3 and pk ~= 4 then return nil end
+    local b = j - 1
+    while b > first and (items[b - 1].kind == 3 or items[b - 1].kind == 4) do b = b - 1 end
+    return b
+  end
+  -- 单元 j..m 按 Word 的算法的宽：条目本身、它前面的隙、紧挨着的空格；紧贴汉字的西文串
+  -- 再多 0.4bp（量的 0.2–0.7），后面带闭号的不加
+  local function unit_width(first, j, m)
+    local u = items[j].gap
+    for k = j, m do
+      local it = items[k]
+      u = u + ((it.paired and k == m) and it.full or it.nw)
+      if k > j then u = u + it.gap end
+    end
+    local b = j
+    while b > first + 1 and items[b - 1].kind == 4 do b = b - 1; u = u + items[b].nw end
+    local tj = items[j]
+    if tj.kind == 3 and tj.glyphs and tj.gap > 0 and m == j and (tj.tail_hang or 0) == 0 then u = u + 0.4 * bp end
+    return u
+  end
+  -- 空格被压时能让多少：四分之一；连成串的不让；半格空格不让；紧跟全角标点的能全让
+  local function space_give(k)
+    local t = items[k]
+    if t.kind ~= 4 or t.user or t.rigid then return 0 end
+    local in_run = (k > 1 and items[k - 1].kind == 4) or (k < n and items[k + 1].kind == 4)
+    if in_run then return 0 end
+    local after_punct = k > 1 and (items[k - 1].kind == 1 or items[k - 1].kind == 2) and not items[k - 1].symbol
+    if after_punct then return t.nw end
+    return t.nw * 0.25
+  end
+  -- 首行多让一点（0.45/0.65bp）
+  local function slop(k, first_line)
+    if not first_line then return 0 end
+    if k == 1 then return 0.45 * bp end
+    return 0.65 * bp
+  end
+  -- 量出来的隙池（12pt、隙 3.09bp，按隙缩放）
+  local POOL_C = { [0] = 0, 1.55, 2.75, 3.15, 3.45, 3.55, 3.75, 3.75, 3.75 }
+  local POOL_L = { [0] = 0, 1.6, 3.0, 3.2, 3.3, 3.3, 3.3, 3.4, 3.4 }
+  local function pool(g, latin)
+    local t = latin and POOL_L or POOL_C
+    return t[math.min(g, 8)] * bp * scale
+  end
+  -- 行里的汉西隙先伸，没了这个单元的行需要的伸量就少，隙按 Γ(g) 记进分母，位多时
+  -- 记得更多（(k+3)/5，一个位时只算 0.4）
+  local G_TAB = { [0] = 0, 0.29, 0.54, 0.73, 0.9, 1.1, 1.29, 1.4, 1.5 }
+
+  -- 一行里的字（0..last）有没有汉字
+  local function has_cjk(first, m)
+    for i = first, m do if items[i].kind == 0 then return true end end
+    return false
+  end
+
+  -- ===== Word 2013：单元 j..m（开号、一个字或西文串 core、后面的闭号）能超出版心多少 =====
+  local function budget15(first, j0, j, core, m, isfirst)
+    local openers_n = 0
+    if items[j].kind == 2 and j > text_start(first) then
+      for i = j, core - 1 do if items[i].kind == 2 then openers_n = openers_n + 1 end end
+    end
+    local tc = items[core]
+    local latin = tc.kind == 3
+    local ascii_tail = 0
+    if m > core and items[m].kind == 3 then ascii_tail = items[m].tail_hang or 0
+    elseif m == core and latin then ascii_tail = tc.tail_hang or 0 end
+    local paired_bracket = m == core and latin and ascii_bracket_close[tc.tail] and ascii_open[tc.head]
+    local closers_n = (m > core and items[m].kind == 3) and 0 or (m - core)
+    local k = spots(first, j) + openers_n
+    for i = core + 1, m - 1 do if items[i].spot then k = k + 1 end end
+    local adjacent = (not latin) and tc.gap > 0 and core == j
+    local n_all = autos_in(first, core)
+    local gaps = n_all
+    if tc.gap > 0 and core == j then
+      gaps = gaps - 1
+      if not latin then
+        local b = run_before(first, j)
+        if b and items[b].gap > 0 and k > 0 then gaps = gaps - 1 / k end
+      end
+    end
+    local u = unit_width(first, j0, m)
+    local bare = closers_n == 0 and openers_n == 0 and m == core
+    local cjk_char = (not latin) and bare and not adjacent
+    local glued_latin = latin and bare and j == j0 and tc.gap > 0 and ascii_tail == 0 and k >= 1
+
+    -- 形状一：裸汉字。k/(k+1) 里那个 1 其实是 W/M：行到这个单元为止的自然宽比版心，
+    -- 每个位压的量不超过没有这个单元时行要伸的量；行满时就是 k/(k+1)，短一点的行多给
+    -- （msword.rs 56f9385：两个逗号前 18 到 28 个字 9.55 到 8.55，缩进、版心不影响）
+    if cjk_char then
+      if k == 0 then return pool(n_all, false) end
+      local uc = tc.nw
+      local own_spaces = 0
+      local b = j
+      while b > first + 1 and items[b - 1].kind == 4 and items[b - 1].rigid do b = b - 1; own_spaces = own_spaces + items[b].nw end
+      local w_line = width_of(items, text_start(first), m)
+      local gamma = G_TAB[math.min(n_all, 8)] * ((k == 1) and 0.4 or (k + 3) / 5)
+      local denom = k + math.max(0, math.min(w_line / measure, 1.5)) + gamma
+      local base = (uc + own_spaces) * k / denom
+      local blocks = 0
+      if k >= 2 then
+        local i = first + 1
+        local function space(q) return items[q].kind == 4 and items[q].rigid and not items[q].user end
+        while i < b do
+          if items[i].kind == 3 and items[i].glyphs then
+            local e = i
+            local alnum = false
+            while e < b and items[e].kind == 3 and items[e].glyphs do
+              if is_alnum(items[e].head) or is_alnum(items[e].tail) then alnum = true end
+              e = e + 1
+            end
+            if alnum and i > first + 1 and space(i - 1) and e < b and space(e) then blocks = blocks + 1 end
+            i = e
+          else
+            i = i + 1
+          end
+        end
+      end
+      local bonus = 0.2 * bp * blocks * scale
+      local t = math.min(base, half * k) + bonus
+      trace("  b15 cjk-char j=%d core=%d m=%d k=%d n_all=%d u=%.2f w/m=%.3f t=%.2f", j, core, m, k, n_all, uc / bp, w_line / measure, t / bp)
+      return t
+    end
+
+    -- 形状二：紧贴汉字的西文串。分母同样是 k + W/M（in4：两个逗号前 18/22/28 个字的 ab
+    -- 11.85/11.35/10.75），按 k+1 拟合的 1.9 换成 1.7
+    if glued_latin then
+      local g_other = math.max(n_all - 1, 0)
+      local c = half * k + auto / 2 * n_all
+      local wm = math.max(0, math.min(width_of(items, text_start(first), m) / measure, 1.5))
+      local t = ((u * 1.031 - 2.85 * bp) * k / (k + wm) + 1.7 * bp * scale) * (1 - 0.136 * math.log(1 + g_other))
+      trace("  b15 glued-latin j=%d core=%d m=%d k=%d n_all=%d u=%.2f c=%.2f t=%.2f", j, core, m, k, n_all, u / bp, c / bp, t / bp)
+      return math.min(c, t)
+    end
+
+    -- 形状三：其余（拟合式）
+    local pen
+    if latin and k >= 2 then
+      pen = math.min(0.85 * bp * math.max(gaps, 0) * ((closers_n > 0) and 2 or 1), u * k / (k + 1) * 0.25)
+    elseif latin and k == 1 then
+      pen = penalty(k, gaps) * 2
+    else
+      pen = penalty(k, gaps)
+    end
+    if closers_n > 0 and k == 1 then
+      local g = math.max(gaps, 0)
+      if closers_n == 1 and not latin then pen = bp * (g * math.max(1.12 - 0.047 * g, 0.7))
+      else pen = 0.5 * bp * g end
+    elseif closers_n > 0 and not (latin and k >= 2) then
+      pen = pen * 2
+    end
+    local ex2 = P.latin_add
+    local hang_cap
+    if P.table_cell then
+      hang_cap = (closers_n > 0) and items[m].full / 2 or 0
+    elseif closers_n > 0 then
+      hang_cap = items[m].full
+    elseif ascii_tail > 0 then
+      hang_cap = ascii_tail + ex2
+    else
+      hang_cap = 0
+    end
+    local hang = paired_bracket and 0 or hang_cap
+    local auto_part
+    if latin then
+      local rb = run_before(first, j)
+      local own = (tc.gap > 0 or (rb and items[rb].gap > 0)) and auto / 2 or 0
+      local part
+      if k == 0 then part = own + pool(math.max(n_all - ((own > 0) and 1 or 0), 0), true)
+      else part = math.min(auto / 2 * n_all, auto * 2.5) end
+      if tc.gap == 0 and k == 0 then auto_part = math.min(part, u * 0.17) else auto_part = part end
+    else
+      auto_part = auto_cap(n_all - (adjacent and 1 or 0), adjacent)
+    end
+    local cap = half * k + hang_cap + auto_part
+    if k == 0 and closers_n == 1 and not latin then
+      local CREDIT = { [0] = 0, 1.55, 2.17, 0.93, 0.43, 0.05 }
+      local credit = (n_all <= 5) and CREDIT[n_all] or -0.33
+      if adjacent then credit = credit + 0.9 end
+      return hang_cap + credit * bp
+    end
+    if k == 0 then
+      return cap - (latin and 0 or pen)
+    end
+    if latin then
+      for i = first + 1, m - 1 do cap = cap + space_give(i) end
+    end
+    local forgiven = 0
+    if closers_n == 0 and (k >= 2 or adjacent or latin) then
+      local s = slop(k, isfirst)
+      forgiven = (gaps > 0) and math.min(s, 0.5 * bp) or s
+    end
+    local t_f = (u * k + hang + forgiven) / (k + 1)
+    local deficit = 0
+    if closers_n == 1 then
+      local sym = false
+      if latin and k == 1 then
+        for i = math.max(j0 - 1, first + 1), core do if items[i].symbol then sym = true end end
+      end
+      if sym then deficit = 0.9 * bp
+      elseif k <= 1 then deficit = 0
+      elseif k == 2 then deficit = 0.5 * bp
+      elseif k == 3 then deficit = 0.75 * bp
+      else deficit = 0.8 * bp end
+    elseif closers_n >= 2 then
+      deficit = 0.25 * bp * math.max(k - 2, 0)
+    end
+    local budget
+    if latin then budget = math.min(t_f - deficit - pen, cap)
+    else budget = math.min(t_f - deficit, cap) - pen end
+    local g = n_all
+    local fine = 0
+    if bare and latin then
+      fine = (-0.24 * math.max(k - 3, 0) - 0.018 * g * ((k >= 3) and 1 or 0)) * bp
+    elseif bare and k >= 3 then
+      fine = (-0.047 * g - 0.007 * g * k) * bp
+    end
+    trace("  b15 j0=%d j=%d core=%d m=%d k=%d gaps=%.2f n_all=%d pen=%.2f auto_part=%.2f cap=%.2f u=%.2f hang=%.2f t_f=%.2f deficit=%.2f",
+      j0, j, core, m, k, gaps, n_all, pen / bp, auto_part / bp, cap / bp, u / bp, hang / bp, t_f / bp, deficit / bp)
+    return budget + fine
+  end
+
+  -- ===== Word 2003–2010：每个位半格，闭号挂半格（2003）或整格 =====
+  local function budget_old(first, j, core, m)
+    local k = spots(first, j)
+    local tc = items[core]
+    if m == core and j == core and tc.kind == 1 and tc.symbol then
+      if compat == 12 or compat == 14 then return p + P.latin_add end
+      return half
+    end
+    local opener = items[j].kind == 2 and core > j
+    local latin = tc.kind == 3
+    local gaps = autos_in(first, core)
+    local own
+    if opener and latin and m == core and P.ari then
+      local u_core = 0
+      for i = j + 1, m do u_core = u_core + items[i].nw end
+      local phys = half * (k + 1) + auto / 2 * gaps
+      own = math.min(phys, u_core + half + 0.3 * bp)
+    elseif opener then
+      -- 开号带西文与闭号链的（（SSA）、）到三个位（msword.rs 的 c11k）；开号带汉字的
+      -- 至多两个（lb4 探针 o2=o3=19）
+      own = half + half * math.min(k, latin and 3 or 2)
+    elseif latin then
+      local b = j
+      while b > first + 1
+        and (items[b - 1].kind == 4
+             or (P.ari and ((items[b - 1].kind == 3 and items[b - 1].glyphs)
+                            or (items[b - 1].symbol and items[b - 1].nw < half * 1.5)))) do
+        b = b - 1
+      end
+      local u = 0
+      for i = b, m do u = u + items[i].nw end
+      if P.ari then
+        local u2 = 0
+        for i = b, core do u2 = u2 + items[i].nw end
+        local cjk_line = has_cjk(first, m)
+        local inner_space = nil
+        for i = b + 1, core - 1 do if items[i].kind == 4 then inner_space = i; break end end
+        local spaces = 0
+        for i = first + 1, m do
+          local t = items[i]
+          if i < b and cjk_line and t.kind == 4 and not t.user and t.nw < half - 0.1 * bp then spaces = spaces + 1 end
+        end
+        local phys = half * k + auto / 2 * (gaps + spaces)
+        local glyphs = 0
+        for i = b, core do glyphs = glyphs + (items[i].gn or 0) end
+        local cap
+        if m == core and tc.gn == 1 and tc.c == 62 then
+          if compat ~= 11 then return half + tc.w end
+          cap = half * 2
+        elseif inner_space then
+          local s = 0
+          for i = b, inner_space - 1 do s = s + items[i].nw end
+          cap = u2 - s
+        elseif glyphs <= 1 then
+          cap = u2 - 0.3 * bp
+        elseif items[b].kind == 3 then
+          cap = u2 - (items[b].head_w or 0) - P.latin_add
+        else
+          cap = u2 - items[b].nw
+        end
+        trace("  lat b=%d core=%d m=%d k=%d phys=%.2f cap=%.2f u=%.2f", b, core, m, k, phys / bp, cap / bp, u2 / bp)
+        if m == core then
+          local ascii = (compat == 11 and tc.tail == 37) and 0 or (tc.tail_hang or 0)
+          return math.min(phys + ascii, cap)
+        end
+        return math.min(phys, cap)
+      else
+        local cap
+        if m == core and tc.gn == 1 and tc.c == 62 then cap = half * 2 else cap = u / 2 end
+        own = math.min(half * k + auto / 2 * gaps, cap)
+        -- 下面接着算闭号链；m == core 时在此返回
+        if m == core then
+          local ascii = (tc.tail_hang or 0)
+          if compat == 11 then ascii = math.min(ascii, 3 * bp) end
+          return own + ascii + ((ascii > 0) and P.latin_add or 0)
+        end
+      end
+    elseif k == 0 then
+      -- 没有位时汉西隙每处半个隙（lb4 探针 g2：四个隙 6.0），总共不过半格（x1–x3）
+      own = math.min((auto / 2 + 0.05 * bp) * gaps, half)
+    elseif j > first and items[j - 1].kind == 4 and not items[j - 1].user and j >= 3
+      and items[j - 2].kind == 3 and items[j - 2].glyphs then
+      own = half * k
+    elseif P.ari and j > first and items[j - 1].kind == 3 and items[j - 1].glyphs then
+      own = ((items[j - 1].tail_w or 0) + P.latin_add + tc.gap) / 2
+    else
+      local near = 0
+      if tc.gap > 0 then
+        near = 1
+        local rb = run_before(first, j)
+        if rb and items[rb].gap > 0 then near = 2 end
+      end
+      own = half - penalty(k, near)
+    end
+    if own == nil then own = 0 end
+    if opener and j > 1 and items[j - 1].kind == 1 and items[j - 1].paired and m == core and P.ari then
+      own = own - 3 * bp
+    end
+    if m == core then
+      local ascii = (tc.kind == 3) and (tc.tail_hang or 0) or 0
+      if compat == 11 then ascii = math.min(ascii, 3 * bp) end
+      return own + ascii + ((ascii > 0) and P.latin_add or 0)
+    end
+    if items[m].kind == 3 and P.ari and compat == 11 then
+      return half * spots(first, m) + auto / 2 * gaps
+    end
+    local hang
+    if P.table_cell then hang = half
+    elseif never_compressed[items[m].c] then hang = (compat == 11) and 0 or p
+    elseif items[m].symbol then hang = 0
+    else hang = half end
+    local k_all = spots(first, m)
+    local gap_credit = auto / 2 * gaps
+    local chain
+    if compat == 11 then chain = hang + half * k_all + gap_credit
+    else chain = half * k_all + math.max(p, hang) + gap_credit end
+    if opener and latin and tc.gn == 1 and m == core + 1 and j > 1 and items[j - 1].kind == 1 and items[j - 1].paired then
+      chain = math.min(chain, hang + half * math.min(k_all, 2) + ((k_all >= 3) and 2.9 * bp or 0))
+    end
+    local closers_w = width_of(items, first, m) - width_of(items, first, core)
+    local budget = math.min(chain, own + closers_w)
+    trace("  b11 j=%d core=%d m=%d k=%d k_all=%d gaps=%d own=%.2f hang=%.2f chain=%.2f closers_w=%.2f",
+      j, core, m, k, k_all, gaps, own / bp, hang / bp, chain / bp, closers_w / bp)
+    if j > first and items[j - 1].symbol and items[j - 1].nw < half * 1.5 and tc.symbol then
+      return budget - 3 * bp
+    end
+    return budget
+  end
+
+  local function unit_budget(first, j0, j, core, m, isfirst)
+    if not justify or not P.compress then return 0 end
+    if compat == 15 then return budget15(first, j0, j, core, m, isfirst) end
+    return budget_old(first, j, core, m)
+  end
+
+  -- 模式 15：两端对齐的行里空格能压四分之一（只算被塞单元前那段西文的空格；有位时不给）
+  local function space_shrink(first, j0, j, core, m, k, base)
+    if compat ~= 15 or not P.justify or not P.compress then return 0 end
+    local start
+    if items[j].kind == 3 then start = run_before(first, j) or j
+    else start = run_before(first, j) or (m + 1) end
+    local sp = {}
+    for q = math.max(start, first + 1), m - 1 do
+      if items[q].kind == 4 and not items[q].user then sp[#sp + 1] = q end
+    end
+    local far = 0
+    for q = first + 1, math.max(start, first + 1) - 1 do
+      if items[q].kind == 4 and not items[q].user and not items[q].rigid then far = far + 1 end
+    end
+    far = math.min(0.5 * bp * far, 1 * bp)
+    if #sp == 0 then return (k == 0) and far or 0 end
+    if k > 0 then
+      if items[j].kind == 3 then return 0 end
+      return -0.25 * bp * (#sp - 1)
+    end
+    local per = 0
+    for _, q in ipairs(sp) do per = per + space_give(q) end
+    -- 总共不过 1.85 个空格的宽（lb5 探针 ps：13 个空格让出 6.0、6.5 就下行；msword.rs 记的
+    -- 4 个空格 3.1、20 个空格 2.6 也都在这条线下）
+    per = math.min(per, 1.85 * items[sp[1]].nw)
+    if m > core then return per end
+    local cap
+    if items[j].kind == 3 then
+      if items[start].gap > 0 then
+        local s = 0
+        for i = j0, j do s = s + items[i].nw end
+        cap = s / 3
+      else
+        cap = unit_width(first, j0, m) / 3 + 0.5 * bp
+      end
+    else
+      cap = unit_width(first, j, m) / 3
+    end
+    local hang = 0
+    if items[m].kind == 3 and m == core then
+      hang = (items[m].tail_hang or 0)
+      if hang > 0 then hang = hang + P.latin_add end
+    end
+    local b2 = base - math.min(hang, base)
+    return math.min(b2 + per, math.max(cap, b2)) - b2 + far
+  end
+
+  -- ===== 断点：照 TeX 的规矩查 k 的实体节点到 k+1 的首节点之间有没有合法断点 =====
+  -- 前面不是可弃节点（胶、kern、罚分、数学）的胶、小于 10000 的罚分、后接胶的 kern 或数学
+  -- 节点、disc 都算；~ 是罚分 10000 加胶，就断不开。返回断点节点：行在它前面结束，它起头
+  -- 的可弃节点在下一行行首作废。段末与断不开的地方返回 nil
+  local function breakpoint_after(k)
+    if k >= n then return nil end
+    local core = items[k].core
+    if not core then return nil end
+    -- 连字符后面：模式 15 能断（Word 2013 起），2003 档整词下行（hy 探针）。明写的连字符
+    -- 在 LuaTeX 里是 replace 带字形的 disc。\verb 里的连字符同样：fork 版 typst 对行内
+    -- 代码没有另一套规矩，`make -C` 在模式 15 断成「make -」加「C」，两边一样
+    if core.id == DISC then
+      local hy = false
+      for r in traverse(core.replace) do if r.id == GLYPH and r.char == 45 then hy = true end end
+      if hy and compat ~= 15 then return nil end
+      return core.next
+    end
+    if core.id == GLYPH and core.char == 45 then
+      if compat == 15 then return core.next end
+      return nil
+    end
+    -- 两个破折号之间 Word 能断（msword.rs：`——` 可断，UAX #14 不给）；破折号交给西文
+    -- 字体排时两个字形之间没有胶，TeX 那套查不出断点
+    if core.id == GLYPH and core.char == 0x2014 and items[k + 1].c == 0x2014 then
+      return items[k + 1].first
+    end
+    local stop = items[k + 1].first
+    local prev = core
+    local g = core.next
+    while g do
+      local id = g.id
+      if id == GLUE then
+        local pid = prev.id
+        if pid ~= GLUE and pid ~= KERN and pid ~= PENALTY and pid ~= MATH then return g end
+      elseif id == PENALTY then
+        if g.penalty < 10000 then return g end
+      elseif id == KERN or id == MATH then
+        if g.next and g.next.id == GLUE then return (id == KERN) and g or g.next end
+      elseif id == DISC then
+        return g.next
+      end
+      if g == stop then break end
+      prev = g; g = g.next
+    end
+    return nil
+  end
+  -- 强制断行（\newline、\\ 留下的 -10000 罚分）在 k 后面
+  local function mandatory_after(k)
+    if k >= n then return false end
+    local g = items[k].core and items[k].core.next
+    local stop = items[k + 1].first
+    while g and g ~= stop do
+      if g.id == PENALTY and g.penalty <= -10000 then return true end
+      g = g.next
+    end
+    return false
+  end
+  -- Word 的首尾字符禁则叠在 TeX 的合法性上：% ℃ ° 这些不起行，$ ( [ 不收行；
+  -- 闭号不起行、开号不收行本来就在单元里
+  local function legal_after(k)
+    if k >= n then return true end
+    if items[k].emergency or items[k].soft then return true end
+    if breakpoint_after(k) == nil then return false end
+    local a, b = items[k], items[k + 1]
+    if b.kind == 1 then return false end
+    if a.kind == 2 then return false end
+    if b.kind == 3 and b.glyphs and no_line_start[b.head] then return false end
+    if a.kind == 3 and a.glyphs and no_line_end[a.tail] then return false end
+    return true
+  end
+
+  local lines = {}
+  local i = 1
+  while i <= n do
+    local isfirst = (#lines == 0)
+    local li = #lines + 1
+    local sh = shape(li)
+    measure = sh.width
+    -- 格数按整个版心数，悬挂缩进事后再减（Word 是按页面版心数格再减段落缩进）
+    local full = tex.hsize
+    local cellcap
+    if P.grid then
+      local cells = math.floor((full + eps) / p)
+      cellcap = p * cells - (full - measure)
+    else
+      cellcap = measure
+    end
+    local snaps = P.grid and compat ~= 15 and P.ari and not P.table_cell
+    local capacity = snaps and cellcap or measure
+    local first = i
+    local last = i
+    local j = i
+    local deep = false
+    local forced_end = false
+    local have = false
+    local first_unit = nil
+
+    while j <= n do
+      local it = items[j]
+      -- 单元：开号们、一个字或一段西文、后面的闭号（不能分开）
+      local m = j
+      if it.kind == 2 then
+        while m + 1 <= n and items[m + 1].kind == 2 do m = m + 1 end
+        if m + 1 <= n and items[m + 1].kind ~= 1 and items[m + 1].kind ~= 4 then m = m + 1 end
+      end
+      local core = m
+      while true do
+        local before = m
+        while m + 1 <= n and items[m + 1].kind == 1 do m = m + 1 end
+        -- 紧跟的西文闭标点串（［R］.、(x)、20 %，）也不能起行：随单元一起挂，后面的全角闭号照旧
+        local nxt = items[m + 1]
+        if nxt and nxt.kind == 3 and nxt.glyphs and nxt.gn == 1 and ascii_close[nxt.head] then
+          m = m + 1
+        end
+        if m == before then break end
+      end
+      local w = width_of(items, first, m) + (isfirst and indent or 0)
+      local spacing = it.kind == 4
+      if not spacing and first_unit == nil then first_unit = m end
+      if w <= capacity + eps then
+        last = m
+        have = have or not spacing
+        if mandatory_after(m) then forced_end = true; break end
+        j = m + 1
+      else
+        local need = w - (snaps and math.min(cellcap, capacity) or capacity)
+        if it.kind == 1 then break end
+        if it.kind == 3 and it.glyphs and ascii_close[it.head]
+          and not (j > first and items[j - 1].kind == 4 and not items[j - 1].user) then
+          break
+        end
+        if it.kind == 2 and core == j then break end
+        local j0 = j
+        if spacing and m > core and items[core + 1].kind == 3 and items[core + 1].glyphs and ascii_close[items[core + 1].head] then
+          -- `O %`、`25 %）`：标点是单元的核，空格前的西文串归单元
+          core = core + 1
+          local b = j
+          while b > first and items[b - 1].kind == 4 do b = b - 1 end
+          if b > first and items[b - 1].kind == 3 and items[b - 1].glyphs then j0 = b - 1 end
+        end
+        local t = unit_budget(first, j0, j, core, m, isfirst)
+        t = t + space_shrink(first, j0, j, core, m, spots(first, j) + ((it.kind == 2 and core > j) and 1 or 0), t)
+        if M.trace then
+          local txt = {}
+          for q = j, m do local x = items[q]; txt[#txt + 1] = x.c and utf8.char(x.c) or (x.kind == 4 and "_" or "[]") end
+          trace("unit %d..%d kind=%d %s need=%.3f budget=%.3f k=%d autos=%d", j, m, it.kind, table.concat(txt), need / bp, t / bp, spots(first, j), autos_in(first, j))
+        end
+        if need <= t + eps then
+          last = m
+          have = true
+          deep = m > core
+          if mandatory_after(m) then forced_end = true; break end
+          j = m + 1
+        else
+          break
+        end
+      end
+    end
+    if not have then
+      last = first_unit or first
+      -- 起行的西文串整个装不下：Word 在装不下的那个字形处断（超过半个版心的串才有紧急断点）
+      local ts = text_start(first)
+      local it = items[ts]
+      if last == ts and it.kind == 3 and it.glyphs and it.gn >= 2 and it.nw > measure / 2 then
+        local w0 = (isfirst and indent or 0)
+        for k = first, ts - 1 do local x = items[k]; if not (x.kind == 4 and not x.user and first > 1) then w0 = w0 + x.nw end end
+        local g = 0
+        local acc = w0
+        for i, gn in ipairs(it.glist) do
+          local add = gn.width + (it.code and 0 or P.latin_add)
+          if acc + add <= capacity + eps then acc = acc + add; g = i else break end
+        end
+        if g >= 1 and g < it.gn then
+          split_run(items, ts, g, P)
+          n = #items
+          last = ts
+        end
+      end
+    end
+
+    -- 行尾不能是空格、开号、西文的左括号，也不能是断不开的地方
+    local function bad_end(k)
+      local t = items[k]
+      return (t.kind == 4 and not t.user) or t.kind == 2
+        or (t.kind == 3 and t.glyphs and (ascii_open[t.tail] or no_line_end[t.tail]))
+    end
+    if not forced_end then
+      while last > first and (bad_end(last) or not legal_after(last)) do last = last - 1 end
+    end
+    local forced = false
+    if not forced_end and not legal_after(last) then
+      while last + 1 <= n and not legal_after(last) do last = last + 1 end
+      forced = true
+    end
+    -- 段末只剩空格时并进本行
+    if not forced_end and last + 1 <= n then
+      local k = last + 1
+      while k <= n and items[k].kind == 4 do k = k + 1 end
+      if k > n then last = n end
+    end
+    if items[last].paired then items[last].endfull = true end
+    local w = width_of(items, first, last) + (isfirst and indent or 0)
+    local over = w - capacity
+    lines[#lines + 1] = { first = first, last = last, width = w, over = over,
+                          deep = deep and items[last].kind == 1, forced = forced,
+                          ragged = forced_end or last >= n,
+                          bp = (last < n) and ((items[last].emergency or items[last].soft) and items[last + 1].first or breakpoint_after(last)) or nil,
+                          measure = measure, capacity = capacity, cellcap = cellcap, shift = sh.shift,
+                          isfirst = isfirst }
+    if M.trace then
+      local txt = {}
+      for k = first, last do local it = items[k]; txt[#txt+1] = it.c and utf8.char(it.c) or (it.kind == 4 and "_" or "[" .. (it.head and utf8.char(it.head) or "?") .. "]") end
+      trace("LINE w=%.2f/%.2f over=%.2f deep=%s forced=%s %s", w / bp, capacity / bp, over / bp, tostring(deep), tostring(forced), table.concat(txt))
+      if M.trace_items then
+        for k = first, last do
+          local it = items[k]
+          trace("  it %d kind=%d %s nw=%.2f gap=%.2f w=%.2f gn=%s rigid=%s", k, it.kind,
+            it.c and utf8.char(it.c) or (it.head and utf8.char(it.head) or "?"), it.nw / bp, it.gap / bp, (it.w or 0) / bp, tostring(it.gn), tostring(it.rigid))
+        end
+      end
+    end
+    i = last + 1
+  end
+  if #lines > 0 then lines[#lines].islast = true end
+  return lines
+end
+
+local function linebox(box, ctx, strut_h, strut_d)
+  local H, A = 0, 0
+  local objA, objD = 0, 0
+  local function glyph_metrics(g)
+    local f = font.getfont(g.font)
+    local sz = f and f.size or 0
+    if sz == 0 then return end
+    local h, a
+    if is_jfont(g.font) then
+      h = ctx.nat_cjk * sz; a = ctx.asc_cjk * sz
+    else
+      h = ctx.nat_latin * sz; a = ctx.asc_latin * sz
+    end
+    if h > H then H = h end
+    if a > A then A = a end
+  end
+  for g in traverse(box.list) do
+    local id = g.id
+    if id == GLYPH then
+      glyph_metrics(g)
+    elseif id == HLIST and icflag(g) == IC.PACKED then
+      for m in traverse(g.list) do if m.id == GLYPH then glyph_metrics(m) end end
+    elseif id == HLIST or id == VLIST or (id == RULE and g.width ~= 0) then
+      if g.height > objA then objA = g.height end
+      if g.depth > objD then objD = g.depth end
+    elseif id == MATH then
+      -- 公式：从 math-on 到 math-off 之间的东西按 TeX 的高深撑
+      local m = g.next
+      while m and m.id ~= MATH do
+        local mh, md = m.height, m.depth
+        if m.id == GLYPH or m.id == HLIST or m.id == VLIST or m.id == RULE then
+          if mh and mh > objA then objA = mh end
+          if md and md > objD then objD = md end
+        end
+        m = m.next
+      end
+    end
+  end
+  -- 一个字都没有的行（只有盒子、公式）按段自己的字体算
+  if H == 0 then H, A = ctx.natpara, ctx.asc_para end
+  local asc, desc
+  if ctx.exact then
+    asc, desc = strut_h, strut_d
+  elseif ctx.snap and ctx.pitch > 0 then
+    local n = math.ceil(H / ctx.pitch - 0.001)
+    local total = math.max(ctx.bls, n * ctx.pitch)
+    asc = A + (total - H) / 2
+    desc = total - asc
+  else
+    local total = ctx.k * H
+    asc = A; desc = total - A
+  end
+  if objA > asc then asc = objA end
+  if objD > desc then desc = objD end
+  box.height = asc; box.depth = desc
+  trace("BOX H=%.2f A=%.2f obj=%.2f+%.2f k=%.3f %s -> %.2f+%.2f", H / 65536, A / 65536, objA / 65536, objD / 65536, ctx.k,
+    ctx.exact and "exact" or (ctx.snap and "snap" or "auto"), asc / 65536, desc / 65536)
+end
+
+-- 渲染一行：定各处胶与 kern 的宽，装成 hlist。压缩与伸展的分配照 msword.rs 的 render
+local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, headnode)
+  local p = P.cell
+  local half = p / 2
+  local compat = P.compat
+  local bp = P.bp
+  local eps = P.eps
+  local measure = line.measure
+  local first, last = line.first, line.last
+  local a, b = items[first], items[last]
+  -- 本行的节点：从上一行断点起（首行从段首起），到本行断点前止
+  local head = headnode or a.first
+  local nxt = line.bp or b.last.next
+  if nxt then
+    nxt.prev.next = nil
+    nxt.prev = nil
+  end
+  head.prev = nil
+  -- 行首的可弃节点作废：断点处的胶、kern、罚分，照 TeX 的规矩不占位（链接起点这类
+  -- whatsit 不是可弃的，到它为止）
+  if not isfirst then
+    local g = head
+    while g and (g.id == GLUE or g.id == KERN or g.id == PENALTY) do
+      if g.id == GLUE then g.width = 0; g.stretch = 0; g.shrink = 0
+      elseif g.id == KERN then g.kern = 0 end
+      g = g.next
+    end
+  end
+  -- 所有胶先定死；无穷伸量的胶（\hfill）留着，余量全归它
+  local hasfil = false
+  for g in traverse(head) do
+    if g.id == GLUE then
+      if g.stretch_order > 0 then hasfil = true; g.shrink = 0
+      else g.stretch = 0; g.stretch_order = 0; g.shrink = 0 end
+    end
+  end
+  -- 每个条目的节点跨度补 kern 到账本宽 nw：汉字、闭号补在实体节点后（adj），开号的空白在
+  -- 左边、压缩量从前面扣（pre），网格增量仍在字形后面（adj，样本文档「用“分析」：开号压
+  -- 4.75 时字形起点提前 4.75，后面的一格仍是 12.5；段首的（在 110.0 而不是 110.4），
+  -- 伸展量也收在 adj 里；条目前的隙用 kern（gapkern）摆
+  local function base_of(k)
+    local it = items[k]
+    if it.paired and k == last then return it.full end
+    return it.nw
+  end
+  for k = first, last do
+    local it = items[k]
+    it.gapkern = nil; it.adj = nil; it.pre = nil; it.afterkern = nil
+    if k > first and it.gap ~= 0 then
+      local kn = node.new(KERN); kn.kern = it.gap
+      local pv = items[k - 1]
+      node.insert_after(head, pv.core or pv.last, kn)
+      it.gapkern = kn
+    end
+    if it.kind == 4 and it.user then
+      -- 手写的胶：原样，行首也不归零（\hspace 就是要占位）
+    elseif it.kind == 4 then
+      it.first.width = ((k == first and first > 1) or k == last) and 0 or it.nw
+      -- 空格后面挂着的胶清零
+      local g = it.first.next
+      while g and g ~= it.last.next do if g.id == GLUE and g.subtype < 100 then g.width = 0 end; g = g.next end
+    elseif it.rigid then
+      -- 盒子、公式自己的宽不动，后面挂着的胶（汉西隙）清零，隙由 gap 另放；leaders 不动
+      local g = it.core and it.core.next
+      while g and g ~= it.last.next do if g.id == GLUE and g.subtype < 100 then g.width = 0 end; g = g.next end
+    elseif it.kind == 3 then
+      -- 西文串：串里原有的字距清零，挂在串上的胶（汉字缝、汉西隙）也清零，每个字形后补
+      -- 网格增量（全角的破折号、波浪线补到整格）
+      for _, e in ipairs(it.kerns) do e[1].kern = e[2] end
+      local g = it.first
+      while g do
+        if g.id == GLUE and g.subtype < 100 then g.width = 0 end
+        if g.id == DISC and g.replace then
+          -- 连字点的 disc：luaotfload 把 LetterSpace 的 kern 放进了 replace 里，一并清零
+          for r in traverse(g.replace) do if r.id == KERN and r.subtype == 0 then r.kern = 0 end end
+        end
+        if g == it.last then break end
+        g = g.next
+      end
+      local add = (latinish[it.c] and it.w >= it.size * 0.9) and (it.nw - it.w) or (it.code and 0 or P.latin_add)
+      for _, g in ipairs(it.glist) do
+        local kn = node.new(KERN); kn.kern = add
+        node.insert_after(head, g, kn)
+        if g == it.last then it.last = kn end
+      end
+      for _, d in ipairs(it.discs or {}) do
+        local kn = node.new(KERN); kn.kern = add
+        node.insert_after(head, d, kn)
+        if d == it.last then it.last = kn end
+      end
+    else
+      local w = 0
+      local g = it.first
+      while g do w = w + nodewidth(g); if g == it.last then break end; g = g.next end
+      it.spanw = w
+      local kn = node.new(KERN); kn.kern = base_of(k) - w
+      if it.kind == 2 then
+        -- 字形的字面起点落在格首：luatexja 把半宽开号装在半格宽的盒子里、字面从盒子
+        -- 起点往左伸出半格，盒子比字面窄的那一段（it.w − w）补在前面
+        kn.kern = base_of(k) - it.full + (it.w - w)
+        node.insert_before(head, it.first, kn)
+        if it.first == head then head = kn end
+        it.pre = kn
+        local kn2 = node.new(KERN); kn2.kern = it.full - w
+        node.insert_after(head, it.core or it.last, kn2)
+        it.adj = kn2
+      else
+        node.insert_after(head, it.core or it.last, kn)
+        it.adj = kn
+      end
+    end
+  end
+  local count = last - first + 1
+  local delta, after = {}, {}
+  for k = first, last do delta[k] = 0; after[k] = 0 end
+  local start = first
+  while start < last and items[start].kind == 4 do start = start + 1 end
+  local ragged = line.ragged or line.islast
+
+  local whole_hang, in_place, cap_last = false, false, false
+  if line.over > 0 and not line.forced then
+    local spot_idx = {}
+    for k = first, last do
+      local it = items[k]
+      if it.spot and not (it.kind == 2 and k == start) and not (line.deep and k == last) then spot_idx[#spot_idx + 1] = k end
+    end
+    local need = line.over
+    -- Word 2013 先压西文串里的空格（各四分之一），再压标点
+    if compat == 15 and P.justify then
+      local function give(k)
+        local t = items[k]
+        -- 贴着汉字的半格空格不压（样本文档「人称, 采用“分析了……」：闭号压半格、三个开号各出
+        -- 4.7，逗号后的半格空格仍是 6.3），与账本里的 space_give 一致
+        if t.kind ~= 4 or t.user or t.rigid then return 0 end
+        local in_run = (k > 1 and items[k - 1].kind == 4) or (k < #items and items[k + 1].kind == 4)
+        if in_run then return 0 end
+        local after_punct = k > 1 and (items[k - 1].kind == 1 or items[k - 1].kind == 2) and not items[k - 1].symbol
+        if after_punct then return t.nw end
+        return t.nw * 0.25
+      end
+      local sp, cap = {}, 0
+      for k = first + 1, last - 1 do
+        local g = give(k)
+        if g > 0 then sp[#sp + 1] = { k, g }; cap = cap + g end
+      end
+      if cap > 0 then
+        local take = math.min(need, cap, 1.85 * items[sp[1][1]].nw)
+        if take > 0 then
+          for _, e in ipairs(sp) do delta[e[1]] = delta[e[1]] - e[2] * (take / cap) end
+          need = need - take
+        end
+      end
+    end
+    local k = #spot_idx
+    local cap = half
+    local hang = 0
+    local inline = need
+    if line.deep then
+      local lt = items[last]
+      if compat == 11 then
+        -- Word 2003：闭号挂多少算多少（至多半格，？与符号一点不挂），行不再两端对齐
+        local h = (never_compressed[lt.c] or lt.symbol) and 0 or half
+        hang = math.min(h, need)
+        inline = need - hang
+        cap_last = hang > 0
+      elseif never_compressed[lt.c] or lt.symbol then
+        -- 压不动的闭号：整个挂出去，前面的文字两端对齐到版心右缘
+        hang = lt.nw
+        inline = math.max(need - hang, 0)
+        whole_hang = not lt.symbol
+      else
+        -- 2007 起：闭号自己压半格就够时只压闭号，行内位一个不动、其余拉开（样本文档
+        -- 「总结与概括，」超 4.5：逗号起点在右缘内半格，”。与、都是原宽，字距拉到 12.5；
+        -- 段末行没有拉开这一说，照下面的办）；
+        -- 不够时先由行内位分担（各至多半格）；再不够闭号在原位压成半格、行内位均摊剩下
+        -- 的；还不够才整个挂出去，那时行内位只出挂出后还缺的那点（lb3/lb4 探针 d0–d2 与
+        -- 样本文档「代号和公式等。」：四个位吃得下时闭号原样、闭号起点在右缘内一格；「进行了
+        -- 探讨”」三个位吃不下 20.2 时闭号先压半格、三个开号各出 4.7；差得多时起点在右缘上、
+        -- 行内位只压 need − p）
+        if need <= half + eps and P.justify and not ragged and not hasfil then
+          delta[last] = delta[last] - half
+          inline = 0
+          in_place = true
+          cap_last = true
+        elseif need <= cap * k + eps then
+          inline = need
+        elseif need - half <= cap * k + eps then
+          delta[last] = delta[last] - half
+          inline = need - half
+          in_place = true
+          cap_last = true
+        else
+          hang = p
+          inline = math.max(need - p, 0)
+          whole_hang = true
+          cap_last = true
+        end
+      end
+    end
+    if k > 0 then
+      local each = math.min(inline / k, cap)
+      for _, s in ipairs(spot_idx) do delta[s] = delta[s] - each end
+      inline = inline - each * k
+    end
+    -- 标点吃不下的从汉西隙里出（`ab cd ef gh ij龙`：先压空格到 2.5，再压串旁的隙）
+    if inline > eps then
+      local open = {}
+      for k2 = first, last - 1 do if items[k2 + 1].gap > 0 then open[#open + 1] = k2 end end
+      local left = inline
+      while left > eps and #open > 0 do
+        local each = left / #open
+        local nextopen = {}
+        for _, k2 in ipairs(open) do
+          local room = items[k2 + 1].gap + after[k2]
+          if room <= each then
+            after[k2] = after[k2] - room; left = left - room
+          else
+            after[k2] = after[k2] - each; left = left - each
+            nextopen[#nextopen + 1] = k2
+          end
+        end
+        if #nextopen == #open then break end
+        open = nextopen
+      end
+      inline = left
+    end
+  end
+
+  -- 两端对齐的伸展
+  local symbol_hang = line.deep and items[last].symbol and line.over > 0 and compat ~= 11
+  local natural_w = width_of(items, first, last) + (isfirst and indent or 0)
+  if symbol_hang or whole_hang then natural_w = natural_w - items[last].nw end
+  local compressed = 0
+  for k = first, last do compressed = compressed + delta[k] end
+  local slack = line.capacity - (natural_w + compressed)
+  if P.justify and not ragged and not line.forced and not hasfil and slack > 0
+    and (line.over <= 0 or symbol_hang or whole_hang or in_place) then
+    local autos, spaces, cjkgaps, halves = {}, {}, {}, {}
+    for k = first, last do
+      local it = items[k]
+      if k > first and it.gap > 0 then autos[#autos + 1] = k - 1 end
+      if it.kind == 4 and not it.user and k > first and k < last then
+        if it.rigid then halves[#halves + 1] = k else spaces[#spaces + 1] = k end
+      end
+      if it.kind <= 2 and k < last then cjkgaps[#cjkgaps + 1] = k end
+    end
+    -- 余量先给西文空格（每个至多 5/6 个空格）与汉西隙（每处至多一个隙），之后行里所有的缝
+    -- 一起涨：汉字缝、全角标点、空格、隙、半格空格；没有汉字缝的行由空格全包
+    if #spaces > 0 then
+      local cap, total = 0, 0
+      for _, k in ipairs(spaces) do cap = cap + items[k].w * 5 / 6; total = total + items[k].w end
+      local take = (#autos == 0 and #cjkgaps == 0) and slack or math.min(slack, cap)
+      if total > 0 then
+        for _, k in ipairs(spaces) do after[k] = after[k] + take * (items[k].w / total) end
+        slack = slack - take
+      end
+    end
+    if slack > 0 and #autos > 0 then
+      local cap = 0
+      for _, k in ipairs(autos) do cap = cap + items[k + 1].gap end
+      local take = (#cjkgaps == 0) and slack or math.min(slack, cap)
+      if cap > 0 then
+        for _, k in ipairs(autos) do after[k] = after[k] + take * (items[k + 1].gap / cap) end
+        slack = slack - take
+      end
+    end
+    if slack > 0 and #cjkgaps > 0 then
+      local nslots = #cjkgaps + #spaces + #autos + #halves
+      local each = slack / nslots
+      for _, k in ipairs(cjkgaps) do after[k] = after[k] + each end
+      for _, k in ipairs(spaces) do after[k] = after[k] + each end
+      for _, k in ipairs(autos) do after[k] = after[k] + each end
+      for _, k in ipairs(halves) do after[k] = after[k] + each end
+      slack = slack - each * nslots
+    end
+    if slack > 0 then
+      local pool = (#spaces > 0) and spaces or autos
+      if #pool > 0 then
+        local each = slack / #pool
+        for _, k in ipairs(pool) do after[k] = after[k] + each end
+        slack = 0
+      end
+    end
+  end
+
+  -- 落到节点上
+  for k = first, last do
+    local it = items[k]
+    local extra = after[k]
+    if it.kind <= 2 then
+      local base = base_of(k)
+      local target = base + delta[k] + extra
+      -- 挂出去或压成半格的行末闭号进宽半格（Word 的下划线到那里为止）
+      if k == last and cap_last then target = math.min(target, it.full / 2) end
+      if it.kind == 2 then
+        it.pre.kern = it.pre.kern + delta[k]
+        it.adj.kern = target - it.spanw - it.pre.kern
+      else
+        it.adj.kern = target - it.spanw
+      end
+    elseif it.kind == 3 then
+      if extra ~= 0 then
+        local kn = node.new(KERN); kn.kern = extra
+        node.insert_after(head, it.last, kn)
+        it.last = kn
+      end
+    else
+      if it.user then
+        if extra ~= 0 then
+          local kn = node.new(KERN); kn.kern = extra
+          node.insert_after(head, it.last, kn)
+        end
+      elseif not ((k == first and first > 1) or k == last) then
+        it.first.width = it.nw + delta[k] + extra
+      end
+    end
+  end
+  if M.trace_items then
+    -- 逐条目核对：节点跨度应等于账本宽加压缩加伸展加隙
+    for k = first, last do
+      local it = items[k]
+      local startn = (it.kind == 2 and it.pre) or it.first
+      if k == first and it.kind ~= 2 then startn = head end
+      local stopn = (k < last) and ((items[k + 1].kind == 2 and items[k + 1].pre) or items[k + 1].first) or nil
+      -- 隙 kern 放在前一条目 core 后，属于本条目
+      local span = node.dimensions(startn, stopn)
+      local expect = ((it.paired and k == last) and it.full or it.nw) + delta[k] + after[k] + ((k < last) and items[k + 1].gap or 0)
+      if it.kind == 4 and not it.user and ((k == first and first > 1) or k == last) then expect = expect - it.nw end
+      if math.abs(span - expect) > 200 then
+        trace("  SPAN k=%d kind=%d %s span=%.3f expect=%.3f", k, it.kind, it.c and utf8.char(it.c) or (it.head and utf8.char(it.head) or "?"), span / bp, expect / bp)
+      end
+    end
+  end
+  -- 行尾的胶与罚分去掉
+  local t = node.tail(head)
+  while t and t ~= head and (t.id == GLUE or t.id == PENALTY) do
+    local pr = t.prev; node.remove(head, t); node.free(t); t = pr
+  end
+  if ragged and not hasfil then
+    local fil = node.new(GLUE); fil.subtype = 15; fil.stretch = 65536; fil.stretch_order = 2
+    node.insert_after(head, node.tail(head), fil)
+  elseif line.capacity < measure and not hasfil then
+    -- 老模式按整数格装：版心剩下不到一格的量留在行尾
+    local kn = node.new(KERN); kn.kern = measure - line.capacity
+    node.insert_after(head, node.tail(head), kn)
+  end
+  if isfirst and indent > 0 then
+    local ib = node.new(HLIST); ib.subtype = 3; ib.width = indent
+    ib.next = head; head.prev = ib; head = ib
+  end
+  local box = node.hpack(head, measure, "exactly")
+  box.shift = line.shift
+  if M.trace then
+    local dw = node.dimensions(box.list)
+    if math.abs(dw - measure) > P.eps and not line.forced and not ragged then
+      trace("WIDTH content=%.2f measure=%.2f natural=%.2f compressed=%.2f slack=%.2f", dw / bp, measure / bp, natural_w / bp, compressed / bp, (line.capacity - (natural_w + compressed)) / bp)
+    end
+  end
+  if ctx then
+    linebox(box, ctx, strut_h, strut_d)
+  else
+    -- 没有格式层的行距参数时退到 TeX 的办法：内容的自然高深，不低于撑杆
+    if box.height < strut_h then box.height = strut_h end
+    if box.depth < strut_d then box.depth = strut_d end
+  end
+  -- 脚注、浮动体、标记、vadjust 不能留在行盒里：照 TeX 断行的做法搬到行盒后面
+  local moved = nil
+  local g = box.list
+  while g do
+    local nx = g.next
+    if g.id == INS or g.id == MARK or g.id == ADJUST then
+      box.list = node.remove(box.list, g)
+      g.prev = nil; g.next = nil
+      if g.id == ADJUST then
+        -- vadjust 的内容是一整段（浮动体、页边记号是罚分加盒子加罚分），整段接上：
+        -- node.insert_after 只接一个节点，后面的会丢，页边记号从第二个起就没了
+        local inner = g.list; g.list = nil
+        node.free(g)
+        if inner then
+          if moved then
+            local t = node.tail(moved); t.next = inner; inner.prev = t
+          else
+            moved = inner
+          end
+        end
+      else
+        moved = moved and node.insert_after(moved, node.tail(moved), g) or g
+      end
+    end
+    g = nx
+  end
+  return box, moved, nxt
+end
+
+local function skip(why)
+  trace("SKIP %s", why)
+  return true
+end
+
+-- 读格式层的行距参数：撑杆是按段首字体算的，这里要的是逐行重算用的系数。
+-- 格式层没装这些变量（不走 Word 版面）就返回 nil，行盒退到 TeX 的办法
+local function getbool(name)
+  local ok, t = pcall(token.create, name)
+  if not ok or not t or t.cmdname ~= "char_given" then return nil end
+  return t.mode ~= 0
+end
+local function getfactor(name)
+  local ok, v = pcall(token.get_macro, name)
+  if not ok or not v then return nil end
+  return tonumber(v)
+end
+function M.linectx(strut_h, strut_d)
+  local exact = getbool("l_docxlike_format_strut_exact_bool")
+  local snap = getbool("l_docxlike_format_line_snap_bool")
+  local latin = getbool("l_docxlike_format_strut_latin_bool")
+  if exact == nil or snap == nil then return nil end
+  local ok, natpara = pcall(tex.getdimen, "l__docxlike_format_nat_dim")
+  if not ok or not natpara or natpara <= 0 then return nil end
+  -- 汉字的自然行高按这一段的字体（样式里的 eastAsia）查到的那个，不是写死的宋体
+  local nat_cjk = getfactor("l__docxlike_format_strut_natural_tl") or 1.296875
+  local nat_latin = getfactor("l_docxlike_format_natural_latin_tl") or 1.1499
+  local asc_cjk = getfactor("l_docxlike_format_ascent_tl") or 1.0078125
+  local asc_latin = getfactor("l_docxlike_format_ascent_latin_tl") or 0.93359375
+  local ok3, pitch = pcall(tex.getdimen, "g_docxlike_page_lead_dim")
+  if not ok3 or not pitch then pitch = 0 end
+  local bls = tex.baselineskip.width
+  local total = strut_h + strut_d
+  -- 段自己那一档的上升部：撑杆里贴网格时是居中过的，退回去
+  local asc_para = strut_h
+  if not exact and snap then asc_para = strut_h - (total - natpara) / 2 end
+  local k = bls / natpara
+  if k < 1 then k = 1 end
+  return { exact = exact, snap = snap, latin = latin, natpara = natpara, asc_para = asc_para,
+           nat_cjk = nat_cjk, nat_latin = nat_latin, asc_cjk = asc_cjk, asc_latin = asc_latin,
+           pitch = pitch, bls = bls, k = k }
+end
+-- 逐行的版心：照 TeX 的规矩把 parshape、hangindent/hangafter、leftskip/rightskip 折成
+-- 每行的 {width, shift}。返回的函数按行号取，parshape 用完了照最后一行
+function M.shape()
+  local hsize = tex.hsize
+  local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
+  local lw, rw = ls.width, rs.width
+  -- 格式层在 XeTeX 那条路上把整数格除不尽的余量放在 rightskip 里（不到一格），这里自己算格，不减它
+  if rw > 0 and rw <= 6 * 65536 then rw = 0 end
+  local ps = tex.parshape
+  local hi, ha = tex.hangindent, tex.hangafter
+  return function(li)
+    local ind, wd = 0, hsize
+    if type(ps) == "table" and #ps > 0 then
+      local e = ps[math.min(li, #ps)]
+      ind, wd = e[1], e[2]
+    elseif hi ~= 0 then
+      local hang = (ha >= 0 and li > ha) or (ha < 0 and li <= -ha)
+      if hang then
+        if hi > 0 then ind, wd = hi, hsize - hi else wd = hsize + hi end
+      end
+    end
+    return { width = wd - lw - rw, shift = ind + lw }
+  end
+end
+
+function M.filter(head, is_display)
+  local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
+  -- 可伸的边距（居中、靠左靠右）不是两端对齐，交回 TeX。开了 rigid 的话先把段里的胶
+  -- 改成不可缩：Word 左对齐、居中的行不压词隙也不压标点，TeX 却会缩胶多塞一个字
+  if ls.stretch ~= 0 or rs.stretch ~= 0 or ls.shrink ~= 0 or rs.shrink ~= 0 then
+    if getbool("g__docxlike_linebreak_rigid_bool") then
+      for g in node.traverse_id(GLUE, head) do
+        if g.shrink_order == 0 then g.shrink = 0 end
+      end
+    end
+    return skip("skips")
+  end
+  if M.attr and (node.get_attribute(head, M.attr) or 0) == 0 then return skip("attr") end
+  local ok, cell = pcall(tex.getdimen, "g_docxlike_page_char_dim")
+  if not ok or not cell or cell == 0 then return skip("nocell") end
+  local cell0 = cell
+  local em = tex.sp("1em")
+  -- 格宽 = 字号 + 固定余量：正文一格是 g_docxlike_body_size_dim + 余量（12.4543 里的 0.4543），
+  -- 别的字号只换字号那部分（9 到 16pt 都量过，余量不随字号变）。西文乘 p/em 的平衡
+  -- 只在正文字号有，别的字号西文照字体原宽
+  local ok2, body = pcall(tex.getdimen, "g_docxlike_body_size_dim")
+  local inc, atbody = 0, true
+  if ok2 and body and body > 0 then
+    inc = cell - body
+    atbody = math.abs(em - body) < 256
+    cell = em + inc
+  end
+  local items, indent, strut_h, strut_d = tokenize(head)
+  if #items == 0 then return true end
+  local bp = 65781.76
+  -- 西文字形各加半个余量只在正文字号有（9 到 16pt 的探针：别的字号西文照字体原宽）。
+  -- 正好半个（lb5 探针 pn：64 个数字的行在 N=0 翻转，数字宽正是 p/2）。空格按 Word 算账
+  -- 的量加 0.25bp（与汉西隙一样：lb5 的 ps 行在 N=0 翻转，纸面上却量到 3.37；样本文档
+  -- 英文摘要的散排行又只有 3.0，两头都对不上，按翻转点）
+  trace("PARAMS em=%.4f body=%.4f chardim=%.4f cell=%.4f inc=%.4f", em / bp, (body or 0) / bp, (ok and cell0 or 0) / bp, cell / bp, inc / bp)
+  -- 段落的横向贴格（format 的 snap-to-grid-when-document-grid-is-defined）：关着的段（封面的英文题目、
+  -- 首页的大标题）Word 按整个版心装、不按整数格数；TeX 那头这时 rightskip 也是零
+  local hsnap = getbool("l_docxlike_format_snap_horizontal_bool")
+  if hsnap == nil then hsnap = true end
+  local P = { cell = cell, em = em, bp = bp, excess = inc, grid = hsnap,
+              latin_add = atbody and inc / 2 or 0,
+              space_add = (inc > 0) and 0.25 * bp or 0,
+              compat = M.compat, ari = not M.ari0, table_cell = M.cell,
+              justify = true, autospace = true, compress = true,
+              eps = 0.03 * bp }
+  soft_split(items, P)
+  local lines = decide(items, P, M.shape(), indent)
+  local ctx = M.linectx(strut_h, strut_d)
+  local newhead, tail = nil, nil
+  local prevdepth = tex.prevdepth
+  local nl = #lines
+  local nexthead = nil
+  for li, line in ipairs(lines) do
+    local box, moved
+    box, moved, nexthead = render(items, line, P, strut_h, strut_d, indent, li == 1, ctx, nexthead)
+    if li > 1 then
+      -- 行间胶用 subtype 0：luatexja 的 post_linebreak_filter 会把 subtype 1、2 的胶按
+      -- TeX 的 baselineskip 规矩重算，行盒恰好等于行距时舍入成负数就换成 lineskip，多出 1pt
+      local g = node.new(GLUE); g.subtype = 0
+      if ctx then
+        -- Word 是把行盒直接摞起来：基线距 = 上行行深 + 本行上升部
+        g.width = 0
+      else
+        -- 行间胶照 TeX 的规矩：基线距不够 lineskiplimit 就改用 lineskip
+        g.width = tex.baselineskip.width - prevdepth - box.height
+        if g.width < tex.lineskiplimit then g.width = tex.lineskip.width end
+      end
+      tail.next = g; g.prev = tail; tail = g
+    end
+    if newhead == nil then newhead = box else tail.next = box; box.prev = tail end
+    tail = box
+    if moved then
+      tail.next = moved; moved.prev = tail; tail = node.tail(moved)
+    end
+    if li < nl then
+      -- 行间罚分照 TeX：interlinepenalty，首行后加 clubpenalty，倒数第二行后加 widowpenalty
+      local pen = tex.interlinepenalty
+      if li == 1 then pen = pen + tex.clubpenalty end
+      if li == nl - 1 then pen = pen + tex.widowpenalty end
+      if pen ~= 0 then
+        local pn = node.new(PENALTY); pn.penalty = pen
+        tail.next = pn; pn.prev = tail; tail = pn
+      end
+    end
+    prevdepth = box.depth
+  end
+  return newhead
+end
+
+-- 汉字缝、汉西隙的宽照属性重设。luatexja 的参数栈在输出例程里失灵（页眉页脚的字距
+-- 会变成正文那份），类把两个量写进属性，这里在装盒前按前一个字身上的属性改宽
+local function fix_skips(head)
+  if not (M.ks_attr and M.xks_attr) then return end
+  for g in traverse(head) do
+    if g.id == KERN and g.subtype == 0 then
+      -- 页眉页脚不在字符网格上：西文的字距增量（LetterSpace 加的 kern，插在下一个字前面）也去掉
+      local p, q = g.prev, g.next
+      if (p and p.id == GLYPH and node.get_attribute(p, M.ks_attr))
+        or (q and q.id == GLYPH and node.get_attribute(q, M.ks_attr)) then g.kern = 0 end
+    elseif g.id == GLUE and (g.subtype == 0 or g.subtype == 12 or g.subtype == 13)
+        and g.next and g.next.id == GLYPH and node.get_attribute(g.next, M.ks_attr) then
+      -- 空格也被 LetterSpace 加宽了一份增量（luaotfload 把 kern 量加进前面的胶），减回去
+      local f = font.getfont(g.next.font)
+      local kc = f and f.properties and f.properties.kerncharacters
+      if kc and kc ~= "max" and f.parameters and f.parameters.quad and g.width > 0 then
+        g.width = g.width - kc * f.parameters.quad
+      end
+    elseif g.id == GLUE then
+      local a = nil
+      if is_kanjiskip(g) then a = M.ks_attr elseif is_xkanjiskip(g) then a = M.xks_attr end
+      if a then
+        local p = g.prev
+        while p and p.id ~= GLYPH and p.id ~= HLIST do p = p.prev end
+        local ref = p or g.next
+        local v = ref and node.get_attribute(ref, a)
+        if v then g.width = v end
+      end
+    end
+  end
+end
+
+-- 盒里有没有汉字（jfont 的字形，盒套盒也找）。页眉页脚的行盒按内容定：
+-- 纯西文的行按 Times 的行高算，TeX 那头照这个结果换常量
+function M.box_has_cjk(n)
+  local b = tex.box[n]
+  local function walk(list)
+    for g in traverse(list) do
+      if g.id == GLYPH then
+        if is_jfont(g.font) then return true end
+      elseif g.id == HLIST or g.id == VLIST then
+        if walk(g.list) then return true end
+      end
+    end
+    return false
+  end
+  return b and walk(b.list) or false
+end
+-- 给 TeX 那头用：1 有汉字、0 没有
+function M.box_cjk_flag(n)
+  return M.box_has_cjk(n) and 1 or 0
+end
+
+-- 装回调。attr 是类分的属性号：段首节点上为 0 的段不管（交回 TeX）；
+-- ks、xks 是汉字缝、汉西隙的属性号
+function M.install(attr, ks, xks, kern, code)
+  M.attr = attr
+  M.kern_attr = kern
+  M.ks_attr, M.xks_attr = ks, xks
+  M.code_attr = code
+  luatexbase.add_to_callback("linebreak_filter",
+    function(h, d) return M.filter(h, d) end, "docxlike.linebreak")
+  if ks and xks then
+    luatexbase.add_to_callback("hpack_filter",
+      function(h) fix_skips(h); return true end, "docxlike.skips")
+    luatexbase.add_to_callback("pre_linebreak_filter",
+      function(h) fix_skips(h); return true end, "docxlike.skips")
+  end
+end
+function M.uninstall()
+  for _, cb in ipairs({ { "linebreak_filter", "docxlike.linebreak" }, { "hpack_filter", "docxlike.skips" },
+                        { "pre_linebreak_filter", "docxlike.skips" } }) do
+    if luatexbase.in_callback(cb[1], cb[2]) then luatexbase.remove_from_callback(cb[1], cb[2]) end
+  end
+end
+
+return M
+%</lua>
+%    \end{macrocode}
+%
+% \Finale

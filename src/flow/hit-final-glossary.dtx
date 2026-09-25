@@ -1,0 +1,692 @@
+% \iffalse meta-comment
+%
+% Copyright (C) 2017- by Yanshuo Chu <yanshuoc@gmail.com>
+%
+% This file may be distributed and/or modified under the
+% conditions of the LaTeX Project Public License, either version 1.3a
+% of this license or (at your option) any later version.
+% The latest version of this license is in:
+%
+% http://www.latex-project.org/lppl.txt
+%
+% and version 1.3a or later is part of all distributions of LaTeX
+% version 2004/10/01 or later.
+%
+% \fi
+%
+% \section{终稿的术语与符号表}
+%
+% \changes{v3.2a}{2026/09/13}{中英两线统一到 \pkg{glossaries-extra}，后端
+%   \cs{makenoidxglossaries}；缩略语表改成两列悬挂与符号表同款，加 \cs{abbr} 一族与
+%   索引挂钩 \cs{hitindex}；中文索引的拼音排序键查 \pkg{xpinyin} 自动推（只在
+%   \hologo{XeLaTeX} 下装），排序键用实际符；缩写的组尾边界跨版本对齐}
+%
+% ^^A ======================================================================
+% ^^A Module final-glossary: 术语与符号表（glossaries 配置 + 示例条目）（hit-thesis）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*final-glossary>
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{将 \cs{glossarystyle} 替换为 \cs{setglossarystyle}。\issue[200]}
+% 在 \pkg{glossaries} 中表示 \cs{glossarystle} 这个命令 Deprecated in v3.08a. Removed in v4.50.
+% 两条语言线原先各装各的包：英文装 \pkg{glossaries-extra} 用
+% \cs{setabbreviationstyle}，中文装 \pkg{glossaries} 用 \cs{setacronymstyle}，
+% 后者是上一代接口，\pkg{glossaries-extra} 里已经改成报错。要把缩略语表并成
+% 一个部件，先得统一到 extra。
+%
+% 后端两侧都用 \cs{makenoidxglossaries}，纯 \hologo{TeX} 排序，不调外部程序。
+% 中文侧原先调 \cs{makeglossaries} 却从没有任何东西 \cs{printglossary}，
+% 每次编译写出一个没人读的 \file{.glo} 再吃一条警告，一并撤掉。
+%    \begin{macrocode}
+\RequirePackage [ xindy , order=letter ] { glossaries-extra }
+%    \end{macrocode}
+%
+% \pkg{xpinyin} 只为中文索引的拼音排序键而装，见下文。它随包带一张四万七千行
+% 的汉字拼音表，纯 \hologo{TeX} 查表，不调外部程序，加载实测四十毫秒。
+%
+% 只有 \hologo{XeLaTeX} 装得了它——\pkg{xpinyin} 见到 \hologo{LuaLaTeX} 直接
+% 报 Critical Error 停机。查表宏 \cs{\_\_hit\_pinyin\_lookup:nN} 本来就以
+% \cs{cs\_if\_exist:c} 探每个字的表项，包不在等于全部查不到，走的正是「查不到
+% 就提示手写 \option{pinyin} 排序键」那条既有的路，不必另写分支。
+%    \begin{macrocode}
+\sys_if_engine_luatex:F
+  { \RequirePackage { xpinyin } }
+%    \end{macrocode}
+%
+% 样式代码存进 \pkg{glossaries} 时就已经记号化完了，写在里面的
+% \cs{ExplSyntaxOn} 不起作用。环境正文本来就是排版内容，直接用 2e 写法。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% 三列的宽度从 \cs{glsdescwidth} 分，不另写死数值：\pkg{glossaries} 按版心算出
+% 这个长度，两列的 \texttt{engstyle} 用的就是它，照它切开总宽才不会超版心。
+% 写死过一版 \texttt{2.5cm+6cm+\cs{glsdescwidth}}，中文变体每本都多一条
+% Overfull（\cs{make} \texttt{logcheck} 当场拦下）。
+%
+% 首列前置 \cs{leavevmode}。首列的内容以 \cs{glstarget} 开头，它经 \pkg{hyperref}
+% 的 \cs{Hy@raisedlink} 在竖直模式下先放一个零高盒，于是 \texttt{p} 列的
+% \cs{vtop} 首项不是正文行而是那个盒（或它带出的胶），\cs{vtop} 的高按首项算，
+% 行高就跟着变。\TeX~Live 2024 与 2025 的内核在这里处理不同，同一张表两版差
+% 1.1\,pt，整行错开 3 个像素。先 \cs{leavevmode} 起段，锚点落进水平表，首项恒为
+% 正文行，三版一致。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \emph{缩略语表与符号表同一套版式。}CTAN 上有这类页的中文模板五家里四家
+% 是两列 description 列表（thu 的 denotation、bit 的 symbols、nju 与 fdu 的
+% notation），说明一列排到右边距、折行悬挂；中英全称合成一格“体细胞拷贝数
+% 变异（Somatic copy number alteration）”。先前那张三列长表（中文全称单占
+% 一列）右边必然空一截，且与符号表两个长相，合并成一页时列也对不齐。改走
+% \env{hit@symbols} 同一只列表（labelwidth 2.5\,cm、labelsep 0.5\,cm），
+% 合并页两段的说明列于是天然对齐；\option{labelwidth} 键两段都认。
+% 英文版说明只排英文全称（没有就中文），括号档位跟正文首次展开同一套
+% （中文版全角）。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_abbr_desc:n #1
+  {
+    \tl_if_blank:eTF { \hitabbrzh {#1} }
+      { \hitabbren {#1} }
+      {
+        \tl_if_blank:eTF { \hitabbren {#1} }
+          { \hitabbrzh {#1} }
+          { \hitabbrzh {#1} （ \hitabbren {#1} ） }
+      }
+  }
+\cs_new:Npn \__hit_abbr_desc_en:n #1
+  {
+    \tl_if_blank:eTF { \hitabbren {#1} }
+      { \hitabbrzh {#1} }
+      { \hitabbren {#1} }
+  }
+\newglossarystyle{hitabbrstyle}{%
+  \RenewDocumentEnvironment{theglossary}{}%
+    {\begin{hit@symbols}[labelwidth=\l__hit_symbols_width_tl]}%
+    {\end{hit@symbols}}%
+  \renewcommand*{\glossaryheader}{}%
+  \renewcommand*{\glsgroupheading}[1]{}%
+  \renewcommand*{\glsgroupskip}{}%
+  \renewcommand*{\glossentry}[2]{%
+    \item[\glsentryitem{##1}\glstarget{##1}{\glossentryname{##1}}]%
+    \__hit_abbr_desc:n {##1}%
+  }%
+  \renewcommand*{\subglossentry}[3]{\glossentry{##2}{##3}}%
+}
+\newglossarystyle{engstyle}{%
+  \RenewDocumentEnvironment{theglossary}{}%
+    {\begin{hit@symbols}[labelwidth=\l__hit_symbols_width_tl]}%
+    {\end{hit@symbols}}%
+  \renewcommand*{\glossaryheader}{}%
+  \renewcommand*{\glsgroupheading}[1]{}%
+  \renewcommand*{\glsgroupskip}{}%
+  \renewcommand*{\glossentry}[2]{%
+    \item[\glsentryitem{##1}\glstarget{##1}{\glossentryname{##1}}]%
+    \__hit_abbr_desc_en:n {##1}%
+  }%
+  \renewcommand*{\subglossentry}[3]{\glossentry{##2}{##3}}%
+}
+%    \end{macrocode}
+%
+% \cs{newacronym} 是 v3.1e 的写法，渲染冻结在那一版：中文侧首次只排全称、
+% 之后排短形（v3.1e 靠 \cs{setacronymstyle}\marg{short-long} 再把
+% \cs{genacrfullformat} 改成只取 \cs{glsentrylong} 凑出来，上游现成的
+% \texttt{long-only-short-only} 就是这个行为）；英文侧照旧 \texttt{long-short}。
+% \cs{genacrfullformat} 那个改写在 extra 下已经不起作用，留着是误导，删掉。
+%    \begin{macrocode}
+\bool_if:NTF \g__hit_en_bool
+  { \setabbreviationstyle [ acronym ] { long-short } }
+  { \setabbreviationstyle [ acronym ] { long-only-short-only } }
+%    \end{macrocode}
+%
+% \pkg{glossaries-extra} 把 \cs{setacronymstyle} 做成了硬报错，指向
+% \cs{setabbreviationstyle}。v3.1e 的用户可能在自己的 \file{.sty} 里写过它，
+% 直接报错会让老文档编不过，所以拦下来转发，只提示一次。
+%    \begin{macrocode}
+\RenewDocumentCommand \setacronymstyle { o m }
+  {
+    \hit@warn@renamed@command { setacronymstyle }
+      { setabbreviationstyle[acronym] }
+    \IfNoValueTF {#1}
+      { \setabbreviationstyle [ acronym ] {#2} }
+      { \setabbreviationstyle [ #1 ] {#2} }
+  }
+\makenoidxglossaries
+%    \end{macrocode}
+%
+% \subsection{缩略语的声明与使用}
+%
+% \option{abbr} 族的每一条经这里落成一个 \pkg{glossaries-extra} 词条。
+% 规范要求「文中第一次出现的缩写词应该用括号注明英文原词」，中文全称在前时
+% 括号里依次是英文原词与缩写：
+% \begin{center}
+% 体细胞拷贝数变异（Somatic copy number alteration，SCNA）
+% \end{center}
+% 三种取值各一种排法，中英文版又各一套括号：
+% \begin{longtblr}[caption={缩写首次出现的排法}, label={tab:impl-abbr}]
+%   {colspec={l l l}}
+% \toprule
+% 定义 & 中文版首次 & 英文版首次 \\ \midrule
+% \texttt{zh}+\texttt{en} & X（Y，S） & Y (S) \\
+% 只有 \texttt{zh}       & X（S）    & X (S) \\
+% 只有 \texttt{en}       & S（Y）    & Y (S) \\
+% \bottomrule
+% \end{longtblr}
+%
+% 落实的办法是在声明时就把整串首次形式算好，存进词条的 \texttt{long} 字段，
+% 再配上游现成的 \texttt{long-only-short-only} 样式——它首次排 \texttt{long}、
+% 之后排 \texttt{short}，正是要的行为。复数另存 \texttt{longplural}，
+% 括号里的缩写取复数而全称不动，中文全称加不上 \texttt{s}。
+%
+% v3.1e 是把括号手写进 \cs{newacronym} 的第三个参数里，单数看着对而复数漏了，
+% 排出来半角括号套全角括号。现在括号由样式生成，两边不会再各走各的。
+%    \begin{macrocode}
+\tl_new:N \l__hit_abbr_zh_tl
+\tl_new:N \l__hit_abbr_en_tl
+\tl_new:N \l__hit_abbr_pinyin_tl
+\tl_new:N \l__hit_abbr_label_tl
+\tl_new:N \l__hit_abbr_long_tl
+\tl_new:N \l__hit_abbr_longpl_tl
+\tl_new:N \l__hit_abbr_pick_tl
+\keys_define:nn { hit / abbr / entry }
+  {
+    zh     .tl_set:N = \l__hit_abbr_zh_tl ,
+    en     .tl_set:N = \l__hit_abbr_en_tl ,
+    pinyin .tl_set:N = \l__hit_abbr_pinyin_tl ,
+    label  .tl_set:N = \l__hit_abbr_label_tl ,
+  }
+%    \end{macrocode}
+%
+% 判断一串记号里有没有汉字。逐记号取字符码，超过 \texttt{U+2E7F} 就算——
+% 那一段之前是拉丁、希腊、标点，之后是部首与汉字。控制序列跳过，取不到字符码。
+% 实测二十万次两秒半，单次十几微秒，而且只在声明时做一次，不进正文热路径。
+%    \begin{macrocode}
+\bool_new:N \l__hit_abbr_cjk_bool
+\cs_new_protected:Npn \__hit_abbr_cjk_scan:n #1
+  {
+    \tl_map_inline:nn {#1}
+      {
+        \token_if_cs:NF ##1
+          {
+            \int_compare:nNnT { `##1 } > { "2E7F }
+              { \bool_set_true:N \l__hit_abbr_cjk_bool }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_abbr_cjk_set:n #1
+  {
+    \bool_set_false:N \l__hit_abbr_cjk_bool
+    \__hit_abbr_cjk_scan:n {#1}
+  }
+\cs_generate_variant:Nn \__hit_abbr_cjk_set:n { V }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@abbr@declare:nn}
+% \meta{短形}\marg{取值}。取值不含等号就当裸值，按有没有汉字归 \option{zh}
+% 或 \option{en}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@abbr@declare:nn #1#2
+  {
+    \tl_clear:N \l__hit_abbr_zh_tl
+    \tl_clear:N \l__hit_abbr_en_tl
+    \tl_clear:N \l__hit_abbr_pinyin_tl
+    \tl_set:Nn \l__hit_abbr_label_tl {#1}
+    \tl_if_in:nnTF {#2} { = }
+      { \hit@keys@set:nn { hit / abbr / entry } {#2} }
+      {
+        \__hit_abbr_cjk_set:n {#2}
+        \bool_if:NTF \l__hit_abbr_cjk_bool
+          { \tl_set:Nn \l__hit_abbr_zh_tl {#2} }
+          { \tl_set:Nn \l__hit_abbr_en_tl {#2} }
+      }
+    \__hit_abbr_compose:n {#1}
+    \use:x
+      {
+        \exp_not:N \newabbreviation
+          [
+            longplural = { \exp_not:V \l__hit_abbr_longpl_tl } ,
+            hitzh = { \exp_not:V \l__hit_abbr_zh_tl } ,
+            hiten = { \exp_not:V \l__hit_abbr_en_tl } ,
+            description = { \exp_not:V \l__hit_abbr_long_tl } ,
+          ]
+          { \exp_not:V \l__hit_abbr_label_tl }
+          { \exp_not:n {#1} }
+          { \exp_not:V \l__hit_abbr_long_tl }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% 拼首次形式。中文版用全角括号与全角逗号，英文版用半角括号与空格。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% 括号与逗号取哪一档由 \option{abbr}/\option{punct} 定，\texttt{auto} 按语种走。
+% 排法本身仍按语种：中文版全称在前、英文版全称在前但括号里只有缩写，这个不受
+% 标点档位影响，档位只换那三个符号。
+%    \begin{macrocode}
+\tl_new:N \l__hit_abbr_lparen_tl
+\tl_new:N \l__hit_abbr_rparen_tl
+\tl_new:N \l__hit_abbr_comma_tl
+\cs_new_protected:Npn \__hit_abbr_punct_pick:
+  {
+    \bool_lazy_or:nnTF
+      { \str_if_eq_p:Vn \g__hit_abbr_punct_str { half } }
+      {
+        \bool_lazy_and_p:nn
+          { \str_if_eq_p:Vn \g__hit_abbr_punct_str { auto } }
+          { \bool_if_p:N \g__hit_en_bool }
+      }
+      {
+        \tl_set:Nn \l__hit_abbr_lparen_tl { \c_space_tl ( }
+        \tl_set:Nn \l__hit_abbr_rparen_tl { ) }
+        \tl_set:Nn \l__hit_abbr_comma_tl { ,~ }
+      }
+      {
+        \tl_set:Nn \l__hit_abbr_lparen_tl { （ }
+        \tl_set:Nn \l__hit_abbr_rparen_tl { ） }
+        \tl_set:Nn \l__hit_abbr_comma_tl { ， }
+      }
+  }
+\cs_new_protected:Npn \__hit_abbr_compose:n #1
+  {
+    \__hit_abbr_punct_pick:
+    \bool_if:NTF \g__hit_en_bool
+      { \__hit_abbr_compose_en:n {#1} }
+      { \__hit_abbr_compose_zh:n {#1} }
+  }
+\cs_new_protected:Npn \__hit_abbr_compose_en:n #1
+  {
+    \tl_if_empty:NTF \l__hit_abbr_en_tl
+      { \tl_set_eq:NN \l__hit_abbr_pick_tl \l__hit_abbr_zh_tl }
+      { \tl_set_eq:NN \l__hit_abbr_pick_tl \l__hit_abbr_en_tl }
+    \tl_set:Nx \l__hit_abbr_long_tl
+      {
+        \exp_not:V \l__hit_abbr_pick_tl
+        \exp_not:V \l__hit_abbr_lparen_tl #1 \exp_not:V \l__hit_abbr_rparen_tl
+      }
+%    \end{macrocode}
+%
+% 全称的复数只在它是西文时才加 \texttt{s}。英文版里引一条中文全称的条目
+% 是少见但合法的写法，那时候「树结构折筷过程s」显然不对。
+%    \begin{macrocode}
+    \__hit_abbr_cjk_set:V \l__hit_abbr_pick_tl
+    \tl_set:Nx \l__hit_abbr_longpl_tl
+      {
+        \exp_not:V \l__hit_abbr_pick_tl
+        \bool_if:NF \l__hit_abbr_cjk_bool { s }
+        \exp_not:V \l__hit_abbr_lparen_tl #1 s \exp_not:V \l__hit_abbr_rparen_tl
+      }
+  }
+\cs_new_protected:Npn \__hit_abbr_compose_zh:n #1
+  {
+    \tl_if_empty:NTF \l__hit_abbr_zh_tl
+      {
+        \tl_set:Nx \l__hit_abbr_long_tl
+          {
+            #1 \exp_not:V \l__hit_abbr_lparen_tl
+            \exp_not:V \l__hit_abbr_en_tl \exp_not:V \l__hit_abbr_rparen_tl
+          }
+        \tl_set:Nx \l__hit_abbr_longpl_tl
+          {
+            #1 s \exp_not:V \l__hit_abbr_lparen_tl
+            \exp_not:V \l__hit_abbr_en_tl \exp_not:V \l__hit_abbr_rparen_tl
+          }
+      }
+      {
+        \tl_set:Nx \l__hit_abbr_long_tl
+          {
+            \exp_not:V \l__hit_abbr_zh_tl \exp_not:V \l__hit_abbr_lparen_tl
+            \tl_if_empty:NF \l__hit_abbr_en_tl
+              {
+                \exp_not:V \l__hit_abbr_en_tl
+                \exp_not:V \l__hit_abbr_comma_tl
+              }
+            #1 \exp_not:V \l__hit_abbr_rparen_tl
+          }
+        \tl_set:Nx \l__hit_abbr_longpl_tl
+          {
+            \exp_not:V \l__hit_abbr_zh_tl \exp_not:V \l__hit_abbr_lparen_tl
+            \tl_if_empty:NF \l__hit_abbr_en_tl
+              {
+                \exp_not:V \l__hit_abbr_en_tl
+                \exp_not:V \l__hit_abbr_comma_tl
+              }
+            #1 s \exp_not:V \l__hit_abbr_rparen_tl
+          }
+      }
+  }
+\glsaddstoragekey { hitzh } { } { \hitabbrzh }
+\glsaddstoragekey { hiten } { } { \hitabbren }
+\setabbreviationstyle [ abbreviation ] { long-only-short-only }
+%    \end{macrocode}
+%
+% \subsection{拼音排序键}
+%
+% 中文索引靠一个人工排序键分组，\pkg{splitidx} 底下是 \pkg{makeindex}，
+% 它不认汉字。v3.1e 的写法是每处手写 \texttt{ti!体细胞拷贝数变异}。
+%
+% \pkg{xpinyin} 随包带一张四万七千行的表，每个汉字一条
+% \cs{XPYU}\marg{字}\marg{码点}\marg{带调拼音}，存成
+% \cs{c\_\_xpinyin\_\meta{码点}\_tl}。查表是纯 \hologo{TeX}，不调外部程序，
+% 整张表加载实测四十毫秒。所以首字的拼音可以推出来，声调转成数字排在后面
+% （\texttt{tǐ} 记作 \texttt{ti3}），同音节按调号排，与汉语词典一致。
+%
+% 两处必须提示用户：库里查不到，以及首字是多音字。两种都退回取库里的首选读音
+% 并说明怎么手写覆盖。
+%    \begin{macrocode}
+\tl_new:N \l__hit_pinyin_tl
+\tl_new:N \l__hit_pinyin_head_tl
+\prop_new:N \c__hit_pinyin_tone_prop
+\cs_new_protected:Npn \__hit_pinyin_tone_put:nn #1#2
+  { \prop_put:Nnn \c__hit_pinyin_tone_prop {#1} {#2} }
+\clist_map_inline:nn
+  {
+    {ā}{a1},{á}{a2},{ǎ}{a3},{à}{a4},
+    {ē}{e1},{é}{e2},{ě}{e3},{è}{e4},
+    {ī}{i1},{í}{i2},{ǐ}{i3},{ì}{i4},
+    {ō}{o1},{ó}{o2},{ǒ}{o3},{ò}{o4},
+    {ū}{u1},{ú}{u2},{ǔ}{u3},{ù}{u4},
+    {ǖ}{v1},{ǘ}{v2},{ǚ}{v3},{ǜ}{v4},{ü}{v},
+  }
+  { \__hit_pinyin_tone_put:nn #1 }
+%    \end{macrocode}
+%
+% 把带调拼音拆成「无调音节 + 调号」。逐字符查上表，查得到就换成基字母并记下
+% 调号，查不到原样留下。轻声没有调号，补 \texttt{5}。
+%    \begin{macrocode}
+\tl_new:N \l__hit_pinyin_tone_tl
+\cs_new_protected:Npn \__hit_pinyin_detone:n #1
+  {
+    \tl_clear:N \l__hit_pinyin_head_tl
+    \tl_set:Nn \l__hit_pinyin_tone_tl { 5 }
+    \tl_map_inline:nn {#1}
+      {
+        \prop_get:NnNTF \c__hit_pinyin_tone_prop {##1} \l_tmpa_tl
+          {
+            \tl_put_right:Nx \l__hit_pinyin_head_tl
+              { \tl_head:V \l_tmpa_tl }
+            \tl_if_empty:NF \l_tmpa_tl
+              {
+                \tl_set:Nx \l_tmpb_tl { \tl_tail:V \l_tmpa_tl }
+                \tl_if_empty:NF \l_tmpb_tl
+                  { \tl_set_eq:NN \l__hit_pinyin_tone_tl \l_tmpb_tl }
+              }
+          }
+          { \tl_put_right:Nn \l__hit_pinyin_head_tl {##1} }
+      }
+    \tl_put_right:NV \l__hit_pinyin_head_tl \l__hit_pinyin_tone_tl
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@pinyin@head:nN}
+% \meta{词}\meta{存放处}：取首字的排序键。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@pinyin@head:nN #1#2
+  {
+    \tl_set:Nx \l__hit_pinyin_tl { \tl_head:n {#1} }
+    \exp_args:Nf \__hit_pinyin_lookup:nN
+      { \tl_use:N \l__hit_pinyin_tl } #2
+  }
+\cs_new_protected:Npn \__hit_pinyin_lookup:nN #1#2
+  {
+    \cs_if_exist:cTF { c__xpinyin_ \int_value:w `#1 _tl }
+      {
+        \exp_args:Nv \__hit_pinyin_detone:n
+          { c__xpinyin_ \int_value:w `#1 _tl }
+        \tl_set_eq:NN #2 \l__hit_pinyin_head_tl
+%    \end{macrocode}
+%
+% 提示里给的是排序键该写成的样子，也就是转过数字的形式，不是库里那个带调的。
+%    \begin{macrocode}
+        \clist_if_exist:cT { c__xpinyin_multiple_ \int_value:w `#1 _clist }
+          {
+            \msg_warning:nnxxx { hithesis } { pinyin-multiple } {#1}
+              { \tl_use:N \l__hit_pinyin_head_tl }
+              { \use:c { c__xpinyin_multiple_ \int_value:w `#1 _clist } }
+          }
+      }
+      {
+        \msg_warning:nnn { hithesis } { pinyin-missing } {#1}
+        \tl_clear:N #2
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\abbr,\abbrs}
+% 正文里用缩写。\cs{abbr} 首次排全称、之后排缩写；\cs{abbrs} 是复数；
+% 带星号是强制全写，不改「用过」状态，摘要或新一章想再展开一次时用。
+%
+% 缩写排出来的东西裹在 \pkg{glossaries} 的组里，组尾边界两版 xeCJK
+% 各走各的：首次形态收在闭括号上，按“闭号接汉字摘胶”该贴排，2026 的
+% 边界体系却隔着组把胶发了出来——尾后垫一只零宽盒把类对断掉，两版都
+% 归到贴排；之后的形态收在西文字母上，接汉字要一道中西文胶，2026 隔组
+% 发得出来、老版发不出来——置上“刚出组”标记，交给 hit-format 的
+% 消费点补。分支跟 \pkg{glossaries-extra} 排版用的同一根轴走：排完
+% 问 \cs{glsxtrifwasfirstuse}，刚才排的是首次（收在闭括号上）就垫盒
+% 贴排，是缩写（收在字母上）就置标记补胶。全角标点哨兵在这儿靠不
+% 住——链接收尾的 whatsit 会把它盖掉。
+%
+% 这一垫合的是 Word 的账：书写范例版式里“……，TSSBP）是”的括号到
+% 汉字步进恰好一个字格（12.45\,bp，Word 实排实测），闭括号剪切贴排；
+% 隔着链接组界两版 xeCJK 都发不出剪切，只有断掉类对才回到一格。
+%
+% 模板不暴露 \cs{gls}：概念表里没有 glossary 这一项，只有缩写、符号与索引。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_abbr_edge:nn #1#2
+  {
+    #2
+    \glsxtrifwasfirstuse
+      {
+        \hbox:n { }
+        \bool_if_exist:NT \g_docxlike_format_verb_exit_bool
+          { \bool_gset_false:N \g_docxlike_format_verb_exit_bool }
+      }
+      { \cs_if_exist_use:N \docxlike_format_group_exit: }
+  }
+\NewDocumentCommand \abbr { s O{} m }
+  {
+    \__hit_abbr_use:nn {#2} {#3}
+    \IfBooleanTF {#1} { \glsentrylong {#3} }
+      { \__hit_abbr_edge:nn {#3} { \gls {#3} } }
+  }
+\NewDocumentCommand \abbrs { s O{} m }
+  {
+    \__hit_abbr_use:nn {#2} {#3}
+    \IfBooleanTF {#1} { \glsentrylongpl {#3} }
+      { \__hit_abbr_edge:nn {#3} { \glspl {#3} } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hitindex}
+% 索引与缩略语是两件事：索引回答「这个词在哪几页」，缩略语回答「这个缩写是什么」。
+% 但要索引的词与要缩写的词重合度很高，所以缩写条目顺带登记索引，开关是
+% \option{abbr}/\option{indexing}，单处可用可选参数压过。
+%
+% \cs{hitindex} 给不缩写的词：\cs{hitindex}\marg{zh=乔峰, en=Qiao~Feng} 排出当前
+% 语种的那一份，两个索引都登记。裸值按有没有汉字归边。带星号只登记不排——正文里
+% 写的是「乔帮主」而索引条目要「乔峰」时用。
+%
+% 中文索引的排序键取首字的拼音，见上面的 \cs{hit@pinyin@head:nN}；写了
+% \option{pinyin} 就以写的为准。
+%    \begin{macrocode}
+\tl_new:N \l__hit_index_zh_tl
+\tl_new:N \l__hit_index_en_tl
+\tl_new:N \l__hit_index_pinyin_tl
+\bool_new:N \l__hit_index_on_bool
+\keys_define:nn { hit / index / one }
+  {
+    zh     .tl_set:N = \l__hit_index_zh_tl ,
+    en     .tl_set:N = \l__hit_index_en_tl ,
+    pinyin .tl_set:N = \l__hit_index_pinyin_tl ,
+  }
+\keys_define:nn { hit / abbr / use }
+  {
+    indexing .bool_set:N = \l__hit_index_on_bool ,
+    indexing .default:n = true ,
+  }
+%    \end{macrocode}
+%
+% 真正往两个索引里写。中文那份要排序键，缺了就不写——没有键的条目在
+% \pkg{makeindex} 里会排到莫名其妙的地方，不如不进。
+%
+% 键与词之间用的是 \texttt{@}（\pkg{makeindex} 的实际符：@ 前排序、@ 后
+% 排印），从前误写成层级符 \texttt{!}，拼音键被当成父条目印了出来
+% （“duan4”一行、词缩进在下），官方示例（规范附录 6）里只有词，
+% 组标题是单个大写字母。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_index_emit:
+  {
+    \tl_if_empty:NF \l__hit_index_zh_tl
+      {
+        \tl_if_empty:NT \l__hit_index_pinyin_tl
+          {
+            \exp_args:NV \hit@pinyin@head:nN
+              \l__hit_index_zh_tl \l__hit_index_pinyin_tl
+          }
+        \tl_if_empty:NF \l__hit_index_pinyin_tl
+          {
+            \use:x
+              {
+                \exp_not:N \sindex [ china ]
+                  {
+                    \exp_not:V \l__hit_index_pinyin_tl @
+                    \exp_not:V \l__hit_index_zh_tl
+                  }
+              }
+          }
+      }
+    \tl_if_empty:NF \l__hit_index_en_tl
+      {
+        \use:x
+          { \exp_not:N \sindex [ english ] { \exp_not:V \l__hit_index_en_tl } }
+      }
+  }
+\cs_new_protected:Npn \__hit_index_read:n #1
+  {
+    \tl_clear:N \l__hit_index_zh_tl
+    \tl_clear:N \l__hit_index_en_tl
+    \tl_clear:N \l__hit_index_pinyin_tl
+    \tl_if_in:nnTF {#1} { = }
+      { \hit@keys@set:nn { hit / index / one } {#1} }
+      {
+        \__hit_abbr_cjk_set:n {#1}
+        \bool_if:NTF \l__hit_abbr_cjk_bool
+          { \tl_set:Nn \l__hit_index_zh_tl {#1} }
+          { \tl_set:Nn \l__hit_index_en_tl {#1} }
+      }
+  }
+\NewDocumentCommand \hitindex { s m }
+  {
+    \__hit_index_read:n {#2}
+    \__hit_index_emit:
+    \IfBooleanF {#1}
+      {
+        \bool_if:NTF \g__hit_en_bool
+          {
+            \tl_if_empty:NTF \l__hit_index_en_tl
+              { \tl_use:N \l__hit_index_zh_tl }
+              { \tl_use:N \l__hit_index_en_tl }
+          }
+          {
+            \tl_if_empty:NTF \l__hit_index_zh_tl
+              { \tl_use:N \l__hit_index_en_tl }
+              { \tl_use:N \l__hit_index_zh_tl }
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \cs{abbr} 用一次就登记一次索引，索引形式直接取条目的 \option{zh} 与
+% \option{en}，不另设字段——开了 \option{indexing} 两边本来就该是同一个词。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_abbr_use:nn #1#2
+  {
+    \bool_set_eq:NN \l__hit_index_on_bool \g__hit_abbr_indexing_bool
+    \hit@keys@set:nn { hit / abbr / use } {#1}
+    \bool_if:NT \l__hit_index_on_bool
+      {
+        \tl_clear:N \l__hit_index_pinyin_tl
+        \tl_set:Nx \l__hit_index_zh_tl { \hitabbrzh {#2} }
+        \tl_set:Nx \l__hit_index_en_tl { \hitabbren {#2} }
+        \__hit_index_emit:
+      }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\listofabbreviations}
+% 排缩略语表。带星号是不排章标题，接在符号表那一页下面用，
+% 与 \cs{listoffigures} 一族同名同姓。
+%    \begin{macrocode}
+\NewDocumentCommand \listofabbreviations { s O{} }
+  {
+    \__hit_symbols_opt:n {#2}
+    \IfBooleanF {#1}
+      {
+        \hit@frontlist@open:nn
+          { \hit@term@list@of@abbreviations@heading@zh } { \hit@term@list@of@abbreviations@heading@en }
+      }
+    \IfBooleanT {#1}
+      {
+        \tl_if_empty:NF \l__hit_symbols_subheading_tl
+          { \hit@frontlist@subheading:V \l__hit_symbols_subheading_tl }
+      }
+%    \end{macrocode}
+%
+% 选项要先展开再交给 \pkg{glossaries}：\cs{glsxtrabbrvtype} 是个宏，原样传过去
+% 那边拿它当类型名去查表，查不到就静悄悄排一张空表，不报错也不警告。
+%
+% 章标题由这里自己排（要进目录、要走部件的闸门），所以把 \pkg{glossaries} 那侧的
+% 标题压掉。只给 \option{title} 一个空值不够——它照样会调 \cs{glossarysection}，
+% 那是个 \cs{chapter*}，顺手把页清了，表就掉到下一页去。
+%    \begin{macrocode}
+    \group_begin:
+    \RenewDocumentCommand \glossarysection { o m } { }
+    \use:x
+      {
+        \exp_not:N \printnoidxglossary
+          [
+            type = \glsxtrabbrvtype , sort = word ,
+            style = \bool_if:NTF \g__hit_en_bool { engstyle } { hitabbrstyle } ,
+            title = { } , nopostdot , nonumberlist
+          ]
+      }
+    \group_end:
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@structure@merged@symbols:}
+% 合并成一页的那个部件：一个章标题，符号在上、缩略语在下，两段各带小标题。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@structure@merged@symbols:
+  {
+    \hit@structure@part:nn { list-of-symbols-and-abbreviations }
+      {
+        \bool_gset_false:N \g__hit_frontlist_open_bool
+        \tl_clear:N \l__hit_symbols_subheading_tl
+        \hit@frontlist@open:nn
+          { \hit@term@list@of@symbols@and@abbreviations@heading@zh }
+          { \hit@term@list@of@symbols@and@abbreviations@heading@en }
+%    \end{macrocode}
+%
+% 章标题排过了，把闸门顶上，里头的 \env{symbols} 就不再排自己的那一个。
+% 两段各预置一个小标题：符号那段取符号表的标题，缩略语那段显式给。
+%    \begin{macrocode}
+        \bool_gset_true:N \g__hit_frontlist_open_bool
+        \tl_gset:Nn \g__hit_frontlist_pending_tl
+          { \hit@term@list@of@symbols@heading@zh }
+        \exp_args:Nv \input { g__hit_structure_list-of-symbols-and-abbreviations_tl }
+        \listofabbreviations * [ subheading = \hit@term@list@of@abbreviations@heading@zh ]
+        \bool_gset_false:N \g__hit_frontlist_open_bool
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%    \begin{macrocode}
+%</final-glossary>
+%    \end{macrocode}
+%
+% \Finale

@@ -1,0 +1,498 @@
+% \iffalse meta-comment
+%
+% hit-dtx-style.dtx 是排手册用的样式宏包
+%
+% \fi
+%
+% 生成 \file{dtx-style.sty}，只在排这本手册时用，不随模板发布给用户。
+%
+% \emph{手册是类自己排的。} 驱动（\file{hithesis.dtx} 的 driver 块）写的是
+% \cs{documentclass}\oarg{stage=final, degree-level=doctor}\marg{hithesis}，手册就是
+% 一本博士学位论文：封面、摘要、目录、章节、附录、索引、致谢全走类的那一套，
+% 版心、字体、页眉、行距与断行也是类的。这个包只补 \pkg{doc} 那一层——
+% \cs{DescribeMacro} 那种挂在页边的 API 记号、\env{macrocode} 的代码、
+% \cs{changes} 的修改记录与索引——再加代码块的高亮与几个排记号的小宏。
+% 于是模板的每一处改动，先在这本手册上照出来。
+%
+% \emph{要用类的东西就别在这里重设。} 原先这个包自己装 \pkg{ctex}、设字体、
+% 定版心、装 \pkg{fancyhdr}，那些现在都是类的活，这里再设一遍只会把类的版面
+% 顶掉。装的包只剩类没装而手册要用的：\pkg{hypdoc}（连带 \pkg{doc}）、
+% \pkg{listings}、\pkg{hologo}、\pkg{ninecolors}、\pkg{multicol}。
+%
+% \section{\textsc{DocStrip} 的样式文件}
+% \changes{v3.2a}{2026/09/20}{手册样式单独成文件，手册改由 \cls{hithesis} 自己排（博士学位
+%   论文那一档），这个包只剩 \pkg{doc} 的记号与代码块：字体、版心、页眉、封面、数学字体、
+%   \pkg{siunitx}、\pkg{hyperref}、三线表都交给类；\cls{ltxdoc} 的 \cs{CodelineNumbered}、
+%   短抄录、\cs{marg} 一族抄过来；页边记号宽度自己设（类关了页边记号）；
+%   \pkg{hyperref} 的 \option{hyperindex} 要关，不然索引条目被套两层封装、upmendex
+%   拒收两千多条；\texttt{windows} 一档的黑体族在没有雅黑粗体时逐级退回；修改记录与
+%   索引排成后置的无编号章；维护者名单（\cs{hitauthor}，带 \pkg{ruby} 排的称号）挪到致谢}
+% \changes{v3.2a}{2026/09/21}{\cs{texttt}（连带 \cs{cs}、\cs{file}）照类给 \cs{verb} 定的那套排：
+%   空格印 U+02FD 记号、其后可断，路径在分隔符前可断（Lua 层），\hologo{XeLaTeX} 下
+%   \cs{file} 仍在分隔符后补 \cs{allowbreak}}
+% \changes{v3.2a}{2026/08/14}{记号改用 \pkg{hologo}（按当前字体调 kern，\pkg{metalogo}
+%   撤掉）；\pkg{multicol} 与 \pkg{graphicx} 显式加载，不再靠别的包顺带；代码块里的
+%   中文跟着走等宽字体；长链接允许断行；PDF 元数据补上；配色收成一处，取学校 VI
+%   的两个色：校徽蓝 \texttt{\#166183} 是主色，校训橙 \texttt{\#FF9300} 是配色，
+%   宏名、环境名、代码块、页边记号、\env{hitrgu} 都从这两个派生}
+%
+% ^^A ======================================================================
+% ^^A Module dtx-style: dtx 自身排版样式
+% ^^A ======================================================================
+%
+% \pkg{hypdoc} 要在 \pkg{hyperref} 之后装：类在 \file{src/engine/hit-hyperlink.dtx}
+% 里已经装过 \pkg{hyperref}，\pkg{hypdoc} 见到装过就只补 \pkg{doc} 那一层，
+% 不再传选项，没有冲突。
+%
+% \env{theglossary} 类里有一份（\file{src/flow/hit-final-glossary.dtx}，符号表用的），
+% \pkg{doc} 要用 \cs{newenvironment} 定义它排修改记录，撞名就报错、拿不到自己那份。
+% 手册不排符号表，先把类的那份撤了再装 \pkg{doc}。
+%    \begin{macrocode}
+%<*dtx-style>
+\ProvidesPackage{dtx-style}
+\let\theglossary\@undefined
+\let\endtheglossary\@undefined
+\RequirePackage{hypdoc}
+%    \end{macrocode}
+%
+% \pkg{hypdoc} 给每条索引项套自己的封装（\texttt{hdclindex}），\pkg{hyperref} 的
+% \option{hyperindex} 开着时再套一层 \texttt{hyperpage}，一条里两个竖线，
+% upmendex 报 Bad encap string 拒收。这个选项装包时就定死，装完再
+% \cs{hypersetup} 不认，所以在 driver 里赶在 \cs{documentclass} 之前
+% \cs{PassOptionsToPackage}\marg{hyperindex=false}\marg{hyperref}。
+%
+% \pkg{ctex} 的 \texttt{windows} 字体集把无衬线中文钉在微软雅黑，粗体要
+% \file{msyhbd.ttc}。手册里 \cs{pkg} 排宏包名走 \cs{textsf}，落在粗体的标题与目录条目里
+% 就要装这个字，装了中易四体却没拷雅黑粗体的机器上直接编不过。这里补两档回退，
+% 只在那个字缺的时候动手，\texttt{fandol} 那一档一个字都不碰。
+%    \begin{macrocode}
+\IfFontExistsTF{Microsoft YaHei Bold}{}{%
+  \IfFontExistsTF{Microsoft YaHei}{%
+    \setCJKsansfont{Microsoft YaHei}[AutoFakeBold=2.5,AutoFakeSlant=0.3333]%
+  }{%
+    \IfFontExistsTF{SimHei}{%
+      \setCJKsansfont{SimHei}[AutoFakeBold=2.5,AutoFakeSlant=0.3333]%
+    }{}%
+  }%
+}
+%    \end{macrocode}
+%
+% 原先手册用 \cls{ltxdoc}，它在 \pkg{doc} 之上给的几样东西这里照抄：代码按行编号，
+% \textbar\ 当短抄录，\cs{marg}、\cs{oarg}、\cs{parg} 排参数，\cs{cmd} 排一个宏名。
+% \cs{StandardModuleDepth} 设 1，守卫块里第一层模块名不排进代码。
+%    \begin{macrocode}
+\AtBeginDocument{\MakeShortVerb{\|}}
+\CodelineNumbered
+\setcounter{StandardModuleDepth}{1}
+\providecommand\marg[1]{%
+  {\ttfamily\char`\{}\meta{#1}{\ttfamily\char`\}}}
+\providecommand\oarg[1]{%
+  {\ttfamily[}\meta{#1}{\ttfamily]}}
+\providecommand\parg[1]{%
+  {\ttfamily(}\meta{#1}{\ttfamily)}}
+\def\cmd#1{\texttt{\char`\\\expandafter\cmd@to@cs\string#1}}
+\def\cmd@to@cs#1#2{\char\number`#2\relax}
+%    \end{macrocode}
+%
+% 页边的 API 记号。类在 \pkg{geometry} 里写的是 \texttt{nomarginpar}，
+% \cs{marginparwidth} 与 \cs{marginparsep} 都是零，\cs{DescribeMacro} 挂上去
+% 就是一个零宽的盒子。左页边是 30\,mm，留 3\,mm 的隙、记号宽 24\,mm，
+% 长一点的宏名从记号的左边溢出去，不进版心。\pkg{doc} 自己已经把记号翻到
+% 左边（\cs{reversemarginpar}）。等 \pkg{geometry} 算完再设，所以放在
+% \texttt{begindocument}。
+%    \begin{macrocode}
+\AtBeginDocument{%
+  \setlength{\marginparwidth}{24mm}%
+  \setlength{\marginparsep}{3mm}%
+  \reversemarginpar}
+%    \end{macrocode}
+%
+% \cs{MacroFont} 末尾补一句 \cs{ttfamily}，让中文注释跟着切到等宽字体。
+%    \begin{macrocode}
+\g@addto@macro\MacroFont{\ttfamily}
+%    \end{macrocode}
+%
+% \cs{MakePrivateLetters} 照 \pkg{l3doc} 的样子把 \texttt{\_} 与 \texttt{:} 也当字母。
+% \pkg{doc} 读 \env{macro} 环境的参数、给代码里的命令编索引都在它底下，原先只认
+% \texttt{@}，\pkg{docxlike} 的 expl3 名字（\texttt{\textbackslash docxlike\_format\_par:nn}）
+% 写进 \env{macro} 就被拆成数学下标。
+%    \begin{macrocode}
+\g@addto@macro\MakePrivateLetters{\catcode`\_=11 \catcode`\:=11 }
+%    \end{macrocode}
+%
+% 索引与修改记录是双栏排的，\pkg{multicol} 是 \pkg{doc} 排它们的需要，自己写明。
+% \pkg{xcolor}、\pkg{enumitem}、\pkg{etoolbox} 类都装了，这里只是把依赖写清楚。
+%    \begin{macrocode}
+\RequirePackage{listings}
+\RequirePackage{multicol}
+\RequirePackage{xcolor}
+\RequirePackage{enumitem}
+\RequirePackage{etoolbox}
+%    \end{macrocode}
+%
+% 记号一律写 \cs{hologo}\marg{名字}，不裸写 \cs{LaTeX} 这类。内核的 \cs{LaTeX}
+% 用的是照 Computer Modern 量好的固定 kern，本手册西文是 Noto Serif，凑不准；
+% \pkg{hologo} 按当前字体现算。\pkg{metalogo} 原先只是为了 \cs{XeLaTeX} 与
+% \cs{XeTeX}，那两个 \pkg{hologo} 也有，所以撤掉，一套就够。
+%    \begin{macrocode}
+\RequirePackage{hologo}
+%    \end{macrocode}
+%
+% 手册里插图要它。原先没写，是 \pkg{metalogo} 为了 \cs{XeTeX} 那个反转的 E 用
+% \cs{reflectbox} 而加载了 \pkg{graphicx}，我们白捡了一个。跟 \pkg{multicol} 那条
+% 一个道理，自己要用的就自己装。
+%    \begin{macrocode}
+\RequirePackage{graphicx}
+%    \end{macrocode}
+%
+% 数学字体、\pkg{siunitx}、\pkg{hyperref} 都是类的，这里不再碰。
+%
+% 手册 PDF 的元数据。抄的 \pkg{thuthesis} 手册样式那一段：本模板是它的 fork，
+% 那边早就设了，我们一直空着。\option{pdfdisplaydoctitle} 让阅读器的窗口标题
+% 显示 \option{pdftitle} 而不是文件名。
+%    \begin{macrocode}
+\hypersetup{
+  pdflang     = zh-CN,
+  pdftitle    = {\hithesis：哈尔滨工业大学学位论文模板},
+  pdfauthor   = {\hithesis\ 开发者},
+  pdfsubject  = {哈尔滨工业大学学位论文模板使用说明},
+  pdfkeywords = {论文模板; 哈尔滨工业大学; 学位论文; 开题报告; 中期报告; 使用说明},
+  pdfdisplaydoctitle = true,
+}
+%    \end{macrocode}
+%
+% 长链接允许在任意字母数字之后断行。手册里最长的一条是 130 个字符的百分号编码
+% 地址，不给断点就整条压出版心。\cs{Urlmuskip} 给链接内部一点点可伸缩量，
+% 断不开时也不至于把整行撑坏。
+%    \begin{macrocode}
+\g@addto@macro\UrlBreaks{%
+  \do0\do1\do2\do3\do4\do5\do6\do7\do8\do9%
+  \do\A\do\B\do\C\do\D\do\E\do\F\do\G\do\H\do\I\do\J\do\K\do\L\do\M
+  \do\N\do\O\do\P\do\Q\do\R\do\S\do\T\do\U\do\V\do\W\do\X\do\Y\do\Z
+  \do\a\do\b\do\c\do\d\do\e\do\f\do\g\do\h\do\i\do\j\do\k\do\l\do\m
+  \do\n\do\o\do\p\do\q\do\r\do\s\do\t\do\u\do\v\do\w\do\x\do\y\do\z
+}
+\Urlmuskip=0mu plus 0.1mu
+%    \end{macrocode}
+%
+% \subsection{行内代码}
+%
+% 手册里的代码几乎都是 \cs{cs}、\cs{file}、\cs{texttt} 排的，\cs{verb} 只有两处，
+% 所以类给 \cs{verb} 定的那套（\file{src/docxlike/docxlike-format.dtx} 的“行内代码”：空格
+% 印 U+02FD 记号、其后可断，长串在分隔符前可断，串不加半格增量）这里挂到 \cs{texttt}
+% 上，三个命令都落进来。参数早已记号化，空格是空格记号，用 \pkg{l3regex} 把空格记号
+% 换成记号宏再整段发出去（不能逐个记号发：\texttt{\cs{\~{}}} 这种带参数的命令会去
+% 抓下一个记号）；代码属性在组里设，Lua 断行层见了就按代码串算软断点。\cs{nolinkurl} 那种 verbatim 抓参数的路子用不了：
+% \cs{changes} 的文本里也写 \cs{file}，那里参数早已记号化。
+%
+% \hologo{XeLaTeX} 没有 Lua 那一层，\cs{file} 退回老办法：逐个记号扫，遇上
+% \texttt{/}、\texttt{-}、\texttt{.} 就补一个 \cs{allowbreak}。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\tl_new:N \l__hit_doc_code_tl
+\cs_new_protected:Npn \__hit_doc_code:n #1
+  {
+    \tl_set:Nn \l__hit_doc_code_tl {#1}
+    \regex_replace_all:nnN { \x{20} } { \c{docxlike_format_verb_space:} } \l__hit_doc_code_tl
+    \tl_use:N \l__hit_doc_code_tl
+  }
+\DeclareRobustCommand \texttt [1]
+  {
+    {
+      \ttfamily
+      \sys_if_engine_luatex:T { \docxlike@code@attr = 1 \scan_stop: }
+      \__hit_doc_code:n {#1}
+    }
+  }
+\ExplSyntaxOff
+\newcommand*\hit@file@breakable[1]{%
+  \@tfor\hit@file@tok:=#1\do{%
+    \hit@file@tok
+    \expandafter\hit@file@sep\expandafter{\hit@file@tok}}}
+\newcommand*\hit@file@sep[1]{%
+  \ifcat\noexpand#1\relax\else
+    \if/#1\allowbreak\else
+    \if-#1\allowbreak\else
+    \if.#1\allowbreak\fi\fi\fi
+  \fi}
+\ExplSyntaxOn
+\sys_if_engine_luatex:T
+  { \cs_set_eq:NN \hit@file@breakable \use:n }
+\ExplSyntaxOff
+%    \end{macrocode}
+% 增加 \pkg{ninecolors} 宏包来使用更多颜色。
+%    \begin{macrocode}
+\RequirePackage{ninecolors}
+%    \end{macrocode}
+%
+% \subsection{色板}
+%
+% 手册的颜色一律从这里取，正文各处不再写死。想换配色只动 \cs{hit@blue}
+% 与 \cs{hit@orange} 两行，其余是按它们算出来的。
+%
+% 两个底色都取自学校的 VI，与 hiTouyingBeamer 同源：校徽蓝是从校徽横版图上
+% 实测的 \texttt{\#166183}，校训橙是校训图“规格严格 功夫到家”的
+% \texttt{\#FF9300}。蓝是主色，橙是配色，与主色成冷暖对照，专门留给需要跟主色
+% 分开的东西：选项名、页边记号、shell 代码块的框线。同一族里再分深浅，读者
+% 只会看出“深一点浅一点”，分不出是两类，所以配色必须换个色相。
+%
+% 纯橙在白纸上对比度只有 2.2，当字用看不清，所以字用的配色压到七成
+% （对比度 4.3），竖线、框线这种面积大的用纯橙。
+%
+% 链接颜色在类装 \pkg{hyperref} 时按论文的规矩设过（全黑），这里改回手册的配色：
+% 手册是拿来查的，链接看得见才好点。
+%    \begin{macrocode}
+\definecolor{hit@blue}{HTML}{166183}
+\definecolor{hit@orange}{HTML}{FF9300}
+\colorlet{hit@main}{hit@blue}
+\colorlet{hit@accent}{hit@orange!70!black}
+\colorlet{hit@macro}{hit@main}
+\colorlet{hit@env}{hit@main!82!black}
+\colorlet{hit@option}{hit@accent}
+\colorlet{hit@rule}{hit@main!85!black}
+\colorlet{hit@rule@shell}{hit@orange}
+\colorlet{hit@codeback}{hit@main!5!white}
+\colorlet{hit@string}{teal!70!black}
+\colorlet{hit@comment}{hit@main!35!black!55}
+\hypersetup{
+  colorlinks = true,
+  linkcolor  = hit@main,          % 交叉引用、目录
+  urlcolor   = hit@main!75!black, % 外链，原先的 magenta
+  citecolor  = hit@accent,        % 文献引用
+  filecolor  = hit@main!75!black,
+}
+%    \end{macrocode}
+%
+% \subsection{\pkg{doc} 的标记}
+%
+%    \begin{macrocode}
+\patchcmd{\PrintMacroName}{\MacroFont}{\MacroFont\bfseries\color{hit@macro}}{}{}
+\patchcmd{\PrintDescribeMacro}{\MacroFont}{\MacroFont\bfseries\color{hit@macro}}{}{}
+\patchcmd{\PrintDescribeEnv}{\MacroFont}{\MacroFont\bfseries\color{hit@env}}{}{}
+\patchcmd{\PrintEnvName}{\MacroFont}{\MacroFont\bfseries\color{hit@env}}{}{}
+
+\def\DescribeOption{%
+  \leavevmode\@bsphack\begingroup\MakePrivateLetters%
+  \Describe@Option}
+\def\Describe@Option#1{\endgroup
+  \marginpar{\raggedleft\PrintDescribeOption{#1}}%
+  \hit@special@index{option}{#1}\@esphack\ignorespaces}
+\def\PrintDescribeOption#1{\strut \MacroFont\bfseries\sffamily\color{hit@option} #1\ }
+\def\hit@special@index#1#2{\@bsphack
+  \begingroup
+    \HD@target
+    \let\HDorg@encapchar\encapchar
+    \edef\encapchar usage{%
+      \HDorg@encapchar hdclindex{\the\c@HD@hypercount}{usage}%
+    }%
+    \index{#2\actualchar{\string\ttfamily\space#2}
+           (#1)\encapchar usage}%
+    \index{#1:\levelchar#2\actualchar
+           {\string\ttfamily\space#2}\encapchar usage}%
+  \endgroup
+  \@esphack}
+%    \end{macrocode}
+%
+% \subsection{代码块}
+%
+%    \begin{macrocode}
+\lstdefinestyle{lstStyleBase}{%
+   basicstyle=\small\ttfamily,
+   aboveskip=\medskipamount,
+   belowskip=\medskipamount,
+   lineskip=0pt,
+   boxpos=c,
+   showlines=false,
+   extendedchars=true,
+   upquote=true,
+   tabsize=2,
+   showtabs=false,
+   showspaces=false,
+   showstringspaces=false,
+   numbers=none,
+   linewidth=\linewidth,
+   xleftmargin=4pt,
+   xrightmargin=0pt,
+   resetmargins=false,
+   breaklines=true,
+   breakatwhitespace=false,
+   breakindent=0pt,
+   breakautoindent=true,
+   columns=flexible,
+   keepspaces=true,
+   gobble=2,
+   framesep=3pt,
+   rulesep=1pt,
+   framerule=1pt,
+   backgroundcolor=\color{hit@codeback},
+   stringstyle=\color{hit@string},
+   keywordstyle=\bfseries\color{hit@main},
+   commentstyle=\slshape\color{hit@comment}}
+
+%    \end{macrocode}
+% 修改抄录环境的高亮，使代码更易阅读。
+% \changes{v3.1a}{2022/05/17}{修改抄录环境的高亮，使代码更易阅读}
+%
+% 两种代码块靠左侧那条竖线区分：命令行是橙，\hologo{LaTeX} 源码是蓝。
+% 多级关键字里 \texttt{azure4} 换成主色，\texttt{red3} 换成配色，
+% \texttt{green5} 留着——它标的是命令行选项，那是第三类东西，得有第三个颜色。
+%    \begin{macrocode}
+   \lstdefinestyle{lstStyleShell}{%
+   style=lstStyleBase,
+   frame=l,
+   rulecolor=\color{hit@rule@shell},
+   language=bash,
+   morekeywords  = [1]
+   {
+     tlmgr, pdflatex, latexmk, xelatex, cd, dir, mkdir,
+     ls, del, rm, mv, move, cp, copy, code, bibtex, biber,
+     texdoc, kpsewhich, texhash, splitindex, latex, makeindex, 
+     make
+   },
+    morekeywords  = [2]{action, info, option, update, install, remove, version, restore},
+    otherkeywords  = {--, -s, -o, -xelatex},
+    morekeywords  = [3]{--, -s, -o, -xelatex},
+    keywordstyle  = [1]{\bfseries},
+    keywordstyle  = [2]{\color{hit@main}},
+    keywordstyle  = [3]{\color{green5}}
+    % moredelim     = [s][\color{green5}]{\ -}{\ },
+   }
+
+\lstdefinestyle{lstStyleLaTeX}{%
+    style=lstStyleBase,
+    frame=l,
+    rulecolor=\color{hit@rule},
+    language=[LaTeX]TeX,
+    texcsstyle  =*[1]{\color{hit@main}\bfseries},
+    texcsstyle   =*[2]{\color{hit@accent}\bfseries},
+    moretexcs   = [1]
+      {
+        LaTeX, LaTex, label, ref, 
+        tableofcontents, bibliography, bibliographystyle, 
+        cite, NeedsTeXFormat, ProvidesPackage, newcommand, mycmd, 
+        addbibresource, printbibliography, graphicspath, 
+        frontmatter, mainmatter, backmatter, printsubindex,
+        makecover, authorization, hitsetup,
+        chuhao, xiaochu, yihao, xiaoyi, erhao, xiaoer, sanhao, 
+        xiaosan, sihao, xiaosi, wuhao, xiaowu, liuhao, xiaoliu, qihao, bahao,
+        bicaption, caption, ltfontsize, longbionenumcaption, subfigure, includegraphics,
+        toprule, midrule, bottomrule, endhead, endfirsthead, endfoot
+      },
+    deletetexcs  = [1]{documentclass, usepackage, begin, end},
+    moretexcs    = [2]{usepackage, documentclass, begin, end},
+  }
+
+\lstnewenvironment{latex}{\lstset{style=lstStyleLaTeX}}{}
+\lstnewenvironment{shell}{\lstset{style=lstStyleShell}}{}
+
+\setlist{nosep}
+
+\DeclareDocumentCommand{\option}{}{\meta}
+\DeclareDocumentCommand{\env}{m}{\textbf{\texttt{#1}}}
+\DeclareDocumentCommand{\pkg}{s m}{%
+  \textsf{#2}\IfBooleanF#1{\hit@special@index{package}{#2}}}
+\DeclareDocumentCommand{\cls}{s m}{%
+  \textsf{#2}\IfBooleanF#1{\hit@special@index{class}{#2}}}
+\DeclareDocumentCommand{\file}{s m}{%
+  \texttt{\hit@file@breakable{#2}}\IfBooleanF#1{\hit@special@index{file}{#2}}}
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\newcommand{\myentry}[1]{%
+  \marginpar{\raggedleft\color{hit@accent}\bfseries\strut #1}}
+%    \end{macrocode}
+%
+% \cs{hitgh}\marg{账号} 排一个指向 GitHub 主页的昵称，\cs{hitmail}\marg{地址}
+% 排一个邮件链接。
+%
+% \cs{hitauthor}\oarg{称号}\marg{姓名}\marg{邮箱}\marg{GitHub 账号} 在致谢的名单里
+% 排一位维护者：姓名、括号里的称号、昵称与邮箱。邮箱一栏收的是排好的内容，多个
+% 邮箱就写多个 \cs{hitmail}。写在 \env{itemize} 里，一人一条。
+%
+% \cs{hitref}\marg{账号} 在正文里排一个跳到致谢名单的昵称，锚点
+% \texttt{sec:maintainers} 由手册在致谢那一章放。
+%    \begin{macrocode}
+\newcommand*\hitgh[1]{\href{https://github.com/#1}{\texttt{@#1}}}
+\newcommand*\hitmail[1]{\href{mailto:#1}{\texttt{#1}}}
+\newcommand*\hitref[1]{\hyperref[sec:maintainers]{\texttt{@#1}}}
+\NewDocumentCommand\hitauthor{o m m m}
+  {%
+    \item #2\IfNoValueF{#1}{（{\hit@rank@font #1}）}，\hitgh{#4}，#3%
+  }
+\newcommand*\hit@rank@font{\normalfont\sffamily\color{hit@option}}
+%    \end{macrocode}
+%
+% \cs{note} 走配色。它是作者写给作者看的批注，本来就该从正文里跳出来，
+% 跟着主色走就跳不出来了。
+%    \begin{macrocode}
+\newcommand{\note}[2][Note]{{%
+  \color{hit@accent}{\bfseries #1}\emph{#2}}}
+%    \end{macrocode}
+%
+% \changes{v3.1b}{2022/06/06}{增加 \cs{issue} 命令，来方便 issue 的引用}
+%    \begin{macrocode}
+\NewDocumentCommand\issue{o}{%
+  \IfValueTF{#1}
+    {\href{https://github.com/hithesis/hithesis/issues/#1}{issue: \##1}}
+    {\href{https://github.com/hithesis/hithesis/issues}{issues}}
+}
+%    \end{macrocode}
+%
+% 增加 \cs{hitszthesis} 来使参考 \hitszthesis{} 更加方便。
+% \begin{macro}{\hitszthesis}
+% % \changes{v3.1b}{2022/06/06}{增加 \cs{hitszthesis} 来使参考 \hitszthesis{} 更加方便}
+%    \begin{macrocode}
+\def\hitszthesis{\href{https://github.com/YangLaTeX/hitszthesis}{\textsc{Hitsz}\-\textsc{Thesis}}{}}
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{后置各章}
+%
+% 原先手册有一页 \pkg{tikz} 画的书封，现在封面是类的，那一段连 \pkg{tikz} 一起撤了。
+%
+% \cs{hit@doc@chapter}\marg{中文标题}\marg{英文标题} 排一个后置的无编号章，
+% 走类排索引、致谢用的 \cs{hit@appendix@chapter}：另起一页，进目录与书签，
+% 页眉照类的规矩。修改记录与索引各用一次。
+%
+% \pkg{doc} 排索引与修改记录时自带一个 \cs{section*} 的标题（\cs{IndexPrologue}
+% 与 \cs{GlossaryPrologue} 的默认值，连同一段英文说明），这里清空，标题由上面那个
+% 宏排。索引的双栏是 \pkg{doc} 的 \env{multicols}，类自己的 \env{theindex}
+% 被它顶掉了，正合适：类那一版是给 \env{ceindex} 环境用的，那个环境自己开双栏，
+% 套上 \pkg{doc} 的就是双栏套双栏。
+%    \begin{macrocode}
+\newcommand*\hit@doc@chapter[2]{%
+  \hit@clear@page
+  \hit@appendix@chapter*[#1]{#1}[#2]}
+\IndexPrologue{}
+\GlossaryPrologue{}
+\def\indexname{索引}
+\def\glossaryname{修改记录}
+%    \end{macrocode}
+%
+% 手册不排英文目录，几百个节标题也不会一个个配英文名，类为每个没英文名的标题
+% 发的那条警告在这里没有意义，关掉。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\msg_redirect_name:nnn { hithesis } { toe-undefined-en } { none }
+\ExplSyntaxOff
+%    \end{macrocode}
+%    \begin{macrocode}
+%</dtx-style>
+%    \end{macrocode}
+%
+% \cs{pozhehao} 类里没有，手册要用，留在这里。
+%    \begin{macrocode}
+%<dtx-style>\newcommand{\pozhehao}{——}
+%    \end{macrocode}
+%
+% \changes{v2.0.06}{2018/12/05}{在\cs{inlinecite}内添加空格}
+%
+%    \begin{macrocode}
+%<*dtx-style>
+  \NewDocumentEnvironment{hitrgu}{o o}
+  { \IfNoValueTF{#1}{\PGR,\UGR}{#1}\IfNoValueF{#2}{#2中}%
+\color{hit@accent}规定：“}{”}
+%</dtx-style>
+%    \end{macrocode}
+%
+% \Finale

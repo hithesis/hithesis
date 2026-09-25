@@ -1,0 +1,521 @@
+% \iffalse meta-comment
+%
+% docxlike-heading.dtx 是标题：按样式与多级列表排章节标题
+%
+% \fi
+%
+% \section{标题}
+%
+% \changes{v0.1.0}{2026/09/25}{标题由本包自己排，不经 \pkg{ctex}：\cs{section} 这类命令按标题
+%   样式排一段，样式链接了多级列表就编号；目录、页眉的 \texttt{STYLEREF}、\cs{label} 都接上，取原文不随“全部大写字母”变；
+%   题注与交叉引用的域 \texttt{SEQ}、\texttt{REF}、\texttt{PAGEREF} 与书签 \cs{docxbookmark}}
+%
+% Word 的标题就是用了“标题 1”这类样式的段落：字体、段前段后、与下段同页都在样式里，编号
+% 来自样式链接的多级列表，没链接就不编号（Word 的空白文档就是这样）。这里照这个意思排：
+% \cs{docxlike\_heading\_new:Nnn}\meta{命令}\marg{样式}\marg{层级名} 把 \meta{命令} 定义成
+% 标题命令，写法与 \hologo{LaTeX} 的一样，\cs{section}\oarg{目录里的题目}\marg{题目}，
+% 带星号的不编号、不进目录。\meta{层级名} 是 \hologo{LaTeX} 那边的名字（\texttt{section}），
+% 目录条目的层级、计数器、\cs{…mark} 都按它找。
+%
+% 不编号用 Word 的办法：段落上直接写“编号：无”（\texttt{w:numPr/w:numId} 为 0），在可选参数里写
+% \verb|numbering = none|，照样进目录。什么时候不编号、\cs{ref} 记什么、标题前的分页罚分、
+% 编号后面敲不敲字，这些是文档类自己的事，本包不管。
+%
+% 目录条目、\cs{label} 与页眉标记用的编号去掉末尾的空白（半角空格与全角空格 U+3000）：
+% 编号格式里常在末尾打一个全角空格隔开题名，那是排版用的。题目里的 \cs{docxbookmark} 只在正文里算，写进目录与
+% 页眉标记的那一份剥成只剩文字，免得同一个书签记两回。
+%
+% ^^A ======================================================================
+% ^^A Module docxlike-heading: 标题
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*docxlike-heading>
+%    \end{macrocode}
+%
+% \subsection{编号先编好}
+%
+% 标题的编号要在排之前就有：目录条目、\cs{label}、页眉标记都要用。所以标题命令先编号、
+% 拼好编号串，再交给 \cs{docxlike\_format\_par:nn}；这时编号段落那一头不再编号，直接用
+% 编好的串。不编号的标题（带星号）让编号段落那一头这一段整个跳过，缩进也用样式自己的，
+% 相当于 Word 里在这一段上去掉编号。
+%    \begin{macrocode}
+\bool_new:N \l_docxlike_numbering_pending_bool
+\bool_new:N \l_docxlike_numbering_off_bool
+\cs_new_eq:NN \__docxlike_heading_number_indent:n \__docxlike_format_number_indent:n
+\cs_new_eq:NN \__docxlike_heading_number_put:n \__docxlike_format_number_put:n
+\cs_gset_protected:Npn \__docxlike_format_number_indent:n #1
+  {
+    \bool_if:NF \l_docxlike_numbering_off_bool
+      { \__docxlike_heading_number_indent:n {#1} }
+  }
+\cs_gset_protected:Npn \__docxlike_format_number_put:n #1
+  {
+    \bool_if:NF \l_docxlike_numbering_off_bool
+      {
+        \bool_if:NTF \l_docxlike_numbering_pending_bool
+          {
+            \bool_set_false:N \l_docxlike_numbering_pending_bool
+            \__docxlike_numbering_place:n {#1}
+          }
+          { \__docxlike_heading_number_put:n {#1} }
+      }
+  }
+%    \end{macrocode}
+%
+% \cs{docxlike\_heading\_number:nN}\marg{样式}\meta{tl 变量}：样式链接了列表时编下一号，
+% 编号串放进 \meta{tl 变量}，返回真；没链接时变量清空。
+%    \begin{macrocode}
+\prg_new_protected_conditional:Npnn \docxlike_heading_number:nN #1#2 { T , F , TF }
+  {
+    \docxlike_numbering_style:nNNTF {#1}
+      \l__docxlike_numbering_cur_list_tl \l__docxlike_numbering_cur_lvl_tl
+      {
+        \__docxlike_numbering_step:VV \l__docxlike_numbering_cur_list_tl
+          \l__docxlike_numbering_cur_lvl_tl
+        \__docxlike_numbering_text:VVN \l__docxlike_numbering_cur_list_tl
+          \l__docxlike_numbering_cur_lvl_tl #2
+        \prg_return_true:
+      }
+      {
+        \tl_clear:N #2
+        \prg_return_false:
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{标题命令}
+%
+% 样式名照 \option{styles} 的找法，存的是样式标识。层级名给 \hologo{LaTeX} 那几样用：
+% \cs{refstepcounter}（有这个计数器时，hyperref 的锚点靠它），\cs{@currentlabel} 改成 Word 的
+% 编号串（\cs{ref} 引用的就是它，与 Word 的 \texttt{REF \textbackslash n} 一致），目录条目
+% \cs{addcontentsline}，页眉标记 \cs{…mark}。页眉页脚的 \texttt{STYLEREF} 另外登记，
+% 登记的样式名是“heading \meta{n}”这种 Word 的名字，\meta{n} 取样式标识末尾的数字。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_heading_num_tl
+\tl_new:N \l__docxlike_heading_ref_tl
+\tl_new:N \l__docxlike_heading_style_tl
+\bool_new:N \l__docxlike_heading_nonum_bool
+\cs_new_protected:Npn \docxlike_heading_new:Nnn #1#2#3
+  {
+    \__docxlike_squash:nN {#2} \l__docxlike_value_try_str
+    \prop_get:NVNF \g__docxlike_format_name_prop \l__docxlike_value_try_str
+      \l__docxlike_heading_style_tl
+      {
+        \tl_set:Nn \l__docxlike_heading_style_tl {#2}
+        \tl_remove_all:Nn \l__docxlike_heading_style_tl { ~ }
+        \docxlike_format_target_new:Vn \l__docxlike_heading_style_tl { Normal }
+      }
+    \exp_args:NNV \__docxlike_heading_define:Nnn #1 \l__docxlike_heading_style_tl {#3}
+    \docxlike_style_new:e { heading ~ \__docxlike_heading_level:V \l__docxlike_heading_style_tl }
+  }
+\cs_generate_variant:Nn \docxlike_style_new:n { e }
+\cs_new_protected:Npn \__docxlike_heading_define:Nnn #1#2#3
+  {
+    \RenewDocumentCommand #1 { s o m }
+      {
+        \bool_set_false:N \l__docxlike_heading_nonum_bool
+        \tl_clear:N \l__docxlike_heading_local_tl
+        \tl_set:Nn \l__docxlike_heading_short_tl {##3}
+        \IfValueT {##2} { \__docxlike_heading_option:n {##2} }
+        \IfBooleanTF {##1}
+          { \__docxlike_heading_title:nnnVn {#2} {#3} { } \l__docxlike_heading_short_tl {##3} }
+          { \__docxlike_heading_title:nnnVn {#2} {#3} { n } \l__docxlike_heading_short_tl {##3} }
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{可选参数。}没有等号时是目录里的短标题，与 \hologo{LaTeX} 一样；有等号时是键值表：
+% \option{toc} 是短标题，其余是这一个标题的局部格式，键与 \option{styles} 里的样式一样
+% （\option{font}、\option{paragraph}……），对应 Word 里在这一段上直接设的格式，压过样式：
+% \begin{latex}
+% \chapter[paragraph = { spacing = { line-spacing = multiple , at = 1.3 } }]{绪论}
+% \end{latex}
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_heading_local_tl
+\tl_new:N \l__docxlike_heading_short_tl
+\cs_new_protected:Npn \__docxlike_heading_option:n #1
+  {
+    \tl_if_in:nnTF {#1} { = }
+      {
+        \keyval_parse:nnn
+          { \__docxlike_heading_local:n }
+          { \__docxlike_heading_local:nn }
+          {#1}
+      }
+      { \tl_set:Nn \l__docxlike_heading_short_tl {#1} }
+  }
+\cs_new_protected:Npn \__docxlike_heading_local:n #1
+  { \tl_put_right:Nn \l__docxlike_heading_local_tl { #1 , } }
+\cs_new_protected:Npn \__docxlike_heading_local:nn #1#2
+  {
+    \str_if_eq:nnTF {#1} { toc }
+      { \tl_set:Nn \l__docxlike_heading_short_tl {#2} }
+      {
+        \bool_lazy_and:nnT
+          { \str_if_eq_p:nn {#1} { numbering } } { \str_if_eq_p:nn {#2} { none } }
+          { \bool_set_true:N \l__docxlike_heading_nonum_bool }
+        \tl_put_right:Nn \l__docxlike_heading_local_tl { #1 = {#2} , }
+      }
+  }
+\tl_new:N \l__docxlike_heading_toc_tl
+\cs_new_protected:Npn \__docxlike_heading_title:nnnnn #1#2#3#4#5
+  {
+    \tl_set:Nn \l__docxlike_heading_toc_tl {#4}
+    \regex_replace_all:nnN { \c{docxbookmark} \cB. [^\cE.]* \cE. } { } \l__docxlike_heading_toc_tl
+    \exp_args:NnnnV \__docxlike_heading:nnnnn {#1} {#2} {#3} \l__docxlike_heading_toc_tl {#5}
+  }
+\cs_generate_variant:Nn \__docxlike_heading:nnnnn { nnnV }
+\cs_generate_variant:Nn \__docxlike_heading_title:nnnnn { nnnV }
+\cs_new_protected:Npn \__docxlike_heading:nnnnn #1#2#3#4#5
+  {
+    \par
+    \bool_set_false:N \l_docxlike_numbering_off_bool
+    \tl_clear:N \l__docxlike_heading_num_tl
+    \tl_clear:N \l__docxlike_heading_snum_tl
+    \__docxlike_heading_epoch:e { \__docxlike_heading_level:n {#1} }
+    \tl_clear:N \l__docxlike_heading_ref_tl
+    \bool_lazy_or:nnTF { \tl_if_blank_p:n {#3} } { \l__docxlike_heading_nonum_bool }
+      { \bool_set_true:N \l_docxlike_numbering_off_bool }
+      {
+        \int_if_exist:cT { c@ #2 } { \refstepcounter {#2} }
+        \docxlike_heading_number:nNT {#1} \l__docxlike_heading_num_tl
+          {
+            \bool_set_true:N \l_docxlike_numbering_pending_bool
+            \__docxlike_numbering_stext:VVN \l__docxlike_numbering_cur_list_tl
+              \l__docxlike_numbering_cur_lvl_tl \l__docxlike_heading_snum_tl
+            \tl_set:Ne \l__docxlike_heading_ref_tl { \l__docxlike_heading_num_tl }
+            \regex_replace_once:nnN { [\s\x{3000}]+ \Z } { } \l__docxlike_heading_ref_tl
+          }
+        \int_if_exist:cT { c@ #2 }
+          { \tl_set_eq:cN { @currentlabel } \l__docxlike_heading_ref_tl }
+      }
+    \exp_args:NV \__docxlike_heading_latin:nn \l__docxlike_heading_num_tl {#5}
+    \exp_args:NnV \docxlike_format_par:nnn {#1} \l__docxlike_heading_local_tl
+      {
+        \NoCaseChange { \__docxlike_heading_marks:nnnn {#1} {#2} {#3} {#4} }
+        #5
+      }
+    \mode_if_vertical:T { \tex_prevdepth:D = -1000pt \scan_stop: }
+    \bool_set_false:N \l_docxlike_format_latin_pick_bool
+    \bool_set_false:N \l_docxlike_format_asian_ascent_bool
+    \bool_set_false:N \l_docxlike_numbering_off_bool
+    \bool_set_false:N \l_docxlike_numbering_pending_bool
+  }
+%    \end{macrocode}
+%
+% \emph{标题后的一段贴着段后排。}Word 里下一段的首行行盒紧接在标题的段后下面；\hologo{TeX}
+% 却要按标题末行的行深补一段行间胶，标题行距比正文大时那段胶是负的（目录标题接第一条
+% 少 4.46\,bp）。所以标题排完把 \cs{prevdepth} 设成 $-1000$\,pt，与 \pkg{ctex} 的
+% \option{fixskip} 做的一样。
+%
+% \emph{全是西文的题名按西文行盒排。}Word 的行高取行里实际的字，题名里没有汉字就是西文的
+% 行高与上升部（iota 也这样判）。题名里敲的全角空格不算汉字，“1.1　Introduction”照样是西文
+% 行盒。编号另算：编号里有汉字或全角空格（“第1章”“1.1　”）时，这一行的上升部换成东亚字体
+% 的，行深仍是西文的。Windows Word 实测：黑体与 Times 14 磅单倍行距，西文 16.08、中文 18.12、
+% 带这种编号的西文题名 17.16，正是黑体的上升部加 Times 的行深；Arial 与微软雅黑 12 磅是
+% 13.80、20.58、17.64，同一条规律。编号与题名各自先展开再看。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_heading_text_tl
+\tl_new:N \l__docxlike_heading_numtext_tl
+\regex_const:Nn \c__docxlike_heading_asian_regex
+  { [\x{2E80}-\x{2FFF}\x{3001}-\x{9FFF}\x{F900}-\x{FAFF}\x{FF00}-\x{FFEF}] }
+\regex_const:Nn \c__docxlike_heading_asian_space_regex
+  { [\x{2E80}-\x{9FFF}\x{F900}-\x{FAFF}\x{FF00}-\x{FFEF}] }
+\cs_new_protected:Npn \__docxlike_heading_latin:nn #1#2
+  {
+    \group_begin:
+      \cs_set_eq:NN \docxbookmark \use_ii:nn
+      \protected@edef \l__docxlike_heading_numtext_tl {#1}
+      \protected@edef \l__docxlike_heading_text_tl {#2}
+      \regex_match:nVT { [A-Za-z0-9] } \l__docxlike_heading_text_tl
+        {
+          \regex_match:NVF \c__docxlike_heading_asian_regex \l__docxlike_heading_text_tl
+            {
+              \group_insert_after:N \__docxlike_heading_latin_true:
+              \regex_match:NVT \c__docxlike_heading_asian_space_regex
+                \l__docxlike_heading_numtext_tl
+                { \group_insert_after:N \__docxlike_heading_asian_ascent_true: }
+            }
+        }
+    \group_end:
+  }
+\cs_new_protected:Npn \__docxlike_heading_latin_true:
+  { \bool_set_true:N \l_docxlike_format_latin_pick_bool }
+\cs_new_protected:Npn \__docxlike_heading_asian_ascent_true:
+  { \bool_set_true:N \l_docxlike_format_asian_ascent_bool }
+\cs_new:Npn \__docxlike_heading_level:n #1
+  { \str_range:nnn {#1} { -1 } { -1 } }
+\cs_generate_variant:Nn \__docxlike_heading_level:n { V }
+%    \end{macrocode}
+%
+% \cs{…mark} 与 \hologo{LaTeX} 一样只给不带星号的标题发（带星号的由文档类自己写标记）；
+% 给 \texttt{STYLEREF} 的登记所有标题都做，Word 认的是样式。
+%
+% 页眉标记与目录条目放在标题这一段\emph{里面}，与 \hologo{LaTeX} 自己的标题一样。放在段外
+% 的竖直列表上，标题与标题之间就夹着标记或写文件的节点，下一段的 \cs{addvspace} 看不到
+% 前一段的段后，两段之间成了段后加段前，Word 是取大的那个。样式开着“全部大写字母”时整段
+% 内容过 \cs{MakeUppercase}，这一步用 \cs{NoCaseChange} 挡在外面：Word 的大写只管显示，
+% 目录、\texttt{STYLEREF} 取的仍是原文，这里的层级名也不能被改成大写。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_heading_marks:nnnn #1#2#3#4
+  {
+    \tl_set_eq:NN \l_docxlike_field_parnum_tl \l__docxlike_heading_ref_tl
+    \docxlike_style_mark:eVVn
+      { heading ~ \__docxlike_heading_level:n {#1} }
+      \l__docxlike_heading_ref_tl \l__docxlike_heading_snum_tl {#4}
+    \tl_if_blank:nF {#3}
+      {
+        \bool_set_true:N \l_docxlike_heading_own_mark_bool
+        \cs_if_exist_use:cT { #2 mark } { {#4} }
+        \bool_set_false:N \l_docxlike_heading_own_mark_bool
+      }
+    \tl_if_blank:nF {#3}
+      {
+        \tl_if_empty:NTF \l__docxlike_heading_ref_tl
+          { \addcontentsline { toc } {#2} {#4} }
+          {
+            \addcontentsline { toc } {#2}
+              { \protect \numberline { \exp_not:V \l__docxlike_heading_ref_tl } #4 }
+          }
+      }
+  }
+\cs_generate_variant:Nn \docxlike_style_mark:nnnn { eVV }
+\tl_new:N \l__docxlike_heading_snum_tl
+%    \end{macrocode}
+%
+% 编号段落那一头拿到编好的串，只管排：与 \cs{\_\_docxlike\_format\_number\_put:n} 同样的排法，
+% 只是不再编号。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_numbering_place:n #1
+  {
+    \tl_set_eq:NN \l__docxlike_numbering_text_tl \l__docxlike_heading_num_tl
+    \__docxlike_numbering_layout:n {#1}
+  }
+%    \end{macrocode}
+%
+%
+% \subsection{题注与交叉引用的域}
+%
+% 这几个域照 Windows Word 量过（\file{test/numbering} 的 \file{num-fields}）。
+%
+% \emph{标题的计数。}\texttt{SEQ \textbackslash s} \meta{n} 在第 \meta{n} 级标题出现后从头编。每一级
+% 记一个数，第 \meta{L} 级标题出现时第 \meta{L} 到第 9 级的数都加一；\texttt{SEQ} 记下上次看到
+% 的那个数，变了就从头编。不编号的标题也算，Word 认的是标题样式。
+%    \begin{macrocode}
+\int_step_inline:nnn { 1 } { 9 } { \int_new:c { g__docxlike_heading_epoch_ #1 _int } }
+\cs_new_protected:Npn \__docxlike_heading_epoch:n #1
+  {
+    \regex_match:nnT { \A [1-9] \Z } {#1}
+      {
+        \int_step_inline:nnn {#1} { 9 }
+          { \int_gincr:c { g__docxlike_heading_epoch_ ##1 _int } }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_heading_epoch:n { e }
+%    \end{macrocode}
+%
+% \emph{\texttt{SEQ} \meta{标识}。}每个标识一个计数器（\texttt{图}、\texttt{表} 各编各的）。开关：
+% \texttt{\textbackslash s} \meta{n} 按第 \meta{n} 级标题从头编；\texttt{\textbackslash r} \meta{数} 设成这个数；
+% \texttt{\textbackslash c} 重复当前的号不加一；\texttt{\textbackslash h} 照编但不显示；\texttt{\textbackslash *} 编号格式。
+%    \begin{macrocode}
+\str_new:N \l__docxlike_seq_id_str
+\tl_new:N \l__docxlike_seq_pending_tl
+\tl_new:N \l__docxlike_seq_level_tl
+\tl_new:N \l__docxlike_seq_reset_tl
+\bool_new:N \l__docxlike_seq_current_bool
+\bool_new:N \l__docxlike_seq_hidden_bool
+\cs_new_protected:Npn \__docxlike_field_seq:
+  {
+    \str_clear:N \l__docxlike_seq_id_str
+    \tl_clear:N \l__docxlike_seq_pending_tl
+    \tl_clear:N \l__docxlike_seq_level_tl
+    \tl_clear:N \l__docxlike_seq_reset_tl
+    \bool_set_false:N \l__docxlike_seq_current_bool
+    \bool_set_false:N \l__docxlike_seq_hidden_bool
+    \seq_map_inline:Nn \l__docxlike_field_words_seq
+      {
+        \tl_if_empty:NTF \l__docxlike_seq_pending_tl
+          {
+            \str_if_eq:eeTF { \str_head:n {##1} } { \c_backslash_str }
+              {
+                \str_case:enF { \str_tail:n {##1} }
+                  {
+                    { s } { \tl_set:Nn \l__docxlike_seq_pending_tl { level } }
+                    { r } { \tl_set:Nn \l__docxlike_seq_pending_tl { reset } }
+                    { * } { \tl_set:Nn \l__docxlike_seq_pending_tl { skip } }
+                    { @ } { \tl_set:Nn \l__docxlike_seq_pending_tl { skip } }
+                    { c } { \bool_set_true:N \l__docxlike_seq_current_bool }
+                    { h } { \bool_set_true:N \l__docxlike_seq_hidden_bool }
+                  }
+                  { }
+              }
+              { \str_if_empty:NT \l__docxlike_seq_id_str { \str_set:Nn \l__docxlike_seq_id_str {##1} } }
+          }
+          {
+            \str_case:Vn \l__docxlike_seq_pending_tl
+              {
+                { level } { \tl_set:Nn \l__docxlike_seq_level_tl {##1} }
+                { reset } { \tl_set:Nn \l__docxlike_seq_reset_tl {##1} }
+              }
+            \tl_clear:N \l__docxlike_seq_pending_tl
+          }
+      }
+    \int_if_exist:cF { g__docxlike_seq_ \l__docxlike_seq_id_str _int }
+      {
+        \int_new:c { g__docxlike_seq_ \l__docxlike_seq_id_str _int }
+        \int_new:c { g__docxlike_seq_ \l__docxlike_seq_id_str _epoch_int }
+      }
+    \tl_if_empty:NF \l__docxlike_seq_level_tl
+      {
+        \int_compare:nNnF
+          { \int_use:c { g__docxlike_seq_ \l__docxlike_seq_id_str _epoch_int } }
+          =
+          { \int_use:c { g__docxlike_heading_epoch_ \l__docxlike_seq_level_tl _int } }
+          {
+            \int_gzero:c { g__docxlike_seq_ \l__docxlike_seq_id_str _int }
+            \int_gset_eq:cc { g__docxlike_seq_ \l__docxlike_seq_id_str _epoch_int }
+              { g__docxlike_heading_epoch_ \l__docxlike_seq_level_tl _int }
+          }
+      }
+    \bool_if:NF \l__docxlike_seq_current_bool
+      {
+        \tl_if_empty:NTF \l__docxlike_seq_reset_tl
+          { \int_gincr:c { g__docxlike_seq_ \l__docxlike_seq_id_str _int } }
+          {
+            \int_gset:cn { g__docxlike_seq_ \l__docxlike_seq_id_str _int }
+              { \l__docxlike_seq_reset_tl }
+          }
+      }
+    \bool_if:NTF \l__docxlike_seq_hidden_bool
+      { \tl_clear:N \l__docxlike_field_result_tl }
+      {
+        \tl_set:Ne \l__docxlike_field_result_tl
+          { \__docxlike_field_number:n { \int_use:c { g__docxlike_seq_ \l__docxlike_seq_id_str _int } } }
+      }
+  }
+\cs_generate_variant:Nn \str_case:nn { Vn }
+%    \end{macrocode}
+%
+% \emph{书签。}\cs{docxbookmark}\marg{名字}\marg{文字} 与 Word 的书签一样圈住一段文字。记进
+% \file{aux} 的是：文字、所在段落的编号（在编号的标题或编号段落里才有）、所在页的页码（按本节
+% 的页码格式与数值两份，输出那一页时才定）、在全文书签里的次序。所以交叉引用要编译两遍，
+% 与 \hologo{LaTeX} 的 \cs{label} 一样。
+%    \begin{macrocode}
+\int_new:N \g__docxlike_bookmark_order_int
+\prop_new:N \g__docxlike_bookmark_prop
+\tl_new:N \l__docxlike_bookmark_text_tl
+\tl_new:N \l__docxlike_bookmark_field_tl
+\NewDocumentCommand \docxbookmark { m +m }
+  {
+    \int_gincr:N \g__docxlike_bookmark_order_int
+    \tl_clear:N \l__docxlike_bookmark_text_tl
+    \__docxlike_bookmark_resolve:w #2 \docxfield { \q_nil }
+    \iow_shipout_e:Ne \@auxout
+      {
+        \exp_not:N \docxlike@bookmark
+          { \exp_not:n {#1} }
+          { \exp_not:N \exp_not:n { \exp_not:V \l__docxlike_bookmark_text_tl } }
+          { \exp_not:N \exp_not:n { \exp_not:V \l_docxlike_field_parnum_tl } }
+          { \exp_not:N \thepage }
+          { \exp_not:N \int_use:N \exp_not:N \c@page }
+          { \int_use:N \g__docxlike_bookmark_order_int }
+      }
+    \tl_use:N \l__docxlike_bookmark_text_tl
+  }
+%    \end{macrocode}
+%
+% 书签里的域先算好：把 \cs{docxfield}\marg{域代码} 一个个换成结果，排的与记下的都是这一份，
+% 域只算一次（\texttt{SEQ} 只加一次一），\texttt{REF} 取回的就是书签当时显示的文字，与 Word 一样。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_bookmark_resolve:w #1 \docxfield #2
+  {
+    \tl_put_right:Nn \l__docxlike_bookmark_text_tl {#1}
+    \quark_if_nil:nF {#2}
+      {
+        \docxlike_field_result:nN {#2} \l__docxlike_bookmark_field_tl
+        \tl_put_right:NV \l__docxlike_bookmark_text_tl \l__docxlike_bookmark_field_tl
+        \__docxlike_bookmark_resolve:w
+      }
+  }
+\cs_generate_variant:Nn \iow_shipout_e:Nn { Ne }
+\cs_new_protected:Npn \docxlike@bookmark #1#2#3#4#5#6
+  { \prop_gput:Nnn \g__docxlike_bookmark_prop {#1} { {#2} {#3} {#4} {#5} {#6} } }
+%    \end{macrocode}
+%
+% \emph{\texttt{REF} \meta{书签}。}默认是书签里的文字；\texttt{\textbackslash n}、\texttt{\textbackslash r}、
+% \texttt{\textbackslash w} 是书签所在段落的编号（三者只在嵌套的非正规编号里不同，这里一样处理）；
+% \texttt{\textbackslash p} 是书签在前还是在后，写 \texttt{above}、\texttt{below}（与编号开关同写时接在
+% 编号后面，空一格），这是英文界面的 Word 写的字；\texttt{\textbackslash h} 另加超链接，这里只出文字。
+% 书签不存在时照 Word 写 \texttt{Error! Reference source not found.}，并报警告。
+% \emph{\texttt{PAGEREF} \meta{书签}}是书签所在页的页码，给了 \texttt{\textbackslash *} 时按那个格式，
+% 否则是那一页的页码格式；\texttt{\textbackslash p} 同上。
+%    \begin{macrocode}
+\msg_new:nnnn { docxlike } { bookmark-undefined }
+  { The~bookmark~'#1'~is~not~defined~(yet). }
+  { Define~it~with~\token_to_str:N \docxbookmark,~and~compile~again. }
+\tl_new:N \l__docxlike_bookmark_tl
+\tl_new:N \l__docxlike_field_pos_tl
+\cs_new_protected:Npn \__docxlike_field_bookmark:nTF #1#2#3
+  {
+    \prop_get:NnNTF \g__docxlike_bookmark_prop {#1} \l__docxlike_bookmark_tl
+      {
+        \int_compare:nNnTF { \tl_item:Nn \l__docxlike_bookmark_tl { 5 } }
+          > { \g__docxlike_bookmark_order_int }
+          { \tl_set:Nn \l__docxlike_field_pos_tl { below } }
+          { \tl_set:Nn \l__docxlike_field_pos_tl { above } }
+        #2
+      }
+      {
+        \msg_warning:nnn { docxlike } { bookmark-undefined } {#1}
+        \tl_set:Nn \l__docxlike_field_result_tl { Error!~Reference~source~not~found. }
+        #3
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_field_bookmark:nTF { V }
+\cs_new_protected:Npn \__docxlike_field_ref:
+  {
+    \__docxlike_field_bookmark:VTF \l__docxlike_field_arg_tl
+      {
+        \bool_set_false:N \l_tmpa_bool
+        \clist_map_inline:Nn \l__docxlike_field_flags_clist
+          {
+            \str_case:nn {##1}
+              { { n } { \bool_set_true:N \l_tmpa_bool } { r } { \bool_set_true:N \l_tmpa_bool } { w } { \bool_set_true:N \l_tmpa_bool } }
+          }
+        \bool_if:NTF \l_tmpa_bool
+          { \tl_set:Ne \l__docxlike_field_result_tl { \tl_item:Nn \l__docxlike_bookmark_tl { 2 } } }
+          { \tl_set:Ne \l__docxlike_field_result_tl { \tl_item:Nn \l__docxlike_bookmark_tl { 1 } } }
+        \clist_if_in:NeT \l__docxlike_field_flags_clist { \tl_to_str:n { p } }
+          {
+            \bool_if:NTF \l_tmpa_bool
+              { \tl_put_right:Ne \l__docxlike_field_result_tl { \c_space_tl \l__docxlike_field_pos_tl } }
+              { \tl_set_eq:NN \l__docxlike_field_result_tl \l__docxlike_field_pos_tl }
+          }
+      }
+      { }
+  }
+\cs_new_protected:Npn \__docxlike_field_pageref:
+  {
+    \__docxlike_field_bookmark:VTF \l__docxlike_field_arg_tl
+      {
+        \clist_if_in:NeTF \l__docxlike_field_flags_clist { \tl_to_str:n { p } }
+          { \tl_set_eq:NN \l__docxlike_field_result_tl \l__docxlike_field_pos_tl }
+          {
+            \tl_if_empty:NTF \l__docxlike_field_numfmt_tl
+              { \tl_set:Ne \l__docxlike_field_result_tl { \tl_item:Nn \l__docxlike_bookmark_tl { 3 } } }
+              {
+                \tl_set:Ne \l__docxlike_field_result_tl
+                  { \__docxlike_field_number:n { \tl_item:Nn \l__docxlike_bookmark_tl { 4 } } }
+              }
+          }
+      }
+      { }
+  }
+%    \end{macrocode}
+%
+%
+%    \begin{macrocode}
+%</docxlike-heading>
+%    \end{macrocode}
+%
+% \Finale

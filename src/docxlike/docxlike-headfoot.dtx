@@ -1,0 +1,1722 @@
+% \iffalse meta-comment
+%
+% docxlike-headfoot.dtx 是 Word 的页眉页脚、节与域
+%
+% \fi
+%
+% \section{页眉页脚、节与域}
+%
+% \changes{v0.1.0}{2026/09/24}{照 Word 的模型排页眉页脚：每节首页、奇数页、偶数页三份，
+%   没给就沿用前一节；页眉顶在页眉距、页脚底在页脚距；页码格式、域、段落边框、制表位}
+%
+% Word 的页眉页脚挂在节上。每节最多三份页眉、三份页脚：首页、偶数页、其余页。首页那份
+% 只在本节开了“首页不同”时用，偶数页那份只在全文开了“奇偶页不同”时用。
+% 某一份本节没给，就用前一节的同一份，一直往前找，这就是 Word 的“链接到前一节”。
+% 这些规则与下面的数都是在 Word 里量的，量法与原始数据在 \file{test/headfoot}。
+%
+% 键名照 Word 的界面：“首页不同”“奇偶页不同”在页面设置的版式页上，是
+% \option{page-setup}/\option{layout} 里的 \option{different-first-page} 与
+% \option{different-odd-and-even}；页码格式是 \option{page-number-format}。编号格式在界面上
+% 只有样例没有名字，取值用 docx 里 \texttt{w:fmt} 的名字改成小写加连字符（\texttt{upper-roman}、
+% \texttt{chinese-counting}）。内部存储用 docx 的名字，两种写法一一对应。域代码里的编号开关
+% 属于域代码，照 Word 原样写（\verb|\* Roman|）。
+%
+% ^^A ======================================================================
+% ^^A Module docxlike-headfoot: 页眉页脚、节与域
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*docxlike-headfoot>
+%    \end{macrocode}
+%
+% \subsection{编号格式}
+%
+% \cs{docxlike\_number\_format:nn}\marg{格式}\marg{整数表达式} 把一个数按 Word 的编号格式
+% 写出来，可完全展开：\cs{thepage} 要写进目录，得在 \cs{write} 里展开成字。\meta{格式}
+% 收 docx 的 \texttt{w:fmt} 取值，也收域开关 \texttt{\textbackslash*} 后面那个词
+% （\texttt{roman}、\texttt{CHINESENUM3} 之类），两套名字指向同一种写法的归到一处。
+% 结果逐项对过 Word 的输出（\file{test/headfoot/fmt.txt} 与 \file{switches.txt}）。
+%
+% 没实现的格式按阿拉伯数字写，并且只警告一次。
+%    \begin{macrocode}
+\msg_new:nnnn { docxlike } { number-format-unknown }
+  { The~number~format~'#1'~is~not~implemented;~using~decimal. }
+  { docxlike~knows~the~docx~names~(decimal,~upperRoman,~chineseCounting,~...)~and~the~field~switch~names~(roman,~CHINESENUM3,~...). }
+\prop_const_from_keyval:Nn \c__docxlike_number_alias_prop
+  {
+    Arabic = decimal , arabic = decimal , ARABIC = decimal ,
+    roman = lowerRoman , Roman = upperRoman , ROMAN = upperRoman ,
+    alphabetic = lowerLetter , ALPHABETIC = upperLetter ,
+    ArabicDash = numberInDash ,
+    CardText = cardinalText , OrdText = ordinalText , Ordinal = ordinal ,
+    Hex = hex ,
+    CHINESENUM1 = chineseCounting , DBNUM1 = chineseCounting , KANJINUM1 = chineseCounting ,
+    CHINESENUM2 = chineseLegalSimplified , DBNUM2 = chineseLegalSimplified ,
+    KANJINUM2 = chineseLegalSimplified ,
+    CHINESENUM3 = chineseCountingThousand , DBNUM3 = chineseCountingThousand ,
+    KANJINUM3 = chineseCountingThousand ,
+    DBNUM4 = x-digitsIdeograph ,
+    DBCHAR = decimalFullWidth ,
+    GB1 = decimalEnclosedFullstop , GB2 = decimalEnclosedParen ,
+    GB3 = decimalEnclosedCircleChinese , GB4 = x-ideographParen ,
+    ZODIAC1 = ideographTraditional , ZODIAC2 = ideographZodiac ,
+    ZODIAC3 = ideographZodiacTraditional ,
+    CIRCLENUM = decimalEnclosedCircle ,
+    taiwaneseCounting = chineseCounting , taiwaneseDigital = x-digitsIdeograph ,
+    chineseLegalTraditional = ideographLegalTraditional ,
+  }
+\cs_new:Npn \docxlike_number_format:nn #1#2
+  {
+    \exp_args:Nee \__docxlike_number:nn
+      { \prop_item:Nn \c__docxlike_number_alias_prop {#1} }
+      { \int_eval:n {#2} }
+      {#1}
+  }
+\cs_generate_variant:Nn \docxlike_number_format:nn { V }
+\cs_new:Npn \__docxlike_number:nn #1#2#3
+  {
+    \tl_if_empty:nTF {#1}
+      { \__docxlike_number_case:nnn {#3} {#2} {#3} }
+      { \__docxlike_number_case:nnn {#1} {#2} {#3} }
+  }
+\cs_new:Npn \__docxlike_number_case:nnn #1#2#3
+  {
+    \str_case:nnF {#1}
+      {
+        { decimal } {#2}
+        { decimalZero } { \int_compare:nNnT {#2} < { 10 } { 0 } #2 }
+        { upperRoman } { \__docxlike_number_nonzero:nn {#2} { \int_to_Roman:n {#2} } }
+        { lowerRoman } { \__docxlike_number_nonzero:nn {#2} { \int_to_roman:n {#2} } }
+        { upperLetter } { \__docxlike_number_letter:nn {#2} { \int_to_Alph:n } }
+        { lowerLetter } { \__docxlike_number_letter:nn {#2} { \int_to_alph:n } }
+        { numberInDash } { - ~ #2 ~ - }
+        { ordinal } { #2 \__docxlike_number_suffix:n {#2} }
+        { cardinalText } { \__docxlike_number_words:n {#2} }
+        { ordinalText } { \__docxlike_number_ordwords:n {#2} }
+        { hex } { \int_to_Hex:n {#2} }
+        { none } { }
+        { decimalFullWidth }
+          { \__docxlike_number_digits:nn {#2} { {０} {１} {２} {３} {４} {５} {６} {７} {８} {９} } }
+        { x-digitsIdeograph }
+          {
+            \int_compare:nNnTF {#2} > { 9999 }
+              { \__docxlike_number_error:n {#3} }
+              { \__docxlike_number_digits:nn {#2} { {〇} {一} {二} {三} {四} {五} {六} {七} {八} {九} } }
+          }
+        { koreanDigital }
+          { \__docxlike_number_digits:nn {#2} { {영} {일} {이} {삼} {사} {오} {육} {칠} {팔} {구} } }
+        { chineseCounting }
+          {
+            \int_compare:nNnTF {#2} < { 100 }
+              {
+                \int_compare:nNnTF {#2} = { 0 } { ○ }
+                  { \__docxlike_number_cjk:nn { thousand } {#2} }
+              }
+              {
+                \__docxlike_number_digits:nn {#2}
+                  { {○} {一} {二} {三} {四} {五} {六} {七} {八} {九} }
+              }
+          }
+        { chineseCountingThousand } { \__docxlike_number_cjk:nn { thousand } {#2} }
+        { chineseLegalSimplified } { \__docxlike_number_cjk:nn { legal-s } {#2} }
+        { ideographLegalTraditional } { \__docxlike_number_cjk:nn { legal-t } {#2} }
+        { japaneseCounting } { \__docxlike_number_cjk:nn { japanese } {#2} }
+        { ideographTraditional }
+          {
+            \__docxlike_number_pick:nnn {#2} { 10 }
+              { {甲} {乙} {丙} {丁} {戊} {己} {庚} {辛} {壬} {癸} }
+          }
+        { ideographZodiac }
+          {
+            \__docxlike_number_pick:nnn {#2} { 12 }
+              { {子} {丑} {寅} {卯} {辰} {巳} {午} {未} {申} {酉} {戌} {亥} }
+          }
+        { ideographZodiacTraditional }
+          {
+            \int_compare:nNnTF {#2} < { 1 } {#2}
+              {
+                \tl_item:nn { {甲} {乙} {丙} {丁} {戊} {己} {庚} {辛} {壬} {癸} }
+                  { \int_mod:nn { #2 - 1 } { 10 } + 1 }
+                \tl_item:nn { {子} {丑} {寅} {卯} {辰} {巳} {午} {未} {申} {酉} {戌} {亥} }
+                  { \int_mod:nn { #2 - 1 } { 12 } + 1 }
+              }
+          }
+        { decimalEnclosedCircle }
+          {
+            \__docxlike_number_pick:nnn {#2} { 20 }
+              {
+                {①} {②} {③} {④} {⑤} {⑥} {⑦} {⑧} {⑨} {⑩}
+                {⑪} {⑫} {⑬} {⑭} {⑮} {⑯} {⑰} {⑱} {⑲} {⑳}
+              }
+          }
+        { decimalEnclosedCircleChinese }
+          {
+            \__docxlike_number_pick:nnn {#2} { 10 }
+              { {①} {②} {③} {④} {⑤} {⑥} {⑦} {⑧} {⑨} {⑩} }
+          }
+        { decimalEnclosedFullstop }
+          {
+            \__docxlike_number_pick:nnn {#2} { 20 }
+              {
+                {⒈} {⒉} {⒊} {⒋} {⒌} {⒍} {⒎} {⒏} {⒐} {⒑}
+                {⒒} {⒓} {⒔} {⒕} {⒖} {⒗} {⒘} {⒙} {⒚} {⒛}
+              }
+          }
+        { decimalEnclosedParen }
+          {
+            \__docxlike_number_pick:nnn {#2} { 20 }
+              {
+                {⑴} {⑵} {⑶} {⑷} {⑸} {⑹} {⑺} {⑻} {⑼} {⑽}
+                {⑾} {⑿} {⒀} {⒁} {⒂} {⒃} {⒄} {⒅} {⒆} {⒇}
+              }
+          }
+        { x-ideographParen }
+          {
+            \__docxlike_number_pick:nnn {#2} { 10 }
+              { {㈠} {㈡} {㈢} {㈣} {㈤} {㈥} {㈦} {㈧} {㈨} {㈩} }
+          }
+        { ideographEnclosedCircle }
+          {
+            \__docxlike_number_pick:nnn {#2} { 10 }
+              { {㊀} {㊁} {㊂} {㊃} {㊄} {㊅} {㊆} {㊇} {㊈} {㊉} }
+          }
+      }
+      {
+        \msg_expandable_error:nnn { docxlike } { number-format-unknown } {#3}
+        #2
+      }
+  }
+%    \end{macrocode}
+%
+% 几个小件。罗马数字与字母写 0 时 Word 印一个空格。字母过了 780、\texttt{DBNUM4} 过了四位，
+% Word 印一句出错的话，这里照印英文那一句，同时报错。
+% \cs{\_\_docxlike\_number\_pick:nnn} 在 1 到上限之间取表里的字，超出印阿拉伯数字，
+% 圈码、天干地支都这样。字母编号重复同一个字母：27 是 aa，105 是 aaaaa。逐位写的那几种
+% （全角数字、韩文、\texttt{chineseCounting} 过百）拿数字的十进制串一位一位换。
+%    \begin{macrocode}
+\cs_new:Npn \__docxlike_number_nonzero:nn #1#2
+  { \int_compare:nNnTF {#1} = { 0 } { \c_space_tl } {#2} }
+\msg_new:nnn { docxlike } { number-out-of-range }
+  { A~number~cannot~be~written~in~the~format~'#1'. }
+\cs_new:Npn \__docxlike_number_error:n #1
+  {
+    \msg_expandable_error:nnn { docxlike } { number-out-of-range } {#1}
+    Error!~Number~cannot~be~represented~in~specified~format.
+  }
+\cs_new:Npn \__docxlike_number_pick:nnn #1#2#3
+  {
+    \bool_lazy_and:nnTF
+      { \int_compare_p:nNn {#1} > { 0 } }
+      { \int_compare_p:nNn {#1} < { #2 + 1 } }
+      { \tl_item:nn {#3} {#1} }
+      {#1}
+  }
+\cs_new:Npn \__docxlike_number_letter:nn #1#2
+  {
+    \int_compare:nNnTF {#1} > { 780 }
+      { \__docxlike_number_error:n { letter } }
+      { \__docxlike_number_nonzero:nn {#1} { \__docxlike_number_letter_aux:nn {#1} {#2} } }
+  }
+\cs_new:Npn \__docxlike_number_letter_aux:nn #1#2
+  {
+    \int_compare:nNnT {#1} > { 0 }
+      {
+        \prg_replicate:nn { \int_div_truncate:nn { #1 - 1 } { 26 } + 1 }
+          { #2 { \int_mod:nn { #1 - 1 } { 26 } + 1 } }
+      }
+  }
+\cs_new:Npn \__docxlike_number_digits:nn #1#2
+  { \exp_args:Ne \__docxlike_number_digits_aux:nn { \int_eval:n {#1} } {#2} }
+\cs_new:Npn \__docxlike_number_digits_aux:nn #1#2
+  { \str_map_tokens:nn {#1} { \__docxlike_number_digit:nn {#2} } }
+\cs_new:Npn \__docxlike_number_digit:nn #1#2 { \tl_item:nn {#1} { #2 + 1 } }
+%    \end{macrocode}
+%
+% \emph{汉字读法。} 四位一组，组内“千百十”，组间“万、亿”。零的写法量出来是这样：
+% 某一位非零、它上面紧挨的那一位是零、再往上还有非零的位，就在它前面补一个零，
+% 连续几个零只补一个（一千〇一十、一百〇五）；一组比一千小而上一组有数时，组前补一个零
+% （二万〇三）。“一十”只在整个数落在 10 到 19 时省成“十”，百位以上后面的十照写
+% “一十”（一百一十）。大写那两种从不省“壹”（壹拾）。日文的写法十、百、千前一律不写
+% 一，也不写零（百五、千十）。
+%    \begin{macrocode}
+\prop_const_from_keyval:Nn \c__docxlike_number_cjk_prop
+  {
+    thousand-digits = { {〇} {一} {二} {三} {四} {五} {六} {七} {八} {九} } ,
+    thousand-units = { {} {十} {百} {千} } ,
+    thousand-groups = { {} {万} {亿} } ,
+    thousand-zero = 〇 ,
+    legal-s-digits = { {零} {壹} {贰} {叁} {肆} {伍} {陆} {柒} {捌} {玖} } ,
+    legal-s-units = { {} {拾} {佰} {仟} } ,
+    legal-s-groups = { {} {萬} {億} } ,
+    legal-s-zero = 零 ,
+    legal-t-digits = { {零} {壹} {貳} {參} {肆} {伍} {陸} {柒} {捌} {玖} } ,
+    legal-t-units = { {} {拾} {佰} {仟} } ,
+    legal-t-groups = { {} {萬} {億} } ,
+    legal-t-zero = 零 ,
+    japanese-digits = { {〇} {一} {二} {三} {四} {五} {六} {七} {八} {九} } ,
+    japanese-units = { {} {十} {百} {千} } ,
+    japanese-groups = { {} {万} {億} } ,
+    japanese-zero = ,
+  }
+\cs_new:Npn \__docxlike_number_cjk_get:nn #1#2
+  { \prop_item:Nn \c__docxlike_number_cjk_prop { #1 - #2 } }
+\cs_new:Npn \__docxlike_number_cjk:nn #1#2
+  {
+    \int_compare:nNnTF {#2} = { 0 }
+      { \tl_item:en { \__docxlike_number_cjk_get:nn {#1} { digits } } { 1 } }
+      {
+        \__docxlike_number_cjk_groups:neee {#1}
+          { \int_div_truncate:nn {#2} { 100000000 } }
+          { \int_mod:nn { \int_div_truncate:nn {#2} { 10000 } } { 10000 } }
+          { \int_mod:nn {#2} { 10000 } }
+      }
+  }
+\cs_generate_variant:Nn \tl_item:nn { e }
+\cs_new:Npn \__docxlike_number_cjk_groups:nnnn #1#2#3#4
+  {
+    \int_compare:nNnT {#2} > { 0 }
+      {
+        \__docxlike_number_cjk_group:nnn {#1} {#2} { 1 }
+        \tl_item:en { \__docxlike_number_cjk_get:nn {#1} { groups } } { 3 }
+      }
+    \int_compare:nNnT {#3} > { 0 }
+      {
+        \bool_lazy_and:nnT
+          { \int_compare_p:nNn {#2} > { 0 } } { \int_compare_p:nNn {#3} < { 1000 } }
+          { \__docxlike_number_cjk_get:nn {#1} { zero } }
+        \__docxlike_number_cjk_group:nnn {#1} {#3}
+          { \int_compare:nNnTF {#2} > { 0 } { 0 } { 1 } }
+        \tl_item:en { \__docxlike_number_cjk_get:nn {#1} { groups } } { 2 }
+      }
+    \int_compare:nNnT {#4} > { 0 }
+      {
+        \bool_lazy_and:nnT
+          { \int_compare_p:nNn { #2 + #3 } > { 0 } }
+          {
+            \bool_lazy_or_p:nn
+              { \int_compare_p:nNn {#4} < { 1000 } }
+              { \int_compare_p:nNn {#3} = { 0 } }
+          }
+          { \__docxlike_number_cjk_get:nn {#1} { zero } }
+        \__docxlike_number_cjk_group:nnn {#1} {#4}
+          { \int_compare:nNnTF { #2 + #3 } > { 0 } { 0 } { 1 } }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_number_cjk_groups:nnnn { neee }
+%    \end{macrocode}
+%
+% 一组四位，从千位到个位逐位写。\meta{打头}为 1 表示这一组是整个数的最前面一组，
+% 10 到 19 省“一”只在这种时候。
+%    \begin{macrocode}
+\cs_new:Npn \__docxlike_number_cjk_group:nnn #1#2#3
+  {
+    \__docxlike_number_cjk_pos:nnnn {#1} {#2} { 3 } {#3}
+    \__docxlike_number_cjk_pos:nnnn {#1} {#2} { 2 } {#3}
+    \__docxlike_number_cjk_pos:nnnn {#1} {#2} { 1 } {#3}
+    \__docxlike_number_cjk_pos:nnnn {#1} {#2} { 0 } {#3}
+  }
+\cs_new:Npn \__docxlike_number_pow:n #1
+  { \int_case:nn {#1} { { 0 } { 1 } { 1 } { 10 } { 2 } { 100 } { 3 } { 1000 } { 4 } { 10000 } } }
+\cs_new:Npn \__docxlike_number_cjk_pos:nnnn #1#2#3#4
+  {
+    \exp_args:Nnee \__docxlike_number_cjk_pos_aux:nnnnn {#1}
+      { \int_mod:nn { \int_div_truncate:nn {#2} { \__docxlike_number_pow:n {#3} } } { 10 } }
+      { \int_div_truncate:nn {#2} { \__docxlike_number_pow:n { #3 + 1 } } }
+      {#3} {#4}
+  }
+%    \end{macrocode}
+%
+% \cs{\_\_docxlike\_number\_cjk\_pos\_aux:nnnnn}\marg{写法}\marg{本位数字}\marg{上面各位合成的数}
+% \marg{位}\marg{打头}。补零的条件是上面有数、而紧挨的那一位是零。
+%    \begin{macrocode}
+\cs_new:Npn \__docxlike_number_cjk_pos_aux:nnnnn #1#2#3#4#5
+  {
+    \int_compare:nNnF {#2} = { 0 }
+      {
+        \bool_lazy_and:nnT
+          { \int_compare_p:nNn {#3} > { 0 } }
+          { \int_compare_p:nNn { \int_mod:nn {#3} { 10 } } = { 0 } }
+          { \__docxlike_number_cjk_get:nn {#1} { zero } }
+        \bool_if:nF
+          {
+            \int_compare_p:nNn {#2} = { 1 }
+            && \int_compare_p:nNn {#4} > { 0 }
+            &&
+              (
+                \str_if_eq_p:nn {#1} { japanese }
+                ||
+                  (
+                    \int_compare_p:nNn {#4} = { 1 }
+                    && \int_compare_p:nNn {#3} = { 0 }
+                    && \int_compare_p:nNn {#5} = { 1 }
+                    && \str_if_eq_p:nn {#1} { thousand }
+                  )
+              )
+          }
+          { \tl_item:en { \__docxlike_number_cjk_get:nn {#1} { digits } } { #2 + 1 } }
+        \tl_item:en { \__docxlike_number_cjk_get:nn {#1} { units } } { #4 + 1 }
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{英文。} 序数后缀看末两位：11 到 13 一律 th，其余看末位。基数词不加 and，
+% 百万以下（Word 自己的上限是 999999）。
+%    \begin{macrocode}
+\cs_new:Npn \__docxlike_number_suffix:n #1
+  {
+    \bool_lazy_and:nnTF
+      { \int_compare_p:nNn { \int_mod:nn {#1} { 100 } } > { 10 } }
+      { \int_compare_p:nNn { \int_mod:nn {#1} { 100 } } < { 14 } }
+      { th }
+      {
+        \int_case:nnF { \int_mod:nn {#1} { 10 } }
+          { { 1 } { st } { 2 } { nd } { 3 } { rd } }
+          { th }
+      }
+  }
+\tl_const:Nn \c__docxlike_number_ones_tl
+  {
+    {zero} {one} {two} {three} {four} {five} {six} {seven} {eight} {nine} {ten}
+    {eleven} {twelve} {thirteen} {fourteen} {fifteen} {sixteen} {seventeen}
+    {eighteen} {nineteen}
+  }
+\tl_const:Nn \c__docxlike_number_ordones_tl
+  {
+    {zeroth} {first} {second} {third} {fourth} {fifth} {sixth} {seventh} {eighth}
+    {ninth} {tenth} {eleventh} {twelfth} {thirteenth} {fourteenth} {fifteenth}
+    {sixteenth} {seventeenth} {eighteenth} {nineteenth}
+  }
+\tl_const:Nn \c__docxlike_number_tens_tl
+  { {} {} {twenty} {thirty} {forty} {fifty} {sixty} {seventy} {eighty} {ninety} }
+\tl_const:Nn \c__docxlike_number_ordtens_tl
+  {
+    {} {} {twentieth} {thirtieth} {fortieth} {fiftieth} {sixtieth} {seventieth}
+    {eightieth} {ninetieth}
+  }
+\cs_new:Npn \__docxlike_number_words:n #1
+  {
+    \int_compare:nNnTF {#1} = { 0 }
+      { zero }
+      {
+        \int_compare:nNnT {#1} > { 999 }
+          {
+            \__docxlike_number_words_iii:n { \int_div_truncate:nn {#1} { 1000 } } ~ thousand
+            \int_compare:nNnT { \int_mod:nn {#1} { 1000 } } > { 0 } { ~ }
+          }
+        \__docxlike_number_words_iii:n { \int_mod:nn {#1} { 1000 } }
+      }
+  }
+\cs_new:Npn \__docxlike_number_words_iii:n #1
+  {
+    \int_compare:nNnT {#1} > { 99 }
+      {
+        \tl_item:Nn \c__docxlike_number_ones_tl { \int_div_truncate:nn {#1} { 100 } + 1 } ~ hundred
+        \int_compare:nNnT { \int_mod:nn {#1} { 100 } } > { 0 } { ~ }
+      }
+    \__docxlike_number_words_ii:n { \int_mod:nn {#1} { 100 } }
+  }
+\cs_new:Npn \__docxlike_number_words_ii:n #1
+  {
+    \int_compare:nNnTF {#1} < { 20 }
+      { \int_compare:nNnT {#1} > { 0 } { \tl_item:Nn \c__docxlike_number_ones_tl { #1 + 1 } } }
+      {
+        \tl_item:Nn \c__docxlike_number_tens_tl { \int_div_truncate:nn {#1} { 10 } + 1 }
+        \int_compare:nNnT { \int_mod:nn {#1} { 10 } } > { 0 }
+          { - \tl_item:Nn \c__docxlike_number_ones_tl { \int_mod:nn {#1} { 10 } + 1 } }
+      }
+  }
+%    \end{macrocode}
+%
+% 序数词只改最后一个词：前面照基数词写，末尾那个词换成序数（hundred 换 hundredth，
+% twenty-seven 换 twenty-seventh）。
+%    \begin{macrocode}
+\cs_new:Npn \__docxlike_number_ordwords:n #1
+  {
+    \int_compare:nNnTF {#1} = { 0 }
+      { zeroth }
+      {
+        \int_compare:nNnTF { \int_mod:nn {#1} { 1000 } } = { 0 }
+          { \__docxlike_number_words_iii:n { \int_div_truncate:nn {#1} { 1000 } } ~ thousandth }
+          {
+            \int_compare:nNnT {#1} > { 999 }
+              {
+                \__docxlike_number_words_iii:n { \int_div_truncate:nn {#1} { 1000 } } ~ thousand ~
+              }
+            \__docxlike_number_ord_iii:n { \int_mod:nn {#1} { 1000 } }
+          }
+      }
+  }
+\cs_new:Npn \__docxlike_number_ord_iii:n #1
+  {
+    \int_compare:nNnTF { \int_mod:nn {#1} { 100 } } = { 0 }
+      {
+        \tl_item:Nn \c__docxlike_number_ones_tl { \int_div_truncate:nn {#1} { 100 } + 1 } ~ hundredth
+      }
+      {
+        \int_compare:nNnT {#1} > { 99 }
+          {
+            \tl_item:Nn \c__docxlike_number_ones_tl { \int_div_truncate:nn {#1} { 100 } + 1 } ~ hundred ~
+          }
+        \__docxlike_number_ord_ii:n { \int_mod:nn {#1} { 100 } }
+      }
+  }
+\cs_new:Npn \__docxlike_number_ord_ii:n #1
+  {
+    \int_compare:nNnTF {#1} < { 20 }
+      { \tl_item:Nn \c__docxlike_number_ordones_tl { #1 + 1 } }
+      {
+        \int_compare:nNnTF { \int_mod:nn {#1} { 10 } } = { 0 }
+          { \tl_item:Nn \c__docxlike_number_ordtens_tl { \int_div_truncate:nn {#1} { 10 } + 1 } }
+          {
+            \tl_item:Nn \c__docxlike_number_tens_tl { \int_div_truncate:nn {#1} { 10 } + 1 }
+            - \tl_item:Nn \c__docxlike_number_ordones_tl { \int_mod:nn {#1} { 10 } + 1 }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+%
+% \subsection{节}
+%
+% 节从 1 起编号。每节有自己的一张属性表，存的是 docx 里 \texttt{w:sectPr} 的名字：
+% \texttt{titlePg}（首页不同）、\texttt{pgNumType/fmt}（页码格式）、\texttt{pgNumType/start}（从几起编
+% 页码，空着就接着前一节编）。新的一节从前一节抄一份属性，只有起始页码不抄；从 docx
+% 转过来时每节的属性都写全，抄不抄都一样。
+%
+% 写的时候照 Word 的界面：“首页不同”是页面设置版式页上的
+% \option{page-setup}/\option{layout}/\option{different-first-page}，页码格式是“页码格式”
+% 对话框 \option{page-number-format}，里面 \option{number-format}（编号格式）与
+% \option{start-at}（起始页码）。
+%
+% \cs{docxsectionbreak}\oarg{分节符}\marg{键值表} 开新的一节，键值表写新一节的属性。
+% 分节符照 Word“分隔符”菜单：\texttt{next-page}（默认，另起一页）、\texttt{odd-page}、
+% \texttt{even-page}（另起奇数页、偶数页，缺一页就插一张空白页）、\texttt{continuous}
+% （不换页）。连续分节时，分节所在那一页还算前一节，下一页起才是新的一节，
+% 页眉页脚看的是页顶那一刻在哪一节。
+%
+% 一节自己的页边距、纸张、文档网格还没有做，在分节时写了报错。
+%
+% 新一节的第一段落在页顶时保留段前（减去前一段的段后），与 Word 一样，见
+% \file{docxlike-format.dtx} 的“页顶的段前”。docx 里分节符挂在一个段落上，本包的
+% \cs{docxsectionbreak} 不单独排出这一段，“前一段”就是分节符之前的那一段。所以要让章标题在
+% 新页页顶保住段前，写 \cs{newpage}\verb|\docxsectionbreak[continuous]{}|，与 Word 里
+% 分页后插连续分节符同构。
+%    \begin{macrocode}
+\int_new:N \g_docxlike_section_int
+\int_gset:Nn \g_docxlike_section_int { 1 }
+\prop_new:c { g__docxlike_section_1_prop }
+\bool_new:N \g_docxlike_headfoot_even_odd_bool
+\tl_new:N \l__docxlike_section_type_tl
+\msg_new:nnnn { docxlike } { section-page-setup }
+  { Page~setup~'#1'~cannot~be~set~per~section~yet. }
+  {
+    Only~'layout/different-first-page'~may~be~given~at~a~section~break.~
+    The~key~is~ignored.
+  }
+\keys_define:nn { docxlike / section }
+  {
+    page-setup .code:n =
+      { \__docxlike_keys_set:nn { docxlike / section / page-setup } {#1} } ,
+    page-number-format .code:n =
+      { \__docxlike_keys_set:nn { docxlike / page-number-format } {#1} } ,
+    unknown .code:n =
+      { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / section / page-setup }
+  {
+    layout .code:n =
+      { \__docxlike_keys_set:nn { docxlike / section / page-setup / layout } {#1} } ,
+    unknown .code:n =
+      { \msg_error:nnV { docxlike } { section-page-setup } \l_keys_key_str } ,
+  }
+\keys_define:nn { docxlike / section / page-setup / layout }
+  {
+    different-first-page .choices:nn = { true , false }
+      { \__docxlike_section_put:nV { titlePg } \l_keys_choice_tl } ,
+    different-first-page .default:n = true ,
+    unknown .code:n =
+      {
+        \msg_error:nne { docxlike } { section-page-setup }
+          { layout / \l_keys_key_str }
+      } ,
+  }
+\keys_define:nn { docxlike / page-setup / layout }
+  {
+    different-first-page .choices:nn = { true , false }
+      {
+        \bool_if:NF \l_docxlike_page_replay_bool
+          { \__docxlike_section_put:nV { titlePg } \l_keys_choice_tl }
+      } ,
+    different-first-page .default:n = true ,
+    different-odd-and-even .choices:nn = { true , false }
+      {
+        \bool_if:NF \l_docxlike_page_replay_bool
+          {
+            \str_if_eq:VnTF \l_keys_choice_tl { true }
+              { \bool_gset_true:N \g_docxlike_headfoot_even_odd_bool }
+              { \bool_gset_false:N \g_docxlike_headfoot_even_odd_bool }
+          }
+      } ,
+    different-odd-and-even .default:n = true ,
+  }
+\tl_new:N \l__docxlike_section_numfmt_tl
+\clist_const:Nn \c__docxlike_number_format_clist
+  {
+    decimal , decimalZero , upperRoman , lowerRoman , upperLetter , lowerLetter ,
+    numberInDash , ordinal , cardinalText , ordinalText , hex , none ,
+    decimalFullWidth , x-digitsIdeograph , koreanDigital , chineseCounting ,
+    chineseCountingThousand , chineseLegalSimplified , ideographLegalTraditional ,
+    japaneseCounting , ideographTraditional , ideographZodiac ,
+    ideographZodiacTraditional , decimalEnclosedCircle , decimalEnclosedCircleChinese ,
+    decimalEnclosedFullstop , decimalEnclosedParen , x-ideographParen ,
+    ideographEnclosedCircle
+  }
+\keys_define:nn { docxlike / page-number-format }
+  {
+    number-format .code:n =
+      {
+        \__docxlike_ooxml_value:nnVNTF { number-format } {#1} \c__docxlike_number_format_clist
+          \l__docxlike_section_numfmt_tl
+          { \__docxlike_section_put:nV { pgNumType/fmt } \l__docxlike_section_numfmt_tl }
+          { \__docxlike_bad_value:nnn { number-format } {#1} { } }
+      } ,
+    start-at .code:n = { \__docxlike_section_put:nn { pgNumType/start } {#1} } ,
+    unknown .code:n =
+      { \__docxlike_unknown_key: } ,
+  }
+\cs_new_protected:Npn \__docxlike_section_put:nn #1#2
+  {
+    \prop_gput:cnx { g__docxlike_section_ \int_use:N \g_docxlike_section_int _prop }
+      {#1} {#2}
+  }
+\cs_generate_variant:Nn \prop_gput:Nnn { cnx }
+\cs_generate_variant:Nn \__docxlike_section_put:nn { nV }
+\cs_generate_variant:Nn \msg_error:nnn { nne }
+\cs_new:Npn \__docxlike_section_get:nn #1#2
+  { \prop_item:cn { g__docxlike_section_ #1 _prop } {#2} }
+\keys_define:nn { docxlike }
+  {
+    page-number-format .code:n =
+      {
+        \__docxlike_keys_set:nn { docxlike / page-number-format } {#1}
+        \__docxlike_section_thepage:
+      } ,
+  }
+%    \end{macrocode}
+%
+% 开新节。先按分节符换页，再立新节号、抄属性、设页码。页码重设发生在换页之后，
+% 所以新节第一页的页码就是 \option{start-at}。奇偶页不同开着时，Word 保证相邻两页
+% 页码奇偶不同：新节重设的页码若与上一页同奇偶，中间插一张整页空白（不排页眉页脚），
+% \texttt{odd-page}、\texttt{even-page} 两种分节符同理。
+%    \begin{macrocode}
+\int_new:N \g__docxlike_section_page_int
+\int_new:N \g__docxlike_headfoot_page_section_int
+\int_gset:Nn \g__docxlike_headfoot_page_section_int { 1 }
+\cs_new_protected:Npn \docxlike_section_new:nn #1#2
+  {
+    \str_case:nnF {#1}
+      {
+        { continuous }
+          {
+            \int_set:Nn \l__docxlike_section_extra_int { 1 }
+            \__docxlike_section_open:n {#2}
+            \__docxlike_section_mark:
+          }
+        { next-page } { \__docxlike_section_page:nn { } {#2} }
+        { odd-page } { \__docxlike_section_page:nn { odd } {#2} }
+        { even-page } { \__docxlike_section_page:nn { even } {#2} }
+      }
+      {
+        \__docxlike_bad_value:nnn { section~break } {#1}
+          { next-page , continuous , even-page , odd-page }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_section_open:n #1
+  {
+    \__docxlike_section_close:
+    \int_gincr:N \g_docxlike_section_int
+    \prop_gset_eq:cc { g__docxlike_section_ \int_use:N \g_docxlike_section_int _prop }
+      { g__docxlike_section_ \int_eval:n { \g_docxlike_section_int - 1 } _prop }
+    \prop_gremove:cn { g__docxlike_section_ \int_use:N \g_docxlike_section_int _prop } { pgNumType/start }
+    \keys_set:nn { docxlike / section } {#1}
+    \__docxlike_section_thepage:
+    \bool_gset_true:N \g_docxlike_section_start_bool
+  }
+\cs_generate_variant:Nn \prop_gset_eq:NN { cc }
+\cs_new_protected:Npn \__docxlike_section_page:nn #1#2
+  {
+    \clearpage
+    \__docxlike_section_open:n {#2}
+    \int_set:Nn \l__docxlike_section_next_int
+      {
+        \tl_if_blank:eTF { \__docxlike_section_get:nn { \int_use:N \g_docxlike_section_int } { pgNumType/start } }
+          { \c@page }
+          { \__docxlike_section_get:nn { \int_use:N \g_docxlike_section_int } { pgNumType/start } }
+      }
+    \bool_if:NT \g__docxlike_headfoot_shipped_bool
+      {
+        \bool_lazy_or:nnT
+          {
+            \bool_lazy_and_p:nn { \g_docxlike_headfoot_even_odd_bool }
+              {
+                \int_compare_p:nNn
+                  { \int_mod:nn { \l__docxlike_section_next_int } { 2 } }
+                  = { \int_mod:nn { \c@page - 1 } { 2 } }
+              }
+          }
+          {
+            \bool_lazy_or_p:nn
+              {
+                \str_if_eq_p:nn {#1} { odd }
+                && \int_if_even_p:n { \l__docxlike_section_next_int }
+              }
+              {
+                \str_if_eq_p:nn {#1} { even }
+                && \int_if_odd_p:n { \l__docxlike_section_next_int }
+              }
+          }
+          {
+            \__docxlike_section_blank_page:
+            \int_gset:Nn \g__docxlike_section_first_abs_int { \ReadonlyShipoutCounter }
+          }
+      }
+    \int_gset_eq:NN \c@page \l__docxlike_section_next_int
+    \int_gset_eq:NN \g__docxlike_headfoot_page_section_int \g_docxlike_section_int
+    \__docxlike_headfoot_room_now:
+  }
+\int_new:N \l__docxlike_section_next_int
+\prg_generate_conditional_variant:Nnn \tl_if_blank:n { e } { T , F , TF }
+\bool_new:N \g__docxlike_headfoot_blank_bool
+\cs_new_protected:Npn \__docxlike_section_blank_page:
+  {
+    \bool_gset_true:N \g__docxlike_headfoot_blank_bool
+    \hbox:n { } \thispagestyle { empty } \clearpage
+  }
+%    \end{macrocode}
+%
+% 连续分节靠标记：分节处插一个标记，那一页照旧算前一节，排完这一页才换成新节。
+% 换页的分节不用标记，换页之后直接改“下一页属于哪一节”。
+%    \begin{macrocode}
+\NewMarkClass { docxlike / section }
+\cs_new_protected:Npn \__docxlike_section_mark:
+  { \InsertMark { docxlike / section } { \int_use:N \g_docxlike_section_int } }
+%    \end{macrocode}
+%
+% \cs{thepage} 跟着本节的页码格式走。只在开了新节、或给了页码格式时才改它，
+% 不开节的文档类的 \cs{thepage} 原样不动。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_section_thepage:
+  {
+    \tl_set:Ne \l__docxlike_section_fmt_tl
+      { \__docxlike_section_get:nn { \int_use:N \g_docxlike_section_int } { pgNumType/fmt } }
+    \tl_if_blank:VF \l__docxlike_section_fmt_tl
+      {
+        \cs_gset:Npe \thepage
+          { \exp_not:N \docxlike_number_format:nn { \l__docxlike_section_fmt_tl } { \exp_not:N \c@page } }
+      }
+  }
+\tl_new:N \l__docxlike_section_fmt_tl
+\NewDocumentCommand \docxsectionbreak { O { next-page } m }
+  { \docxlike_section_new:nn {#1} {#2} }
+%    \end{macrocode}
+%
+% 第一节的属性写在导言区（\verb|\docxlikesetup{ page-number-format = { ... } }| 与
+% \option{page-setup}/\option{layout}/\option{different-first-page}），页码格式当场换进
+% \cs{thepage}，起始页码到 \cs{begin}\marg{document} 时设。
+%    \begin{macrocode}
+\hook_gput_code:nnn { begindocument / end } { docxlike }
+  {
+    \tl_if_blank:eF { \__docxlike_section_get:nn { 1 } { pgNumType/start } }
+      { \int_gset:Nn \c@page { \__docxlike_section_get:nn { 1 } { pgNumType/start } } }
+  }
+%    \end{macrocode}
+%
+% \emph{每节多少页。} \texttt{SECTIONPAGES} 要知道本节一共几页，这个数上一遍编译记进
+% \file{aux}。每换一节、以及全文最后一页排完，把刚结束那一节的页数写下来。连续分节时
+% 分节所在那一页还没排出去，却属于前一节，要多算一页。
+%    \begin{macrocode}
+\bool_new:N \g__docxlike_headfoot_shipped_bool
+\int_new:N \g__docxlike_section_first_abs_int
+\int_new:N \l__docxlike_section_extra_int
+\cs_new_protected:Npn \__docxlike_section_close:
+  {
+    \iow_now:Ne \@auxout
+      {
+        \exp_not:N \docxlike@sectionpages
+          { \int_use:N \g_docxlike_section_int }
+          {
+            \int_eval:n
+              {
+                \ReadonlyShipoutCounter + \l__docxlike_section_extra_int
+                - \g__docxlike_section_first_abs_int
+              }
+          }
+      }
+    \int_gset:Nn \g__docxlike_section_first_abs_int
+      { \ReadonlyShipoutCounter + \l__docxlike_section_extra_int }
+  }
+\cs_new_protected:Npn \docxlike@sectionpages #1#2
+  { \prop_gput:Nnn \g__docxlike_section_pages_prop {#1} {#2} }
+\prop_new:N \g__docxlike_section_pages_prop
+\hook_gput_code:nnn { enddocument / afterlastpage } { docxlike }
+  { \__docxlike_section_close: }
+%    \end{macrocode}
+%
+% \subsection{页眉页脚的内容}
+%
+% \cs{docxheader}\oarg{类}\marg{内容} 与 \cs{docxfooter} 给当前这一节设一份页眉、
+% 页脚，\meta{类}照 Word 编辑页眉时标签上的字：不写是“页眉”，\texttt{first-page}
+% 是“首页页眉”，\texttt{even-page} 是“偶数页页眉”，\texttt{odd-page} 是“奇数页页眉”，与不写
+% 是同一份。内部照 docx 的 \texttt{w:type} 存成 \texttt{default}、\texttt{first}、\texttt{even}。\meta{内容}是若干段，空行或 \cs{par} 分段，每段按 Word 的 \texttt{Header}、
+% \texttt{Footer} 两个样式排；
+% 某一段要另加格式，写成 \cs{docxpar}\oarg{格式}\marg{文字}。
+%
+% 在文档中间设页眉页脚，是给当前这一节设。一节里没设过的那一类，排版时往前一节一节找，
+% 找到为止，都没有就是空的。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_headfoot_set:nnn #1#2#3
+  {
+    \str_case:nnF {#2}
+      {
+        { } { \__docxlike_headfoot_set:nnn {#1} { default } {#3} }
+        { odd-page } { \__docxlike_headfoot_set:nnn {#1} { default } {#3} }
+        { first-page } { \__docxlike_headfoot_set:nnn {#1} { first } {#3} }
+        { even-page } { \__docxlike_headfoot_set:nnn {#1} { even } {#3} }
+      }
+      { \__docxlike_bad_value:nnn { #1 } {#2} { first-page , even-page , odd-page } }
+  }
+\cs_new_protected:Npn \__docxlike_headfoot_set:nnn #1#2#3
+  {
+    \bool_gset_true:N \g__docxlike_headfoot_used_bool
+    \tl_gclear_new:c { g__docxlike_hf_ \int_use:N \g_docxlike_section_int _ #1 _ #2 _tl }
+    \tl_gset:cn { g__docxlike_hf_ \int_use:N \g_docxlike_section_int _ #1 _ #2 _tl } {#3}
+    \bool_if:NT \g__docxlike_page_in_document_bool { \__docxlike_headfoot_room_now: }
+  }
+\NewDocumentCommand \docxheader { O { } +m }
+  { \docxlike_headfoot_set:nnn { header } {#1} {#2} }
+\NewDocumentCommand \docxfooter { O { } +m }
+  { \docxlike_headfoot_set:nnn { footer } {#1} {#2} }
+%    \end{macrocode}
+%
+% 往前找。\cs{\_\_docxlike\_headfoot\_find:nnn}\marg{节}\marg{页眉或页脚}\marg{类} 把找到的
+% 内容放进 \cs{l\_\_docxlike\_headfoot\_content\_tl}。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_headfoot_content_tl
+\int_new:N \l__docxlike_headfoot_find_int
+\cs_new_protected:Npn \__docxlike_headfoot_find:nnn #1#2#3
+  {
+    \tl_clear:N \l__docxlike_headfoot_content_tl
+    \int_set:Nn \l__docxlike_headfoot_find_int {#1}
+    \bool_until_do:nn
+      {
+        \int_compare_p:nNn { \l__docxlike_headfoot_find_int } < { 1 }
+        || \tl_if_exist_p:c
+          { g__docxlike_hf_ \int_use:N \l__docxlike_headfoot_find_int _ #2 _ #3 _tl }
+      }
+      { \int_decr:N \l__docxlike_headfoot_find_int }
+    \int_compare:nNnT { \l__docxlike_headfoot_find_int } > { 0 }
+      {
+        \tl_set_eq:Nc \l__docxlike_headfoot_content_tl
+          { g__docxlike_hf_ \int_use:N \l__docxlike_headfoot_find_int _ #2 _ #3 _tl }
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{这一页用哪一份。} 节开了首页不同、这一页又是本节第一页，用首页那份；全文开了
+% 奇偶页不同、页码是偶数，用偶数页那份；其余用默认那份。奇偶看页码，不看物理页序，
+% 这是量出来的。
+%    \begin{macrocode}
+\int_new:N \g__docxlike_headfoot_last_section_int
+\tl_new:N \l__docxlike_headfoot_type_tl
+\cs_new_protected:Npn \__docxlike_headfoot_type:
+  {
+    \bool_lazy_and:nnTF
+      {
+        \str_if_eq_p:ee
+          {
+            \__docxlike_section_get:nn
+              { \int_use:N \g__docxlike_headfoot_page_section_int } { titlePg }
+          }
+          { true }
+      }
+      {
+        ! \int_compare_p:nNn
+          { \g__docxlike_headfoot_page_section_int } = { \g__docxlike_headfoot_last_section_int }
+      }
+      { \tl_set:Nn \l__docxlike_headfoot_type_tl { first } }
+      {
+        \bool_lazy_and:nnTF
+          { \g_docxlike_headfoot_even_odd_bool } { \int_if_even_p:n { \c@page } }
+          { \tl_set:Nn \l__docxlike_headfoot_type_tl { even } }
+          { \tl_set:Nn \l__docxlike_headfoot_type_tl { default } }
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{排一份。} 装进一只竖盒，宽是版心宽。每段交给 \cs{docxlike\_format\_par:nn}，
+% 行盒、对齐、段前段后都照目标来；盒底补一个零高的 \cs{kern}，末行的深算进盒高，
+% 盒子的顶与底就是 Word 里这份页眉的顶与底，段前段后都在里面。
+%
+% 这里排的段要照正文的规矩发撑杆（行盒高按目标算），所以不立“在页眉里”的标志。
+% 段落钩子会动格式模块的几个全局状态：行内代码收尾的标志、“下一段是几级标题”的记号、
+% 上一段的段后与行深、空段与公式段的标志。页眉页脚常在正文排到一半时排（换页时、
+% 预排下一页时），比如 \cs{chapter} 已经发出“下一段是标题 1”再换页，页眉里的段就会把
+% 这个记号用掉，章标题反倒不按标题排了。所以排之前把这些存下、清掉，排完放回去。
+% \cs{everypar} 也清掉，\cs{@afterheading} 挂在上面的那段不该在页眉里执行。
+%    \begin{macrocode}
+\box_new:N \l__docxlike_headfoot_box
+\seq_new:N \l__docxlike_headfoot_par_seq
+\bool_new:N \l__docxlike_headfoot_verb_bool
+\bool_new:N \l__docxlike_headfoot_in_page_bool
+\cs_new_protected:Npn \__docxlike_headfoot_build:nN #1#2
+  {
+    \__docxlike_headfoot_state_save:
+    \vbox_set:Nn \l__docxlike_headfoot_box
+      {
+        \everypar { }
+        \legacy_if_set_false:n { @nobreak }
+        \tl_set:Ne \l_docxlike_headfoot_target_tl
+          { \str_if_eq:nnTF {#1} { header } { Header } { Footer } }
+        \bool_set_true:N \l__docxlike_headfoot_in_page_bool
+        \dim_set_eq:NN \hsize \textwidth
+        \dim_set_eq:NN \linewidth \textwidth
+        \dim_zero:N \parskip
+        \dim_zero:N \parindent
+        \seq_set_split:NnV \l__docxlike_headfoot_par_seq { \par } #2
+        \seq_map_inline:Nn \l__docxlike_headfoot_par_seq
+          {
+            \tl_if_blank:nF {##1}
+              { \__docxlike_headfoot_par:Vn \l_docxlike_headfoot_target_tl {##1} }
+          }
+        \kern 0pt
+      }
+    \__docxlike_headfoot_state_restore:
+  }
+\cs_new_protected:Npn \__docxlike_headfoot_state_save:
+  {
+    \dim_set_eq:NN \l__docxlike_headfoot_depth_dim \g__docxlike_format_depth_dim
+    \int_set_eq:NN \l__docxlike_headfoot_attr_int \g__docxlike_format_blank_attr_int
+    \bool_set_eq:NN \l__docxlike_headfoot_verb_bool \g_docxlike_format_verb_exit_bool
+    \bool_set_eq:NN \l__docxlike_headfoot_blank_bool \g__docxlike_format_blank_para_bool
+    \bool_set_eq:NN \l__docxlike_headfoot_display_bool \g__docxlike_format_display_para_bool
+    \bool_set_eq:NN \l__docxlike_headfoot_cjk_bool \g__docxlike_format_boundary_cjk_bool
+    \bool_gset_false:N \g__docxlike_format_blank_para_bool
+    \bool_gset_false:N \g__docxlike_format_display_para_bool
+  }
+\cs_new_protected:Npn \__docxlike_headfoot_state_restore:
+  {
+    \dim_gset_eq:NN \g__docxlike_format_depth_dim \l__docxlike_headfoot_depth_dim
+    \int_gset_eq:NN \g__docxlike_format_blank_attr_int \l__docxlike_headfoot_attr_int
+    \bool_gset_eq:NN \g_docxlike_format_verb_exit_bool \l__docxlike_headfoot_verb_bool
+    \bool_gset_eq:NN \g__docxlike_format_blank_para_bool \l__docxlike_headfoot_blank_bool
+    \bool_gset_eq:NN \g__docxlike_format_display_para_bool \l__docxlike_headfoot_display_bool
+    \bool_gset_eq:NN \g__docxlike_format_boundary_cjk_bool \l__docxlike_headfoot_cjk_bool
+  }
+\dim_new:N \l__docxlike_headfoot_depth_dim
+\int_new:N \l__docxlike_headfoot_attr_int
+\bool_new:N \l__docxlike_headfoot_blank_bool
+\bool_new:N \l__docxlike_headfoot_display_bool
+\bool_new:N \l__docxlike_headfoot_cjk_bool
+\cs_generate_variant:Nn \seq_set_split:Nnn { NnV }
+\cs_new_protected:Npn \__docxlike_headfoot_par:nn #1#2
+  {
+    \tl_if_head_eq_meaning:nNTF {#2} \docxpar
+      {#2}
+      { \docxlike_format_par:nn {#1} {#2} }
+  }
+\cs_generate_variant:Nn \__docxlike_headfoot_par:nn { Vn }
+\NewDocumentCommand \docxpar { O { } +m }
+  {
+    \tl_if_blank:nTF {#1}
+      { \docxlike_format_par:Vn \l_docxlike_headfoot_target_tl {#2} }
+      { \docxlike_format_par:Vnn \l_docxlike_headfoot_target_tl {#1} {#2} }
+  }
+\tl_new:N \l_docxlike_headfoot_target_tl
+\cs_generate_variant:Nn \docxlike_format_par:nn { V }
+\cs_generate_variant:Nn \docxlike_format_par:nnn { V }
+\tl_set:Nn \l_docxlike_headfoot_target_tl { Normal }
+%    \end{macrocode}
+%
+% \emph{放到页上。} 页眉与页脚都从 \hologo{LaTeX} 的页眉槽里放：页眉槽的基线离纸顶
+% 1\,in 加 \cs{voffset}、\cs{topmargin}、\cs{headheight}，这几个数排页时都读得到，
+% 从这里往下挪多少都算得出来；页脚若放在页脚槽里，位置还跟着正文盒的高走，
+% \cs{enlargethispage} 一用就偏。两只盒都缩成零大小再放，不占页眉槽的地方。
+%
+% 页眉的顶落在页眉距（\cs{g\_docxlike\_page\_header\_edge\_dim}）处，页脚的底落在纸高减
+% 页脚距处。页面设置没算过（文档类自己设版面）时，页眉顶取 \hologo{LaTeX} 页眉槽的顶，
+% 页脚底取 \hologo{LaTeX} 页脚的基线。
+%
+% 页眉底超过上边距、页脚顶高过下边距时，正文让位，见下文“让位”。
+%    \begin{macrocode}
+\dim_new:N \l__docxlike_headfoot_ref_dim
+\dim_new:N \l__docxlike_headfoot_edge_dim
+\cs_new_protected:Npn \docxlike_headfoot_page:
+  {
+    \dim_compare:nNnF { \g__docxlike_headfoot_push_dim } = { 0pt }
+      { \dim_gadd:Nn \headsep { \g__docxlike_headfoot_push_dim } }
+    \__docxlike_headfoot_type:
+    \dim_set:Nn \l__docxlike_headfoot_ref_dim { 1in + \voffset + \topmargin + \headheight }
+    \__docxlike_headfoot_find:nnV { \g__docxlike_headfoot_page_section_int } { header }
+      \l__docxlike_headfoot_type_tl
+    \tl_if_empty:NF \l__docxlike_headfoot_content_tl
+      {
+        \__docxlike_headfoot_build:nN { header } \l__docxlike_headfoot_content_tl
+        \dim_set:Nn \l__docxlike_headfoot_edge_dim
+          {
+            \dim_compare:nNnTF { \g_docxlike_page_header_edge_dim } > { 0pt }
+              { \g_docxlike_page_header_edge_dim }
+              { 1in + \voffset + \topmargin }
+          }
+        \__docxlike_headfoot_put:n
+          {
+            \l__docxlike_headfoot_edge_dim + \box_ht:N \l__docxlike_headfoot_box
+            - \l__docxlike_headfoot_ref_dim
+          }
+      }
+    \__docxlike_headfoot_find:nnV { \g__docxlike_headfoot_page_section_int } { footer }
+      \l__docxlike_headfoot_type_tl
+    \tl_if_empty:NF \l__docxlike_headfoot_content_tl
+      {
+        \__docxlike_headfoot_build:nN { footer } \l__docxlike_headfoot_content_tl
+        \__docxlike_headfoot_put:n
+          {
+            \dim_compare:nNnTF { \g_docxlike_page_footer_edge_dim } > { 0pt }
+              { \paperheight - \g_docxlike_page_footer_edge_dim }
+              { \l__docxlike_headfoot_ref_dim + \headsep + \textheight + \footskip }
+            - \l__docxlike_headfoot_ref_dim
+          }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_headfoot_find:nnn { nnV }
+\cs_new_protected:Npn \__docxlike_headfoot_put:n #1
+  {
+    \hbox_set:Nn \l__docxlike_headfoot_box
+      { \box_move_down:nn { \dim_eval:n {#1} } { \box_use_drop:N \l__docxlike_headfoot_box } }
+    \box_set_ht:Nn \l__docxlike_headfoot_box { 0pt }
+    \box_set_dp:Nn \l__docxlike_headfoot_box { 0pt }
+    \box_set_wd:Nn \l__docxlike_headfoot_box { 0pt }
+    \box_use_drop:N \l__docxlike_headfoot_box
+  }
+%    \end{macrocode}
+%
+% \emph{让位。} 页眉底超过上边距时，Word 把正文整体往下推，推到正文第一行的行盒顶
+% 贴着页眉底；页脚顶高过下边距时，正文在页脚顶之上就换页。都是按页算的：哪一页的
+% 页眉页脚高，哪一页让。边距写成负数（Word 的“固定”）时不让，本包的页面设置不收负边距，
+% 所以总是让。
+%
+% \hologo{TeX} 攒一页的时候就要知道这一页的版心多高，所以在上一页排出去之后，先把下一页
+% 要用的页眉页脚排一遍量出高度，把 \cs{textheight} 减掉两头超出的量（\hologo{LaTeX} 排完
+% 一页就拿 \cs{textheight} 重设下一页的栏高）；排到那一页时，页眉槽里把 \cs{headsep}
+% 加上页眉超出的量，正文就往下挪了，排出去以后再减回来。预排时页码取下一页的，页眉里的
+% \texttt{STYLEREF} 取的还是上一页的标记，只影响量高度，实际排出来的照当页。换节会换
+% 页眉页脚，开节之后再量一次。第一页在 \cs{begin}\marg{document} 时量。
+%
+% 只在用了 \cs{docxheader} 或 \cs{docxfooter} 的文档里做，文档类自己排页眉的
+% 不受影响。\cs{headsep} 也只在真推了正文时才动：对它做一次全局赋值，哪怕加减的是零，
+% 也会把文档类在组里局部设的值变成全局的。
+%    \begin{macrocode}
+\bool_new:N \g__docxlike_headfoot_used_bool
+\dim_new:N \g__docxlike_headfoot_push_dim
+\dim_new:N \g__docxlike_headfoot_next_push_dim
+\dim_new:N \g__docxlike_headfoot_cut_dim
+\dim_new:N \l__docxlike_headfoot_over_dim
+\cs_new_protected:Npn \__docxlike_headfoot_room:n #1
+  {
+    \bool_if:NT \g__docxlike_headfoot_used_bool
+      {
+        \group_begin:
+          \int_gadd:Nn \c@page {#1}
+          \__docxlike_headfoot_type:
+          \dim_gzero:N \g__docxlike_headfoot_next_push_dim
+          \dim_zero:N \l__docxlike_headfoot_over_dim
+          \__docxlike_headfoot_find:nnV { \g__docxlike_headfoot_page_section_int } { header }
+            \l__docxlike_headfoot_type_tl
+          \tl_if_empty:NF \l__docxlike_headfoot_content_tl
+            {
+              \__docxlike_headfoot_build:nN { header } \l__docxlike_headfoot_content_tl
+              \dim_gset:Nn \g__docxlike_headfoot_next_push_dim
+                {
+                  \dim_max:nn { 0pt }
+                    {
+                      \g_docxlike_page_header_edge_dim + \box_ht:N \l__docxlike_headfoot_box
+                      - \g_docxlike_page_margin_top_dim
+                    }
+                }
+            }
+          \__docxlike_headfoot_find:nnV { \g__docxlike_headfoot_page_section_int } { footer }
+            \l__docxlike_headfoot_type_tl
+          \tl_if_empty:NF \l__docxlike_headfoot_content_tl
+            {
+              \__docxlike_headfoot_build:nN { footer } \l__docxlike_headfoot_content_tl
+              \dim_set:Nn \l__docxlike_headfoot_over_dim
+                {
+                  \dim_max:nn { 0pt }
+                    {
+                      \g_docxlike_page_footer_edge_dim + \box_ht:N \l__docxlike_headfoot_box
+                      - \g_docxlike_page_margin_bottom_dim
+                    }
+                }
+            }
+          \int_gsub:Nn \c@page {#1}
+          \dim_gadd:Nn \textheight
+            {
+              \g__docxlike_headfoot_cut_dim
+              - \g__docxlike_headfoot_next_push_dim - \l__docxlike_headfoot_over_dim
+            }
+          \dim_gset:Nn \g__docxlike_headfoot_cut_dim
+            { \g__docxlike_headfoot_next_push_dim + \l__docxlike_headfoot_over_dim }
+        \group_end:
+        \dim_gset_eq:NN \g__docxlike_headfoot_push_dim \g__docxlike_headfoot_next_push_dim
+      }
+  }
+\cs_new_protected:Npn \__docxlike_headfoot_room_now:
+  {
+    \bool_if:NT \g__docxlike_headfoot_used_bool
+      {
+        \__docxlike_headfoot_room:n { 0 }
+        \dim_compare:nNnT { \pagegoal } = { \maxdimen }
+          {
+            \dim_gset_eq:NN \@colht \textheight
+            \dim_gset_eq:NN \@colroom \textheight
+            \dim_gset_eq:NN \vsize \textheight
+          }
+      }
+  }
+\hook_gput_code:nnn { begindocument / end } { docxlike }
+  { \__docxlike_headfoot_room_now: }
+%    \end{macrocode}
+%
+% 页面样式 \texttt{docxlike}：页眉槽里放上面那一段，页脚槽空着。每页排出去之后记下
+% 这一页属于哪一节（连续分节看这一页上最后一个节标记），下一页判“是不是本节第一页”
+% 就拿它比。插进去的空白页不记，它不属于哪一节的第一页。
+%    \begin{macrocode}
+\cs_new_protected:Npn \ps@docxlike
+  {
+    \cs_set_eq:NN \@mkboth \@gobbletwo
+    \cs_set:Npn \@oddhead { \docxlike_headfoot_page: \hfil }
+    \cs_set_eq:NN \@evenhead \@oddhead
+    \cs_set:Npn \@oddfoot { }
+    \cs_set:Npn \@evenfoot { }
+  }
+\hook_gput_code:nnn { shipout / after } { docxlike }
+  {
+    \dim_compare:nNnF { \g__docxlike_headfoot_push_dim } = { 0pt }
+      {
+        \dim_gsub:Nn \headsep { \g__docxlike_headfoot_push_dim }
+        \dim_gzero:N \g__docxlike_headfoot_push_dim
+      }
+    \bool_gset_true:N \g__docxlike_headfoot_shipped_bool
+    \bool_if:NTF \g__docxlike_headfoot_blank_bool
+      { \bool_gset_false:N \g__docxlike_headfoot_blank_bool }
+      {
+        \int_gset_eq:NN \g__docxlike_headfoot_last_section_int
+          \g__docxlike_headfoot_page_section_int
+      }
+    \tl_if_blank:eF { \LastMark { docxlike / section } }
+      {
+        \int_gset:Nn \g__docxlike_headfoot_page_section_int
+          { \LastMark { docxlike / section } }
+      }
+      \__docxlike_headfoot_room:n { 1 }
+  }
+%    \end{macrocode}
+%
+% \subsection{样式标记}
+%
+% \texttt{STYLEREF} 取某个样式的段落文字。Word 的查法量出来是：本页第一个；本页没有，
+% 前面最后一个；前面也没有，往后第一个。\texttt{\textbackslash l} 开关改取本页最后一个。
+% 前两条正是 \hologo{LaTeX} 标记类的 \cs{FirstMark} 与 \cs{LastMark}，所以每个样式一个
+% 标记类，段落出现时插一个标记；往后找的那一条靠上一遍编译记在 \file{aux} 里的“全文第一个”。
+%
+% 标记类只能在导言区建。标题 1 到 9 预先建好；别的样式要被 \texttt{STYLEREF} 取，先在导言区
+% 写 \cs{docxstyle}\marg{样式名}。样式名里的空格与大小写不计；标题的几种写法（英文
+% heading 1、中文“标题 1”、繁体“標題 1”、日文“見出し 1”、韩文“제목 1”、德文
+% Überschrift 1、法文 Titre 1，以及只写数字）都归到同一个类。每段另记一份编号，
+% \texttt{\textbackslash n} 开关取它。
+%    \begin{macrocode}
+\str_new:N \l__docxlike_style_key_str
+\cs_new_protected:Npn \__docxlike_style_key:n #1
+  {
+    \str_set:Ne \l__docxlike_style_key_str { \str_foldcase:n {#1} }
+    \str_remove_all:Nn \l__docxlike_style_key_str { ~ }
+    \regex_replace_once:nnN
+      { \A (?: heading | 标题 | 標題 | 見出し | 제목 | überschrift | titre )? ([1-9]) \Z }
+      { heading\1 } \l__docxlike_style_key_str
+  }
+\cs_new_protected:Npn \docxlike_style_new:n #1
+  {
+    \__docxlike_style_key:n {#1}
+    \cs_if_exist:cF { c__docxlike_style_ \l__docxlike_style_key_str _bool }
+      {
+        \bool_const:cn { c__docxlike_style_ \l__docxlike_style_key_str _bool } { \c_true_bool }
+        \exp_args:Ne \NewMarkClass { docxlike / style / \l__docxlike_style_key_str }
+        \exp_args:Ne \NewMarkClass { docxlike / number / \l__docxlike_style_key_str }
+        \exp_args:Ne \NewMarkClass { docxlike / snumber / \l__docxlike_style_key_str }
+      }
+  }
+\int_step_inline:nnn { 1 } { 9 } { \docxlike_style_new:n { heading #1 } }
+\NewDocumentCommand \docxstyle { m } { \docxlike_style_new:n {#1} }
+\msg_new:nnnn { docxlike } { style-undeclared }
+  { The~style~'#1'~was~not~declared~with~\token_to_str:N \docxstyle. }
+  { Declare~it~in~the~preamble~so~that~STYLEREF~fields~can~find~it. }
+%    \end{macrocode}
+%
+% 插标记。\meta{编号}可以空着。全文第一个写进 \file{aux}，下一遍往后找时用。
+%    \begin{macrocode}
+\prop_new:N \g__docxlike_style_first_prop
+\prop_new:N \g__docxlike_style_seen_prop
+\cs_new_protected:Npn \docxlike_style_mark:nnn #1#2#3
+  { \docxlike_style_mark:nnnn {#1} {#2} {#2} {#3} }
+\cs_new_protected:Npn \docxlike_style_mark:nnnn #1#2#3#4
+  {
+    \__docxlike_style_key:n {#1}
+    \cs_if_exist:cTF { c__docxlike_style_ \l__docxlike_style_key_str _bool }
+      {
+        \exp_args:Ne \InsertMark { docxlike / style / \l__docxlike_style_key_str } {#4}
+        \exp_args:Ne \InsertMark { docxlike / number / \l__docxlike_style_key_str } {#2}
+        \exp_args:Ne \InsertMark { docxlike / snumber / \l__docxlike_style_key_str } {#3}
+        \prop_gput:Nen \g__docxlike_style_last_prop { \l__docxlike_style_key_str } {#4}
+        \prop_gput:Nen \g__docxlike_style_last_prop { \l__docxlike_style_key_str / number } {#2}
+        \prop_gput:Nen \g__docxlike_style_last_prop { \l__docxlike_style_key_str / snumber } {#3}
+        \prop_if_in:NVF \g__docxlike_style_seen_prop \l__docxlike_style_key_str
+          {
+            \prop_gput:NVn \g__docxlike_style_seen_prop \l__docxlike_style_key_str { }
+            \iow_now:Ne \@auxout
+              {
+                \exp_not:N \docxlike@firststyle { \l__docxlike_style_key_str }
+                  { \exp_not:n {#4} } { \exp_not:n {#2} }
+                \exp_not:N \docxlike@firstsnumber { \l__docxlike_style_key_str }
+                  { \exp_not:n {#3} }
+              }
+          }
+      }
+      { \msg_warning:nnn { docxlike } { style-undeclared } {#1} }
+  }
+\cs_generate_variant:Nn \prop_if_in:NnF { NV }
+\cs_generate_variant:Nn \prop_gput:Nnn { NV }
+\prop_new:N \g__docxlike_style_last_prop
+\cs_generate_variant:Nn \prop_gput:Nnn { Ne }
+\cs_new_protected:Npn \docxlike@firstsnumber #1#2
+  { \prop_gput:Nnn \g__docxlike_style_first_prop { #1 / snumber } {#2} }
+\cs_new_protected:Npn \docxlike@firststyle #1#2#3
+  {
+    \prop_gput:Nnn \g__docxlike_style_first_prop {#1} {#2}
+    \prop_gput:Nnn \g__docxlike_style_first_prop { #1 / number } {#3}
+  }
+\NewDocumentCommand \docxstylemark { O { } m m }
+  { \docxlike_style_mark:nnn {#2} {#1} {#3} }
+%    \end{macrocode}
+%
+% 标题自动插标记。空白预设把 \cs{chapter} 到 \cs{subsubsection} 对到标题 1 到 4
+% （没有 \cs{chapter} 的文档类从 \cs{section} 起算），这里在它们的 \cs{…mark} 上挂一句，
+% 编号取当时的 \cs{the…}。\hologo{LaTeX} 只给有编号的标题发 \cs{…mark}，不编号的标题
+% 要自己写 \cs{docxstylemark}。本包自己排的标题（\file{docxlike-heading.dtx}）自己登记，
+% 登记时 \cs{l\_docxlike\_heading\_own\_mark\_bool} 为真，这里就不再登记一次。
+%    \begin{macrocode}
+\bool_new:N \g_docxlike_heading_marks_bool
+\bool_new:N \l_docxlike_heading_own_mark_bool
+\keys_define:nn { docxlike }
+  {
+    heading-marks .bool_gset:N = \g_docxlike_heading_marks_bool ,
+    heading-marks .default:n = true ,
+  }
+\cs_new_protected:Npn \__docxlike_style_heading_marks:
+  {
+    \int_zero:N \l__docxlike_style_level_int
+    \clist_map_inline:nn { chapter , section , subsection , subsubsection }
+      {
+        \bool_lazy_or:nnT
+          { \int_compare_p:nNn { \l__docxlike_style_level_int } > { 0 } }
+          { \cs_if_exist_p:c {##1} }
+          {
+            \int_incr:N \l__docxlike_style_level_int
+            \cs_if_exist:cT { ##1 mark }
+              {
+                \cs_gset_eq:cc { __docxlike_style_orig_ ##1 mark:n } { ##1 mark }
+                \exp_args:Nce \__docxlike_style_hook:Nnn { ##1 mark }
+                  { \int_use:N \l__docxlike_style_level_int } {##1}
+              }
+          }
+      }
+  }
+\int_new:N \l__docxlike_style_level_int
+\cs_new_protected:Npn \__docxlike_style_hook:Nnn #1#2#3
+  {
+    \cs_gset_protected:Npn #1 ##1
+      {
+        \bool_if:NF \l_docxlike_heading_own_mark_bool
+          { \docxlike_style_mark:nnn { heading #2 } { \use:c { the #3 } } {##1} }
+        \use:c { __docxlike_style_orig_ #3 mark:n } {##1}
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_style_hook:Nnn { ce }
+\hook_gput_code:nnn { begindocument / end } { docxlike }
+  { \bool_if:NT \g_docxlike_heading_marks_bool { \__docxlike_style_heading_marks: } }
+%    \end{macrocode}
+%
+% \subsection{域}
+%
+% \cs{docxfield}\marg{域代码} 照 Word 的域代码写：\verb|PAGE|、
+% \verb|PAGE \* ROMAN|、\verb|STYLEREF "标题 1" \l|、\verb|DATE \@ "yyyy年M月d日"|。
+% 认得的域：
+% \begin{itemize}
+% \item \texttt{PAGE}：页码，没给格式就用本节的页码格式（即 \cs{thepage}）；
+% \item \texttt{NUMPAGES}：全文页数，上一遍编译的数，插进去的空白页也算；
+% \item \texttt{SECTIONPAGES}：本节页数，也是上一遍的数；\texttt{SECTION}：第几节；
+% \item \texttt{STYLEREF}：见上一小节，开关 \texttt{\textbackslash l}（本页最后一个）、\texttt{\textbackslash n}、
+%   \texttt{\textbackslash r}、\texttt{\textbackslash w}（整个编号，第一章）、\texttt{\textbackslash s}、\texttt{\textbackslash t}
+%   （编号里只留数与分隔符，一）；
+% \item \texttt{SEQ}、\texttt{REF}、\texttt{PAGEREF}：题注编号与交叉引用，见 \file{docxlike-heading.dtx}；
+% \item \texttt{=}：算式，四则运算与括号；
+% \item \texttt{DATE}、\texttt{TIME}、\texttt{CREATEDATE}、\texttt{SAVEDATE}、\texttt{PRINTDATE}：
+%   一律取编译时刻，格式由 \texttt{\textbackslash @} 给；
+% \item \texttt{TITLE}、\texttt{AUTHOR}、\texttt{SUBJECT}、\texttt{KEYWORDS}、\texttt{COMMENTS}：
+%   文档属性，由 \option{properties} 键给，没给时 \texttt{TITLE}、\texttt{AUTHOR} 取
+%   \cs{title}、\cs{author}；\texttt{FILENAME}：\cs{jobname}。
+% \end{itemize}
+% 数字结果都吃 \texttt{\textbackslash*} 的编号格式；\texttt{\textbackslash* Upper}、
+% \texttt{Lower}、\texttt{FirstCap}、\texttt{Caps} 改大小写；\texttt{MERGEFORMAT} 与
+% \texttt{CHARFORMAT} 不管。
+%
+% 先把域代码拆成词：按空格拆，引号里的空格不拆，引号去掉。
+%    \begin{macrocode}
+\msg_new:nnnn { docxlike } { field-unknown }
+  { The~field~'#1'~is~not~implemented. }
+  { The~field~result~is~left~empty. }
+\seq_new:N \l__docxlike_field_words_seq
+\seq_new:N \l__docxlike_field_raw_seq
+\tl_new:N \l__docxlike_field_word_tl
+\bool_new:N \l__docxlike_field_quote_bool
+\cs_new_protected:Npn \__docxlike_field_split:n #1
+  {
+    \seq_clear:N \l__docxlike_field_words_seq
+    \seq_set_split:Nne \l__docxlike_field_raw_seq { ~ } { \tl_to_str:n {#1} }
+    \bool_set_false:N \l__docxlike_field_quote_bool
+    \seq_map_inline:Nn \l__docxlike_field_raw_seq
+      {
+        \bool_if:NTF \l__docxlike_field_quote_bool
+          {
+            \tl_put_right:Nn \l__docxlike_field_word_tl { ~ ##1 }
+            \str_if_eq:eeT { \str_item:nn {##1} { -1 } } { " }
+              {
+                \bool_set_false:N \l__docxlike_field_quote_bool
+                \__docxlike_field_push:
+              }
+          }
+          {
+            \tl_if_blank:nF {##1}
+              {
+                \tl_set:Nn \l__docxlike_field_word_tl {##1}
+                \bool_lazy_and:nnTF
+                  { \str_if_eq_p:ee { \str_head:n {##1} } { " } }
+                  {
+                    \int_compare_p:nNn { \str_count:n {##1} } = { 1 }
+                    || ! \str_if_eq_p:ee { \str_item:nn {##1} { -1 } } { " }
+                  }
+                  { \bool_set_true:N \l__docxlike_field_quote_bool }
+                  { \__docxlike_field_push: }
+              }
+          }
+      }
+  }
+\cs_generate_variant:Nn \seq_set_split:Nnn { Nne }
+\cs_new_protected:Npn \__docxlike_field_push:
+  {
+    \str_set:Ne \l__docxlike_field_word_tl { \l__docxlike_field_word_tl }
+    \str_if_eq:eeT { \str_head:N \l__docxlike_field_word_tl } { " }
+      {
+        \str_set:Ne \l__docxlike_field_word_tl
+          { \str_range:Nnn \l__docxlike_field_word_tl { 2 } { -2 } }
+      }
+    \seq_put_right:NV \l__docxlike_field_words_seq \l__docxlike_field_word_tl
+  }
+%    \end{macrocode}
+%
+% 再把词分成域名、参数与开关。\texttt{\textbackslash*} 与 \texttt{\textbackslash@} 各带一个词，
+% 别的开关单独一个词。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_field_name_tl
+\tl_new:N \l__docxlike_field_arg_tl
+\tl_new:N \l__docxlike_field_numfmt_tl
+\tl_new:N \l__docxlike_field_case_tl
+\tl_new:N \l__docxlike_field_picture_tl
+\tl_new:N \l__docxlike_field_expr_tl
+\clist_new:N \l__docxlike_field_flags_clist
+\tl_new:N \l__docxlike_field_pending_tl
+\cs_new_protected:Npn \__docxlike_field_parse:n #1
+  {
+    \__docxlike_field_split:n {#1}
+    \seq_pop_left:NNTF \l__docxlike_field_words_seq \l__docxlike_field_name_tl
+      { \str_set:Ne \l__docxlike_field_name_tl { \str_uppercase:f { \l__docxlike_field_name_tl } } }
+      { \tl_clear:N \l__docxlike_field_name_tl }
+    \tl_clear:N \l__docxlike_field_arg_tl
+    \tl_clear:N \l__docxlike_field_numfmt_tl
+    \tl_clear:N \l__docxlike_field_case_tl
+    \tl_clear:N \l__docxlike_field_picture_tl
+    \tl_clear:N \l__docxlike_field_expr_tl
+    \clist_clear:N \l__docxlike_field_flags_clist
+    \tl_clear:N \l__docxlike_field_pending_tl
+    \seq_map_inline:Nn \l__docxlike_field_words_seq
+      {
+        \str_case:VnF \l__docxlike_field_pending_tl
+          {
+            { \* }
+              {
+                \tl_clear:N \l__docxlike_field_pending_tl
+                \str_case:nnF {##1}
+                  {
+                    { MERGEFORMAT } { } { CHARFORMAT } { }
+                    { Upper } { \tl_set:Nn \l__docxlike_field_case_tl { upper } }
+                    { Lower } { \tl_set:Nn \l__docxlike_field_case_tl { lower } }
+                    { FirstCap } { \tl_set:Nn \l__docxlike_field_case_tl { firstcap } }
+                    { Caps } { \tl_set:Nn \l__docxlike_field_case_tl { caps } }
+                  }
+                  { \tl_set:Nn \l__docxlike_field_numfmt_tl {##1} }
+              }
+            { \@ }
+              {
+                \tl_clear:N \l__docxlike_field_pending_tl
+                \tl_set:Nn \l__docxlike_field_picture_tl {##1}
+              }
+          }
+          {
+            \str_case:nnF {##1}
+              {
+                { \* } { \tl_set:Nn \l__docxlike_field_pending_tl {##1} }
+                { \@ } { \tl_set:Nn \l__docxlike_field_pending_tl {##1} }
+              }
+              {
+                \str_if_eq:eeTF { \str_head:n {##1} } { \c_backslash_str }
+                  { \clist_put_right:Ne \l__docxlike_field_flags_clist { \str_tail:n {##1} } }
+                  {
+                    \tl_if_empty:NT \l__docxlike_field_arg_tl
+                      { \tl_set:Nn \l__docxlike_field_arg_tl {##1} }
+                    \tl_put_right:Nn \l__docxlike_field_expr_tl {##1}
+                  }
+              }
+          }
+      }
+  }
+\cs_generate_variant:Nn \str_case:nnF { VnF }
+\cs_generate_variant:Nn \str_uppercase:n { f }
+\cs_generate_variant:Nn \clist_put_right:Nn { Ne }
+%    \end{macrocode}
+%
+% 排出结果。
+%    \begin{macrocode}
+\prop_new:N \g_docxlike_properties_prop
+\keys_define:nn { docxlike }
+  {
+    properties .code:n =
+      { \prop_gput_from_keyval:Nn \g_docxlike_properties_prop {#1} } ,
+  }
+\tl_new:N \l__docxlike_field_result_tl
+\int_new:N \l__docxlike_field_section_int
+\tl_new:N \l__docxlike_field_out_tl
+\cs_new_protected:Npn \docxlike_field:n #1
+  {
+    \docxlike_field_result:nN {#1} \l__docxlike_field_out_tl
+    \tl_use:N \l__docxlike_field_out_tl
+  }
+\cs_new_protected:Npn \docxlike_field_result:nN #1#2
+  {
+    \__docxlike_field_parse:n {#1}
+    \int_set:Nn \l__docxlike_field_section_int
+      {
+        \bool_if:NTF \l__docxlike_headfoot_in_page_bool
+          { \g__docxlike_headfoot_page_section_int } { \g_docxlike_section_int }
+      }
+    \tl_clear:N \l__docxlike_field_result_tl
+    \str_case:VnF \l__docxlike_field_name_tl
+      {
+        { PAGE }
+          {
+            \tl_set:Ne \l__docxlike_field_result_tl
+              {
+                \tl_if_empty:NTF \l__docxlike_field_numfmt_tl
+                  { \thepage } { \__docxlike_field_number:n { \c@page } }
+              }
+          }
+        { NUMPAGES }
+          { \tl_set:Ne \l__docxlike_field_result_tl { \__docxlike_field_number:n { \PreviousTotalPages } } }
+        { SECTIONPAGES }
+          {
+            \tl_set:Ne \l__docxlike_field_result_tl
+              {
+                \__docxlike_field_number:n
+                  {
+                    \prop_if_in:NeTF \g__docxlike_section_pages_prop
+                      { \int_use:N \l__docxlike_field_section_int }
+                      {
+                        \prop_item:Ne \g__docxlike_section_pages_prop
+                          { \int_use:N \l__docxlike_field_section_int }
+                      }
+                      { 0 }
+                  }
+              }
+          }
+        { SECTION }
+          {
+            \tl_set:Ne \l__docxlike_field_result_tl
+              { \__docxlike_field_number:n { \l__docxlike_field_section_int } }
+          }
+        { STYLEREF }
+          {
+            \__docxlike_style_key:V \l__docxlike_field_arg_tl
+            \__docxlike_field_styleref:
+          }
+        { = }
+          {
+            \tl_set:Ne \l__docxlike_field_result_tl
+              {
+                \__docxlike_field_number:n
+                  { \fp_eval:n { round ( \l__docxlike_field_expr_tl ) } }
+              }
+          }
+        { DATE } { \__docxlike_field_date:nV { yyyy/M/d } \l__docxlike_field_picture_tl }
+        { CREATEDATE } { \__docxlike_field_date:nV { yyyy/M/d } \l__docxlike_field_picture_tl }
+        { SAVEDATE } { \__docxlike_field_date:nV { yyyy/M/d } \l__docxlike_field_picture_tl }
+        { PRINTDATE } { \__docxlike_field_date:nV { yyyy/M/d } \l__docxlike_field_picture_tl }
+        { TIME } { \__docxlike_field_date:nV { H:mm } \l__docxlike_field_picture_tl }
+        { TITLE } { \__docxlike_field_property:nN { title } \@title }
+        { AUTHOR } { \__docxlike_field_property:nN { author } \@author }
+        { SUBJECT } { \__docxlike_field_property:nN { subject } \scan_stop: }
+        { KEYWORDS } { \__docxlike_field_property:nN { keywords } \scan_stop: }
+        { COMMENTS } { \__docxlike_field_property:nN { comments } \scan_stop: }
+        { FILENAME } { \tl_set:Ne \l__docxlike_field_result_tl { \jobname } }
+        { SEQ } { \__docxlike_field_seq: }
+        { REF } { \__docxlike_field_ref: }
+        { PAGEREF } { \__docxlike_field_pageref: }
+      }
+      { \msg_warning:nnV { docxlike } { field-unknown } \l__docxlike_field_name_tl }
+    \__docxlike_field_case:N #2
+  }
+\cs_generate_variant:Nn \msg_warning:nnn { nnV }
+\cs_generate_variant:Nn \prop_if_in:NnTF { Ne }
+\cs_generate_variant:Nn \prop_item:Nn { Ne }
+\cs_generate_variant:Nn \__docxlike_style_key:n { V }
+\NewDocumentCommand \docxfield { m } { \docxlike_field:n {#1} }
+%    \end{macrocode}
+%
+% 域出现在页眉页脚里时，“第几节”是这一页所在的节；出现在正文里是正在排的那一节。
+% 数字结果按 \texttt{\textbackslash*} 的格式写，没给就是阿拉伯数字。
+%    \begin{macrocode}
+\cs_new:Npn \__docxlike_field_number:n #1
+  {
+    \tl_if_empty:NTF \l__docxlike_field_numfmt_tl
+      { \int_eval:n {#1} }
+      { \docxlike_number_format:Vn \l__docxlike_field_numfmt_tl {#1} }
+  }
+\cs_new_protected:Npn \__docxlike_field_case:N #1
+  {
+    \str_case:VnF \l__docxlike_field_case_tl
+      {
+        { upper } { \tl_set:Ne #1 { \text_uppercase:V \l__docxlike_field_result_tl } }
+        { lower } { \tl_set:Ne #1 { \text_lowercase:V \l__docxlike_field_result_tl } }
+        { firstcap } { \tl_set:Ne #1 { \text_titlecase_first:V \l__docxlike_field_result_tl } }
+        { caps }
+          {
+            \seq_set_split:NnV \l__docxlike_field_caps_seq { ~ } \l__docxlike_field_result_tl
+            \seq_clear:N \l__docxlike_field_capped_seq
+            \seq_map_inline:Nn \l__docxlike_field_caps_seq
+              { \seq_put_right:Ne \l__docxlike_field_capped_seq { \text_titlecase_first:n {##1} } }
+            \tl_set:Ne #1 { \seq_use:Nn \l__docxlike_field_capped_seq { ~ } }
+          }
+      }
+      { \tl_set_eq:NN #1 \l__docxlike_field_result_tl }
+  }
+\cs_generate_variant:Nn \text_uppercase:n { V }
+\cs_generate_variant:Nn \text_lowercase:n { V }
+\cs_generate_variant:Nn \text_titlecase_first:n { V }
+\cs_generate_variant:Nn \seq_put_right:Nn { Ne }
+\seq_new:N \l__docxlike_field_caps_seq
+\seq_new:N \l__docxlike_field_capped_seq
+\cs_new_protected:Npn \__docxlike_field_property:nN #1#2
+  {
+    \prop_get:NnNF \g_docxlike_properties_prop {#1} \l__docxlike_field_result_tl
+      { \cs_if_exist:NT #2 { \tl_set_eq:NN \l__docxlike_field_result_tl #2 } }
+  }
+%    \end{macrocode}
+%
+% \texttt{STYLEREF}。参数是样式名或级别数字。本页与前面都没有，取上一遍记下的全文第一个。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_field_ref_kind_tl
+\prg_generate_conditional_variant:Nnn \clist_if_in:Nn { Ne } { TF }
+\cs_new_protected:Npn \__docxlike_field_styleref:
+  {
+    \__docxlike_field_styleref_do:
+    \prg_break_point:
+  }
+\cs_new_protected:Npn \__docxlike_field_styleref_do:
+  {
+    \tl_set:Nn \l__docxlike_field_ref_kind_tl { style }
+    \clist_map_inline:Nn \l__docxlike_field_flags_clist
+      {
+        \str_case:nn {##1}
+          {
+            { n } { \tl_set:Nn \l__docxlike_field_ref_kind_tl { number } }
+            { r } { \tl_set:Nn \l__docxlike_field_ref_kind_tl { number } }
+            { w } { \tl_set:Nn \l__docxlike_field_ref_kind_tl { number } }
+          }
+      }
+    \clist_map_inline:Nn \l__docxlike_field_flags_clist
+      {
+        \str_case:nn {##1}
+          {
+            { s } { \tl_set:Nn \l__docxlike_field_ref_kind_tl { snumber } }
+            { t } { \tl_set:Nn \l__docxlike_field_ref_kind_tl { snumber } }
+          }
+      }
+    \bool_if:NF \l__docxlike_headfoot_in_page_bool
+      {
+        \tl_set:Ne \l__docxlike_field_result_tl
+          {
+            \prop_item:Ne \g__docxlike_style_last_prop
+              {
+                \l__docxlike_style_key_str
+                \str_if_eq:VnF \l__docxlike_field_ref_kind_tl { style }
+                  { / \l__docxlike_field_ref_kind_tl }
+              }
+          }
+        \prg_break:
+      }
+    \clist_if_in:NeTF \l__docxlike_field_flags_clist { \tl_to_str:n { l } }
+      {
+        \tl_set:Ne \l__docxlike_field_result_tl
+          {
+            \exp_args:Ne \__docxlike_field_styleref_value:nnn
+              { \LastMark { docxlike / \l__docxlike_field_ref_kind_tl / \l__docxlike_style_key_str } }
+              { \l__docxlike_field_ref_kind_tl } { \l__docxlike_style_key_str }
+          }
+      }
+      {
+        \tl_set:Ne \l__docxlike_field_result_tl
+          {
+            \exp_args:Ne \__docxlike_field_styleref_value:nnn
+              { \FirstMark { docxlike / \l__docxlike_field_ref_kind_tl / \l__docxlike_style_key_str } }
+              { \l__docxlike_field_ref_kind_tl } { \l__docxlike_style_key_str }
+          }
+      }
+  }
+\cs_new:Npn \__docxlike_field_styleref_value:nnn #1#2#3
+  {
+    \tl_if_blank:nTF {#1}
+      {
+        \str_if_eq:nnTF {#2} { style }
+          { \prop_item:Nn \g__docxlike_style_first_prop {#3} }
+          { \prop_item:Nn \g__docxlike_style_first_prop { #3 / #2 } }
+      }
+      { \exp_not:n {#1} }
+  }
+%    \end{macrocode}
+%
+% 日期与时间。\texttt{\textbackslash@} 的格式串照 Word：\texttt{yyyy}、\texttt{yy} 年；
+% \texttt{MMMM}、\texttt{MMM}、\texttt{MM}、\texttt{M} 月（英文全名、缩写、两位、不补零）；
+% \texttt{dddd}、\texttt{ddd} 星期，\texttt{dd}、\texttt{d} 日；\texttt{HH}、\texttt{H}
+% 二十四小时制，\texttt{hh}、\texttt{h} 十二小时制；\texttt{mm}、\texttt{m} 分；
+% \texttt{ss}、\texttt{s} 秒（取不到，写零）；\texttt{AM/PM}、\texttt{am/pm}；单引号里的字
+% 原样。其余字符原样。没给格式串时 \texttt{DATE} 写 \texttt{yyyy/M/d}，
+% \texttt{TIME} 写 \texttt{H:mm}，是中文 Word 的默认。时刻一律取编译时刻，
+% 设了 \texttt{SOURCE\_DATE\_EPOCH} 就是它。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_field_date:nn #1#2
+  {
+    \tl_if_blank:nTF {#2}
+      { \tl_set:Ne \l__docxlike_field_result_tl { \tl_to_str:n {#1} } }
+      { \tl_set:Ne \l__docxlike_field_result_tl { \tl_to_str:n {#2} } }
+    \regex_replace_all:nnN
+      {
+        '[^']*' | yyyy | yy | MMMM | MMM | MM | M | dddd | ddd | dd | d
+        | HH | H | hh | h | mm | m | ss | s | AM/PM | am/pm
+      }
+      { \c{__docxlike_field_date_piece:n} \cB\{ \0 \cE\} }
+      \l__docxlike_field_result_tl
+    \tl_set:Ne \l__docxlike_field_result_tl { \l__docxlike_field_result_tl }
+  }
+\cs_generate_variant:Nn \__docxlike_field_date:nn { nV }
+\cs_new:Npn \__docxlike_field_two:n #1
+  { \int_compare:nNnT {#1} < { 10 } { 0 } \int_eval:n {#1} }
+\cs_new:Npn \__docxlike_field_hour_xii:
+  {
+    \int_eval:n
+      {
+        \int_compare:nNnTF { \int_mod:nn { \c_sys_hour_int } { 12 } } = { 0 }
+          { 12 } { \int_mod:nn { \c_sys_hour_int } { 12 } }
+      }
+  }
+\tl_const:Nn \c__docxlike_field_months_tl
+  {
+    {January} {February} {March} {April} {May} {June} {July} {August}
+    {September} {October} {November} {December}
+  }
+\tl_const:Nn \c__docxlike_field_days_tl
+  { {Sunday} {Monday} {Tuesday} {Wednesday} {Thursday} {Friday} {Saturday} }
+%    \end{macrocode}
+%
+% 星期几用 Zeller 的式子，公历，结果 0 是星期日。
+%    \begin{macrocode}
+\cs_new:Npn \__docxlike_field_weekday:
+  {
+    \exp_args:Nee \__docxlike_field_weekday:nn
+      {
+        \int_eval:n
+          { \c_sys_year_int - \int_compare:nNnTF { \c_sys_month_int } < { 3 } { 1 } { 0 } }
+      }
+      {
+        \int_eval:n
+          { \c_sys_month_int + \int_compare:nNnTF { \c_sys_month_int } < { 3 } { 12 } { 0 } }
+      }
+  }
+\cs_new:Npn \__docxlike_field_weekday:nn #1#2
+  {
+    \int_mod:nn
+      {
+        \c_sys_day_int + \int_div_truncate:nn { 13 * ( #2 + 1 ) } { 5 }
+        + \int_mod:nn {#1} { 100 } + \int_div_truncate:nn { \int_mod:nn {#1} { 100 } } { 4 }
+        + \int_div_truncate:nn { \int_div_truncate:nn {#1} { 100 } } { 4 }
+        + 5 * \int_div_truncate:nn {#1} { 100 } + 6
+      }
+      { 7 }
+  }
+\cs_new:Npn \__docxlike_field_date_piece:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        { yyyy } { \int_use:N \c_sys_year_int }
+        { yy } { \__docxlike_field_two:n { \int_mod:nn { \c_sys_year_int } { 100 } } }
+        { MMMM } { \tl_item:Nn \c__docxlike_field_months_tl { \c_sys_month_int } }
+        { MMM }
+          {
+            \str_range:enn
+              { \tl_item:Nn \c__docxlike_field_months_tl { \c_sys_month_int } } { 1 } { 3 }
+          }
+        { MM } { \__docxlike_field_two:n { \c_sys_month_int } }
+        { M } { \int_use:N \c_sys_month_int }
+        { dddd } { \tl_item:Nn \c__docxlike_field_days_tl { \__docxlike_field_weekday: + 1 } }
+        { ddd }
+          {
+            \str_range:enn
+              { \tl_item:Nn \c__docxlike_field_days_tl { \__docxlike_field_weekday: + 1 } }
+              { 1 } { 3 }
+          }
+        { dd } { \__docxlike_field_two:n { \c_sys_day_int } }
+        { d } { \int_use:N \c_sys_day_int }
+        { HH } { \__docxlike_field_two:n { \c_sys_hour_int } }
+        { H } { \int_use:N \c_sys_hour_int }
+        { hh } { \__docxlike_field_two:n { \__docxlike_field_hour_xii: } }
+        { h } { \__docxlike_field_hour_xii: }
+        { mm } { \__docxlike_field_two:n { \c_sys_minute_int } }
+        { m } { \int_use:N \c_sys_minute_int }
+        { ss } { 00 }
+        { s } { 0 }
+        { AM/PM } { \int_compare:nNnTF { \c_sys_hour_int } < { 12 } { AM } { PM } }
+        { am/pm } { \int_compare:nNnTF { \c_sys_hour_int } < { 12 } { am } { pm } }
+      }
+      { \str_range:nnn {#1} { 2 } { -2 } }
+  }
+\cs_generate_variant:Nn \str_range:nnn { e }
+%    \end{macrocode}
+%    \begin{macrocode}
+%</docxlike-headfoot>
+%    \end{macrocode}
+%
+% \Finale

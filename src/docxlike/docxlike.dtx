@@ -1,0 +1,363 @@
+% \iffalse meta-comment
+%
+% docxlike.dtx 是排版引擎 docxlike 的包头
+%
+% \fi
+%
+% \section{排版引擎 \pkg{docxlike}}
+%
+% \changes{v3.2a}{2026/09/23}{照 Word 排版的三个模块（页面设置、段落格式、断行）独立成
+%   \pkg{docxlike} 包}
+% \changes{v0.1.0}{2026/09/24}{键名与取值统一写成界面原词的小写加连字符，界面上没有名字的
+%   取 docx 名字的同样写法，写错大小写或照抄 docx 写法时报错给出本包的写法、这一项不生效；样式名不计大小写
+%   与连字符；文档里的命令以 \texttt{docx} 开头}
+%
+% 照 Word 的页面设置、段落格式与断行规则排版的那一层，与具体哪一份格式规范都无关，
+% 所以单独成包，叫 \pkg{docxlike}。键名与取值用 Word 英文界面上的原词，小写加连字符。
+%
+% 源码在 \texttt{latex-docxlike} 仓库里，\file{docxlike.ins} 生成 \file{docxlike.sty}
+% 与断行层的 \file{docxlike.lua}。名字照 expl3 的规矩：给文档类用的接口是
+% \texttt{\textbackslash docxlike\_...}，包内部的是 \texttt{\textbackslash \_\_docxlike\_...}；
+% 空段命令叫 \cs{parmark}，名字取自 Word 的“段落标记”（paragraph mark）：在 Word 里按一次
+% 回车就留下一个段落标记，空段就是只有它的那一段。
+%
+% ^^A ======================================================================
+% ^^A Module package: docxlike.sty 的包头
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*package>
+\NeedsTeXFormat{LaTeX2e}[2022/06/01]
+\ProvidesExplPackage{docxlike}{2026/09/23}{0.1.0}
+  {Word-compatible page setup, paragraph formats and line breaking}
+%    \end{macrocode}
+%
+% 给分页那几个内核宏打补丁用 \pkg{etoolbox} 的 \cs{patchcmd}。
+%    \begin{macrocode}
+\RequirePackage { etoolbox }
+%    \end{macrocode}
+%
+% \emph{中文排版的底。} \cs{docxlike\_cjk\_base:} 装中文排版的底：\hologo{XeLaTeX} 用 \pkg{xeCJK}，
+% \hologo{LuaLaTeX} 用 \pkg{luatexja}（经 \pkg{luatexja-fontspec}）。空白预设在加载时调它；
+% \texttt{preset=none} 的文档类自己管中文排版，本包不装（文档类常常在本包之后才装自己那一套，
+% 先装了会冲突）。已经装了就用现成的；没装才装，\hologo{LuaLaTeX}
+% 下再照中文的习惯设字符范围（哪些字按中文排：汉字、假名、全角符号、弯引号与省略号这些，
+% 拉丁、希腊、西里尔字母与一般符号不算），JFM 默认取 \pkg{chinese-jfm} 的 \texttt{zh\_CN}（标点全角，\texttt{quanjiao}），
+% 中文字体不缩放（\cs{Cjascale} 取 1；\pkg{luatexja} 照日文习惯缩成 0.962216 倍，Word 里 11 磅的
+% 汉字就是 11 磅），没指定字体时的默认字体用随 \TeX~Live 发的 Fandol 宋体与黑体（\pkg{luatexja} 自己的默认
+% 是原之味明朝，不一定装着）。别处已经装了 \pkg{luatexja} 时不另装
+% \pkg{luatexja-fontspec}（它与有的中文宏包的字体层冲突），这时按名字切中文字体的那一步不做。
+% \hologo{pdfLaTeX} 不装，只排西文。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_cjk_base:
+  {
+    \sys_if_engine_xetex:T
+      { \cs_if_exist:NF \xeCJKsetup { \RequirePackage { xeCJK } } }
+    \sys_if_engine_luatex:T
+      { \cs_if_exist:NF \ltjsetparameter { \__docxlike_cjk_luatexja: } }
+  }
+\cs_new_protected:Npn \__docxlike_cjk_luatexja:
+  {
+    \cs_if_exist:NF \ltj@stdmcfont { \cs_gset:Npn \ltj@stdmcfont { file:FandolSong-Regular.otf } }
+    \cs_if_exist:NF \ltj@stdgtfont { \cs_gset:Npn \ltj@stdgtfont { file:FandolHei-Regular.otf } }
+    \cs_if_exist:NF \ltj@stdyokojfm { \cs_gset:Npn \ltj@stdyokojfm { zh_CN/quanjiao } }
+    \cs_if_exist:NF \Cjascale { \cs_gset:Npn \Cjascale { 1 } }
+    \RequirePackage { luatexja-fontspec }
+    \ltjdefcharrange { 1 } { "80 - "36F , "1E00 - "1EFF }
+    \ltjdefcharrange { 2 } { "370 - "4FF , "1F00 - "1FFF }
+    \ltjdefcharrange { 3 }
+      { "2000 - "243F , "2460 - "24FF , "2500 - "27BF , "2900 - "29FF , "2B00 - "2BFF }
+    \ltjdefcharrange { 4 }
+      {
+        "500 - "10FF , "1200 - "1DFF , "2440 - "245F , "27C0 - "28FF , "2A00 - "2AFF ,
+        "2C00 - "2E7F , "4DC0 - "4DFF , "A4D0 - "A95F , "A980 - "ABFF , "E000 - "F8FF ,
+        "FB00 - "FE0F , "FE20 - "FE2F , "FE70 - "FEFF , "10000 - "1AFFF , "1B170 - "1F0FF ,
+        "1F300 - "1FFFF , "2000 - "206F
+      }
+    \ltjdefcharrange { 5 } { "D800 - "DFFF , "E0000 - "E00FF , "E01F0 - "10FFFF }
+    \ltjdefcharrange { 6 }
+      {
+        "2E80 - "2EFF , "3000 - "30FF , "3190 - "319F , "31F0 - "4DBF ,
+        "4E00 - "9FFF , "F900 - "FAFF , "FE10 - "FE1F , "FE30 - "FE6F , "FF00 - "FFEF ,
+        "1B000 - "1B16F , "1F100 - "1F2FF , "20000 - "3FFFF , "E0100 - "E01EF
+      }
+    \ltjdefcharrange { 7 }
+      {
+        "1100 - "11FF , "2F00 - "2FFF , "3100 - "318F , "31A0 - "31EF , "A000 - "A4CF ,
+        "A960 - "A97F , "AC00 - "D7FF
+      }
+    \ltjdefcharrange { 8 } { "A7 , "A8 , "B0 , "B1 , "B4 , "B6 , "D7 , "F7 }
+    \ltjdefcharrange { 9 }
+      { "B7 , "2018 , "2019 , "201C , "201D , "2013 , "2014 , "2025 , "2026 , "2027 , "2E3A }
+    \ltjsetparameter { jacharrange = { -1 , -2 , -3 , -4 , -5 , +6 , +7 , -8 , +9 } }
+    \ltjsetparameter { autospacing , autoxspacing , differentjfm = paverage }
+    \defaultjfontfeatures { JFM = zh_CN/quanjiao }
+  }
+%    \end{macrocode}
+%
+% \subsection{消息}
+%
+% 报错与提示一律英文，照 \pkg{expl3} 的习惯：第一段一句话说出了什么事，键名用引号括起，
+% 帮助文字说怎么改。输入写错（未知的键、不收的取值）报 error；能照常排下去、只是
+% 效果打折的报 warning。
+%    \begin{macrocode}
+\msg_new:nnnn { docxlike } { unknown-key }
+  { The~key~'#1'~is~unknown~and~is~being~ignored. }
+  { Check~the~spelling;~the~docxlike~manual~lists~the~keys. }
+\msg_new:nnnn { docxlike } { bad-value }
+  { The~key~'#1'~does~not~accept~the~value~'#2'. }
+  { \tl_if_empty:nTF {#3} { Check~the~docxlike~manual~for~the~syntax. } { Allowed~values:~#3. } }
+\msg_new:nnnn { docxlike } { measure-clash }
+  { '#1'~and~'#2'~set~the~same~spacing;~using~'#2',~which~came~last. }
+  { Only~one~of~them~may~be~given~for~a~target. }
+\msg_new:nnnn { docxlike } { parmark-font-unmeasured }
+  { No~measured~natural~line~height~for~the~font~'#1'. }
+  {
+    The~height~of~an~empty~paragraph~is~the~font's~natural~line~height~
+    times~the~line~spacing,~and~only~measured~values~are~used:~serif~
+    (Times~New~Roman,~1.1472)~and~songti~(SimSun,~1.29333).
+  }
+\msg_new:nnnn { docxlike } { page-no-pitch }
+  { Cannot~determine~the~line~pitch~of~the~page~setup. }
+  { Give~'document-grid/lines/pitch'~or~'document-grid/lines/lines-per-page'. }
+\msg_new:nnnn { docxlike } { page-patch-failed }
+  { Could~not~patch~\token_to_str:N #1. }
+  {
+    The~space~reserved~for~the~depth~of~the~last~line~will~not~apply~on~
+    every~page,~so~a~page~may~hold~one~more~line~than~in~Word.~Another~
+    package~has~probably~redefined~\token_to_str:N #1.
+  }
+\msg_new:nnnn { docxlike } { luatex-punct-grid }
+  { Full-width~punctuation~is~not~on~the~character~grid~under~LuaLaTeX. }
+  {
+    Full-width~punctuation~follows~luatexja's~own~rules~(half-width~glyphs~
+    plus~glue),~not~Word's~compression~on~demand.~Use~xelatex~for~exact~
+    grid~alignment~with~Word.
+  }
+\msg_new:nnnn { docxlike } { xecjk-punct-grid }
+  { xeCJK~lacks~a~character~class~interface~that~docxlike~needs. }
+  {
+    Each~full-width~punctuation~mark~will~be~one~grid~increment~narrower~
+    than~in~Word,~and~quotes,~ellipses,~dashes~and~tildes~will~not~follow~
+    Word's~widths.~The~interfaces~were~checked~with~xeCJK~3.9.1~(TeX~Live~
+    2025)~and~3.10.5~(2026).~Typesetting~continues~with~approximate~
+    punctuation.
+  }
+%    \end{macrocode}
+%
+% 取值不在集合里时，把允许的取值列成 \texttt{a, b or c} 交给消息。
+%    \begin{macrocode}
+\seq_new:N \l__docxlike_one_of_seq
+\tl_new:N \l__docxlike_one_of_tl
+\tl_new:N \l__docxlike_one_of_last_tl
+\cs_new_protected:Npn \__docxlike_bad_value:nnn #1#2#3
+  {
+    \seq_set_from_clist:Nn \l__docxlike_one_of_seq {#3}
+    \int_compare:nNnTF { \seq_count:N \l__docxlike_one_of_seq } < { 2 }
+      { \tl_set:Nx \l__docxlike_one_of_tl { \seq_use:Nn \l__docxlike_one_of_seq { } } }
+      {
+        \seq_pop_right:NN \l__docxlike_one_of_seq \l__docxlike_one_of_last_tl
+        \tl_set:Nx \l__docxlike_one_of_tl
+          { \seq_use:Nn \l__docxlike_one_of_seq { ,~ } ~or~ \l__docxlike_one_of_last_tl }
+      }
+    \__docxlike_bad_value_spelling:nnnF {#1} {#2} {#3}
+      { \msg_error:nnnnV { docxlike } { bad-value } {#1} {#2} \l__docxlike_one_of_tl }
+  }
+\cs_generate_variant:Nn \msg_error:nnnnn { nnnnV }
+\cs_generate_variant:Nn \__docxlike_bad_value:nnn { V }
+%    \end{macrocode}
+%
+% \subsection{键名与取值的写法}
+%
+% 公开的键名与取值照 Word 界面上的原词，一律小写，空格、冒号换成连字符；界面上只有
+% 图样、没有名字的取值用 docx 里的名字，同样改成小写加连字符（\texttt{thinThickSmallGap}
+% 写 \texttt{thin-thick-small-gap}）。\cs{\_\_docxlike\_kebab:nN} 做这个改写：大写字母前添
+% 连字符再改小写，空格改连字符，连着的连字符并成一个，开头的去掉。反过来，把连字符后
+% 的字母改大写、去掉连字符，就回到 docx 的名字，所以写法之间一一对应。
+%    \begin{macrocode}
+\str_new:N \l__docxlike_kebab_str
+\cs_new_protected:Npn \__docxlike_kebab:nN #1#2
+  {
+    \str_clear:N #2
+    \str_map_inline:nn {#1}
+      {
+        \str_if_in:nnTF { ABCDEFGHIJKLMNOPQRSTUVWXYZ } {##1}
+          { \str_put_right:Ne #2 { - \str_lowercase:n {##1} } }
+          { \str_put_right:Nn #2 {##1} }
+      }
+    \str_replace_all:Nnn #2 { ~ } { - }
+    \str_replace_all:Nnn #2 { : } { - }
+    \__docxlike_kebab_squeeze:N #2
+    \str_if_eq:eeT { \str_head:N #2 } { - }
+      { \str_set:Ne #2 { \str_range:Nnn #2 { 2 } { -1 } } }
+  }
+\cs_new_protected:Npn \__docxlike_kebab_squeeze:N #1
+  {
+    \str_if_in:NnT #1 { -- }
+      {
+        \str_replace_all:Nnn #1 { -- } { - }
+        \__docxlike_kebab_squeeze:N #1
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_kebab:nN { V }
+%    \end{macrocode}
+%
+% 取值来自 docx 名单的键，用 \cs{\_\_docxlike\_ooxml\_value:nnnNTF}\marg{键名}\marg{取值}\marg{docx 名单}
+% \meta{结果}：写法对就把 docx 的名字放进 \meta{结果}、走 \meta{真}；名单里没有走 \meta{假}。
+% 写法不对但认得出（比如照抄了 docx 的 \texttt{upperRoman}）时报错，给出本包的写法，这一项
+% 不生效，两支都不走，\meta{结果}不动。只认一种写法，免得写法分叉。
+%    \begin{macrocode}
+\msg_new:nnnn { docxlike } { value-spelling }
+  { The~value~'#2'~of~the~key~'#1'~is~written~'#3'. }
+  { Keys~and~values~are~lowercase~words~joined~by~hyphens;~the~setting~is~ignored. }
+\str_new:N \l__docxlike_value_in_str
+\str_new:N \l__docxlike_value_try_str
+\cs_new_protected:Npn \__docxlike_squash:nN #1#2
+  {
+    \str_set:Ne #2 { \str_lowercase:n {#1} }
+    \str_remove_all:Nn #2 { - }
+    \str_remove_all:Nn #2 { ~ }
+  }
+\cs_generate_variant:Nn \__docxlike_squash:nN { V }
+\tl_new:N \l__docxlike_value_found_tl
+\cs_new_protected:Npn \__docxlike_ooxml_value:nnnNTF #1#2#3#4#5#6
+  {
+    \__docxlike_squash:nN {#2} \l__docxlike_value_in_str
+    \tl_clear:N \l__docxlike_value_found_tl
+    \clist_map_inline:nn {#3}
+      {
+        \__docxlike_squash:nN {##1} \l__docxlike_value_try_str
+        \str_if_eq:NNT \l__docxlike_value_try_str \l__docxlike_value_in_str
+          { \tl_set:Nn \l__docxlike_value_found_tl {##1} \clist_map_break: }
+      }
+    \tl_if_empty:NTF \l__docxlike_value_found_tl {#6}
+      {
+        \__docxlike_kebab:VN \l__docxlike_value_found_tl \l__docxlike_kebab_str
+        \str_if_eq:VnTF \l__docxlike_kebab_str {#2}
+          {
+            \tl_set_eq:NN #4 \l__docxlike_value_found_tl
+            #5
+          }
+          { \msg_error:nnnnV { docxlike } { value-spelling } {#1} {#2} \l__docxlike_kebab_str }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_ooxml_value:nnnNTF { nVnNTF , nnVNTF }
+%    \end{macrocode}
+%
+% 取值来自界面的键，写错时 \cs{\_\_docxlike\_bad\_value:nnn} 先看改写成本包的写法后在不在
+% 允许的取值里，在就直说该怎么写。键名也一样：未知的键改写后是个认得的键，警告里给出
+% 本包的写法。
+%    \begin{macrocode}
+\msg_new:nnnn { docxlike } { bad-value-spelling }
+  { The~value~'#2'~of~the~key~'#1'~is~written~'#3'. }
+  { Keys~and~values~are~lowercase~words~joined~by~hyphens;~the~setting~is~ignored. }
+\msg_new:nnnn { docxlike } { unknown-key-spelling }
+  { The~key~'#1'~is~written~'#2';~it~is~being~ignored. }
+  { Keys~and~values~are~lowercase~words~joined~by~hyphens. }
+\cs_new_protected:Npn \__docxlike_bad_value_spelling:nnnF #1#2#3#4
+  {
+    \__docxlike_kebab:nN {#2} \l__docxlike_kebab_str
+    \str_if_eq:VnTF \l__docxlike_kebab_str {#2}
+      {#4}
+      {
+        \bool_set_false:N \l__docxlike_spelling_bool
+        \clist_map_inline:nn {#3}
+          {
+            \str_if_eq:VnT \l__docxlike_kebab_str {##1}
+              { \bool_set_true:N \l__docxlike_spelling_bool \clist_map_break: }
+          }
+        \bool_if:NTF \l__docxlike_spelling_bool
+          {
+            \msg_error:nnnnV { docxlike } { bad-value-spelling } {#1} {#2}
+              \l__docxlike_kebab_str
+          }
+          {#4}
+      }
+  }
+\bool_new:N \l__docxlike_spelling_bool
+\str_new:N \l__docxlike_key_module_str
+\cs_new_protected:Npn \__docxlike_unknown_key:
+  {
+    \__docxlike_kebab:VN \l_keys_key_str \l__docxlike_kebab_str
+    \str_set:Ne \l__docxlike_key_module_str
+      {
+        \str_range:Nnn \l_keys_path_str { 1 }
+          { \str_count:N \l_keys_path_str - \str_count:N \l_keys_key_str - 1 }
+      }
+    \bool_lazy_and:nnTF
+      { ! \str_if_eq_p:VV \l__docxlike_kebab_str \l_keys_key_str }
+      { \keys_if_exist_p:VV \l__docxlike_key_module_str \l__docxlike_kebab_str }
+      {
+        \msg_warning:nnVV { docxlike } { unknown-key-spelling }
+          \l_keys_key_str \l__docxlike_kebab_str
+      }
+      { \msg_warning:nnV { docxlike } { unknown-key } \l_keys_key_str }
+  }
+\prg_generate_conditional_variant:Nnn \keys_if_exist:nn { VV } { p }
+\cs_generate_variant:Nn \msg_warning:nnnn { nnVV }
+%    \end{macrocode}
+%
+% 收长度的公开键照 Word 界面：可以带单位，不带单位按磅，也就是 \texttt{bp}。
+% \cs{\_\_docxlike\_bp:n} 在末一个字符是数字或小数点时补上 \texttt{bp}，可展开。
+%    \begin{macrocode}
+\cs_new:Npn \__docxlike_bp:n #1
+  {
+    #1
+    \str_case:enF { \str_item:nn {#1} { -1 } }
+      {
+        { 0 } { bp } { 1 } { bp } { 2 } { bp } { 3 } { bp } { 4 } { bp }
+        { 5 } { bp } { 6 } { bp } { 7 } { bp } { 8 } { bp } { 9 } { bp } { . } { bp }
+      }
+      { }
+  }
+\cs_generate_variant:Nn \str_case:nnF { e }
+\cs_generate_variant:Nn \__docxlike_bp:n { V }
+%    \end{macrocode}
+%
+% 键值表里的 \cs{par} 先剥掉再交给 \cs{keys\_set:nn}：用户在键值之间空了一行，
+% 读进来就是一个 \cs{par}，\pkg{l3keys} 会把它当成一个键名。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_keys_tl
+\cs_new_protected:Npn \__docxlike_keys_set:nn #1#2
+  {
+    \tl_set:Nn \l__docxlike_keys_tl {#2}
+    \tl_replace_all:Nnn \l__docxlike_keys_tl { \par } { }
+    \exp_args:NnV \keys_set:nn {#1} \l__docxlike_keys_tl
+  }
+%    \end{macrocode}
+%
+% \subsection{全局开关}
+%
+% 几件全文一刀切的事由布尔量管，文档类在设置它们时照着改：
+% \begin{itemize}
+% \item \cs{g\_docxlike\_word\_layout\_bool}：这份文档走 Word 那套版面。关掉时断行层不装。
+% \item \cs{g\_docxlike\_ragged\_bottom\_bool}：页面底部不对齐（Word 本来就是这样）。
+%   格式表的取值可以按它分两层（\option{if-raggedbottom} 与 \option{if-flushbottom}）。
+% \item \cs{g\_docxlike\_grid\_bool}：文档网格启用。关掉时“一行”折成正文的单倍行高。
+% \item \cs{g\_docxlike\_latin\_pitch\_bool}：西文字母也各加半格余量，与汉字对到同一张网格上。
+% \item \cs{g\_docxlike\_verb\_space\_visible\_bool}：行内代码里的空格印成可见的记号。
+% \end{itemize}
+%    \begin{macrocode}
+\bool_new:N \g_docxlike_word_layout_bool
+\bool_gset_true:N \g_docxlike_word_layout_bool
+\bool_new:N \g_docxlike_ragged_bottom_bool
+\bool_gset_true:N \g_docxlike_ragged_bottom_bool
+\bool_new:N \g_docxlike_grid_bool
+\bool_gset_true:N \g_docxlike_grid_bool
+\bool_new:N \g_docxlike_latin_pitch_bool
+\bool_new:N \g_docxlike_verb_space_visible_bool
+\bool_gset_true:N \g_docxlike_verb_space_visible_bool
+%    \end{macrocode}
+%
+% \cs{docxlikesetup}\marg{键值} 是文档里的设置入口，各模块往 \texttt{docxlike} 这一族上挂
+% 自己的键（\option{styles}、\option{page-setup}、\option{linebreak} 等）。
+%    \begin{macrocode}
+\keys_define:nn { docxlike }
+  {
+    unknown .code:n =
+      { \__docxlike_unknown_key: } ,
+  }
+\NewDocumentCommand \docxlikesetup { m } { \__docxlike_keys_set:nn { docxlike } {#1} }
+%</package>
+%    \end{macrocode}
+%
+% \Finale

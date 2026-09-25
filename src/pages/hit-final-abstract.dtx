@@ -1,0 +1,238 @@
+% \iffalse meta-comment
+%
+% hit-final-abstract.dtx 是中英文摘要页
+%
+% \fi
+%
+% \section{中英文摘要页}
+%
+% \changes{v3.2a}{2026/09/25}{摘要标题的 1.25 倍行距直接设在标题这一段上；旧版面与博士后不再
+%   因此丢掉 \pkg{ctex} 的章标题格式（原先会把正文里的章题排成正文字号、左对齐）}
+% \changes{v3.2a}{2026/08/22}{\cs{hit@make@abstract} 迁到 expl3（写进目录的 \texttt{\string~}
+%   换成 \cs{nobreakspace}）；符号表提成 \env{symbols}，\env{denotation} 退回 v3.1e 原样
+%   只供老文档；摘要排完清一次缩写的「用过」状态}
+%
+%    \begin{macrocode}
+%<*final-abstract>
+\bool_if:NT \g__hit_final_bool
+  {
+\box_new:N \hit@keywords@box
+\NewDocumentCommand \hit@put@keywords { m m }
+  {
+    \group_begin:
+      \setbox \hit@keywords@box = \hbox {#1}
+      \noindent \hangindent \wd \hit@keywords@box \hangafter 1
+      \box \hit@keywords@box #2 \par
+    \group_end:
+  }
+
+%    \end{macrocode}
+%
+% \changes{v3.0.0}{2020/05/21}{英文版目录之前有page行}
+% \changes{v3.0.0}{2020/05/21}{博后关键字加粗}
+%
+% 两个摘要标题照指南排 1.25 倍行距，是标题这一段上的直接格式，排完就没了。英文摘要的标题
+% 全是西文，标题自己会按西文行盒排（Word 按行里实际的字算行高）。旧版面与博士后的标题样式
+% 是空的，标题照 \pkg{ctex} 那一套排，这里不碰。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_abstract_heading:n #1
+  {
+    \docxlike_format_if_blank:nTF { Heading1 }
+      {#1}
+      {
+        \docxlike_format_with:nnn { Heading1 }
+          { paragraph = { spacing = { line-spacing = multiple , at = 1.25 } } }
+          {#1}
+      }
+  }
+\cs_new_protected:Npn \hit@make@abstract
+  {
+    \hit@clear@page
+    \hit@layout@push@part:n { frontmatter }
+    \bool_if:NT \g__hit_en_bool
+      {
+        \addtocontents { toc } { \nobreakspace { } \hfill \textbf { \hit@term@table@of@contents@page@en } \par }
+        \addtocontents { \ext@table }
+          { { \noindent \sihao \textbf { \hit@term@table@of@contents@table@en } \nobreakspace { } \hfill \textbf { \hit@term@table@of@contents@page@en } } \par }
+        \addtocontents { \ext@figure }
+          { { \noindent \sihao \textbf { \hit@term@table@of@contents@figure@en } \nobreakspace { } \hfill \textbf { \hit@term@table@of@contents@page@en } } \par }
+      }
+    \__hit_abstract_heading:n
+      {
+        \hit@appendix@chapter * [ \hit@term@abstract@heading@zh ]
+          { \hit@spread@by:nn { \hit@term@abstract@heading@spread } { \hit@term@abstract@heading@zh } }
+          [ \hit@term@abstract@in@english@toc@zh ]
+      }
+    \pagestyle { hit@headings }
+    \pagenumbering { Roman }
+    \hit@abstract@zh
+    % 正文与关键词之间按范例是一个空段(单独回车一行),\hitenter 模拟之
+    % (1-8 页版 p4,36.8 = 19.4 + 17.25)
+    \hitenter
+    \hit@put@keywords
+      { \bool_if:NT \g__hit_postdoc_bool { \bfseries } \heiti \hit@term@abstract@keywords@zh }
+      { \hit@info@keywords@zh }
+    \hit@clear@page
+    \__hit_abstract_heading:n
+      { \hit@appendix@chapter * { \hit@term@abstract@heading@en } [ \hit@term@abstract@in@english@toc@en ] }
+    % 英文摘要正文按范例排:Word 的 1.25 倍自动行距按行内字体自然行高算,
+    % 纯西文段 TNR 12bp 实测行距 17.25;字符网格的行末余量 \rightskip 只属于
+    % 汉字网格行,西文段排满真版心(例右缘 510.4);汉字行撑竿会把行距顶回
+    % 网格,组内停用;范例导出勾了不断字,断词罚分同关
+    \group_begin:
+      % 按 abstract-en 目标铺版面(行距/版宽/首行基线/断词,见 hit-format)
+      \docxlike_format_apply_par:n { abstract-en }
+      \hit@abstract@en
+      \hitenter
+      \hit@put@keywords { \textbf { \hit@term@abstract@keywords@en \enskip } } { \hit@info@keywords@en }
+    \group_end:
+%    \end{macrocode}
+%
+% 摘要里出现过的缩写，正文第一次再出现时仍该全写一遍——读者未必先读摘要，
+% 而且规范说的「文中第一次出现」指的是正文。清不清由
+% \option{abbr}/\option{reset-after-abstract} 定，默认清。
+%    \begin{macrocode}
+    \bool_if:NT \g__hit_abbr_reset_bool
+      { \cs_if_exist:NT \glsresetall { \glsresetall } }
+    \hit@layout@pop@part:
+  }
+%    \end{macrocode}
+%
+% 符号表。
+%
+% 两个环境分工：\env{symbols} 是新写法，\env{denotation} 是 v3.1e 的老写法。
+%
+% \env{symbols} 本身就是一个 \pkg{enumitem} 的 \texttt{description} 列表，
+% 一行一个符号 \cs{item}\oarg{符号}\meta{说明}。可选参数收键值：
+% \option{labelwidth} 是第一列宽度（默认 2.5\,cm），\option{subheading} 给这一段
+% 加个小标题——只在一页里排两段（符号加缩略语）时才用得着。不含等号的裸值当
+% 宽度，\cs{begin}\marg{symbols}\oarg{3cm} 照样认。
+%
+% 规范里允许把符号分成几张表、各有各的列，列表排不出来，所以还有
+% \env{symbols*}：标题和表号照旧，正文由用户自己写。
+%
+% \env{denotation} 不带列表机制，也没有星号版：v3.1e 的它就是「排标题、重置表号、
+% 正文随你写」，老文档里的内容是一张手写的 \env{table}。既然 \env{symbols} 全盘
+% 接手了新写法，它退回原样即可，不必现代化，也不发废弃提示。
+%    \begin{macrocode}
+\RequirePackage{enumitem}
+\newlist { hit@symbols } { description } { 1 }
+\setlist [ hit@symbols ]
+  {
+    nosep ,
+    font = \normalfont ,
+    align = left ,
+    leftmargin = ! ,% 下面三个长度之和
+    labelindent = 0pt ,
+    labelwidth = 2.5cm ,
+    labelsep* = 0.5cm ,
+    itemindent = 0pt ,
+  }
+\tl_new:N \l__hit_symbols_width_tl
+\tl_new:N \l__hit_symbols_subheading_tl
+\keys_define:nn { hit / symbols / opt }
+  {
+    labelwidth .tl_set:N = \l__hit_symbols_width_tl ,
+    subheading .tl_set:N = \l__hit_symbols_subheading_tl ,
+  }
+\cs_new_protected:Npn \__hit_symbols_opt:n #1
+  {
+    \tl_set:Nn \l__hit_symbols_width_tl { 2.5cm }
+    \tl_clear:N \l__hit_symbols_subheading_tl
+    \tl_if_in:nnTF {#1} { = }
+      { \hit@keys@set:nn { hit / symbols / opt } {#1} }
+      { \tl_if_blank:nF {#1} { \tl_set:Nn \l__hit_symbols_width_tl {#1} } }
+  }
+%    \end{macrocode}
+%
+% 每个部件各排各的章标题。只有合并成一页的那个部件例外：它自己排一个合并
+% 标题，然后把闸门顶上，里头的 \env{symbols} 与 \cs{listofabbreviations*}
+% 就都不再排章标题了。
+%    \begin{macrocode}
+\bool_new:N \g__hit_frontlist_open_bool
+\tl_new:N \g__hit_frontlist_pending_tl
+\cs_new_protected:Npn \hit@frontlist@open:nn #1#2
+  {
+    \bool_if:NF \g__hit_frontlist_open_bool
+      {
+        \hit@clear@page
+%    \end{macrocode}
+%
+% 英文版排英文标题，中文版排中文标题、英文那个进英文目录。跟结论、致谢那几处
+% 一样按语种分支——常量的 \texttt{-zh}／\texttt{-en} 后缀说的是「这个部件的
+% 中文名与英文名」，不是「中文版用前者、英文版用后者」。
+%    \begin{macrocode}
+        \bool_if:NTF \g__hit_en_bool
+          { \hit@appendix@chapter * {#2} [#2] }
+          { \hit@appendix@chapter * {#1} [#2] }
+      }
+%    \end{macrocode}
+%
+% 段小标题:自己写的优先,没写就取合并部件预置的那一个,取完清掉。
+%    \begin{macrocode}
+    \tl_if_empty:NT \l__hit_symbols_subheading_tl
+      {
+        \tl_set_eq:NN \l__hit_symbols_subheading_tl
+          \g__hit_frontlist_pending_tl
+        \tl_gclear:N \g__hit_frontlist_pending_tl
+      }
+    \tl_if_empty:NF \l__hit_symbols_subheading_tl
+      { \hit@frontlist@subheading:V \l__hit_symbols_subheading_tl }
+  }
+\cs_new_protected:Npn \hit@frontlist@subheading:n #1
+  { \par \addvspace { \baselineskip } \noindent { \bfseries #1 } \par \nobreak }
+\cs_generate_variant:Nn \hit@frontlist@subheading:n { V }
+\cs_new_protected:Npn \__hit_symbols_open:
+  {
+    \hit@frontlist@open:nn
+      { \hit@term@list@of@symbols@heading@zh } { \hit@term@list@of@symbols@heading@en }
+    \setcounter { table } { 0 }
+    \cs_set:Npn \thetable { \arabic { table } }% 表编号为 1
+  }
+\cs_new_protected:Npn \__hit_symbols_close:
+  {
+    \cs_set:Npn \thetable { \arabic { chapter } - \arabic { table } }% 表编号为 7-1
+    \setcounter { table } { 0 }
+  }
+\NewDocumentEnvironment { symbols } { O{} }
+  {
+    \__hit_symbols_opt:n {#1}
+    \__hit_symbols_open:
+    \begin { hit@symbols } [ labelwidth = \l__hit_symbols_width_tl ]
+  }
+  { \end { hit@symbols } \__hit_symbols_close: }
+\NewDocumentEnvironment { symbols* } { O{} }
+  { \__hit_symbols_opt:n {#1} \__hit_symbols_open: }
+  { \__hit_symbols_close: }
+%    \end{macrocode}
+%
+% v3.1e 的 \env{denotation}：排标题、把表号改成不带章号的形式，正文随用户写。
+%    \begin{macrocode}
+\NewDocumentEnvironment { denotation } { O{2.5cm} }
+  {
+    \hit@clear@page
+    \hit@appendix@chapter *
+      { \hit@term@list@of@symbols@heading@zh } [ \hit@term@list@of@symbols@heading@en ]
+    \setcounter { table } { 0 }
+    \cs_set:Npn \thetable { \arabic { table } }
+  }
+  {
+    \cs_set:Npn \thetable { \arabic { chapter } - \arabic { table } }
+    \setcounter { table } { 0 }
+  }
+%    \end{macrocode}
+%
+% 带星号的不开列表，正文完全交给用户。可选参数收下不用，这样 v3.1e 里
+% \cs{begin}\marg{denotation}\oarg{2.5cm} 的写法加个星号就能直接跑。
+%    \begin{macrocode}
+\NewDocumentEnvironment { denotation* } { O{2.5cm} }
+  { \__hit_denotation_open: }
+  { \__hit_denotation_close: }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+  }
+%</final-abstract>
+%    \end{macrocode}
+%
+% \Finale

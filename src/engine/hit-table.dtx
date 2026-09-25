@@ -1,0 +1,478 @@
+% \iffalse meta-comment
+%
+% hit-table.dtx 是各个类共用的表格层
+%
+% \fi
+%
+% \section{共享表格层}
+%
+% \changes{v3.2a}{2026/09/14}{表格的值各个类共用，\pkg{tabularray} 接进同一套：表内字号行距由
+%   \option{styles}/\option{table-cell} 算、撑杆换成 Word 的行盒（规范「表中文字用宋体
+%   5 号字」，长表格行距取网格行距，从前 \cs{wuhao} 自带的 1.3 倍比一格矮三分之一）；
+%   线宽单位换 \texttt{bp}，\cs{tabcolsep} 按 Word 的单元格边距，新版面下三条线上下不垫
+%   \pkg{booktabs} 的那几段；长表格的包装改到 \texttt{begindocument} 才做（宏包加载期换
+%   \cs{LT@array} 会被后加载的 \pkg{caption} 整个重定义掉）；\env{longtblr} 与正文的
+%   空白照浮动表（前后各一个网格行，表题与顶线之间不垫），原先是 \pkg{tabularray}
+%   的默认外距再加段落撑杆撑出来的空段，表题上方比浮动表低 17.9\,bp、顶线下
+%   多 6\,bp、表后多 4\,bp}
+%
+% \pkg{longtable} 不是浮动体，不会跟着 \cs{caption} 自动调字号，得自己把默认字号
+% 压到五号。这套机制原来只在终稿里，而 \env{eqdenote} 各个类
+% 都有、里面又要用 \cs{ltfontsize} 把字号调回正文大小，报告用
+% \env{eqdenote} 会报 \cs{ltfontsize} 未定义。
+%
+% 位置与 \file{hit-fonts.dtx}、\file{hit-math.dtx} 一样，排在类自己的 dtx 之前，
+% 所以只放定义，改 \cs{LT@array} 的部分放进 \cs{hit@setup@table}，由各个类在
+% \pkg{longtable} 加载之后调用。
+%
+%    \begin{macrocode}
+%<*shared-table>
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@setup@table}
+% 存一份原来的 \cs{LT@array}，再把默认字号换成五号。
+%
+% \emph{要等所有宏包都打完补丁。} \pkg{longtable} 的 \cs{LT@array} 是好几个宏包
+% 抢着改的地方：\pkg{caption} 换成自己的 \cs{caption@LT@array}，\pkg{hyperref}
+% 也插一手。在加载期包，后面谁再重定义一次就把我们的包装冲掉了——TL2022 与
+% TL2026 上实测都是 \texttt{caption@LT@array}，也就是这个五号一直没排上。更糟的是
+% 旧版 \pkg{hyperref} 打这个补丁时按原来的参数文本匹配，看到我们的包装会报
+% \texttt{Use of \string\x doesn't match its definition}，出错时手里的组关不掉，
+% 类加载完组深从 1 变成 6，报告的宏级测试整批报差（在 TL2022 容器里复现）。
+%
+% 挪到 \texttt{begindocument/end}：\pkg{caption} 自己也是在 \texttt{begindocument}
+% 里换 \cs{LT@array} 的，挂在同一个钩子上会被它接着冲掉（实测），要挂到
+% 所有 \cs{AtBeginDocument} 之后那一档。
+%    \begin{macrocode}
+\bool_new:N \l__hit_table_float_bool
+\cs_new_protected:Npn \__hit_table_float_begin:
+  {
+    \bool_set_true:N \l__hit_table_float_bool
+    \__hit_layout_msword_active:T
+      {
+        \skip_zero:N \lineskip
+        \skip_zero:N \normallineskip
+      }
+  }
+\cs_new_protected:Npn \hit@setup@table
+  {
+    \AddToHook { begindocument / end }
+      {
+        \cs_set_eq:NN \hit@original@longtable@array \LT@array
+        \cs_set:Npn \LT@array { \hit@table@font: \hit@original@longtable@array }
+      }
+    \AddToHook { env/table/begin }  { \__hit_table_float_begin: }
+    \AddToHook { env/table*/begin } { \__hit_table_float_begin: }
+    \clist_map_inline:nn { tabular , tabular* , tabularx , tabulary , array }
+      {
+        \AddToHook { env/##1/begin }
+          { \bool_if:NT \l__hit_table_float_bool { \hit@table@font: } }
+      }
+    \hit@setup@tabularray
+  }
+%    \end{macrocode}
+%
+% \textbf{\env{table} 浮动体里也是五号。} 规范原话是“表中文字用宋体~5~号字”，
+% 与长表格那一条是同一句。从前只有 \pkg{longtable} 走了这一条，普通表格得用户
+% 自己在 \cs{begin}\marg{tabular} 前面写一句 \cs{wuhao}——示例文档里每张表都写着，
+% 正是模型缺了一块的样子。
+%
+% \emph{两级钩子。} 字号不能直接挂在 \env{table} 上：\cs{@xfloat} 起浮动体时
+% 要走一遍 \cs{@floatboxreset}，那里头有 \cs{normalsize}，挂在 \env{table} 上的
+% 设置当场就被冲掉（实测表内文字仍是小四）。也不能直接挂在 \env{tabular} 上：
+% \env{tabular} 类里到处在用（封面的字段表、内封、\env{eqdenote}），那些地方各有
+% 各的字号，挂上去会一并盖掉。
+%
+% 所以 \env{table} 那一层只立一个标志，\env{tabular} 一族那一层看标志再设字号。
+% 标志是局部的，浮动体一收组自己就没了。题注不受影响，\cs{@makecaption} 自己
+% 按 \option{caption-table} 再设一遍。
+%
+% \env{figure} 那一头不挂。规范同样说“图中文字用宋体~5~号字”，可图里的字多半
+% 在图片里头，排版这边够不着；\pkg{tikz} 画的那种要自己写字号。
+% \end{macro}
+%
+% \begin{macro}{\hit@table@font:}
+% \textbf{行高就是网格行距。} Word 里表格数据行的行高等于文档网格的行距，行盒在行里
+% 垂直居中。实测本科范例第 12 页那张表：表头下 387.12、底线 521.40，七行，
+% 一行 $(521.40-387.12)/7 = 19.18$；那一节的 \texttt{docGrid} 写的是
+% \texttt{linePitch=383}，也就是 19.15\,bp。步进与行高都是它。
+%
+% \hologo{LaTeX} 这边表格行高由 \cs{@arstrutbox} 定，而它是按 \cs{strutbox} 的
+% 0.7／0.3 分的，\cs{strutbox} 又跟着 \cs{baselineskip} 走。所以只要把长表格默认
+% 字号的行距设成网格行距，行高就对了：五号 \cs{wuhao} 自带 1.3 倍是 13.65\,bp，
+% 比一格矮三分之一，手册上教用户写 \cs{ltfontsize}\marg{\cs{wuhao}\oarg{1.667}}
+% 手调的正是这一段。
+%
+% 基线在行里的位置这样也就对上了：\hologo{LaTeX} 放在行顶下 $0.7L = 13.41$\,bp，
+% Word 是“行盒居中再加上升部”，即 $(19.15-13.617)/2 + 10.66 = 13.43$\,bp，
+% 差 0.02\,bp。不必另写居中的撑杆。
+%
+% 旧版面算不出网格（\cs{g\_docxlike\_page\_lead\_dim} 是零），退回 \cs{wuhao}。
+% 判据是“网格算出来没有”，不是“哪个版面”——问版面等于把同一件事写两遍。
+%
+% \emph{数从 \option{table-cell} 目标取，不再写死五号加网格。} 上面那段
+% “五号、行高一个网格行”是学位论文范例的样子，写成 \option{styles} 的话就是
+% \texttt{font=\{size=wuhao\}, paragraph=\{snap-to-grid=true, spacing=\{line-spacing=single\}\}}——单倍贴格，
+% 一行占一格。深圳本科的两份报告不是这样：原件里表格每一格的段都是
+% \texttt{line=300 auto} 加 \texttt{snapToGrid=0}，字号跟正文（小四），
+% 实测数据行步进 19.44，正是小四 1.25 倍的行盒。所以取值搬进 \file{hithesis.cfg}，
+% 两档各写各的，这里只管把目标算出来的东西装到表格上。
+%
+% \emph{表题与表之间那 1\,bp 是 \cs{lineskip}。} 表题那一行后面跟着整张表的
+% 盒子，盒子比 \cs{baselineskip} 高，\hologo{TeX} 的行间胶退成 \cs{lineskip}
+% ——内核默认 1\,pt，Word 没有这东西：三种题注字号实测表题基线到顶线上沿都比
+% “行深”多 1.0。浮动体里把它清零（\cs{\_\_hit\_table\_float\_begin:}，只在
+% 新版面下），本科范例那张表的“表题基线到顶线心 7.22 = 行深 6.44 + 0.75”
+% 也正是没有它的样子。\cs{normallineskip} 一并清：环境的 begin 钩子跑在环境
+% 代码之前，\cs{@xfloat} 里的 \cs{@parboxrestore} 会拿它把 \cs{lineskip} 设回去。
+%
+% \emph{行里的撑杆换成 Word 的行盒。} \hologo{LaTeX} 的 \cs{@arstrutbox} 按
+% \cs{strutbox} 的 0.7／0.3 分基线，贴网格那一档凑巧与 Word 的居中只差 0.02\,bp
+% （见上面的算式），不贴网格的 1.25 倍就差远了：19.45 的 0.7 是 13.62，Word 的
+% 上升部是 12.18，基线低 1.4。而且 \texttt{p} 列里的段落靠段落钩子发的是
+% \cs{docxlike\_format\_strut:}，与 \cs{@arstrutbox} 不是一根撑杆，两根取大，行高多出
+% 一截——深圳中期那张表先前的行步进是 21.89。这里把目标的撑杆装进
+% \cs{strutbox}（\cs{@array} 从它取 \cs{@arstrutbox}），\texttt{p} 列里的段落
+% 钩子发的还是同一根，两根一样高，行高就是行盒。\cs{strutbox} 是盒寄存器，
+% 在 \env{tabular} 组内设，出组还原。
+%
+% 字体状态用 \cs{docxlike\_format\_apply\_state\_else:nn} 设：它与
+% \cs{docxlike\_format\_apply\_font\_else:nn} 只差不发撑杆——环境开头是竖直模式，
+% 撑杆一发就起了一段。旧版面（\cs{\_\_hit\_layout\_msword\_active:TF} 为假）
+% 整段不走，仍是 \cs{wuhao}，那一档钉的是 v3.1e，一个字节都不能动。
+%    \begin{macrocode}
+\box_new:N \l__hit_table_strut_box
+\cs_new_protected:Npn \hit@table@font:
+  {
+    \__hit_layout_msword_active:TF
+      {
+        \docxlike_format_apply_state_else:nn { table-cell } { \wuhao }
+        \cs_if_exist:NT \docxlike_format_strut:
+          {
+            \docxlike_format_strut_box:N \l__hit_table_strut_box
+            \box_set_eq:NN \strutbox \l__hit_table_strut_box
+          }
+      }
+      { \wuhao }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@setup@table@rules}
+% 三线表的线宽与单元格边距。规范里三条线粗细不同，\pkg{booktabs} 的默认值细一档。
+%
+% \textbf{读自范例的 \file{.docx}，不是从 PDF 上量的。} 指南只说“不加左右边线”
+% “建议采用国际通行的三线表”，一个数都没给。范例那张表的 \texttt{tblPr} 是全框
+% \texttt{sz=4}，三条线由\emph{单元格级}的 \texttt{w:tcBorders} 逐格盖掉：表头行
+% 上 \texttt{sz=12}、下 \texttt{sz=8}，数据首行上 \texttt{sz=8}，末行下
+% \texttt{sz=12}，其余四边全 \texttt{nil}。\texttt{w:sz} 的单位是八分之一磅，
+% \texttt{sz=12} 与 \texttt{sz=8} 就是 Word“边框和底纹”里那个宽度下拉框上的
+% 1½ 磅与 1 磅。
+%
+% \textbf{磅是 \texttt{bp} 不是 \texttt{pt}。} Word 的磅是 1/72 英寸，
+% \hologo{TeX} 的 \texttt{pt} 是 1/72.27 英寸，照 Word 写 \texttt{bp}。两个版面
+% 一套值，不为旧版面另留一支：v3.1e 写的 1.5\,pt 与 1.5\,bp 差 0.0056\,bp，
+% 印不出来，为这点差养一个分支不值。
+%
+% \cs{tabcolsep} 是单元格左右各留多少。范例的表没写 \texttt{tblCellMar}，用的是
+% \file{styles.xml} 里 \texttt{docDefaults} 那一份：上下 0、左右各 108 缇，
+% 也就是 5.4\,bp（Word 的“表格属性→单元格边距”上显示 0.19 厘米）。
+% \hologo{LaTeX} 的默认值是 6\,pt。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@table@rules
+  {
+    \dim_set:Nn \heavyrulewidth { 1.5bp }
+    \dim_set:Nn \lightrulewidth { 1bp }
+    \dim_set:Nn \cmidrulewidth { 0.5bp }
+    \dim_set:Nn \tabcolsep { 5.4bp }
+    \AddToHook { begindocument / end }
+      {
+        \__hit_layout_msword_active:T
+          {
+            \skip_zero:N \abovetopsep
+            \skip_zero:N \belowrulesep
+            \skip_zero:N \aboverulesep
+            \skip_zero:N \belowbottomsep
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{线与行之间不垫东西。} \pkg{booktabs} 在 \cs{toprule} 下面垫
+% \cs{belowrulesep}（0.65\,ex）、\cs{midrule} 上下各垫一段，Word 里没有这些：
+% 格子的内容框从线的内沿起排，线本身占多厚就是多厚。两份实测都对得上：
+% 本科范例第 15 页那张表（贴 19.15 的网格，线 1.5／1／1.5）表题基线到顶线心
+% 7.22 = 五号 1.25 倍的行深 6.44 + 0.75，顶线心到表头线心 58.80 = 0.75 +
+% 3 × 19.15 + 0.5，表头末行到首个数据行 20.1 = 19.15 + 1.0；深圳本科中期
+% 表 2-1（不贴网格）表题基线到表头基线 21.12、表头到首行 26.88\footnote{那一行
+% 多出的 6.4 是原件里表头那格段落标记上带着上标属性，是那份文件的手误，不算
+% 规则。}、数据行 19.44。这几个数正是“行深 + 线 + 上升部”，中间没有别的。
+% 挂在 \texttt{begindocument/end}，与浮动体间距同一个钩子，等版面定了再判。
+% \end{macro}
+%
+% \begin{macro}{\hit@setup@tabularray}
+% \pkg{tabularray} 是推荐的表格写法，接进同一套值，全挂在
+% \texttt{package/tabularray/after} 钩子上——用户不装不欠账，装了就齐。
+% 逐项对应：
+% \begin{itemize}
+% \item \emph{线宽零工作}：它的 \pkg{booktabs} 库
+%   （\cs{UseTblrLibrary}\marg{booktabs}）画三线用的就是
+%   \cs{heavyrulewidth} 这批全局尺寸，上面设过的值直接生效。
+% \item \emph{单元格边距}：它的 \texttt{colsep} 不读 \cs{tabcolsep}（默认
+%   6\,pt），而且每个环境一份 inner 表、互不继承，\pkg{booktabs} 库的那三个
+%   环境在库加载前还不存在。所以挂在各环境自己的 begin 钩子里，进环境时
+%   往它的 inner 表追加 \texttt{colsep=}\cs{tabcolsep}——追加是组内局部的，
+%   出组即还原，不会越积越长。新版面下 \texttt{rowsep} 也追加成零：它默认上下
+%   各 2\,pt，Word 的单元格上下边距是 0，行高就是格里那一段的行盒（见
+%   \cs{hit@table@font:}）；实测 demo 的长表格每行 23.13，去掉这 4\,pt 正是
+%   一个网格行。
+% \item \emph{表内字号行距}：\env{tblr} 与 \env{booktabs} 走 \env{tabular}
+%   一族的两级钩子（浮动体里才压五号）；\env{longtblr}、\env{talltblr}、
+%   \env{longtabs}、\env{talltabs} 与 \pkg{longtable} 同规矩，无条件压。
+%   钩子挂在环境名上，环境不存在就永不触发，先挂无害。
+% \item \emph{表题}：题号、题号后的间隔、字体三件各接原链——
+%   \cs{fnum@table}、\cs{hit@caption@separator}、\option{caption-table}
+%   格式目标，与 \cs{caption} 排出来同源。间隔与字体那两条链看
+%   \cs{@captype} 分图表，模板里先立成 \texttt{table}。
+% \item \emph{续表头}：规范说「表右上角注明编号，编号后加“（续表）”，
+%   表题可省略」，demo 的老写法是
+%   \cs{multicolumn}\marg{n}\marg{r}\marg{表~x-x（续表）}。续页头照此排：
+%   编号加“（续表）”靠右，表题省略；英文文档排 (Continued)。续页脚不排，
+%   老写法也没有。
+% \item \emph{双语表题}：给长表环境注册一个 \texttt{caption-en} 外参
+%   （\cs{DeclareTblrKeys} 是它的公开接口），caption 模板排完中文行后接一行
+%   英文——英文表名前缀、表号、题号后的间隔、英文题，逐件与浮动表里
+%   \cs{caption}\marg{中文题}\oarg{英文题} 的第二行同链；排不排听
+%   \option{styles}/\option{bilingual-caption} 的，与浮动表同一个开关。
+%   表题的可用宽度顺手从表宽抬成版心宽——\pkg{tabularray} 把 caption 排在
+%   表宽里（头盒的 \cs{hsize} 被它设成表宽），窄表的题被挤着折行，规范
+%   口径是表题居中于版心。抬法：题装进一只 \cs{parbox}\marg{\cs{textwidth}}，
+%   两边 \cs{hss} 夹着塞回表宽的行盒——题相对\emph{表}居中，表按默认的
+%   \texttt{halign=c} 居中于版心时两个中心重合，且不必猜头盒随表块怎么
+%   水平摆放（按块缩进做负位移的写法在两份测试文档里一份准一份不准，
+%   放弃）。不能改 \cs{hsize} 抬，哪怕包在分组里，表体 \texttt{halign=c}
+%   的缩进也跟着算歪、整张表贴到左缘（实测顶线 x0 从 200 掉到 85）。
+%   续表头不抬，右对齐于表右缘是老写法 \cs{multicolumn}\marg{n}\marg{r}
+%   的语义。
+% \item \emph{续表重复表头}：规范说“续表应重复表头”，\env{longtblr} 与
+%   \env{longtabs} 的 \texttt{rowhead} 默认给 1，用户在环境参数里写
+%   \texttt{rowhead=0} 或别的值照常覆盖。
+% \item \emph{与正文的空白照浮动表}：长表前后各空一个网格行，表题与顶线之间
+%   不垫东西，与 \file{src/flow/hit-final-float.dtx} 给浮动体的一套同值。
+%   \pkg{tabularray} 自己的默认是 \texttt{presep}／\texttt{postsep} 各
+%   \texttt{1.5\string\bigskipamount}（17.7\,bp）、\texttt{headsep}／\texttt{footsep}
+%   各 6\,pt，而且它起表前先 \cs{leavevmode} 开一个空段去刷新 \cs{pagetotal}，
+%   排每一页又用 \cs{noindent} 开一段装整张表的盒子（换页后那两处也各有一个
+%   \cs{noindent}，与 \cs{nobreak} 连着）——这几段在本类里会被段落钩子的撑杆
+%   撑起来：空段成了一整行，与 \texttt{presep} 叠成两行空白（实测表题比浮动表
+%   低 17.9），表盒底下多垫一个行深。所以这四处的 \cs{leavevmode} 与
+%   \cs{noindent} 前面各补一句 \cs{docxlike\_format\_blank\_para:}，让那一段两头都不发
+%   撑杆、也不走 Lua 的行盒；四个外距在新版面下按网格行设，旧版面不动。
+%   \cs{nobreak}\cs{noindent} 那一对打两遍：\cs{patchcmd} 只换第一处，换过的
+%   那处已经不匹配，第二遍换到的就是另一处。
+%   补丁用 \cs{patchcmd} 打在 \pkg{tabularray} 的内部函数上。\cs{patchcmd}
+%   按打补丁那一刻的 catcode 重扫整个宏体，\pkg{etoolbox} 只替你把 @ 设成字母
+%   （\texttt{\string\c@rowcount} 靠它），函数名里的下划线与冒号得自己设成字母，
+%   打完再还原，不然换个时机跑（比如用户先装了 \pkg{tabularray}）宏体就断成
+%   \cs{skip} 加一串下标。空格也得设回 10：\cs{patchcmd} 先重扫一遍原宏体、
+%   与原件比对，比不上就判“打不上”，而长表那个函数里有
+%   \texttt{\string\hrule height \string~ 0pt}，那个 \texttt{\string~} 是一个真的
+%   空格记号，\pkg{expl3} 语法下重扫会把它吞掉，比对就过不了（实测就是这样
+%   打不上的）。不能拿 \cs{ExplSyntaxOn}／\cs{ExplSyntaxOff} 包：语法本来就
+%   开着时后者会把它关掉，后面的类代码全炸。
+% \end{itemize}
+% 表题字体那条链在报告没有（\cs{hit@caption@separator} 一族住在终稿
+% 的浮动层），钩子里逐条存在才接，报告装 \pkg{tabularray} 保它默认样式。
+%
+% \pkg{tabularray} 的接口按特性检测分级：模板与样式那批要
+% \cs{DeclareTblrTemplate}（2022 年的模板系统），老版本探不到就整块不接，
+% 编译照常、只是没有那部分自动化——类必装 \pkg{tabularray}（决议页在用），
+% 钩子每次都触发，不能在老版上炸。\option{caption-en} 外参的注册分两路：
+% 2025 年起走公开的 \cs{DeclareTblrKeys}；2023A 到 2024A 那两代没有它，但
+% outer 键组叫 \texttt{tblr-outer}、\cs{\_\_tblr\_outer\_gput\_spec:nn} 同名，
+% 探到组就直接 \cs{keys\_define:nn} 注册，TL2022 到 2024 的 demo 双语长表
+% 照排。挂环境名的那批（边距、字号、\texttt{rowhead}）天然免疫：环境不
+% 存在钩子永不触发。\pkg{booktabs} 库也在这儿装上，用户什么都不用写。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_table_tblr_captype:
+  { \cs_set:Npn \@captype { table } }
+\box_new:N \l__hit_table_caption_box
+\tl_new:N \l__hit_table_caption_en_tl
+\cs_new_protected:Npn \__hit_table_tblr_en_line:
+  {
+    \tl_set:Nx \l__hit_table_caption_en_tl { \InsertTblrText { caption-en } }
+    \bool_lazy_and:nnT
+      { \bool_if_p:N \g__hit_bilingual_caption_bool }
+      { ! \tl_if_empty_p:N \l__hit_table_caption_en_tl }
+      {
+        \hbox_set:Nn \l__hit_table_caption_box
+          {
+            \__hit_table_tblr_captype:
+            \use:c { hit@term@caption@table@prefix@en } ~ \thetable
+            \hit@caption@separator
+            \l__hit_table_caption_en_tl
+          }
+        \dim_compare:nNnTF { \box_wd:N \l__hit_table_caption_box } > { \hsize }
+          { \noindent \hbox_unpack:N \l__hit_table_caption_box \par }
+          {
+            \centering
+            \makebox [ \hsize ] [ c ] { \box_use:N \l__hit_table_caption_box }
+            \par
+          }
+      }
+  }
+\int_new:N \l__hit_table_catcode_us_int
+\int_new:N \l__hit_table_catcode_colon_int
+\int_new:N \l__hit_table_catcode_space_int
+\cs_new_protected:Npn \__hit_table_patch:Nnn #1#2#3
+  {
+    \int_set:Nn \l__hit_table_catcode_us_int    { \char_value_catcode:n { 95 } }
+    \int_set:Nn \l__hit_table_catcode_colon_int { \char_value_catcode:n { 58 } }
+    \int_set:Nn \l__hit_table_catcode_space_int { \char_value_catcode:n { 32 } }
+    \char_set_catcode_letter:n { 95 }
+    \char_set_catcode_letter:n { 58 }
+    \char_set_catcode_space:n  { 32 }
+    \patchcmd #1 {#2} {#3} { }
+      { \msg_warning:nnn { hithesis } { table-patch-failed } {#1} }
+    \char_set_catcode:nn { 95 } { \l__hit_table_catcode_us_int }
+    \char_set_catcode:nn { 58 } { \l__hit_table_catcode_colon_int }
+    \char_set_catcode:nn { 32 } { \l__hit_table_catcode_space_int }
+  }
+\cs_new_protected:Npn \hit@setup@tabularray
+  {
+    \AddToHook { package / tabularray / after }
+      {
+        \UseTblrLibrary { booktabs }
+        \clist_map_inline:nn { tblr , booktabs }
+          {
+            \AddToHook { env/##1/begin }
+              {
+                \SetTblrInner [##1] { colsep = \tabcolsep }
+                \__hit_layout_msword_active:T
+                  { \SetTblrInner [##1] { rowsep = 0pt } }
+                \bool_if:NT \l__hit_table_float_bool { \hit@table@font: }
+              }
+          }
+        \clist_map_inline:nn { longtblr , talltblr , longtabs , talltabs }
+          {
+            \AddToHook { env/##1/begin }
+              {
+                \SetTblrInner [##1] { colsep = \tabcolsep }
+                \__hit_layout_msword_active:T
+                  { \SetTblrInner [##1] { rowsep = 0pt } }
+                \hit@table@font:
+              }
+          }
+        \clist_map_inline:nn { longtblr , longtabs }
+          {
+            \AddToHook { env/##1/begin }
+              {
+                \SetTblrInner [##1] { rowhead = 1 }
+                \__hit_layout_msword_active:T
+                  {
+                    \SetTblrOuter [##1]
+                      {
+                        presep  = \g_docxlike_page_lead_dim ,
+                        postsep = \g_docxlike_page_lead_dim ,
+                        headsep = 0pt , footsep = 0pt ,
+                      }
+                  }
+              }
+          }
+        \cs_if_exist:NT \docxlike_format_blank_para:
+          {
+            \__hit_table_patch:Nnn \__tblr_build_long_table:n
+              { \mode_leave_vertical: }
+              { \docxlike_format_blank_para: \mode_leave_vertical: }
+            \__hit_table_patch:Nnn \__tblr_halign_whole:Nn
+              { \noindent }
+              { \docxlike_format_blank_para: \noindent }
+            \__hit_table_patch:Nnn \__tblr_build_long_table:n
+              { \nobreak \noindent }
+              { \nobreak \docxlike_format_blank_para: \noindent }
+            \__hit_table_patch:Nnn \__tblr_build_long_table:n
+              { \nobreak \noindent }
+              { \nobreak \docxlike_format_blank_para: \noindent }
+          }
+        \cs_if_exist:NT \DeclareTblrTemplate
+          {
+            \DefTblrTemplate { caption-tag } { default } { \fnum@table }
+            \cs_if_exist:NT \hit@caption@separator
+              {
+                \DefTblrTemplate { caption-sep } { default }
+                  { \__hit_table_tblr_captype: \hit@caption@separator }
+              }
+            \cs_if_exist:NT \hit@caption@font:
+              {
+                \SetTblrStyle { caption }
+                  { font = \__hit_table_tblr_captype: \hit@caption@font: }
+                \SetTblrStyle { capcont }
+                  { font = \__hit_table_tblr_captype: \hit@caption@font: }
+              }
+            \cs_if_exist:NT \hit@caption@separator
+              {
+                \cs_if_exist:NTF \DeclareTblrKeys
+                  {
+                    \DeclareTblrKeys { table/outer }
+                      {
+                        caption-en .code:n =
+                          { \__tblr_outer_gput_spec:nn { caption-en } {##1} } ,
+                      }
+                  }
+                  {
+                    \keys_if_exist:nnT { tblr-outer } { caption }
+                      {
+                        \keys_define:nn { tblr-outer }
+                          {
+                            caption-en .code:n =
+                              { \__tblr_outer_gput_spec:nn { caption-en } {##1} } ,
+                          }
+                      }
+                  }
+                \DeclareTblrTemplate { caption } { hithesis }
+                  {
+                    \noindent
+                    \hbox_to_wd:nn { \hsize }
+                      {
+                        \tex_hss:D
+                        \parbox { \textwidth }
+                          {
+                            \UseTblrTemplate { caption } { normal }
+                            \__hit_table_tblr_en_line:
+                          }
+                        \tex_hss:D
+                      }
+                    \par
+                  }
+                \SetTblrTemplate { caption } { hithesis }
+              }
+            \DefTblrTemplate { capcont } { default }
+              {
+                \makebox [ \hsize ] [ r ]
+                  {
+                    \fnum@table
+                    \bool_if:NTF \g__hit_en_bool
+                      { ~ ( Continued ) } { （续表） }
+                  }
+                \par
+              }
+            \SetTblrTemplate { contfoot } { empty }
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\ltfontsize}
+% 用法 \cs{ltfontsize}\marg{字号命令}，改某一张长表格内部的字号与行距。
+%    \begin{macrocode}
+\NewDocumentCommand \ltfontsize { m }
+  { \cs_set:Npn \LT@array { #1 \hit@original@longtable@array } }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+%</shared-table>
+%    \end{macrocode}
+%
+% \Finale

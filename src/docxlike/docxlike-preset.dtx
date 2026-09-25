@@ -1,0 +1,375 @@
+% \iffalse meta-comment
+%
+% docxlike-preset.dtx 是 Word 新建空白文档的那一套默认值
+%
+% \fi
+%
+% \section{预设：Word 的空白文档}
+%
+% \changes{v0.1.0}{2026/09/23}{加包选项 \option{preset}，默认 \texttt{blank}：
+%   单独加载本包即照 Word 新建空白文档排}
+%
+% 在 \cls{article}（或 \cls{book}）上写一句 \cs{usepackage}\marg{docxlike}，排出来就是
+% Word 里“新建空白文档”的样子：页面、字体、字号、行距、段后、对齐都照它的
+% \file{Normal.dotm}。文档类自己管版面、只想借本包的机制时写
+% \cs{usepackage}\oarg{preset=none}\marg{docxlike}，本节什么都不做。
+%
+% 取值抄自 Word 16（2024 版）简体中文界面的 \file{Normal.dotm}，主题字体语言
+% \texttt{zh-CN}：
+% \begin{itemize}
+% \item 纸张 A4；页边距上下 1440 缇（2.54\,cm）、左右 1800 缇（3.17\,cm）；页眉 851 缇、
+%   页脚 992 缇；文档网格只定行（\texttt{type="lines"}），行距 312 缇即 15.6\,bp。
+% \item 正文（\texttt{docDefaults} 加 Normal 样式）：等线，11\,bp，多倍行距
+%   278/240（1.1583 倍），段后 160 缇即 8\,bp，左对齐，无首行缩进，孤行控制关。
+% \item 标题 1 至 4：24、20、16、14\,bp，不加粗，颜色 \texttt{0F4761}；段前段后
+%   24/4、8/4、8/4、4/2\,bp，行距随正文；前三级用主题的标题字体“等线 Light”，
+%   第四级用正文字体。这四个样式在模板里是潜在的，要在 Word 里用过一次才写进
+%   \file{styles.xml}，数是这样取出来的。
+% \item 标题（Title）28\,bp、副标题（Subtitle）14\,bp，都用标题字体、居中，副标题灰
+%   \texttt{595959}；登记成 \texttt{title} 与 \texttt{subtitle} 两个目标，用
+%   \cs{docxlike\_format\_par:nn} 排。标题的字距 $-0.5$\,磅（\texttt{w:spacing}）眼下没有做。
+% \item 页眉、页脚两个样式：9\,bp，单倍行距，不贴网格，段后沿用正文的 8\,bp；
+%   页眉居中、页脚左对齐；制表位 4153 缇居中、8306 缇右对齐。没有下框线，这是新版
+%   \file{Normal.dotm} 的样子，旧版中文 Word 页眉底下那条线已经没有了。
+% \item 兼容模式 15。
+% \item \LaTeX{} 内置的颜色名换成 Word 调色板上的颜色，见后面的表。
+% \end{itemize}
+%
+% 标题的层级对照 Word 的“标题 1”到“标题 4”：有 \cs{chapter} 的文档类从
+% \cs{chapter} 算起，没有的从 \cs{section} 算起，到 \cs{paragraph} 为止。标题由本包自己排
+% （\file{docxlike-heading.dtx}）。Word 的空白文档里
+% 标题样式没有链接多级列表，所以标题不编号；要编号，定义一个多级列表链接到标题样式。
+% 标题样式勾着“与下段同页”与“段中不分页”，与 Word 一样。
+%
+% 页面样式换成 \texttt{docxlike}，\texttt{plain} 也指向它：Word 的空白文档没有页眉页脚，
+% 页码也就没有了，要页眉页脚用 \cs{docxheader}、\cs{docxfooter} 写，页码写成
+% \verb|\docxfield{PAGE}|。标题自动插 \texttt{STYLEREF} 用的标记。
+%
+% 字体要 \hologo{LuaLaTeX} 或 \hologo{XeLaTeX}。系统里找不到等线就报一条警告，
+% 字体照文档类原样，版面照样按等线的行高算。“等线 Light”在 macOS 上只随 Word
+% 附带、不装进系统，找不到时前三级标题退回等线。
+%
+% ^^A ======================================================================
+% ^^A Module docxlike-preset: 包选项与空白文档预设
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*docxlike-preset>
+%    \end{macrocode}
+%
+% 包选项只有这一个。其余设置写进 \cs{docxlikesetup}，放在 \cs{usepackage} 之后，
+% 预设的取值就被它盖掉；做成包选项的话，预设在选项之后才装，反倒要盖掉用户写的。
+%    \begin{macrocode}
+\msg_new:nnnn { docxlike } { preset-font-missing }
+  { The~font~'#1'~was~not~found;~the~document~class~fonts~are~kept. }
+  {
+    The~blank~preset~uses~DengXian~(Word's~default~font~for~simplified~
+    Chinese).~Line~heights~are~still~computed~from~DengXian's~metrics.
+  }
+\msg_new:nnnn { docxlike } { preset-engine }
+  { The~blank~preset~sets~fonts~only~under~LuaLaTeX~or~XeLaTeX. }
+  { Page~setup~and~paragraph~spacing~still~apply;~fonts~are~left~alone. }
+\tl_new:N \g__docxlike_preset_tl
+\tl_gset:Nn \g__docxlike_preset_tl { blank }
+\keys_define:nn { docxlike / option }
+  {
+    preset .choices:nn = { blank , none }
+      { \tl_gset_eq:NN \g__docxlike_preset_tl \l_keys_choice_tl } ,
+  }
+%    \end{macrocode}
+%
+% \emph{页面。}
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_preset_page:
+  {
+    \docxlike_page_setup:n
+      {
+        margins = { top = 72bp , bottom = 72bp , left = 90bp , right = 90bp } ,
+        layout = { from-edge = { header = 42.55bp , footer = 49.6bp } } ,
+        document-grid = { lines = { pitch = 15.6bp } } ,
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{段落格式。} “标题 1”到“标题 4”存在 \texttt{Heading1} 到 \texttt{Heading4}，
+% 发的时候再按文档类有没有 \cs{chapter} 对到层级上。
+% 行距 1.158333 是 278/240；网格只贴纵向，空白文档没有字符网格。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_preset_format:
+  {
+    \docxlike_format_set:n
+      {
+        Normal =
+          {
+            font = { asian-text-font = DengXian, size = 11bp, snap-to-grid-when-document-grid-is-defined = false },
+            paragraph = { alignment = left, snap-to-grid-when-document-grid-is-defined = true, spacing = { line-spacing = multiple, at = 1.158333, after = 8bp } },
+          } ,
+        Heading1 =
+          {
+            font = { asian-text-font = DengXian, size = 24bp, snap-to-grid-when-document-grid-is-defined = false },
+            paragraph = { alignment = left, snap-to-grid-when-document-grid-is-defined = true, spacing = { line-spacing = multiple, at = 1.158333, before = 24bp, after = 4bp } , pagination = { keep-with-next, keep-lines-together } },
+          } ,
+        Heading2 =
+          {
+            font = { asian-text-font = DengXian, size = 20bp, snap-to-grid-when-document-grid-is-defined = false },
+            paragraph = { alignment = left, snap-to-grid-when-document-grid-is-defined = true, spacing = { line-spacing = multiple, at = 1.158333, before = 8bp, after = 4bp } , pagination = { keep-with-next, keep-lines-together } },
+          } ,
+        Heading3 =
+          {
+            font = { asian-text-font = DengXian, size = 16bp, snap-to-grid-when-document-grid-is-defined = false },
+            paragraph = { alignment = left, snap-to-grid-when-document-grid-is-defined = true, spacing = { line-spacing = multiple, at = 1.158333, before = 8bp, after = 4bp } , pagination = { keep-with-next, keep-lines-together } },
+          } ,
+        Heading4 =
+          {
+            font = { asian-text-font = DengXian, size = 14bp, snap-to-grid-when-document-grid-is-defined = false },
+            paragraph = { alignment = left, snap-to-grid-when-document-grid-is-defined = true, spacing = { line-spacing = multiple, at = 1.158333, before = 4bp, after = 2bp } , pagination = { keep-with-next, keep-lines-together } },
+          } ,
+        Title =
+          {
+            font = { asian-text-font = DengXian, size = 28bp, snap-to-grid-when-document-grid-is-defined = false },
+            paragraph = { alignment = centered, snap-to-grid-when-document-grid-is-defined = true, spacing = { line-spacing = multiple, at = 1, after = 4bp } },
+          } ,
+        Subtitle =
+          {
+            font = { asian-text-font = DengXian, size = 14bp, snap-to-grid-when-document-grid-is-defined = false },
+            paragraph = { alignment = centered, snap-to-grid-when-document-grid-is-defined = true, spacing = { line-spacing = multiple, at = 1.158333, after = 8bp } },
+          } ,
+        Header =
+          {
+            font = { asian-text-font = DengXian, size = 9bp, snap-to-grid-when-document-grid-is-defined = false },
+            paragraph = { alignment = centered, snap-to-grid-when-document-grid-is-defined = false, spacing = { line-spacing = multiple, at = 1, after = 8bp } },
+            tabs = { 207.65bp~center , 415.3bp~right },
+          } ,
+        Footer =
+          {
+            font = { asian-text-font = DengXian, size = 9bp, snap-to-grid-when-document-grid-is-defined = false },
+            paragraph = { alignment = left, snap-to-grid-when-document-grid-is-defined = false, spacing = { line-spacing = multiple, at = 1, after = 8bp } },
+            tabs = { 207.65bp~center , 415.3bp~right },
+          } ,
+      }
+    \clist_map_inline:nn { Heading1 , Heading2 , Heading3 }
+      {
+        \docxlike_format_add_font:nn {##1}
+          { \__docxlike_preset_major: \__docxlike_preset_color: }
+      }
+    \docxlike_format_add_font:nn { Heading4 } { \__docxlike_preset_color: }
+    \docxlike_format_add_font:nn { Title } { \__docxlike_preset_major: }
+    \docxlike_format_add_font:nn { Subtitle }
+      { \__docxlike_preset_major: \__docxlike_preset_subtitle_color: }
+  }
+\docxlike_format_target_new:nn { Title } { Normal }
+\docxlike_format_target_new:nn { Subtitle } { Normal }
+\cs_new_protected:Npn \__docxlike_preset_subtitle_color:
+  { \cs_if_exist:NT \color_select:nn { \color_select:nn { HTML } { 595959 } } }
+\cs_new_protected:Npn \__docxlike_preset_color:
+  { \cs_if_exist:NT \color_select:nn { \color_select:nn { HTML } { 0F4761 } } }
+%    \end{macrocode}
+%
+% \emph{字体。} 正文的西文与汉字都是等线（Word 主题的正文字体两栏都填等线）。样式里没写西文字体，
+% 行高按文档默认的西文字体算，所以把那个默认也改成等线：纯西文的行（标题“1.1 Background”）
+% 与汉字行一样高，Word 就是这样排的。
+% 样式里写的是字体名 \texttt{DengXian}，切换时用这里声明的中文字族（\hologo{XeLaTeX} 是
+% \pkg{xeCJK} 的，\hologo{LuaLaTeX} 是 \pkg{luatexja-fontspec} 的，JFM 取 \texttt{zh\_CN/quanjiao}）；
+% \cs{dengxian} 给文档里手动切用，找不到字体时它什么都不做。
+%    \begin{macrocode}
+\bool_new:N \g__docxlike_preset_dengxian_bool
+\cs_new_protected:Npn \__docxlike_preset_major: { }
+\cs_new_protected:Npn \__docxlike_preset_fonts:
+  {
+    \bool_lazy_or:nnTF { \sys_if_engine_luatex_p: } { \sys_if_engine_xetex_p: }
+      {
+        \cs_if_exist:NF \setmainfont { \RequirePackage { fontspec } }
+        \IfFontExistsTF { DengXian }
+          {
+            \bool_gset_true:N \g__docxlike_preset_dengxian_bool
+            \setmainfont { DengXian }
+            \tl_gset:Nn \g_docxlike_format_default_latin_tl { DengXian }
+            \sys_if_engine_xetex:TF
+              {
+                \setCJKmainfont { DengXian }
+                \setCJKfamilyfont { dengxian } { DengXian }
+                \docxlike_font_select_new:nn { DengXian } { \CJKfamily { dengxian } }
+              }
+              {
+                \cs_if_exist:NT \setmainjfont
+                  {
+                    \setmainjfont [ JFM = zh_CN/quanjiao ] { DengXian }
+                    \newjfontfamily \docxlike@jf@dengxian [ JFM = zh_CN/quanjiao ] { DengXian }
+                    \docxlike_font_select_new:nn { DengXian } { \docxlike@jf@dengxian }
+                  }
+              }
+          }
+          { \msg_warning:nnn { docxlike } { preset-font-missing } { DengXian } }
+        \IfFontExistsTF { DengXian~Light }
+          {
+            \newfontfamily \docxlike@dengxian@light { DengXian~Light }
+            \sys_if_engine_xetex:TF
+              {
+                \setCJKfamilyfont { dengxian-light } { DengXian~Light }
+                \cs_gset_protected:Npn \__docxlike_preset_major:
+                  { \docxlike@dengxian@light \CJKfamily { dengxian-light } }
+              }
+              {
+                \cs_if_exist:NTF \newjfontfamily
+                  {
+                    \newjfontfamily \docxlike@jf@dengxian@light [ JFM = zh_CN/quanjiao ] { DengXian~Light }
+                    \cs_gset_protected:Npn \__docxlike_preset_major:
+                      { \docxlike@dengxian@light \docxlike@jf@dengxian@light }
+                  }
+                  { \cs_gset_protected:Npn \__docxlike_preset_major: { \docxlike@dengxian@light } }
+              }
+          }
+          { }
+      }
+      { \msg_warning:nn { docxlike } { preset-engine } }
+    \cs_if_exist:NF \dengxian
+      {
+        \cs_new_protected:Npn \dengxian
+          {
+            \bool_if:NT \g__docxlike_preset_dengxian_bool
+              { \docxlike_font_select_east_asian:n { DengXian } }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{颜色。} \LaTeX{} 内置的颜色名改成 Word 调色板上同名或最近的那一格，写
+% \verb|\color{blue}| 排出来就是 Word 里点“蓝色”的颜色。Word 的“标准色”一行十格：
+% 深红 \texttt{C00000}、红色 \texttt{FF0000}、橙色 \texttt{FFC000}、黄色 \texttt{FFFF00}、
+% 浅绿 \texttt{92D050}、绿色 \texttt{00B050}、浅蓝 \texttt{00B0F0}、蓝色 \texttt{0070C0}、
+% 深蓝 \texttt{002060}、紫色 \texttt{7030A0}；灰色取主题色那一栏“白色，背景 1”的
+% 深色 50\%（\texttt{7F7F7F}）。
+% \begin{longtblr}[caption={内置颜色名换成的 Word 颜色}, label={tab:preset-colors}]
+%   {colspec={l l l}}
+% \toprule
+% \LaTeX{} 名 & 原值 & Word \\ \midrule
+% \texttt{green} & \texttt{00FF00} & 绿色 \texttt{00B050} \\
+% \texttt{blue} & \texttt{0000FF} & 蓝色 \texttt{0070C0} \\
+% \texttt{cyan} & \texttt{00FFFF} & 浅蓝 \texttt{00B0F0} \\
+% \texttt{magenta} & \texttt{FF00FF} & 紫色 \texttt{7030A0} \\
+% \texttt{orange} & \texttt{FF8000} & 橙色 \texttt{FFC000} \\
+% \texttt{lime} & \texttt{BFFF00} & 浅绿 \texttt{92D050} \\
+% \texttt{purple} & \texttt{BF0040} & 紫色 \texttt{7030A0} \\
+% \texttt{violet} & \texttt{800080} & 紫色 \texttt{7030A0} \\
+% \texttt{gray} & \texttt{808080} & 深色 50\% \texttt{7F7F7F} \\
+% \bottomrule
+% \end{longtblr}
+% \texttt{red}、\texttt{yellow}、\texttt{black}、\texttt{white} 与 Word 本来相同；
+% \texttt{darkgray}（\texttt{404040}）、\texttt{lightgray}（\texttt{BFBFBF}）正好是主题色
+% “黑色，文字 1，淡色 25\%”与“白色，背景 1，深色 25\%”，也不用改。\texttt{brown}、
+% \texttt{teal}、\texttt{olive}、\texttt{pink} 在 Word 的调色板上没有相近的格子，照旧。
+%
+% \pkg{color} 与 \pkg{xcolor} 在本包之前装的，当场改；之后装的，挂在它们装完的钩子上改。
+% 这样导言区里用户自己 \cs{definecolor} 的同名颜色排在后面，照用户的。\pkg{expl3} 的
+% \cs{color\_select:n} 另有一张表，一并改。
+%    \begin{macrocode}
+\prop_const_from_keyval:Nn \c__docxlike_preset_color_prop
+  {
+    green = 00B050 , blue = 0070C0 , cyan = 00B0F0 , magenta = 7030A0 ,
+    orange = FFC000 , lime = 92D050 , purple = 7030A0 , violet = 7030A0 ,
+    gray = 7F7F7F ,
+  }
+\cs_new:Npn \__docxlike_preset_hex:nn #1#2
+  {
+    \fp_eval:n
+      { round ( \int_eval:n { " \str_range:nnn {#1} {#2} {#2 + 1} } / 255 , 5 ) }
+  }
+\cs_new_protected:Npn \__docxlike_preset_colors_latex:
+  {
+    \prop_map_inline:Nn \c__docxlike_preset_color_prop
+      {
+        \use:x
+          {
+            \exp_not:N \definecolor {##1} { rgb }
+              {
+                \__docxlike_preset_hex:nn {##2} { 1 } ,
+                \__docxlike_preset_hex:nn {##2} { 3 } ,
+                \__docxlike_preset_hex:nn {##2} { 5 }
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_preset_colors:
+  {
+    \cs_if_exist:NT \color_set:nnn
+      {
+        \prop_map_inline:Nn \c__docxlike_preset_color_prop
+          { \color_set:nnn {##1} { HTML } {##2} }
+      }
+    \clist_map_inline:nn { color , xcolor }
+      {
+        \cs_if_exist:cTF { ver@##1.sty }
+          { \__docxlike_preset_colors_latex: }
+          {
+            \hook_gput_code:nnn { package / ##1 / after } { docxlike }
+              { \__docxlike_preset_colors_latex: }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{导言区结束时接上。} \cs{normalsize} 改成读正文的字号与行距，原来那一份
+% 留着先执行，行间公式上下的间距仍是文档类给的。标题按有没有 \cs{chapter}
+% 对层级：有就一一对应，没有就整体错开一格，“标题 1”发给 \texttt{section}。
+%
+% \cs{baselinestretch} 先设回 1：行距是本包按 Word 算好的，文档类若把它设成别的数（有的中文
+% 文档类默认 1.3），再乘一次就成了 23.49\,bp（Word 是 18.07）。
+%
+% 汉字与西文紧挨着时中间的胶取 0.225 个字号：没有字符网格，Word 的“自动调整中文与
+% 西文的间距”按字号给，11\,bp 下两侧量得 2.57 与 2.45。源码里汉字与西文之间敲了
+% 空格的，Word 是空格再加这一截，\pkg{luatexja} 见了空格就不加，这里还差 2.5\,bp
+% 左右，没补。
+%
+% 左对齐的段交回 \hologo{TeX} 断行，打开 \cs{docxlike\_linebreak\_rigid\_ragged:}，
+% 词隙与标点不缩，一行塞的字与 Word 一样多。段与段之间按行盒接，打开
+% \cs{docxlike\_format\_word\_interline:}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_preset_normalsize: { }
+\cs_new_protected:Npn \__docxlike_preset_apply:
+  {
+    \cs_set:Npn \baselinestretch { 1 }
+    \cs_gset_eq:NN \__docxlike_preset_normalsize: \normalsize
+    \cs_gset_protected:Npn \normalsize
+      {
+        \__docxlike_preset_normalsize:
+        \@setfontsize \normalsize
+          { \g_docxlike_body_size_dim } { \g_docxlike_body_lead_dim }
+      }
+    \docxlike_format_word_interline:
+    \docxlike_linebreak_rigid_ragged:
+    \docxlike_format_apply_body:
+    \docxlike_format_hglue:nn { 0pt } { 0.225 \g_docxlike_body_size_dim }
+    \cs_gset_eq:NN \ps@plain \ps@docxlike
+    \pagestyle { docxlike }
+    \cs_if_exist:NTF \chapter
+      {
+        \docxlike_heading_new:Nnn \chapter { Heading 1 } { chapter }
+        \docxlike_heading_new:Nnn \section { Heading 2 } { section }
+        \docxlike_heading_new:Nnn \subsection { Heading 3 } { subsection }
+        \docxlike_heading_new:Nnn \subsubsection { Heading 4 } { subsubsection }
+      }
+      {
+        \docxlike_heading_new:Nnn \section { Heading 1 } { section }
+        \docxlike_heading_new:Nnn \subsection { Heading 2 } { subsection }
+        \docxlike_heading_new:Nnn \subsubsection { Heading 3 } { subsubsection }
+        \docxlike_heading_new:Nnn \paragraph { Heading 4 } { paragraph }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_preset_blank:
+  {
+    \docxlike_cjk_base:
+    \__docxlike_preset_page:
+    \__docxlike_preset_format:
+    \__docxlike_preset_fonts:
+    \__docxlike_preset_colors:
+    \bool_gset_true:N \g_docxlike_heading_marks_bool
+    \hook_gput_code:nnn { begindocument } { docxlike } { \__docxlike_preset_apply: }
+  }
+\ProcessKeyOptions [ docxlike / option ]
+\str_if_eq:VnT \g__docxlike_preset_tl { blank } { \__docxlike_preset_blank: }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</docxlike-preset>
+%    \end{macrocode}
+%
+% \Finale

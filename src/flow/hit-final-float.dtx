@@ -1,0 +1,354 @@
+% \iffalse meta-comment
+%
+% hit-final-float.dtx 是浮动体与图表
+%
+% \fi
+%
+% \section{浮动体与图表}
+%
+% \changes{v3.2a}{2026/09/20}{新版面下浮动体与正文的间距改成一个网格行（指南 2.12
+%   “插表的上下与文中文字间需空一行”，v3.1e 的 8.5\,bp 不到半行）；题注与图表之间不
+%   另加 6\,bp（没有来路，范例里表题到表顶线只有表题自己的行深）；题号与题名之间读
+%   \option{after-*-caption-number}，兜底一个字宽（两份范例印出来都是一个字宽，研究生
+%   规范叙述里的“空 1 个半角字符”与它自己的范例不符，不跟）；题注的字号行距从
+%   \option{styles} 表取；\cs{caption*} 只排题注正文，不带“图 1-1”}
+% \changes{v3.2a}{2026/08/22}{长表格的双语题注统一到 \cs{caption}\marg{中文}\oarg{英文}，
+%   英文题注不进表清单；\cs{@makecaption} 与 \cs{LT@makecaption} 迁到 expl3；长表格字号、
+%   \env{publist}、列表与定理设置各归各的模块}
+%
+% ^^A ======================================================================
+% ^^A Module final-floats: 浮动体默认行为与双语题注（hit-thesis）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*final-floats>
+\bool_if:NT \g__hit_final_bool
+  {
+%    \end{macrocode}
+%
+% \changes{v3.0.0}{2020/05/21}{添加博后的浮动间距设置}
+% 博后单独一套间距；其余按 \option{style/glue} 决定要不要给伸缩量。
+%    \begin{macrocode}
+\bool_if:NTF \g__hit_postdoc_bool
+  {
+    \skip_set:Nn \intextsep    { 10.5bp }
+    \skip_set:Nn \textfloatsep { 10.5bp }
+    \skip_set:Nn \floatsep     { 10.5bp }
+  }
+  {
+    \bool_if:NTF \g__hit_glue_bool
+      {
+        \skip_set:Nn \intextsep    { 8.50398bp~plus~2.83465bp~minus~0bp }
+        \skip_set:Nn \textfloatsep { 8.50398bp~plus~2.83465bp~minus~0bp }
+        \skip_set:Nn \floatsep     { 12bp~plus~2.83465bp~minus~0bp }
+      }
+      {
+        \skip_set:Nn \intextsep    { 8.50398bp }
+        \skip_set:Nn \textfloatsep { 8.50398bp }
+        \skip_set:Nn \floatsep     { 12bp }
+      }
+  }
+%    \end{macrocode}
+%
+% 新版面把三个间距都设成一个网格行。“空一行”在 Word 里是一个空段，占一格
+% 文档网格；刚性不给伸缩，Word 的空段也不会伸。要等版面算完才知道网格行距，
+% 挂在 \texttt{begindocument/end}，比 \cs{AfterPreamble} 里的版面应用晚。
+% 旧版面（网格行距是零）不动。\option{style}/\option{float-sep} 写了长度的也不动，
+% 那个值由 \file{src/engine/hit-caption.dtx} 设，键的说明见
+% \file{src/engine/hit-keylist.dtx}。
+%
+% 题注与图表之间那 6\,bp（\file{src/engine/hit-caption.dtx} 的
+% \texttt{skip=6bp}）也一并归零：\pkg{caption} 把它落在 \cs{abovecaptionskip}
+% 上，类的 \cs{@makecaption} 不分表题在上图题在下一律先 \cs{vskip} 它，表题
+% 就整个下沉 6\,bp；Word 里表题段与表之间什么都没有，表题行盒的底就是表的顶。
+% 图那边同理，图底到图题的距离由图题行盒自己出。
+%    \begin{macrocode}
+\AddToHook { begindocument / end }
+  {
+    \bool_lazy_and:nnT
+      { \dim_compare_p:nNn { \g_docxlike_page_lead_dim } > { \c_zero_dim } }
+      { \tl_if_empty_p:N \g__hit_float_sep_tl }
+      {
+        \skip_set:Nn \intextsep    { \g_docxlike_page_lead_dim }
+        \skip_set:Nn \textfloatsep { \g_docxlike_page_lead_dim }
+        \skip_set:Nn \floatsep     { \g_docxlike_page_lead_dim }
+        \captionsetup { skip = 0pt }
+      }
+  }
+%    \end{macrocode}
+%
+% 此处设置float在p选项时间隔，此处不设置\cs{@fptop}和\cs{@fpbot}以确保居中。
+% \changes{v1.0.12}{2018/04/03}{修正float为p状态时默认不居中bug}
+% \changes{v2.0.04}{2018/12/04}{删除\cs{@fpsep}设置，似乎没有什么用}
+% \changes{v2.0.04}{2018/12/04}{更新\cs{intextsep}\cs{textfloatsep}\cs{floatsep}间距为正文行间距}
+% 下面这组命令使浮动对象的缺省值稍微宽松一点，从而防止幅度对象占据过多的文本页面，
+% 也可以防止在很大空白的浮动页上放置很小的图形。
+% \changes{v1.0.08}{2017/11/05}{修改附录中图、表、公式数字编码}
+%    \begin{macrocode}
+\tl_gput_right:Nn \appendix { \cs_set_nopar:Npn \thefigure { \thechapter - \arabic {figure} } }
+\tl_gput_right:Nn \appendix { \cs_set_nopar:Npn \thetable { \thechapter - \arabic {table} } }
+\tl_gput_right:Nn \appendix { \cs_set_nopar:Npn \theequation { \thechapter - \arabic {equation} } }
+\cs_set:Npn \textfraction      { 0.15 }
+\cs_set:Npn \topfraction       { 0.85 }
+\cs_set:Npn \bottomfraction    { 0.65 }
+\cs_set:Npn \floatpagefraction { 0.60 }
+%    \end{macrocode}
+%
+% 由于我工的双标题，导致标题之下多出一空白字符的距离，去除。
+% \changes{v2.0.04}{2018/12/04}{更新图段后空白距离}
+% \changes{v2.0.04}{2018/12/04}{删除表段后空白距离}
+% \changes{v2.0.05}{2018/12/05}{删除图段后空白距离}
+%    \begin{macro}{\@makecaption}
+% 根据我工规范，本科和硕博的图题序号之后的空格不一样。
+%    \begin{hitrgu}[\PGR][2.13.1]
+% 每个图均应有图题（由图序和图名组成），图题不宜有标点符号，图名在图序之后空1个
+% 半角字符排写。
+%    \end{hitrgu}
+%    \begin{hitrgu}[\UGR][2.13.1]
+% 每个图均应有图题（由图序和图名组成），图题不宜有标点符号，图名在图序之后空1个
+% 字符排写。
+%    \end{hitrgu}
+% 我工规范中没有明确规定是否标题是否居中对齐，这里给出一个居中选项自行调整。
+% 注意，我工只规定：“居中书写”。此处不额外添加悬挂处理。
+% \changes{v1.0.06}{2017/10/25}{此处更改了选项的名称}
+% \changes{v1.0.07}{2017/11/04}{优化了最后一行居中算法，使其两边对齐、单词内部断行}
+%
+% \cs{hit@caption@separator} 是题号与题名之间的间隔。图题表题各读一个常量，
+% 常量为空退回兜底值：新版面一律一个汉字宽（\cs{ccwd}，题注贴字符网格，
+% 一个字就是一格）；旧版面照 v3.1e，本科一个字宽、其余 \cs{enskip}。
+% 图还是表看 \cs{@captype}；\cs{LT@makecaption} 那条路上它也是有的，取不到就按图算。
+% \cs{hit@caption@last@line} 把最后一行单独取出来居中，\option{capcenterlast} 开时用，
+% 只在旧版面那一支：新版面下题注整段居中（范例里题注段是 \texttt{w:jc="center"}，
+% 折成两行时两行各自居中），\option{capcenterlast} 那套“只居中末行”是 v3.1e 的做法。
+% 里面的盒子编号与分组照抄原来的写法，只是换成 expl3 的拼法。量宽仍用 \cs{sbox}
+% 而不是 \cs{hbox\_set:Nn}：前者会套一层 \cs{color@begingroup}，盒子里的颜色
+% 改动不会漏出去，后者没有。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \cs{hit@caption@font:} 按图还是表挑目标，从 \option{styles} 表取字号、行距、
+% 贴不贴网格。表里没取值就退回 \cs{wuhao}——旧版面那一份表是空的，行距跟着
+% \cs{wuhao} 自带的 1.3 倍走，与 v3.1e 一样。
+%
+% 星号版的题注（\cs{caption*}）只排正文，不带“图 1-1”和分隔符，标志位由
+% \file{hit-caption.dtx} 的星号分支立起。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@caption@last@line #1
+  {
+    \vskip 6.3bp
+    {
+      \tex_setbox:D 0 = \tex_vbox:D {#1}
+      \tex_setbox:D 1 = \tex_vbox:D
+        {
+          \tex_unvbox:D 0
+          \tex_setbox:D 2 = \tex_lastbox:D
+          \hbox_to_wd:nn { \textwidth }
+            { \hfill \tex_unhcopy:D 2 \unskip \unskip \hfill }
+        }
+      \tex_unvbox:D 1
+    }
+  }
+\cs_set:Npn \@makecaption #1#2
+  {
+    \bool_if:NTF \l_hit_caption_star_bool
+      { \__hit_make_caption:n {#2} }
+      { \__hit_make_caption:n { #1 \hit@caption@separator #2 } }
+  }
+\cs_new_protected:Npn \__hit_make_caption:n #1
+  {
+    \vskip \abovecaptionskip
+    \hit@caption@font:
+    \sbox \@tempboxa {#1}
+    \dim_compare:nNnTF { \box_wd:N \@tempboxa } > { \hsize }
+      {
+        \__hit_layout_msword_active:TF
+          { { \centering #1 \par } }
+          {
+            \hit@if@option@TF { capcenterlast }
+              { \hit@caption@last@line {#1} }
+              {#1}
+            \par
+          }
+      }
+      {
+        \tex_global:D \@minipagefalse
+        \hb@xt@ \hsize { \hfil \box \@tempboxa \hfil }
+      }
+    \vskip \belowcaptionskip
+  }
+%    \end{macrocode}
+%
+%    \end{macro}
+%    \begin{macro}{\LT@makecaption}
+% 有关longtable的caption支持
+%    \begin{macrocode}
+\cs_set:Npn \LT@makecaption #1#2#3
+  {
+    \LT@mcol \LT@cols c
+      {
+        \hbox_to_zero:n
+          {
+            \hss
+            \parbox [t] \LTcapwidth
+              {
+                \hit@caption@font:
+                \sbox \@tempboxa { #1 { #2 \hit@caption@separator } #3 }
+                \dim_compare:nNnTF { \box_wd:N \@tempboxa } > { \hsize }
+                  {
+                    \hit@if@option@TF { capcenterlast }
+                      { \hit@caption@last@line { #1 { #2 \hit@caption@separator } #3 } }
+                      { #1 { #2 \hit@caption@separator } #3 }
+                    \par
+                  }
+                  {
+                    \tex_global:D \@minipagefalse
+                    \hbox_to_wd:nn { \hsize } { \hfil \box \@tempboxa \hfil }
+                  }
+                \endgraf \vskip \belowcaptionskip
+              }
+            \hss
+          }
+      }
+  }
+%    \end{macrocode}
+%
+%    \end{macro}
+%    \begin{macro}{\longbionenumcaption}
+% 长表格的双语标题是一个坑. 因为第一不能用浮动格式，只能用longtable包中的tabular
+% ，这样表题只能使用表格中前两行来写。这样出现了一个问题是，中英表题的间距，标题
+% 和表第一行间距，表格内部间距等多个变量的协调问题。这个问题只要使用tabular的形
+% 式，就是无解的。唯一的方法就是把这些参数都给用户列出来。以下，第2，5参数为中英
+% 双语标题内容，1，4为标题参数。6为中英标题间距，7为表题和表格间距。
+%    \begin{macrocode}
+\cs_set_nopar:Npn \longbionenumcaption #1 #2 #3 #4 #5 #6 #7
+  {
+    \noalign { \__hit_warn_once:nnn { longbionenumcaption } { longbicaption-deprecated } { } }
+    \hit@long@bicaption {#1} {#2} {#3} {#4} {#5} {#6} {#7}
+  }
+%    \end{macrocode}
+%
+% \pkg{ccaption} 的 \cs{@cont@LT@nonumintoc} 会把英文题注也写一条进 \file{lot}，
+% 而且编号是空的，排出来是“表\quad Overview of\ldots”这么一行。规范要求一表
+% 一行，中文那条已经带着编号进去了，英文这条不该再进。所以换一个只排不写的。
+%    \begin{macrocode}
+\cs_new:Npn \hit@lt@caption@notoc #1 [#2] #3
+  { \LT@makecaption #1 \fnum@table {#3} }
+\cs_set_nopar:Npn \hit@long@bicaption #1 #2 #3 #4 #5 #6 #7
+  {
+%
+\@if@contemptyarg{#1}{\caption{#2}}{\caption[#1]{#2}}%
+\cs_gset_eq:NN \@cont@oldtablename \tablename
+\cs_gset_nopar:Npn \tablename {#3}~
+\cs_gset_eq:NN \LT@c@ption \hit@lt@caption@notoc
+\\[#6]~
+\@if@contemptyarg{#4}{\caption{#5}}{\caption[#4]{#5}}%
+\cs_gset_eq:NN \tablename \@cont@oldtablename
+\cs_gset_eq:NN \LT@c@ption \@cont@oldLT@c@ption
+\vspace{#7}
+  }
+%    \end{macrocode}
+%
+%    \end{macro}
+%
+%    \begin{macro}{\LT@caption}
+% 浮动体里 \cs{caption}\marg{中文}\oarg{英文} 排双语，长表格里却只能写
+% \cs{longbionenumcaption} 那七个参数。原因是 \env{longtable} 在 \cs{begin} 时把
+% \cs{caption} 换成了自己的 \cs{LT@caption}，只认 \oarg{短标题}\marg{正文}，尾随的
+% \oarg{英文} 会当成正文印出来。
+%
+% 这里给 \cs{LT@caption} 加一层：先自己接下 \texttt{*}、\oarg{短标题}、\marg{正文}，
+% 再探一眼后面有没有 \oarg{英文}。没有就把接到的参数原样交回原命令——星号形式与
+% \pkg{caption} 宏包那条路都不碰，行为一个字不变；有就转给
+% \cs{longbionenumcaption}。
+%
+% 接参数与探看都在 \cs{noalign}\cs{bgroup} 里做，跟原命令一样：那个位置只做展开，
+% \cs{futurelet} 这类赋值会当场开一个单元格，题注的 \cs{noalign} 就错位了。分叉之后
+% 先 \cs{egroup} 退出来，再调原命令，它自己会重新进 \cs{noalign}。
+%
+% \cs{longbionenumcaption} 内部还要调 \cs{caption}，那时没有尾随可选参数，走的是
+% 交回原命令那条，不会绕回来。
+%    \begin{macrocode}
+\cs_set_eq:NN \hit@original@LT@caption \LT@caption
+\cs_set:Npn \LT@caption
+  {
+    \noalign \bgroup
+      \@ifstar
+        { \hit@lt@caption@star }
+        { \@ifnextchar [ { \hit@lt@caption@short } { \hit@lt@caption@plain } }
+  }
+\cs_set:Npn \hit@lt@caption@star #1
+  { \egroup \hit@original@LT@caption * {#1} }
+\cs_set:Npn \hit@lt@caption@short [#1] #2
+  { \hit@lt@caption@peek { [#1] } {#1} {#2} }
+\cs_set:Npn \hit@lt@caption@plain #1
+  { \hit@lt@caption@peek { } { } {#1} }
+\cs_set:Npn \hit@lt@caption@peek #1#2#3
+  {
+    \@ifnextchar [
+      { \hit@lt@caption@bilingual {#2} {#3} }
+      { \egroup \hit@original@LT@caption #1 {#3} }
+  }
+\cs_set:Npn \hit@lt@caption@bilingual #1#2 [#3]
+  {
+    \egroup
+    \hit@long@bicaption {#1} {#2} { \hit@term@caption@table@prefix@en } { } {#3}
+      { -0.5em } { 3.15bp }
+  }
+%    \end{macrocode}
+%    \end{macro}
+
+%    \begin{macro}{\ltfontsize}
+% 我们采用 \pkg{longtable} 来处理跨页的表格。默认字号压到五号，机制见
+% \file{src/engine/hit-table.dtx}。
+%    \begin{macrocode}
+\hit@setup@table
+%    \end{macrocode}
+%
+%    \end{macro}
+% 图表名称及格式。
+% \changes{v1.0.08}{2017/11/05}{删除冗余公式符号定义}
+%    \begin{macrocode}
+\cs_set:Npn \thesubtable { ( \alph { subtable } ) }
+\cs_set:Npn \thefigure   { \arabic { chapter } - \arabic { figure } }% 使图编号为 7-1 的格式
+%    \end{macrocode}
+%
+% \changes{v3.0.15}{2020/05/21}{根据窝工2021“四月革命”之精神，修改子图为双括号}
+%    \begin{macrocode}
+\cs_set:Npn \thesubfigure { ( \alph { subfigure } ) }% 子图编号为 a) 的格式
+\cs_set:Npn \p@subfigure  { \thefigure \nobreakspace { } }% 子图引用为 7-1 a)
+\cs_set:Npn \thetable     { \arabic { chapter } - \arabic { table } }% 表编号为 7-1
+%    \end{macrocode}
+%
+% 此处删除hang caption的设置
+% \changes{v1.0.06}{2017/10/25}{删除caption hang 的默认设置，因为不在规范要求中}
+%    \begin{macrocode}
+\captionnamefont{\wuhao}
+\captiontitlefont{\wuhao}
+\cs_set:Npn \subcapsize
+  { \docxlike_format_apply_font_else:nn { caption-sub } { \wuhao } }
+%    \end{macrocode}
+%
+% \option{modern} 下子图题的字体、标签分隔与最后一行对齐交给 \pkg{caption}，
+% 键名不同但取的是同一批值。
+%    \begin{macrocode}
+\DeclareCaptionFont { hit@subcap } { \subcapsize }
+\DeclareCaptionLabelSeparator { hit@sub } { \hit@subfigure@labelsep: }
+\captionsetup [ sub ]
+  { font = hit@subcap , labelformat = simple , labelsep = hit@sub , skip = 0pt }
+\bool_if:NT \g__hit_subcapcenterlast_bool
+  { \captionsetup [ sub ] { justification = centerlast } }
+\dim_set:Nn \abovecaptionskip {0pt}%为了双标题之间的间距，不能设置
+\dim_set:Nn \belowcaptionskip {0pt}
+%    \end{macrocode}
+%
+% \env{publist} 见 \file{src/engine/hit-list.dtx}。
+%    \begin{macrocode}
+\hit@setup@publist
+%    \end{macrocode}
+%
+% \changes{v2.0.01}{2018/06/28}{去除定理注释括号}
+%    \begin{macrocode}
+  }
+%</final-floats>
+%    \end{macrocode}
+%
+% \Finale

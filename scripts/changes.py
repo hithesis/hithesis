@@ -41,7 +41,7 @@ LEGACY_MAX = "3.1e"
 
 def dtx_files() -> list[Path]:
     r"""\changes 散落在 hithesis.dtx / -doc.dtx / -eps.dtx，全都要扫。"""
-    return sorted((ROOT / "src").glob("*.dtx"))
+    return sorted((ROOT / "src").glob("*.dtx")) + sorted((ROOT / "src").glob("*/*.dtx"))
 
 HEAD = re.compile(r"\\changes\{([^}]*)\}\{([^}]*)\}\{")
 
@@ -83,7 +83,10 @@ def collect() -> list[tuple[str, str, str]]:
 
 
 def stamp(version: str, date: str) -> int:
-    """把指定版本的占位日期就地填成 date，返回改动条数。"""
+    """把指定版本还留着的占位日期就地填成 date，返回改动条数。
+
+    只动占位符。已经写了实际日期的条目是这条改动做出来的那天，发版不该抹掉。
+    """
     old = f"\\changes{{{version}}}{{{PLACEHOLDER}}}"
     new = f"\\changes{{{version}}}{{{date}}}"
     total = 0
@@ -106,52 +109,92 @@ def normalize(date: str) -> str:
     return f"{m.group(1)}/{int(m.group(2)):02d}/{int(m.group(3)):02d}" if m else date
 
 
+# gglo.ist 把 ! 当引号、= 当 actual 分隔、> 当层级、| 当 encap。\changes 的说明
+# 原样写进 .glo，这几个字符不转义就会被 makeindex 当成语法：一个没写 ! 的 =
+# 会把说明从那儿劈成“排序键”与“印出来的字”，前半截整段丢掉；劈出来的后半截
+# 常常带着半个花括号，第二遍编译报 “Extra }”，而报的位置在 .gls 里，跟源码对不上。
+# 踩过两次，第二次花了半小时才找到源头，所以在这里挡住。
+#
+# 写法：= 与 > 前面各加一个 !，字面的 ! 写成 !!。
+#
+# | 一个字都不许写，连转义的都不行。它有第二重身份：doc 宏包把 | 设成了 \verb
+# 的简写，而词汇表条目是移动参数，\verb 在那里非法。给 makeindex 转义之后它反而
+# 活着走到 LaTeX 手里，当场报 “\verb illegal in argument”。要印一条竖线写
+# \textbar。
+GLOSSARY_SPECIALS = "=>"
+
+
+def glossary_escape_problem(body: str) -> tuple[str, int] | None:
+    """返回 (说明，位置)；没问题返回 None。"""
+    i = 0
+    while i < len(body):
+        ch = body[i]
+        if ch == "!":
+            if i + 1 < len(body) and body[i + 1] in GLOSSARY_SPECIALS + "!":
+                i += 2
+                continue
+            return "孤立的 !（字面的感叹号要写成 !!）", i
+        if ch == "|":
+            return "竖线（写 \\textbar，它同时是 doc 宏包里 \\verb 的简写）", i
+        if ch in GLOSSARY_SPECIALS:
+            return f"未转义的 {ch}（前面要加 !）", i
+        i += 1
+    return None
+
+
+def audit_glossary() -> list[str]:
+    r"""查每条 \changes 的说明里 makeindex 特殊字符转义了没有。"""
+    problems = []
+    for f in dtx_files():
+        text = f.read_text(encoding="utf-8")
+        pos = 0
+        while (m := HEAD.search(text, pos)) is not None:
+            body, end = balanced(text, m.end())
+            pos = end + 1
+            found = glossary_escape_problem(body)
+            if found is not None:
+                why, at = found
+                line = text.count("\n", 0, m.start()) + 1
+                near = body[max(0, at - 20) : at + 20].replace("\n", " ")
+                rel = f.relative_to(ROOT)
+                problems.append(f"{rel}:{line} \\changes 说明里有{why}：…{near}…")
+    return problems
+
+
 def audit(items: list[tuple[str, str, str]], latest: str) -> list[str]:
     """返回问题清单，只查 LEGACY_MAX 之后的版本。
 
-    对这些版本要求两条：同一版本的日期必须统一，格式必须是 YYYY/MM/DD。
-    “统一”既涵盖开发中（全是占位符），也涵盖已 stamp（全是同一个真实日期），
-    所以发版当天不会误报。混着写就是有人手填了日期，正是要抓的情况。
+    日期是每条改动自己的日子，同一版本里各不相同是正常的，不再要求统一。
+    这里查三样：格式是不是 YYYY/MM/DD、有没有写到将来、还剩几条占位符。
+    占位符只提醒，不算错——发版前 --stamp 会兜底填掉。
     """
     problems = []
-    by_version: dict[str, list[tuple[str, str]]] = {}
+    today = datetime.date.today().strftime("%Y/%m/%d")
     for version, date, body in items:
         if version_key(version) <= version_key(LEGACY_MAX):
             continue
-        by_version.setdefault(version, []).append((date, body))
-
-    for version, entries in by_version.items():
-        dates = {d for d, _ in entries}
-        if len(dates) > 1:
-            problems.append(
-                f"v{version} 的 {len(entries)} 条日期不统一：{', '.join(sorted(dates))}\n"
-                f"    同一版本要么全是 {PLACEHOLDER}（开发中），要么全是发布日期")
-
-        if PLACEHOLDER not in dates:
-            problems.append(
-                f"v{version} 还没发布，却写了实际日期 {', '.join(sorted(dates))}\n"
-                f"    未发布版本的日期该留 {PLACEHOLDER}，发版时由 --stamp 统一填")
-
-        for date, body in entries:
-            if date != PLACEHOLDER and normalize(date) != date:
-                problems.append(f"v{version} 的日期 {date} 不是 YYYY/MM/DD，应为 {normalize(date)}")
-
+        if date == PLACEHOLDER:
+            continue
+        if normalize(date) != date:
+            problems.append(f"v{version} 的日期 {date} 不是 YYYY/MM/DD，应为 {normalize(date)}")
+        elif date > today:
+            problems.append(f"v{version} 的日期 {date} 在将来，写的该是动手那天")
     return problems
 
 
 def fix(latest: str) -> int:
-    """能自动修的就地修掉：补零，以及把未发布版本的实际日期打回占位符。"""
-    # 超过 LEGACY_MAX 的版本按定义都还没发布，日期一律打回占位符；
-    # LEGACY_MAX 及更早的是封闭集，不碰。
+    """能自动修的就地修掉：日期补零。
+
+    不再把实际日期打回占位符——那是旧约定，现在日期就该是动手那天。
+    还留着的占位符交给 --stamp，那一步要人挑日子，不该在这儿替他决定。
+    """
     changed = 0
     for f in dtx_files():
         text = original = f.read_text(encoding="utf-8")
 
         def repl(m: re.Match) -> str:
             version, date = m.group(1), m.group(2)
-            if version_key(version.lstrip("v")) > version_key(LEGACY_MAX):
-                date = PLACEHOLDER
-            elif date != PLACEHOLDER:
+            if date != PLACEHOLDER:
                 date = normalize(date)
             return f"\\changes{{{version}}}{{{date}}}{{"
 
@@ -212,9 +255,10 @@ def main() -> int:
         return 0
 
     if args.check:
-        problems = audit(items, latest)
+        problems = audit(items, latest) + audit_glossary()
         if not problems:
-            print(f"\\changes 日期约定检查通过（开发版 v{latest}，共 {len(items)} 条）")
+            print(f"\\changes 检查通过：日期约定与词汇表转义都没问题"
+                  f"（开发版 v{latest}，共 {len(items)} 条）")
             return 0
         print(f"发现 {len(problems)} 处问题：")
         for msg in problems:

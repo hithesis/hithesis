@@ -1,0 +1,230 @@
+% \iffalse meta-comment
+%
+% hit-flow-geometry.dtx 是版心尺寸，终稿与报告合在一份
+%
+% \fi
+%
+% \section{版心尺寸}
+%
+% \changes{v3.2a}{2026/09/13}{终稿与报告的版心并进一份，分新旧两套：新版面按 Word 页面
+%   设置算，取值走 \option{layout} 与 \option{styles}；旧版面收进一个可整块删除的段落由
+%   \option{v2-layout} 要回来；\option{newgeometry}\texttt{!=no} 那一支删掉（PlutoThesis
+%   时代留下的）；本科三校区统一；版心高度写 \option{textheight} 不写 \option{bottom}
+%   （三个纵向约束 \pkg{geometry} 报 Over-specification）}
+% \changes{v3.2a}{2026/09/24}{不再加载 \pkg{geometry}：版心参数自己设，旧版面与报告的
+%   几组尺寸照 \pkg{geometry} 原先算出来的值逐项核过；调试模式的 \option{showframe}
+%   改成自己画框}
+%
+% ^^A ======================================================================
+% ^^A Module flow-geometry: 版芯尺寸与页边距
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*flow-geometry>
+%    \end{macrocode}
+%
+% \emph{两档只共用纸张与四个全局开关。} 下面按 \option{stage} 分成两段：终稿那一段
+% 只在旧版面下设版心，新版面的版心由 \option{layout} 族的取值算；报告那一段无条件
+% 设，因为报告还没有新版面。
+%
+% 两段的尺寸没有合并的余地，哪怕眼下有一组数字长得一样：终稿那一整段是可整块
+% 删除的旧版面补丁（见下），报告那一段是它现行的正式版心。抽成一处共用的话，
+% 删旧版面就会连报告一起删掉。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \emph{版心参数自己设，不经 \pkg{geometry}。} 那样的包一改版本，版面就可能跟着变。
+% 新版面由 \pkg{docxlike} 设（\cs{docxlike\_page\_setup:n}），这里只管纸张与旧版面、
+% 报告那几组尺寸。原先写的是 \pkg{geometry} 的
+% \texttt{a4paper, hcentering, ignoreall, nomarginpar}：纸张 A4，页眉页脚不算进版心，
+% 不留边注栏。下面的 \cs{\_\_hit\_page\_legacy:nnnnnn} 照 \pkg{geometry} 在这种设置下的
+% 算法写：版心宽高、左边距（双面时偶数页镜像，右边距算出来）、页眉盒高、页眉到版心的
+% 距离、页脚基线到版心底的距离给定，版心上下居中（平分用 \cs{divide}，截断到 sp，
+% 与 \pkg{geometry} 一样；\cs{dimexpr} 的除法是四舍五入，会差 1\,sp）。二十几组选项的页面参数与原先
+% \pkg{geometry} 算的逐 sp 核对过。
+%    \begin{macrocode}
+\dim_set:Nn \paperwidth { 210truemm }
+\dim_set:Nn \paperheight { 297truemm }
+\cs_if_exist:NTF \tex_pagewidth:D
+  { \tex_pagewidth:D = \paperwidth \tex_pageheight:D = \paperheight }
+  {
+    \cs_if_exist:NT \tex_pdfpagewidth:D
+      { \tex_pdfpagewidth:D = \paperwidth \tex_pdfpageheight:D = \paperheight }
+  }
+\dim_zero:N \marginparwidth
+\dim_zero:N \marginparsep
+\dim_zero:N \hoffset
+\dim_zero:N \voffset
+\dim_new:N \l__hit_page_top_dim
+\cs_new_protected:Npn \__hit_page_top_set:
+  {
+    \dim_set:Nn \topmargin
+      { \l__hit_page_top_dim - 1in - \headheight - \headsep }
+  }
+\cs_new_protected:Npn \__hit_page_legacy:nnnnnn #1#2#3#4#5#6
+  {
+    \dim_set:Nn \textwidth {#1}
+    \dim_set:Nn \textheight {#2}
+    \dim_set:Nn \headheight {#4}
+    \dim_set:Nn \headsep {#5}
+    \dim_set:Nn \footskip {#6}
+    \dim_set:Nn \oddsidemargin { #3 - 1in }
+    \legacy_if:nTF { @twoside }
+      { \dim_set:Nn \evensidemargin { \paperwidth - \textwidth - (#3) - 1in } }
+      { \dim_set_eq:NN \evensidemargin \oddsidemargin }
+    \dim_set:Nn \l__hit_page_top_dim { \paperheight - \textheight }
+    \tex_divide:D \l__hit_page_top_dim 2 \scan_stop:
+    \__hit_page_top_set:
+  }
+%    \end{macrocode}
+%
+% \emph{照原先 \pkg{geometry} 按页换版面时的副作用。} 封面、内封按页换版面
+% （\cs{docxlike\_page\_setup\_push:n}）原先经 \cs{newgeometry} 与 \cs{restoregeometry}，
+% 它们除了设版心还会把 \cs{baselineskip}、\cs{topskip}、\cs{columnsep} 设回
+% \cs{begin}\marg{document} 时存下的值（实测两者都是这一份：\cs{newgeometry} 前
+% 12.045\,pt，之后 20.581\,pt，正是正文的行距）。内封量版心余高之前正是靠这一下把
+% \cs{baselineskip} 从封面的 12\,bp 拉回正文的行距，不照做的话旧版面内封各栏的间距会变。
+% 所以在原先 \pkg{geometry} 挂 \cs{AtBeginDocument} 的同一个位置存一份，换入与还原时
+% 照样设回。
+%    \begin{macrocode}
+\clist_const:Nn \c__hit_page_restore_skip_clist { baselineskip , topskip }
+\clist_map_inline:Nn \c__hit_page_restore_skip_clist
+  { \skip_new:c { g__hit_page_doc_#1_skip } }
+\dim_new:N \g__hit_page_doc_columnsep_dim
+\AtBeginDocument
+  {
+    \clist_map_inline:Nn \c__hit_page_restore_skip_clist
+      { \skip_gset_eq:cc { g__hit_page_doc_#1_skip } {#1} }
+    \dim_gset_eq:NN \g__hit_page_doc_columnsep_dim \columnsep
+  }
+\cs_new_protected:Npn \__hit_page_restore:
+  {
+    \clist_map_inline:Nn \c__hit_page_restore_skip_clist
+      { \skip_set_eq:cc {##1} { g__hit_page_doc_##1_skip } }
+    \dim_set_eq:NN \columnsep \g__hit_page_doc_columnsep_dim
+  }
+\docxlike_page_set_push_apply:n
+  { \docxlike_page_push_default: \__hit_page_restore: }
+\docxlike_page_set_pop_apply:n
+  { \docxlike_page_pop_default: \__hit_page_restore: }
+%    \end{macrocode}
+%
+% \emph{调试模式画框。} 原先是 \pkg{geometry} 的 \option{showframe}：版心四边、页眉盒与
+% 页脚基线各画一道细线。这里在每页的前景上画同样几道线。
+%    \begin{macrocode}
+\bool_if:NT \g__hit_debug_bool
+  {
+    \AddToHook { shipout / foreground }
+      {
+        \put ( \dim_to_decimal_in_unit:nn { 1in + \oddsidemargin } { \unitlength } ,
+                - \dim_to_decimal_in_unit:nn { 1in + \topmargin + \headheight + \headsep + \textheight } { \unitlength } )
+          {
+            \linethickness { 0.2pt }
+            \framebox ( \dim_to_decimal_in_unit:nn { \textwidth } { \unitlength } ,
+                        \dim_to_decimal_in_unit:nn { \textheight } { \unitlength } ) { }
+          }
+        \put ( \dim_to_decimal_in_unit:nn { 1in + \oddsidemargin } { \unitlength } ,
+                - \dim_to_decimal_in_unit:nn { 1in + \topmargin + \headheight } { \unitlength } )
+          {
+            \framebox ( \dim_to_decimal_in_unit:nn { \textwidth } { \unitlength } ,
+                        \dim_to_decimal_in_unit:nn { \headheight } { \unitlength } ) { }
+          }
+        \put ( \dim_to_decimal_in_unit:nn { 1in + \oddsidemargin } { \unitlength } ,
+                - \dim_to_decimal_in_unit:nn { 1in + \topmargin + \headheight + \headsep + \textheight + \footskip } { \unitlength } )
+          { \line ( 1 , 0 ) { \dim_to_decimal_in_unit:nn { \textwidth } { \unitlength } } }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{终稿的版心}
+%
+% 版心有两套。\emph{新版面}按现行规范排，取值从学校发的 Word 范例里解出来，
+% 走 \cs{docxlike\_page\_setup:n} 换算，这是主路，什么都不写就是它。\emph{旧版面}是
+% v3.1e 及更早的那几组硬编码尺寸，靠类选项 \option{v2-layout} 显式要回来。
+%
+% 新版面一个数都不写在这里。取值是 \option{layout} 与 \option{styles} 两族的
+% 键值表，与用户能写的完全同一套，摆在 \file{src/config/hit-layout.dtx} 的
+% \cs{hitpresetup} 队列里；换算规则见 \file{src/docxlike/docxlike-page.dtx} 与
+% \file{src/docxlike/docxlike-format.dtx}。
+%
+% 队列的回放晚于本文件（\pkg{docstrip} 的顺序见 \file{src/hithesis.dtx} 的装配表），
+% 所以新版面这一路在这里什么也不做，只是把旧版面那一段让开；回放时
+% \cs{docxlike\_page\_setup:n} 当场把版心参数设好。
+%
+% 本科与硕博走这条路，共用一套取值。硕博的图题表题间距与本科有出入，那一处
+% 还没接，接的时候只加 \option{caption-figure} 与 \option{caption-table} 两个目标，
+% 别的不动。博士后还留在旧版面：那一档另有一套参数，还没量。
+% 威海本科没有对照文档，跟着哈深那一份走，没有逐页核对过。
+%
+% \subsubsection{旧版面（补丁，可整块删除）}
+%
+% 退回这里：本科写 \option{v2-layout}\texttt{!=\{bachelor!=true\}}，硕博写
+% \option{v2-layout}\texttt{!=\{graduate!=one\}} 或 \texttt{two}；博士后眼下
+% 只有这一条路。
+%
+% 停止维护旧分支时，连同 \file{src/engine/hit-options.dtx} 里的
+% \option{v2-layout} 声明一起删掉即可，新版面那一段不依赖它。
+%    \begin{macrocode}
+\bool_if:NT \g__hit_final_bool
+  {
+    \bool_if:NT \g__hit_layout_two_bool
+      {
+%    \end{macrocode}
+%
+% \changes{v2.0.0}{2018/06/14}{添加版芯设置选项}
+% 两组尺寸，由 \option{v2-layout} 的 \option{graduate} 选：\texttt{two} 是版心
+% 236\,mm 高，\texttt{one} 是 240\,mm。默认走 \texttt{two}。
+%    \begin{macrocode}
+        \bool_if:NTF \g__hit_layout_two_graduate_two_bool
+          {
+            \__hit_page_legacy:nnnnnn { 150truemm } { 236truemm } { 30truemm }
+              { 5truemm } { 2truemm } { 5.2truemm }
+          }
+          {
+            \__hit_page_legacy:nnnnnn { 150truemm } { 240truemm } { 30truemm }
+              { 5truemm } { 0truemm } { 0truemm }
+          }
+%    \end{macrocode}
+%
+% \changes{v3.1d}{2025/03/03}{为哈尔滨本科特意改了页眉位置。\issue[172]}
+% 本科的旧版面另有一组页眉位置与版心高度。这一条属于旧版面那一套，
+% 新版面里本科的页眉位置由 Word 设置里的「页眉距边界」算出来，不需要特例。
+%
+% 上边距 36.5\,mm、页眉到版心 1\,mm、版心高 231.7\,mm（上下边距 36.5 与 28.8）。
+% 高度写成 \texttt{659.25035pt} 而不是 \texttt{231.7true\,mm}：两者只差末位，
+% 写毫米会让一个 PDF 跳转锚点的纵坐标差 0.01bp；这个值是原先 \pkg{geometry} 算出来的，
+% 照抄它生成物逐字节不变。
+%    \begin{macrocode}
+        \bool_if:NT \g__hit_bachelor_bool
+          {
+            \dim_set:Nn \l__hit_page_top_dim { 36.5truemm }
+            \dim_set:Nn \headsep { 1truemm }
+            \dim_set:Nn \textheight { 659.25035pt }
+            \__hit_page_top_set:
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{开题与中期报告的版心}
+%
+% 尺寸照 PlutoThesis 原版定义而来。\texttt{a4paper} 即 210\,$\times$\,297\,mm。
+%
+% 深圳硕士的页眉位置另有两档，开题与中期各一个。
+%    \begin{macrocode}
+\bool_if:NF \g__hit_final_bool
+  {
+    \__hit_page_legacy:nnnnnn { 150truemm } { 236truemm } { 30truemm }
+      { 5truemm } { 2truemm } { 5.2truemm }
+    \bool_lazy_and:nnT
+      { \bool_if_p:N \g__hit_shenzhen_bool }
+      { \bool_if_p:N \g__hit_master_bool }
+      {
+        \dim_set:Nn \headsep
+          { \bool_if:NTF \g__hit_proposal_bool { 25pt } { 17pt } }
+        \__hit_page_top_set:
+      }
+  }
+%</flow-geometry>
+%    \end{macrocode}
+%
+% \Finale

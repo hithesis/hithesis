@@ -1,0 +1,670 @@
+% \iffalse meta-comment
+%
+% docxlike-numbering.dtx 是 Word 的多级列表编号
+%
+% \fi
+%
+% \section{编号}
+%
+% \changes{v0.1.0}{2026/09/25}{多级列表：照“定义新多级列表”对话框定义各级，按 Word 的规则
+%   计数、重编、跳级，生成编号串，编号跟着段落标记的“全部大写字母”；级别可以链接到样式}
+%
+% Word 的编号是多级列表：一个列表最多九级，每一级有自己的编号格式、起始值、重编规则、
+% 编号位置与编号后面跟什么。标题、题注里的章号、有序列表都是它。规则是在 Windows Word 里
+% 量的，量法与结果在 \file{test/numbering}。
+%
+% 键照“定义新多级列表”对话框（点“更多”展开的那一版）的英文标签写全：
+% \begin{latex}
+% \docxlikesetup{ multilevel-lists = { thesis = {
+%   level-1 = { enter-formatting-for-number = 第\%1章 ,
+%               number-style-for-this-level = chinese-counting ,
+%               follow-number-with = space , link-level-to-style = Heading 1 } ,
+%   level-2 = { enter-formatting-for-number = \%1.\%2 , legal-style-numbering } ,
+% } } }
+% \end{latex}
+% “输入编号的格式”里各级的编号在 Word 界面上是灰底的数字，docx 里写成 \texttt{\%1}；
+% \texttt{\%} 在 \hologo{TeX} 里是注释符，这里写 \verb|\%1|，其余照 docx。
+%
+% 存储照 docx 的 \texttt{w:lvl}：每一级一张表，条目是 \texttt{numFmt}、\texttt{lvlText}、
+% \texttt{start}、\texttt{lvlRestart}、\texttt{isLgl}、\texttt{suff}、\texttt{lvlJc}、
+% \texttt{ind/left}、\texttt{ind/hanging}、\texttt{ind/firstLine}、\texttt{tabs}、\texttt{pStyle}，
+% 长度用缇。级别在接口上从 1 数到 9，存储里的 \texttt{w:ilvl} 从 0 数。
+%
+% ^^A ======================================================================
+% ^^A Module docxlike-numbering: 多级列表编号
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*docxlike-numbering>
+%    \end{macrocode}
+%
+% \subsection{列表与级别}
+%
+% 列表按名字存，名字不计大小写、空格与连字符，与样式名一样。每个列表九张表，
+% \texttt{g\_\_docxlike\_numbering\_}\meta{名字}\texttt{\_}\meta{ilvl}\texttt{\_prop}。
+% 第一次写到一个名字就新建这个列表，九级都照 Word 新建多级列表的样子给初值：
+% 编号格式十进制、起始 1、后面跟制表符、左对齐；位置与缩进不给，由段落自己的决定。
+%    \begin{macrocode}
+\clist_new:N \g_docxlike_numbering_list_clist
+\str_new:N \l__docxlike_numbering_list_str
+\int_new:N \l__docxlike_numbering_ilvl_int
+\cs_new:Npn \__docxlike_numbering_prop:nn #1#2
+  { g__docxlike_numbering_ #1 _ #2 _prop }
+\cs_new_protected:Npn \__docxlike_numbering_key:nN #1#2
+  {
+    \__docxlike_squash:nN {#1} #2
+  }
+\cs_new_protected:Npn \__docxlike_numbering_list_new:n #1
+  {
+    \prop_if_exist:cF { \__docxlike_numbering_prop:nn {#1} { 0 } }
+      {
+        \clist_gput_right:Nn \g_docxlike_numbering_list_clist {#1}
+        \int_step_inline:nnn { 0 } { 8 }
+          {
+            \prop_new:c { \__docxlike_numbering_prop:nn {#1} {##1} }
+            \prop_gset_from_keyval:cn { \__docxlike_numbering_prop:nn {#1} {##1} }
+              { numFmt = decimal , start = 1 , suff = tab , lvlJc = left }
+            \int_new:c { g__docxlike_numbering_ #1 _ ##1 _int }
+          }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_numbering_list_new:n { V }
+\cs_new_protected:Npn \__docxlike_numbering_put:nn #1#2
+  {
+    \prop_gput:cnn
+      {
+        \__docxlike_numbering_prop:nn { \l__docxlike_numbering_list_str }
+          { \int_use:N \l__docxlike_numbering_ilvl_int }
+      }
+      {#1} {#2}
+  }
+\cs_generate_variant:Nn \__docxlike_numbering_put:nn { ne , nV }
+\cs_new:Npn \__docxlike_numbering_get:nnn #1#2#3
+  { \prop_item:cn { \__docxlike_numbering_prop:nn {#1} {#2} } {#3} }
+%    \end{macrocode}
+%
+% \option{multilevel-lists} 收“名字 = 各级”的表，各级写 \option{level-1} 到 \option{level-9}。
+%    \begin{macrocode}
+\keys_define:nn { docxlike }
+  {
+    multilevel-lists .code:n =
+      {
+        \tl_set:Nn \l__docxlike_numbering_value_tl {#1}
+        \tl_remove_all:Nn \l__docxlike_numbering_value_tl { \par }
+        \exp_args:NnnV \keyval_parse:nnn
+          { \msg_warning:nnn { docxlike } { list-without-value } }
+          { \__docxlike_numbering_list_set:nn }
+          \l__docxlike_numbering_value_tl
+      } ,
+  }
+\tl_new:N \l__docxlike_numbering_value_tl
+\msg_new:nnn { docxlike } { list-without-value }
+  { The~multilevel~list~'#1'~was~given~without~a~value;~it~is~ignored. }
+\cs_new_protected:Npn \__docxlike_numbering_list_set:nn #1#2
+  {
+    \__docxlike_numbering_key:nN {#1} \l__docxlike_numbering_list_str
+    \__docxlike_numbering_list_new:V \l__docxlike_numbering_list_str
+    \__docxlike_keys_set:nn { docxlike / multilevel-list } {#2}
+  }
+\keys_define:nn { docxlike / multilevel-list }
+  {
+    unknown .code:n =
+      {
+        \__docxlike_numbering_level:VnTF \l_keys_key_str {#1}
+          { }
+          { \__docxlike_unknown_key: }
+      } ,
+  }
+\prg_new_protected_conditional:Npnn \__docxlike_numbering_level:nn #1#2 { TF }
+  {
+    \regex_match:nnTF { \A level\-[1-9] \Z } {#1}
+      {
+        \int_set:Nn \l__docxlike_numbering_ilvl_int { \str_item:nn {#1} { -1 } - 1 }
+        \__docxlike_keys_set:nn { docxlike / multilevel-list / level } {#2}
+        \prg_return_true:
+      }
+      { \prg_return_false: }
+  }
+\prg_generate_conditional_variant:Nnn \__docxlike_numbering_level:nn { V } { TF }
+%    \end{macrocode}
+%
+% 一级的键，照对话框从上到下：
+% \begin{itemize}
+% \item \option{enter-formatting-for-number}（输入编号的格式）：\verb|\%1| 到 \verb|\%9| 是
+%   各级的编号，其余照印；
+% \item \option{number-style-for-this-level}（此级别的编号样式）：取值与页码格式相同，
+%   docx 名字的小写加连字符写法；
+% \item \option{font}（字体）：与样式的 \option{font} 相同，编号在段落标记的字符格式上再叠这一份；
+% \item \option{number-alignment}（编号对齐方式）：\texttt{left}、\texttt{centered}、\texttt{right}；
+% \item \option{aligned-at}（对齐位置）与 \option{text-indent-at}（文本缩进位置）：长度，前者
+%   是编号的位置，后者是左缩进；前者小于后者时是悬挂缩进，大于时是首行缩进；
+% \item \option{link-level-to-style}（将级别链接到样式）：样式名；
+% \item \option{start-at}（起始编号）；
+% \item \option{restart-list-after}（重新开始列表的间隔）：\texttt{level-1} 到 \texttt{level-8}，
+%   或 \texttt{none}（对话框里不勾）；不写时是上一级，也就是任何更高的一级出现就重编；
+% \item \option{legal-style-numbering}（正规形式编号）：真时各级编号一律阿拉伯数字；
+% \item \option{follow-number-with}（编号之后）：\texttt{tab-character}、\texttt{space}、\texttt{nothing}；
+% \item \option{add-tab-stop-at}（制表位添加位置）：长度，编号后跟制表符时加的停靠点。
+% \end{itemize}
+% 对话框的“位置”一组给的是两个位置，docx 存成左缩进加悬挂（或首行）缩进，这里照存。
+%    \begin{macrocode}
+\keys_define:nn { docxlike / multilevel-list / level }
+  {
+    enter-formatting-for-number .code:n =
+      { \__docxlike_numbering_put:nn { lvlText } {#1} } ,
+    number-style-for-this-level .code:n =
+      {
+        \__docxlike_ooxml_value:nnVNTF { number-style-for-this-level } {#1}
+          \c__docxlike_number_format_clist \l__docxlike_numbering_value_tl
+          { \__docxlike_numbering_put:nV { numFmt } \l__docxlike_numbering_value_tl }
+          { \__docxlike_bad_value:nnn { number-style-for-this-level } {#1} { } }
+      } ,
+    font .code:n = { \__docxlike_numbering_put:nn { rPr } {#1} } ,
+    number-alignment .code:n =
+      {
+        \str_case:nnF {#1}
+          {
+            { left } { \__docxlike_numbering_put:nn { lvlJc } { left } }
+            { centered } { \__docxlike_numbering_put:nn { lvlJc } { center } }
+            { right } { \__docxlike_numbering_put:nn { lvlJc } { right } }
+          }
+          { \__docxlike_bad_value:nnn { number-alignment } {#1} { left , centered , right } }
+      } ,
+    aligned-at .code:n =
+      {
+        \__docxlike_numbering_put:ne { ind/alignedAt }
+          { \__docxlike_format_twips:n {#1} }
+        \__docxlike_numbering_indent:
+      } ,
+    text-indent-at .code:n =
+      {
+        \__docxlike_numbering_put:ne { ind/left }
+          { \__docxlike_format_twips:n {#1} }
+        \__docxlike_numbering_indent:
+      } ,
+    link-level-to-style .code:n = { \__docxlike_numbering_link:n {#1} } ,
+    start-at .code:n =
+      { \__docxlike_numbering_put:ne { start } { \int_eval:n {#1} } } ,
+    restart-list-after .code:n =
+      {
+        \str_if_eq:nnTF {#1} { none }
+          { \__docxlike_numbering_put:nn { lvlRestart } { 0 } }
+          {
+            \regex_match:nnTF { \A level\-[1-8] \Z } {#1}
+              { \__docxlike_numbering_put:ne { lvlRestart } { \str_item:nn {#1} { -1 } } }
+              {
+                \__docxlike_bad_value:nnn { restart-list-after } {#1}
+                  { level-1 , level-2 , level-3 , level-4 , level-5 , level-6 , level-7 , level-8 , none }
+              }
+          }
+      } ,
+    legal-style-numbering .choice: ,
+    legal-style-numbering / true .code:n = { \__docxlike_numbering_put:nn { isLgl } { true } } ,
+    legal-style-numbering / false .code:n = { \__docxlike_numbering_put:nn { isLgl } { false } } ,
+    legal-style-numbering .default:n = { true } ,
+    follow-number-with .code:n =
+      {
+        \str_case:nnF {#1}
+          {
+            { tab-character } { \__docxlike_numbering_put:nn { suff } { tab } }
+            { space } { \__docxlike_numbering_put:nn { suff } { space } }
+            { nothing } { \__docxlike_numbering_put:nn { suff } { nothing } }
+          }
+          {
+            \__docxlike_bad_value:nnn { follow-number-with } {#1}
+              { tab-character , space , nothing }
+          }
+      } ,
+    add-tab-stop-at .code:n =
+      {
+        \__docxlike_numbering_put:ne { tabs }
+          { num ~ \__docxlike_format_twips:n {#1} }
+      } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+%    \end{macrocode}
+%
+% 两个位置折成 docx 的缩进：左缩进是文本缩进位置，编号位置在它左边就是悬挂缩进，
+% 在右边就是首行缩进。只写了一个时，另一个按 0 算，与对话框一样。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_numbering_indent:
+  {
+    \exp_args:Nee \__docxlike_numbering_indent:nn
+      {
+        \__docxlike_numbering_get:nnn { \l__docxlike_numbering_list_str }
+          { \int_use:N \l__docxlike_numbering_ilvl_int } { ind/alignedAt }
+      }
+      {
+        \__docxlike_numbering_get:nnn { \l__docxlike_numbering_list_str }
+          { \int_use:N \l__docxlike_numbering_ilvl_int } { ind/left }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_numbering_indent:nn #1#2
+  {
+    \fp_compare:nNnTF { 0 \tl_if_blank:nF {#1} { + #1 } } > { 0 \tl_if_blank:nF {#2} { + #2 } }
+      {
+        \__docxlike_numbering_put:ne { ind/firstLine }
+          { \fp_eval:n { #1 - ( 0 \tl_if_blank:nF {#2} { + #2 } ) } }
+        \__docxlike_numbering_put:nn { ind/hanging } { }
+      }
+      {
+        \__docxlike_numbering_put:ne { ind/hanging }
+          { \fp_eval:n { ( 0 \tl_if_blank:nF {#2} { + #2 } ) - ( 0 \tl_if_blank:nF {#1} { + #1 } ) } }
+        \__docxlike_numbering_put:nn { ind/firstLine } { }
+      }
+    \tl_if_blank:nT {#2} { \__docxlike_numbering_put:nn { ind/left } { 0 } }
+  }
+%    \end{macrocode}
+%
+% \emph{链接到样式。} docx 两头都记：级别里写 \texttt{pStyle}，样式里写 \texttt{numPr}。这里
+% 级别记样式的标识，另有一张表从样式标识查回“列表、级别”。样式名的找法与 \option{styles}
+% 相同，没有的样式先新建。
+%    \begin{macrocode}
+\prop_new:N \g_docxlike_numbering_style_prop
+\tl_new:N \l__docxlike_numbering_style_tl
+\cs_new_protected:Npn \__docxlike_numbering_link:n #1
+  {
+    \__docxlike_squash:nN {#1} \l__docxlike_value_try_str
+    \prop_get:NVNF \g__docxlike_format_name_prop \l__docxlike_value_try_str
+      \l__docxlike_numbering_style_tl
+      {
+        \tl_set:Nn \l__docxlike_numbering_style_tl {#1}
+        \tl_remove_all:Nn \l__docxlike_numbering_style_tl { ~ }
+        \docxlike_format_target_new:Vn \l__docxlike_numbering_style_tl { Normal }
+      }
+    \__docxlike_numbering_put:nV { pStyle } \l__docxlike_numbering_style_tl
+    \prop_gput:NVe \g_docxlike_numbering_style_prop \l__docxlike_numbering_style_tl
+      { { \l__docxlike_numbering_list_str } { \int_use:N \l__docxlike_numbering_ilvl_int } }
+  }
+\cs_generate_variant:Nn \prop_gput:Nnn { NVe }
+\prg_new_protected_conditional:Npnn \docxlike_numbering_style:nNN #1#2#3 { T , F , TF }
+  {
+    \__docxlike_numbering_none:nTF {#1}
+      { \prg_return_false: }
+      {
+        \prop_get:NnNTF \g_docxlike_numbering_style_prop {#1} \l__docxlike_numbering_value_tl
+          {
+            \tl_set:Ne #2 { \tl_item:Nn \l__docxlike_numbering_value_tl { 1 } }
+            \tl_set:Ne #3 { \tl_item:Nn \l__docxlike_numbering_value_tl { 2 } }
+            \prg_return_true:
+          }
+          { \prg_return_false: }
+      }
+  }
+\prg_new_protected_conditional:Npnn \__docxlike_numbering_none:n #1 { TF }
+  {
+    \__docxlike_format_get:nnNTF {#1} { pPr/numPr/numId } \l__docxlike_numbering_value_tl
+      {
+        \str_if_eq:VnTF \l__docxlike_numbering_value_tl { 0 }
+          { \prg_return_true: } { \prg_return_false: }
+      }
+      { \prg_return_false: }
+  }
+%    \end{macrocode}
+%
+% \subsection{计数}
+%
+% 每个列表每一级一个计数器，0 表示“还没编过”。规则（\file{test/numbering/README.md}）：
+% \begin{itemize}
+% \item 某一级出现时，没编过就取起始值，编过就加一；
+% \item 比它低的各级重编，除非那一级的 \texttt{lvlRestart} 说不：\texttt{0} 是从不重编，
+%   \meta{n} 是只在第 1 到第 \meta{n} 级出现时重编；
+% \item 比它高的各级若还没编过（跳级），按起始值算，之后再出现从起始值加一接着编。
+% \end{itemize}
+% \cs{docxlike\_numbering\_step:nn}\marg{列表}\marg{级别} 编下一号，级别从 1 数。
+%    \begin{macrocode}
+\int_new:N \l__docxlike_numbering_restart_int
+\msg_new:nnnn { docxlike } { unknown-list }
+  { The~multilevel~list~'#1'~is~not~defined. }
+  { Define~it~with~'multilevel-lists'~first. }
+\prg_new_protected_conditional:Npnn \__docxlike_numbering_known:n #1 { T }
+  {
+    \__docxlike_numbering_key:nN {#1} \l__docxlike_numbering_list_str
+    \prop_if_exist:cTF { \__docxlike_numbering_prop:nn { \l__docxlike_numbering_list_str } { 0 } }
+      { \prg_return_true: }
+      {
+        \msg_error:nnn { docxlike } { unknown-list } {#1}
+        \prg_return_false:
+      }
+  }
+\cs_new_protected:Npn \docxlike_numbering_step:nn #1#2
+  {
+    \__docxlike_numbering_known:nT {#1}
+      {
+        \__docxlike_numbering_step:en { \l__docxlike_numbering_list_str }
+          { \int_eval:n { #2 - 1 } }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_numbering_step:nn #1#2
+  {
+    \int_compare:nNnTF { \int_use:c { g__docxlike_numbering_ #1 _ #2 _int } } = { 0 }
+      {
+        \int_gset:cn { g__docxlike_numbering_ #1 _ #2 _int }
+          { \__docxlike_numbering_get:nnn {#1} {#2} { start } }
+      }
+      { \int_gincr:c { g__docxlike_numbering_ #1 _ #2 _int } }
+    \int_step_inline:nnn { #2 + 1 } { 8 }
+      {
+        \int_set:Nn \l__docxlike_numbering_restart_int
+          {
+            \tl_if_blank:eTF { \__docxlike_numbering_get:nnn {#1} {##1} { lvlRestart } }
+              { ##1 }
+              { \__docxlike_numbering_get:nnn {#1} {##1} { lvlRestart } }
+          }
+        \int_compare:nNnT { #2 + 1 } < { \l__docxlike_numbering_restart_int + 1 }
+          { \int_gzero:c { g__docxlike_numbering_ #1 _ ##1 _int } }
+      }
+    \int_compare:nNnT {#2} > { 0 }
+      {
+        \int_step_inline:nnn { 0 } { #2 - 1 }
+          {
+            \int_compare:nNnT { \int_use:c { g__docxlike_numbering_ #1 _ ##1 _int } } = { 0 }
+              {
+                \int_gset:cn { g__docxlike_numbering_ #1 _ ##1 _int }
+                  { \__docxlike_numbering_get:nnn {#1} {##1} { start } }
+              }
+          }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_numbering_step:nn { e }
+%    \end{macrocode}
+%
+% \emph{设置编号值。} Word 的“设置编号值”（\texttt{w:lvlOverride/w:startOverride}）：
+% \cs{docxlike\_numbering\_set\_value:nnn}\marg{列表}\marg{级别}\marg{各级的值}，级别从 1 数，
+% 各级的值用逗号隔开，写到这一级为止（\texttt{4,2,3}）；之后这一级的下一个编号就是这一串，
+% 上面各级取给的值，下面各级照常重编。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_numbering_set_value:nnn #1#2#3
+  {
+    \__docxlike_numbering_known:nT {#1}
+      {
+        \int_step_inline:nn { \clist_count:n {#3} }
+          {
+            \int_gset:cn { g__docxlike_numbering_ \l__docxlike_numbering_list_str _ \int_eval:n { ##1 - 1 } _int }
+              {
+                \clist_item:nn {#3} {##1}
+                \int_compare:nNnT {##1} = { \clist_count:n {#3} } { - 1 }
+              }
+          }
+      }
+  }
+\cs_generate_variant:Nn \tl_if_blank:nTF { e }
+%    \end{macrocode}
+%
+% \emph{编号串。} \cs{docxlike\_numbering\_text:nnN}\marg{列表}\marg{级别}\meta{tl 变量} 按这一级的
+% \texttt{lvlText} 拼出编号：\verb|\%|\meta{k} 换成第 \meta{k} 级的号，用第 \meta{k} 级自己的
+% 编号格式；这一级写了 \texttt{isLgl} 时一律十进制。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_numbering_text:nnN #1#2#3
+  {
+    \tl_clear:N #3
+    \__docxlike_numbering_known:nT {#1}
+      {
+        \__docxlike_numbering_text:enN { \l__docxlike_numbering_list_str }
+          { \int_eval:n { #2 - 1 } } #3
+      }
+  }
+\cs_new_protected:Npn \__docxlike_numbering_text:nnN #1#2#3
+  {
+    \prop_get:cnNF { \__docxlike_numbering_prop:nn {#1} {#2} } { lvlText } #3
+      { \tl_clear:N #3 }
+    \__docxlike_numbering_subst:nnN {#1} {#2} #3
+  }
+%    \end{macrocode}
+%
+% \cs{\_\_docxlike\_numbering\_stext:nnN} 是 \texttt{STYLEREF \textbackslash s} 要的那种：\texttt{lvlText}
+% 里只留各级的号与分隔符（点、连字号、冒号、逗号、斜线、括号），“第”“章”这些字去掉，
+% \texttt{第\%1章} 得“一”，\texttt{\%1.\%2} 得“1.2”（\file{test/numbering} 的 \file{num-fields}）。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_numbering_stext:nnN #1#2#3
+  {
+    \prop_get:cnNF { \__docxlike_numbering_prop:nn {#1} {#2} } { lvlText } #3
+      { \tl_clear:N #3 }
+    \regex_replace_all:nnN
+      { ( \c{\%} [1-9] ) | ( [\.\-\:\,\/\(\)\[\]] ) | . } { \1 \2 } #3
+    \__docxlike_numbering_subst:nnN {#1} {#2} #3
+  }
+\cs_generate_variant:Nn \__docxlike_numbering_stext:nnN { VVN }
+\cs_new_protected:Npn \__docxlike_numbering_subst:nnN #1#2#3
+  {
+    \int_step_inline:nnn { 1 } { 9 }
+      {
+        \tl_if_in:NnT #3 { \% ##1 }
+          {
+            \str_if_eq:eeTF { \__docxlike_numbering_get:nnn {#1} {#2} { isLgl } } { true }
+              { \tl_set:Nn \l__docxlike_numbering_fmt_tl { decimal } }
+              {
+                \tl_set:Ne \l__docxlike_numbering_fmt_tl
+                  { \__docxlike_numbering_get:nnn {#1} { \int_eval:n { ##1 - 1 } } { numFmt } }
+              }
+            \tl_replace_all:Nne #3 { \% ##1 }
+              {
+                \docxlike_number_format:Vn \l__docxlike_numbering_fmt_tl
+                  { \int_use:c { g__docxlike_numbering_ #1 _ \int_eval:n { ##1 - 1 } _int } }
+              }
+          }
+      }
+  }
+\tl_new:N \l__docxlike_numbering_fmt_tl
+\cs_generate_variant:Nn \__docxlike_numbering_text:nnN { e }
+\cs_generate_variant:Nn \tl_replace_all:Nnn { Nne }
+%    \end{macrocode}
+%
+% \cs{docxlike\_numbering\_reset:n}\marg{列表} 让整个列表从头编，给“重新开始编号”用。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_numbering_reset:n #1
+  {
+    \__docxlike_numbering_known:nT {#1}
+      {
+        \int_step_inline:nnn { 0 } { 8 }
+          { \int_gzero:c { g__docxlike_numbering_ \l__docxlike_numbering_list_str _ ##1 _int } }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{编号段落}
+%
+% \cs{docxlike\_format\_par:nn} 排一段时问两次：缩进用哪一份，首行开头排什么。样式链接了
+% 某个列表的某一级，缩进就用那一级的（段落直接写的缩进在 docx 里压过级别的，这里的样式
+% 覆盖不分直接写与样式，一律让级别的压过），首行开头排这一级的编号。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_numbering_cur_list_tl
+\tl_new:N \l__docxlike_numbering_cur_lvl_tl
+\cs_gset_protected:Npn \__docxlike_format_number_indent:n #1
+  {
+    \bool_if:NF \l_docxlike_format_direct_indent_bool
+      { \__docxlike_numbering_indent_from_level:n {#1} }
+  }
+\cs_new_protected:Npn \__docxlike_numbering_indent_from_level:n #1
+  {
+    \docxlike_numbering_style:nNNT {#1}
+      \l__docxlike_numbering_cur_list_tl \l__docxlike_numbering_cur_lvl_tl
+      {
+        \tl_set:Ne \l__docxlike_numbering_value_tl
+          {
+            \__docxlike_numbering_get:nnn { \l__docxlike_numbering_cur_list_tl }
+              { \l__docxlike_numbering_cur_lvl_tl } { ind/left }
+          }
+        \tl_if_blank:VF \l__docxlike_numbering_value_tl
+          {
+            \dim_set:Nn \l_docxlike_format_left_dim
+              { \__docxlike_format_from_twips:n { \l__docxlike_numbering_value_tl } }
+            \dim_set:Nn \l_docxlike_format_indent_dim
+              {
+                \__docxlike_format_from_twips:n
+                  {
+                    0
+                    \__docxlike_numbering_cur:n { ind/firstLine }
+                    - 0 \__docxlike_numbering_cur:n { ind/hanging }
+                  }
+              }
+          }
+      }
+  }
+\cs_new:Npn \__docxlike_numbering_cur:n #1
+  {
+    \__docxlike_numbering_get:nnn { \l__docxlike_numbering_cur_list_tl }
+      { \l__docxlike_numbering_cur_lvl_tl } {#1}
+  }
+\prg_generate_conditional_variant:Nnn \tl_if_blank:n { V } { F }
+%    \end{macrocode}
+%
+% \emph{编号怎么排。}编号在首行的起点（左缩进加首行缩进，悬挂时是减）上，按 \texttt{lvlJc}
+% 左对齐、居中或右对齐。编号的字是段落的字体叠上这一级的 \option{font}：临时把那份键值
+% 按到样式上，只取字体那一段排版命令，排完还原。编号后面：
+% \begin{itemize}
+% \item 空格：宽度是 Arial 的空格（$569/2048$ 个字号），与编号用什么字体无关，Word 就是这样
+%   （Courier New 的编号后面也是 2.78\,bp，20\,bp 的编号后面是 5.56\,bp）；
+% \item 制表符：跳到编号末端之后最近的停靠点。候选是自定制表位（样式的与这一级的）、
+%   左缩进的位置，都没有就是默认制表位；默认制表位只排在最后一个自定制表位之后。停靠点
+%   从左边距量起。
+% \end{itemize}
+% 居中、右对齐的段落，制表符的宽度也照左对齐时算，整行再一起居中或右对齐，与 Word 一样；
+% 这里跳过的距离是个定宽的 \cs{kern}，自然就是这样。
+%    \begin{macrocode}
+\box_new:N \l__docxlike_numbering_box
+\dim_new:N \l__docxlike_numbering_start_dim
+\dim_new:N \l__docxlike_numbering_end_dim
+\dim_new:N \l__docxlike_numbering_stop_dim
+\dim_new:N \l__docxlike_numbering_last_dim
+\tl_new:N \l__docxlike_numbering_text_tl
+\tl_new:N \l__docxlike_numbering_font_tl
+\tl_new:N \l__docxlike_numbering_tabs_tl
+\cs_gset_protected:Npn \__docxlike_format_number_put:n #1
+  {
+    \docxlike_numbering_style:nNNT {#1}
+      \l__docxlike_numbering_cur_list_tl \l__docxlike_numbering_cur_lvl_tl
+      {
+        \__docxlike_numbering_step:VV \l__docxlike_numbering_cur_list_tl
+          \l__docxlike_numbering_cur_lvl_tl
+        \__docxlike_numbering_text:VVN \l__docxlike_numbering_cur_list_tl
+          \l__docxlike_numbering_cur_lvl_tl \l__docxlike_numbering_text_tl
+        \__docxlike_numbering_layout:n {#1}
+      }
+  }
+%    \end{macrocode}
+%
+% \cs{\_\_docxlike\_numbering\_layout:n}\marg{样式} 把 \cs{l\_\_docxlike\_numbering\_text\_tl} 里的编号串
+% 排到首行开头，列表与级别已经在 \cs{l\_\_docxlike\_numbering\_cur\_list\_tl}、
+% \cs{l\_\_docxlike\_numbering\_cur\_lvl\_tl} 里。编号的字符格式是段落标记的（样式的）再叠这一级的
+% \option{font}，“全部大写字母”也在里面：开着时编号跟着大写（Windows Word 实测，
+% \file{test/headings/heads-caps}）。
+%    \begin{macrocode}
+\tl_new:N \l_docxlike_field_parnum_tl
+\cs_new_protected:Npn \__docxlike_numbering_layout:n #1
+  {
+    \tl_set_eq:NN \l_docxlike_field_parnum_tl \l__docxlike_numbering_text_tl
+    \__docxlike_numbering_font:n {#1}
+    \hbox_set:Nn \l__docxlike_numbering_box
+      {
+        \l__docxlike_numbering_font_tl
+        \str_if_eq:VnTF \g__docxlike_numbering_caps_tl { true }
+          { \exp_args:NV \MakeUppercase \l__docxlike_numbering_text_tl }
+          { \l__docxlike_numbering_text_tl }
+        \str_if_eq:eeT { \__docxlike_numbering_cur:n { suff } } { space }
+          { \kern \dim_eval:n { 0.27783203125 \g__docxlike_numbering_size_dim } }
+      }
+    \dim_set:Nn \l__docxlike_numbering_start_dim
+      { \l_docxlike_format_left_dim + \l_docxlike_format_indent_dim }
+    \str_case:enF { \__docxlike_numbering_cur:n { lvlJc } }
+      {
+        { center } { \kern - 0.5 \box_wd:N \l__docxlike_numbering_box }
+        { right } { \kern - \box_wd:N \l__docxlike_numbering_box }
+      }
+      { }
+    \dim_set:Nn \l__docxlike_numbering_end_dim
+      {
+        \l__docxlike_numbering_start_dim
+        + \str_case:enF { \__docxlike_numbering_cur:n { lvlJc } }
+            {
+              { center } { 0.5 \box_wd:N \l__docxlike_numbering_box }
+              { right } { 0pt }
+            }
+            { \box_wd:N \l__docxlike_numbering_box }
+      }
+    \box_use_drop:N \l__docxlike_numbering_box
+    \str_if_eq:eeT { \__docxlike_numbering_cur:n { suff } } { tab }
+      {
+        \__docxlike_numbering_next_stop:n {#1}
+        \kern \dim_eval:n { \l__docxlike_numbering_stop_dim - \l__docxlike_numbering_end_dim }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_numbering_step:nn { VV }
+\cs_generate_variant:Nn \__docxlike_numbering_text:nnN { VVN }
+\cs_generate_variant:Nn \str_case:nnF { e }
+\cs_new_protected:Npn \__docxlike_numbering_font:n #1
+  {
+    \__docxlike_format_save:n {#1}
+    \tl_set:Ne \l__docxlike_numbering_value_tl { \__docxlike_numbering_cur:n { rPr } }
+    \tl_if_blank:VF \l__docxlike_numbering_value_tl
+      { \__docxlike_format_target:ne {#1} { font = { \exp_not:V \l__docxlike_numbering_value_tl } } }
+    \group_begin:
+      \docxlike_format_compute:n {#1}
+      \__docxlike_format_build_font:n {#1}
+      \tl_gset_eq:NN \g__docxlike_numbering_font_tl \l__docxlike_format_out_tl
+      \dim_gset_eq:NN \g__docxlike_numbering_size_dim \l_docxlike_format_size_dim
+      \__docxlike_format_read:nnnN {#1} { rPr/caps } { false } \l__docxlike_numbering_value_tl
+      \tl_gset_eq:NN \g__docxlike_numbering_caps_tl \l__docxlike_numbering_value_tl
+    \group_end:
+    \tl_set_eq:NN \l__docxlike_numbering_font_tl \g__docxlike_numbering_font_tl
+    \__docxlike_format_restore_saved:n {#1}
+  }
+\tl_new:N \g__docxlike_numbering_font_tl
+\tl_new:N \g__docxlike_numbering_caps_tl
+\dim_new:N \g__docxlike_numbering_size_dim
+\cs_generate_variant:Nn \__docxlike_format_target:nn { ne }
+%    \end{macrocode}
+%
+% 停靠点：自定的取大于编号末端的最小者，左缩进在编号末端之后也算一个；都没有时取
+% 编号末端之后、最后一个自定制表位之后的第一个默认制表位。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_numbering_next_stop:n #1
+  {
+    \dim_set:Nn \l__docxlike_numbering_stop_dim { \c_max_dim }
+    \dim_zero:N \l__docxlike_numbering_last_dim
+    \__docxlike_format_read:nnnN {#1} { pPr/tabs } { } \l__docxlike_numbering_tabs_tl
+    \tl_set:Ne \l__docxlike_numbering_value_tl { \__docxlike_numbering_cur:n { tabs } }
+    \tl_if_blank:VF \l__docxlike_numbering_value_tl
+      {
+        \tl_if_blank:VTF \l__docxlike_numbering_tabs_tl
+          { \tl_set_eq:NN \l__docxlike_numbering_tabs_tl \l__docxlike_numbering_value_tl }
+          { \tl_put_right:Ne \l__docxlike_numbering_tabs_tl { , \l__docxlike_numbering_value_tl } }
+      }
+    \clist_map_inline:Nn \l__docxlike_numbering_tabs_tl
+      {
+        \__docxlike_format_tab_stop:w ##1 ~ \q_mark ~ \q_stop
+        \dim_set:Nn \l__docxlike_numbering_last_dim
+          { \dim_max:nn { \l__docxlike_numbering_last_dim } { \l__docxlike_format_tab_stop_pos_dim } }
+        \__docxlike_numbering_candidate:n { \l__docxlike_format_tab_stop_pos_dim }
+      }
+    \__docxlike_numbering_candidate:n { \l_docxlike_format_left_dim }
+    \dim_compare:nNnT { \l__docxlike_numbering_stop_dim } = { \c_max_dim }
+      {
+        \dim_set:Nn \l__docxlike_numbering_stop_dim
+          {
+            \g_docxlike_default_tab_stop_dim
+            * ( \int_div_truncate:nn
+                  {
+                    \dim_to_decimal_in_sp:n
+                      { \dim_max:nn { \l__docxlike_numbering_end_dim } { \l__docxlike_numbering_last_dim } }
+                  }
+                  { \dim_to_decimal_in_sp:n { \g_docxlike_default_tab_stop_dim } }
+                + 1 )
+          }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_numbering_candidate:n #1
+  {
+    \dim_compare:nNnT {#1} > { \l__docxlike_numbering_end_dim }
+      {
+        \dim_set:Nn \l__docxlike_numbering_stop_dim
+          { \dim_min:nn { \l__docxlike_numbering_stop_dim } {#1} }
+      }
+  }
+\prg_generate_conditional_variant:Nnn \tl_if_blank:n { V } { TF }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</docxlike-numbering>
+%    \end{macrocode}
+%
+% \Finale

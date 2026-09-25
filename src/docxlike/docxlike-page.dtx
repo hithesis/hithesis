@@ -1,0 +1,651 @@
+% \iffalse meta-comment
+%
+% docxlike-page.dtx 是把 Word 页面设置换算成 LaTeX 版面参数
+%
+% \fi
+%
+% \section{Word 页面设置的换算}
+%
+% \changes{v0.1.0}{2026/09/24}{\cs{docxlike\_page\_setup:n} 按 Word 的页面设置算出版心、行距、
+%   首行位置与字距，直接设进 \hologo{LaTeX} 的页面参数，不调用 \pkg{geometry}；
+%   \cs{headheight} 默认零，文档类自己排页眉时由接入点给；设版面与按页换版面可以由文档类换掉}
+%
+% 格式规范里写的常是 Word 的话：“页边距上 3.8 厘米”“文档网格
+% 每页 33 行、间距 19.55 磅”。这些量与 \hologo{LaTeX} 的 \cs{textheight}、\cs{baselineskip}、
+% \cs{topskip} 不是一一对应的，中间隔着 Word 自己的几条规则。把换算结果硬写进
+% \cs{geometry} 的话，一套页面设置一组数，改一个值要连带手算三四个。
+%
+% \cs{docxlike\_page\_setup:n}\marg{键值表} 收 Word 那边的原话，算出 LaTeX 这边的参数：
+% \begin{latex}
+% \docxlike_page_setup:n
+%   {
+%     margins = { top = 3.8cm , bottom = 3cm , left = 3cm , right = 3cm } ,
+%     layout = { from-edge = { header = 3cm , footer = 2.3cm } } ,
+%     document-grid = { lines = { pitch = 19.55bp } , characters = { pitch = 12.45bp } } ,
+%   }
+% \end{latex}
+% 文档里写 \verb|\docxlikesetup{ page-setup = { ... } }|，键相同。
+%
+% \subsection{Word 的几条规则}
+%
+% 下面每一条都是从一份实际的 Word 文档（下称样本文档）与专门造的对照文档里量出来的，
+% 不是从文档里读来的。量法是拿 \texttt{mutool} 读 PDF 内容流里的 \texttt{Tm}，
+% 取到的是 Word 自己写下的基线坐标。
+%
+% 先把“磅”这个字定死。Word 界面上的磅是一英寸的七十二分之一，
+% 也就是 \hologo{LaTeX} 的 \texttt{bp}；\hologo{LaTeX} 自己的 \texttt{pt} 是一英寸的
+% 72.27 分之一，两者差千分之四。
+% 下文凡是数值一律带 \texttt{bp} 或 \texttt{pt} 写清楚，“磅”只在引 Word 界面原话时出现，
+% 那时候指的是 \texttt{bp}。
+%
+% \emph{一、版心只由页边距定。} 宽是纸宽减左右边距，高是纸高减上下边距。
+% 文档网格不参与，页眉页脚也不占版心。
+%
+% \emph{二、行距与每页行数互推，行距为准。} Word 存的是行距，单位是缇
+% （\texttt{twip}，微软文档里的中译，一缇是 $1/20$\,\texttt{bp}）；每页行数是显示出来的
+% 推导值。给行数时 Word 拿版心高的缇数除以行数，往下截而不是四舍五入：版心高
+% 229\,mm 是 12982.68 缇，每页 30 行给出 432 缇也就是 21.6\,bp，量出来的十个行距一个不差
+% 都是 90 个设备单位。反过来，样本文档存的是 391 缇也就是 19.55\,bp，Word 显示的
+% “每页 33 行”是 12982.68 除以 391 往下截得来的。两个都给且对不上时以行距为准。
+%
+% \emph{三、多倍行距是网格行距的倍数。} 与字体的单倍行距无关。1.25、1.5、2 倍三份对照
+% 文档都对得上。
+%
+% \emph{四、版心顶到首行基线的距离等于首行基线在自己行盒里的落点。} 落点怎么算见
+% \file{docxlike-format.dtx} 的“换算”一节，对齐网格与否走两条式子。本模块
+% 不管这件事：它只知道页面设置，不知道正文段落是什么字号、多少行距。
+%
+% Word 把每条基线四舍五入到三百分之一英寸（0.24\,bp）再落笔，累加本身是精确的。所以
+% 样本文档里相邻行距是 19.44 与 19.68 交替，平均下来才是 19.55。这层取整是 Word 内部的，
+% 用 Word 自带的“导出为 PDF”也一样，我们这边不复现。
+%
+% \emph{五、字距。} \cs{CJKglue} 是字距减字号。样本文档的 12.45\,bp 减小四 12\,bp 得
+% 0.45\,bp。每行字数与字距的互推关系同第二条。
+%
+% \emph{六、页眉页脚。} 页眉那个距离量到页眉块的顶，页脚那个量到页脚块的底，段前段后
+% 都算在块里。页眉块的底超过上边距时正文整体下移同样的量，页脚块的顶高过下边距时正文
+% 提前换页。页眉页脚里排什么、怎么排，在 \file{docxlike-headfoot.dtx}。
+%
+% \subsection{参数与产物}
+%
+% 尺寸类的键都收长度，\option{lines-per-page} 与 \option{characters-per-line} 收整数。纸张默认 A4。
+% 键的分组见下面定义键的那一段。
+%
+% \emph{七、一行只排整数个字，余量留在右边。} 字符网格是一排死格子，一行装得下
+% 几个字就是几个，装不满的余量原样留在右边不摊开。样本文档版心宽 425.18\,bp、字距
+% 12.4544\,bp，装 34 个字占 423.45\,bp，右边留 1.73\,bp 空着。两端对齐是对齐到
+% 这 34 个格子的右边界，不是对齐到版心右边界——样本文档里首行缩进两格的那一行只有
+% 31 个字，被拉开填满剩下的 32 格，末字落点与满行的 34 字行分毫不差。
+%
+% 算完当场把版面设进 \hologo{LaTeX} 的页面参数（见下文“设进页面参数”），不借别的宏包；
+% 另外把这几个量放进全局长度供调用方取用：
+% \cs{g\_docxlike\_page\_lead\_dim}（网格行距）、\cs{g\_docxlike\_page\_char\_dim}（网格字距）、
+% \cs{g\_docxlike\_page\_glue\_dim}（\cs{CJKglue}，字距减字号）、
+% \cs{g\_docxlike\_page\_ecglue\_dim}（\cs{CJKecglue}，汉字与西文之间那一段，
+% 一个增量加 0.225 格；Word 那边两侧合计 0.45 格，四个字号量下来除以格是常数、
+% 除以字号在漂，所以按格算）、
+% \cs{g\_docxlike\_page\_slack\_dim}（第七条那点余量，交给 \cs{rightskip}）。
+% 前两个是 \file{docxlike-format.dtx} 里“一行”“一字”这两个单位的取值来源。
+%
+% ^^A ======================================================================
+% ^^A Module docxlike-page: Word 页面设置换算（各个类共用）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*docxlike-page>
+%    \end{macrocode}
+%
+% 缇是 Word 的内部长度单位，第二条规则的取整在这个单位上做。一缇是 $1/20$\,\texttt{bp}，
+% 写成 \texttt{0.05pt} 会让每页 30 行算出 434 缇而不是 432 缇。
+%
+% \texttt{pt} 换 \texttt{bp} 是乘 $7200/7227$，再乘 20 得缇，两步并成一个有理数
+% \texttt{144000/7227}。不把 \texttt{0.05bp} 存成长度再乘份数：长度只能到
+% \texttt{sp}（$1/65536$\,pt），一个缇存进去差 0.09\,sp，乘上四百多倍就差到
+% $0.001$\,\texttt{bp}，排出来的行距对不上整数缇。
+%    \begin{macrocode}
+\int_const:Nn \c__docxlike_page_twip_int { 144000 }
+\int_const:Nn \c__docxlike_page_point_int { 7227 }
+\tl_new:N \g__docxlike_page_layout_tl
+\dim_new:N \g_docxlike_page_lead_dim
+\dim_new:N \g_docxlike_page_char_dim
+\int_new:N \g_docxlike_page_cells_int
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\dim_new:N \l__docxlike_page_paper_width_dim
+\dim_new:N \l__docxlike_page_paper_height_dim
+\dim_new:N \l__docxlike_page_top_dim
+\dim_new:N \l__docxlike_page_bottom_dim
+\dim_new:N \l__docxlike_page_left_dim
+\dim_new:N \l__docxlike_page_right_dim
+\dim_new:N \l__docxlike_page_header_dim
+\dim_new:N \l__docxlike_page_footer_dim
+\dim_new:N \l_docxlike_page_head_height_dim
+\dim_new:N \l_docxlike_page_foot_skip_offset_dim
+\dim_new:N \l__docxlike_page_lead_dim
+\dim_new:N \l__docxlike_page_char_dim
+\dim_new:N \l__docxlike_page_text_width_dim
+\dim_new:N \l__docxlike_page_text_height_dim
+\int_new:N \l__docxlike_page_lines_int
+\int_new:N \l__docxlike_page_chars_int
+\int_new:N \l__docxlike_page_cells_int
+%    \end{macrocode}
+%
+% 算出来的版面也放进全局长度，“设进页面参数”那一步读它们；换成别的办法设版面的
+% 文档类（见 \cs{docxlike\_page\_set\_apply:n}）也从这里取：纸张宽高、四边页边距、
+% 页眉盒高（\cs{headheight}）、页眉盒到版心的距离（\cs{headsep}）、页脚基线到版心底的
+% 距离（\cs{footskip}）。
+%    \begin{macrocode}
+\dim_new:N \g_docxlike_page_paper_width_dim
+\dim_new:N \g_docxlike_page_paper_height_dim
+\dim_new:N \g_docxlike_page_margin_left_dim
+\dim_new:N \g_docxlike_page_margin_right_dim
+\dim_new:N \g_docxlike_page_margin_top_dim
+\dim_new:N \g_docxlike_page_margin_bottom_dim
+\dim_new:N \g_docxlike_page_header_edge_dim
+\dim_new:N \g_docxlike_page_footer_edge_dim
+\dim_new:N \g_docxlike_page_head_height_dim
+\dim_new:N \g_docxlike_page_head_sep_dim
+\dim_new:N \g_docxlike_page_foot_skip_dim
+%    \end{macrocode}
+%
+% 键照 Word“页面设置”对话框的四页分组：\option{margins}（页边距）、\option{paper}（纸张）、
+% \option{layout}（版式）、\option{document-grid}（文档网格）。
+% \begin{latex}
+% \docxlike_page_setup:n
+%   {
+%     margins = { top = 3.8cm , bottom = 3cm , left = 3cm , right = 3cm } ,
+%     paper = { width = 210mm , height = 297mm } ,
+%     layout = { from-edge = { header = 3cm , footer = 2.3cm } } ,
+%     document-grid =
+%       {
+%         characters = { characters-per-line = 34 , pitch = 12.45bp } ,
+%         lines = { lines-per-page = 33 , pitch = 19.55bp } ,
+%       } ,
+%   }
+% \end{latex}
+% 每页行数与行距在对话框里是联动的两格，改哪一格另一格跟着变，所以这里后写的算：
+% 写 \option{lines-per-page} 时把行距清零，算的时候由行数推；写 \option{pitch} 就用它。
+% 两者的初值都是 0，拿来当“没给”的哨兵。每行字数与字距同理。
+%
+% \option{grid} 是“网格”那一组单选：\texttt{no-grid}（无网格）、\texttt{specify-line-grid-only}
+% （只指定行网格，字距与每行字数不起作用）、\texttt{specify-line-and-character-grid}（指定行和
+% 字符网格）；“文字对齐字符网格”（\texttt{text-snaps-to-character-grid}）还没有做。不写时不动
+% \cs{g\_docxlike\_grid\_bool}，有没有字符网格看给没给字距或每行字数。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_page_grid_tl
+\bool_new:N \l__docxlike_page_geometry_bool
+\keys_define:nn { docxlike / page-setup }
+  {
+    margins .code:n =
+      {
+        \bool_set_true:N \l__docxlike_page_geometry_bool
+        \__docxlike_keys_set:nn { docxlike / page-setup / margins } {#1}
+      } ,
+    paper .code:n =
+      {
+        \bool_set_true:N \l__docxlike_page_geometry_bool
+        \__docxlike_keys_set:nn { docxlike / page-setup / paper } {#1}
+      } ,
+    layout .code:n = { \__docxlike_keys_set:nn { docxlike / page-setup / layout } {#1} } ,
+    document-grid .code:n =
+      {
+        \bool_set_true:N \l__docxlike_page_geometry_bool
+        \__docxlike_keys_set:nn { docxlike / page-setup / document-grid } {#1}
+      } ,
+    unknown .code:n =
+      { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / page-setup / margins }
+  {
+    top    .code:n = { \dim_set:Nn \l__docxlike_page_top_dim { \__docxlike_bp:n {#1} } } ,
+    bottom .code:n = { \dim_set:Nn \l__docxlike_page_bottom_dim { \__docxlike_bp:n {#1} } } ,
+    left   .code:n = { \dim_set:Nn \l__docxlike_page_left_dim { \__docxlike_bp:n {#1} } } ,
+    right  .code:n = { \dim_set:Nn \l__docxlike_page_right_dim { \__docxlike_bp:n {#1} } } ,
+    unknown .code:n =
+      { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / page-setup / paper }
+  {
+    width  .code:n = { \dim_set:Nn \l__docxlike_page_paper_width_dim { \__docxlike_bp:n {#1} } } ,
+    width  .initial:n = { 210mm } ,
+    height .code:n = { \dim_set:Nn \l__docxlike_page_paper_height_dim { \__docxlike_bp:n {#1} } } ,
+    height .initial:n = { 297mm } ,
+    unknown .code:n =
+      { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / page-setup / layout }
+  {
+    from-edge .code:n =
+      {
+        \bool_set_true:N \l__docxlike_page_geometry_bool
+        \__docxlike_keys_set:nn { docxlike / page-setup / layout / from-edge } {#1}
+      } ,
+  }
+\keys_define:nn { docxlike / page-setup / layout / from-edge }
+  {
+    header .code:n = { \dim_set:Nn \l__docxlike_page_header_dim { \__docxlike_bp:n {#1} } } ,
+    footer .code:n = { \dim_set:Nn \l__docxlike_page_footer_dim { \__docxlike_bp:n {#1} } } ,
+  }
+\keys_define:nn { docxlike / page-setup / document-grid }
+  {
+    grid .choices:nn =
+      { no-grid , specify-line-grid-only , specify-line-and-character-grid , text-snaps-to-character-grid }
+      {
+        \str_if_eq:VnTF \l_keys_choice_tl { text-snaps-to-character-grid }
+          {
+            \bool_if:NF \l_docxlike_page_replay_bool
+              {
+                \msg_error:nnn { docxlike } { not-implemented }
+                  { document-grid / grid~=~text-snaps-to-character-grid }
+              }
+          }
+          { \tl_set_eq:NN \l__docxlike_page_grid_tl \l_keys_choice_tl }
+      } ,
+    grid / unknown .code:n =
+      {
+        \bool_if:NF \l_docxlike_page_replay_bool
+          {
+            \__docxlike_bad_value:nnn { grid } {#1}
+              {
+                no-grid , specify-line-grid-only , specify-line-and-character-grid ,
+                text-snaps-to-character-grid
+              }
+          }
+      } ,
+    characters .code:n =
+      {
+        \__docxlike_keys_set:nn
+          { docxlike / page-setup / document-grid / characters } {#1}
+      } ,
+    lines .code:n =
+      { \__docxlike_keys_set:nn { docxlike / page-setup / document-grid / lines } {#1} } ,
+  }
+\keys_define:nn { docxlike / page-setup / document-grid / characters }
+  {
+    pitch .code:n = { \dim_set:Nn \l__docxlike_page_char_dim { \__docxlike_bp:n {#1} } } ,
+    pitch .initial:n = { 0pt } ,
+    characters-per-line .code:n =
+      {
+        \int_set:Nn \l__docxlike_page_chars_int {#1}
+        \dim_zero:N \l__docxlike_page_char_dim
+      } ,
+    characters-per-line .initial:n = { 0 } ,
+  }
+\keys_define:nn { docxlike / page-setup / document-grid / lines }
+  {
+    pitch .code:n = { \dim_set:Nn \l__docxlike_page_lead_dim { \__docxlike_bp:n {#1} } } ,
+    pitch .initial:n = { 0pt } ,
+    lines-per-page .code:n =
+      {
+        \int_set:Nn \l__docxlike_page_lines_int {#1}
+        \dim_zero:N \l__docxlike_page_lead_dim
+      } ,
+    lines-per-page .initial:n = { 0 } ,
+  }
+%    \end{macrocode}
+%
+% \emph{文档类的接入点。} 本包自己的页眉页脚照 Word 的模型放（见
+% \file{docxlike-headfoot.dtx}），只要页眉距与页脚距，\cs{headheight} 取零、正文顶就在
+% 上边距处。文档类要在 \hologo{LaTeX} 的页眉槽里自己排页眉，就要自己的 \cs{headheight}
+% 与页脚基线的落点，这几件由文档类给：
+% \begin{itemize}
+% \item 往 \texttt{docxlike / page-setup} 这一族里加键，与本包的键写在同一串里；
+% \item \cs{docxlike\_page\_set\_compute:n}\marg{代码}：算版面时执行，此时本族的键都已设好，
+%   \meta{代码}设 \cs{l\_docxlike\_page\_head\_height\_dim}（页眉槽高，默认零）与
+%   \cs{l\_docxlike\_page\_foot\_skip\_offset\_dim}（加到 \cs{footskip} 上，默认零），
+%   要跨组的值自己存进全局；
+% \item \cs{docxlike\_page\_set\_save:n} 与 \cs{docxlike\_page\_set\_restore:n}：按页换版面时
+%   在换入之前、还原之后执行，文档类在这里存取自己的那几个全局量。
+% \end{itemize}
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_page_compute_hook: { }
+\cs_new_protected:Npn \__docxlike_page_save_hook: { }
+\cs_new_protected:Npn \__docxlike_page_restore_hook: { }
+\cs_new_protected:Npn \docxlike_page_set_compute:n #1
+  { \cs_gset_protected:Npn \__docxlike_page_compute_hook: {#1} }
+\cs_new_protected:Npn \docxlike_page_set_save:n #1
+  { \cs_gset_protected:Npn \__docxlike_page_save_hook: {#1} }
+\cs_new_protected:Npn \docxlike_page_set_restore:n #1
+  { \cs_gset_protected:Npn \__docxlike_page_restore_hook: {#1} }
+%    \end{macrocode}
+%
+% \cs{\_\_docxlike\_page\_pitch:NNn}\meta{目标}\meta{版心尺寸}\meta{份数} 是第二条规则：
+% 目标已经有值就不动，否则按份数除，在缇上往下截。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_page_pitch:NNn #1#2#3
+  {
+    \bool_lazy_and:nnT
+      { \dim_compare_p:nNn {#1} = { 0pt } }
+      { \int_compare_p:nNn {#3} > { 0 } }
+      {
+        \dim_set:Nn #1
+          {
+            \fp_to_decimal:n
+              {
+                floor
+                  (
+                    \dim_to_decimal:n {#2}
+                    * \c__docxlike_page_twip_int / \c__docxlike_page_point_int / #3
+                  )
+                / 20
+              }
+            bp
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 主命令。键是局部的，整段套在组里，出组时自动复位，下一次调用不受这一次影响。
+% 产物都要跨组，所以是全局赋值。
+%
+% \cs{\_\_docxlike\_page\_compute:nn}\marg{先前的键值}\marg{这次的键值}：文档里的
+% \option{page-setup} 是在上一次的设置上改几格，把上一次的键值先读一遍再读这次的。
+% 先前那一遍只为取数，不该有别的作用（“首页不同”是记在当前一节上的），读的时候立
+% \cs{l\_docxlike\_page\_replay\_bool}，别的模块往本族加的键见了它就不做事。
+%    \begin{macrocode}
+\bool_new:N \l_docxlike_page_replay_bool
+\cs_new_protected:Npn \__docxlike_page_compute:n #1
+  { \__docxlike_page_compute:nn { } {#1} }
+\cs_new_protected:Npn \__docxlike_page_compute:nn #1#2
+  {
+    \group_begin:
+      \tl_clear:N \l__docxlike_page_grid_tl
+      \bool_set_true:N \l_docxlike_page_replay_bool
+      \keys_set:nn { docxlike / page-setup } {#1}
+      \bool_set_false:N \l_docxlike_page_replay_bool
+      \keys_set:nn { docxlike / page-setup } {#2}
+      \str_case:Vn \l__docxlike_page_grid_tl
+        {
+          { no-grid } { \bool_gset_false:N \g_docxlike_grid_bool }
+          { specify-line-grid-only }
+            {
+              \bool_gset_true:N \g_docxlike_grid_bool
+              \dim_zero:N \l__docxlike_page_char_dim
+              \int_zero:N \l__docxlike_page_chars_int
+            }
+          { specify-line-and-character-grid } { \bool_gset_true:N \g_docxlike_grid_bool }
+        }
+%    \end{macrocode}
+%
+% 页眉槽高与页脚修正由文档类给，默认都是零。
+%    \begin{macrocode}
+      \dim_zero:N \l_docxlike_page_head_height_dim
+      \dim_zero:N \l_docxlike_page_foot_skip_offset_dim
+      \__docxlike_page_compute_hook:
+      \dim_set:Nn \l__docxlike_page_text_width_dim
+        {
+          \l__docxlike_page_paper_width_dim
+          - \l__docxlike_page_left_dim - \l__docxlike_page_right_dim
+        }
+      \dim_set:Nn \l__docxlike_page_text_height_dim
+        {
+          \l__docxlike_page_paper_height_dim
+          - \l__docxlike_page_top_dim - \l__docxlike_page_bottom_dim
+        }
+      \__docxlike_page_pitch:NNn \l__docxlike_page_lead_dim
+        \l__docxlike_page_text_height_dim { \l__docxlike_page_lines_int }
+      \__docxlike_page_pitch:NNn \l__docxlike_page_char_dim
+        \l__docxlike_page_text_width_dim { \l__docxlike_page_chars_int }
+      \dim_compare:nNnT { \l__docxlike_page_lead_dim } = { 0pt }
+        { \msg_error:nn { docxlike } { page-no-pitch } }
+      \dim_gset_eq:NN \g_docxlike_page_lead_dim \l__docxlike_page_lead_dim
+      \dim_gset_eq:NN \g_docxlike_page_char_dim \l__docxlike_page_char_dim
+%    \end{macrocode}
+%
+% 一行放得下几个格，只跟版心宽与字距有关，是版面的量。余量还要减掉正文字号，
+% 那个数由 \texttt{Normal} 样式的 \option{size} 定，所以算法挪去 format，
+% 见 \cs{docxlike\_format\_slack:}。
+% 字距没给就没有网格，格数是零。
+%    \begin{macrocode}
+      \int_zero:N \l__docxlike_page_cells_int
+      \dim_compare:nNnF { \l__docxlike_page_char_dim } = { 0pt }
+        {
+          \int_set:Nn \l__docxlike_page_cells_int
+            {
+              \fp_to_int:n
+                {
+                  floor
+                    (
+                      \dim_to_decimal:n { \l__docxlike_page_text_width_dim }
+                      / \dim_to_decimal:n { \l__docxlike_page_char_dim }
+                    )
+                }
+            }
+        }
+      \int_gset_eq:NN \g_docxlike_page_cells_int \l__docxlike_page_cells_int
+      \dim_gset_eq:NN \g_docxlike_page_paper_width_dim \l__docxlike_page_paper_width_dim
+      \dim_gset_eq:NN \g_docxlike_page_paper_height_dim \l__docxlike_page_paper_height_dim
+      \dim_gset_eq:NN \g_docxlike_page_margin_left_dim \l__docxlike_page_left_dim
+      \dim_gset_eq:NN \g_docxlike_page_margin_right_dim \l__docxlike_page_right_dim
+      \dim_gset_eq:NN \g_docxlike_page_margin_top_dim \l__docxlike_page_top_dim
+      \dim_gset_eq:NN \g_docxlike_page_margin_bottom_dim \l__docxlike_page_bottom_dim
+      \dim_gset_eq:NN \g_docxlike_page_header_edge_dim \l__docxlike_page_header_dim
+      \dim_gset_eq:NN \g_docxlike_page_footer_edge_dim \l__docxlike_page_footer_dim
+      \dim_gset_eq:NN \g_docxlike_page_head_height_dim \l_docxlike_page_head_height_dim
+      \dim_gset:Nn \g_docxlike_page_head_sep_dim
+        {
+          \l__docxlike_page_top_dim
+          - \l__docxlike_page_header_dim - \l_docxlike_page_head_height_dim
+        }
+      \dim_gset:Nn \g_docxlike_page_foot_skip_dim
+        {
+          \l__docxlike_page_bottom_dim
+          - \l__docxlike_page_footer_dim + \l_docxlike_page_foot_skip_offset_dim
+        }
+      \tl_gset:Nx \g__docxlike_page_layout_tl
+        {
+          \dim_use:N \g_docxlike_page_margin_left_dim ,
+          \dim_use:N \g_docxlike_page_margin_right_dim ,
+          \dim_use:N \g_docxlike_page_margin_top_dim ,
+          \dim_use:N \g_docxlike_page_margin_bottom_dim ,
+          \dim_use:N \g_docxlike_page_head_height_dim ,
+          \dim_use:N \g_docxlike_page_head_sep_dim ,
+          \dim_use:N \g_docxlike_page_foot_skip_dim
+        }
+    \group_end:
+  }
+%    \end{macrocode}
+%
+% \subsection{设进页面参数}
+%
+% 版面直接设进 \hologo{LaTeX} 的页面参数，不经 \pkg{geometry} 之类的宏包：那些包一改
+% 版本，这边的版面就可能跟着变。要设的是
+% \cs{paperwidth}、\cs{paperheight}、\cs{textwidth}、\cs{textheight}、
+% \cs{oddsidemargin}、\cs{evensidemargin}、\cs{topmargin}、\cs{headheight}、
+% \cs{headsep}、\cs{footskip}，再加引擎自己的 PDF 页面大小（\hologo{LuaTeX} 的
+% \cs{pagewidth}、\cs{pageheight}，\hologo{pdfTeX} 与 \hologo{XeTeX} 的
+% \cs{pdfpagewidth}、\cs{pdfpageheight}）。
+%
+% \hologo{LaTeX} 的左边距与上边距从纸边往里 1 英寸起算，所以 \cs{oddsidemargin} 是左边距
+% 减 1 英寸，\cs{topmargin} 是上边距减 1 英寸再减页眉盒高与页眉盒到版心的距离。Word 不开
+% “对称页边距”时偶数页的左边距与奇数页相同，\cs{evensidemargin} 就等于 \cs{oddsidemargin}。
+%
+% 正文开始以后再设（按页换版面时），\hologo{LaTeX} 在 \cs{begin}\marg{document} 时从
+% \cs{textheight}、\cs{textwidth} 抄出来的那几个量也要跟着改：\cs{@colht}、\cs{@colroom}、
+% \cs{vsize}、\cs{hsize}、\cs{linewidth}、\cs{columnwidth}。
+%
+% \emph{这一步可以换掉。} 自己有一套设版面办法的文档类用
+% \cs{docxlike\_page\_set\_apply:n}\marg{代码} 换掉整份设置那一步，用
+% \cs{docxlike\_page\_set\_push\_apply:n} 与 \cs{docxlike\_page\_set\_pop\_apply:n} 换掉
+% 按页换版面时的换入与还原；\meta{代码} 从上面那几个全局长度取数。默认的换入与还原
+% 是 \cs{docxlike\_page\_push\_default:} 与 \cs{docxlike\_page\_pop\_default:}，
+% 要在默认之外补几句的，在 \meta{代码} 里先调它们再补。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_page_params_set:
+  {
+    \dim_set:Nn \textwidth
+      {
+        \g_docxlike_page_paper_width_dim
+        - \g_docxlike_page_margin_left_dim - \g_docxlike_page_margin_right_dim
+      }
+    \dim_set:Nn \textheight
+      {
+        \g_docxlike_page_paper_height_dim
+        - \g_docxlike_page_margin_top_dim - \g_docxlike_page_margin_bottom_dim
+      }
+    \dim_set:Nn \oddsidemargin { \g_docxlike_page_margin_left_dim - 1in }
+    \dim_set_eq:NN \evensidemargin \oddsidemargin
+    \dim_set_eq:NN \headheight \g_docxlike_page_head_height_dim
+    \dim_set_eq:NN \headsep \g_docxlike_page_head_sep_dim
+    \dim_set_eq:NN \footskip \g_docxlike_page_foot_skip_dim
+    \dim_set:Nn \topmargin
+      { \g_docxlike_page_margin_top_dim - 1in - \headheight - \headsep }
+    \__docxlike_page_running_sync:
+  }
+\bool_new:N \g__docxlike_page_in_document_bool
+\hook_gput_code:nnn { begindocument } { docxlike }
+  { \bool_gset_true:N \g__docxlike_page_in_document_bool }
+\cs_new_protected:Npn \__docxlike_page_running_sync:
+  {
+    \bool_if:NT \g__docxlike_page_in_document_bool
+      { \__docxlike_page_running_set: }
+  }
+\cs_new_protected:Npn \__docxlike_page_running_set:
+  {
+    \dim_gset_eq:NN \@colht \textheight
+    \dim_gset_eq:NN \@colroom \textheight
+    \dim_gset_eq:NN \vsize \textheight
+    \dim_gset_eq:NN \hsize \textwidth
+    \dim_gset_eq:NN \linewidth \textwidth
+    \dim_gset_eq:NN \columnwidth \textwidth
+  }
+\cs_new_protected:Npn \__docxlike_page_paper_set:
+  {
+    \dim_set_eq:NN \paperwidth \g_docxlike_page_paper_width_dim
+    \dim_set_eq:NN \paperheight \g_docxlike_page_paper_height_dim
+    \cs_if_exist:NTF \tex_pagewidth:D
+      {
+        \tex_pagewidth:D = \paperwidth
+        \tex_pageheight:D = \paperheight
+      }
+      {
+        \cs_if_exist:NT \tex_pdfpagewidth:D
+          {
+            \tex_pdfpagewidth:D = \paperwidth
+            \tex_pdfpageheight:D = \paperheight
+          }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_page_apply:
+  {
+    \__docxlike_page_paper_set:
+    \__docxlike_page_params_set:
+  }
+\cs_new_protected:Npn \docxlike_page_set_apply:n #1
+  { \cs_gset_protected:Npn \__docxlike_page_apply: {#1} }
+\tl_new:N \g__docxlike_page_input_tl
+\cs_new_protected:Npn \docxlike_page_setup:n #1
+  {
+    \tl_gset:Nn \g__docxlike_page_input_tl {#1}
+    \__docxlike_page_compute:n {#1}
+    \__docxlike_page_apply:
+  }
+%    \end{macrocode}
+%
+% 文档里的 \option{page-setup} 在上一次的页面设置上改：写到的格子换掉，没写到的照旧。
+% \cs{docxlike\_page\_setup:n} 是从头给一整套，给文档类用。
+%
+% 先把这次的键读一遍，让“首页不同”这类不涉版面的键生效，顺带看有没有动到页边距、
+% 纸张、页眉页脚距边界或文档网格；动到了才重算版面，这时整串都当先前的键值读，不再
+% 生效第二遍。只写了“奇偶页不同”的文档不必先有一套页面设置。
+%    \begin{macrocode}
+\bool_new:N \g__docxlike_page_geometry_bool
+\cs_new_protected:Npn \__docxlike_page_setup_more:n #1
+  {
+    \group_begin:
+      \bool_set_false:N \l__docxlike_page_geometry_bool
+      \keys_set:nn { docxlike / page-setup } {#1}
+      \bool_gset_eq:NN \g__docxlike_page_geometry_bool \l__docxlike_page_geometry_bool
+    \group_end:
+    \bool_if:NT \g__docxlike_page_geometry_bool
+      {
+        \tl_gput_right:Nn \g__docxlike_page_input_tl { , #1 }
+        \__docxlike_page_compute:Vn \g__docxlike_page_input_tl { }
+        \__docxlike_page_apply:
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_page_compute:nn { V }
+\cs_generate_variant:Nn \str_case:nn { V }
+\keys_define:nn { docxlike }
+  { page-setup .code:n = { \__docxlike_page_setup_more:n {#1} } }
+%    \end{macrocode}
+%
+% 按页换一套版面。Word 的分节符能让一节有自己的页面设置，封面那一节就与正文
+% 不同——\texttt{docGrid} 的 \texttt{linePitch} 是 395 缇，正文是 383。要用的
+% 模块把\emph{自己那一节}的取值写出来，连同当前这一套一起传进来，排完再还原。
+%
+% 算完发现页面几何与当前这一套一模一样，就\emph{不动}页面参数——封面与正文常常只差
+% 一个行跨度，页边距是一样的，而换版面要另起一页。
+%
+% 真要换的时候，换入先 \cs{clearpage}，存下当时的页面参数，再设新的；还原也先
+% \cs{clearpage}，再把存下的设回去。纸张尺寸不换，一篇文档里不该变。
+% \emph{不支持套嵌}，存的只有一层。
+%    \begin{macrocode}
+\tl_new:N \g__docxlike_page_save_layout_tl
+\clist_const:Nn \c__docxlike_page_param_clist
+  {
+    textwidth , textheight , oddsidemargin , evensidemargin , topmargin ,
+    headheight , headsep , footskip
+  }
+\clist_map_inline:Nn \c__docxlike_page_param_clist
+  { \dim_new:c { g__docxlike_page_save_#1_dim } }
+\cs_new_protected:Npn \docxlike_page_push_default:
+  {
+    \clearpage
+    \clist_map_inline:Nn \c__docxlike_page_param_clist
+      { \dim_gset_eq:cc { g__docxlike_page_save_##1_dim } {##1} }
+    \__docxlike_page_params_set:
+  }
+\cs_new_protected:Npn \docxlike_page_pop_default:
+  {
+    \clearpage
+    \clist_map_inline:Nn \c__docxlike_page_param_clist
+      { \dim_set_eq:cc {##1} { g__docxlike_page_save_##1_dim } }
+    \__docxlike_page_running_sync:
+  }
+\cs_new_protected:Npn \__docxlike_page_push_apply: { \docxlike_page_push_default: }
+\cs_new_protected:Npn \__docxlike_page_pop_apply: { \docxlike_page_pop_default: }
+\cs_new_protected:Npn \docxlike_page_set_push_apply:n #1
+  { \cs_gset_protected:Npn \__docxlike_page_push_apply: {#1} }
+\cs_new_protected:Npn \docxlike_page_set_pop_apply:n #1
+  { \cs_gset_protected:Npn \__docxlike_page_pop_apply: {#1} }
+\bool_new:N \g__docxlike_page_moved_bool
+\dim_new:N \g__docxlike_page_save_lead_dim
+\dim_new:N \g__docxlike_page_save_char_dim
+\int_new:N \g__docxlike_page_save_cells_int
+\dim_new:N \g__docxlike_page_save_header_edge_dim
+\dim_new:N \g__docxlike_page_save_footer_edge_dim
+\cs_new_protected:Npn \docxlike_page_setup_push:n #1
+  {
+    \dim_gset_eq:NN \g__docxlike_page_save_lead_dim \g_docxlike_page_lead_dim
+    \dim_gset_eq:NN \g__docxlike_page_save_char_dim \g_docxlike_page_char_dim
+    \int_gset_eq:NN \g__docxlike_page_save_cells_int \g_docxlike_page_cells_int
+    \__docxlike_page_save_hook:
+    \dim_gset_eq:NN \g__docxlike_page_save_header_edge_dim \g_docxlike_page_header_edge_dim
+    \dim_gset_eq:NN \g__docxlike_page_save_footer_edge_dim \g_docxlike_page_footer_edge_dim
+    \tl_gset_eq:NN \g__docxlike_page_save_layout_tl \g__docxlike_page_layout_tl
+    \__docxlike_page_compute:n {#1}
+    \tl_if_eq:NNTF \g__docxlike_page_layout_tl \g__docxlike_page_save_layout_tl
+      { \bool_gset_false:N \g__docxlike_page_moved_bool }
+      {
+        \bool_gset_true:N \g__docxlike_page_moved_bool
+        \__docxlike_page_push_apply:
+      }
+  }
+\cs_new_protected:Npn \docxlike_page_setup_pop:
+  {
+    \bool_if:NT \g__docxlike_page_moved_bool { \__docxlike_page_pop_apply: }
+    \dim_gset_eq:NN \g_docxlike_page_lead_dim \g__docxlike_page_save_lead_dim
+    \dim_gset_eq:NN \g_docxlike_page_char_dim \g__docxlike_page_save_char_dim
+    \int_gset_eq:NN \g_docxlike_page_cells_int \g__docxlike_page_save_cells_int
+    \dim_gset_eq:NN \g_docxlike_page_header_edge_dim \g__docxlike_page_save_header_edge_dim
+    \dim_gset_eq:NN \g_docxlike_page_footer_edge_dim \g__docxlike_page_save_footer_edge_dim
+    \__docxlike_page_restore_hook:
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</docxlike-page>
+%    \end{macrocode}
+%
+% \Finale

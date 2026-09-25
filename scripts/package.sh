@@ -146,7 +146,7 @@ fi
 
 echo "Generating package files..."
 make cls
-make doc
+make manual
 
 if [[ ! -f hithesis.pdf ]]; then
   echo "error: hithesis.pdf was not generated" >&2
@@ -159,7 +159,7 @@ trap 'rm -rf "$stage"' EXIT
 copy_file README.md "$stage"
 copy_file hithesis.pdf "$stage"
 cp -a examples "$stage/"
-find "$stage/examples" -type f '(' -name '*.aux' -o -name '*.bbl' -o -name '*.blg' -o -name '*.fdb_latexmk' -o -name '*.fls' -o -name '*.idx' -o -name '*.ilg' -o -name '*.ind' -o -name '*.lof' -o -name '*.log' -o -name '*.lot' -o -name '*.out' -o -name '*.synctex.gz' -o -name '*.thm' -o -name '*.toc' -o -name '*.toe' -o -name '*.xdv' -o -name 'report.pdf' -o -name 'thesis.pdf' ')' -delete
+find "$stage/examples" -type f '(' -name '*.aux' -o -name '*.bbl' -o -name '*.blg' -o -name '*.fdb_latexmk' -o -name '*.fls' -o -name '*.idx' -o -name '*.ilg' -o -name '*.ind' -o -name '*.lof' -o -name '*.log' -o -name '*.lot' -o -name '*.out' -o -name '*.synctex.gz' -o -name '*.thm' -o -name '*.toc' -o -name '*.toe' -o -name '*.xdv' -o -name 'report.pdf' -o -name 'thesis.pdf' -o -name '*-BSTcontrol.bib' -o -name '.DS_Store' ')' -delete
 
 zip_inputs=(README.md examples hithesis.pdf)
 for ((i = 0; i < ${#add_names[@]}; i++)); do

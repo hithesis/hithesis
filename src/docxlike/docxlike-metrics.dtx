@@ -1,0 +1,931 @@
+% \iffalse meta-comment
+%
+% docxlike-metrics.dtx 是读字体文件里与行高有关的度量
+%
+% \fi
+%
+% \section{字体度量}
+%
+% \changes{v0.1.0}{2026/09/24}{加 \file{docxlike-font-metrics.lua}：从字体文件读行高相关的
+%   原始度量，生成预设表，也给单个字体打印可以直接用的条目}
+% \changes{v0.1.0}{2026/09/24}{行高与上升部按字体名照 Windows Word 的规则现算并缓存：原始度量
+%   来自文档里填的、随包的预设表、\hologo{LuaLaTeX} 下现读字体文件}
+%
+% Word 的自然行高与上升部由字体文件里的几个表算出来，不同平台读的表不同（Windows 读
+% OS/2 的 usWin，Mac 大多读 hhea），规则本身相同。所以这里只\emph{读}，不算：读出来的
+% 原始值交给包里的规则去算，规则只有一份，“读哪张表”是那边的开关。实测与规则见
+% \file{test/font-metrics/README.md}。
+%
+% 读的是这几样：
+% \begin{itemize}
+% \item \texttt{head} 表的 \texttt{unitsPerEm}；
+% \item \texttt{OS/2} 表的 \texttt{usWinAscent}、\texttt{usWinDescent}，三个 \texttt{sTypo} 值，
+%   \texttt{fsSelection}（斜体、粗体与 \texttt{USE\_TYPO\_METRICS} 三位），
+%   \texttt{usWeightClass}，版本号 1 起才有的 \texttt{ulCodePageRange1}（第 17--21 位是
+%   日、简、韩、繁、韩 Johab 五个东亚码页，置了任一位就算东亚字体）；
+% \item \texttt{hhea} 表的 \texttt{ascender}、\texttt{descender}、\texttt{lineGap}；
+% \item 有没有 \texttt{glyf} 表（TrueType 轮廓）：Windows Word 只对 TrueType 轮廓、
+%   \texttt{OS/2} 版本 4 起、置了 \texttt{USE\_TYPO\_METRICS} 的字体改用 \texttt{sTypo}，
+%   CFF 轮廓的同样置位也不理；
+% \item \texttt{name} 表里的族名、全名与 PostScript 名（编号 1、4、6、16），各语言都收，
+%   中文名“宋体”也能查到。
+% \end{itemize}
+%
+% 这个文件有三种用法。维护者生成预设表：
+% \begin{latex}
+% texlua docxlike-font-metrics.lua table docxlike-font-metrics.def 字体目录或文件 ...
+% \end{latex}
+% 用户给表里没有的字体打印条目，贴进自己的文档或配置：
+% \begin{latex}
+% texlua docxlike-font-metrics.lua font 某字体.ttf
+% \end{latex}
+% \hologo{LuaLaTeX} 下由包当模块加载，编译时现读。只用 \hologo{LuaTeX} 自带的库
+% （\texttt{lfs}、\texttt{utf8}），不要 Python 之类的外部程序。
+%
+% ^^A ======================================================================
+% ^^A Module docxlike-metrics: 读字体度量（Lua）
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*metrics-lua>
+-- docxlike-font-metrics.lua：从字体文件读行高相关的原始度量
+local M = {}
+
+local function u16(s, p) local a, b = s:byte(p + 1, p + 2); return a * 256 + b end
+local function i16(s, p) local v = u16(s, p); if v >= 32768 then v = v - 65536 end; return v end
+local function u32(s, p) local a, b, c, d = s:byte(p + 1, p + 4); return ((a * 256 + b) * 256 + c) * 256 + d end
+%    \end{macrocode}
+%
+% 名字表：平台 3（Windows）是 UTF-16BE，要把代理对拼回来；平台 1（Mac）的 Roman 编码
+% 只收 ASCII 部分，其余字节扔掉，中文名靠平台 3 那一份。
+%    \begin{macrocode}
+local function utf16be(s)
+  local out, i = {}, 1
+  while i + 1 <= #s do
+    local c = s:byte(i) * 256 + s:byte(i + 1)
+    i = i + 2
+    if c >= 0xD800 and c <= 0xDBFF and i + 1 <= #s then
+      local d = s:byte(i) * 256 + s:byte(i + 1)
+      i = i + 2
+      c = 0x10000 + (c - 0xD800) * 0x400 + (d - 0xDC00)
+    end
+    out[#out + 1] = utf8.char(c)
+  end
+  return table.concat(out)
+end
+
+local function read_names(data, off)
+  local count, strs = u16(data, off + 2), u16(data, off + 4)
+  local names, seen, fams, primary = {}, {}, {}, {}
+  for i = 0, count - 1 do
+    local r = off + 6 + i * 12
+    local plat, enc, id, len, o = u16(data, r), u16(data, r + 2), u16(data, r + 6), u16(data, r + 8), u16(data, r + 10)
+    if id == 1 or id == 4 or id == 6 or id == 16 then
+      local raw = data:sub(off + strs + o + 1, off + strs + o + len)
+      local s
+      if plat == 3 or plat == 0 then s = utf16be(raw)
+      elseif plat == 1 and enc == 0 then s = raw:gsub('[\128-\255]', '') end
+      if s and s ~= '' then
+        if not seen[s] then seen[s] = true; names[#names + 1] = s end
+        if id == 1 or id == 16 then fams[s] = true end
+        if id ~= 16 then primary[s] = true end
+      end
+    end
+  end
+  return names, fams, primary
+end
+%    \end{macrocode}
+%
+% 读一副字体。\meta{data} 是整个文件，\meta{base} 是这一副的表目录起点（\texttt{ttc} 里
+% 每副各有一个）。缺 \texttt{OS/2} 或 \texttt{hhea} 的返回 \texttt{nil}。
+%    \begin{macrocode}
+local function read_face(data, base)
+  local n = u16(data, base + 4)
+  local tab = {}
+  for i = 0, n - 1 do
+    local r = base + 12 + i * 16
+    tab[data:sub(r + 1, r + 4)] = u32(data, r + 8)
+  end
+  local head, hhea, os2, name = tab['head'], tab['hhea'], tab['OS/2'], tab['name']
+  if not (head and hhea and os2) then return nil end
+  local ver = u16(data, os2)
+  local fs = u16(data, os2 + 62)
+  local cp1 = ver >= 1 and u32(data, os2 + 78) or 0
+  local f = {
+    units = u16(data, head + 18),
+    win = { u16(data, os2 + 74), u16(data, os2 + 76) },
+    hhea = { i16(data, hhea + 4), -i16(data, hhea + 6), i16(data, hhea + 8) },
+    typo = { i16(data, os2 + 68), -i16(data, os2 + 70), i16(data, os2 + 72) },
+    use_typo = tab['glyf'] ~= nil and ver >= 4 and (fs // 128) % 2 == 1,
+    class = ((cp1 // 131072) % 32 ~= 0) and 'east-asian' or 'latin',
+    italic = fs % 2 == 1,
+    bold = (fs // 32) % 2 == 1,
+    weight = u16(data, os2 + 4),
+  }
+  if name then f.names, f.families, f.primary = read_names(data, name)
+  else f.names, f.families, f.primary = {}, {}, {} end
+  return f
+end
+
+-- 读一个文件里的全部字体（ttc 有好几副）
+function M.read_file(path)
+  local fh = io.open(path, 'rb')
+  if not fh then return {} end
+  local data = fh:read('a')
+  fh:close()
+  local faces = {}
+  if data:sub(1, 4) == 'ttcf' then
+    for i = 0, u32(data, 8) - 1 do
+      local ok, f = pcall(read_face, data, u32(data, 12 + i * 4))
+      if ok and f then faces[#faces + 1] = f end
+    end
+  else
+    local ok, f = pcall(read_face, data, 0)
+    if ok and f then faces[1] = f end
+  end
+  return faces
+end
+
+-- 编译时现读（LuaLaTeX）：luaotfload 按名字找到文件，取名字对得上的那一副，
+-- 对不上取第一副；交回逗号隔开的一串数（与预设表同序），找不到交回空串。用逗号是因为
+-- token.set_macro 设进去的空格不是 TeX 的空格
+function M.live(name)
+  local names = fonts and fonts.names
+  if not (names and names.lookup_font_file) then return "" end
+  local okp, path = pcall(names.lookup_font_file, name)
+  if not okp or not path or not lfs.isfile(path) then return "" end
+  local key, pick = M.key(name), nil
+  local faces = M.read_file(path)
+  for _, f in ipairs(faces) do
+    for _, nm in ipairs(f.names) do
+      if M.key(nm) == key then pick = f end
+    end
+  end
+  pick = pick or faces[1]
+  if not pick then return "" end
+  return table.concat({ pick.units, pick.win[1], pick.win[2], pick.hhea[1], pick.hhea[2],
+    pick.hhea[3], pick.typo[1], pick.typo[2], pick.typo[3],
+    pick.use_typo and "true" or "false", pick.class }, ",")
+end
+
+-- 名字规范化：小写（只动 ASCII），去掉空白、连字符与下划线
+function M.key(s)
+  return (s:gsub('[%s_%-]', ''):lower())
+end
+%    \end{macrocode}
+%
+% 一行条目。参数的次序与 \cs{docxlike\_font\_metrics\_new:nnnnnn} 一致。
+%    \begin{macrocode}
+function M.entry(k, f, comment)
+  return string.format(
+    '\\docxlike_font_metrics_new:nnnnnn { %s } { %d } { %d %d } { %d %d %d } { %d %d %d } { %s %s }%s',
+    k, f.units, f.win[1], f.win[2], f.hhea[1], f.hhea[2], f.hhea[3],
+    f.typo[1], f.typo[2], f.typo[3], f.use_typo and 'true' or 'false', f.class,
+    comment and (' % ' .. comment) or '')
+end
+%    \end{macrocode}
+%
+% \emph{预设表收哪些字体。} 常用的基本字体：Word 与 Windows 的常用字体、\pkg{ctex} 各
+% 字体集用到的、各 \hologo{TeX} 引擎自带的。每族只收一副，落在字重最接近 400、非粗
+% 非斜的那副上：\texttt{Aptos Black} 的子族名也叫 \texttt{Regular}，Fandol 的粗体字重
+% 写的是 400、只在 \texttt{fsSelection} 里标粗，所以三样一起比。给的来源按先后排优先级，
+% 同名的先到先得（Windows 自带的放最前：\texttt{Times New Roman} 与华文宋体在 Windows 与
+% Mac 上是两个版本）。
+%    \begin{macrocode}
+M.families = [[
+SimSun; NSimSun; SimHei; KaiTi; FangSong; LiSu; YouYuan; KaiTi_GB2312; FangSong_GB2312;
+Microsoft YaHei; Microsoft YaHei Light; Microsoft YaHei UI; DengXian; DengXian Light;
+Microsoft JhengHei; PMingLiU; MingLiU; DFKai-SB;
+STSong; STKaiti; STFangsong; STZhongsong; STXihei; STXinwei; STLiti; STXingkai; STHupo; STCaiyun;
+FZShuTi; FZYaoTi;
+Noto Sans SC; Noto Serif SC;
+Yu Gothic; Yu Mincho; MS Gothic; MS PGothic; MS Mincho; MS PMincho; Meiryo; Malgun Gothic; Batang; Gulim; Dotum;
+Times New Roman; Arial; Arial Narrow; Calibri; Calibri Light; Cambria; Aptos; Aptos Display; Aptos Narrow;
+Georgia; Verdana; Tahoma; Segoe UI; Consolas; Courier New; Garamond; Palatino Linotype; Book Antiqua;
+Bookman Old Style; Century; Century Gothic; Century Schoolbook; Corbel; Candara; Constantia;
+FandolSong; FandolHei; FandolKai; FandolFang R;
+Noto Serif CJK SC; Noto Sans CJK SC; Source Han Serif SC; Source Han Sans SC;
+Adobe Song Std; Adobe Heiti Std; Adobe Kaiti Std; Adobe Fangsong Std; Adobe Ming Std;
+FZShuSong-Z01; FZHei-B01; FZKai-Z03; FZFangSong-Z02; FZXiaoBiaoSong-B05; FZLiShu-S01;
+HYShuSongErKW; HYZhongHeiKW; HYKaiTiKW; HYFangSongS;
+Songti SC; STHeiti; Heiti SC; Kaiti SC; PingFang SC; Yuanti SC; Baoli SC; Hiragino Sans GB; Libian SC; Xingkai SC;
+Latin Modern Roman; Latin Modern Sans; Latin Modern Mono; LM Roman 10; LM Sans 10; LM Mono 10;
+TeX Gyre Termes; TeX Gyre Heros; TeX Gyre Pagella; TeX Gyre Bonum; TeX Gyre Schola; TeX Gyre Cursor; TeX Gyre Adventor
+]]
+
+local function wanted()
+  local w = {}
+  for f in M.families:gmatch('[^;]+') do
+    local k = M.key(f)
+    if k ~= '' then w[k] = true end
+  end
+  return w
+end
+
+local function walk(path, out)
+  local attr = lfs.attributes(path)
+  if not attr then return end
+  if attr.mode == 'directory' then
+    local items = {}
+    for e in lfs.dir(path) do
+      if e ~= '.' and e ~= '..' then items[#items + 1] = e end
+    end
+    table.sort(items)
+    for _, e in ipairs(items) do walk(path .. '/' .. e, out) end
+  else
+    local l = path:lower()
+    if l:match('%.ttf$') or l:match('%.otf$') or l:match('%.ttc$') then out[#out + 1] = path end
+  end
+end
+
+function M.table(out, sources)
+  local want, entries = wanted(), {}
+  for si, src in ipairs(sources) do
+    local files = {}
+    walk(src, files)
+    for _, p in ipairs(files) do
+      for fi, f in ipairs(M.read_file(p)) do
+        -- 同族判定只看族名（编号 1 与 16），去重后排序拼成一个键
+        local set, fams = {}, {}
+        for nm in pairs(f.families) do
+          local k = M.key(nm)
+          if want[k] and not set[k] then set[k] = true; fams[#fams + 1] = k end
+        end
+        if #fams > 0 then
+          table.sort(fams)
+          entries[#entries + 1] = { src = si, italic = f.italic and 1 or 0, bold = f.bold and 1 or 0,
+            dw = math.abs(f.weight - 400), path = p, idx = fi, f = f, fam = table.concat(fams, ',') }
+        end
+      end
+    end
+  end
+  table.sort(entries, function(a, b)
+    if a.src ~= b.src then return a.src < b.src end
+    if a.italic ~= b.italic then return a.italic < b.italic end
+    if a.bold ~= b.bold then return a.bold < b.bold end
+    if a.dw ~= b.dw then return a.dw < b.dw end
+    if a.path ~= b.path then return a.path < b.path end
+    return a.idx < b.idx
+  end)
+  -- 一个名字先给把它当本名（1 号族名、4 号全名、6 号 PostScript 名）的那副字体，
+  -- 只拿它当排版族名（16 号）的往后排：Arial Narrow 的 16 号族名也是 Arial，
+  -- 按路径排在 arial.ttf 前面，不这样 Arial 就会取到 Arial Narrow 的度量
+  local chosen, taken = {}, {}
+  for _, e in ipairs(entries) do
+    if not taken[e.fam] then taken[e.fam] = true; chosen[#chosen + 1] = e end
+  end
+  local tbl, keys = {}, {}
+  for pass = 1, 2 do
+    for _, e in ipairs(chosen) do
+      for _, nm in ipairs(e.f.names) do
+        local k = M.key(nm)
+        if k ~= '' and not tbl[k] and (pass == 2 or e.f.primary[nm]) then
+          tbl[k] = { f = e.f, name = nm, file = e.path:match('[^/]+$') }
+          keys[#keys + 1] = k
+        end
+      end
+    end
+  end
+  -- pdfTeX 的 Computer Modern 没有 OS/2 表，借 LM Roman 10（同一套设计）
+  if tbl['lmroman10regular'] then
+    for _, a in ipairs({ 'computermodern', 'cmr10', 'cmunrm' }) do
+      if not tbl[a] then
+        tbl[a] = { f = tbl['lmroman10regular'].f, name = 'Computer Modern (= LM Roman 10)',
+                   file = tbl['lmroman10regular'].file }
+        keys[#keys + 1] = a
+      end
+    end
+  end
+  table.sort(keys)
+  local fh = assert(io.open(out, 'w'))
+  fh:write('%% docxlike-font-metrics.def：常用字体行高相关的原始度量。\n')
+  fh:write('%% 由 docxlike-font-metrics.lua 从字体文件读出，别手改；make font-metrics 重新生成。\n')
+  fh:write(string.format('%%%% 共 %d 个名字。名字规范化：小写，去掉空格、连字符与下划线。\n', #keys))
+  fh:write('%% 参数：名字、unitsPerEm、OS/2 usWinAscent usWinDescent、hhea ascender |descender| lineGap、\n')
+  fh:write('%%       OS/2 sTypoAscender |sTypoDescender| sTypoLineGap、是否照 typo（TrueType 且 v4+ 且\n')
+  fh:write('%%       USE_TYPO_METRICS）、类别（latin 或 east-asian）。行尾注释是原名与文件。\n')
+  for _, k in ipairs(keys) do
+    fh:write(M.entry(k, tbl[k].f, tbl[k].name .. ' | ' .. tbl[k].file), '\n')
+  end
+  -- 同一副字体的几个名字（英文名、中文名、全名、PostScript 名）记成一组，
+  -- 切换字体时一个名字登记了办法，同组的名字都用它
+  local groups, order = {}, {}
+  for _, k in ipairs(keys) do
+    local f = tbl[k].f
+    if not groups[f] then groups[f] = {}; order[#order + 1] = f end
+    table.insert(groups[f], k)
+  end
+  fh:write('%% 同一副字体的名字，一行一组。\n')
+  local lines = {}
+  for _, f in ipairs(order) do
+    if #groups[f] > 1 then
+      lines[#lines + 1] = '\\docxlike_font_names_new:n { ' .. table.concat(groups[f], ' , ') .. ' }'
+    end
+  end
+  table.sort(lines)
+  for _, l in ipairs(lines) do fh:write(l, '\n') end
+  fh:close()
+  print(string.format('%d names -> %s', #keys, out))
+end
+%    \end{macrocode}
+%
+% 命令行入口。当模块加载（\texttt{require} 或 \texttt{dofile}）时 \texttt{arg} 不是这个
+% 文件自己，不进这里。
+%    \begin{macrocode}
+local script = arg and arg[0] and arg[0]:match('docxlike%-font%-metrics%.lua$')
+if script and arg[1] == 'table' and arg[2] then
+  local srcs = {}
+  for i = 3, #arg do srcs[#srcs + 1] = arg[i] end
+  M.table(arg[2], srcs)
+elseif script and arg[1] == 'font' and arg[2] then
+  for i = 2, #arg do
+    for _, f in ipairs(M.read_file(arg[i])) do
+      print('% ' .. (f.names[1] or arg[i]))
+      local seen = {}
+      for _, nm in ipairs(f.names) do
+        local k = M.key(nm)
+        if not seen[k] then seen[k] = true; print(M.entry(k, f)) end
+      end
+    end
+  end
+elseif script then
+  print('usage: texlua docxlike-font-metrics.lua table <out.def> <dirs or files...>')
+  print('       texlua docxlike-font-metrics.lua font <font files...>')
+end
+
+return M
+%</metrics-lua>
+%    \end{macrocode}
+%
+% \subsection{按字体名取度量}
+%
+% 样式里存的是字体名（docx 的 \texttt{w:rFonts}），行高与上升部按名字查：先查缓存；没有就
+% 取这副字体的原始度量照规则算一次，存进缓存。原始度量来自三处，依次是：文档里用
+% \cs{docxlike\_font\_metrics\_new:nnnnnn} 填的；随包的预设表 \file{docxlike-font-metrics.def}
+% （二百多个名字，常用的中日韩与西文字体、\pkg{ctex} 各字体集与各引擎自带的字体）；
+% \hologo{LuaLaTeX} 下现读字体文件。都没有就报一次警告，调用方用自己的默认值。
+% 预设表里一组数之间用空格隔开，读表时空格照常算；在 \cs{ExplSyntaxOn} 底下自己填时
+% 空格被吃掉，数之间要写 \texttt{\textasciitilde}。
+%
+% 名字的规范化与生成预设表那边一样：小写，去掉空格、连字符与下划线，所以
+% \texttt{Times New Roman}、\texttt{TimesNewRoman} 是同一副。中文名也收（\texttt{宋体}）。
+%
+% \emph{规则照 Windows Word。} 上升部 $A$、下降部 $D$ 取 \texttt{OS/2} 的 \texttt{usWinAscent}、
+% \texttt{usWinDescent}，外部行距 $G = \max(0, L - ((A+D) - (A_h+D_h)))$，其中 $L$ 是
+% \texttt{hhea} 表的 \texttt{lineGap}，$A_h$、$D_h$ 是它的上升与下降，这是 GDI 的算法；TrueType 轮廓、\texttt{OS/2} 版本 4 起、置了
+% \texttt{USE\_TYPO\_METRICS} 的改用三个 \texttt{sTypo} 值。西文字体的自然行高是
+% $(A+D+G)/u$、上升部 $(A+G)/u$；东亚字体（\texttt{OS/2} 码页第 17--21 位置了任一位）的
+% 自然行高是 $\lfloor 1.3(A+D) \rfloor / u$、不计外部行距，多出来的上下平分，上升部是
+% $A/u$ 加多出来的一半。$u$ 是 \texttt{unitsPerEm}。中易宋体的 1.296875 就是
+% $\lfloor 1.3 \times 256 \rfloor / 256$，上升部 $(220 + 38)/256 = 1.0078125$；Times New Roman
+% 是 1.1499 与 0.9336。Windows 的首行基线就在上升部处，不另加常数。
+%    \begin{macrocode}
+%<*docxlike-metrics>
+\prop_new:N \g__docxlike_font_raw_prop
+\prop_new:N \g__docxlike_font_metric_prop
+\str_new:N \l__docxlike_font_key_str
+\tl_new:N \l__docxlike_font_raw_tl
+\tl_new:N \l__docxlike_font_pair_tl
+\seq_new:N \l__docxlike_font_raw_seq
+\tl_new:N \l__docxlike_font_a_tl
+\tl_new:N \l__docxlike_font_d_tl
+\tl_new:N \l__docxlike_font_g_tl
+\tl_new:N \l__docxlike_font_u_tl
+\cs_new_protected:Npn \__docxlike_font_key:n #1
+  {
+    \str_set:Ne \l__docxlike_font_key_str { \str_lowercase:n {#1} }
+    \str_remove_all:Nn \l__docxlike_font_key_str { ~ }
+    \str_remove_all:Nn \l__docxlike_font_key_str { - }
+    \str_remove_all:Nn \l__docxlike_font_key_str { _ }
+  }
+\cs_new_protected:Npn \docxlike_font_metrics_new:nnnnnn #1#2#3#4#5#6
+  {
+    \__docxlike_font_key:n {#1}
+    \prop_gput:NVn \g__docxlike_font_raw_prop \l__docxlike_font_key_str
+      { #2 ~ #3 ~ #4 ~ #5 ~ #6 }
+    \prop_gremove:NV \g__docxlike_font_metric_prop \l__docxlike_font_key_str
+  }
+\cs_generate_variant:Nn \prop_gput:Nnn { NVn , NVV }
+\cs_generate_variant:Nn \prop_gremove:Nn { NV }
+\cs_new:Npn \__docxlike_font_item:n #1 { \seq_item:Nn \l__docxlike_font_raw_seq {#1} }
+\cs_new_protected:Npn \__docxlike_font_rule:n #1
+  {
+    \seq_set_split:Nnn \l__docxlike_font_raw_seq { ~ } {#1}
+    \seq_remove_all:Nn \l__docxlike_font_raw_seq { }
+    \tl_set:Ne \l__docxlike_font_u_tl { \__docxlike_font_item:n { 1 } }
+    \str_if_eq:eeTF { \__docxlike_font_item:n { 10 } } { true }
+      {
+        \tl_set:Ne \l__docxlike_font_a_tl { \__docxlike_font_item:n { 7 } }
+        \tl_set:Ne \l__docxlike_font_d_tl { \__docxlike_font_item:n { 8 } }
+        \tl_set:Ne \l__docxlike_font_g_tl { \__docxlike_font_item:n { 9 } }
+      }
+      {
+        \tl_set:Ne \l__docxlike_font_a_tl { \__docxlike_font_item:n { 2 } }
+        \tl_set:Ne \l__docxlike_font_d_tl { \__docxlike_font_item:n { 3 } }
+        \tl_set:Ne \l__docxlike_font_g_tl
+          {
+            \fp_eval:n
+              {
+                max ( 0 , \__docxlike_font_item:n { 6 }
+                  - ( \l__docxlike_font_a_tl + \l__docxlike_font_d_tl
+                      - \__docxlike_font_item:n { 4 } - \__docxlike_font_item:n { 5 } ) )
+              }
+          }
+      }
+    \str_if_eq:eeTF { \__docxlike_font_item:n { 11 } } { east-asian }
+      {
+        \tl_set:Ne \l__docxlike_font_pair_tl
+          {
+            { \fp_eval:n { floor ( ( \l__docxlike_font_a_tl + \l__docxlike_font_d_tl ) * 1.3 ) / \l__docxlike_font_u_tl } }
+            {
+              \fp_eval:n
+                {
+                  ( \l__docxlike_font_a_tl
+                    + ( floor ( ( \l__docxlike_font_a_tl + \l__docxlike_font_d_tl ) * 1.3 )
+                        - \l__docxlike_font_a_tl - \l__docxlike_font_d_tl ) / 2 )
+                  / \l__docxlike_font_u_tl
+                }
+            }
+          }
+      }
+      {
+        \tl_set:Ne \l__docxlike_font_pair_tl
+          {
+            { \fp_eval:n { ( \l__docxlike_font_a_tl + \l__docxlike_font_d_tl + \l__docxlike_font_g_tl ) / \l__docxlike_font_u_tl } }
+            { \fp_eval:n { ( \l__docxlike_font_a_tl + \l__docxlike_font_g_tl ) / \l__docxlike_font_u_tl } }
+          }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_font_rule:n { V }
+%    \end{macrocode}
+%
+% \cs{docxlike\_font\_metric:nNNTF}\marg{字体名}\meta{自然行高}\meta{上升部}：两个记号列表
+% 放按字号的系数。取不到走假分支，记号列表不动。
+%    \begin{macrocode}
+\msg_new:nnnn { docxlike } { font-metrics-missing }
+  { No~metrics~for~font~'#1';~using~the~default~font's. }
+  {
+    The~font~is~neither~in~the~preset~table~nor~readable~here.~Give~its~metrics~with~
+    \token_to_str:N \docxlike_font_metrics_new:nnnnnn.
+  }
+\prop_new:N \g__docxlike_font_warned_prop
+\tl_new:N \l__docxlike_font_live_tl
+\prg_new_protected_conditional:Npnn \docxlike_font_metric:nNN #1#2#3 { T , F , TF }
+  {
+    \__docxlike_font_key:n {#1}
+    \prop_get:NVNTF \g__docxlike_font_metric_prop \l__docxlike_font_key_str
+      \l__docxlike_font_pair_tl
+      {
+        \__docxlike_font_pair:NN #2 #3
+        \prg_return_true:
+      }
+      {
+        \prop_if_in:NVF \g__docxlike_font_raw_prop \l__docxlike_font_key_str
+          { \__docxlike_font_live:n {#1} }
+        \prop_get:NVNTF \g__docxlike_font_raw_prop \l__docxlike_font_key_str
+          \l__docxlike_font_raw_tl
+          {
+            \__docxlike_font_rule:V \l__docxlike_font_raw_tl
+            \prop_gput:NVV \g__docxlike_font_metric_prop \l__docxlike_font_key_str
+              \l__docxlike_font_pair_tl
+            \__docxlike_font_pair:NN #2 #3
+            \prg_return_true:
+          }
+          {
+            \prop_if_in:NVF \g__docxlike_font_warned_prop \l__docxlike_font_key_str
+              {
+                \prop_gput:NVn \g__docxlike_font_warned_prop \l__docxlike_font_key_str { }
+                \msg_warning:nnn { docxlike } { font-metrics-missing } {#1}
+              }
+            \prg_return_false:
+          }
+      }
+  }
+\prg_generate_conditional_variant:Nnn \prop_if_in:Nn { NV } { F }
+\cs_new_protected:Npn \__docxlike_font_pair:NN #1#2
+  {
+    \tl_set:Ne #1 { \tl_item:Nn \l__docxlike_font_pair_tl { 1 } }
+    \tl_set:Ne #2 { \tl_item:Nn \l__docxlike_font_pair_tl { 2 } }
+  }
+%    \end{macrocode}
+%
+% \hologo{LuaLaTeX} 下表里没有的字体现读：\file{docxlike-font-metrics.lua} 的 \texttt{M.live}
+% 让 \pkg{luaotfload} 按名字找到文件、读出原始度量，交回一串数，这里登记。Lua 代码写在
+% 那个文件里：这里是 \pkg{expl3} 语法，空格会被吃掉。
+%    \begin{macrocode}
+\sys_if_engine_luatex:T
+  {
+    \lua_now:n
+      {
+        docxlike~=~docxlike~or~{~}
+        local~file~=~kpse.find_file("docxlike-font-metrics.lua",~"tex")~
+          or~kpse.find_file("docxlike-font-metrics.lua",~"lua")
+        if~file~then~docxlike.metrics~=~dofile(file)~end
+      }
+  }
+\cs_new_protected:Npn \__docxlike_font_live:n #1
+  {
+    \sys_if_engine_luatex:T
+      {
+        \lua_now:e
+          {
+            token.set_macro("l__docxlike_font_live_tl",~
+              docxlike.metrics~and~docxlike.metrics.live("\lua_escape:e {#1}")~or~"")
+          }
+        \tl_replace_all:Nnn \l__docxlike_font_live_tl { , } { ~ }
+        \tl_if_empty:NF \l__docxlike_font_live_tl
+          {
+            \prop_gput:NVV \g__docxlike_font_raw_prop \l__docxlike_font_key_str
+              \l__docxlike_font_live_tl
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 同一副字体的几个名字（英文名、中文名、全名、PostScript 名）记成一组：
+% \cs{docxlike\_font\_names\_new:n}\marg{名字表}。预设表里每副有多个名字的字体各有一行；
+% 按名字登记切换办法时，同组的名字一起登记，写 \texttt{宋体} 与写 \texttt{SimSun} 一样。
+% 度量不用这张表，同组的名字在预设表里各有一条、数一样。
+%    \begin{macrocode}
+\prop_new:N \g__docxlike_font_group_prop
+\cs_new_protected:Npn \docxlike_font_names_new:n #1
+  {
+    \clist_map_inline:nn {#1}
+      {
+        \__docxlike_font_key:n {##1}
+        \prop_gput:NVn \g__docxlike_font_group_prop \l__docxlike_font_key_str {#1}
+      }
+  }
+\file_if_exist:nT { docxlike-font-metrics.def }
+  {
+    \group_begin:
+      \char_set_catcode_space:n { 32 }
+      \file_input:n { docxlike-font-metrics.def }
+    \group_end:
+  }
+%</docxlike-metrics>
+%    \end{macrocode}
+%
+% \subsection{预设表}
+%
+% 由 \texttt{make font-metrics} 从字体文件生成，别手改。
+%    \begin{macrocode}
+%<*metrics-table>
+%% docxlike-font-metrics.def：常用字体行高相关的原始度量。
+%% 由 docxlike-font-metrics.lua 从字体文件读出，别手改；make font-metrics 重新生成。
+%% 共 273 个名字。名字规范化：小写，去掉空格、连字符与下划线。
+%% 参数：名字、unitsPerEm、OS/2 usWinAscent usWinDescent、hhea ascender |descender| lineGap、
+%%       OS/2 sTypoAscender |sTypoDescender| sTypoLineGap、是否照 typo（TrueType 且 v4+ 且
+%%       USE_TYPO_METRICS）、类别（latin 或 east-asian）。行尾注释是原名与文件。
+\docxlike_font_metrics_new:nnnnnn { adobeheitistd } { 1000 } { 967 283 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % Adobe Heiti Std | AdobeHeitiStd-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { adobeheitistdr } { 1000 } { 967 283 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % Adobe Heiti Std R | AdobeHeitiStd-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { adobeheitistdregular } { 1000 } { 967 283 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % AdobeHeitiStd-Regular | AdobeHeitiStd-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { adobemingstd } { 1000 } { 918 121 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % Adobe Ming Std | AdobeMingStd-Light.otf
+\docxlike_font_metrics_new:nnnnnn { adobemingstdl } { 1000 } { 918 121 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % Adobe Ming Std L | AdobeMingStd-Light.otf
+\docxlike_font_metrics_new:nnnnnn { adobemingstdlight } { 1000 } { 918 121 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % AdobeMingStd-Light | AdobeMingStd-Light.otf
+\docxlike_font_metrics_new:nnnnnn { adobesongstd } { 1000 } { 905 254 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % Adobe Song Std | AdobeSongStd-Light.otf
+\docxlike_font_metrics_new:nnnnnn { adobesongstdl } { 1000 } { 905 254 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % Adobe Song Std L | AdobeSongStd-Light.otf
+\docxlike_font_metrics_new:nnnnnn { adobesongstdlight } { 1000 } { 905 254 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % AdobeSongStd-Light | AdobeSongStd-Light.otf
+\docxlike_font_metrics_new:nnnnnn { adobe宋体std } { 1000 } { 905 254 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % Adobe 宋体 Std | AdobeSongStd-Light.otf
+\docxlike_font_metrics_new:nnnnnn { adobe宋体stdl } { 1000 } { 905 254 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % Adobe 宋体 Std L | AdobeSongStd-Light.otf
+\docxlike_font_metrics_new:nnnnnn { adobe明體std } { 1000 } { 918 121 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % Adobe 明體 Std | AdobeMingStd-Light.otf
+\docxlike_font_metrics_new:nnnnnn { adobe明體stdl } { 1000 } { 918 121 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % Adobe 明體 Std L | AdobeMingStd-Light.otf
+\docxlike_font_metrics_new:nnnnnn { adobe黑体std } { 1000 } { 967 283 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % Adobe 黑体 Std | AdobeHeitiStd-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { adobe黑体stdr } { 1000 } { 967 283 } { 880 120 1000 } { 880 120 1000 } { false east-asian } % Adobe 黑体 Std R | AdobeHeitiStd-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { aptos } { 2048 } { 2068 563 } { 1923 577 0 } { 1923 577 0 } { true latin } % Aptos | Aptos.ttf
+\docxlike_font_metrics_new:nnnnnn { aptosnarrow } { 2048 } { 2068 563 } { 1923 577 0 } { 1923 577 0 } { true latin } % Aptos Narrow | Aptos-Narrow.ttf
+\docxlike_font_metrics_new:nnnnnn { arial } { 2048 } { 1854 434 } { 1854 434 67 } { 1491 431 307 } { false latin } % Arial | arial.ttf
+\docxlike_font_metrics_new:nnnnnn { arialmt } { 2048 } { 1854 434 } { 1854 434 67 } { 1491 431 307 } { false latin } % ArialMT | arial.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrow } { 2048 } { 1888 431 } { 1916 434 0 } { 1491 431 269 } { false latin } % Arial Narrow | ARIALN.TTF
+\docxlike_font_metrics_new:nnnnnn { arialnarrowcorsivo } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Corsivo | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowcursief } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Cursief | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowcursiva } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Cursiva | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowdőlt } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Dőlt | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowetzana } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Etzana | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowitalic } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Italic | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowitalique } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Italique | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowitálico } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Itálico | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowkursiv } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow kursiv | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowkursivoitu } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Kursivoitu | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowkursywa } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Kursywa | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowkurzíva } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow kurzíva | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowpoševno } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Poševno | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowİtalik } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow İtalik | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowΠλάγια } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Πλάγια | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { arialnarrowКурсив } { 2048 } { 1873 431 } { 1916 434 0 } { 1491 425 275 } { false latin } % Arial Narrow Курсив | ArialNarrowItalic.ttf
+\docxlike_font_metrics_new:nnnnnn { baolisc } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % Baoli SC | Baoli.ttc
+\docxlike_font_metrics_new:nnnnnn { baoliscregular } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % Baoli SC Regular | Baoli.ttc
+\docxlike_font_metrics_new:nnnnnn { batang } { 1024 } { 879 145 } { 879 145 152 } { 879 145 152 } { false east-asian } % Batang | batang.ttc
+\docxlike_font_metrics_new:nnnnnn { bookantiqua } { 2048 } { 1967 578 } { 1891 578 0 } { 1489 578 124 } { false latin } % Book Antiqua | BKANT.TTF
+\docxlike_font_metrics_new:nnnnnn { bookmanoldstyle } { 2048 } { 1831 473 } { 1929 475 0 } { 1467 461 263 } { false latin } % Bookman Old Style | BOOKOS.TTF
+\docxlike_font_metrics_new:nnnnnn { caiyun } { 1000 } { 810 226 } { 810 226 0 } { 800 200 144 } { false east-asian } % Caiyun | STCAIYUN.TTF
+\docxlike_font_metrics_new:nnnnnn { calibri } { 2048 } { 1950 550 } { 1536 512 452 } { 1536 512 452 } { false latin } % Calibri | calibri.ttf
+\docxlike_font_metrics_new:nnnnnn { calibrilight } { 2048 } { 1950 550 } { 1536 512 452 } { 1536 512 452 } { false latin } % Calibri Light | calibril.ttf
+\docxlike_font_metrics_new:nnnnnn { cambria } { 2048 } { 1946 455 } { 1946 455 0 } { 1593 455 353 } { false latin } % Cambria | cambria.ttc
+\docxlike_font_metrics_new:nnnnnn { candara } { 2048 } { 1950 550 } { 1484 564 452 } { 1484 564 452 } { false latin } % Candara | Candara.ttf
+\docxlike_font_metrics_new:nnnnnn { century } { 2048 } { 2019 442 } { 2019 443 0 } { 1516 399 276 } { false latin } % Century | CENTURY.TTF
+\docxlike_font_metrics_new:nnnnnn { centurygothic } { 2048 } { 1989 451 } { 2060 451 0 } { 1536 426 229 } { false latin } % Century Gothic | GOTHIC.TTF
+\docxlike_font_metrics_new:nnnnnn { centuryschoolbook } { 2048 } { 2019 442 } { 2019 443 0 } { 1516 399 276 } { false latin } % Century Schoolbook | Century Schoolbook.ttf
+\docxlike_font_metrics_new:nnnnnn { cmr10 } { 1000 } { 1127 290 } { 1127 290 0 } { 806 194 200 } { false latin } % Computer Modern (= LM Roman 10) | lmroman10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { cmunrm } { 1000 } { 1127 290 } { 1127 290 0 } { 806 194 200 } { false latin } % Computer Modern (= LM Roman 10) | lmroman10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { computermodern } { 1000 } { 1127 290 } { 1127 290 0 } { 806 194 200 } { false latin } % Computer Modern (= LM Roman 10) | lmroman10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { consolas } { 2048 } { 1884 514 } { 1521 527 350 } { 1521 527 350 } { false latin } % Consolas | consola.ttf
+\docxlike_font_metrics_new:nnnnnn { constantia } { 2048 } { 1950 550 } { 1538 510 452 } { 1538 510 452 } { false latin } % Constantia | constan.ttf
+\docxlike_font_metrics_new:nnnnnn { corbel } { 2048 } { 1950 550 } { 1523 525 425 } { 1523 525 425 } { false latin } % Corbel | corbel.ttf
+\docxlike_font_metrics_new:nnnnnn { couriernew } { 2048 } { 1705 615 } { 1705 615 0 } { 1255 386 0 } { false latin } % Courier New | cour.ttf
+\docxlike_font_metrics_new:nnnnnn { couriernewpsmt } { 2048 } { 1705 615 } { 1705 615 0 } { 1255 386 0 } { false latin } % CourierNewPSMT | cour.ttf
+\docxlike_font_metrics_new:nnnnnn { dengxian } { 2048 } { 1659 475 } { 1659 475 0 } { 1659 475 0 } { false east-asian } % DengXian | Deng.ttf
+\docxlike_font_metrics_new:nnnnnn { dengxianlight } { 2048 } { 1659 475 } { 1659 475 0 } { 1659 475 0 } { false east-asian } % DengXian Light | Dengl.ttf
+\docxlike_font_metrics_new:nnnnnn { dengxianregular } { 2048 } { 1659 475 } { 1659 475 0 } { 1659 475 0 } { false east-asian } % DengXian Regular | Deng.ttf
+\docxlike_font_metrics_new:nnnnnn { dotum } { 1024 } { 879 145 } { 879 145 152 } { 879 145 152 } { false east-asian } % Dotum | gulim.ttc
+\docxlike_font_metrics_new:nnnnnn { fandolfang } { 1000 } { 978 272 } { 880 120 200 } { 880 120 200 } { false east-asian } % FandolFang | FandolFang-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { fandolfangr } { 1000 } { 978 272 } { 880 120 200 } { 880 120 200 } { false east-asian } % FandolFang R | FandolFang-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { fandolfangregular } { 1000 } { 978 272 } { 880 120 200 } { 880 120 200 } { false east-asian } % FandolFang-Regular | FandolFang-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { fandolhei } { 1000 } { 978 272 } { 880 120 200 } { 880 120 200 } { false east-asian } % FandolHei | FandolHei-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { fandolheiregular } { 1000 } { 978 272 } { 880 120 200 } { 880 120 200 } { false east-asian } % FandolHei-Regular | FandolHei-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { fandolkai } { 1000 } { 978 272 } { 880 120 200 } { 880 120 200 } { false east-asian } % FandolKai | FandolKai-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { fandolkairegular } { 1000 } { 978 272 } { 880 120 200 } { 880 120 200 } { false east-asian } % FandolKai-Regular | FandolKai-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { fandolsong } { 1000 } { 978 276 } { 800 -200 200 } { 800 200 200 } { false east-asian } % FandolSong | FandolSong-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { fandolsongregular } { 1000 } { 978 276 } { 800 -200 200 } { 800 200 200 } { false east-asian } % FandolSong-Regular | FandolSong-Regular.otf
+\docxlike_font_metrics_new:nnnnnn { fangsong } { 256 } { 220 36 } { 220 36 36 } { 220 36 36 } { false east-asian } % FangSong | simfang.ttf
+\docxlike_font_metrics_new:nnnnnn { fzshuti } { 256 } { 233 36 } { 233 37 0 } { 233 37 37 } { false east-asian } % FZShuTi | FZSTK.TTF
+\docxlike_font_metrics_new:nnnnnn { fzstkgbk10 } { 256 } { 233 36 } { 233 37 0 } { 233 37 37 } { false east-asian } % FZSTK--GBK1-0 | FZSTK.TTF
+\docxlike_font_metrics_new:nnnnnn { fzyaoti } { 256 } { 253 36 } { 253 38 0 } { 253 38 38 } { false east-asian } % FZYaoTi | FZYTK.TTF
+\docxlike_font_metrics_new:nnnnnn { fzytkgbk10 } { 256 } { 253 36 } { 253 38 0 } { 253 38 38 } { false east-asian } % FZYTK--GBK1-0 | FZYTK.TTF
+\docxlike_font_metrics_new:nnnnnn { garamond } { 2048 } { 1765 539 } { 1765 539 0 } { 1339 539 313 } { false latin } % Garamond | GARA.TTF
+\docxlike_font_metrics_new:nnnnnn { georgia } { 2048 } { 1878 449 } { 1878 449 0 } { 1549 444 198 } { false latin } % Georgia | georgia.ttf
+\docxlike_font_metrics_new:nnnnnn { gulim } { 1024 } { 879 145 } { 879 145 152 } { 879 145 152 } { false east-asian } % Gulim | gulim.ttc
+\docxlike_font_metrics_new:nnnnnn { heitisc } { 1000 } { 860 140 } { 860 140 30 } { 860 140 30 } { false east-asian } % Heiti SC | STHeiti Light.ttc
+\docxlike_font_metrics_new:nnnnnn { heitisclight } { 1000 } { 860 140 } { 860 140 30 } { 860 140 30 } { false east-asian } % Heiti SC Light | STHeiti Light.ttc
+\docxlike_font_metrics_new:nnnnnn { heiti간체 } { 1000 } { 860 140 } { 860 140 30 } { 860 140 30 } { false east-asian } % Heiti-간체 | STHeiti Light.ttc
+\docxlike_font_metrics_new:nnnnnn { heiti간체가는체 } { 1000 } { 860 140 } { 860 140 30 } { 860 140 30 } { false east-asian } % Heiti-간체 가는체 | STHeiti Light.ttc
+\docxlike_font_metrics_new:nnnnnn { hiraginosansgb } { 1000 } { 951 211 } { 880 120 500 } { 880 120 500 } { false east-asian } % Hiragino Sans GB | Hiragino Sans GB.ttc
+\docxlike_font_metrics_new:nnnnnn { hiraginosansgbw3 } { 1000 } { 951 211 } { 880 120 500 } { 880 120 500 } { false east-asian } % Hiragino Sans GB W3 | Hiragino Sans GB.ttc
+\docxlike_font_metrics_new:nnnnnn { kaiti } { 256 } { 220 36 } { 220 36 36 } { 220 36 36 } { false east-asian } % KaiTi | simkai.ttf
+\docxlike_font_metrics_new:nnnnnn { kaitisc } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % Kaiti SC | Kaiti.ttc
+\docxlike_font_metrics_new:nnnnnn { kaitiscregular } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % Kaiti SC Regular | Kaiti.ttc
+\docxlike_font_metrics_new:nnnnnn { latinmodernmono } { 1000 } { 1016 316 } { 1016 316 0 } { 778 222 200 } { false latin } % Latin Modern Mono | lmmono10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { latinmodernmono10regular } { 1000 } { 1016 316 } { 1016 316 0 } { 778 222 200 } { false latin } % Latin Modern Mono 10 Regular | lmmono10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { latinmodernmono12regular } { 1000 } { 1019 311 } { 1019 311 0 } { 778 222 200 } { false latin } % Latin Modern Mono 12 Regular | lmmono12-regular.otf
+\docxlike_font_metrics_new:nnnnnn { latinmodernroman } { 1000 } { 1127 290 } { 1127 290 0 } { 806 194 200 } { false latin } % Latin Modern Roman | lmroman10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { latinmodernroman10regular } { 1000 } { 1127 290 } { 1127 290 0 } { 806 194 200 } { false latin } % Latin Modern Roman 10 Regular | lmroman10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { latinmodernroman12regular } { 1000 } { 1127 280 } { 1127 280 0 } { 806 194 200 } { false latin } % Latin Modern Roman 12 Regular | lmroman12-regular.otf
+\docxlike_font_metrics_new:nnnnnn { latinmodernsans } { 1000 } { 1154 309 } { 1154 309 0 } { 806 194 200 } { false latin } % Latin Modern Sans | lmsans10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { latinmodernsans10regular } { 1000 } { 1154 309 } { 1154 309 0 } { 806 194 200 } { false latin } % Latin Modern Sans 10 Regular | lmsans10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { latinmodernsans12regular } { 1000 } { 1154 308 } { 1154 308 0 } { 806 194 200 } { false latin } % Latin Modern Sans 12 Regular | lmsans12-regular.otf
+\docxlike_font_metrics_new:nnnnnn { libiansc } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % Libian SC | Libian.ttc
+\docxlike_font_metrics_new:nnnnnn { libianscregular } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % Libian SC Regular | Libian.ttc
+\docxlike_font_metrics_new:nnnnnn { lisu } { 256 } { 220 36 } { 220 36 36 } { 220 36 36 } { false east-asian } % LiSu | SIMLI.TTF
+\docxlike_font_metrics_new:nnnnnn { lmmono10 } { 1000 } { 1016 316 } { 1016 316 0 } { 778 222 200 } { false latin } % LM Mono 10 | lmmono10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { lmmono10regular } { 1000 } { 1016 316 } { 1016 316 0 } { 778 222 200 } { false latin } % LMMono10-Regular | lmmono10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { lmmono12 } { 1000 } { 1019 311 } { 1019 311 0 } { 778 222 200 } { false latin } % LM Mono 12 | lmmono12-regular.otf
+\docxlike_font_metrics_new:nnnnnn { lmmono12regular } { 1000 } { 1019 311 } { 1019 311 0 } { 778 222 200 } { false latin } % LMMono12-Regular | lmmono12-regular.otf
+\docxlike_font_metrics_new:nnnnnn { lmroman10 } { 1000 } { 1127 290 } { 1127 290 0 } { 806 194 200 } { false latin } % LM Roman 10 | lmroman10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { lmroman10regular } { 1000 } { 1127 290 } { 1127 290 0 } { 806 194 200 } { false latin } % LMRoman10-Regular | lmroman10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { lmroman12 } { 1000 } { 1127 280 } { 1127 280 0 } { 806 194 200 } { false latin } % LM Roman 12 | lmroman12-regular.otf
+\docxlike_font_metrics_new:nnnnnn { lmroman12regular } { 1000 } { 1127 280 } { 1127 280 0 } { 806 194 200 } { false latin } % LMRoman12-Regular | lmroman12-regular.otf
+\docxlike_font_metrics_new:nnnnnn { lmsans10 } { 1000 } { 1154 309 } { 1154 309 0 } { 806 194 200 } { false latin } % LM Sans 10 | lmsans10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { lmsans10regular } { 1000 } { 1154 309 } { 1154 309 0 } { 806 194 200 } { false latin } % LMSans10-Regular | lmsans10-regular.otf
+\docxlike_font_metrics_new:nnnnnn { lmsans12 } { 1000 } { 1154 308 } { 1154 308 0 } { 806 194 200 } { false latin } % LM Sans 12 | lmsans12-regular.otf
+\docxlike_font_metrics_new:nnnnnn { lmsans12regular } { 1000 } { 1154 308 } { 1154 308 0 } { 806 194 200 } { false latin } % LMSans12-Regular | lmsans12-regular.otf
+\docxlike_font_metrics_new:nnnnnn { malgungothic } { 2048 } { 2229 495 } { 2229 495 0 } { 1638 410 0 } { false east-asian } % Malgun Gothic | malgun.ttf
+\docxlike_font_metrics_new:nnnnnn { meiryo } { 2048 } { 2171 901 } { 2171 901 0 } { 1798 250 1024 } { false east-asian } % Meiryo | meiryo.ttc
+\docxlike_font_metrics_new:nnnnnn { microsoftjhenghei } { 2048 } { 2203 521 } { 2203 521 0 } { 1823 225 0 } { false east-asian } % Microsoft JhengHei | msjh.ttc
+\docxlike_font_metrics_new:nnnnnn { microsoftjhengheiregular } { 2048 } { 2203 521 } { 2203 521 0 } { 1823 225 0 } { false east-asian } % MicrosoftJhengHeiRegular | msjh.ttc
+\docxlike_font_metrics_new:nnnnnn { microsoftyahei } { 2048 } { 2167 536 } { 2167 536 0 } { 1663 519 9 } { false east-asian } % Microsoft YaHei | msyh.ttc
+\docxlike_font_metrics_new:nnnnnn { microsoftyaheilight } { 2048 } { 2080 536 } { 2210 514 0 } { 1655 519 9 } { false east-asian } % Microsoft YaHei Light | msyhl.ttc
+\docxlike_font_metrics_new:nnnnnn { microsoftyaheiregular } { 2048 } { 2167 536 } { 2167 536 0 } { 1663 519 9 } { false east-asian } % MicrosoftYaHeiRegular | msyh.ttc
+\docxlike_font_metrics_new:nnnnnn { microsoftyaheiui } { 2048 } { 2080 521 } { 2080 521 0 } { 1663 519 9 } { false east-asian } % Microsoft YaHei UI | msyh.ttc
+\docxlike_font_metrics_new:nnnnnn { microsoftyaheiuiregular } { 2048 } { 2080 521 } { 2080 521 0 } { 1663 519 9 } { false east-asian } % MicrosoftYaHeiUIRegular | msyh.ttc
+\docxlike_font_metrics_new:nnnnnn { mingliu } { 1024 } { 820 204 } { 820 204 204 } { 820 204 204 } { false east-asian } % MingLiU | mingliu.ttc
+\docxlike_font_metrics_new:nnnnnn { msgothic } { 256 } { 220 36 } { 220 36 0 } { 220 36 0 } { false east-asian } % MS Gothic | msgothic.ttc
+\docxlike_font_metrics_new:nnnnnn { msmincho } { 256 } { 220 36 } { 220 36 0 } { 220 36 0 } { false east-asian } % MS Mincho | msmincho.ttc
+\docxlike_font_metrics_new:nnnnnn { mspgothic } { 256 } { 220 36 } { 220 36 0 } { 220 36 0 } { false east-asian } % MS PGothic | msgothic.ttc
+\docxlike_font_metrics_new:nnnnnn { mspmincho } { 256 } { 220 36 } { 220 36 0 } { 220 36 0 } { false east-asian } % MS PMincho | msmincho.ttc
+\docxlike_font_metrics_new:nnnnnn { notosanssc } { 1000 } { 1160 288 } { 1000 200 0 } { 880 120 0 } { false east-asian } % Noto Sans SC | NotoSansSC-VF.ttf
+\docxlike_font_metrics_new:nnnnnn { notosansscthin } { 1000 } { 1160 288 } { 1000 200 0 } { 880 120 0 } { false east-asian } % NotoSansSC-Thin | NotoSansSC-VF.ttf
+\docxlike_font_metrics_new:nnnnnn { notoserifcjksc } { 1000 } { 1151 286 } { 1151 286 0 } { 880 120 0 } { false east-asian } % Noto Serif CJK SC | NotoSerifCJK.ttc
+\docxlike_font_metrics_new:nnnnnn { notoserifcjkscregular } { 1000 } { 1151 286 } { 1151 286 0 } { 880 120 0 } { false east-asian } % NotoSerifCJKsc-Regular | NotoSerifCJK.ttc
+\docxlike_font_metrics_new:nnnnnn { notoserifsc } { 1000 } { 1151 286 } { 1151 286 0 } { 880 120 0 } { false east-asian } % Noto Serif SC | NotoSerifSC-VF.ttf
+\docxlike_font_metrics_new:nnnnnn { notoserifscextralight } { 1000 } { 1151 286 } { 1151 286 0 } { 880 120 0 } { false east-asian } % NotoSerifSC-ExtraLight | NotoSerifSC-VF.ttf
+\docxlike_font_metrics_new:nnnnnn { nsimsun } { 256 } { 220 36 } { 220 36 36 } { 220 36 36 } { false east-asian } % NSimSun | simsun.ttc
+\docxlike_font_metrics_new:nnnnnn { palatinolinotype } { 2048 } { 2150 613 } { 1499 582 682 } { 1499 582 682 } { false latin } % Palatino Linotype | pala.ttf
+\docxlike_font_metrics_new:nnnnnn { palatinolinotyperoman } { 2048 } { 2150 613 } { 1499 582 682 } { 1499 582 682 } { false latin } % PalatinoLinotype-Roman | pala.ttf
+\docxlike_font_metrics_new:nnnnnn { pingfangsc } { 1000 } { 1060 340 } { 1060 340 0 } { 860 140 400 } { false east-asian } % PingFang SC | PingFang.ttc
+\docxlike_font_metrics_new:nnnnnn { pingfangscregular } { 1000 } { 1060 340 } { 1060 340 0 } { 860 140 400 } { false east-asian } % PingFang SC Regular | PingFang.ttc
+\docxlike_font_metrics_new:nnnnnn { pmingliu } { 1024 } { 820 204 } { 820 204 204 } { 820 204 204 } { false east-asian } % PMingLiU | mingliu.ttc
+\docxlike_font_metrics_new:nnnnnn { segoeui } { 2048 } { 2210 514 } { 2210 514 0 } { 1491 431 269 } { false latin } % Segoe UI | segoeui.ttf
+\docxlike_font_metrics_new:nnnnnn { simhei } { 256 } { 220 36 } { 220 36 36 } { 220 36 36 } { false east-asian } % SimHei | simhei.ttf
+\docxlike_font_metrics_new:nnnnnn { simsun } { 256 } { 220 36 } { 220 36 36 } { 220 36 36 } { false east-asian } % SimSun | simsun.ttc
+\docxlike_font_metrics_new:nnnnnn { songtisc } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % Songti SC | Songti.ttc
+\docxlike_font_metrics_new:nnnnnn { songtiscregular } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % Songti SC Regular | Songti.ttc
+\docxlike_font_metrics_new:nnnnnn { stbaoliscregular } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % STBaoliSC-Regular | Baoli.ttc
+\docxlike_font_metrics_new:nnnnnn { stcaiyun } { 1000 } { 810 226 } { 810 226 0 } { 800 200 144 } { false east-asian } % STCaiyun | STCAIYUN.TTF
+\docxlike_font_metrics_new:nnnnnn { stfangsong } { 1000 } { 860 260 } { 986 315 0 } { 800 200 144 } { false east-asian } % STFangsong | STFANGSO.TTF
+\docxlike_font_metrics_new:nnnnnn { stheiti } { 1000 } { 860 140 } { 860 140 0 } { 860 140 144 } { false east-asian } % STHeiti | STHEITI.ttf
+\docxlike_font_metrics_new:nnnnnn { stheitisclight } { 1000 } { 860 140 } { 860 140 30 } { 860 140 30 } { false east-asian } % STHeitiSC-Light | STHeiti Light.ttc
+\docxlike_font_metrics_new:nnnnnn { sthupo } { 1000 } { 798 233 } { 800 233 0 } { 800 200 144 } { false east-asian } % STHupo | STHUPO.TTF
+\docxlike_font_metrics_new:nnnnnn { stkaiti } { 1000 } { 860 260 } { 986 315 0 } { 800 200 144 } { false east-asian } % STKaiti | STKAITI.TTF
+\docxlike_font_metrics_new:nnnnnn { stkaitiscregular } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % STKaitiSC-Regular | Kaiti.ttc
+\docxlike_font_metrics_new:nnnnnn { stlibianscregular } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % STLibianSC-Regular | Libian.ttc
+\docxlike_font_metrics_new:nnnnnn { stliti } { 1000 } { 752 259 } { 800 259 0 } { 689 259 144 } { false east-asian } % STLiti | STLITI.TTF
+\docxlike_font_metrics_new:nnnnnn { stsong } { 1000 } { 860 260 } { 986 315 0 } { 800 200 144 } { false east-asian } % STSong | STSONG.TTF
+\docxlike_font_metrics_new:nnnnnn { stsongtiscregular } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % STSongti-SC-Regular | Songti.ttc
+\docxlike_font_metrics_new:nnnnnn { stxihei } { 1000 } { 871 208 } { 1070 307 0 } { 800 200 144 } { false east-asian } % STXihei | STXIHEI.TTF
+\docxlike_font_metrics_new:nnnnnn { stxingkai } { 1000 } { 761 289 } { 802 289 0 } { 800 200 144 } { false east-asian } % STXingkai | STXINGKA.TTF
+\docxlike_font_metrics_new:nnnnnn { stxingkaisclight } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % STXingkaiSC-Light | Xingkai.ttc
+\docxlike_font_metrics_new:nnnnnn { stxinwei } { 1000 } { 781 236 } { 800 236 0 } { 800 200 144 } { false east-asian } % STXinwei | STXINWEI.TTF
+\docxlike_font_metrics_new:nnnnnn { styuantiscregular } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % STYuanti-SC-Regular | Yuanti.ttc
+\docxlike_font_metrics_new:nnnnnn { stzhongsong } { 1000 } { 912 225 } { 1007 318 0 } { 800 200 144 } { false east-asian } % STZhongsong | STZHONGS.TTF
+\docxlike_font_metrics_new:nnnnnn { tahoma } { 2048 } { 2049 423 } { 2049 423 0 } { 1566 423 59 } { false latin } % Tahoma | tahoma.ttf
+\docxlike_font_metrics_new:nnnnnn { texgyreadventor } { 1000 } { 1212 505 } { 739 192 0 } { 739 192 0 } { false latin } % TeX Gyre Adventor | texgyreadventor-regular.otf
+\docxlike_font_metrics_new:nnnnnn { texgyreadventorregular } { 1000 } { 1212 505 } { 739 192 0 } { 739 192 0 } { false latin } % TeXGyreAdventor-Regular | texgyreadventor-regular.otf
+\docxlike_font_metrics_new:nnnnnn { texgyrebonum } { 1000 } { 1069 268 } { 1069 268 0 } { 772 228 200 } { false latin } % TeX Gyre Bonum | texgyrebonum-regular.otf
+\docxlike_font_metrics_new:nnnnnn { texgyrebonumregular } { 1000 } { 1069 268 } { 1069 268 0 } { 772 228 200 } { false latin } % TeXGyreBonum-Regular | texgyrebonum-regular.otf
+\docxlike_font_metrics_new:nnnnnn { texgyrecursor } { 1000 } { 951 250 } { 951 250 0 } { 814 186 200 } { false latin } % TeX Gyre Cursor | texgyrecursor-regular.otf
+\docxlike_font_metrics_new:nnnnnn { texgyrecursorregular } { 1000 } { 951 250 } { 951 250 0 } { 814 186 200 } { false latin } % TeXGyreCursor-Regular | texgyrecursor-regular.otf
+\docxlike_font_metrics_new:nnnnnn { texgyreheros } { 1000 } { 1148 284 } { 1148 284 0 } { 784 216 200 } { false latin } % TeX Gyre Heros | texgyreheros-regular.otf
+\docxlike_font_metrics_new:nnnnnn { texgyreherosregular } { 1000 } { 1148 284 } { 1148 284 0 } { 784 216 200 } { false latin } % TeXGyreHeros-Regular | texgyreheros-regular.otf
+\docxlike_font_metrics_new:nnnnnn { texgyrepagella } { 1000 } { 1212 419 } { 726 281 0 } { 726 281 0 } { false latin } % TeX Gyre Pagella | texgyrepagella-regular.otf
+\docxlike_font_metrics_new:nnnnnn { texgyrepagellaregular } { 1000 } { 1212 419 } { 726 281 0 } { 726 281 0 } { false latin } % TeXGyrePagella-Regular | texgyrepagella-regular.otf
+\docxlike_font_metrics_new:nnnnnn { texgyreschola } { 1000 } { 1135 332 } { 1135 332 0 } { 798 202 200 } { false latin } % TeX Gyre Schola | texgyreschola-regular.otf
+\docxlike_font_metrics_new:nnnnnn { texgyrescholaregular } { 1000 } { 1135 332 } { 1135 332 0 } { 798 202 200 } { false latin } % TeXGyreSchola-Regular | texgyreschola-regular.otf
+\docxlike_font_metrics_new:nnnnnn { texgyretermes } { 1000 } { 1055 281 } { 1055 281 0 } { 783 217 200 } { false latin } % TeX Gyre Termes | texgyretermes-regular.otf
+\docxlike_font_metrics_new:nnnnnn { texgyretermesregular } { 1000 } { 1055 281 } { 1055 281 0 } { 783 217 200 } { false latin } % TeXGyreTermes-Regular | texgyretermes-regular.otf
+\docxlike_font_metrics_new:nnnnnn { timesnewroman } { 2048 } { 1825 443 } { 1825 443 87 } { 1420 442 307 } { false latin } % Times New Roman | times.ttf
+\docxlike_font_metrics_new:nnnnnn { timesnewromanpsmt } { 2048 } { 1825 443 } { 1825 443 87 } { 1420 442 307 } { false latin } % TimesNewRomanPSMT | times.ttf
+\docxlike_font_metrics_new:nnnnnn { verdana } { 2048 } { 2059 430 } { 2059 430 0 } { 1566 423 202 } { false latin } % Verdana | verdana.ttf
+\docxlike_font_metrics_new:nnnnnn { xingkaisc } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % Xingkai SC | Xingkai.ttc
+\docxlike_font_metrics_new:nnnnnn { xingkaisclight } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % Xingkai SC Light | Xingkai.ttc
+\docxlike_font_metrics_new:nnnnnn { youyuan } { 256 } { 220 36 } { 210 46 26 } { 220 36 36 } { false east-asian } % YouYuan | SIMYOU.TTF
+\docxlike_font_metrics_new:nnnnnn { yuantisc } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % Yuanti SC | Yuanti.ttc
+\docxlike_font_metrics_new:nnnnnn { yuantiscregular } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % Yuanti SC Regular | Yuanti.ttc
+\docxlike_font_metrics_new:nnnnnn { yugothic } { 2048 } { 2017 619 } { 1802 455 1024 } { 1802 246 1024 } { false east-asian } % Yu Gothic | YuGothR.ttc
+\docxlike_font_metrics_new:nnnnnn { yugothicregular } { 2048 } { 2017 619 } { 1802 455 1024 } { 1802 246 1024 } { false east-asian } % Yu Gothic Regular | YuGothR.ttc
+\docxlike_font_metrics_new:nnnnnn { yumincho } { 2048 } { 2038 598 } { 1802 455 1024 } { 1802 246 1024 } { false east-asian } % Yu Mincho | yumin.ttf
+\docxlike_font_metrics_new:nnnnnn { yuminchoregular } { 2048 } { 2038 598 } { 1802 455 1024 } { 1802 246 1024 } { false east-asian } % Yu Mincho Regular | yumin.ttf
+\docxlike_font_metrics_new:nnnnnn { メイリオ } { 2048 } { 2171 901 } { 2171 901 0 } { 1798 250 1024 } { false east-asian } % メイリオ | meiryo.ttc
+\docxlike_font_metrics_new:nnnnnn { 仿宋 } { 256 } { 220 36 } { 220 36 36 } { 220 36 36 } { false east-asian } % 仿宋 | simfang.ttf
+\docxlike_font_metrics_new:nnnnnn { 冬青黑体简体中文 } { 1000 } { 951 211 } { 880 120 500 } { 880 120 500 } { false east-asian } % 冬青黑体简体中文 | Hiragino Sans GB.ttc
+\docxlike_font_metrics_new:nnnnnn { 冬青黑体简体中文w3 } { 1000 } { 951 211 } { 880 120 500 } { 880 120 500 } { false east-asian } % 冬青黑体简体中文 W3 | Hiragino Sans GB.ttc
+\docxlike_font_metrics_new:nnnnnn { 冬青黑體簡體中文 } { 1000 } { 951 211 } { 880 120 500 } { 880 120 500 } { false east-asian } % 冬青黑體簡體中文 | Hiragino Sans GB.ttc
+\docxlike_font_metrics_new:nnnnnn { 冬青黑體簡體中文w3 } { 1000 } { 951 211 } { 880 120 500 } { 880 120 500 } { false east-asian } % 冬青黑體簡體中文 W3 | Hiragino Sans GB.ttc
+\docxlike_font_metrics_new:nnnnnn { 华文中宋 } { 1000 } { 912 225 } { 1007 318 0 } { 800 200 144 } { false east-asian } % 华文中宋 | STZHONGS.TTF
+\docxlike_font_metrics_new:nnnnnn { 华文仿宋 } { 1000 } { 860 260 } { 986 315 0 } { 800 200 144 } { false east-asian } % 华文仿宋 | STFANGSO.TTF
+\docxlike_font_metrics_new:nnnnnn { 华文宋体 } { 1000 } { 860 260 } { 986 315 0 } { 800 200 144 } { false east-asian } % 华文宋体 | STSONG.TTF
+\docxlike_font_metrics_new:nnnnnn { 华文彩云 } { 1000 } { 810 226 } { 810 226 0 } { 800 200 144 } { false east-asian } % 华文彩云 | STCAIYUN.TTF
+\docxlike_font_metrics_new:nnnnnn { 华文新魏 } { 1000 } { 781 236 } { 800 236 0 } { 800 200 144 } { false east-asian } % 华文新魏 | STXINWEI.TTF
+\docxlike_font_metrics_new:nnnnnn { 华文楷体 } { 1000 } { 860 260 } { 986 315 0 } { 800 200 144 } { false east-asian } % 华文楷体 | STKAITI.TTF
+\docxlike_font_metrics_new:nnnnnn { 华文琥珀 } { 1000 } { 798 233 } { 800 233 0 } { 800 200 144 } { false east-asian } % 华文琥珀 | STHUPO.TTF
+\docxlike_font_metrics_new:nnnnnn { 华文细黑 } { 1000 } { 871 208 } { 1070 307 0 } { 800 200 144 } { false east-asian } % 华文细黑 | STXIHEI.TTF
+\docxlike_font_metrics_new:nnnnnn { 华文行楷 } { 1000 } { 761 289 } { 802 289 0 } { 800 200 144 } { false east-asian } % 华文行楷 | STXINGKA.TTF
+\docxlike_font_metrics_new:nnnnnn { 华文隶书 } { 1000 } { 752 259 } { 800 259 0 } { 689 259 144 } { false east-asian } % 华文隶书 | STLITI.TTF
+\docxlike_font_metrics_new:nnnnnn { 圆体简 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 圆体-简 | Yuanti.ttc
+\docxlike_font_metrics_new:nnnnnn { 圆体简常规体 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 圆体-简 常规体 | Yuanti.ttc
+\docxlike_font_metrics_new:nnnnnn { 圓體簡 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 圓體-簡 | Yuanti.ttc
+\docxlike_font_metrics_new:nnnnnn { 圓體簡標準體 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 圓體-簡 標準體 | Yuanti.ttc
+\docxlike_font_metrics_new:nnnnnn { 報隸簡 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 報隸-簡 | Baoli.ttc
+\docxlike_font_metrics_new:nnnnnn { 報隸簡標準體 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 報隸-簡 標準體 | Baoli.ttc
+\docxlike_font_metrics_new:nnnnnn { 宋体 } { 256 } { 220 36 } { 220 36 36 } { 220 36 36 } { false east-asian } % 宋体 | simsun.ttc
+\docxlike_font_metrics_new:nnnnnn { 宋体简 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 宋体-简 | Songti.ttc
+\docxlike_font_metrics_new:nnnnnn { 宋体简常规体 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 宋体-简 常规体 | Songti.ttc
+\docxlike_font_metrics_new:nnnnnn { 宋體簡 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 宋體-簡 | Songti.ttc
+\docxlike_font_metrics_new:nnnnnn { 宋體簡標準體 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 宋體-簡 標準體 | Songti.ttc
+\docxlike_font_metrics_new:nnnnnn { 幼圆 } { 256 } { 220 36 } { 210 46 26 } { 220 36 36 } { false east-asian } % 幼圆 | SIMYOU.TTF
+\docxlike_font_metrics_new:nnnnnn { 微軟正黑體 } { 2048 } { 2203 521 } { 2203 521 0 } { 1823 225 0 } { false east-asian } % 微軟正黑體 | msjh.ttc
+\docxlike_font_metrics_new:nnnnnn { 微软雅黑 } { 2048 } { 2167 536 } { 2167 536 0 } { 1663 519 9 } { false east-asian } % 微软雅黑 | msyh.ttc
+\docxlike_font_metrics_new:nnnnnn { 微软雅黑light } { 2048 } { 2080 536 } { 2210 514 0 } { 1655 519 9 } { false east-asian } % 微软雅黑 Light | msyhl.ttc
+\docxlike_font_metrics_new:nnnnnn { 报隶简 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 报隶-简 | Baoli.ttc
+\docxlike_font_metrics_new:nnnnnn { 报隶简常规体 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 报隶-简 常规体 | Baoli.ttc
+\docxlike_font_metrics_new:nnnnnn { 新宋体 } { 256 } { 220 36 } { 220 36 36 } { 220 36 36 } { false east-asian } % 新宋体 | simsun.ttc
+\docxlike_font_metrics_new:nnnnnn { 新細明體 } { 1024 } { 820 204 } { 820 204 204 } { 820 204 204 } { false east-asian } % 新細明體 | mingliu.ttc
+\docxlike_font_metrics_new:nnnnnn { 方正姚体 } { 256 } { 253 36 } { 253 38 0 } { 253 38 38 } { false east-asian } % 方正姚体 | FZYTK.TTF
+\docxlike_font_metrics_new:nnnnnn { 方正舒体 } { 256 } { 233 36 } { 233 37 0 } { 233 37 37 } { false east-asian } % 方正舒体 | FZSTK.TTF
+\docxlike_font_metrics_new:nnnnnn { 楷体 } { 256 } { 220 36 } { 220 36 36 } { 220 36 36 } { false east-asian } % 楷体 | simkai.ttf
+\docxlike_font_metrics_new:nnnnnn { 楷体简 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 楷体-简 | Kaiti.ttc
+\docxlike_font_metrics_new:nnnnnn { 楷体简常规体 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 楷体-简 常规体 | Kaiti.ttc
+\docxlike_font_metrics_new:nnnnnn { 楷體簡 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 楷體-簡 | Kaiti.ttc
+\docxlike_font_metrics_new:nnnnnn { 楷體簡標準體 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 楷體-簡 標準體 | Kaiti.ttc
+\docxlike_font_metrics_new:nnnnnn { 游ゴシック } { 2048 } { 2017 619 } { 1802 455 1024 } { 1802 246 1024 } { false east-asian } % 游ゴシック | YuGothR.ttc
+\docxlike_font_metrics_new:nnnnnn { 游ゴシックregular } { 2048 } { 2017 619 } { 1802 455 1024 } { 1802 246 1024 } { false east-asian } % 游ゴシック Regular | YuGothR.ttc
+\docxlike_font_metrics_new:nnnnnn { 游明朝 } { 2048 } { 2038 598 } { 1802 455 1024 } { 1802 246 1024 } { false east-asian } % 游明朝 | yumin.ttf
+\docxlike_font_metrics_new:nnnnnn { 游明朝regular } { 2048 } { 2038 598 } { 1802 455 1024 } { 1802 246 1024 } { false east-asian } % 游明朝 Regular | yumin.ttf
+\docxlike_font_metrics_new:nnnnnn { 等线 } { 2048 } { 1659 475 } { 1659 475 0 } { 1659 475 0 } { false east-asian } % 等线 | Deng.ttf
+\docxlike_font_metrics_new:nnnnnn { 等线light } { 2048 } { 1659 475 } { 1659 475 0 } { 1659 475 0 } { false east-asian } % 等线 Light | Dengl.ttf
+\docxlike_font_metrics_new:nnnnnn { 細明體 } { 1024 } { 820 204 } { 820 204 204 } { 820 204 204 } { false east-asian } % 細明體 | mingliu.ttc
+\docxlike_font_metrics_new:nnnnnn { 苹方简 } { 1000 } { 1060 340 } { 1060 340 0 } { 860 140 400 } { false east-asian } % 苹方-简 | PingFang.ttc
+\docxlike_font_metrics_new:nnnnnn { 苹方简常规体 } { 1000 } { 1060 340 } { 1060 340 0 } { 860 140 400 } { false east-asian } % 苹方-简 常规体 | PingFang.ttc
+\docxlike_font_metrics_new:nnnnnn { 蘋方簡 } { 1000 } { 1060 340 } { 1060 340 0 } { 860 140 400 } { false east-asian } % 蘋方-簡 | PingFang.ttc
+\docxlike_font_metrics_new:nnnnnn { 蘋方簡標準體 } { 1000 } { 1060 340 } { 1060 340 0 } { 860 140 400 } { false east-asian } % 蘋方-簡 標準體 | PingFang.ttc
+\docxlike_font_metrics_new:nnnnnn { 行楷简 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 行楷-简 | Xingkai.ttc
+\docxlike_font_metrics_new:nnnnnn { 行楷简细体 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 行楷-简 细体 | Xingkai.ttc
+\docxlike_font_metrics_new:nnnnnn { 行楷簡 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 行楷-簡 | Xingkai.ttc
+\docxlike_font_metrics_new:nnnnnn { 行楷簡細體 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 行楷-簡 細體 | Xingkai.ttc
+\docxlike_font_metrics_new:nnnnnn { 隶书 } { 256 } { 220 36 } { 220 36 36 } { 220 36 36 } { false east-asian } % 隶书 | SIMLI.TTF
+\docxlike_font_metrics_new:nnnnnn { 隶变简 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 隶变-简 | Libian.ttc
+\docxlike_font_metrics_new:nnnnnn { 隶变简常规体 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 隶变-简 常规体 | Libian.ttc
+\docxlike_font_metrics_new:nnnnnn { 隸變簡 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 隸變-簡 | Libian.ttc
+\docxlike_font_metrics_new:nnnnnn { 隸變簡標準體 } { 1000 } { 860 140 } { 1060 340 0 } { 860 140 144 } { false east-asian } % 隸變-簡 標準體 | Libian.ttc
+\docxlike_font_metrics_new:nnnnnn { 黑体 } { 256 } { 220 36 } { 220 36 36 } { 220 36 36 } { false east-asian } % 黑体 | simhei.ttf
+\docxlike_font_metrics_new:nnnnnn { 黑体简 } { 1000 } { 860 140 } { 860 140 30 } { 860 140 30 } { false east-asian } % 黑体-简 | STHeiti Light.ttc
+\docxlike_font_metrics_new:nnnnnn { 黑体简细体 } { 1000 } { 860 140 } { 860 140 30 } { 860 140 30 } { false east-asian } % 黑体-简 细体 | STHeiti Light.ttc
+\docxlike_font_metrics_new:nnnnnn { 黑體簡 } { 1000 } { 860 140 } { 860 140 30 } { 860 140 30 } { false east-asian } % 黑體-簡 | STHeiti Light.ttc
+\docxlike_font_metrics_new:nnnnnn { 黑體簡細體 } { 1000 } { 860 140 } { 860 140 30 } { 860 140 30 } { false east-asian } % 黑體-簡 細體 | STHeiti Light.ttc
+\docxlike_font_metrics_new:nnnnnn { 黒体簡 } { 1000 } { 860 140 } { 860 140 30 } { 860 140 30 } { false east-asian } % 黒体-簡 | STHeiti Light.ttc
+\docxlike_font_metrics_new:nnnnnn { 黒体簡ライト } { 1000 } { 860 140 } { 860 140 30 } { 860 140 30 } { false east-asian } % 黒体-簡 ライト | STHeiti Light.ttc
+\docxlike_font_metrics_new:nnnnnn { 굴림 } { 1024 } { 879 145 } { 879 145 152 } { 879 145 152 } { false east-asian } % 굴림 | gulim.ttc
+\docxlike_font_metrics_new:nnnnnn { 돋움 } { 1024 } { 879 145 } { 879 145 152 } { 879 145 152 } { false east-asian } % 돋움 | gulim.ttc
+\docxlike_font_metrics_new:nnnnnn { 맑은고딕 } { 2048 } { 2229 495 } { 2229 495 0 } { 1638 410 0 } { false east-asian } % 맑은 고딕 | malgun.ttf
+\docxlike_font_metrics_new:nnnnnn { 바탕 } { 1024 } { 879 145 } { 879 145 152 } { 879 145 152 } { false east-asian } % 바탕 | batang.ttc
+\docxlike_font_metrics_new:nnnnnn { ＭＳゴシック } { 256 } { 220 36 } { 220 36 0 } { 220 36 0 } { false east-asian } % ＭＳ ゴシック | msgothic.ttc
+\docxlike_font_metrics_new:nnnnnn { ＭＳ明朝 } { 256 } { 220 36 } { 220 36 0 } { 220 36 0 } { false east-asian } % ＭＳ 明朝 | msmincho.ttc
+\docxlike_font_metrics_new:nnnnnn { ＭＳＰゴシック } { 256 } { 220 36 } { 220 36 0 } { 220 36 0 } { false east-asian } % ＭＳ Ｐゴシック | msgothic.ttc
+\docxlike_font_metrics_new:nnnnnn { ＭＳＰ明朝 } { 256 } { 220 36 } { 220 36 0 } { 220 36 0 } { false east-asian } % ＭＳ Ｐ明朝 | msmincho.ttc
+\docxlike_font_metrics_new:nnnnnn { ＳＴＦａｎｇｓｏｎｇ } { 1000 } { 860 260 } { 986 315 0 } { 800 200 144 } { false east-asian } % ＳＴＦａｎｇｓｏｎｇ | STFANGSO.TTF
+\docxlike_font_metrics_new:nnnnnn { ＳＴＨｕｐｏ } { 1000 } { 798 233 } { 800 233 0 } { 800 200 144 } { false east-asian } % ＳＴＨｕｐｏ | STHUPO.TTF
+\docxlike_font_metrics_new:nnnnnn { ＳＴＫａｉｔｉ } { 1000 } { 860 260 } { 986 315 0 } { 800 200 144 } { false east-asian } % ＳＴＫａｉｔｉ | STKAITI.TTF
+\docxlike_font_metrics_new:nnnnnn { ＳＴＬｉｔｉ } { 1000 } { 752 259 } { 800 259 0 } { 689 259 144 } { false east-asian } % ＳＴＬｉｔｉ | STLITI.TTF
+\docxlike_font_metrics_new:nnnnnn { ＳＴＳｏｎｇ } { 1000 } { 860 260 } { 986 315 0 } { 800 200 144 } { false east-asian } % ＳＴＳｏｎｇ | STSONG.TTF
+\docxlike_font_metrics_new:nnnnnn { ＳＴＸｉｈｅｉ } { 1000 } { 871 208 } { 1070 307 0 } { 800 200 144 } { false east-asian } % ＳＴＸｉｈｅｉ | STXIHEI.TTF
+\docxlike_font_metrics_new:nnnnnn { ＳＴＸｉｎｇｋａｉ } { 1000 } { 761 289 } { 802 289 0 } { 800 200 144 } { false east-asian } % ＳＴＸｉｎｇｋａｉ | STXINGKA.TTF
+\docxlike_font_metrics_new:nnnnnn { ＳＴＸｉｎｗｅｉ } { 1000 } { 781 236 } { 800 236 0 } { 800 200 144 } { false east-asian } % ＳＴＸｉｎｗｅｉ | STXINWEI.TTF
+\docxlike_font_metrics_new:nnnnnn { ＳＴＺｈｏｎｇｓｏｎｇ } { 1000 } { 912 225 } { 1007 318 0 } { 800 200 144 } { false east-asian } % ＳＴＺｈｏｎｇｓｏｎｇ | STZHONGS.TTF
+%% 同一副字体的名字，一行一组。
+\docxlike_font_names_new:n { adobeheitistd , adobeheitistdr , adobeheitistdregular , adobe黑体std , adobe黑体stdr }
+\docxlike_font_names_new:n { adobemingstd , adobemingstdl , adobemingstdlight , adobe明體std , adobe明體stdl }
+\docxlike_font_names_new:n { adobesongstd , adobesongstdl , adobesongstdlight , adobe宋体std , adobe宋体stdl }
+\docxlike_font_names_new:n { arial , arialmt }
+\docxlike_font_names_new:n { arialnarrowcorsivo , arialnarrowcursief , arialnarrowcursiva , arialnarrowdőlt , arialnarrowetzana , arialnarrowitalic , arialnarrowitalique , arialnarrowitálico , arialnarrowkursiv , arialnarrowkursivoitu , arialnarrowkursywa , arialnarrowkurzíva , arialnarrowpoševno , arialnarrowİtalik , arialnarrowΠλάγια , arialnarrowКурсив }
+\docxlike_font_names_new:n { baolisc , baoliscregular , stbaoliscregular , 報隸簡 , 報隸簡標準體 , 报隶简 , 报隶简常规体 }
+\docxlike_font_names_new:n { batang , 바탕 }
+\docxlike_font_names_new:n { caiyun , stcaiyun , 华文彩云 }
+\docxlike_font_names_new:n { cmr10 , cmunrm , computermodern , latinmodernroman , latinmodernroman10regular , lmroman10 , lmroman10regular }
+\docxlike_font_names_new:n { couriernew , couriernewpsmt }
+\docxlike_font_names_new:n { dengxian , dengxianregular , 等线 }
+\docxlike_font_names_new:n { dengxianlight , 等线light }
+\docxlike_font_names_new:n { dotum , 돋움 }
+\docxlike_font_names_new:n { fandolfang , fandolfangr , fandolfangregular }
+\docxlike_font_names_new:n { fandolhei , fandolheiregular }
+\docxlike_font_names_new:n { fandolkai , fandolkairegular }
+\docxlike_font_names_new:n { fandolsong , fandolsongregular }
+\docxlike_font_names_new:n { fangsong , 仿宋 }
+\docxlike_font_names_new:n { fzshuti , fzstkgbk10 , 方正舒体 }
+\docxlike_font_names_new:n { fzyaoti , fzytkgbk10 , 方正姚体 }
+\docxlike_font_names_new:n { gulim , 굴림 }
+\docxlike_font_names_new:n { heitisc , heitisclight , heiti간체 , heiti간체가는체 , stheitisclight , 黑体简 , 黑体简细体 , 黑體簡 , 黑體簡細體 , 黒体簡 , 黒体簡ライト }
+\docxlike_font_names_new:n { hiraginosansgb , hiraginosansgbw3 , 冬青黑体简体中文 , 冬青黑体简体中文w3 , 冬青黑體簡體中文 , 冬青黑體簡體中文w3 }
+\docxlike_font_names_new:n { kaiti , 楷体 }
+\docxlike_font_names_new:n { kaitisc , kaitiscregular , stkaitiscregular , 楷体简 , 楷体简常规体 , 楷體簡 , 楷體簡標準體 }
+\docxlike_font_names_new:n { latinmodernmono , latinmodernmono10regular , lmmono10 , lmmono10regular }
+\docxlike_font_names_new:n { latinmodernmono12regular , lmmono12 , lmmono12regular }
+\docxlike_font_names_new:n { latinmodernroman12regular , lmroman12 , lmroman12regular }
+\docxlike_font_names_new:n { latinmodernsans , latinmodernsans10regular , lmsans10 , lmsans10regular }
+\docxlike_font_names_new:n { latinmodernsans12regular , lmsans12 , lmsans12regular }
+\docxlike_font_names_new:n { libiansc , libianscregular , stlibianscregular , 隶变简 , 隶变简常规体 , 隸變簡 , 隸變簡標準體 }
+\docxlike_font_names_new:n { lisu , 隶书 }
+\docxlike_font_names_new:n { malgungothic , 맑은고딕 }
+\docxlike_font_names_new:n { meiryo , メイリオ }
+\docxlike_font_names_new:n { microsoftjhenghei , microsoftjhengheiregular , 微軟正黑體 }
+\docxlike_font_names_new:n { microsoftyahei , microsoftyaheiregular , 微软雅黑 }
+\docxlike_font_names_new:n { microsoftyaheilight , 微软雅黑light }
+\docxlike_font_names_new:n { microsoftyaheiui , microsoftyaheiuiregular }
+\docxlike_font_names_new:n { mingliu , 細明體 }
+\docxlike_font_names_new:n { msgothic , ＭＳゴシック }
+\docxlike_font_names_new:n { msmincho , ＭＳ明朝 }
+\docxlike_font_names_new:n { mspgothic , ＭＳＰゴシック }
+\docxlike_font_names_new:n { mspmincho , ＭＳＰ明朝 }
+\docxlike_font_names_new:n { notosanssc , notosansscthin }
+\docxlike_font_names_new:n { notoserifcjksc , notoserifcjkscregular }
+\docxlike_font_names_new:n { notoserifsc , notoserifscextralight }
+\docxlike_font_names_new:n { nsimsun , 新宋体 }
+\docxlike_font_names_new:n { palatinolinotype , palatinolinotyperoman }
+\docxlike_font_names_new:n { pingfangsc , pingfangscregular , 苹方简 , 苹方简常规体 , 蘋方簡 , 蘋方簡標準體 }
+\docxlike_font_names_new:n { pmingliu , 新細明體 }
+\docxlike_font_names_new:n { simhei , 黑体 }
+\docxlike_font_names_new:n { simsun , 宋体 }
+\docxlike_font_names_new:n { songtisc , songtiscregular , stsongtiscregular , 宋体简 , 宋体简常规体 , 宋體簡 , 宋體簡標準體 }
+\docxlike_font_names_new:n { stfangsong , 华文仿宋 , ＳＴＦａｎｇｓｏｎｇ }
+\docxlike_font_names_new:n { sthupo , 华文琥珀 , ＳＴＨｕｐｏ }
+\docxlike_font_names_new:n { stkaiti , 华文楷体 , ＳＴＫａｉｔｉ }
+\docxlike_font_names_new:n { stliti , 华文隶书 , ＳＴＬｉｔｉ }
+\docxlike_font_names_new:n { stsong , 华文宋体 , ＳＴＳｏｎｇ }
+\docxlike_font_names_new:n { stxihei , 华文细黑 , ＳＴＸｉｈｅｉ }
+\docxlike_font_names_new:n { stxingkai , 华文行楷 , ＳＴＸｉｎｇｋａｉ }
+\docxlike_font_names_new:n { stxingkaisclight , xingkaisc , xingkaisclight , 行楷简 , 行楷简细体 , 行楷簡 , 行楷簡細體 }
+\docxlike_font_names_new:n { stxinwei , 华文新魏 , ＳＴＸｉｎｗｅｉ }
+\docxlike_font_names_new:n { styuantiscregular , yuantisc , yuantiscregular , 圆体简 , 圆体简常规体 , 圓體簡 , 圓體簡標準體 }
+\docxlike_font_names_new:n { stzhongsong , 华文中宋 , ＳＴＺｈｏｎｇｓｏｎｇ }
+\docxlike_font_names_new:n { texgyreadventor , texgyreadventorregular }
+\docxlike_font_names_new:n { texgyrebonum , texgyrebonumregular }
+\docxlike_font_names_new:n { texgyrecursor , texgyrecursorregular }
+\docxlike_font_names_new:n { texgyreheros , texgyreherosregular }
+\docxlike_font_names_new:n { texgyrepagella , texgyrepagellaregular }
+\docxlike_font_names_new:n { texgyreschola , texgyrescholaregular }
+\docxlike_font_names_new:n { texgyretermes , texgyretermesregular }
+\docxlike_font_names_new:n { timesnewroman , timesnewromanpsmt }
+\docxlike_font_names_new:n { youyuan , 幼圆 }
+\docxlike_font_names_new:n { yugothic , yugothicregular , 游ゴシック , 游ゴシックregular }
+\docxlike_font_names_new:n { yumincho , yuminchoregular , 游明朝 , 游明朝regular }
+%</metrics-table>
+%    \end{macrocode}
+%
+% \Finale

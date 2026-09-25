@@ -1,0 +1,366 @@
+% \iffalse meta-comment
+%
+% hit-caption.dtx 是各个类共用的双语题注
+%
+% \fi
+%
+% \section{共享双语题注}
+%
+% \changes{v3.2a}{2026/09/14}{双语题注抽出来共用：英文题注是 \cs{caption} 的尾随可选参数，
+%   \cs{bicaption} 降为兼容写法；短标题接到 \pkg{ccaption} 的第二个参数（原先被当成
+%   \cs{label}），题注后补 \cs{@currentlabel}；\option{styles/bilingual-caption}
+%   默认按学位只有博士开（规范“硕士学位论文只用中文，博士学位论文用中、英两种文字”）；
+%   浮动体的四个间距统一交给 \cs{captionsetup}，\option{style}/\option{float-sep} 可改；
+%   加 \cs{figurenote}；题注的字号行距从 \option{styles} 表取；\cs{caption*} 排不编号的题注，
+%   也认尾随的英文题}
+%
+% 中英文对照的题注不换命令，用户不必记住“这张图要不要双语”再挑命令：
+% \begin{latex}
+% \caption{中文题}
+% \caption{中文题}[English caption]
+% \caption[目录用短标题]{中文题}[English caption]
+% \end{latex}
+% 给了尾随的 \oarg{英文题} 就排双语，不给就单语。目录用的短标题仍是 \cs{caption}
+% 原本那个前置可选参数，两者位置不同，不会混。
+%
+% \option{styles/bilingual-caption} 可以统一关闭双语题注，同一份稿子投不同用途时
+% 不必逐条删；默认按学位，见下面。
+%
+% \cs{bicaption} 仍然可用：\pkg{ccaption} 的五参数原形与本模板之前的三、四参数写法
+% 都接得住，只是各提示一次，v4 移除。
+%
+%    \begin{macrocode}
+%<*shared-caption>
+%    \end{macrocode}
+%
+% 浮动体的间距照 \pkg{thuthesis} 的办法收进类里。三件事：
+%
+% 一、四个位置同一个值。浮动体落在正文中间、页顶页底、两个浮动体之间、整页浮动，
+% \hologo{LaTeX} 内核给的是 8.5pt／8.5pt／12pt／10pt 四个样。
+%
+% 二、题注与图表之间的空白由 \cs{captionsetup} 的 \texttt{skip} 给，配上
+% \texttt{tableposition} 与 \texttt{figureposition}，\pkg{caption} 自己知道表题在上
+% 该把空白放下面、图题在下该放上面。旧版面取 6bp，与 v3.1e 示例里手写的
+% \cs{vspace}\{0.5em\} 等价；新版面在 \file{src/flow/hit-final-float.dtx} 里归零，
+% 范例里表题到表顶线只有表题自己那一行的行深。\pkg{caption} 由 \pkg{subcaption}
+% 带进来，一直都在。
+%
+% 三、\hologo{LaTeX} 内核里浮动体与正文的前后距离本身不对称，光把长度设成一样没用，要打
+% 三个补丁。出处见 \pkg{thuthesis} 的 \texttt{tuna/thuthesis\#614}。这段必须退出
+% \pkg{expl3} 写：\cs{patchcmd} 把宏体按当前 catcode 重扫，\texttt{\string\vskip\space
+% \string\intextsep} 里那个空格在 \pkg{expl3} 下会被吞，补丁就对不上（CONTRIBUTING §4.7）。
+%
+% 放在 \cs{AtBeginDocument} 里。\cs{AtEndOfClass} 那个时机太早：\cs{@addtocurcol}
+% 那时还不是最终那一版，三个补丁全都找不到目标（实测报“没打上”），到
+% \cs{begin\{document\}} 时 \cs{ifpatchable} 才为真。长度也一样，晚设才不会被覆盖。
+%    \begin{macrocode}
+\ExplSyntaxOff
+\AtBeginDocument{%
+  \setlength{\floatsep}{12bp \@plus 2bp \@minus 2bp}%
+  \setlength{\textfloatsep}{12bp \@plus 2bp \@minus 2bp}%
+  \setlength{\intextsep}{12bp \@plus 2bp \@minus 2bp}%
+  \setlength{\@fptop}{0bp \@plus 1fil}%
+  \setlength{\@fpsep}{12bp \@plus 2fil}%
+  \setlength{\@fpbot}{0bp \@plus 1fil}%
+  \captionsetup{skip=6bp,tableposition=top,figureposition=bottom}%
+  \patchcmd{\@addtocurcol}%
+    {\vskip \intextsep}%
+    {\edef\hit@save@first@penalty{\the\lastpenalty}\unpenalty
+     \ifnum \lastpenalty = \@M
+       \unpenalty
+     \else
+       \penalty \hit@save@first@penalty \relax
+     \fi
+     \ifnum\outputpenalty <-\@Mii
+       \addvspace\intextsep
+       \vskip\parskip
+     \else
+       \addvspace\intextsep
+     \fi}%
+    {}{\ClassWarningNoLine{hithesis}{补丁 \string\@addtocurcol 之一没打上}}%
+  \patchcmd{\@addtocurcol}%
+    {\vskip\intextsep \ifnum\outputpenalty <-\@Mii \vskip -\parskip\fi}%
+    {\ifnum\outputpenalty <-\@Mii
+       \aftergroup\vskip\aftergroup\intextsep
+       \aftergroup\nointerlineskip
+     \else
+       \vskip\intextsep
+     \fi}%
+    {}{\ClassWarningNoLine{hithesis}{补丁 \string\@addtocurcol 之二没打上}}%
+  \patchcmd{\@getpen}{\@M}{\@Mi}%
+    {}{\ClassWarningNoLine{hithesis}{补丁 \string\@getpen 没打上}}%
+}
+\ExplSyntaxOn
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@setup@caption}
+% 接管 \cs{caption} 要等到 \texttt{begindocument/end}。\pkg{caption}（由
+% \pkg{subcaption} 带进来）和 \pkg{ccaption} 都在 \cs{AtBeginDocument} 里重定义
+% \cs{caption}，在类文件里接管会被它们覆盖掉——踩过一次，接管看似成功，
+% \cs{meaning}\cs{caption} 到了正文里已经是 \pkg{caption} 的定义了。
+% \texttt{begindocument/end} 排在所有 \cs{AtBeginDocument} 之后。
+%
+% \cs{\_\_hit\_bicaption:w} 存的是 \pkg{ccaption} 的原形，这个在类文件里存就行；
+% \cs{hit@original@caption} 存的是接管前那条完整的 \cs{caption} 链。
+%    \begin{macrocode}
+\bool_new:N \g__hit_bilingual_caption_bool
+\bool_new:N \g__hit_bilingual_caption_auto_bool
+\bool_gset_true:N \g__hit_bilingual_caption_auto_bool
+%    \end{macrocode}
+%
+% 双语题注是题注自己的属性，归 \option{styles}。写成族级键而不是挂在
+% \option{caption} 底下，是因为 \option{caption} 是个 meta，会把整包取值转给
+% \option{caption-figure} 与 \option{caption-table} 两个目标，而这是一个开关、
+% 不分目标。
+%
+% 默认按学位：博士与博士后开，本科硕士关——硕士写了尾随的英文题也不排，规范
+% 说硕士只用中文。博士后没有自己的图表条款，出站报告照博士的规矩排，v3.1e
+% 以来也一直是双语。报告没有博士后这一档，那边只查博士，标志位不存在就当假。
+% 全员开（“写了就出、不写就不出”）等于把合规交给用户自己删英文题；按学位给
+% 默认之后合规是默认态，确要双语的硕士写 \option{bilingual-caption}\texttt{=true}
+% 显式设为 \texttt{true} 即可覆盖默认值。三态里的 \texttt{auto} 就是按学位查表，
+% 与 \option{openright} 同一个路数。
+%
+% 这个键挂在本类的 \texttt{hit / styles} 族上，与样式写在同一个 \option{styles} 里，
+% 见 \file{hit-docxlike.dtx}。
+%    \begin{macrocode}
+\keys_define:nn { hit / styles }
+  {
+    bilingual-caption .choice: ,
+    bilingual-caption / true .code:n =
+      {
+        \bool_gset_false:N \g__hit_bilingual_caption_auto_bool
+        \bool_gset_true:N \g__hit_bilingual_caption_bool
+      } ,
+    bilingual-caption / false .code:n =
+      {
+        \bool_gset_false:N \g__hit_bilingual_caption_auto_bool
+        \bool_gset_false:N \g__hit_bilingual_caption_bool
+      } ,
+    bilingual-caption / auto .code:n =
+      { \bool_gset_true:N \g__hit_bilingual_caption_auto_bool } ,
+    bilingual-caption .default:n = { true } ,
+  }
+%    \end{macrocode}
+%
+% 排双语题注：走 \pkg{ccaption} 的原形，英文图表名取 \option{const} 族里的
+% \option{figure-prefix-en} 与 \option{table-prefix-en}，用户不必每次手写
+% \texttt{Fig.} 加负细空格去抵 \cs{fnum@figure} 插的那个空格。
+%
+% 短标题给 \cs{bicaption} 的\emph{第二个必选参数}，不是可选参数。ccaption 的
+% \cs{bicaption}\oarg{标签}\marg{短标题}\marg{题注}\marg{英文图表名}\marg{英文题注}
+% 里，可选参数是 \cs{label}：
+% \begin{latex}
+% \newcommand{\bicaption}[5][\@empty]{%
+%   \@if@contemptyarg{#2}{\caption{#3}}{\caption[#2]{#3}}
+%   \ifx\@empty#1\else \label{#1} \fi
+% \end{latex}
+% 接错了的后果是同一个 \cs{caption}\oarg{短标题} 两条路径含义不同：单语时进插图索引，
+% 双语时变成一个标签，索引里排的还是完整题注。
+%
+% \pkg{ccaption} 之所以提供“可选参数当标签”这条路，是因为 \cs{bicaption} 把整段
+% 包在 \cs{begingroup}\ldots\cs{endgroup} 里，\cs{caption} 设的 \cs{@currentlabel}
+% 是局部的，出了组就没了——写在后面的 \cs{label} 只能拿到章节号。所以排完之后
+% 按计数器重建一次 \cs{@currentlabel}，让 \cs{label} 与普通 \hologo{LaTeX} 一样写在
+% \cs{caption} 后面。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \emph{英文那一行按西文的行盒排。} 整行只有西文，Word 的行盒就按 Times 算
+% （单倍 1.15 倍字号），跟着题注目标写的宋体算会高出一截：五号 1.25 倍下
+% 两行的步进 15.2 变成 16.2。\pkg{ccaption} 在两条题注之间留了 \cs{midbicaption}
+% 这个钩子，在那里立 \cs{l\_docxlike\_format\_latin\_pick\_bool}，与目录里整条西文的
+% 条目同一个机关（\file{src/engine/hit-keylist.dtx} 的 \cs{hit@toc@latin@pick:n}）。
+% 标志位是局部的，\cs{bicaption} 自己套着一层组，出组即还。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@caption@latin@pick:
+  {
+    \bool_if_exist:NT \l_docxlike_format_latin_pick_bool
+      { \bool_set_true:N \l_docxlike_format_latin_pick_bool }
+  }
+\cs_new_protected:Npn \hit@bilingual@caption #1#2#3
+  {
+    \midbicaption { \hit@caption@latin@pick: }
+    \tl_if_novalue:nTF {#1}
+      { \__hit_bicaption:w {} {#2} { \use:c { hit@term@caption@ \@captype @prefix@en } } {#3} }
+      { \__hit_bicaption:w {#1} {#2} { \use:c { hit@term@caption@ \@captype @prefix@en } } {#3} }
+    \protected@edef \@currentlabel
+      { \use:c { p@ \@captype } \use:c { the \@captype } }
+  }
+\cs_new_protected:Npn \hit@single@caption #1#2
+  {
+    \tl_if_novalue:nTF {#1}
+      { \hit@original@caption {#2} }
+      { \hit@original@caption [#1] {#2} }
+  }
+\bool_new:N \l_hit_caption_star_bool
+\cs_new_protected:Npn \hit@star@caption #1#2
+  {
+    \group_begin:
+      \bool_set_true:N \l_hit_caption_star_bool
+      \hit@original@caption * {#1}
+      \bool_lazy_and:nnT
+        { ! \tl_if_novalue_p:n {#2} }
+        { \g__hit_bilingual_caption_bool }
+        {
+          \hit@caption@latin@pick:
+          \hit@original@caption * {#2}
+        }
+    \group_end:
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@float@sep:}
+% \option{style}/\option{float-sep} 给了长度，三个间距一律照它，不给伸缩。
+% 学位论文那边按网格行设的那一处（\file{src/flow/hit-final-float.dtx}）先看这个
+% 键有没有值，有就让开。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@float@sep:
+  {
+    \tl_if_empty:NF \g__hit_float_sep_tl
+      {
+        \skip_set:Nn \intextsep    { \g__hit_float_sep_tl }
+        \skip_set:Nn \textfloatsep { \g__hit_float_sep_tl }
+        \skip_set:Nn \floatsep     { \g__hit_float_sep_tl }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \cs{caption} 的接管。给了尾随的英文题、并且开关没关死，才走双语。
+%
+% 星号版交还原来的 \cs{caption*}，不编号、不进目录，续图续表的“图 1-1（续图）”
+% 就靠它。签名里不收星号的话，\verb|\caption*{...}| 会把星号当成题注正文排出
+% 一条“图 1-2 *”，后面的花括号组落成一段正文。星号版也认尾随的英文题，双语开着
+% 就在下面再排一条不编号的。原来那个 \cs{caption*} 到了类自己的 \cs{@makecaption}
+% 手里照样带着“图 1-1”的标签，所以这里立一个标志位，\cs{@makecaption} 见了就只排
+% 题注正文（\file{hit-final-float.dtx}）。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@caption
+  {
+    \cs_set_eq:NN \__hit_bicaption:w \bicaption
+    \AddToHook { begindocument/end }
+      {
+    \hit@float@sep:
+    \bool_if:NT \g__hit_bilingual_caption_auto_bool
+      {
+        \bool_gset_eq:NN \g__hit_bilingual_caption_bool \g__hit_doctor_bool
+        \bool_if_exist:NT \g__hit_postdoc_bool
+          {
+            \bool_if:NT \g__hit_postdoc_bool
+              { \bool_gset_true:N \g__hit_bilingual_caption_bool }
+          }
+      }
+    \cs_set_eq:NN \hit@original@caption \caption
+    \RenewDocumentCommand \caption { s o +m o }
+      {
+        \IfBooleanTF {##1}
+          { \hit@star@caption {##3} {##4} }
+          {
+            \IfNoValueTF {##4}
+              { \hit@single@caption {##2} {##3} }
+              {
+                \bool_if:NTF \g__hit_bilingual_caption_bool
+                  { \hit@bilingual@caption {##2} {##3} {##4} }
+                  { \hit@single@caption {##2} {##3} }
+              }
+          }
+      }
+%    \end{macrocode}
+%
+% \cs{bicaption} 的兼容层。三种写法靠“后面还跟不跟一个花括号组”区分：跟着的是
+% \pkg{ccaption} 的五参数原形，抓走那一组照原形排；不跟就是本模板之前的三、四参数
+% 写法。探之前先跳空格，与 \cs{@ifnextchar} 的惯例一致——旧示例里那五个参数是连着
+% 写的，但用户可能换了行。题注后面正常不会紧跟花括号组。
+%    \begin{macrocode}
+    \RenewDocumentCommand \bicaption { o +m +m +g }
+      {
+        \peek_meaning_ignore_spaces:NTF \c_group_begin_token
+          { \__hit_bicaption_legacy:nnnn {##1} {##2} {##3} {##4} }
+          {
+            \msg_warning:nn { hithesis } { bicaption-deprecated }
+            \IfNoValueTF {##4}
+              { \hit@bilingual@caption {##1} {##2} {##3} }
+              { \hit@bilingual@caption {##1} {##3} {##4} }
+          }
+      }
+      }
+  }
+\cs_new_protected:Npn \__hit_bicaption_legacy:nnnn #1#2#3#4#5
+  {
+    \msg_warning:nn { hithesis } { bicaption-five-args }
+    \tl_if_novalue:nTF {#1}
+      { \__hit_bicaption:w {#2} {#3} {#4} {#5} }
+      { \__hit_bicaption:w [#1] {#2} {#3} {#4} {#5} }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\figurenote}
+% \cs{figurenote}\marg{文字} 排图注。规范里图注是图的一部分，位置写死在图题之上：
+% \begin{quote}
+% 图中文字用宋体 5 号字\ldots 有图注或其它说明时应置于图题之上。
+% \end{quote}
+% 所以写在 \cs{caption} 前面。字号行距从 \option{styles} 表的 \option{caption-note}
+% 取，与题注同一档。
+%
+% \emph{为什么值得给一个命令。} 让用户自己写 \cs{minipage} 加 \cs{vskip} 加
+% \cs{wuhao}，同一份文档里两处图注就会两套数，改一处不动另一处。给了命令之后
+% 格式只有一个出处，用户写内容就行。
+%
+% 打头那个 \cs{par} 是必要的：\cs{docxlike\_format\_par:nn} 里有 \cs{nointerlineskip}，
+% 那条只能在竖排模式下用。图注常常紧跟在 \cs{end}\marg{minipage} 或
+% \cs{includegraphics} 后面，那时还在横排模式，不先断段会报
+% \texttt{You~can't~use~\string\prevdepth~in~horizontal~mode}。
+%    \begin{macrocode}
+\NewDocumentCommand \figurenote { m }
+  { \par \docxlike_format_par:nn { caption-note } {#1} }
+%    \end{macrocode}
+% \end{macro}
+%
+% \emph{题号与题名之间的间隔。} 图题表题各读一个常量，常量为空退回兜底值：
+% 新版面一律一个汉字宽（\cs{ccwd}，题注贴字符网格，一个字就是一格）；旧版面
+% 照 v3.1e，本科一个字宽、其余 \cs{enskip}。图还是表看 \cs{@captype}；
+% \cs{LT@makecaption} 那条路上它也是有的，取不到就按图算。
+%
+% \emph{为什么在共享层。} \file{src/engine/hit-table.dtx} 里给 \pkg{tabularray} 长表
+% 注册 \option{caption-en} 外参那一段是 \cs{cs\_if\_exist:NT} \cs{hit@caption@separator}
+% 守着的，报告里取不到这个宏，那个外参就没注册，照抄一张终稿的长表会报
+% “Unknown~outer~key~name~'caption-en'”。五条本身没有一处与终稿绑定。
+%    \begin{macrocode}
+\cs_new:Npn \hit@caption@separator@fallback
+  {
+    \dim_compare:nNnTF { \g_docxlike_page_lead_dim } > { \c_zero_dim }
+      { \hskip \ccwd }
+      { \hit@if@option@TF { bachelor } { \hskip \ccwd } { \enskip } }
+  }
+\cs_new:Npn \hit@caption@number@lang:
+  { \bool_if:NTF \g__hit_en_bool { en } { zh } }
+\cs_new:Npn \hit@caption@type:
+  { \cs_if_exist:NTF \@captype { \@captype } { figure } }
+%    \end{macrocode}
+%
+% \cs{hit@caption@font:} 按图还是表挑目标，从 \option{styles} 表取字号、行距、
+% 贴不贴网格。表里没取值就退回 \cs{wuhao}——旧版面那一份表是空的，行距跟着
+% \cs{wuhao} 自带的 1.3 倍走，与 v3.1e 一样。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@caption@font:
+  {
+    \docxlike_format_apply_font_else:en { caption- \hit@caption@type: } { \wuhao }
+  }
+\cs_new:Npn \hit@caption@separator
+  {
+    \str_if_eq:eeTF { \hit@caption@type: } { table }
+      {
+        \hit@after@number:nnn { table@caption } { \hit@caption@number@lang: }
+          { \hit@caption@separator@fallback }
+      }
+      {
+        \hit@after@number:nnn { figure@caption } { \hit@caption@number@lang: }
+          { \hit@caption@separator@fallback }
+      }
+  }
+%</shared-caption>
+%    \end{macrocode}
+%
+% \Finale

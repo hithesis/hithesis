@@ -1,0 +1,472 @@
+% \iffalse meta-comment
+%
+% hit-final-backmatter.dtx 是结论、致谢、简历、成果与索引页
+%
+% \fi
+%
+% \section{结论、致谢、简历、成果与索引页}
+%
+% \changes{v3.2a}{2026/09/13}{成果页的条目从 \file{.bib} 里出：\env{publication} 收库名，
+%   \env{pubgroup} 分组，组名段照范例（编号、段前段后 5 磅、1.25 倍行盒、宋体伪粗；
+%   人文社科类走节标题那一档），编号版式与参考文献表同源，\pkg{biblatex} 一线也加进
+%   资源；索引页照规范附录 6 的官方示例自定义 \env{theindex}；报告那一档把这八个
+%   环境定义成空环境静默跳过}
+%
+%    \begin{macrocode}
+%<*final-backmatter>
+\bool_if:NT \g__hit_final_bool
+  {
+\RequirePackage{changepage}
+\RequirePackage{multicol}
+%    \end{macrocode}
+%
+% 索引那一页要比正文更宽的左右边距（\env{adjustwidth}）和双栏（\env{multicols*}），
+% 这两个包只服务于它。
+%
+% \begin{environment}{conclusions}
+% \changes{v3.1d}{2025/03/03}{\cs{hit@appendix@chapter*}如果不给第四个参数就不写英文目录}
+%    \begin{macrocode}
+\NewDocumentEnvironment { conclusions } { }
+  {
+    \hit@clear@page
+    \hit@if@option@TF{en}%
+      {\hit@appendix@chapter*{\hit@term@conclusion@heading@en}[\hit@term@conclusion@heading@en]}%
+      {\hit@appendix@chapter*[\hit@term@conclusion@heading@zh]%
+        {\hit@spread@by:nn{\hit@term@conclusion@heading@spread}{\hit@term@conclusion@heading@zh}}%
+        [\hit@term@conclusion@heading@en]}%
+  }
+  { }
+%    \end{macrocode}
+% \end{environment}
+% \begin{environment}{acknowledgements}
+% \changes{v3.1d}{2025/03/03}{\cs{hit@appendix@chapter*}如果不给第四个参数就不写英文目录}
+%    \begin{macrocode}
+\NewDocumentEnvironment { acknowledgements } { }
+  {
+    \hit@clear@page
+    \hit@if@option@TF{en}%
+      {\hit@appendix@chapter*{\hit@term@acknowledgements@heading@en}[\hit@term@acknowledgements@heading@en]}%
+      {\hit@appendix@chapter*[\hit@term@acknowledgements@heading@zh]%
+        {\hit@spread@by:nn{\hit@term@acknowledgements@heading@spread}{\hit@term@acknowledgements@heading@zh}}%
+        [\hit@term@acknowledgements@heading@en]}%
+  }
+  { }
+%    \end{macrocode}
+% \end{environment}
+% \begin{environment}{correspondingaddr}
+%    \begin{macrocode}
+
+\NewDocumentEnvironment { correspondingaddr } { }
+  { \hit@clear@page \hit@appendix@chapter * { \hit@term@resume@corresponding@address@zh } [ \hit@term@resume@corresponding@address@en ] } { }
+%    \end{macrocode}
+%
+% 博后用到的通讯页面
+% \changes{v3.0.0}{2020/05/21}{博后用到的通讯页面}
+% \end{environment}
+%    \begin{macrocode}
+
+
+\NewDocumentEnvironment { resume } { }
+  { \hit@clear@page \hit@appendix@chapter * { \hit@term@resume@heading@zh } [ \hit@term@resume@heading@en ] } { }
+%    \end{macrocode}
+%
+% \begin{environment}{publication,pubgroup}
+% \emph{成果条目也从 \file{.bib} 里出。}指南 1.6 说不同形式的成果“可单独分项
+% 分别列出”，先前示例文档里是把著录逐条手敲的，格式与参考文献表各走各的。
+% 现在写法是：
+% \begin{latex}
+% \begin{publication}[pub]        % 成果条目单独一个 pub.bib
+%   \begin{pubgroup}{发表的学术论文}
+%     \item{key1}
+%     \item{key2}
+%   \end{pubgroup}
+%   \begin{pubgroup}{申请及已获得的专利}
+%     \item{key3}
+%   \end{pubgroup}
+% \end{publication}
+% \end{latex}
+% 不给那个库名就是老用法：正文随用户写，\env{publist} 逐条手敲，一行不受影响。
+% 分几组、每组叫什么、哪几条进哪一组，全由用户写；条目正文由 \file{.bib}
+% 那条链生成，所以标点、句首大写、姓氏大写、作者数上限这些 \option{bib} 族的
+% 设置成果页自动跟着，不用另设一份。
+%
+% \emph{成果条目走自己的一次 \pkg{bibtex}，与参考文献表彻底分开。}一份文档
+% 只能有一个 \cs{bibdata}，所以成果库不能再发一次；而 \pkg{bibentry} 的
+% \cs{bibentry} 内部会 \cs{nocite}，条目一旦进主 \file{.bbl}，参考文献表就
+% 会把它们一起印出来。两条都不行，于是模板自己写一份辅助文件：
+% \texttt{\meta{jobname}-pub.aux} 里放 \cs{bibstyle}、\cs{bibdata} 与用户点名的
+% 那些 \cs{citation}，跑一次 \texttt{bibtex \meta{jobname}-pub} 得到
+% \texttt{\meta{jobname}-pub.bbl}，模板把它读进来只存宏、不排任何东西。主
+% \file{.bbl} 里从头到尾没有成果条目，参考文献表干净。
+%
+% 读法借 \pkg{bibentry}：它的 \cs{nobibliography} 会把 \env{thebibliography}
+% 换成一个只收不排的壳，每条存进 \cs{BR@r@\meta{键}}。我们只借这个壳，把它那句
+% \cs{bibliography}（会写 \cs{bibdata}）临时换成读我们自己的 \file{.bbl}。
+% 取用也不走 \cs{bibentry}，那条会 \cs{nocite}，直接取宏。
+%
+% \emph{编译要多跑一次 \pkg{bibtex}}，与索引那边多跑一次 \texttt{splitindex}
+% 同理，\file{Makefile} 与 \file{latexmkrc} 里各有一条规则。
+%
+% \emph{编号的版式与参考文献表同源。}每组开一个 \cs{hit@bib@list:nn}，标号
+% 宽度按本组条数量、标号与正文的间距取 \cs{hit@bib@labelsep:}（深圳档 0、其余
+% 半个字宽）、标号左右对齐读 \option{numbering-align}，一处都不另写。每组
+% 从［1］起是 \cs{list} 的 \cs{usecounter} 天然给的，与正文引用那套编号互不
+% 相干——范例的成果页也是各组独立编号。
+%
+% \emph{条数要过一遍 \file{.aux}。}标号列宽按“本组最宽的标号”量，而那是排完
+% 才知道的数，所以每组排完把条数写进 \file{.aux}，下一次编译读出来用；头一次
+% 编译没有这个数，退到 9（一位数的宽度），与参考文献表头一遍的表现同理。
+%    \begin{macrocode}
+\int_new:N \g__hit_pub_group_int
+\cs_new_protected:Npn \hit@pub@count #1#2
+  { \cs_gset:cpn { hit@pub@count@ #1 } {#2} }
+\cs_new:Npn \__hit_pub_widest:
+  {
+    \cs_if_exist_use:cF
+      { hit@pub@count@ \int_use:N \g__hit_pub_group_int } { 9 }
+  }
+%    \end{macrocode}
+%
+% 一条条目。传统一线走 \pkg{bibentry} 的 \cs{bibentry}，它把 \file{.bbl} 里
+% 那一条的著录文字原样展开；\pkg{biblatex} 一线走 \cs{fullcite}。两边都会顺手
+% 把这一条登记进文献库，用户不必另写 \cs{nocite}。
+%
+% \emph{末尾那个句点要补回来。}\pkg{bibentry} 存条目时会把末尾的句点剥掉
+% （它的设计意图是让整条能嵌进句子，标点由调用处补），而这里是整条独立成项。
+% GB/T 7714 的条目一律以句点收尾，补一个是安全的。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_pub_entry:n #1
+  {
+    \@ifpackageloaded { biblatex }
+      { \fullcite {#1} }
+      {
+        \iow_now:Nx \g__hit_pub_aux_iow
+          { \token_to_str:N \citation {#1} }
+        { \frenchspacing \@nameuse { BR@r@ #1 \@extra@b@citeb } } .
+      }
+  }
+%    \end{macrocode}
+%
+% 那一章本身。给了库名就把库读进来。
+%
+% \emph{\pkg{biblatex} 一线也得先加资源。} \cs{fullcite} 只从已登记的资源里取，
+% 成果库不 \cs{addbibresource} 进去，每一条都会排成空白并在 \file{.blg} 里留下
+% 一句「I didn't find a database entry」。这一条先前漏了——传统线那半边验过，
+% \pkg{biblatex} 那半边只写了没验。
+%
+% \emph{\pkg{biblatex} 一线的库名不能写在这里，必须写在导言区。}
+% \cs{addbibresource} 只能在导言区用——\pkg{biblatex} 在 \cs{begin\{document\}}
+% 那一刻把资源表写进 \file{.bcf} 交给 \pkg{biber}，之后再加就进不了这一轮，而
+% \env{publication} 是正文里的环境，那时早过了。所以这一线的写法是：导言区
+% \cs{addbibresource}\marg{成果库}，环境的可选参数不写。写了就发一条提示告诉
+% 用户挪到导言区，不是静默忽略——静默的话每一条成果都排成空白，只在
+% \file{.blg} 里留一句「I didn't find a database entry」，没人会去看。
+%
+% 两条线因此不完全对称：传统线的库名写在环境上（它自己写 \file{.aux}、自己
+% 跑那一次 \pkg{bibtex}，时机由我们定），\pkg{biblatex} 线写在导言区。手册
+% 两处都写清。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_pub_resource:n #1
+  { \msg_warning:nnn { hithesis } { pub-resource-biblatex } {#1} }
+\iow_new:N \g__hit_pub_aux_iow
+\cs_new_protected:Npn \__hit_pub_open:n #1
+  {
+    \iow_open:Nn \g__hit_pub_aux_iow { \c_sys_jobname_str -pub.aux }
+    \iow_now:Nx \g__hit_pub_aux_iow { \token_to_str:N \relax }
+    \iow_now:Nx \g__hit_pub_aux_iow
+      { \token_to_str:N \bibstyle { \g__hit_bib_style_tl } }
+%    \end{macrocode}
+%
+% \emph{控制条目也要带上。}\pkg{gbt7714} 那套把 \option{bib} 族的设置
+% （标点、句首大写、姓氏大写、作者数上限这些）编成一个 \texttt{CTL} 条目，
+% 写在 \texttt{\meta{jobname}-BSTcontrol.bib} 里，由主 \file{.aux} 的一句
+% \cs{citation} 送进 \pkg{bibtex}。成果页这一次是独立的 \pkg{bibtex}，
+% 不把那个库和那句 \cs{citation} 一并写上，它读到的就全是 \file{.bst} 的
+% 出厂默认，与参考文献表两个样。
+%    \begin{macrocode}
+    \iow_now:Nx \g__hit_pub_aux_iow
+      {
+        \token_to_str:N \bibdata
+          { \c_sys_jobname_str \c__hit_bib_ctl_suffix_tl , #1 }
+      }
+    \iow_now:Nx \g__hit_pub_aux_iow
+      { \token_to_str:N \citation { \c__hit_bib_ctl_key_tl } }
+%    \end{macrocode}
+%
+% 借 \pkg{bibentry} 的壳读自己的 \file{.bbl}：把它那句会写 \cs{bibdata} 的
+% \cs{bibliography} 临时换掉，只读文件。头一遍编译还没有那份 \file{.bbl}，
+% \cs{@input} 遇不到文件就什么都不做，条目那时是空的，与参考文献表头一遍
+% 的表现一样。
+%    \begin{macrocode}
+    \group_begin:
+      \cs_set:Npn \bibliography ##1
+        { \@input { \c_sys_jobname_str -pub.bbl } }
+      \nobibliography {#1}
+    \group_end:
+  }
+\NewDocumentEnvironment { publication } { O{} }
+  {
+    \hit@clear@page
+    \hit@appendix@chapter * { \hit@term@publications@heading@zh }
+      [ \hit@term@publications@heading@en ]
+    \int_gzero:N \g__hit_pub_group_int
+    \tl_if_blank:nF {#1}
+      {
+        \@ifpackageloaded { biblatex }
+          { \__hit_pub_resource:n {#1} } { \__hit_pub_open:n {#1} }
+      }
+  }
+  { \iow_close:N \g__hit_pub_aux_iow }
+%    \end{macrocode}
+%
+% \emph{组名段照范例排。}两份范例（研究生、本科理工）三条组名的段落属性一字
+% 不差：段前段后各 100 缇（5 磅）、\texttt{line=300 auto}（1.25 倍）、不贴
+% 网格、run 带 \texttt{<w:b/>}（宋体描边合成）、顶格、不进目录。PDF 上组名
+% 前后的基线步进都是 24.3～24.5：前一行的行深 7.28 加 5 加组名的行高 12.18。
+% 这里组名段与条目同一个行盒（本类小四的行盒本来就是 1.25 倍那一份，
+% 19.53\,bp），前后各 \cs{addvspace} 5\,bp（与列表的 \cs{topsep} 合并，不
+% 叠加），加粗走共用的 \cs{hit@font@fakebold@zh:}。四处把 5 磅算准的细节：
+% 组名段与列表都把 \cs{lineskiplimit} 放到底，行距只走 \cs{baselineskip}——
+% 组名行的行深比条目行多 0.007（西文换了粗体面），本类的行盒又正好撑满
+% \cs{baselineskip}，不放的话首条的行间胶落到 \cs{lineskip} 兜底，凭空多
+% 1\,pt；\cs{@trivlist} 给的
+% 首尾胶是 \cs{topsep} 加外层的 \cs{parskip}，所以 \cs{topsep} 写成
+% 5\,bp 减 \cs{parskip}；组名段自己的 \cs{parskip} 清零；写 \file{.aux}
+% 的那个 whatsit 挪到 \cs{endlist} 之前，不然它挡在尾胶后面，
+% \cs{addvspace} 看不见那段胶就再加一份。
+%
+% \emph{组名带编号。}研究生范例“（一）发表的学术论文”，本科范例“一、发表的
+% 学术论文”，英文版照 iota-hit 取硕士开题英文版第六节的“(1) ”。可选参数
+% \texttt{auto}（默认）按学位与语言取，写空就不编号，写别的就是字面的编号。
+%
+% \emph{条目与参考文献表差两个数。}标号后是两个宋体空格（本科范例 Word 导出
+% 逐字量：“］”右缘到正文 12.95\,bp，两个半角宋体空格各 6 加字符间距），
+% 折行悬挂 2.3 字（27.6\,bp，docx 里 \texttt{w:hanging=552} 缇），比标号窄，
+% 所以续行比首行的正文左伸 3.7；参考文献表那边是标号后不空、悬挂到标号宽。
+% 其余（标号对齐、行距、条目间距）与参考文献表同一处取值。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_pub_group_number:
+  {
+    \bool_if:NTF \g__hit_en_bool
+      { ( \int_use:N \g__hit_pub_group_int ) ~ }
+      {
+        \bool_lazy_or:nnTF
+          { \bool_if_p:N \g__hit_bachelor_bool } { \bool_if_p:N \g__hit_hass_bool }
+          { \zhnumber { \int_use:N \g__hit_pub_group_int } 、 }
+          { （ \zhnumber { \int_use:N \g__hit_pub_group_int } ） }
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{人文社科类的组名是节标题。}人文博士范例的三条组名段 \texttt{pStyle=2}
+% （标题 2，黑体小三），段前段后各 195 缇（9.75 磅），编号“一、”“二、”，
+% 本科人文范例同。条目与它的文献表一样：半角“[1]”加一个空格、悬挂 1.71 字，
+% 走 \file{hit-final-bib.dtx} 里那两个共用取值。
+%
+% 竖向按行盒堆：组名行是黑体小三的 1.25 倍行盒（24.32\,bp，上升 15.2、下沉
+% 9.12），条目行是小四的 1.25 倍行盒（上升 12.18、下沉 7.28），组名与条目之间
+% 各 9.75。范例量出来组名到首条 31.2、末条到组名 31.4，堆出来是
+% 9.12＋9.75＋12.18＝31.05 与 7.28＋9.75＋15.2＝32.2。组名段只有一行，让
+% \TeX{} 走 \cs{lineskip} 那一档真堆（\cs{lineskiplimit} 顶到最大、
+% \cs{lineskip} 清零）；列表不能这么堆——撑杆只在段首那一行，续行是字形自己
+% 的高深，堆出来忽长忽短——所以列表仍按 \cs{baselineskip} 走，组名到首条那
+% 一段差的 9.12＋12.18－19.46＝1.84 在组名之后、列表之前用 \cs{addvspace}
+% 连同那 9.75 一起给（列表自己的 \cs{topsep} 与它合并，不叠加；写进
+% \cs{topsep} 的话列表尾也会多这 1.84）。理工那一档不补，两边范例的数各是
+% 各的。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_pub_group_skip:
+  { \bool_if:NTF \g__hit_hass_bool { 9.75bp } { 5bp } }
+\cs_new_protected:Npn \__hit_pub_group_font:
+  {
+    \bool_if:NTF \g__hit_hass_bool
+      {
+        \hit@title@font \xiaosan
+        \bool_set_false:N \l_docxlike_format_strut_exact_bool
+        \dim_set:Nn \baselineskip { 24.32bp }
+        \dim_set:Nn \lineskiplimit { \maxdimen }
+        \skip_zero:N \lineskip
+      }
+      { \hit@font@fakebold@zh: }
+  }
+\cs_new:Npn \__hit_pub_labelsep:
+  { \bool_if:NTF \g__hit_hass_bool { \hit@bib@labelsep: } { 1em } }
+\cs_new_protected:Npn \__hit_pub_hang:
+  {
+    \bool_if:NTF \g__hit_hass_bool
+      { \hit@bib@hang: }
+      {
+        \dim_set:Nn \leftmargin { 2.3em }
+        \dim_set:Nn \itemindent { \labelwidth + \labelsep - \leftmargin }
+      }
+  }
+\NewDocumentEnvironment { pubgroup } { O{auto} m }
+  {
+    \int_gincr:N \g__hit_pub_group_int
+    \par \addvspace { \__hit_pub_group_skip: }
+    \group_begin:
+      \dim_zero:N \parindent
+      \skip_zero:N \parskip
+      \dim_set:Nn \lineskiplimit { -\maxdimen }
+      \noindent \__hit_pub_group_font:
+      \str_case:nnF {#1}
+        { { auto } { \__hit_pub_group_number: } { } { } }
+        {#1}
+      #2 \par
+    \group_end:
+    \nobreak
+    \bool_if:NT \g__hit_hass_bool
+      { \addvspace { 9.75bp + 9.12bp + 12.18bp - 19.46bp } }
+    \hit@bib@list:nnn { \__hit_pub_widest: } { \__hit_pub_labelsep: }
+      {
+        \skip_set:Nn \topsep { \__hit_pub_group_skip: - \parskip }
+        \skip_zero:N \partopsep
+        \dim_set:Nn \lineskiplimit { -\maxdimen }
+        \__hit_pub_hang:
+      }
+    \hit@bib@list@rules:
+    \cs_set_eq:NN \__hit_pub_olditem: \item
+    \RenewDocumentCommand \item { m }
+      { \__hit_pub_olditem: \__hit_pub_entry:n {##1} }
+  }
+  {
+    \int_gset:Nn \g__hit_pub_count_int { \value { enumiv } }
+    \protected@write \@auxout { }
+      {
+        \string \hit@pub@count { \int_use:N \g__hit_pub_group_int }
+          { \int_use:N \g__hit_pub_count_int }
+      }
+    \endlist
+  }
+\cs_new_protected:Npn \__hit_pub_olditem: { }
+\int_new:N \g__hit_pub_count_int
+%    \end{macrocode}
+% \end{environment}
+%
+%    \begin{macrocode}
+
+
+\NewDocumentEnvironment { doctorpublication } { }
+  { \hit@clear@page \hit@appendix@chapter * { \hit@term@publications@doctoral@heading@zh } [ \hit@term@publications@doctoral@heading@en ] } { }
+%    \end{macrocode}
+%
+% 此处添加博后用到的博士生发表页面
+% \changes{v3.0.0}{2020/05/21}{此处添加博后用到的博士生发表页面}
+% 此处中英文索引的格式设置尽量符合\PGR\ 中给出的示例的格式。此处间距常数是人工调节的。
+% \changes{v1.0.10}{2018/02/19}{修改了索引的间距，使其更符合规范中的示例}
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \emph{标题要拉开字距。}两个字的章级标题模板一律分排（“目\ 录”“摘\ 要”
+% “结\ 论”“致\ 谢”，间距取 \option{base-heading-spread}，博后档为空），
+% 只有索引从前直接排 \cs{indexname}，印出来是挤在一起的“索引”。改走与
+% 结论、致谢同一套写法：中文档用词条加字距，英文档排英文名。
+% 官方示例（规范附录 6，iota-hit 逐条量过）：两栏是一张假分栏的表格，
+% 两列各 4230 缇、整表占满版心，栏间只有两个格的默认边距共 10.8\,bp——
+% 先前的栏距 4\,em 与两侧各缩 2\,em 都无据，去掉；条目行距 1.35
+% （\texttt{w:line="324" auto}），比正文的 1.25 松。
+%    \begin{macrocode}
+\NewDocumentEnvironment { ceindex } { }
+  {
+    \hit@clear@page
+    \hit@if@option@TF { en }
+      {
+        \hit@appendix@chapter * { \hit@term@index@heading@en }
+          [ \hit@term@index@heading@en ]
+      }
+      {
+        \hit@appendix@chapter * [ \hit@term@index@heading@zh ]
+          {
+            \hit@spread@by:nn
+              { \hit@term@index@heading@spread } { \hit@term@index@heading@zh }
+          }
+          [ \hit@term@index@heading@en ]
+      }
+    \dim_set:Nn \columnsep { 10.8 bp }
+    \begin { multicols* } { 2 }
+    \dim_set:Nn \baselineskip { 21.01 bp }
+  }
+  { \end { multicols* } }
+%    \end{macrocode}
+%
+% \emph{\env{theindex} 自己写一个。}\pkg{book} 的原版开头是
+% \cs{twocolumn}\oarg{\cs{@makeschapterhead}\cs{indexname}}——\pkg{splitidx}
+% 把 \cs{twocolumn} 换成“排掉可选参数”、把 \cs{@makeschapterhead} 换成
+% \cs{section*}，于是每一段索引（中文一段、英文一段）开头都排一个节标题的
+% 竖直空当：实测中英两段之间空出 76\,bp，章标题到首组也多出四十来 bp。
+% 条目那边原版是 \cs{@idxitem}＝\cs{par}\cs{hangindent}~40\,pt，折行悬挂
+% 40\,pt。官方示例（规范附录 6）里条目一律顶格、折行不悬挂，两段接着排。
+%
+% 所以整个环境重写：不排任何标题（章标题由 \env{ceindex} 排过了），条目
+% 顶格、不悬挂，段间不加距，组间的段前由 \file{.ist} 的组标题给。两端
+% 对齐关掉——一条是“词 + 页码”，拉伸没有意义。
+%    \begin{macrocode}
+\RenewDocumentEnvironment { theindex } { }
+  {
+    \dim_zero:N \parindent
+    \skip_zero:N \parskip
+    \raggedright
+    \cs_set_protected:Npn \item { \par \dim_zero:N \hangindent }
+    \cs_set_protected:Npn \subitem { \par \dim_zero:N \hangindent }
+    \cs_set_protected:Npn \subsubitem { \par \dim_zero:N \hangindent }
+    \cs_set_protected:Npn \indexspace { \par }
+  }
+  { \par }
+
+\newlist{idxwordlist}{description}{3}
+\setlist[idxwordlist,~1]{%
+  itemsep=\baselineskip,
+  labelindent=8em,
+  font=\normalsize\bfseries,
+}
+\setlist[idxwordlist,~2]{%
+  nosep,
+  labelindent=2em,
+  font=\wuhao\rm,
+}
+\setlist[idxwordlist,~3]{%
+  nosep,
+  labelindent=4em,
+  font=\wuhao\rm,
+}
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+  }
+%    \end{macrocode}
+%
+% \emph{不属于本档的整页，静默不排。} \env{conclusions} 这几个是终稿的整章，
+% 学校的开题与中期报告规范里没有对应的一页。在报告那一档写了，整段吞掉，
+% 不排也不吭声。
+%
+% \emph{这是本类唯一容许的静默失效，写在这里免得日后被「修」掉。} 别处一律相反：
+% 覆盖键落进没人读的桶、选项取值拼错、词条查不到，每一处都专门做了报错，注释里
+% 也写着「静默失效比报错糟」。这里反过来，是因为它\emph{不是错}——在开题报告里
+% 写 \env{conclusions} 不是手滑，是同一份正文通吃三档时必然出现的写法。一份模板
+% 改一行 \option{stage} 就该出任何一档，用户不必把十来行调用注释来注释去。
+% 这条判据照抄 iota-hit 里 \texttt{src/flow/stage.typ} 那一段，理由那边写得比这里细。
+%
+% \emph{参数表照抄终稿那一份，正文用 \texttt{+b} 吞掉。} 不吞的话
+% \LaTeX{} 会把整段正文排出来，接着 \cs{end} 对不上，一路报到
+% \cs{end\{document\}}——改之前就是这个样子，一次 115 条错。
+%
+% \emph{眼下没有「强排」那一档。} iota 的对应物是每页一个三态的
+% \texttt{shown}，写 \texttt{true} 就强制排。这里做不到：这几个环境排出来要
+% 走 \cs{hit@appendix@chapter}，那是终稿的整章命令，报告没有章。真要在报告里
+% 排一页「结论」，缺的是一套版面，不是一个开关。
+%    \begin{macrocode}
+\bool_if:NF \g__hit_final_bool
+  {
+    \clist_map_inline:nn
+      { conclusions , acknowledgements , correspondingaddr , resume ,
+        doctorpublication , ceindex }
+      { \NewDocumentEnvironment {#1} { +b } { } { } }
+    \NewDocumentEnvironment { publication } { O{} +b } { } { }
+    \NewDocumentEnvironment { pubgroup } { O{auto} m +b } { } { }
+  }
+%    \end{macrocode}
+%    \begin{macrocode}
+%</final-backmatter>
+%    \end{macrocode}
+%
+% \Finale

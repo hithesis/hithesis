@@ -1,0 +1,107 @@
+% \iffalse meta-comment
+%
+% hit-loadclass.dtx 是分水岭：\LoadClass 与紧随其后的几条补偿
+%
+% \fi
+%
+% \section{分水岭：\cs{LoadClass}}
+%
+% \changes{v3.2a}{2026/09/13}{两条装配线的 \cs{LoadClass} 合成一份，底类都是 \cls{ctexbook}：
+%   报告从基础类白拿的默认值显式写出来，节号与 \cs{appendix} 照 \cls{article}；
+%   新版面下 \cs{paragraph}、\cs{subparagraph} 报错（规范只到款）}
+%
+% ^^A ======================================================================
+% ^^A Module shared-loadclass: \LoadClass{ctexbook} 与紧随其后的几条补偿
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*shared-loadclass>
+%    \end{macrocode}
+%
+% 使用 \pkg{ctexbook} 类，优于调用 \pkg{ctex} 宏包。
+%
+% \emph{单双面不写在这里。} 原先两条装配线各自在方括号里写死
+% （终稿 \texttt{openany}、报告 \texttt{oneside}），合成一份之后按
+% \option{stage} 与学位分，所以改由 \cs{PassOptionsToClass} 在选项模块里发，
+% 见 \file{src/engine/hit-options.dtx}。两条路进的是同一张选项表，效果一样。
+%    \begin{macrocode}
+\LoadClass[a4paper,UTF8,zihao=-4,scheme=plain]{ctexbook}
+\bool_gset_true:N \g__hit_base_class_loaded_bool
+%    \end{macrocode}
+%
+% \subsection{报告那一档的四条补偿}
+%
+% \emph{下面这一段只有开题与中期跑。} 报告原先的底类是 \cls{ctexart}，四条默认值
+% 是从那边白拿的；底类换成 \cls{ctexbook} 之后 \cls{book} 那几条各不相同，所以
+% 显式写回来。终稿本来就是 \cls{ctexbook}，这几条正是它要的，不能跟着一起改。
+%
+% \begin{itemize}
+% \item \cs{secnumdepth}：\cls{article} 是 3，\cls{book} 是 2。报告通篇没写过
+%   这一句，一直白拿 3；不写死的话三级标题的编号会整个消失。
+% \item \cs{thesection}：\cls{article} 是光节号，\cls{book} 带章号前缀。
+% \item \cs{theHsection}：\pkg{hyperref} 的锚名，同理。印出来看不见，但书签
+%   与交叉引用的目标名会变。
+% \item \cs{pagestyle}：\cls{article} 末尾设 \texttt{plain}，\cls{book} 设
+%   \texttt{headings}。报告只有深圳两处与威海硕士开题显式设过自家样式，
+%   本部各档吃的是类默认值。
+% \end{itemize}
+%
+% \emph{报告里没有章。} 作者写的 \cs{chapter} 在报告里排成节（见
+% \file{src/flow/hit-report-heading.dtx} 的标题层级），章计数器始终停在零，所以
+% 节号就是光节号，与 \cls{ctexart} 下一字不差，锚名同理。
+%    \begin{macrocode}
+\bool_if:NF \g__hit_final_bool
+  {
+    \setcounter { secnumdepth } { 3 }
+    \cs_set:Npn \thesection { \@arabic \c@section }
+    \AddToHook { begindocument }
+      { \cs_set:Npn \theHsection { \arabic { section } } }
+    \pagestyle { plain }
+%    \end{macrocode}
+%
+% \emph{\cs{appendix} 照 \cls{article} 的样子改节。} \cls{article} 的 \cs{appendix}
+% 置零节计数器、把 \cs{thesection} 改成 \cs{@Alph}\cs{c@section}；\cls{book} 那份
+% 置零的是章计数器，改的是 \cs{thechapter}，一个字都没碰 \cs{thesection}。
+% 换了底类又不管，报告里 \cs{appendix} 之后的节号会从 A 变回 1。
+%    \begin{macrocode}
+    \cs_gset_protected:Npn \appendix
+      {
+        \ctexset { appendix / number = \@Alph \c@section }
+        \setcounter { section } { 0 }
+        \setcounter { subsection } { 0 }
+        \cs_gset:Npn \thesection { \@Alph \c@section }
+        \gdef \CTEX@presection { \CTEX@preappendix }
+        \gdef \CTEX@thesection { \CTEX@appendix@number }
+        \gdef \CTEX@postsection { \CTEX@postappendix }
+        \gdef \CTEX@section@numbering { \CTEX@appendix@numbering }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{款以下不许写}
+%
+% 规范的标题只到款（终稿的第四级、报告的第三级），再往下是项，写列表。
+% \cs{paragraph}、\cs{subparagraph} 在 \cls{ctexbook} 里有定义、默认不编号，照旧
+% 放行就是静默排出一个规范里没有的层级，所以新版面下一律报错。出错之后照原来的
+% 定义排，后面的内容照常编下去。旧版面照 v3.1e，不拦。
+%    \begin{macrocode}
+\cs_new_eq:NN \hit@paragraph@original \paragraph
+\cs_new_eq:NN \hit@subparagraph@original \subparagraph
+\cs_gset_protected:Npn \paragraph
+  {
+    \__hit_layout_msword_active:T
+      { \msg_error:nnn { hithesis } { heading-too-deep } { paragraph } }
+    \hit@paragraph@original
+  }
+\cs_gset_protected:Npn \subparagraph
+  {
+    \__hit_layout_msword_active:T
+      { \msg_error:nnn { hithesis } { heading-too-deep } { subparagraph } }
+    \hit@subparagraph@original
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</shared-loadclass>
+%    \end{macrocode}
+%
+% \Finale

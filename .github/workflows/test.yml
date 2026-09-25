@@ -2,7 +2,8 @@ name: Test
 
 on:
   push:
-    branches: [master, dev]
+    # Andrew's-test 是推上来看 CI 全绿不绿的临时分支，验完删掉这一项
+    branches: [master, dev, "Andrew's-test"]
   pull_request:
   workflow_dispatch:
   schedule:
@@ -32,9 +33,26 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: python3 scripts/changes.py --check
-      # dtx 注释里的文档宏检查。写错宏名不影响 cls 生成，只有 make doc 会报，
-      # 而 make doc 在编译矩阵里，反馈慢。这里几秒钟先挡一道。
+      # dtx 注释里的文档宏检查。写错宏名不影响 cls 生成，只有 make manual 会报，
+      # 而 make manual 在编译矩阵里，反馈慢。这里几秒钟先挡一道。
       - run: python3 scripts/check-dtx-doc.py
+      # 版本号散在 ProvidesFile、五条 ProvidesExpl* 与四个示例横幅里，改一处漏两处
+      # 是常事，发到 CTAN 才发现就晚了。
+      - run: python3 scripts/version.py --check
+      # 中文标点。默认只报告，这里当门禁用：报出来就说明有半角标点混进中文语境。
+      - run: python3 scripts/fix-punct.py --check
+
+      # 产物清单交叉校验：install 守卫、tools/distfiles.txt、installfiles、安装横幅
+      - run: python3 scripts/products.py --check
+
+      # 两个类骨架里的装配表与 install 守卫是否一致
+      - run: python3 scripts/check-map.py
+
+      # dtx 注释里的 \file{src/...} 路标指向真实文件
+      - run: python3 scripts/check-dtx-refs.py
+
+      # 每个 \RequirePackage 都在 tools/deps-policy.txt 里交代了归属与理由
+      - run: python3 scripts/check-deps.py
 
   # ============================================================
   # L1 编译矩阵，看五个 TeX Live 版本还能不能编出来
@@ -94,13 +112,59 @@ jobs:
       - name: Generate cls files
         run: make cls
 
+      # hithesis.ins 是 src/hithesis.dtx 的 install 守卫的产物，提交进仓库随包发。
+      # 上一步已经重新生成过，这里只看有没有忘记把它一起提交。
+      - name: Check hithesis.ins is in sync
+        run: git diff --exit-code -- hithesis.ins
+
+      # 常量取值三处对不上时，排版代码取到未定义的宏，页面上只留一格空白，
+      # 编译照样以 0 退出。这一步读刚生成的两份 cfg，所以排在 make cls 之后。
+      - name: Check constant lookup
+        run: python3 scripts/check-const.py
+
       # 宏级回归：比对 .lvt 编出的日志与 testfiles/*.tlg 基线。
       # 五个版本都跑。基线里只有本模板自己的宏定义，不含内核版本信息或文件日期，
       # 涉及内核的只有 \DeclareRobustCommand 与 \newcommand 可选参数两处展开结果，
       # 2022 到 2026 没有变化。跨版本运行是必要的：gbt7714 在 TL2026 改用
       # \ProcessKeyOptions 后模板无法编译，就属于只在个别版本出现的宏级差异。
+      # 2026 之外的版本跳过几个与第三方版本绑定的测试，名单与理由写在 build.lua
       - name: Run macro-level checks
+        env:
+          HITHESIS_TL_LEGACY: ${{ matrix.tl-version != 2026 && '1' || '' }}
         run: l3build check
+
+      # l3build 把 xelatex 的输出收进 build/test/*.log 再做归一化，类加载期就
+      # 报错的话归一化后是空文件，diff 只显示“对面 0 行”，看不出原因。这里
+      # 手动跑一个测试文档，把原始日志打出来。
+      - name: Print raw log of one failing test
+        if: failure()
+        run: |
+          cd build/test 2>/dev/null || exit 0
+          lvt=$(ls *.lvt 2>/dev/null | head -1)
+          [ -n "$lvt" ] || { echo "build/test 下没有 .lvt"; exit 0; }
+          echo "::group::手动编译 $lvt 的原始日志"
+          xelatex -interaction=nonstopmode "$lvt" > /dev/null 2>&1 || true
+          raw="${lvt%.lvt}.log"
+          if [ -f "$raw" ]; then
+            echo "--- 前 40 行 ---"; head -40 "$raw"
+            echo "--- 全部报错 ---"; grep -nE '^!|Emergency|not found|I can.t find' "$raw" | head -20
+          else
+            echo "连 $raw 都没产出"
+          fi
+          echo "::endgroup::"
+
+      # 构件要仓库管理员权限才下载得了，排查时很不方便。失败时把 diff 直接
+      # 打进日志，看一眼就知道差在哪。
+      - name: Print check diffs
+        if: failure()
+        run: |
+          echo "跳过名单：${HITHESIS_TL_LEGACY:-（未设，跑全量）}"
+          for f in build/test/*.diff; do
+            [ -e "$f" ] || { echo "没有 diff 文件（测试崩溃或未产出日志）"; break; }
+            echo "::group::$(basename "$f")"
+            head -60 "$f"
+            echo "::endgroup::"
+          done
 
       - name: Upload check diffs
         if: failure()
@@ -111,19 +175,18 @@ jobs:
           retention-days: 7
 
       - name: Build package documentation
-        run: make doc
+        run: make manual
 
-      - name: Build Chinese thesis
-        run: make -C examples/hitbook/chinese thesis
+      # 四棵示例树在 d0e6dd9 合成了一棵 examples/demo，b4d2b18 又把入口拆成
+      # final.tex 与 report.tex。开题、中期、英文那三种由变体矩阵覆盖（它按
+      # OPTIONS 传 kind），这里只编默认那一份。
+      - name: Build example
+        run: make -C examples/demo thesis
 
-      - name: Build English thesis
-        run: make -C examples/hitbook/english thesis
-
-      - name: Build report
-        run: make -C examples/hitart/reports report
-
-      - name: Build reportplus
-        run: make -C examples/hitart/reportplus report
+      # 编得过不等于编得对。这一步扫日志里那几类问题：缺字、盒子溢出、
+      # 字号代用、悬空引用、版心过度指定。它们都不会让编译失败，但都是缺陷。
+      - name: Check build logs
+        run: make logcheck
 
   # ============================================================
   # 跨平台编译：模板本身在 macOS / Windows 上还编不编得出来。
@@ -218,21 +281,76 @@ jobs:
           l3build unpack
           l3build distribute
 
-      - name: Build Chinese thesis
-        working-directory: examples/hitbook/chinese
-        run: latexmk -xelatex -interaction=nonstopmode thesis.tex
+      # 这一步只问“模板在这个平台上编不编得出来”，所以直接跑 xelatex：
+      # 走 latexmk 会把 examples/demo/latexmkrc 里的 makeindex 与 splitindex
+      # 一并拖进来，那是另一回事，出了问题也分不清是模板还是工具链。
+      #
+      # 必须显式指定 fontset=fandol。示例的 final.tex 不写 fontset，走的是
+      # 按机器上装了什么字体逐级探测；而 runner 上一个中文系统字体都没有，
+      # 汉字会全部落到 Times New Roman，每个字一条 Missing character，
+      # 排出来是空白（实测 53 页、满屏缺字）。fandol 随 TeX Live 发，各平台都在。
+      # 变体矩阵不受影响，它的每个变体本来就写着 fontset=fandol。
+      #
+      # 入口是 final.tex。b4d2b18 把 main.tex 拆成了 final.tex 与 report.tex，
+      # 这一步当时没跟着改，mac 与 windows 两个 job 从那以后一直挂在
+      # “cannot \read from terminal”。xelatex 找不到 main.tex 就转而向终端要
+      # 文件名，nonstopmode 下要不到，直接停机。
+      #
+      # 失败时把日志末尾打出来，构件要管理员权限才下载得了。
+      - name: Build example
+        shell: bash
+        working-directory: examples/demo
+        run: |
+          doc='\PassOptionsToClass{fontset=fandol}{hithesis}\input{final.tex}'
+          xelatex -interaction=nonstopmode -jobname=main "$doc" || {
+            echo "::group::main.log 末尾"; tail -60 main.log; echo "::endgroup::"; exit 1; }
+          xelatex -interaction=nonstopmode -jobname=main "$doc" || {
+            echo "::group::main.log 末尾"; tail -60 main.log; echo "::endgroup::"; exit 1; }
+          echo "缺字条数: $(grep -c 'Missing character' main.log || true)"
 
-      - name: Build English thesis
-        working-directory: examples/hitbook/english
-        run: latexmk -xelatex -interaction=nonstopmode thesis.tex
+  # ============================================================
+  # lualatex 冒烟：只问“编得过、页数与 xelatex 对齐”。
+  #    2026/09/15 起主线引擎是 lualatex（断行层 docxlike-linebreak.dtx 只在它上面有，
+  #    照 Word 的贪心断行）；xelatex 仍要能编，逐字节基线与变体矩阵按它跑。
+  #    这个 job 防烂：谁在共享层里长出裸的 xeCJK 调用，这里当场红。
+  #    页数比对用同一台 runner 上现编的 xelatex，不钉死数字。两个引擎的断行
+  #    已经不同，页数目前仍一致；哪天分道了，把这条改成各自钉死。
+  # ============================================================
+  lualatex-smoke:
+    name: lualatex 冒烟
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
 
-      - name: Build report
-        working-directory: examples/hitart/reports
-        run: latexmk -xelatex -interaction=nonstopmode report.tex
+      - uses: TeX-Live/setup-texlive-action@v4
+        with:
+          version: latest
+          package-file: .github/tl_packages
 
-      - name: Build reportplus
-        working-directory: examples/hitart/reportplus
-        run: latexmk -xelatex -interaction=nonstopmode report.tex
+      - name: Generate class files
+        run: make cls
+
+      - name: Build with both engines
+        working-directory: examples/demo
+        run: |
+          doc='\PassOptionsToClass{fontset=fandol}{hithesis}\input{final.tex}'
+          for eng in xelatex lualatex; do
+            $eng -interaction=nonstopmode -jobname=$eng "$doc" || {
+              echo "::group::$eng.log 末尾"; tail -60 $eng.log; echo "::endgroup::"; exit 1; }
+            $eng -interaction=nonstopmode -jobname=$eng "$doc" || {
+              echo "::group::$eng.log 末尾"; tail -60 $eng.log; echo "::endgroup::"; exit 1; }
+          done
+          echo "lualatex 缺字条数: $(grep -c 'Missing character' lualatex.log || true)"
+
+      # 页数从日志末尾的 Output written 行取，不装 PDF 工具
+      - name: Compare page counts
+        working-directory: examples/demo
+        run: |
+          xe=$(grep -oE 'Output written on xelatex.pdf \(([0-9]+) page' xelatex.log | grep -oE '[0-9]+')
+          lua=$(grep -oE 'Output written on lualatex.pdf \(([0-9]+) page' lualatex.log | grep -oE '[0-9]+')
+          echo "xelatex $xe 页 / lualatex $lua 页"
+          [ -n "$xe" ] && [ -n "$lua" ] || { echo "页数没取到"; exit 1; }
+          [ "$xe" = "$lua" ] || { echo "页数不一致"; exit 1; }
 
   # ============================================================
   # L2 变体矩阵，看 42 种 \documentclass 选项组合还能不能编出来。
@@ -306,7 +424,233 @@ jobs:
   #    默认只出报告和差异 artifact，不阻断合并。要卡的话给 PR 打
   #    regression-must-match 标签。
   # ============================================================
+  # 跨 TeX Live 版本横比：2022–2026 各编一遍同一份示例，逐页比 2026。
+  #
+  # 五个版本各跑各的宏级测试只能发现“这个版本自己坏没坏”，发现不了「同一份
+  # 源码在不同版本上排出来不一样」。而排版差异恰恰是最难靠日志看出来的：
+  # \str_case:enF 在 TL2022 上不存在那件事，是整篇塌了才暴露；要是只差半个字
+  # 宽，五个版本各自都“通过”，谁也不知道。
+  #
+  # 取 2026 当基准（.tlg 基线也是按它生成的）。渲的是博士哈尔滨那份，走新版面。
+  #
+  # 判定：基准是 2026，其余版本全靠这张表读差异。跨版本拉不平的已逐项
+  # 查清（容器复现、段末短行定位源头）：
+  #   2022–2025  xeCJK 2026 重写了中西文边界。老版已逐项补齐：verb 与
+  #              行内命令两侧的胶（边界状态管道加 cmd 钩子，见 hit-format
+  #              的“verb 边界”一节）、\num \ref 文本组两侧（入口进 cmd
+  #              名单、出口包一层置“刚出组”标记）、上标尾接汉字（尾后
+  #              垫零宽盒断类对）、汉字接全角波浪线（类对 toks 重设）、
+  #              长网址断点参数（Urlmuskip 与 UrlBreaks 钉成 2026 值，
+  #              老版 gbt7714 曾允许任意字母处断）。补完 2024/2025 与
+  #              基准零断点翻转，剩个别字对几个 bp 的重影：文献表“西文
+  #              句点+空格+汉字”折胶差约 2.4bp（靠 2026 独有接口）是
+  #              主要一处；verb 内部的空格与断行两版是不同的复合行为，
+  #              含空格或过长的行内 verb 串会让整段换断点，示例文本已
+  #              把这类串改成两侧直邻。2022/2023 另有 tabularray 长表
+  #              表前距引起的两三页换行连锁。
+  #   2022–2023  另加 tabularray 2024A 之前长表分页构建器的表前距差
+  #              （8.5bp，上游 bugfix 改的）。fancyhdr v4 的页眉盒差已修
+  #              （页眉整块装进几何自管的盒，两版逐 bp 相同）。
+  #   页数错位、编译失败仍算异常。2024+ 那档的 rc 语义保留，
+  #
+  # 仓库变量 CROSSVER_MUST_MATCH 设成 true 就把 2024–2026 那一档变成硬门。
+  # ============================================================
+  cross-version-render:
+    name: 跨版本渲染 TL${{ matrix.tl-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tl-version: [2022, 2023, 2024, 2025, 2026]
+    env:
+      TL_REPO: ${{ matrix.tl-version == 2026
+        && 'https://mirror.ctan.org/systems/texlive/tlnet'
+        || format('https://ftp.tu-chemnitz.de/pub/tug/historic/systems/texlive/{0}/tlnet-final', matrix.tl-version) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: TeX-Live/setup-texlive-action@v4
+        with:
+          version: ${{ matrix.tl-version }}
+          repository: ${{ env.TL_REPO }}
+          package-file: |
+            .github/tl_packages
+            ${{ matrix.tl-version < 2024 && '.github/tl_packages_compat' || '' }}
+
+      - name: Install ghostscript
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ghostscript
+
+      - name: Generate cls files
+        run: make cls
+
+      # 只渲一个代表性变体就够了：横比要看的是同一份源码在不同版本上排得一不
+      # 一样，不是覆盖面。挑博士哈尔滨那份：它走新版面，而新版面才是要跨版本
+      # 一致的那一套。旧版面（本科、v2-layout）冻结在 v3.1e 的效果，只保证能
+      # 编译，不保证跨版本逐像素相同——它不走格式层，\CJKglue 没被模板设过，
+      # \ccwd 因此跟着各版 ctex 的默认走，谁也拉不齐。
+      - name: Render one variant
+        run: bash tools/compile-variant.sh 13-doctor-harbin
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: crossver-tl${{ matrix.tl-version }}
+          path: tests/current/13-doctor-harbin-p*.png
+          retention-days: 7
+
+  cross-version-compare:
+    name: 跨版本横比（以 2026 为准）
+    runs-on: ubuntu-latest
+    needs: cross-version-render
+    if: always()
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: crossver
+
+      - name: Install imagemagick
+        # 差异页用它的 compare 叠出标红对比图，跟兼容回归那轨同一种产物
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends imagemagick
+
+      - name: Compare against TL2026
+        id: crossver
+        run: |
+          ref=crossver/crossver-tl2026
+          [ -d "$ref" ] || { echo "2026 那份没产出，没法当基准"; exit 1; }
+          rc=0
+          {
+            echo "### 跨 TeX Live 版本横比（以 2026 为准）"
+            echo
+            echo "| 版本 | 页数 | 与 2026 不同的页 |"
+            echo "| --- | --- | --- |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          n_ref=$(ls "$ref"/*.png 2>/dev/null | wc -l | tr -d ' ')
+          for v in 2022 2023 2024 2025 2026; do
+            d=crossver/crossver-tl$v
+            # 2024 起要求一致，2022/2023 只报告：见上面那段说明
+            [ "$v" -ge 2024 ] && strict=1 || strict=0
+            if [ ! -d "$d" ]; then
+              echo "| $v | 没产出 | — |" >> "$GITHUB_STEP_SUMMARY"; rc=1; continue
+            fi
+            n=$(ls "$d"/*.png 2>/dev/null | wc -l | tr -d ' ')
+            if [ "$n" != "$n_ref" ]; then
+              echo "| $v | $n | 页数就对不上（基准 $n_ref） |" >> "$GITHUB_STEP_SUMMARY"
+              [ "$v" = 2026 ] || [ "$strict" = 0 ] || rc=1
+              continue
+            fi
+            diff=0
+            for f in "$d"/*.png; do
+              b=$(basename "$f")
+              if ! cmp -s "$f" "$ref/$b"; then
+                diff=$((diff+1))
+                # 每张差异页都存三件套：基准、本版、compare 叠出的标红图
+                o=crossver-diff/tl$v
+                mkdir -p "$o"
+                cp "$ref/$b" "$o/${b%.png}-ref2026.png"
+                cp "$f" "$o/${b%.png}-tl$v.png"
+                compare "$ref/$b" "$f" "$o/${b%.png}-diff.png" || true
+              fi
+            done
+            if [ "$strict" = 0 ]; then
+              echo "| $v | $n | $diff（只报告，不拦） |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| $v | $n | $diff |" >> "$GITHUB_STEP_SUMMARY"
+              [ "$diff" = 0 ] || { [ "$v" = 2026 ] || rc=1; }
+            fi
+          done
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          echo "横比结果见作业摘要"
+
+      - name: Upload diff images
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: crossver-diff
+          path: crossver-diff/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Fail if CROSSVER_MUST_MATCH
+        if: vars.CROSSVER_MUST_MATCH == 'true' && steps.crossver.outputs.rc != '0'
+        run: |
+          echo "跨版本横比有差异，且仓库变量 CROSSVER_MUST_MATCH=true"
+          exit 1
+
+  # ============================================================
+  # 轨一：旧版面兼容回归，钉死 v3.1e，常设。
+  #
+  # 旧版面要长期保留，这一轨测的是「老文档在新模板的兼容层（v2-layout）下，
+  # 排出来还是不是老样子」。同一份内容编两遍：参照侧是 v3.1e 的示例配 v3.1e
+  # 的类，当前侧是同一份示例配当前的类加 v2-layout。不能各编各的树——两版的
+  # 示例内容本身就不同，逐页比出来全是内容差异。
+  #
+  # 现在先只报告不拦：兼容层与 v3.1e 尚有差异（本地实测中文书 58 页对 66 页），
+  # 收敛到零之前当门会一直红。把仓库变量 COMPAT_MUST_MATCH 设成 true 就变硬门。
+  # ============================================================
+  compat-regression:
+    name: 旧版面兼容回归（钉 v3.1e）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: TeX-Live/setup-texlive-action@v4
+        with:
+          version: latest
+          package-file: .github/tl_packages
+
+      - name: Install ghostscript
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ghostscript
+
+      - name: Generate cls files
+        run: make cls
+
+      - name: Run compat regression
+        id: compat
+        run: |
+          set +e
+          bash scripts/compat-regression.sh | tee /tmp/compat.txt
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+          set -e
+          {
+            echo "### 旧版面兼容回归（钉 v3.1e）"
+            echo
+            echo '```'
+            cat /tmp/compat.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload compat PDFs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: compat-regression
+          path: |
+            tests/compat-work/*/main.pdf
+            tests/compat-work/*.log
+          retention-days: 7
+
+      - name: Fail if COMPAT_MUST_MATCH
+        if: vars.COMPAT_MUST_MATCH == 'true' && steps.compat.outputs.rc != '0'
+        run: |
+          echo "兼容回归有差异，且仓库变量 COMPAT_MUST_MATCH=true"
+          exit 1
+
+  # ============================================================
+  # 轨二：跟上一个正式版比的常规回归。上一版必然是新版面，所以不开 v2-layout。
+  #
+  # 新版面还没稳定，这一轨现在关着，只留开关：仓库变量 RUN_RELEASE_REGRESSION
+  # 设成 true 就开。版面定下来之后打开它，那时参照的才是同版面的上一版，比出来
+  # 的差异才有意义（现在最近的 tag 还是 v3.1e，是旧版面，比了全是版面差）。
+  # ============================================================
   regression:
+    if: vars.RUN_RELEASE_REGRESSION == 'true'
     name: 排版回归
     runs-on: ubuntu-latest
     steps:
@@ -388,8 +732,5 @@ jobs:
             texlive/texlive:latest bash -c '
               set -e
               make all
-              make -C examples/hitbook/chinese thesis
-              make -C examples/hitbook/english thesis
-              make -C examples/hitart/reports report
-              make -C examples/hitart/reportplus report
+              make -C examples/demo thesis
             '
