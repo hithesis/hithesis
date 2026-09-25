@@ -6,6 +6,8 @@
 %
 % \section{浮动体与图表}
 %
+% \changes{v3.2a}{2026/09/26}{题注按 \option{caption-figure}、\option{caption-table} 排成 \pkg{docxlike} 的段，
+%   居中写在样式里；\option{style}/\option{float-blank} 在图表前后排敲的空段}
 % \changes{v3.2a}{2026/09/20}{新版面下浮动体与正文的间距改成一个网格行（指南 2.12
 %   “插表的上下与文中文字间需空一行”，v3.1e 的 8.5\,bp 不到半行）；题注与图表之间不
 %   另加 6\,bp（没有来路，范例里表题到表顶线只有表题自己的行深）；题号与题名之间读
@@ -74,6 +76,35 @@
         \captionsetup { skip = 0pt }
       }
   }
+%    \end{macrocode}
+%
+% \option{style}/\option{float-blank} 写了的，在浮动体里排那几个空段：图前、表前的在浮动体
+% 盒子一开头（\cs{@floatboxreset} 那一步，已在盒里的竖直模式），图后、表后的在
+% \cs{end}\marg{figure} 之前。空段是 \cs{hitenter*}，落在页首页尾也不丢，与 Word 的空段一样。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_float_blank:n #1
+  {
+    \tl_if_empty:cF { g__hit_float_blank_ #1 _tl }
+      {
+        \par
+        \use:e
+          {
+            \exp_not:N \hitenter *
+              [ \exp_not:v { g__hit_float_blank_ #1 _tl } ]
+          }
+      }
+  }
+\tl_gput_right:Nn \@floatboxreset
+  {
+    \cs_if_exist:NT \@captype
+      { \__hit_float_blank:n { \@captype -above } }
+  }
+\cs_new_protected:Npn \__hit_float_blank_hook:nn #1#2
+  { \AddToHook { env / #1 / end } { \__hit_float_blank:n { #2 -below } } }
+\__hit_float_blank_hook:nn { figure } { figure }
+\__hit_float_blank_hook:nn { figure* } { figure }
+\__hit_float_blank_hook:nn { table } { table }
+\__hit_float_blank_hook:nn { table* } { table }
 %    \end{macrocode}
 %
 % 此处设置float在p选项时间隔，此处不设置\cs{@fptop}和\cs{@fpbot}以确保居中。
@@ -155,18 +186,9 @@
   }
 \cs_new_protected:Npn \__hit_make_caption:n #1
   {
-    \vskip \abovecaptionskip
-    \hit@caption@font:
-    \sbox \@tempboxa {#1}
-    \dim_compare:nNnTF { \box_wd:N \@tempboxa } > { \hsize }
-      {
-        { \centering #1 \par }
-      }
-      {
-        \tex_global:D \@minipagefalse
-        \hb@xt@ \hsize { \hfil \box \@tempboxa \hfil }
-      }
-    \vskip \belowcaptionskip
+    \par
+    \tex_global:D \@minipagefalse
+    \exp_args:Ne \docxlike_format_par:nn { caption- \hit@caption@type: } {#1}
   }
 %    \end{macrocode}
 %

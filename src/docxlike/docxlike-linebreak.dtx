@@ -17,7 +17,7 @@
 %   \option{compatibility-mode} 分 Word 2003、2007、2010、2013 四档，样本的 doc 原件都是 2003。
 %   探针 100 个系列 90 个翻转点与 Word 相同，与 typst 逐行对拍}
 % \changes{v3.2a}{2026/09/20}{行盒照 Word 逐行算高（各 run 的字体字号取最大，倍数、贴网格、
-%   固定值三种落法，固定值的行盒钉死，交回 TeX 断行的段也钉），行盒直接摞，行间只放零宽胶与行间罚分；断点只认 TeX 的合法断点；
+%   固定值三种落法，固定值的行盒钉死，交回 TeX 断行的段也钉；装图的行贴行网格时占整数格、图居中），行盒直接摞，行间只放零宽胶与行间罚分；断点只认 TeX 的合法断点；
 %   parshape、悬挂缩进、定值 leftskip/rightskip、窄版心的段也进 Lua；横向不贴格的段按
 %   整个版心装；汉字缝与汉西隙另记在两个属性上，Lua 装盒时照属性重设（先认这两种胶再认
 %   空格，关了自动间距的字不重设；输出例程里
@@ -555,6 +555,11 @@ end
 -- 取 max(余量/5, (余量 − 0.26bp)·0.46) 再封顶 0.2bp。这是 msword.rs 的公式，整套翻转点
 -- 探针（lb2–lb8，108 组）它只错 6 组、都在半格之内；曾试过「模式 15 加 0.25bp、其余加
 -- 余量的四分之一」，错 9 组，纸面上量到的 3.57 与 3.227 也不是算账用的数
+-- 段落上关了“自动调整中文与西文／数字的间距”的，数字看 DN、字母看 DE
+local function auto_ok(P, c)
+  if c and c >= 48 and c <= 57 then return P.autospace_dn end
+  return P.autospace_de
+end
 local function auto_at(P, size)
   if not P.autospace then return 0 end
   local ex = P.excess
@@ -607,7 +612,7 @@ local function natural(items, P)
       if it.rigid then it.nw = it.w
       elseif latinish[it.c] and it.w >= it.size * 0.9 then it.nw = it.w + P.excess
       else it.nw = it.w + (it.code and 0 or P.latin_add) * it.gn end
-      if prev and prev.kind == 0 and not prev.symbol and is_alnum(it.head) then gap = auto_at(P, prev.size) end
+      if prev and prev.kind == 0 and not prev.symbol and is_alnum(it.head) and auto_ok(P, it.head) then gap = auto_at(P, prev.size) end
       it.spot = false
     else
       if it.user then
@@ -632,7 +637,7 @@ local function natural(items, P)
       end
       it.spot = false
     end
-    if prev and prev.kind == 3 and it.kind == 0 and not it.symbol and is_alnum(prev.tail) then
+    if prev and prev.kind == 3 and it.kind == 0 and not it.symbol and is_alnum(prev.tail) and auto_ok(P, prev.tail) then
       -- 混合字号量的：隙跟着前一个字的字号走
       gap = auto_at(P, prev.size)
     end
@@ -1423,7 +1428,45 @@ local function decide(items, P, shape, indent)
   return lines
 end
 
+-- 行里的图片（\includegraphics 出的 image rule，套在盒里也找）：取装着它的那几件的高深。
+-- Word 的“装图段”：贴行网格时这一行占整数个网格行、图在里面居中（博士后研究报告模板，
+-- 142.15 磅的图占 8 格 144，题注基线离图底 0.73 加题注自己的上升部；banshi 同一条）
+local IMAGE_RULE = 2
+local function has_image(list)
+  for g in traverse(list) do
+    if g.id == RULE and g.subtype == IMAGE_RULE then return true end
+    if (g.id == HLIST or g.id == VLIST) and g.list and has_image(g.list) then return true end
+  end
+  return false
+end
+local function image_hd(list)
+  local h, d = 0, 0
+  for g in traverse(list) do
+    if ((g.id == HLIST or g.id == VLIST) and g.list and has_image(g.list))
+        or (g.id == RULE and g.subtype == IMAGE_RULE) then
+      local sh = (g.id == HLIST or g.id == VLIST) and g.shift or 0
+      if g.height - sh > h then h = g.height - sh end
+      if g.depth + sh > d then d = g.depth + sh end
+    end
+  end
+  return h, d
+end
+local function image_line(ih, id, pitch)
+  local tot = ih + id
+  local n = math.max(1, math.ceil(tot / pitch - 0.001))
+  local total = n * pitch
+  local asc = ih + (total - tot) / 2
+  return asc, total - asc
+end
+
 local function linebox(box, ctx, strut_h, strut_d)
+  if not ctx.exact and ctx.snap and ctx.pitch > 0 then
+    local ih, id = image_hd(box.list)
+    if ih > 0 then
+      box.height, box.depth = image_line(ih, id, ctx.pitch)
+      return
+    end
+  end
   local H, A = 0, 0
   local objA, objD = 0, 0
   local function glyph_metrics(g)
@@ -1991,6 +2034,8 @@ function M.filter(head, is_display)
               space_add = (inc > 0) and 0.25 * bp or 0,
               compat = M.compat, ari = not M.ari0, table_cell = M.cell,
               justify = true, autospace = true, compress = true,
+              autospace_de = getbool("l_docxlike_format_autospace_de_bool") ~= false,
+              autospace_dn = getbool("l_docxlike_format_autospace_dn_bool") ~= false,
               eps = 0.03 * bp }
   soft_split(items, P)
   local lines = decide(items, P, M.shape(), indent)
@@ -2122,13 +2167,39 @@ function M.box_cjk_flag(n)
   return M.box_has_cjk(n) and 1 or 0
 end
 
+-- 交回 TeX 断行的段里装图的行照装图段的规矩定高深（贴行网格时占整数格、图居中），行间胶
+-- 跟着改成零：Word 的行盒直接摞
+local function pin_image(head)
+  if not getbool("l_docxlike_format_line_snap_bool") then return true end
+  local ok, pitch = pcall(tex.getdimen, "g_docxlike_page_lead_dim")
+  if not ok or not pitch or pitch <= 0 then return true end
+  local changed = {}
+  for n in traverse(head) do
+    if n.id == HLIST and n.subtype == 1 then
+      local ih, id = image_hd(n.list)
+      if ih > 0 then
+        n.height, n.depth = image_line(ih, id, pitch)
+        changed[n] = true
+      end
+    end
+  end
+  if next(changed) == nil then return true end
+  for n in traverse(head) do
+    if n.id == GLUE and (n.subtype == 1 or n.subtype == 2)
+        and ((n.prev and changed[n.prev]) or (n.next and changed[n.next])) then
+      n.width = 0
+    end
+  end
+  return true
+end
+
 -- 交回 TeX 断行的段（居中、靠左靠右）里，固定值行距的行也钉成撑杆那么高：TeX 的行盒按
 -- 内容长，字比盒顶到基线那 0.8 倍还高时会把这一行连同后面的往下顶，Word 的行盒不长。
 -- 撑杆取段里零宽的普通 rule（格式层发的，luatexja 给每个汉字挂的那根是 subtype 3），
 -- 行间胶按钉过的高深重算，基线距仍是 baselineskip
 local traverse_id = node.traverse_id
 local function pin_exact(head)
-  if not getbool("l_docxlike_format_strut_exact_bool") then return true end
+  if not getbool("l_docxlike_format_strut_exact_bool") then return pin_image(head) end
   local sh, sd = 0, 0
   for line in traverse_id(HLIST, head) do
     for r in traverse_id(RULE, line.list) do

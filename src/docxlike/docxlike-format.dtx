@@ -56,6 +56,7 @@
 %   \cs{addvspace}，Word 的段前与前一段的段后取大不相加；兼容选项
 %   \option{dont-use-html-paragraph-auto-spacing} 开着时相加）、\cs{docxlike\_format\_par:nnn} 与
 %   \cs{docxlike\_format\_with:nnn} 临时覆盖、\cs{docxlike\_format\_apply\_font:nN} 一族、
+%   段落“中文版式”页的两个自动间距开关、目标左缩进的读取 \cs{docxlike\_format\_left\_indent:nN}、
 %   页眉页脚的 \cs{docxlike\_format\_apply\_hf:nN}、块与块之间照“上块行深加下块上升部”贴排的
 %   \cs{docxlike\_format\_stack\_line:n}}
 % \changes{v3.2a}{2026/08/24}{纯西文段由 \cs{docxlike\_format\_apply\_par:n} 铺版面，与别的段共用
@@ -105,6 +106,7 @@
 % \option{paragraph}/\option{indentation} & \texttt{pPr/ind/} 下的 \texttt{left}、\texttt{leftChars}、\texttt{right}、\texttt{rightChars}、\texttt{firstLine}、\texttt{firstLineChars}、\texttt{hanging}、\texttt{hangingChars} \\
 % \option{paragraph}/\option{spacing} & \texttt{pPr/spacing/} 下的 \texttt{before}、\texttt{beforeLines}、\texttt{after}、\texttt{afterLines}、\texttt{line}、\texttt{lineRule} \\
 % \option{paragraph}/\option{snap-to-grid-when-document-grid-is-defined}、\option{pagination} 的 \option{keep-with-next}、\option{keep-lines-together}、\option{page-break-before} & \texttt{pPr/snapToGrid}、\texttt{pPr/keepNext}、\texttt{pPr/keepLines}、\texttt{pPr/pageBreakBefore} \\
+% \option{paragraph}/\option{asian-typography} 的 \option{automatically-adjust-space-between-asian-and-latin-text}、\option{automatically-adjust-space-between-asian-text-and-numbers} & \texttt{pPr/autoSpaceDE}、\texttt{pPr/autoSpaceDN} \\
 % \option{tabs}、\option{border} & \texttt{pPr/tabs}（每个停靠点“对齐 位置 前导符”，位置是缇）、\texttt{pPr/pBdr/top}、\texttt{pPr/pBdr/bottom} \\
 % \option{numbering}\texttt{ = none}（“编号”按钮里的“无”） & \texttt{pPr/numPr/numId} 为 \texttt{0}：链接了列表的样式这一段不编号 \\
 % \bottomrule
@@ -905,6 +907,8 @@
     snap-to-grid-when-document-grid-is-defined .default:n = { true } ,
     pagination .code:n =
       { \__docxlike_keys_set:nn { docxlike / style / paragraph / pagination } {#1} } ,
+    asian-typography .code:n =
+      { \__docxlike_keys_set:nn { docxlike / style / paragraph / asian-typography } {#1} } ,
     unknown .code:n =
       { \__docxlike_unknown_key: } ,
   }
@@ -954,6 +958,17 @@
   {
     \prop_gput:Nnn \g__docxlike_format_align_extra_prop {#1} {#2}
     \prop_gput:Nnn \g__docxlike_format_align_prop {#1} {#2}
+  }
+\keys_define:nn { docxlike / style / paragraph / asian-typography }
+  {
+    automatically-adjust-space-between-asian-and-latin-text .code:n =
+      { \__docxlike_format_bool:nn { pPr/autoSpaceDE } {#1} } ,
+    automatically-adjust-space-between-asian-and-latin-text .default:n = { true } ,
+    automatically-adjust-space-between-asian-text-and-numbers .code:n =
+      { \__docxlike_format_bool:nn { pPr/autoSpaceDN } {#1} } ,
+    automatically-adjust-space-between-asian-text-and-numbers .default:n = { true } ,
+    unknown .code:n =
+      { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / style / paragraph / pagination }
   {
@@ -2491,6 +2506,53 @@
 \cs_new_protected:Npn \docxlike_format_exact_false:
   { \bool_set_false:N \l_docxlike_format_strut_exact_bool }
 \bool_new:N \l_docxlike_format_strut_latin_bool
+%    \end{macrocode}
+%
+% \emph{中西文之间的自动间距可以按段关。}段落对话框“中文版式”页的两个勾：“自动调整中文与西文
+% 的间距”（\texttt{w:autoSpaceDE}）与“自动调整中文与数字的间距”（\texttt{w:autoSpaceDN}），
+% 样式里写在 \option{paragraph} 的 \option{asian-typography} 下。两个都勾着（默认）时什么也不发；
+% 有一个没勾，段落开头发 \cs{docxlike\_format\_autospace:nn}。《博士后研究工作报告模板》的表题
+% 两个都没勾：Mac Word 里“表”到“1”步进 10.75，勾着的图题“图”到“1”是 13.5。
+%
+% \pkg{luatexja} 两个都关就关掉 \texttt{autoxspacing}，只关一个就按字把数字或字母的
+% \texttt{alxspmode} 设成 \texttt{inhibit}；断行层读两个布尔量，数字看后一个，字母看前一个。
+% \pkg{xeCJK} 分不开数字与字母，关了“西文”那一个才把 \cs{CJKecglue} 与它的寄存器清掉。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_format_autospace_tl
+\tl_new:N \l__docxlike_format_autospace_dn_tl
+\bool_new:N \l_docxlike_format_autospace_de_bool
+\bool_new:N \l_docxlike_format_autospace_dn_bool
+\bool_set_true:N \l_docxlike_format_autospace_de_bool
+\bool_set_true:N \l_docxlike_format_autospace_dn_bool
+\cs_new_protected:Npn \docxlike_format_autospace:nn #1#2
+  {
+    \bool_set:Nn \l_docxlike_format_autospace_de_bool { \str_if_eq_p:nn {#1} { true } }
+    \bool_set:Nn \l_docxlike_format_autospace_dn_bool { \str_if_eq_p:nn {#2} { true } }
+    \cs_if_exist:NTF \ltjsetparameter
+      {
+        \bool_lazy_or:nnTF
+          { \l_docxlike_format_autospace_de_bool } { \l_docxlike_format_autospace_dn_bool }
+          {
+            \bool_if:NF \l_docxlike_format_autospace_dn_bool
+              { \int_step_function:nnN { `0 } { `9 } \__docxlike_format_xsp_inhibit:n }
+            \bool_if:NF \l_docxlike_format_autospace_de_bool
+              {
+                \int_step_function:nnN { `A } { `Z } \__docxlike_format_xsp_inhibit:n
+                \int_step_function:nnN { `a } { `z } \__docxlike_format_xsp_inhibit:n
+              }
+          }
+          { \ltjsetparameter { autoxspacing = false } }
+      }
+      {
+        \bool_if:NF \l_docxlike_format_autospace_de_bool
+          {
+            \cs_set_eq:NN \CJKecglue \prg_do_nothing:
+            \skip_if_exist:NT \l__xeCJK_ecglue_skip { \skip_zero:N \l__xeCJK_ecglue_skip }
+          }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_format_xsp_inhibit:n #1
+  { \ltjsetparameter { alxspmode = { #1 , inhibit } } }
 \cs_new_protected:Npn \docxlike_format_latin_true:
   { \bool_set_true:N \l_docxlike_format_strut_latin_bool }
 \cs_new_protected:Npn \docxlike_format_latin_false:
@@ -2834,6 +2896,18 @@
       { \tl_put_right:Nn \l__docxlike_format_out_tl { \bfseries } }
     \__docxlike_format_font_hook:n {#1}
     \__docxlike_format_pick:nnN {#1} { pPr/jc } \g__docxlike_format_align_prop
+    \__docxlike_format_read:nnnN {#1} { pPr/autoSpaceDE } { true } \l__docxlike_format_autospace_tl
+    \__docxlike_format_read:nnnN {#1} { pPr/autoSpaceDN } { true } \l__docxlike_format_autospace_dn_tl
+    \bool_lazy_and:nnF
+      { \str_if_eq_p:Vn \l__docxlike_format_autospace_tl { true } }
+      { \str_if_eq_p:Vn \l__docxlike_format_autospace_dn_tl { true } }
+      {
+        \tl_put_right:Ne \l__docxlike_format_out_tl
+          {
+            \exp_not:N \docxlike_format_autospace:nn
+              { \l__docxlike_format_autospace_tl } { \l__docxlike_format_autospace_dn_tl }
+          }
+      }
     \bool_if:NT \l_docxlike_format_snap_horizontal_bool
       {
         \str_case:VnT \l__docxlike_format_value_tl { { center } { } { right } { } }
@@ -3125,6 +3199,13 @@
     \__docxlike_format_amount_use:VVN \l__docxlike_format_unit_tl
       \l__docxlike_format_value_tl #3
   }
+%    \end{macrocode}
+%
+% \cs{docxlike\_format\_left\_indent:nN}\marg{目标}\meta{dim 变量}：目标的左缩进（没写就是零），
+% 按字符写的折成当时的格宽。给文档类自己排的段用，比如目录条目按目录样式的缩进起排。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_format_left_indent:nN #1#2
+  { \__docxlike_format_side_indent:nnN {#1} { ind-left } #2 }
 \cs_new_protected:Npn \__docxlike_format_number_indent:n #1 { }
 \cs_new_protected:Npn \__docxlike_format_number_put:n #1 { }
 \cs_new_protected:Npn \docxlike_format_par:nn #1#2
