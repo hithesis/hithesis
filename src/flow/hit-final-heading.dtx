@@ -726,11 +726,18 @@
 % 分页后插一个连续分节符。
 %
 % 编号格式照 Word 定义多级列表的写法：章“第\%1章”，节以下“\%1.\%2”等，章名的“第”“章”取词条
-% \option{chapter-name}。编号与题名之间的空白不写进编号格式，照原件在题名前敲两个半角空格
-% （标题命令的 \option{after-number}，只在编号了的标题上敲）：原件的兼容选项开着“平衡单字节与
-% 双字节字符”，两个空格各占半格，合起来一个字，空格是西文字形，不抬行高，全是西文的题名仍按西文
-% 行盒；Windows Word 实测，编号格式里的半角空格不受这个选项管，只有半个字，全角空格又会把西文
-% 题名的上升部抬成黑体的。空白取 \option{after-}\meta{级}\option{-number} 词条，没设就是两个半角空格。
+% \option{chapter-name}。编号与题名之间的空白不写进编号格式，照原件在题名前敲两个半角空格，
+% 只在编号了的标题上敲：原件的兼容选项开着“平衡单字节与双字节字符”（\pkg{docxlike} 的
+% \option{balance-sbcs-characters-and-dbcs-characters}，在 \file{hit-docxlike.dtx} 打开），两个空格
+% 各占半格，合起来一个字，空格是西文字形，不抬行高，全是西文的题名仍按西文行盒；Windows Word
+% 实测，编号格式里的半角空格不受这个选项管，只有半个字，全角空格又会把西文题名的上升部抬成
+% 黑体的。空白取 \option{after-}\meta{级}\option{-number} 词条，没设就是两个半角空格。
+%
+% \pkg{docxlike} 的标题命令只管 Word 里有的东西：标题样式、链接的列表编号、段落上的“编号：无”。
+% 本类要的几件事在外面一层做（\cs{\_\_hit\_heading\_emit:Nnnnnn}）：前置部分的章与
+% \cs{secnumdepth} 以下的标题写“编号：无”；\cs{setcounter} 改过的计数器先设进列表（Word 的
+% “设置编号值”）；敲两个空格，目录与页眉拿不带空格的题名；\cs{label} 记计数器（\cs{ref} 出“1”，
+% 作者写“第\cs{ref}\{…\}章”）；节以下标题前加 \cs{@secpenalty}，前面是标题时不加。
 % 人文社科类照范例：章用中文数字，节“一、”、条“（一）”题序后不空，款“1.”。附录换一套列表：
 % 章“附录A”（本科“附录1”），节“A.1”。
 % 标题样式勾“与下段同页”，关掉“为字体调整字间距”：范例的标题样式就是这样，\pkg{ctex}
@@ -805,7 +812,83 @@
       }
   }
 \NewDocumentCommand \__hit_dl_chapter:w { s o m } { }
+\NewDocumentCommand \__hit_dl_section:w { s o m } { }
+\NewDocumentCommand \__hit_dl_subsection:w { s o m } { }
+\NewDocumentCommand \__hit_dl_subsubsection:w { s o m } { }
 \tl_new:N \l__hit_heading_local_tl
+\tl_new:N \l__hit_heading_body_tl
+\tl_new:N \l__hit_heading_list_tl
+\tl_new:N \l__hit_heading_lvl_tl
+\clist_const:Nn \c__hit_heading_levels_clist { chapter , section , subsection , subsubsection }
+\cs_new_protected:Npn \__hit_heading_sync:nn #1#2
+  {
+    \docxlike_numbering_style:nNNT {#1} \l__hit_heading_list_tl \l__hit_heading_lvl_tl
+      {
+        \docxlike_numbering_set_value:eee { \l__hit_heading_list_tl }
+          { \int_eval:n { \l__hit_heading_lvl_tl + 1 } }
+          {
+            \int_step_function:nN { \l__hit_heading_lvl_tl + 1 }
+              \__hit_heading_sync_value:n
+          }
+      }
+  }
+\cs_new:Npn \__hit_heading_sync_value:n #1
+  {
+    \int_compare:nNnT {#1} > { 1 } { , }
+    \int_eval:n
+      {
+        \int_use:c { c@ \clist_item:Nn \c__hit_heading_levels_clist {#1} }
+        \int_compare:nNnT {#1} = { \l__hit_heading_lvl_tl + 1 } { + 1 }
+      }
+  }
+\cs_generate_variant:Nn \docxlike_numbering_set_value:nnn { eee }
+% #1 docxlike 的标题命令，#2 层级名，#3 样式标识，#4 星号（空或 *），#5 可选参数，#6 题名；
+% 编号的条件放在 \l__hit_heading_numbered_bool 里
+\bool_new:N \l__hit_heading_numbered_bool
+\cs_new_protected:Npn \__hit_heading_emit:Nnnnnn #1#2#3#4#5#6
+  {
+    \IfNoValueTF {#5}
+      { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#6} , } }
+      {
+        \tl_if_in:nnTF {#5} { = }
+          { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#6} , #5 , } }
+          { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#5} , } }
+      }
+    \tl_set:Nn \l__hit_heading_body_tl {#6}
+    \tl_if_empty:nTF {#4}
+      {
+        \bool_if:NTF \l__hit_heading_numbered_bool
+          {
+            \__hit_heading_sync:nn {#3} {#2}
+            \tl_set:Ne \l__hit_heading_body_tl
+              { \__hit_heading_after:n {#2} \exp_not:n {#6} }
+          }
+          { \tl_put_right:Nn \l__hit_heading_local_tl { numbering = none , } }
+      }
+      { \bool_set_false:N \l__hit_heading_numbered_bool }
+    \use:e
+      {
+        \exp_not:N #1 #4
+        [ \exp_not:V \l__hit_heading_local_tl ]
+        { \exp_not:V \l__hit_heading_body_tl }
+      }
+    \bool_if:NT \l__hit_heading_numbered_bool
+      {
+        \use:e
+          {
+            \exp_not:N \protected@edef \exp_not:N \@currentlabel
+              { \exp_not:c { p@ #2 } \exp_not:c { the #2 } }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_heading_section:Nnnnnnn #1#2#3#4#5#6#7
+  {
+    \par
+    \legacy_if:nF { @nobreak } { \addpenalty { \@secpenalty } }
+    \tl_clear:N \l__hit_heading_local_tl
+    \bool_set:Nn \l__hit_heading_numbered_bool { \int_compare_p:nNn { \c@secnumdepth } > {#7} }
+    \__hit_heading_emit:Nnnnnn #1 {#2} {#3} {#4} {#5} {#6}
+  }
 \cs_new_protected:Npn \__hit_heading_docxlike:
   {
     \__hit_heading_docxlike_lists:
@@ -816,11 +899,7 @@
         Heading3 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
         Heading4 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
       }
-    \docxlike_heading_new:Nnnn \__hit_dl_chapter:w { Heading~1 } { chapter }
-      {
-        label = counter , after-number = \__hit_heading_after:n { chapter } ,
-        numbered = \legacy_if_p:n { @mainmatter } && \int_compare_p:nNn { \c@secnumdepth } > { -1 } ,
-      }
+    \docxlike_heading_new:Nnn \__hit_dl_chapter:w { Heading~1 } { chapter }
     \RenewDocumentCommand \hit@chapter { s o m }
       {
         \legacy_if:nTF { @openright } { \cleardoublepage } { \clearpage }
@@ -833,35 +912,38 @@
           }
         \bool_gset_true:N \g_docxlike_section_start_bool
         \tl_clear:N \l__hit_heading_local_tl
-        \IfValueT {##2} { \tl_set:Nn \l__hit_heading_local_tl { toc = {##2} , } }
         \bool_if:NT \g__hit_chapterbold_bool
           {
             \hit@if@same@TF {##3} { \hit@term@abstract@heading@en }
               { \tl_put_right:Nn \l__hit_heading_local_tl { font = { font-style = bold } , } }
               { }
           }
-        \use:e
-          {
-            \exp_not:N \__hit_dl_chapter:w
-            \IfBooleanT {##1} { * }
-            \tl_if_empty:NF \l__hit_heading_local_tl { [ \exp_not:V \l__hit_heading_local_tl ] }
-            { \exp_not:n {##3} }
-          }
+        \bool_set:Nn \l__hit_heading_numbered_bool
+          { \legacy_if_p:n { @mainmatter } && \int_compare_p:nNn { \c@secnumdepth } > { -1 } }
+        \IfBooleanTF {##1}
+          { \__hit_heading_emit:Nnnnnn \__hit_dl_chapter:w { chapter } { Heading1 } { * } {##2} {##3} }
+          { \__hit_heading_emit:Nnnnnn \__hit_dl_chapter:w { chapter } { Heading1 } { } {##2} {##3} }
       }
-    \docxlike_heading_new:Nnnn \hit@section { Heading~2 } { section }
+    \docxlike_heading_new:Nnn \__hit_dl_section:w { Heading~2 } { section }
+    \RenewDocumentCommand \hit@section { s o m }
       {
-        label = counter , penalty = \@secpenalty , after-number = \__hit_heading_after:n { section } ,
-        numbered = \int_compare_p:nNn { \c@secnumdepth } > { 0 } ,
+        \IfBooleanTF {##1}
+          { \__hit_heading_section:Nnnnnnn \__hit_dl_section:w { section } { Heading2 } { * } {##2} {##3} { 0 } }
+          { \__hit_heading_section:Nnnnnnn \__hit_dl_section:w { section } { Heading2 } { } {##2} {##3} { 0 } }
       }
-    \docxlike_heading_new:Nnnn \hit@subsection { Heading~3 } { subsection }
+    \docxlike_heading_new:Nnn \__hit_dl_subsection:w { Heading~3 } { subsection }
+    \RenewDocumentCommand \hit@subsection { s o m }
       {
-        label = counter , penalty = \@secpenalty , after-number = \__hit_heading_after:n { subsection } ,
-        numbered = \int_compare_p:nNn { \c@secnumdepth } > { 1 } ,
+        \IfBooleanTF {##1}
+          { \__hit_heading_section:Nnnnnnn \__hit_dl_subsection:w { subsection } { Heading3 } { * } {##2} {##3} { 1 } }
+          { \__hit_heading_section:Nnnnnnn \__hit_dl_subsection:w { subsection } { Heading3 } { } {##2} {##3} { 1 } }
       }
-    \docxlike_heading_new:Nnnn \hit@subsubsection { Heading~4 } { subsubsection }
+    \docxlike_heading_new:Nnn \__hit_dl_subsubsection:w { Heading~4 } { subsubsection }
+    \RenewDocumentCommand \hit@subsubsection { s o m }
       {
-        label = counter , penalty = \@secpenalty , after-number = \__hit_heading_after:n { subsubsection } ,
-        numbered = \int_compare_p:nNn { \c@secnumdepth } > { 2 } ,
+        \IfBooleanTF {##1}
+          { \__hit_heading_section:Nnnnnnn \__hit_dl_subsubsection:w { subsubsection } { Heading4 } { * } {##2} {##3} { 2 } }
+          { \__hit_heading_section:Nnnnnnn \__hit_dl_subsubsection:w { subsubsection } { Heading4 } { } {##2} {##3} { 2 } }
       }
     \AddToHook { env / appendix / begin } { \__hit_heading_docxlike_link:n { hit-appendix } }
   }
