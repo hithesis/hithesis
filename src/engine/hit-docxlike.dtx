@@ -578,7 +578,7 @@
         { \str_if_eq_p:nn {#1} { Heading2 } || \str_if_eq_p:nn {#1} { Heading3 } }
       }
   }
-\docxlike_format_set_heading_keys:n
+\cs_new_protected:Npn \__hit_ctex_heading_keys:nN #1#2
   {
     \bool_lazy_or:nnT
       { ! \bool_if_p:N \g__hit_en_bool }
@@ -596,6 +596,146 @@
                       { \hit@heading@number@gap: }
                   } ,
               }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{还交给 \pkg{ctex} 排的标题}
+%
+% 中文新版面终稿的标题由 \pkg{docxlike} 自己排（\file{hit-final-heading.dtx}），英文、博士后、
+% 旧版面与报告的标题还是 \pkg{ctex} 排的。\pkg{docxlike} 不碰 \pkg{ctex}，这一层在本类：按样式
+% 算出字体那串排版命令与段前段后，发一条 \cs{ctexset} 过去。一个样式一条都没写过就整条
+% 不发，\pkg{ctex} 原有的取值留着；段前段后只在样式里写过时才发，写了区间就带一段伸量；
+% 正文段间有 \cs{parskip} 时段前取两者的大者。\cs{hit@ctex@heading:nn} 先把覆盖的键值
+% 临时按到样式上（Word 里直接设在这一段上的格式），发完还回去；\pkg{ctex} 那边的取值不会
+% 自己回去，排完那个标题要再发一次 \cs{hit@ctex@heading:n}。
+%    \begin{macrocode}
+\tl_new:N \l__hit_ctex_font_tl
+\tl_new:N \l__hit_ctex_keys_tl
+\cs_new:Npn \__hit_ctex_plus:N #1
+  { \dim_compare:nNnF {#1} = { 0pt } { ~ plus ~ \dim_use:N #1 } }
+\prop_const_from_keyval:Nn \c__hit_ctex_heading_style_prop
+  { chapter = Heading1 , section = Heading2 , subsection = Heading3 , subsubsection = Heading4 }
+\cs_new_protected:Npn \hit@ctex@heading@to:nn #1#2
+  {
+    \docxlike_format_if_blank:nF {#1}
+      {
+        \docxlike_format_apply_font:nN {#1} \l__hit_ctex_font_tl
+        \tl_set:Ne \l__hit_ctex_keys_tl
+          {
+            format =
+              {
+                \exp_not:V \l__hit_ctex_font_tl
+                \cs_if_exist:NT \docxlike_linebreak_kern_off: { \exp_not:N \docxlike_linebreak_kern_off: }
+              } ,
+          }
+        \__hit_ctex_heading_keys:nN {#1} \l__hit_ctex_keys_tl
+        \docxlike_format_if_set:nnT {#1} { before }
+          {
+            \dim_compare:nNnT { \parskip } > { 0pt }
+              {
+                \dim_set:Nn \l_docxlike_format_before_dim
+                  { \dim_max:nn { \l_docxlike_format_before_dim } { \parskip } }
+              }
+            \tl_put_right:Ne \l__hit_ctex_keys_tl
+              {
+                beforeskip =
+                  {
+                    \dim_use:N \l_docxlike_format_before_dim
+                    \__hit_ctex_plus:N \l_docxlike_format_before_plus_dim
+                  } ,
+              }
+          }
+        \docxlike_format_if_set:nnT {#1} { after }
+          {
+            \tl_put_right:Ne \l__hit_ctex_keys_tl
+              {
+                afterskip =
+                  {
+                    \dim_use:N \l_docxlike_format_after_dim
+                    \__hit_ctex_plus:N \l_docxlike_format_after_plus_dim
+                  } ,
+              }
+          }
+        \use:e { \exp_not:N \ctexset { #2 = { \exp_not:V \l__hit_ctex_keys_tl } } }
+      }
+  }
+\cs_generate_variant:Nn \hit@ctex@heading@to:nn { e }
+\cs_new_protected:Npn \hit@ctex@heading:n #1
+  { \hit@ctex@heading@to:en { \prop_item:Nn \c__hit_ctex_heading_style_prop {#1} } {#1} }
+\cs_new_protected:Npn \hit@ctex@headings:n #1
+  { \clist_map_inline:nn {#1} { \hit@ctex@heading:n {##1} } }
+\cs_new_protected:Npn \hit@ctex@heading:nn #1#2
+  {
+    \exp_args:Ne \docxlike_format_with:nnn
+      { \prop_item:Nn \c__hit_ctex_heading_style_prop {#1} } {#2}
+      { \hit@ctex@heading:n {#1} }
+  }
+%    \end{macrocode}
+%
+% \subsection{字距与 \pkg{ctex} 同步}
+%
+% \pkg{docxlike} 设字符网格的字距时（\cs{docxlike\_format\_hglue:nn}）只管 \pkg{xeCJK} 与
+% \pkg{luatexja}，设完发钩子 \texttt{docxlike/hglue}。本类还在 \pkg{ctex} 上，它有自己一份：
+% \pkg{ctex} 的 \cs{CJKglue} 读 \cs{l\_\_ctex\_ccglue\_skip}，字号变化时由
+% \cs{\_\_ctex\_update\_stretch\_auxi:} 重设，重设前先问 \cs{ctex\_if\_ccglue\_touched:}（比的是
+% \cs{CJKglue} 与 \cs{\_\_ctex\_ccglue:} 的 meaning）。\TeX~Live 2026 的 \cs{ctex\_update\_ccglue:}
+% 会把 \cs{\_\_ctex\_ccglue:} 同步过去，判断准；2025 的不同步，设的字距会在 \cs{begin\{document\}}
+% 里被盖回 \pkg{ctex} 自己那份（实测 2025 下整篇字距都是裸字号）。所以寄存器一起设，谁赢都是
+% 同一个值。
+%
+% \cs{ccwd} 是“\cs{CJKglue} 的宽 $+$ 字号”，由 \cs{ctex\_update\_ccwd:} 算。\pkg{ctex} 换字号时走
+% \cs{ctex\_update\_stretch:}，先把 \cs{ccwd} 设成纯字号，再按分支决定要不要重算；TL2025 及以前
+% 默认走的 \cs{\_\_ctex\_update\_stretch\_auxii:} 没有“动过 \cs{CJKglue} 没有”的判断，\cs{ccwd} 停在
+% 纯字号上，少 0.456\,pt。TL2026 给它补上了同一条判断；旧版没有就在这里补，判据照 \pkg{ctex}
+% 自己那一段，原来的函数体留作兜底，第一次设字距时补一次（\pkg{ctex} 在导言区之后还会重定义它，
+% 加载时补会被盖掉）。补了之后 \cs{ccwd} 在 2024 到 2026 上取值一致。
+%    \begin{macrocode}
+\bool_new:N \g__hit_ctex_ccwd_patched_bool
+\hook_gput_code:nnn { docxlike / hglue } { hithesis }
+  {
+    \cs_if_exist:NT \l__ctex_ccglue_skip
+      { \skip_set:Nn \l__ctex_ccglue_skip { \l_docxlike_format_ccglue_dim } }
+    \cs_if_exist:NT \ctex_update_ccwd: { \ctex_update_ccwd: }
+    \bool_lazy_all:nT
+      {
+        { \cs_if_exist_p:N \ctex_if_ccglue_touched:TF }
+        { \cs_if_exist_p:N \__ctex_update_stretch_auxii: }
+        { ! \bool_if_p:N \g__hit_ctex_ccwd_patched_bool }
+      }
+      {
+        \bool_gset_true:N \g__hit_ctex_ccwd_patched_bool
+        \cs_gset_eq:NN \__hit_ctex_stretch_orig: \__ctex_update_stretch_auxii:
+        \cs_gset_protected:Npn \__ctex_update_stretch_auxii:
+          {
+            \ctex_if_ccglue_touched:TF
+              { \ctex_update_ccwd: }
+              { \__hit_ctex_stretch_orig: }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 这几步只在 \texttt{Normal} 样式写过时做（旧版面与博士后不写，正文照 \pkg{ctex} 排）。
+% 正文交给 \pkg{docxlike} 之前先关掉 \pkg{ctex} 的 \option{autoindent}（“首行缩进跟着字号走，恒为
+% 两个汉字宽”，每次换字号都重设 \cs{parindent}；Word 的首行缩进存盘时就折成了绝对长度）。排完正文、
+% 有字符网格时（网格步进是排正文时才算出来的）再停掉 \pkg{ctex} 挂在字号变化上的 \cs{ctex\_update\_ccglue:}：TL2025 下它判不出我们动过
+% \cs{CJKglue}，换字号就把字距冲回裸字号；停成空操作两版都稳，实测汉字步进都是 12.5040，没有网格的
+% 文档里 \cs{ziju} 还要靠它。排完把 \cs{ccwd} 设成网格步进：\pkg{docxlike} 是先换字号再改字距的，
+% 那一次重算读到的还是 \pkg{ctex} 自己的字距。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@docxlike@apply@body:
+  {
+    \docxlike_format_if_blank:nF { Normal } { \ctexset { autoindent = false } }
+    \docxlike_format_apply_body:
+    \docxlike_format_if_blank:nF { Normal }
+      {
+        \dim_compare:nNnF { \g_docxlike_page_char_dim } = { 0pt }
+          {
+            \cs_if_exist:NT \ctex_update_ccglue:
+              { \cs_set_eq:NN \ctex_update_ccglue: \prg_do_nothing: }
+            \cs_if_exist:NT \ccwd { \dim_set_eq:NN \ccwd \g_docxlike_page_char_dim }
           }
       }
   }
