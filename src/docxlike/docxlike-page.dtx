@@ -6,6 +6,9 @@
 %
 % \section{Word 页面设置的换算}
 %
+% \changes{v3.2a}{2026/09/26}{按页换版面可以套嵌：压栈时把版面取值写成恢复代码压进栈，出栈执行；
+%   文档类的存取钩子改成往 \cs{l\_docxlike\_page\_restore\_tl} 里追加赋值，还原钩子取消。先前只存
+%   一层，出栈只还原行跨度那几样，版面指纹停在上一层}
 % \changes{v0.1.0}{2026/09/24}{\cs{docxlike\_page\_setup:n} 按 Word 的页面设置算出版心、行距、
 %   首行位置与字距，直接设进 \hologo{LaTeX} 的页面参数，不调用 \pkg{geometry}；
 %   \cs{headheight} 默认零，文档类自己排页眉时由接入点给；设版面与按页换版面可以由文档类换掉}
@@ -294,19 +297,17 @@
 %   \meta{代码}设 \cs{l\_docxlike\_page\_head\_height\_dim}（页眉槽高，默认零）与
 %   \cs{l\_docxlike\_page\_foot\_skip\_offset\_dim}（加到 \cs{footskip} 上，默认零），
 %   要跨组的值自己存进全局；
-% \item \cs{docxlike\_page\_set\_save:n} 与 \cs{docxlike\_page\_set\_restore:n}：按页换版面时
-%   在换入之前、还原之后执行，文档类在这里存取自己的那几个全局量。
+% \item \cs{docxlike\_page\_set\_save:n}：按页换版面时在换入之前执行，文档类往
+%   \cs{l\_docxlike\_page\_restore\_tl} 里追加自己那几个全局量的赋值，还原时一起执行（见下文
+%   “按页换一套版面”）。
 % \end{itemize}
 %    \begin{macrocode}
 \cs_new_protected:Npn \__docxlike_page_compute_hook: { }
 \cs_new_protected:Npn \__docxlike_page_save_hook: { }
-\cs_new_protected:Npn \__docxlike_page_restore_hook: { }
 \cs_new_protected:Npn \docxlike_page_set_compute:n #1
   { \cs_gset_protected:Npn \__docxlike_page_compute_hook: {#1} }
 \cs_new_protected:Npn \docxlike_page_set_save:n #1
   { \cs_gset_protected:Npn \__docxlike_page_save_hook: {#1} }
-\cs_new_protected:Npn \docxlike_page_set_restore:n #1
-  { \cs_gset_protected:Npn \__docxlike_page_restore_hook: {#1} }
 %    \end{macrocode}
 %
 % \cs{\_\_docxlike\_page\_pitch:NNn}\meta{目标}\meta{版心尺寸}\meta{份数} 是第二条规则：
@@ -579,28 +580,37 @@
 %
 % 真要换的时候，换入先 \cs{clearpage}，存下当时的页面参数，再设新的；还原也先
 % \cs{clearpage}，再把存下的设回去。纸张尺寸不换，一篇文档里不该变。
-% \emph{不支持套嵌}，存的只有一层。
+%
+% 可以套嵌：每压一层，把当时的版面取值（行跨度、字距、格数、纸张、页边距、页眉页脚距、网格
+% 开关、版面指纹）写成一段恢复代码压进栈，出栈时执行。换入时存的页面参数另压一个栈。文档类
+% 用 \cs{docxlike\_page\_set\_save:n} 登记的代码在压栈时执行，往
+% \cs{l\_docxlike\_page\_restore\_tl} 里追加它自己那几个全局量的赋值，出栈时一起执行。
+% 先前只存一层，出栈也只还原行跨度那几样，版面指纹停在上一层，下一次压栈拿过期的指纹比。
 %    \begin{macrocode}
-\tl_new:N \g__docxlike_page_save_layout_tl
 \clist_const:Nn \c__docxlike_page_param_clist
   {
     textwidth , textheight , oddsidemargin , evensidemargin , topmargin ,
     headheight , headsep , footskip
   }
-\clist_map_inline:Nn \c__docxlike_page_param_clist
-  { \dim_new:c { g__docxlike_page_save_#1_dim } }
+\seq_new:N \g__docxlike_page_param_seq
+\tl_new:N \l__docxlike_page_param_tl
 \cs_new_protected:Npn \docxlike_page_push_default:
   {
     \clearpage
+    \tl_clear:N \l__docxlike_page_param_tl
     \clist_map_inline:Nn \c__docxlike_page_param_clist
-      { \dim_gset_eq:cc { g__docxlike_page_save_##1_dim } {##1} }
+      {
+        \tl_put_right:Ne \l__docxlike_page_param_tl
+          { \dim_set:Nn \exp_not:c {##1} { \dim_use:c {##1} } }
+      }
+    \seq_gpush:NV \g__docxlike_page_param_seq \l__docxlike_page_param_tl
     \__docxlike_page_params_set:
   }
 \cs_new_protected:Npn \docxlike_page_pop_default:
   {
     \clearpage
-    \clist_map_inline:Nn \c__docxlike_page_param_clist
-      { \dim_set_eq:cc {##1} { g__docxlike_page_save_##1_dim } }
+    \seq_gpop:NNT \g__docxlike_page_param_seq \l__docxlike_page_param_tl
+      { \l__docxlike_page_param_tl }
     \__docxlike_page_running_sync:
   }
 \cs_new_protected:Npn \__docxlike_page_push_apply: { \docxlike_page_push_default: }
@@ -609,38 +619,51 @@
   { \cs_gset_protected:Npn \__docxlike_page_push_apply: {#1} }
 \cs_new_protected:Npn \docxlike_page_set_pop_apply:n #1
   { \cs_gset_protected:Npn \__docxlike_page_pop_apply: {#1} }
-\bool_new:N \g__docxlike_page_moved_bool
-\dim_new:N \g__docxlike_page_save_lead_dim
-\dim_new:N \g__docxlike_page_save_char_dim
-\int_new:N \g__docxlike_page_save_cells_int
-\dim_new:N \g__docxlike_page_save_header_edge_dim
-\dim_new:N \g__docxlike_page_save_footer_edge_dim
+\clist_const:Nn \c__docxlike_page_state_dim_clist
+  {
+    lead , char , paper_width , paper_height , margin_left , margin_right , margin_top ,
+    margin_bottom , header_edge , footer_edge , head_height , head_sep , foot_skip
+  }
+\seq_new:N \g__docxlike_page_stack_seq
+\tl_new:N \l_docxlike_page_restore_tl
+\tl_new:N \l__docxlike_page_prev_layout_tl
+\msg_new:nnn { docxlike } { page-pop-empty }
+  { Page~setup~popped~without~a~matching~push;~nothing~is~restored. }
 \cs_new_protected:Npn \docxlike_page_setup_push:n #1
   {
-    \dim_gset_eq:NN \g__docxlike_page_save_lead_dim \g_docxlike_page_lead_dim
-    \dim_gset_eq:NN \g__docxlike_page_save_char_dim \g_docxlike_page_char_dim
-    \int_gset_eq:NN \g__docxlike_page_save_cells_int \g_docxlike_page_cells_int
-    \__docxlike_page_save_hook:
-    \dim_gset_eq:NN \g__docxlike_page_save_header_edge_dim \g_docxlike_page_header_edge_dim
-    \dim_gset_eq:NN \g__docxlike_page_save_footer_edge_dim \g_docxlike_page_footer_edge_dim
-    \tl_gset_eq:NN \g__docxlike_page_save_layout_tl \g__docxlike_page_layout_tl
-    \__docxlike_page_compute:n {#1}
-    \tl_if_eq:NNTF \g__docxlike_page_layout_tl \g__docxlike_page_save_layout_tl
-      { \bool_gset_false:N \g__docxlike_page_moved_bool }
+    \tl_clear:N \l_docxlike_page_restore_tl
+    \clist_map_inline:Nn \c__docxlike_page_state_dim_clist
       {
-        \bool_gset_true:N \g__docxlike_page_moved_bool
-        \__docxlike_page_push_apply:
+        \tl_put_right:Ne \l_docxlike_page_restore_tl
+          {
+            \dim_gset:Nn \exp_not:c { g_docxlike_page_##1_dim }
+              { \dim_use:c { g_docxlike_page_##1_dim } }
+          }
       }
+    \tl_put_right:Ne \l_docxlike_page_restore_tl
+      {
+        \int_gset:Nn \exp_not:N \g_docxlike_page_cells_int { \int_use:N \g_docxlike_page_cells_int }
+        \bool_if:NTF \g_docxlike_grid_bool
+          { \exp_not:N \bool_gset_true:N } { \exp_not:N \bool_gset_false:N }
+          \exp_not:N \g_docxlike_grid_bool
+        \tl_gset:Nn \exp_not:N \g__docxlike_page_layout_tl
+          { \exp_not:V \g__docxlike_page_layout_tl }
+      }
+    \__docxlike_page_save_hook:
+    \tl_set_eq:NN \l__docxlike_page_prev_layout_tl \g__docxlike_page_layout_tl
+    \__docxlike_page_compute:n {#1}
+    \tl_if_eq:NNF \g__docxlike_page_layout_tl \l__docxlike_page_prev_layout_tl
+      {
+        \__docxlike_page_push_apply:
+        \tl_put_left:Nn \l_docxlike_page_restore_tl { \__docxlike_page_pop_apply: }
+      }
+    \seq_gpush:NV \g__docxlike_page_stack_seq \l_docxlike_page_restore_tl
   }
 \cs_new_protected:Npn \docxlike_page_setup_pop:
   {
-    \bool_if:NT \g__docxlike_page_moved_bool { \__docxlike_page_pop_apply: }
-    \dim_gset_eq:NN \g_docxlike_page_lead_dim \g__docxlike_page_save_lead_dim
-    \dim_gset_eq:NN \g_docxlike_page_char_dim \g__docxlike_page_save_char_dim
-    \int_gset_eq:NN \g_docxlike_page_cells_int \g__docxlike_page_save_cells_int
-    \dim_gset_eq:NN \g_docxlike_page_header_edge_dim \g__docxlike_page_save_header_edge_dim
-    \dim_gset_eq:NN \g_docxlike_page_footer_edge_dim \g__docxlike_page_save_footer_edge_dim
-    \__docxlike_page_restore_hook:
+    \seq_gpop:NNTF \g__docxlike_page_stack_seq \l_docxlike_page_restore_tl
+      { \l_docxlike_page_restore_tl }
+      { \msg_warning:nn { docxlike } { page-pop-empty } }
   }
 %    \end{macrocode}
 %

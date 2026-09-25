@@ -6,6 +6,8 @@
 %
 % \section{页眉页脚、节与域}
 %
+% \changes{v3.2a}{2026/09/26}{分节时可以写这一节自己的页边距、纸张、文档网格与页眉页脚距，换页的
+%   分节换了页再套上；连续分节写了报错}
 % \changes{v0.1.0}{2026/09/24}{照 Word 的模型排页眉页脚：每节首页、奇数页、偶数页三份，
 %   没给就沿用前一节；页眉顶在页眉距、页脚底在页脚距；页码格式、域、段落边框、制表位}
 %
@@ -493,7 +495,9 @@
 % （不换页）。连续分节时，分节所在那一页还算前一节，下一页起才是新的一节，
 % 页眉页脚看的是页顶那一刻在哪一节。
 %
-% 一节自己的页边距、纸张、文档网格还没有做，在分节时写了报错。
+% 一节自己的页边距、纸张、文档网格与页眉页脚距写在 \option{page-setup} 里，与导言区的写法一样，
+% 在上一节的页面设置上改。换页的分节换了页再套上；连续分节不换页，一页里换不了版心的高，写了
+% 报错（Word 在连续分节处改纸张也会自己另起一页，改左右边距才在同一页里接着排）。
 %
 % 新一节的第一段落在页顶时保留段前（减去前一段的段后），与 Word 一样，见
 % \file{docxlike-format.dtx} 的“页顶的段前”。docx 里分节符挂在一个段落上，本包的
@@ -507,10 +511,14 @@
 \bool_new:N \g_docxlike_headfoot_even_odd_bool
 \tl_new:N \l__docxlike_section_type_tl
 \msg_new:nnnn { docxlike } { section-page-setup }
-  { Page~setup~'#1'~cannot~be~set~per~section~yet. }
+  { Page~setup~'#1'~cannot~be~changed~at~a~continuous~section~break. }
+  { Use~a~next-page,~odd-page~or~even-page~break.~The~key~is~ignored. }
+\tl_new:N \l__docxlike_section_geometry_tl
+\cs_new_protected:Npn \__docxlike_section_geometry:nn #1#2
   {
-    Only~'layout/different-first-page'~may~be~given~at~a~section~break.~
-    The~key~is~ignored.
+    \str_if_eq:VnTF \l__docxlike_section_type_tl { continuous }
+      { \msg_error:nnn { docxlike } { section-page-setup } {#1} }
+      { \tl_put_right:Nn \l__docxlike_section_geometry_tl { #1 = {#2} , } }
   }
 \keys_define:nn { docxlike / section }
   {
@@ -525,19 +533,19 @@
   {
     layout .code:n =
       { \__docxlike_keys_set:nn { docxlike / section / page-setup / layout } {#1} } ,
-    unknown .code:n =
-      { \msg_error:nnV { docxlike } { section-page-setup } \l_keys_key_str } ,
+    margins .code:n = { \__docxlike_section_geometry:nn { margins } {#1} } ,
+    paper .code:n = { \__docxlike_section_geometry:nn { paper } {#1} } ,
+    document-grid .code:n = { \__docxlike_section_geometry:nn { document-grid } {#1} } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / section / page-setup / layout }
   {
     different-first-page .choices:nn = { true , false }
       { \__docxlike_section_put:nV { titlePg } \l_keys_choice_tl } ,
     different-first-page .default:n = true ,
-    unknown .code:n =
-      {
-        \msg_error:nne { docxlike } { section-page-setup }
-          { layout / \l_keys_key_str }
-      } ,
+    from-edge .code:n =
+      { \__docxlike_section_geometry:nn { layout } { from-edge = {#1} } } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / page-setup / layout }
   {
@@ -613,6 +621,7 @@
 \int_gset:Nn \g__docxlike_headfoot_page_section_int { 1 }
 \cs_new_protected:Npn \docxlike_section_new:nn #1#2
   {
+    \tl_set:Nn \l__docxlike_section_type_tl {#1}
     \str_case:nnF {#1}
       {
         { continuous }
@@ -637,11 +646,18 @@
     \prop_gset_eq:cc { g__docxlike_section_ \int_use:N \g_docxlike_section_int _prop }
       { g__docxlike_section_ \int_eval:n { \g_docxlike_section_int - 1 } _prop }
     \prop_gremove:cn { g__docxlike_section_ \int_use:N \g_docxlike_section_int _prop } { pgNumType/start }
+    \tl_clear:N \l__docxlike_section_geometry_tl
     \keys_set:nn { docxlike / section } {#1}
+    \tl_if_empty:NF \l__docxlike_section_geometry_tl
+      {
+        \__docxlike_page_setup_more:V \l__docxlike_section_geometry_tl
+        \docxlike_format_body_refresh:
+      }
     \__docxlike_section_thepage:
     \bool_gset_true:N \g_docxlike_section_start_bool
   }
 \cs_generate_variant:Nn \prop_gset_eq:NN { cc }
+\cs_generate_variant:Nn \__docxlike_page_setup_more:n { V }
 \cs_new_protected:Npn \__docxlike_section_page:nn #1#2
   {
     \clearpage
