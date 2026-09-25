@@ -7,7 +7,7 @@
 % \section{章节标题}
 %
 % \changes{v3.2a}{2026/09/25}{中文新版面终稿的章节标题改由 \pkg{docxlike} 排，不再经
-%   \pkg{ctex}：编号来自链接到标题样式的多级列表，编号与题名之间是一个全角空格；两行的
+%   \pkg{ctex}：编号来自链接到标题样式的多级列表，编号后照原件在题名前敲两个半角空格；两行的
 %   章题第二行照整行居中；四级标题后紧接标题时段前不再丢}
 % \changes{v3.2a}{2026/09/13}{章节命令与三套章节格式迁到 expl3；\cs{clubpenalty} 的赋值加
 %   花括号（裸写时 \hologo{TeX} 的数字扫描把标题后首段开头的数字一并吃进赋值，
@@ -713,8 +713,8 @@
 %
 % 目标是不再经 \pkg{ctex}：标题按样式排一段，编号来自多级列表，与 docx 同构。先做中文、
 % 非博士后、新版面的终稿，开关是 \cs{g\_\_hit\_heading\_docxlike\_bool}，关掉就回到 \pkg{ctex}
-% 那条路。与 \pkg{ctex} 那条路逐页比过，剩下的差别都照 iota 取舍：章题里的全角空格与汉字一样占
-% 一格（章题左移 0.05\,bp）；目录里“附录A”的“录”与“A”之间与“第1章”一样空；四级标题后面紧接
+% 那条路。与 \pkg{ctex} 那条路逐页比过，剩下的差别都照 iota 取舍：编号后的空白是一格
+% 连同字距（原先是 1\,em，节标题的题名右移 0.45\,bp，居中的章题左移 0.05\,bp）；目录里“附录A”的“录”与“A”之间与“第1章”一样空；四级标题后面紧接
 % 标题时，段前与四级标题的段后取大（原先段前丢了）；两行的章题第二行照整行居中，不按编号悬挂。
 %
 % 外壳 \cs{chapter}、\cs{section}……不动（清页、书签锚点、英文目录），换的是里面借自
@@ -725,16 +725,28 @@
 % 章前清页之后立起 \pkg{docxlike} 的“新一节开头”标记，章标题在页顶保住段前，对应 Word 里
 % 分页后插一个连续分节符。
 %
-% 编号格式照 Word 定义多级列表的写法：章“第\%1章”加一个全角空格隔开题名，节以下
-% “\%1.\%2”等同样。章名的“第”“章”取词条 \option{chapter-name}，空白取 \option{after-}\meta{级}
-% \option{-number} 词条，没设就是全角空格。人文社科类照范例：章用中文数字，节“一、”、
-% 条“（一）”题序后不空，款“1.”。附录换一套列表：章“附录A”（本科“附录1”），节“A.1”。
+% 编号格式照 Word 定义多级列表的写法：章“第\%1章”，节以下“\%1.\%2”等，章名的“第”“章”取词条
+% \option{chapter-name}。编号与题名之间的空白不写进编号格式，照原件在题名前敲两个半角空格
+% （标题命令的 \option{after-number}，只在编号了的标题上敲）：原件的兼容选项开着“平衡单字节与
+% 双字节字符”，两个空格各占半格，合起来一个字，空格是西文字形，不抬行高，全是西文的题名仍按西文
+% 行盒；Windows Word 实测，编号格式里的半角空格不受这个选项管，只有半个字，全角空格又会把西文
+% 题名的上升部抬成黑体的。空白取 \option{after-}\meta{级}\option{-number} 词条，没设就是两个半角空格。
+% 人文社科类照范例：章用中文数字，节“一、”、条“（一）”题序后不空，款“1.”。附录换一套列表：
+% 章“附录A”（本科“附录1”），节“A.1”。
 % 标题样式勾“与下段同页”，关掉“为字体调整字间距”：范例的标题样式就是这样，\pkg{ctex}
 % 那条路一律这样排。\option{chapterbold} 开着时英文摘要的标题加粗，用标题的局部格式给。
 %    \begin{macrocode}
 \bool_new:N \g__hit_heading_docxlike_bool
 \bool_gset_true:N \g__hit_heading_docxlike_bool
-\cs_new:Npn \__hit_heading_gap:n #1 { \hit@after@number:nnn {#1} { zh } { 　 } }
+\cs_new:Npn \__hit_heading_gap:n #1
+  { \hit@after@number:nnn {#1} { zh } { \c_space_tl \c_space_tl } }
+\cs_new:Npn \__hit_heading_after:n #1
+  {
+    \bool_lazy_and:nnF
+      { \bool_if_p:N \g__hit_hass_bool }
+      { \str_if_eq_p:nn {#1} { section } || \str_if_eq_p:nn {#1} { subsection } }
+      { \__hit_heading_gap:n {#1} }
+  }
 \cs_new:Npn \__hit_heading_term:nn #1#2
   { \tl_if_exist:cT { g__hit_term_ctex_ #1 _tl } { \clist_item:cn { g__hit_term_ctex_ #1 _tl } {#2} } }
 \cs_new_protected:Npn \__hit_heading_docxlike_lists:
@@ -744,11 +756,11 @@
         \docxlikesetup
           {
             multilevel-lists = { hit-headings = {
-              level-1 = { enter-formatting-for-number = \__hit_heading_term:nn { chapter-name } { 1 } \% 1 \__hit_heading_term:nn { chapter-name } { 2 } \__hit_heading_gap:n { chapter } ,
+              level-1 = { enter-formatting-for-number = \__hit_heading_term:nn { chapter-name } { 1 } \% 1 \__hit_heading_term:nn { chapter-name } { 2 } ,
                           number-style-for-this-level = chinese-counting , follow-number-with = nothing } ,
               level-2 = { enter-formatting-for-number = \% 2 、 , number-style-for-this-level = chinese-counting , follow-number-with = nothing } ,
               level-3 = { enter-formatting-for-number = （ \% 3 ） , number-style-for-this-level = chinese-counting , follow-number-with = nothing } ,
-              level-4 = { enter-formatting-for-number = \% 4 . \__hit_heading_gap:n { subsubsection } , follow-number-with = nothing } ,
+              level-4 = { enter-formatting-for-number = \% 4 . , follow-number-with = nothing } ,
             } }
           }
       }
@@ -756,11 +768,11 @@
         \docxlikesetup
           {
             multilevel-lists = { hit-headings = {
-              level-1 = { enter-formatting-for-number = \__hit_heading_term:nn { chapter-name } { 1 } \% 1 \__hit_heading_term:nn { chapter-name } { 2 } \__hit_heading_gap:n { chapter } ,
+              level-1 = { enter-formatting-for-number = \__hit_heading_term:nn { chapter-name } { 1 } \% 1 \__hit_heading_term:nn { chapter-name } { 2 } ,
                           follow-number-with = nothing } ,
-              level-2 = { enter-formatting-for-number = \% 1 . \% 2 \__hit_heading_gap:n { section } , follow-number-with = nothing } ,
-              level-3 = { enter-formatting-for-number = \% 1 . \% 2 . \% 3 \__hit_heading_gap:n { subsection } , follow-number-with = nothing } ,
-              level-4 = { enter-formatting-for-number = \% 1 . \% 2 . \% 3 . \% 4 \__hit_heading_gap:n { subsubsection } , follow-number-with = nothing } ,
+              level-2 = { enter-formatting-for-number = \% 1 . \% 2 , follow-number-with = nothing } ,
+              level-3 = { enter-formatting-for-number = \% 1 . \% 2 . \% 3 , follow-number-with = nothing } ,
+              level-4 = { enter-formatting-for-number = \% 1 . \% 2 . \% 3 . \% 4 , follow-number-with = nothing } ,
             } }
           }
       }
@@ -774,11 +786,11 @@
     \docxlikesetup
       {
         multilevel-lists = { hit-appendix = {
-          level-1 = { enter-formatting-for-number = \__hit_heading_term:nn { appendixname } { 1 } \% 1 \__hit_heading_gap:n { chapter } ,
+          level-1 = { enter-formatting-for-number = \__hit_heading_term:nn { appendixname } { 1 } \% 1 ,
                       number-style-for-this-level = #1 , follow-number-with = nothing } ,
-          level-2 = { enter-formatting-for-number = \% 1 . \% 2 \__hit_heading_gap:n { section } , follow-number-with = nothing } ,
-          level-3 = { enter-formatting-for-number = \% 1 . \% 2 . \% 3 \__hit_heading_gap:n { subsection } , follow-number-with = nothing } ,
-          level-4 = { enter-formatting-for-number = \% 1 . \% 2 . \% 3 . \% 4 \__hit_heading_gap:n { subsubsection } , follow-number-with = nothing } ,
+          level-2 = { enter-formatting-for-number = \% 1 . \% 2 , follow-number-with = nothing } ,
+          level-3 = { enter-formatting-for-number = \% 1 . \% 2 . \% 3 , follow-number-with = nothing } ,
+          level-4 = { enter-formatting-for-number = \% 1 . \% 2 . \% 3 . \% 4 , follow-number-with = nothing } ,
         } }
       }
   }
@@ -806,7 +818,7 @@
       }
     \docxlike_heading_new:Nnnn \__hit_dl_chapter:w { Heading~1 } { chapter }
       {
-        label = counter ,
+        label = counter , after-number = \__hit_heading_after:n { chapter } ,
         numbered = \legacy_if_p:n { @mainmatter } && \int_compare_p:nNn { \c@secnumdepth } > { -1 } ,
       }
     \RenewDocumentCommand \hit@chapter { s o m }
@@ -837,11 +849,20 @@
           }
       }
     \docxlike_heading_new:Nnnn \hit@section { Heading~2 } { section }
-      { label = counter , penalty = \@secpenalty , numbered = \int_compare_p:nNn { \c@secnumdepth } > { 0 } }
+      {
+        label = counter , penalty = \@secpenalty , after-number = \__hit_heading_after:n { section } ,
+        numbered = \int_compare_p:nNn { \c@secnumdepth } > { 0 } ,
+      }
     \docxlike_heading_new:Nnnn \hit@subsection { Heading~3 } { subsection }
-      { label = counter , penalty = \@secpenalty , numbered = \int_compare_p:nNn { \c@secnumdepth } > { 1 } }
+      {
+        label = counter , penalty = \@secpenalty , after-number = \__hit_heading_after:n { subsection } ,
+        numbered = \int_compare_p:nNn { \c@secnumdepth } > { 1 } ,
+      }
     \docxlike_heading_new:Nnnn \hit@subsubsection { Heading~4 } { subsubsection }
-      { label = counter , penalty = \@secpenalty , numbered = \int_compare_p:nNn { \c@secnumdepth } > { 2 } }
+      {
+        label = counter , penalty = \@secpenalty , after-number = \__hit_heading_after:n { subsubsection } ,
+        numbered = \int_compare_p:nNn { \c@secnumdepth } > { 2 } ,
+      }
     \AddToHook { env / appendix / begin } { \__hit_heading_docxlike_link:n { hit-appendix } }
   }
 \bool_lazy_all:nT
