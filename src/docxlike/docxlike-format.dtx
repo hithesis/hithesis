@@ -3108,10 +3108,14 @@
 % 整段，\cs{docxrun} 里写了就管那一截。\hologo{LuaLaTeX} 上两样都记在属性上，出页前由
 % \file{docxlike-run.lua} 落到节点上：下划线按段画一道线，上下标挪字形的纵向偏移，断行照常。
 %
-% \emph{下划线的位置与粗细。} 线心在基线下 0.135\,em、粗 0.05\,em，em 是这一截字的字号。
-% 在 Word 里量的：中易宋体加 Times New Roman，12、24、48 磅三档，纯汉字、纯西文、数字、
-% 混排四种 run 一个数（48 磅那档全落在 0.135/0.050 上；12 磅那档在 0.123 到 0.173 之间晃，
-% 那是 Word 按设备像素取整）。粗体西文 run 在 Word 里线粗一倍，这一档没有另设。
+% \emph{下划线的位置与粗细。} 按字排在哪副字体里定。西文字（空格也算，Word 把空格排在西文
+% 字体里）照那副字体 \texttt{post} 表的 \texttt{underlinePosition} 与 \texttt{underlineThickness}：
+% 前者是线顶，后者是线粗。Times New Roman 是线顶 223/2048\,em、粗 100/2048\,em，线心
+% 0.133\,em；它的粗体字面粗 195/2048\,em，线心 0.157\,em，所以粗体的线又低又粗。汉字的线心在
+% 字号的八分之一再加半磅，线粗照字体的 \texttt{post} 表（中易宋体 12/256\,em），伪粗不改线。
+% 这几条对得上手头四组 Word 输出：48 磅四种 run 全落在 0.135/0.05\,em；学校表单（Windows）里
+% 16 磅粗体空格的线心 0.155\,em、粗 0.09\,em；Mac 导出件上 14 磅空格的线顶、线底取整到
+% 0.25 磅是 1.5 与 2.25；12 磅汉字线心 0.167\,em。线心或线粗不同的相邻两截各画各的。
 %
 % \emph{哪些地方画线。} 带同一个属性值的节点连成一段。段里夹着的不带属性的 kern、罚点、
 % whatsit 算在段里：\pkg{luatexja} 与断行层插的网格增量、标点挤压都是新建的 kern，不带属性。
@@ -3121,7 +3125,7 @@
 % 里那半格是标点自己的字宽。\texttt{words-only} 在空格处断开。字号不同的字各画各的。
 %
 % 盒子带着属性、又排在行里的（\cs{docxrun} 里的 \cs{makebox}）当一整块画，Word 里在空格或
-% 制表符上加下划线留出的填写线就是这样来的；行盒本身带着属性（整段划线时 \cs{par} 在组里）
+% 制表符上加下划线留出的填写线就是这样来的，线照设下划线时的西文字体算，与空格一样；行盒本身带着属性（整段划线时 \cs{par} 在组里）
 % 就往里找，不整行画。
 %
 % \emph{上下标。} Word 的字号只住在半磅格上。西文：字号取 0.65 倍字号凑到半磅，上标抬
@@ -3131,7 +3135,8 @@
 % 再按西文字号选，把中文字体放回去。
 %
 % \hologo{XeLaTeX} 上没有属性。\cs{docxrun} 里的下划线与上下标退成装盒：下划线在盒下画线，
-% 上下标整盒升降、汉字随西文字号，这一截不能断行。样式里写的警告一次、不画。
+% 线照 Times New Roman 的 \texttt{post} 表（粗体用粗体那一组），上下标整盒升降、汉字随西文
+% 字号，这一截不能断行。样式里写的警告一次、不画。
 %    \begin{macrocode}
 \bool_new:N \g__docxlike_run_used_bool
 \msg_new:nnnn { docxlike } { run-needs-luatex }
@@ -3217,7 +3222,7 @@
   {
     \newattribute \docxlike@ul@attr
     \newattribute \docxlike@ulc@attr
-    \newattribute \docxlike@ulsz@attr
+    \newattribute \docxlike@ulfont@attr
     \newattribute \docxlike@va@attr
     \newattribute \docxlike@vaja@attr
     \cs_new_protected:Npn \__docxlike_run_used:
@@ -3236,7 +3241,7 @@
             { words } { \docxlike@ul@attr = 2 \scan_stop: }
           }
           { \unsetattribute \docxlike@ul@attr }
-        \docxlike@ulsz@attr = \dim_to_decimal_in_sp:n { \f@size pt } \scan_stop:
+        \docxlike@ulfont@attr = \fontid \font \scan_stop:
         \str_if_eq:nnTF {#2} { auto }
           { \unsetattribute \docxlike@ulc@attr }
           {
@@ -3280,7 +3285,7 @@
           or~kpse.find_file("docxlike-run.lua",~"lua"))
         docxlike.run.install(luatexbase.attributes["docxlike@ul@attr"],
           luatexbase.attributes["docxlike@ulc@attr"],
-          luatexbase.attributes["docxlike@ulsz@attr"],
+          luatexbase.attributes["docxlike@ulfont@attr"],
           luatexbase.attributes["docxlike@va@attr"],
           luatexbase.attributes["docxlike@vaja@attr"])
       }
@@ -3471,7 +3476,9 @@
                     \box_use:N \l__docxlike_run_box
                     \tex_kern:D - \box_wd:N \l__docxlike_run_box
                     \__docxlike_run_xe_color:
-                    \rule [ - 0.16 em ] { \box_wd:N \l__docxlike_run_box } { 0.05 em }
+                    \str_if_in:NnTF \f@series { b }
+                      { \rule [ - 0.2041 em ] { \box_wd:N \l__docxlike_run_box } { 0.0952 em } }
+                      { \rule [ - 0.1577 em ] { \box_wd:N \l__docxlike_run_box } { 0.0488 em } }
                   }
               }
             \box_move_up:nn { \fp_use:N \l__docxlike_run_raise_fp bp }
@@ -5921,12 +5928,11 @@ local GLYPH, GLUE, KERN = node.id("glyph"), node.id("glue"), node.id("kern")
 local PENALTY, WHATSIT, RULE = node.id("penalty"), node.id("whatsit"), node.id("rule")
 local has_attr = node.has_attribute
 local traverse = node.traverse
-local ul_attr, ulc_attr, ulsz_attr, va_attr, vaja_attr
+local ul_attr, ulc_attr, ulfont_attr, va_attr, vaja_attr
 local icflag_attr = luatexbase.attributes["ltj@icflag"]
 
 local SINGLE, WORDS = 1, 2
--- 线心在基线下 0.135 em，粗 0.05 em
-local CENTER, THICK = 0.135, 0.05
+local HALF_BP = tex.sp("0.5bp")
 
 local closing, opening = {}, {}
 for _, c in utf8.codes("，。、；：？！）」』】〕〉》”’") do closing[c] = true end
@@ -5947,6 +5953,43 @@ local function fsize(f)
   return s
 end
 
+-- 字体文件 post 表里的下划线：线顶离基线多远、线多粗，都按 em 算；读不到的给 false
+local files, posts = {}, {}
+local function post_underline(f)
+  local u = posts[f]
+  if u ~= nil then return u end
+  u = false
+  local t = fonts and fonts.hashes and fonts.hashes.identifiers and fonts.hashes.identifiers[f]
+  local path = t and t.filename
+  local reader = docxlike and docxlike.metrics and docxlike.metrics.read_file
+  if path and reader then
+    local faces = files[path]
+    if not faces then faces = reader(path); files[path] = faces end
+    local sub = t.specification and tonumber(t.specification.sub) or 1
+    local face = faces[sub] or faces[1]
+    if face and face.underline and face.units then
+      u = { top = -face.underline[1] / face.units, thick = face.underline[2] / face.units }
+    end
+  end
+  posts[f] = u
+  return u
+end
+
+-- 一个字体下划线的线心（基线下多远）与线粗，单位 sp。汉字：线心字号的八分之一加半磅，
+-- 线粗照 post 表；西文：两样都照 post 表。读不到 post 表的按 0.135 em、0.05 em
+local function font_metrics(f)
+  local size = fsize(f)
+  local u = post_underline(f)
+  local jf = jfonts()
+  if jf and jf[f] then
+    return math.floor(size / 8 + HALF_BP + 0.5), math.floor((u and u.thick or 0.05) * size + 0.5)
+  end
+  if u then
+    return math.floor((u.top + u.thick / 2) * size + 0.5), math.floor(u.thick * size + 0.5)
+  end
+  return math.floor(0.135 * size + 0.5), math.floor(0.05 * size + 0.5)
+end
+
 -- 节点里头一个（last 为真时末一个）字形；标点在 luatexja 包的盒里
 local function edge_glyph(n, last)
   if n.id == GLYPH then return n end
@@ -5961,11 +6004,6 @@ local function edge_glyph(n, last)
   end
 end
 
-local function seg_size(n)
-  local g = edge_glyph(n, false)
-  if g then return fsize(g.font) end
-end
-
 local function is_space(n)
   return n.id == GLUE and (n.subtype == 13 or n.subtype == 14)
 end
@@ -5976,6 +6014,9 @@ local function is_jfm_glue(n)
   local pic = has_attr(n, icflag_attr)
   return pic ~= nil and pic >= 4 and pic < 68
 end
+
+-- TeX 的 \hbox 原语做的盒（subtype 2），不是 luatexja 或断行层包字用的盒
+local BOX = 2
 
 -- 段首段尾能落的节点：字、行里的盒、有宽的线、用户的胶与空格（字下加线时空格除外）
 local function solid(n, v)
@@ -5999,6 +6040,25 @@ local function bridge(n)
   return id == KERN or id == PENALTY or id == WHATSIT or (id == RULE and n.width == 0)
 end
 
+-- 设下划线时的西文字体（Word 里空格排在西文字体里）
+local function run_metrics(n)
+  local f = has_attr(n, ulfont_attr)
+  if f then return font_metrics(f) end
+end
+
+-- 一个节点的线心与线粗：字照它的字体；luatexja 与断行层包字的盒照里面的字；空格、用户的盒、
+-- 有宽的线照这个 run 的西文字体。别的节点（kern、罚点、字间的胶，用户的 \hskip 也在内，
+-- 与字间胶分不开）不定，跟着前后走
+local function metrics(n)
+  local id = n.id
+  if id == GLYPH then return font_metrics(n.font) end
+  if id == HLIST and n.subtype ~= BOX then
+    local g = edge_glyph(n, false)
+    if g then return font_metrics(g.font) end
+  end
+  if id == HLIST or (id == RULE and n.width > 0) or is_space(n) then return run_metrics(n) end
+end
+
 local function colorstack(cmd, data)
   local w = node.new(WHATSIT, "pdf_colorstack")
   w.stack = 0
@@ -6007,8 +6067,9 @@ local function colorstack(cmd, data)
   return w
 end
 
-local function draw(box, first, last, lastsolid, size, v)
+local function draw(box, first, last, c, th, v)
   local head = box.head
+  local lastsolid = last
   -- 段尾：末一个字的网格增量与挤压 kern；闭标点后的半格
   local t = last.next
   while t and t.id == KERN and (has_attr(t, ul_attr) or v) == v do
@@ -6026,13 +6087,12 @@ local function draw(box, first, last, lastsolid, size, v)
     if g and opening[g.char] then first = p end
   end
   local w = node.dimensions(box.glue_set, box.glue_sign, box.glue_order, first, last.next)
-  if w <= 0 or not size or size <= 0 then return last end
-  local c, th = CENTER * size, THICK * size
+  if w <= 0 or not c then return last end
   local r = node.new(RULE)
-  r.width, r.height, r.depth = w, -math.floor(c - th / 2 + 0.5), math.floor(c + th / 2 + 0.5)
+  r.width, r.height, r.depth = w, -(c - th // 2), c + th - th // 2
   local k = node.new(KERN)
   k.kern = -w
-  local col = ulc_attr and has_attr(first, ulc_attr) or (ulc_attr and has_attr(lastsolid, ulc_attr))
+  local col = ulc_attr and (has_attr(first, ulc_attr) or has_attr(lastsolid, ulc_attr))
   local data = col and M.colors[col]
   if data then head = node.insert_before(head, first, colorstack(1, data)) end
   head = node.insert_before(head, first, r)
@@ -6042,28 +6102,30 @@ local function draw(box, first, last, lastsolid, size, v)
   return last
 end
 
+-- 一行里带同一属性值的节点连成段；线心或线粗变了就另起一段（汉字与西文、字号不同）
 local function underline(box)
   local n = box.head
   while n do
     local v = has_attr(n, ul_attr)
     if v and solid(n, v) then
       local first, last = n, n
-      local size = seg_size(n)
+      local c, th = metrics(n)
       local m = n.next
       while m do
         local mv = has_attr(m, ul_attr)
         if mv == v then
           if v == WORDS and is_space(m) then break end
-          local ms = m.id ~= GLUE and seg_size(m) or nil
-          if ms and size and ms ~= size then break end
-          size = size or ms
+          local mc, mth = metrics(m)
+          if mc and c and (mc ~= c or mth ~= th) then break end
+          if not c then c, th = mc, mth end
           if solid(m, v) then last = m end
         elseif mv ~= nil or not bridge(m) then
           break
         end
         m = m.next
       end
-      n = draw(box, first, last, last, size or has_attr(first, ulsz_attr), v).next
+      if not c then c, th = run_metrics(first) end
+      n = draw(box, first, last, c, th, v).next
     else
       n = n.next
     end
@@ -6104,8 +6166,8 @@ function M.color(i, hex)
   M.colors[i] = c .. " rg " .. c .. " RG"
 end
 
-function M.install(ul, ulc, ulsz, va, vaja)
-  ul_attr, ulc_attr, ulsz_attr, va_attr, vaja_attr = ul, ulc, ulsz, va, vaja
+function M.install(ul, ulc, ulfont, va, vaja)
+  ul_attr, ulc_attr, ulfont_attr, va_attr, vaja_attr = ul, ulc, ulfont, va, vaja
   luatexbase.add_to_callback("pre_shipout_filter", function(h)
     if M.used then
       shift(h)
