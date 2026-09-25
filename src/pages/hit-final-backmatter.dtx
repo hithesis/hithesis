@@ -6,6 +6,8 @@
 %
 % \section{结论、致谢、简历、成果与索引页}
 %
+% \changes{v3.2a}{2026/09/26}{成果组名写了 \option{publications-group} 样式的排成 \pkg{docxlike} 的段；
+%   博士后的组名照模板不编号、组间不另加空当}
 % \changes{v3.2a}{2026/09/13}{成果页的条目从 \file{.bib} 里出：\env{publication} 收库名，
 %   \env{pubgroup} 分组，组名段照范例（编号、段前段后 5 磅、1.25 倍行盒、宋体伪粗；
 %   人文社科类走节标题那一档），编号版式与参考文献表同源，\pkg{biblatex} 一线也加进
@@ -247,6 +249,10 @@
 %    \begin{macrocode}
 \cs_new:Npn \__hit_pub_group_number:
   {
+    \bool_if:NF \g__hit_postdoc_bool { \__hit_pub_group_number_thesis: }
+  }
+\cs_new:Npn \__hit_pub_group_number_thesis:
+  {
     \bool_if:NTF \g__hit_en_bool
       { ( \int_use:N \g__hit_pub_group_int ) ~ }
       {
@@ -276,7 +282,10 @@
 % 各的。
 %    \begin{macrocode}
 \cs_new:Npn \__hit_pub_group_skip:
-  { \bool_if:NTF \g__hit_hass_bool { 9.75bp } { 5bp } }
+  {
+    \bool_if:NTF \g__hit_postdoc_bool { 0bp }
+      { \bool_if:NTF \g__hit_hass_bool { 9.75bp } { 5bp } }
+  }
 \cs_new_protected:Npn \__hit_pub_group_font:
   {
     \bool_if:NTF \g__hit_hass_bool
@@ -300,20 +309,39 @@
         \dim_set:Nn \itemindent { \labelwidth + \labelsep - \leftmargin }
       }
   }
+%    \end{macrocode}
+%
+% 组名那一段：样式 \option{publications-group} 写了的按它排成 \pkg{docxlike} 的段，没写的照旧
+% 手排（学位论文那几档）。《博士后研究工作报告模板》的六个组名是手敲的段，黑体加粗四号、固定值
+% 15.5 磅、两个自动间距不勾，组名不编号，组与组之间也不另加空当（模板里是作者敲的空段）。
+%    \begin{macrocode}
 \NewDocumentEnvironment { pubgroup } { O{auto} m }
   {
     \int_gincr:N \g__hit_pub_group_int
-    \par \addvspace { \__hit_pub_group_skip: }
-    \group_begin:
-      \dim_zero:N \parindent
-      \skip_zero:N \parskip
-      \dim_set:Nn \lineskiplimit { -\maxdimen }
-      \noindent \__hit_pub_group_font:
-      \str_case:nnF {#1}
-        { { auto } { \__hit_pub_group_number: } { } { } }
-        {#1}
-      #2 \par
-    \group_end:
+    \docxlike_format_if_blank:nTF { publications-group }
+      {
+        \par \addvspace { \__hit_pub_group_skip: }
+        \group_begin:
+          \dim_zero:N \parindent
+          \skip_zero:N \parskip
+          \dim_set:Nn \lineskiplimit { -\maxdimen }
+          \noindent \__hit_pub_group_font:
+          \str_case:nnF {#1}
+            { { auto } { \__hit_pub_group_number: } { } { } }
+            {#1}
+          #2 \par
+        \group_end:
+      }
+      {
+        \par
+        \docxlike_format_par:nn { publications-group }
+          {
+            \str_case:nnF {#1}
+              { { auto } { \__hit_pub_group_number: } { } { } }
+              {#1}
+            #2
+          }
+      }
     \nobreak
     \bool_if:NT \g__hit_hass_bool
       { \addvspace { 9.75bp + 9.12bp + 12.18bp - 19.46bp } }
