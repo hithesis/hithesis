@@ -61,6 +61,8 @@
 %   \cs{docxlike\_format\_stack\_line:n}}
 % \changes{v3.2a}{2026/08/24}{纯西文段由 \cs{docxlike\_format\_apply\_par:n} 铺版面，与别的段共用
 %   \option{styles} 词汇；首行基线按 Times 的上升部}
+% \changes{v3.2a}{2026/09/26}{只写了行距的目标也发 \cs{fontsize}（先前只看字号，行距落不下去）；
+%   \cs{parmark} 收段前段后，与别的段同一本账}
 % \changes{v3.2a}{2026/08/24}{新增 \cs{parmark}：模拟 Word 的空回车段，可选参数收行数或
 %   \option{styles} 词汇；自然行高按段落标记的字体查；行距与贴格默认跟当前
 %   段落走（Word 里回车出的空段继承上一段的属性，贴格的单倍空段占一整格，实测），
@@ -2803,6 +2805,10 @@
 % Word 的行距是刚性的，本包照 Word 建模，所以这边只发 \cs{fontsize}\marg{字号}\marg{行距}，没有伸缩量，
 % \option{styles} 族也不打算加表达伸缩的键。这是有意的，不是漏了。
 %
+% \cs{fontsize} 在目标自己写了字号或行距时发。只写了行距的目标（比如参考文献条目改成单倍）字号
+% 照当时的，行距照目标的；两样都没写就不发，字号行距都跟着上下文。先前只看字号，只改行距的
+% 目标行距落不下去。
+%
 % \emph{二是各级标题的 \cs{bfseries}。} 旧格式里章、节、条常带着它，
 % 这边一律不加粗：黑体本身够重，规范也没要求。要加粗就在
 % \option{styles} 里写 \option{bold}\texttt{=true}，一处说了算。
@@ -2869,6 +2875,12 @@
           { \l_docxlike_format_natural_latin_tl } { \l_docxlike_format_ascent_latin_tl }
       }
     \__docxlike_format_sz_read:nN {#1} \l__docxlike_format_value_tl
+    \tl_if_empty:NT \l__docxlike_format_value_tl
+      {
+        \__docxlike_format_slot_find:nn {#1} { line }
+        \bool_if:NT \l__docxlike_format_slot_found_bool
+          { \tl_set:Nn \l__docxlike_format_value_tl { line } }
+      }
     \tl_if_empty:NF \l__docxlike_format_value_tl
       {
         \tl_put_right:Nx \l__docxlike_format_out_tl
@@ -3224,69 +3236,7 @@
           \int_compare:nNnT { \g__docxlike_linebreak_compat_int } < { 15 }
             { \bool_set_true:N \l__docxlike_format_top_keep_bool }
         }
-      \dim_compare:nNnT { \l_docxlike_format_before_dim } > { \c_zero_dim }
-        {
-          \par
-          \bool_lazy_all:nTF
-            {
-              { ! \mode_if_inner_p: }
-              {
-                \l__docxlike_format_top_keep_bool
-                || \g_docxlike_section_start_bool
-              }
-              { \dim_compare_p:nNn { \pagegoal } = { \c_max_dim } }
-            }
-            {
-              \hbox:n { }
-              \nointerlineskip
-              \skip_vertical:n
-                {
-                  \bool_if:NTF \g__docxlike_format_add_spacing_bool
-                    { \l_docxlike_format_before_dim }
-                    {
-                      \dim_max:nn { 0pt }
-                        { \l_docxlike_format_before_dim - \g__docxlike_format_prev_after_dim }
-                    }
-                  - \topskip
-                }
-            }
-            {
-              \bool_if:NTF \g__docxlike_format_add_spacing_bool
-                {
-                  \skip_vertical:n
-                    {
-                      \l_docxlike_format_before_dim
-                      \bool_if:NF \g__docxlike_format_after_placed_bool
-                        { + \g__docxlike_format_prev_after_dim }
-                      \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
-                    }
-                }
-                {
-                  \bool_lazy_and:nnTF
-                    { \dim_compare_p:nNn { \g__docxlike_format_pending_after_dim } > { 0pt } }
-                    { \dim_compare_p:nNn { \tex_lastskip:D } = { 0pt } }
-                    {
-                      \dim_compare:nNnT
-                        { \l_docxlike_format_before_dim } > { \g__docxlike_format_pending_after_dim }
-                        {
-                          \skip_vertical:n
-                            {
-                              \l_docxlike_format_before_dim
-                              - \g__docxlike_format_pending_after_dim
-                              \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
-                            }
-                        }
-                    }
-                    {
-                      \addvspace
-                        {
-                          \l_docxlike_format_before_dim
-                          \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
-                        }
-                    }
-                }
-            }
-        }
+      \__docxlike_format_before_put:
       \nointerlineskip
       \__docxlike_format_border_put:nn {#1} { top }
       \__docxlike_format_read:nnnN {#1} { pPr/keepLines } { false } \l__docxlike_format_value_tl
@@ -3319,6 +3269,83 @@
       \dim_gset_eq:NN \g__docxlike_format_after_dim \l_docxlike_format_after_dim
       \dim_gset_eq:NN \g__docxlike_format_after_plus_dim \l_docxlike_format_after_plus_dim
     \group_end:
+    \__docxlike_format_after_put:
+  }
+%    \end{macrocode}
+%
+% 段前、段后两段抽成函数，\cs{parmark} 写了段前段后的空段也走同一本账（取大还是相加、前一段的
+% 段后记没记、页首留不留）。段前读 \cs{l\_docxlike\_format\_before\_dim} 与它的伸量、
+% \cs{l\_\_docxlike\_format\_top\_keep\_bool}；段后读 \cs{g\_\_docxlike\_format\_after\_dim}、
+% 伸量与 \cs{g\_\_docxlike\_format\_keep\_tl}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_format_before_put:
+  {
+  \dim_compare:nNnT { \l_docxlike_format_before_dim } > { \c_zero_dim }
+    {
+      \par
+      \bool_lazy_all:nTF
+        {
+          { ! \mode_if_inner_p: }
+          {
+            \l__docxlike_format_top_keep_bool
+            || \g_docxlike_section_start_bool
+          }
+          { \dim_compare_p:nNn { \pagegoal } = { \c_max_dim } }
+        }
+        {
+          \hbox:n { }
+          \nointerlineskip
+          \skip_vertical:n
+            {
+              \bool_if:NTF \g__docxlike_format_add_spacing_bool
+                { \l_docxlike_format_before_dim }
+                {
+                  \dim_max:nn { 0pt }
+                    { \l_docxlike_format_before_dim - \g__docxlike_format_prev_after_dim }
+                }
+              - \topskip
+            }
+        }
+        {
+          \bool_if:NTF \g__docxlike_format_add_spacing_bool
+            {
+              \skip_vertical:n
+                {
+                  \l_docxlike_format_before_dim
+                  \bool_if:NF \g__docxlike_format_after_placed_bool
+                    { + \g__docxlike_format_prev_after_dim }
+                  \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
+                }
+            }
+            {
+              \bool_lazy_and:nnTF
+                { \dim_compare_p:nNn { \g__docxlike_format_pending_after_dim } > { 0pt } }
+                { \dim_compare_p:nNn { \tex_lastskip:D } = { 0pt } }
+                {
+                  \dim_compare:nNnT
+                    { \l_docxlike_format_before_dim } > { \g__docxlike_format_pending_after_dim }
+                    {
+                      \skip_vertical:n
+                        {
+                          \l_docxlike_format_before_dim
+                          - \g__docxlike_format_pending_after_dim
+                          \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
+                        }
+                    }
+                }
+                {
+                  \addvspace
+                    {
+                      \l_docxlike_format_before_dim
+                      \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
+                    }
+                }
+            }
+        }
+    }
+  }
+\cs_new_protected:Npn \__docxlike_format_after_put:
+  {
     \dim_gset_eq:NN \g__docxlike_format_prev_after_dim \g__docxlike_format_after_dim
     \bool_gset_true:N \g__docxlike_format_after_placed_bool
     \str_if_eq:VnT \g__docxlike_format_keep_tl { true } { \nobreak }
@@ -5114,6 +5141,8 @@
 % 表后的空段没有段前），没有采用：浮动体的后距不能砍。
 %
 % 可选参数是回车几次；含等号时按键值读，写法与样式同：\option{lines} 几行；
+% \option{paragraph} 的 \option{spacing} 里还收 \option{before}、\option{after}（长度），空段的段前段后与
+% 别的段同一本账：与前后段取大还是相加照兼容选项，页首的段前照 \cs{docxlike\_format\_par:nn} 的规矩。
 % \option{font} 里 \option{size}、\option{asian-text-font}、\option{latin-text-font} 指定段落标记的字号
 % 与字体，自然行高只认实测值，没量过的字体报错不瞎给；\option{paragraph} 里 \option{spacing} 的
 % \option{line-spacing} 与 \option{at}，以及 \option{snap-to-grid-when-document-grid-is-defined} 贴不贴网格（网格没启用时写
@@ -5221,10 +5250,14 @@
     unknown .code:n =
       { \__docxlike_unknown_key: } ,
   }
+\dim_new:N \l__docxlike_parmark_before_dim
+\dim_new:N \l__docxlike_parmark_after_dim
 \keys_define:nn { docxlike / parmark / spacing }
   {
     line-spacing .tl_set:N = \l__docxlike_style_rule_tl ,
     at .tl_set:N = \l__docxlike_style_at_tl ,
+    before .code:n = { \dim_set:Nn \l__docxlike_parmark_before_dim { \__docxlike_bp:n {#1} } } ,
+    after .code:n = { \dim_set:Nn \l__docxlike_parmark_after_dim { \__docxlike_bp:n {#1} } } ,
     unknown .code:n =
       { \__docxlike_unknown_key: } ,
   }
@@ -5300,8 +5333,9 @@
 \NewDocumentCommand \parmark { s O{1} }
   {
     \par
-    \dim_gzero:N \g__docxlike_format_pending_after_dim
     \group_begin:
+    \dim_zero:N \l__docxlike_parmark_before_dim
+    \dim_zero:N \l__docxlike_parmark_after_dim
     \int_set:Nn \l__docxlike_parmark_lines_int { 1 }
     \dim_zero:N \l__docxlike_parmark_size_dim
     \fp_set:Nn \l__docxlike_parmark_ratio_fp { \c_docxlike_format_natural_latin_tl }
@@ -5321,6 +5355,14 @@
       { \keys_set:nn { docxlike / parmark } {#2} }
       { \int_set:Nn \l__docxlike_parmark_lines_int {#2} }
     \__docxlike_parmark_height:
+    \dim_compare:nNnT { \l__docxlike_parmark_before_dim } > { \c_zero_dim }
+      {
+        \dim_set_eq:NN \l_docxlike_format_before_dim \l__docxlike_parmark_before_dim
+        \dim_zero:N \l_docxlike_format_before_plus_dim
+        \bool_set_false:N \l__docxlike_format_top_keep_bool
+        \__docxlike_format_before_put:
+      }
+    \dim_gzero:N \g__docxlike_format_pending_after_dim
     \IfBooleanTF {#1}
       {
         \dim_set:Nn \l__docxlike_parmark_prev_dim { \tex_prevdepth:D }
@@ -5340,6 +5382,13 @@
       {
         \vspace
           { \dim_eval:n { \l__docxlike_parmark_ht_dim * \l__docxlike_parmark_lines_int } }
+      }
+    \dim_compare:nNnT { \l__docxlike_parmark_after_dim } > { \c_zero_dim }
+      {
+        \dim_gset_eq:NN \g__docxlike_format_after_dim \l__docxlike_parmark_after_dim
+        \dim_gzero:N \g__docxlike_format_after_plus_dim
+        \tl_gset:Nn \g__docxlike_format_keep_tl { false }
+        \__docxlike_format_after_put:
       }
     \group_end:
   }
