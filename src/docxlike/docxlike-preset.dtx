@@ -9,7 +9,7 @@
 % \changes{v0.1.0}{2026/09/23}{加包选项 \option{preset}，默认 \texttt{blank}：
 %   单独加载本包即照 Word 新建空白文档排}
 %
-% 在 \cls{ctexart} 或 \cls{article} 上写一句 \cs{usepackage}\marg{docxlike}，排出来就是
+% 在 \cls{article}（或 \cls{book}）上写一句 \cs{usepackage}\marg{docxlike}，排出来就是
 % Word 里“新建空白文档”的样子：页面、字体、字号、行距、段后、对齐都照它的
 % \file{Normal.dotm}。文档类自己管版面、只想借本包的机制时写
 % \cs{usepackage}\oarg{preset=none}\marg{docxlike}，本节什么都不做。
@@ -37,7 +37,7 @@
 %
 % 标题的层级对照 Word 的“标题 1”到“标题 4”：有 \cs{chapter} 的文档类从
 % \cs{chapter} 算起，没有的从 \cs{section} 算起，到 \cs{paragraph} 为止。标题由本包自己排
-% （\file{docxlike-heading.dtx}），\cls{ctexart} 与 \cls{article} 一样。Word 的空白文档里
+% （\file{docxlike-heading.dtx}）。Word 的空白文档里
 % 标题样式没有链接多级列表，所以标题不编号；要编号，定义一个多级列表链接到标题样式。
 % 标题样式勾着“与下段同页”与“段中不分页”，与 Word 一样。
 %
@@ -167,8 +167,9 @@
 % \emph{字体。} 正文的西文与汉字都是等线（Word 主题的正文字体两栏都填等线）。样式里没写西文字体，
 % 行高按文档默认的西文字体算，所以把那个默认也改成等线：纯西文的行（标题“1.1 Background”）
 % 与汉字行一样高，Word 就是这样排的。
-% 样式里写的是字体名 \texttt{DengXian}，切换时用这里声明的中文字族；\cs{dengxian} 与
-% \pkg{ctex} 的 \cs{songti} 同类，给文档里手动切用，找不到字体时它什么都不做。
+% 样式里写的是字体名 \texttt{DengXian}，切换时用这里声明的中文字族（\hologo{XeLaTeX} 是
+% \pkg{xeCJK} 的，\hologo{LuaLaTeX} 是 \pkg{luatexja-fontspec} 的，JFM 取 \texttt{zh\_CN/quanjiao}）；
+% \cs{dengxian} 给文档里手动切用，找不到字体时它什么都不做。
 %    \begin{macrocode}
 \bool_new:N \g__docxlike_preset_dengxian_bool
 \cs_new_protected:Npn \__docxlike_preset_major: { }
@@ -182,24 +183,40 @@
             \bool_gset_true:N \g__docxlike_preset_dengxian_bool
             \setmainfont { DengXian }
             \tl_gset:Nn \g_docxlike_format_default_latin_tl { DengXian }
-            \cs_if_exist:NT \setCJKmainfont { \setCJKmainfont { DengXian } }
-            \cs_if_exist:NT \setCJKfamilyfont
+            \sys_if_engine_xetex:TF
               {
+                \setCJKmainfont { DengXian }
                 \setCJKfamilyfont { dengxian } { DengXian }
                 \docxlike_font_select_new:nn { DengXian } { \CJKfamily { dengxian } }
+              }
+              {
+                \cs_if_exist:NT \setmainjfont
+                  {
+                    \setmainjfont [ JFM = zh_CN/quanjiao ] { DengXian }
+                    \newjfontfamily \docxlike@jf@dengxian [ JFM = zh_CN/quanjiao ] { DengXian }
+                    \docxlike_font_select_new:nn { DengXian } { \docxlike@jf@dengxian }
+                  }
               }
           }
           { \msg_warning:nnn { docxlike } { preset-font-missing } { DengXian } }
         \IfFontExistsTF { DengXian~Light }
           {
             \newfontfamily \docxlike@dengxian@light { DengXian~Light }
-            \cs_if_exist:NTF \setCJKfamilyfont
+            \sys_if_engine_xetex:TF
               {
                 \setCJKfamilyfont { dengxian-light } { DengXian~Light }
                 \cs_gset_protected:Npn \__docxlike_preset_major:
                   { \docxlike@dengxian@light \CJKfamily { dengxian-light } }
               }
-              { \cs_gset_protected:Npn \__docxlike_preset_major: { \docxlike@dengxian@light } }
+              {
+                \cs_if_exist:NTF \newjfontfamily
+                  {
+                    \newjfontfamily \docxlike@jf@dengxian@light [ JFM = zh_CN/quanjiao ] { DengXian~Light }
+                    \cs_gset_protected:Npn \__docxlike_preset_major:
+                      { \docxlike@dengxian@light \docxlike@jf@dengxian@light }
+                  }
+                  { \cs_gset_protected:Npn \__docxlike_preset_major: { \docxlike@dengxian@light } }
+              }
           }
           { }
       }
@@ -208,10 +225,8 @@
       {
         \cs_new_protected:Npn \dengxian
           {
-            \bool_lazy_and:nnT
-              { \g__docxlike_preset_dengxian_bool }
-              { \cs_if_exist_p:N \CJKfamily }
-              { \CJKfamily { dengxian } }
+            \bool_if:NT \g__docxlike_preset_dengxian_bool
+              { \docxlike_font_select_east_asian:n { DengXian } }
           }
       }
   }
@@ -296,8 +311,8 @@
 % 留着先执行，行间公式上下的间距仍是文档类给的。标题按有没有 \cs{chapter}
 % 对层级：有就一一对应，没有就整体错开一格，“标题 1”发给 \texttt{section}。
 %
-% \cs{baselinestretch} 先设回 1：\pkg{ctex} 默认把它设成 1.3，行距是本包按 Word
-% 算好的，再乘一次就成了 23.49\,bp（Word 是 18.07）。
+% \cs{baselinestretch} 先设回 1：行距是本包按 Word 算好的，文档类若把它设成别的数（有的中文
+% 文档类默认 1.3），再乘一次就成了 23.49\,bp（Word 是 18.07）。
 %
 % 汉字与西文紧挨着时中间的胶取 0.225 个字号：没有字符网格，Word 的“自动调整中文与
 % 西文的间距”按字号给，11\,bp 下两侧量得 2.57 与 2.45。源码里汉字与西文之间敲了
@@ -325,7 +340,6 @@
     \docxlike_format_hglue:nn { 0pt } { 0.225 \g_docxlike_body_size_dim }
     \cs_gset_eq:NN \ps@plain \ps@docxlike
     \pagestyle { docxlike }
-    \docxlike_ctex_block:
     \cs_if_exist:NTF \chapter
       {
         \docxlike_heading_new:Nnn \chapter { Heading 1 } { chapter }
@@ -342,6 +356,7 @@
   }
 \cs_new_protected:Npn \__docxlike_preset_blank:
   {
+    \docxlike_cjk_base:
     \__docxlike_preset_page:
     \__docxlike_preset_format:
     \__docxlike_preset_fonts:

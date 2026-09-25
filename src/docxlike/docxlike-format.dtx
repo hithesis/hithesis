@@ -35,19 +35,15 @@
 %   贴格居中、不贴格顶对齐、固定值 0.8 倍、纯西文按 Times 三支（调用方点名的西文块也算，
 %   双语题注的英文行因此按 Times 的上升部）；空的段落片段不成行
 %   （公式独占一段时上下不再各多一行）；\hologo{LuaLaTeX} 下段末带封条}
-% \changes{v3.2a}{2026/09/16}{标题接 \pkg{ctex}：\option{styles} 覆盖旧的 \cs{ctexset}
-%   不追加；题序后一个字宽（规范写“空 2 个半角字符”，样本文档各级都是自己的一个字宽）；
-%   标题样式关字距调整；临时覆盖进出连分档表一起存还；目标名与
-%   \pkg{ctex} 层级名可错开一格（没有 \cs{chapter} 的文档第一级按章排）}
 % \changes{v3.2a}{2026/08/16}{正文接 \cs{normalsize}：字号、行距、首行基线、首行缩进四个
 %   全局长度；\cs{rightskip} 收字符网格的余量；换页判据改成末行盒底：Lua 断行档
 %   \cs{maxdepth} 归零、每行的深度都算进页（每行的盒就是 Word 的行盒），其余档
 %   版心底留一个行深（\cs{@colroom} 补丁、\texttt{flush} 档页底留白刚性）；
 %   孤行寡行四个罚分归零}
 % \changes{v3.2a}{2026/08/29}{横轴两道胶按元素发：汉字缝伸量 0.02 行距、中西文胶 0.246 格
-%   按字号缩放、可压 0.13 行距，空格伸量同档；同步 \pkg{ctex} 的寄存器、\pkg{xeCJK} 的
-%   \cs{l\_\_xeCJK\_ecglue\_skip} 与 \pkg{luatexja} 的 kanjiskip；\cs{ccwd} 与
-%   \cs{ctex\_update\_ccglue:} 两处补丁；西文标点与乘除号并入半角标点类}
+%   按字号缩放、可压 0.13 行距，空格伸量同档；同步 \pkg{xeCJK} 的
+%   \cs{l\_\_xeCJK\_ecglue\_skip} 与 \pkg{luatexja} 的 kanjiskip，设完发钩子
+%   \texttt{docxlike/hglue}；西文标点与乘除号并入半角标点类}
 % \changes{v3.2a}{2026/09/20}{西文的半份网格增量（\option{LetterSpace}）只在 \hologo{XeLaTeX}
 %   一路加，Lua 断行接管时由 Lua 在正文字号的段里自己补，交回 \TeX{} 的段 Word 本来不加}
 % \changes{v3.2a}{2026/08/30}{\hologo{XeLaTeX} 一路的标点：全角标点补网格胶、相邻标点
@@ -58,7 +54,7 @@
 %   带闸不叠双份}
 % \changes{v3.2a}{2026/09/20}{按目标排段的几个入口：\cs{docxlike\_format\_par:nn}（段前用
 %   \cs{addvspace}，Word 的段前与前一段的段后取大不相加）、\cs{docxlike\_format\_par:nnn} 与
-%   \cs{docxlike\_format\_apply\_heading:nn} 临时覆盖、\cs{docxlike\_format\_apply\_font:nN} 一族、
+%   \cs{docxlike\_format\_with:nnn} 临时覆盖、\cs{docxlike\_format\_apply\_font:nN} 一族、
 %   页眉页脚的 \cs{docxlike\_format\_apply\_hf:nN}、块与块之间照“上块行深加下块上升部”贴排的
 %   \cs{docxlike\_format\_stack\_line:n}}
 % \changes{v3.2a}{2026/08/24}{纯西文段由 \cs{docxlike\_format\_apply\_par:n} 铺版面，与别的段共用
@@ -74,8 +70,7 @@
 %   带伸缩的 \cs{nobreakspace}，不可断，两端对齐时被拉到 28.9\,bp}
 %
 % 规范里说的是 Word 的话：“章标题小二黑体居中，段前段后各一行，多倍行距 1.5”。
-% 手算的话，这些话要折成 \texttt{beforeskip=28.34646bp} 这样的数散在好几份
-% \cs{ctexset} 里，改一处要连带重算三四个数。这里收 Word 对话框上的原话，换算交给代码：
+% 手算的话，这些话要折成 \texttt{28.34646bp} 这样的数散在好几处，改一处要连带重算三四个数。这里收 Word 对话框上的原话，换算交给代码：
 % \begin{latex}
 % \docxlikesetup
 %   {
@@ -165,6 +160,7 @@
 %    \begin{macrocode}
 \hook_new:n { docxlike / latin-font-reload }
 \hook_new:n { docxlike / display }
+\hook_new:n { docxlike / hglue }
 %    \end{macrocode}
 %
 % 字号名。\option{size} 与 \cs{parmark} 的字号可以写中文字号的名字，
@@ -1978,14 +1974,12 @@
   }
 %    \end{macrocode}
 %
-% \subsection{接到标题上}
+% \subsection{样式折成排版命令}
 %
-% 四级标题由 \pkg{ctex} 排，所以算完之后发一条 \cs{ctexset} 过去。一个目标一条键
-% 都没设过就整条不发，文档类原有的 \cs{ctexset} 因此原样保留。时机是
-% \cs{AfterPreamble}：设置可以写在导言区任何位置，早于它发就读不到。
+% 算出来的样式折成一串排版命令（\cs{l\_\_docxlike\_format\_out\_tl}），标题、页眉页脚、
+% 题注这些本包自己排的段落用它。
 %    \begin{macrocode}
 \tl_new:N \l__docxlike_format_out_tl
-\tl_new:N \l__docxlike_format_keys_tl
 \prop_new:N \g__docxlike_format_align_prop
 \prop_gset_from_keyval:Nn \g__docxlike_format_align_prop
   { left = \raggedright , center = \centering , right = \raggedleft }
@@ -2165,9 +2159,11 @@
 %
 % \emph{按名字切换字体。} 文档类可以说“这个名字在本文档里用什么命令切过去”：
 % \cs{docxlike\_font\_select\_new:nn}\marg{字体名}\marg{代码}，比如字体集里没有 SimSun、要用
-% 替身时。预设表认得的字体，同一副的别的名字（中文名、全名）一起登记。没说过的，东亚字体按名字声明一个中文字族（\pkg{xeCJK} 或 \pkg{ctex} 的
-% \pkg{luatexja} 接口），西文字体按名字声明一个 \pkg{fontspec} 字族，都只声明一次；本机
-% 没有这副字体时警告一次，不切。
+% 替身时。预设表认得的字体，同一副的别的名字（中文名、全名）一起登记。没说过的，东亚字体按名字声明一个中文字族（\hologo{XeLaTeX} 用 \pkg{xeCJK}
+% 的字族，\hologo{LuaLaTeX} 用 \pkg{luatexja-fontspec} 的 \cs{newjfontfamily}，JFM 取 \texttt{zh\_CN/quanjiao}），
+% 西文字体按名字声明一个 \pkg{fontspec} 字族，都只声明一次；本机没有这副字体时警告一次，不切。
+% \cs{newjfontfamily} 定义的切换命令（连同它里面那一个 \texttt{\meta{命令}~code}）是局部的，
+% 字体常在段落的组里第一次用到，出组就没了，所以声明之后改成全局的。
 %    \begin{macrocode}
 \prop_new:N \g__docxlike_font_select_prop
 \tl_new:N \l__docxlike_font_code_tl
@@ -2207,26 +2203,38 @@
   }
 \cs_new_protected:Npn \__docxlike_font_east_asian:n #1
   {
-    \cs_if_exist:NT \CJKfamily
+    \bool_lazy_or:nnT
+      { \cs_if_exist_p:N \xeCJK_set_family:nnn }
+      { \cs_if_exist_p:N \newjfontfamily }
       {
         \tl_if_exist:cF { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
           {
             \tl_new:c { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
             \__docxlike_font_if_exist:nTF {#1}
               {
-                \tl_gset:ce { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
-                  { docxlike-\l__docxlike_font_key_str }
                 \cs_if_exist:NTF \xeCJK_set_family:nnn
-                  { \xeCJK_set_family:enn { docxlike-\l__docxlike_font_key_str } { } {#1} }
                   {
-                    \cs_if_exist:NT \ctex_ltj_set_family:nnn
-                      { \exp_args:Ne \ctex_ltj_set_family:nnn { docxlike-\l__docxlike_font_key_str } { } {#1} }
+                    \xeCJK_set_family:enn { docxlike-\l__docxlike_font_key_str } { } {#1}
+                    \tl_gset:ce { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
+                      { \exp_not:N \CJKfamily { docxlike-\l__docxlike_font_key_str } }
+                  }
+                  {
+                    \exp_args:Nc \newjfontfamily { docxlike@jf@ \l__docxlike_font_key_str }
+                      [ JFM = zh_CN/quanjiao ] {#1}
+                    \cs_gset_eq:cc { docxlike@jf@ \l__docxlike_font_key_str }
+                      { docxlike@jf@ \l__docxlike_font_key_str }
+                    \cs_if_exist:cT { docxlike@jf@ \l__docxlike_font_key_str \c_space_tl code }
+                      {
+                        \cs_gset_eq:cc { docxlike@jf@ \l__docxlike_font_key_str \c_space_tl code }
+                          { docxlike@jf@ \l__docxlike_font_key_str \c_space_tl code }
+                      }
+                    \tl_gset:ce { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
+                      { \exp_not:c { docxlike@jf@ \l__docxlike_font_key_str } }
                   }
               }
               { \msg_warning:nnn { docxlike } { font-not-found } {#1} }
           }
-        \tl_if_empty:cF { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
-          { \CJKfamily { \tl_use:c { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl } } }
+        \tl_use:c { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
       }
   }
 \cs_new_protected:Npn \__docxlike_font_latin:n #1
@@ -2307,7 +2315,7 @@
 %
 % 横轴的两道胶按元素发，不只在正文设一次：Word 那边三级标题写着
 % \texttt{snapToGrid=0}，不吃正文的字距。发的位置是 \cs{\_\_docxlike\_format\_build:n}
-% 拼的那串排版命令，被 \pkg{ctex} 限制在该级标题里。
+% 拼的那串排版命令，只管那一段。
 %
 % \emph{伸量给多少。} \pkg{xeCJK} 原样给 0.08\cs{baselineskip}，一行 33 缝合计
 % 约 51\,bp，两端对齐时行就靠拉汉字间距填满。Word 不这样：网格是刚的，填行靠压
@@ -2328,17 +2336,7 @@
 % 说明）：伸量在 \hologo{TeX} 里兼任摊派权重，三种缝同一档，行凑不满时缺口
 % 才会像 Word 那样均摊，不在某一个空格上开大洞。
 %
-% \emph{两处都设。} \pkg{ctex} 的 \cs{CJKglue} 是
-% \cs{skip\_horizontal:N} \cs{l\_\_ctex\_ccglue\_skip}，它在字号变化时由
-% \cs{\_\_ctex\_update\_stretch\_auxi:} 重设，重设前先问
-% \cs{ctex\_if\_ccglue\_touched:}——这个判断比的是 \cs{CJKglue} 与
-% \cs{\_\_ctex\_ccglue:} 的 meaning。\TeX~Live 2026 的
-% \cs{ctex\_update\_ccglue:} 会把 \cs{\_\_ctex\_ccglue:} 同步过去，判断准；
-% 2025 的不同步，判断不准，于是我们设的定义在 \cs{begin\{document\}} 里被盖回
-% \pkg{ctex} 自己那份。实测 2025 下整篇字距都是裸字号，字符网格等于没开。
-%
-% 定义与寄存器一起设，\pkg{ctex} 那份定义读的就是这个寄存器，谁赢都是同一个值。
-% \cs{CJKecglue} 没有对应的 \pkg{ctex} 寄存器，它走 \pkg{xeCJK}，不受影响。
+% \hologo{XeLaTeX} 下汉字之间的胶是 \pkg{xeCJK} 的 \cs{CJKglue}，中西文之间的是 \cs{CJKecglue}。
 %
 % \hologo{LuaLaTeX} 下这两段胶不叫 \cs{CJKglue}：\pkg{luatexja} 做成
 % \texttt{kanjiskip} 与 \texttt{xkanjiskip} 两个参数，走 \cs{ltjsetparameter}，
@@ -2364,7 +2362,6 @@
 % 本来就为半角标点准备的 \texttt{HalfLeft}/\texttt{HalfRight} 类，与
 % \texttt{Default} 拆开之后，边界规则在 \cs{docxlike\_format\_punct\_grid:} 里按类各配。
 %    \begin{macrocode}
-\bool_new:N \g__docxlike_format_ccwd_patched_bool
 \dim_new:N \l__docxlike_format_ecglue_dim
 \skip_new:N \l__docxlike_format_kanji_skip
 \cs_new_protected:Npn \__docxlike_format_ecglue_emit:
@@ -2382,8 +2379,6 @@
         \exp_not:N \hskip \dim_eval:n {#1}
         \exp_not:N \@plus \c__docxlike_format_ccstretch_tl \exp_not:N \baselineskip
       }
-    \cs_if_exist:NT \l__ctex_ccglue_skip
-      { \skip_set:Nn \l__ctex_ccglue_skip { \dim_eval:n {#1} } }
     \dim_set:Nn \l__docxlike_format_ecglue_dim { \dim_eval:n {#2} }
     \cs_set_protected:Npn \CJKecglue { \__docxlike_format_ecglue_guard: }
     \cs_if_exist:NT \ltjsetparameter
@@ -2423,38 +2418,10 @@
       }
 %    \end{macrocode}
 %
-% \cs{ccwd} 是“\cs{CJKglue} 的宽 $+$ 字号”，由 \cs{ctex\_update\_ccwd:} 算。
-% 但 \pkg{ctex} 换字号时走的是 \cs{ctex\_update\_stretch:}，那里先调
-% \cs{ctex\_update\_em\_unit:} 把 \cs{ccwd} 设成纯字号，再按分支决定要不要重算。
-% TL2025 及以前只有 \cs{\_\_ctex\_update\_stretch\_auxi:} 那一支带
-% “用户动过 \cs{CJKglue} 没有”的判断，默认走的 \texttt{auxii} 没有，于是我们
-% 设的 \cs{CJKglue} 被忽略，\cs{ccwd} 停在纯字号上，比正确值少 0.456\,pt。
-%
-% TL2026 的 \pkg{ctex} 给 \texttt{auxii} 也补上了同一条判断。我们正是动过
-% \cs{CJKglue} 的那一方，所以那条新逻辑就是冲这种用法来的；旧版没有就在这里
-% 补，判据与实现都照 \pkg{ctex} 自己那一段，不另起炉灶。原来的函数体存起来当
-% 兜底分支，只补一次。
-%
-% 补了之后 \cs{ccwd} 在 2024 到 2026 上取值一致。
+% 设完之后用钩子 \texttt{docxlike/hglue} 通知文档类，字距在 \cs{l\_docxlike\_format\_ccglue\_dim}：
+% 文档类另有自己一套字距（比如别的中文宏包记着的那一份）要跟着同步，就挂在这里。
 %    \begin{macrocode}
-    \cs_if_exist:NT \ctex_update_ccwd: { \ctex_update_ccwd: }
-    \bool_lazy_all:nT
-      {
-        { \cs_if_exist_p:N \ctex_if_ccglue_touched:TF }
-        { \cs_if_exist_p:N \__ctex_update_stretch_auxii: }
-        { ! \bool_if_p:N \g__docxlike_format_ccwd_patched_bool }
-      }
-      {
-        \bool_gset_true:N \g__docxlike_format_ccwd_patched_bool
-        \cs_new_eq:NN \__docxlike_format_stretch_orig:
-          \__ctex_update_stretch_auxii:
-        \cs_set_protected:Npn \__ctex_update_stretch_auxii:
-          {
-            \ctex_if_ccglue_touched:TF
-              { \ctex_update_ccwd: }
-              { \__docxlike_format_stretch_orig: }
-          }
-      }
+    \hook_use:n { docxlike / hglue }
   }
 \cs_new_protected:Npn \__docxlike_format_strut:nn #1#2
   {
@@ -2750,14 +2717,9 @@
 %    \end{macrocode}
 %
 %
-% 标题的格式是\emph{覆盖}文档类原有的 \cs{ctexset}，不是追加。追加的话
-% \option{styles} 算出来的格式后面还跟着原有那一串，原有的写了什么就甩不掉：
-% 章标题原有的 \cs{bfseries} 就是这么漏过来的，\option{styles} 里没写
-% \option{bold}，排出来却还是粗的。
-%
-% 覆盖之后两边分家：文档类原有的那套 \cs{ctexset} 只在没设 \option{styles} 的目标上
-% 生效，设了的目标字体、字号、行距、对齐、字重、段前段后全从 \option{styles}
-% 算，一处说了算。
+% 样式算出来的格式是整串替换，不叠在别处原有的格式上：原有的写了什么（比如
+% \cs{bfseries}）都甩掉，\option{styles} 里没写 \option{bold} 就不粗。字体、字号、行距、
+% 对齐、字重、段前段后全从 \option{styles} 算，一处说了算。
 %
 % 有两样手写的标题格式里常有、这边有意不要的。
 %
@@ -2985,11 +2947,8 @@
 \cs_generate_variant:Nn \prop_get:NnNT { NVNT }
 %    \end{macrocode}
 %
-% 发给 \pkg{ctex}。段前段后只在用户设过时才发，没设过就让文档类原有的取值留着。
-%
-% 段前段后写了区间就带一段伸量发过去。\pkg{ctex} 的 \option{beforeskip} 与
-% \option{afterskip} 收的是胶不是长度，写 \texttt{10bp~plus~3bp} 它照收。
-% 伸量为零时一个字也不发，生成物与从前逐字节相同。
+% 段前段后写了区间就带一段伸量：\cs{\_\_docxlike\_format\_plus:N} 写出 \texttt{plus} 那一截，
+% 伸量为零时一个字也不发。
 %    \begin{macrocode}
 \cs_new:Npn \__docxlike_format_plus:N #1
   {
@@ -2998,93 +2957,14 @@
   }
 %    \end{macrocode}
 %
-% 除了字体与段前段后，文档类还可以往发给 \pkg{ctex} 的键里添东西，比如题序后面的
-% 间距（\option{aftername}）：\cs{docxlike\_format\_set\_heading\_keys:n}\marg{代码}，代码里
-% \texttt{\#1} 是样式，\texttt{\#2} 是正在攒的键值记号列表，用 \cs{tl\_put\_right:Nn}
-% 往里添。默认什么也不添。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__docxlike_format_heading_keys:nN #1#2 { }
-\cs_new_protected:Npn \docxlike_format_set_heading_keys:n #1
-  { \cs_gset_protected:Npn \__docxlike_format_heading_keys:nN ##1##2 {#1} }
-\prop_const_from_keyval:Nn \c__docxlike_format_heading_style_prop
-  { chapter = Heading1 , section = Heading2 , subsection = Heading3 , subsubsection = Heading4 }
-\cs_new_protected:Npn \docxlike_format_apply_heading:n #1
-  {
-    \docxlike_format_apply_heading_to:en
-      { \prop_item:Nn \c__docxlike_format_heading_style_prop {#1} } {#1}
-  }
-\cs_new_protected:Npn \docxlike_format_apply_heading_to:nn #1#2
-  {
-    \__docxlike_format_if_blank:nF {#1}
-      {
-        \docxlike_format_compute:n {#1}
-        \__docxlike_format_build:n {#1}
-        \tl_set:Nx \l__docxlike_format_keys_tl
-          {
-            format ~ =
-              {
-                \exp_not:V \l__docxlike_format_out_tl
-                \cs_if_exist:NT \docxlike_linebreak_kern_off: { \exp_not:N \docxlike_linebreak_kern_off: }
-              } ,
-          }
-        \__docxlike_format_heading_keys:nN {#1} \l__docxlike_format_keys_tl
-        \__docxlike_format_slot_if_set:nnT {#1} { before }
-          {
-            \dim_compare:nNnT { \g__docxlike_format_parskip_dim } > { 0pt }
-              {
-                \dim_set:Nn \l_docxlike_format_before_dim
-                  {
-                    \dim_max:nn { \l_docxlike_format_before_dim }
-                      { \g__docxlike_format_parskip_dim }
-                  }
-              }
-            \tl_put_right:Nx \l__docxlike_format_keys_tl
-              {
-                beforeskip =
-                  {
-                    \dim_use:N \l_docxlike_format_before_dim
-                    \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
-                  } ,
-              }
-          }
-        \__docxlike_format_slot_if_set:nnT {#1} { after }
-          {
-            \tl_put_right:Nx \l__docxlike_format_keys_tl
-              {
-                afterskip =
-                  {
-                    \dim_use:N \l_docxlike_format_after_dim
-                    \__docxlike_format_plus:N \l_docxlike_format_after_plus_dim
-                  } ,
-              }
-          }
-        \use:x
-          {
-            \exp_not:N \__docxlike_ctexset:n
-              { #2 = { \exp_not:V \l__docxlike_format_keys_tl } }
-          }
-        \bool_if:NT \g__docxlike_format_para_hook_bool
-          { \__docxlike_format_level_new:nn {#1} {#2} }
-      }
-  }\cs_generate_variant:Nn \docxlike_format_apply_heading_to:nn { e }
-
-%    \end{macrocode}
-%
-% \emph{目标名与层级名可以不是一个。} 原先两者写死同名，够用是因为四级一一对应。
-% 有的文档不是：没有 \cs{chapter}，正文里第一级写的是 \cs{section}，
-% 那一级却要按\emph{章}排（黑体小二、另起一页）。
-% 所以这一档把四档取值整体错开一格发出去：章的值发给 \texttt{section}、
-% 节的发给 \texttt{subsection}，依此类推。
-%    \begin{macrocode}
-\cs_new_protected:Npn \docxlike_format_apply_headings:n #1
-  { \clist_map_inline:nn {#1} { \docxlike_format_apply_heading:n {##1} } }
-%    \end{macrocode}
-%
 % \cs{docxlike\_format\_apply\_font:nN}\marg{目标}\meta{宏} 把目标算出来的那串排版命令
-% 存进宏里，供不走 \pkg{ctex} 标题机制的地方用——页眉页脚就是这样，它们在
-% 输出例程里排，收不到 \cs{ctexset}。目标是空的就不动那个宏，
-% 文档类原先的定义因此原样保留。
+% 存进宏里（页眉页脚在输出例程里排，就是这样拿字体的）。目标是空的就不动那个宏，
+% 文档类原先的定义因此原样保留；段前段后等量留在 \cs{l\_docxlike\_format\_before\_dim} 这几个
+% 变量里。文档类要问样式里某一处写没写过，用 \cs{docxlike\_format\_if\_set:nnTF}\marg{目标}\marg{槽}
+% （槽是 \texttt{before}、\texttt{after} 这些，上级样式写的也算）。
 %    \begin{macrocode}
+\prg_new_eq_conditional:NNn \docxlike_format_if_set:nn \__docxlike_format_slot_if_set:nn
+  { T , F , TF }
 \cs_new_protected:Npn \docxlike_format_apply_font:nN #1#2
   {
     \__docxlike_format_if_blank:nF {#1}
@@ -3176,8 +3056,7 @@
 %
 % \emph{段前与前一段的段后取大，不相加。}Word 两段之间的距离是前一段的段后与后一段
 % 的段前里大的那个（样本文档里章标题段后 0.8 行、小标题段前 0.5 行，量出来
-% 只有 0.8 行；章标题到节标题也是这样，那一处走 \pkg{ctex} 的 \texttt{beforeskip}
-% 本来就是 \cs{addvspace}）。这里段前也用 \cs{addvspace}，前面是段后那道胶就只补
+% 只有 0.8 行；章标题到节标题也是这样）。这里段前也用 \cs{addvspace}，前面是段后那道胶就只补
 % 差额；前面是 \cs{parmark*} 的空段（盒子，不是胶）就整个加。段后那道胶之后若还跟着
 % 看不见的东西（目录条目的 \cs{write}、超链接锚点、\cs{mark}、罚分），\cs{addvspace}
 % 就看不到它了，Word 却照样取大；所以段后放下时记下它的量，下一段开段前中间没有别的段落、
@@ -3383,22 +3262,15 @@
   }
 %    \end{macrocode}
 %
-% \begin{macro}{\docxlike_format_apply_heading:nn}
-% \cs{docxlike\_format\_apply\_heading:nn}\marg{层级}\marg{覆盖} 同
-% \cs{docxlike\_format\_apply\_heading:n}，但先把\meta{覆盖}那几条键值临时按到目标上，
-% 发完还回去。\cs{ctexset} 那边的取值不会自己回去，调用方排完那个标题要再按一次
-% \cs{docxlike\_format\_apply\_heading:n}。
+% \begin{macro}{\docxlike_format_with:nnn}
+% \cs{docxlike\_format\_with:nnn}\marg{目标}\marg{覆盖}\marg{代码}：把\meta{覆盖}那几条键值
+% 临时按到目标上（Word 里直接设在这一段上的格式），执行\meta{代码}，再还回去。
 %    \begin{macrocode}
-\cs_new_protected:Npn \docxlike_format_apply_heading:nn #1#2
-  {
-    \exp_args:Ne \__docxlike_format_apply_heading_over:nnn
-      { \prop_item:Nn \c__docxlike_format_heading_style_prop {#1} } {#1} {#2}
-  }
-\cs_new_protected:Npn \__docxlike_format_apply_heading_over:nnn #1#2#3
+\cs_new_protected:Npn \docxlike_format_with:nnn #1#2#3
   {
     \__docxlike_format_save:n {#1}
-    \__docxlike_format_target:nn {#1} {#3}
-    \docxlike_format_apply_heading_to:nn {#1} {#2}
+    \__docxlike_format_target:nn {#1} {#2}
+    #3
     \__docxlike_format_restore_saved:n {#1}
   }
 %    \end{macrocode}
@@ -3737,7 +3609,7 @@
 %
 % \subsection{接到正文上}
 %
-% 正文不归 \pkg{ctex} 管，四个量各有各的去处：
+% 正文四个量各有各的去处：
 % \begin{longtblr}[caption={正文四个量的去处}, label={tab:impl-body-dims}]
 %   {colspec={l l l}}
 % \toprule
@@ -3756,18 +3628,8 @@
 % 改完长度要再调一次 \cs{normalsize}。\hologo{LaTeX} 选定正文字体是在类加载完那一刻，
 % 早于 \cs{AfterPreamble}，只改长度不重选的话这一页排出来的还是旧行距。
 %
-% \cs{parindent} 要排在 \cs{normalsize} 之后设，还要顺手关掉 \pkg{ctex} 的
-% \option{autoindent}。\option{autoindent} 是“首行缩进跟着字号走，恒为两个汉字宽”，
-% 每次换字号都重设一遍 \cs{parindent}，写在前面会被 \cs{normalsize} 抹掉。
-% 关掉它也是照 Word：Word 那边“首行缩进 2 字符”在存盘时就折算成了绝对长度
-% （样本文档里是 507 缇），换字号不跟着变。
-%
-% 末尾那句 \cs{ccwd} 是补 \pkg{ctex} 的一个时序缺口。\pkg{ctex} 把 \cs{ccwd} 定义成
-% “字号 $+$ \cs{CJKglue} 的宽度”，也就是字符网格的步进，每次换字号重算一次
-% （\file{ctex-engine-xetex.def} 的 \cs{ctex\_update\_ccwd:}）。但本函数是先调
-% \cs{normalsize} 再改 \cs{CJKglue} 的，那一次重算读到的还是 \pkg{ctex} 自己的
-% 字距，于是从这里到下一次换字号之间 \cs{ccwd} 停在纯字号上，少了 0.45\,bp。
-% 换过字号之后就自己对了；补这一句是为了不留这么一段说不清的窗口。
+% \cs{parindent} 要排在 \cs{normalsize} 之后设。Word 那边“首行缩进 2 字符”在存盘时就折算成了
+% 绝对长度（样本文档里是 507 缇），换字号不跟着变。
 %
 % \cs{topskip} 是版心顶到首行基线的距离，跟 Word 的算法对得上：Word 那边这个距离
 % 就等于首行基线在自己行盒里的落点，见前面的换算一节。\hologo{TeX} 取的是
@@ -4878,11 +4740,8 @@
 % 正文，Word 只有标题的段后（正文段前是零），\hologo{TeX} 却还要再加一个
 % \cs{parskip}。所以两处各退一步：标题那一段与标题后的头一段，在
 % \texttt{para/before} 钩子里发一段 $-$\cs{parskip} 抵掉内核刚加的那一段
-% （标题后的头一段认 \cs{if@nobreak}，那是 \cs{@afterheading} 立的）；标题的
-% \texttt{beforeskip} 改成段前与正文段后的较大者，正文接标题就是 Word 的取大。
-% 标题接标题，\hologo{LaTeX} 的 \cs{@startsection} 见 \cs{if@nobreak} 就不加段前，
-% 只剩前一个标题的段后；钩子补上两者取大多出来的那一截，前一个标题的段后记在
-% \cs{g\_\_docxlike\_format\_last\_after\_dim} 里。
+% （标题后的头一段认 \cs{if@nobreak}，那是 \cs{@afterheading} 立的）；标题那一段本身由
+% \cs{docxlike\_format\_par:nn} 排，它在组里把 \cs{parskip} 清零，段前与前一段的段后取大。
 %
 % \emph{段与段之间按行盒接。} Word 里下一段首行的基线落在“上一段末行的行深、
 % 两段之间的间距、本段首行的上升部”三者之和处。撑杆已经把每一行做成 Word 的
@@ -4897,21 +4756,12 @@
 % \cs{docxlike\_format\_word\_interline:} 打开，要在 \cs{docxlike\_format\_apply\_body:}
 % 之前调。空白文档预设打开它。
 %
-% \emph{标题要在开段之前认出来。} \pkg{ctex} 排标题时先 \cs{noindent} 起段，
-% 再执行 \option{styles}，钩子跑的时候标题的字号、行距都还没设，靠
-% \option{styles} 里立标志来不及。所以在章节命令本身挂一个 \texttt{cmd/\ldots/before}
-% 钩子，记下这一次是哪一级；\texttt{para/before} 见到记号就按那一级的目标算行距与
-% 首行上升部，用完清掉。目标与层级的对应在 \cs{docxlike\_format\_apply\_heading\_to:nn}
-% 里登记，所以错开一格发的那一档也认得。
 %    \begin{macrocode}
 \cs_generate_variant:Nn \prop_get:NnNT { NVNT }
 \bool_new:N \l__docxlike_format_spaced_bool
 \dim_new:N \g__docxlike_format_parskip_dim
 \bool_new:N \g__docxlike_format_interline_bool
 \bool_new:N \g__docxlike_format_para_hook_bool
-\prop_new:N \g__docxlike_format_level_prop
-\tl_new:N \g__docxlike_format_next_level_tl
-\tl_new:N \l__docxlike_format_next_target_tl
 \cs_new_protected:Npn \docxlike_format_word_interline:
   { \bool_gset_true:N \g__docxlike_format_interline_bool }
 \cs_new_protected:Npn \__docxlike_format_body_parskip:
@@ -4942,65 +4792,25 @@
         \AddToHook { para / before } { \__docxlike_format_para_before: }
       }
   }
-\cs_new_protected:Npn \__docxlike_format_level_new:nn #1#2
-  {
-    \prop_if_in:NnF \g__docxlike_format_level_prop {#2}
-      {
-        \AddToHook { cmd / #2 / before }
-          { \tl_gset:Nn \g__docxlike_format_next_level_tl {#2} }
-      }
-    \prop_gput:Nnn \g__docxlike_format_level_prop {#2} {#1}
-  }
 \cs_new_protected:Npn \__docxlike_format_para_before:
   {
-    \tl_if_empty:NTF \g__docxlike_format_next_level_tl
+    \legacy_if:nT { @nobreak } { \skip_vertical:n { - \parskip } }
+    \bool_if:NT \g__docxlike_format_interline_bool
       {
-        \legacy_if:nT { @nobreak } { \skip_vertical:n { - \parskip } }
-        \bool_if:NT \g__docxlike_format_interline_bool
+        \bool_if:NTF \l_docxlike_format_strut_latin_bool
           {
-            \bool_if:NTF \l_docxlike_format_strut_latin_bool
-              {
-                \__docxlike_format_strut_dims:nn
-                  { \l_docxlike_format_natural_latin_tl }
-                  { \l_docxlike_format_ascent_latin_tl }
-              }
-              {
-                \__docxlike_format_strut_dims:nn
-                  { \l__docxlike_format_strut_natural_tl } { \l_docxlike_format_ascent_tl }
-              }
-            \__docxlike_format_prevdepth:n
-              { \baselineskip - \l__docxlike_format_asc_dim }
+            \__docxlike_format_strut_dims:nn
+              { \l_docxlike_format_natural_latin_tl }
+              { \l_docxlike_format_ascent_latin_tl }
           }
-      }
-      {
-        \skip_vertical:n { - \parskip }
-        \prop_get:NVNT \g__docxlike_format_level_prop \g__docxlike_format_next_level_tl
-          \l__docxlike_format_next_target_tl
           {
-            \group_begin:
-              \docxlike_format_compute:V \l__docxlike_format_next_target_tl
-              \legacy_if:nT { @nobreak }
-                {
-                  \skip_vertical:n
-                    {
-                      \dim_max:nn { \g__docxlike_format_last_after_dim }
-                        { \l_docxlike_format_before_dim }
-                      - \g__docxlike_format_last_after_dim
-                    }
-                }
-              \dim_gset_eq:NN \g__docxlike_format_last_after_dim
-                \l_docxlike_format_after_dim
-              \bool_if:NT \g__docxlike_format_interline_bool
-                {
-                  \__docxlike_format_prevdepth:n
-                    { \l_docxlike_format_lead_dim - \l_docxlike_format_first_dim }
-                }
-            \group_end:
+            \__docxlike_format_strut_dims:nn
+              { \l__docxlike_format_strut_natural_tl } { \l_docxlike_format_ascent_tl }
           }
-        \tl_gclear:N \g__docxlike_format_next_level_tl
+        \__docxlike_format_prevdepth:n
+          { \baselineskip - \l__docxlike_format_asc_dim }
       }
   }
-\dim_new:N \g__docxlike_format_last_after_dim
 \cs_generate_variant:Nn \docxlike_format_compute:n { V }
 \cs_new_protected:Npn \__docxlike_format_prevdepth:n #1
   {
@@ -5027,7 +4837,6 @@
         \docxlike_format_reserve_depth:
         \docxlike_format_penalties:
         \normalsize
-        \cs_if_exist:NT \ctexset { \__docxlike_ctexset:n { autoindent = false } }
         \__docxlike_format_get:nnNT { Normal } { pPr/jc } \l__docxlike_format_value_tl
           {
             \prop_get:NVNT \g__docxlike_format_align_prop \l__docxlike_format_value_tl
@@ -5039,21 +4848,10 @@
         \docxlike_format_latin_pitch:
 %    \end{macrocode}
 %
-% \emph{先停掉 \pkg{ctex} 的重置，字距最后设。} \pkg{ctex} 挂在字号变化上的
-% \cs{ctex\_update\_ccglue:} 在 \TeX~Live 2025 下判不出我们动过 \cs{CJKglue}
-% （见 \cs{docxlike\_format\_hglue:nn} 处），\cs{docxlike\_format\_latin\_pitch:} 末尾那句
-% \cs{normalsize} 就把字距冲回裸字号。把它停成空操作两版都稳，实测汉字步进都是
-% 12.5040；\cs{ccwd} 由 \cs{ctex\_update\_ccwd:} 单独管，不受影响。只在走过
-% \cs{docxlike\_page\_setup:n}（网格字距不为零）时停，没走的文档里 \cs{ziju}
-% 还要靠 \pkg{ctex} 这套。试过的三条弯路：同时设
-% \cs{l\_\_ctex\_ccglue\_skip}（一起被冲）、设字距挪到 \cs{normalsize} 之后
-% （还有别处在重置）、换掉比对基准 \cs{\_\_ctex\_ccglue:}（2025 仍没救回，2026
-% 反而从 12.6720 变成 12.7320）。
+% \emph{字距最后设。}
 %    \begin{macrocode}
         \dim_compare:nNnF { \g_docxlike_page_char_dim } = { 0pt }
           {
-            \cs_if_exist:NT \ctex_update_ccglue:
-              { \cs_set_eq:NN \ctex_update_ccglue: \prg_do_nothing: }
             \docxlike_format_hglue:nn
               { \__docxlike_format_hglue_cc: } { \__docxlike_format_hglue_ec: }
             \bool_if:NT \l_docxlike_format_snap_horizontal_bool
@@ -5065,7 +4863,6 @@
                   }
                   { \skip_set:Nn \rightskip { \__docxlike_format_grid_glue: } }
               }
-            \cs_if_exist:NT \ccwd { \dim_set_eq:NN \ccwd \g_docxlike_page_char_dim }
             \docxlike_format_punct_grid:
           }
         \AddToHook { para / begin } { \__docxlike_format_para_open: }
