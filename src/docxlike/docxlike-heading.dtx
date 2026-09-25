@@ -26,7 +26,12 @@
 % \item \option{numbered}：一个布尔表达式，排标题时求值，假时这一个不编号（仍进目录，不带编号），
 %   比如前置部分的章写 \verb|numbered = \legacy_if_p:n { @mainmatter }|；
 % \item \option{penalty}：标题前的分页罚分，前面不是标题时加（\hologo{LaTeX} 节标题前的
-%   \cs{@secpenalty}）。Word 没有这一项，是文档类自己的选择。
+%   \cs{@secpenalty}）。Word 没有这一项，是文档类自己的选择；
+% \item \option{after-number}：编号了的标题在题名前面敲的字，相当于 Word 里每个标题编号后面
+%   手敲的那几个字（学校模板常敲两个半角空格隔开题名）。它是正文里的字，不是编号的一部分：
+%   不进目录、页眉标记与 \cs{label}，不参与“题名是不是全是西文”的判断；空格按文档的
+%   \option{balance-sbcs-characters-and-dbcs-characters} 排（见 \cs{docxlike\_format\_sbcs\_space:}）。
+%   值先完全展开再排，要两个空格写 \verb|\c_space_tl \c_space_tl|（\verb|~ ~| 只得一个）。
 % \end{itemize}
 % 目录条目、\cs{label} 与页眉标记用的编号去掉末尾的空白（半角空格与全角空格 U+3000）：
 % 编号格式里常在末尾打一个全角空格隔开题名，那是排版用的。题目里的 \cs{docxbookmark} 只在正文里算，写进目录与
@@ -104,12 +109,14 @@
 \tl_new:N \l__docxlike_heading_label_tl
 \tl_new:N \l__docxlike_heading_numbered_tl
 \tl_new:N \l__docxlike_heading_penalty_tl
+\tl_new:N \l__docxlike_heading_after_tl
 \keys_define:nn { docxlike / heading }
   {
     label .choices:nn = { number , counter }
       { \tl_set_eq:NN \l__docxlike_heading_label_tl \l_keys_choice_tl } ,
     numbered .tl_set:N = \l__docxlike_heading_numbered_tl ,
     penalty .tl_set:N = \l__docxlike_heading_penalty_tl ,
+    after-number .tl_set:N = \l__docxlike_heading_after_tl ,
     unknown .code:n = { \__docxlike_unknown_key: } ,
   }
 \cs_new_protected:Npn \docxlike_heading_new:Nnn #1#2#3
@@ -119,6 +126,7 @@
     \tl_set:Nn \l__docxlike_heading_label_tl { number }
     \tl_set:Nn \l__docxlike_heading_numbered_tl { \c_true_bool }
     \tl_clear:N \l__docxlike_heading_penalty_tl
+    \tl_clear:N \l__docxlike_heading_after_tl
     \keys_set:nn { docxlike / heading } {#4}
     \__docxlike_squash:nN {#2} \l__docxlike_value_try_str
     \prop_get:NVNF \g__docxlike_format_name_prop \l__docxlike_value_try_str
@@ -130,22 +138,24 @@
       }
     \use:e
       {
-        \exp_not:N \__docxlike_heading_define:Nnnnnn \exp_not:N #1
+        \exp_not:N \__docxlike_heading_define:Nnnnnnn \exp_not:N #1
           { \exp_not:V \l__docxlike_heading_style_tl } { \exp_not:n {#3} }
           { \exp_not:V \l__docxlike_heading_label_tl }
           { \exp_not:V \l__docxlike_heading_numbered_tl }
           { \exp_not:V \l__docxlike_heading_penalty_tl }
+          { \exp_not:V \l__docxlike_heading_after_tl }
       }
     \docxlike_style_new:e { heading ~ \__docxlike_heading_level:V \l__docxlike_heading_style_tl }
   }
 \cs_generate_variant:Nn \docxlike_style_new:n { e }
-\cs_new_protected:Npn \__docxlike_heading_define:Nnnnnn #1#2#3#4#5#6
+\cs_new_protected:Npn \__docxlike_heading_define:Nnnnnnn #1#2#3#4#5#6#7
   {
     \RenewDocumentCommand #1 { s o m }
       {
         \tl_set:Nn \l__docxlike_heading_label_tl {#4}
         \tl_set:Nn \l__docxlike_heading_numbered_tl {#5}
         \tl_set:Nn \l__docxlike_heading_penalty_tl {#6}
+        \tl_set:Nn \l__docxlike_heading_after_tl {#7}
         \tl_clear:N \l__docxlike_heading_local_tl
         \tl_set:Nn \l__docxlike_heading_short_tl {##3}
         \IfValueT {##2} { \__docxlike_heading_option:n {##2} }
@@ -249,9 +259,15 @@
           { \addpenalty { \l__docxlike_heading_penalty_tl } }
       }
     \exp_args:NV \__docxlike_heading_latin:nn \l__docxlike_heading_num_tl {#5}
+    \tl_clear:N \l__docxlike_heading_after_use_tl
+    \bool_lazy_or:nnF
+      { \bool_if_p:N \l_docxlike_numbering_off_bool }
+      { \tl_if_empty_p:N \l__docxlike_heading_num_tl }
+      { \__docxlike_heading_after: }
     \exp_args:NnV \docxlike_format_par:nnn {#1} \l__docxlike_heading_local_tl
       {
         \__docxlike_heading_marks:nnnn {#1} {#2} {#3} {#4}
+        \l__docxlike_heading_after_use_tl
         #5
       }
     \mode_if_vertical:T { \tex_prevdepth:D = -1000pt \scan_stop: }
@@ -297,6 +313,16 @@
             }
         }
     \group_end:
+  }
+\tl_new:N \l__docxlike_heading_after_use_tl
+\cs_new_protected:Npn \__docxlike_heading_after:
+  {
+    \tl_set:Ne \l__docxlike_heading_after_use_tl { \l__docxlike_heading_after_tl }
+    \bool_if:NT \g_docxlike_format_balance_bool
+      {
+        \tl_replace_all:Nnn \l__docxlike_heading_after_use_tl { ~ }
+          { \docxlike_format_sbcs_space: }
+      }
   }
 \cs_new_protected:Npn \__docxlike_heading_latin_true:
   { \bool_set_true:N \l_docxlike_format_latin_pick_bool }

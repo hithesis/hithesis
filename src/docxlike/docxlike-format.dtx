@@ -1992,6 +1992,17 @@
 % 没写东亚字体按 SimSun、没写西文字体按文档的默认西文字体取（\cs{g\_docxlike\_format\_default\_latin\_tl}，
 % 相当于 docx 里 \texttt{docDefaults} 的 \texttt{rFonts/ascii}，初值 Times New Roman，空白预设改成等线）；
 % 取不到用 SimSun 与 Times New Roman 的。
+% \emph{平衡单字节与双字节字符。} Word“高级”选项里版式那一组的
+% \option{balance-sbcs-characters-and-dbcs-characters}（docx 里是 \texttt{compat} 底下的
+% \texttt{balanceSingleByteDoubleByteWidth}，学校的模板都开着）。开着时贴着汉字的半角空格、
+% 连着的几个半角空格各占半格（半个字加半份字距，字距是当时汉字之间实际的那一段，
+% 记在 \cs{l\_docxlike\_format\_ccglue\_dim}），西文词间的单个空格不变（Windows Word
+% 实测：15 磅标题“1.1  Introduction”两个空格各 7.45，“Hello World”仍是 3.75）。空格的字形
+% 还是西文字体的，不抬行高。本包眼下只在标题编号后敲的字里（\option{after-number}）照这条排，
+% 正文的空格由断行层按自己的规矩排。\cs{docxlike\_format\_sbcs\_space:} 是这样一个空格，
+% 做成不伸缩的胶而不是 kern：\pkg{luatexja} 看得穿 kern，会在编号与题名的汉字之间补一段中西文
+% 间距，隔着胶就不补（Word 在空格旁也不加）。
+%
 % 调用方立了 \cs{l\_docxlike\_format\_asian\_ascent\_bool} 时，西文那一对的上升部换成东亚的
 % （取大），行深不变，自然行高跟着加：西文题名配带汉字的编号就是这样的行盒（见
 % \file{docxlike-heading.dtx}）。
@@ -2032,6 +2043,17 @@
       }
   }
 \bool_new:N \l_docxlike_format_asian_ascent_bool
+\bool_new:N \g_docxlike_format_balance_bool
+\keys_define:nn { docxlike }
+  {
+    balance-sbcs-characters-and-dbcs-characters .bool_gset:N = \g_docxlike_format_balance_bool ,
+    balance-sbcs-characters-and-dbcs-characters .default:n = true ,
+  }
+\cs_new_protected:Npn \docxlike_format_sbcs_space:
+  {
+    \skip_horizontal:n
+      { ( \l_docxlike_format_size_dim + \l_docxlike_format_ccglue_dim ) / 2 }
+  }
 \tl_new:N \g_docxlike_format_default_latin_tl
 \tl_gset:Nn \g_docxlike_format_default_latin_tl { Times~New~Roman }
 \cs_generate_variant:Nn \__docxlike_format_read:nnnN { nnV }
@@ -2255,8 +2277,10 @@
       \@plus \c__docxlike_format_ecstretch_tl \baselineskip
       \@minus \c__docxlike_format_ecshrink_tl \baselineskip
   }
+\dim_new:N \l_docxlike_format_ccglue_dim
 \cs_new_protected:Npn \docxlike_format_hglue:nn #1#2
   {
+    \dim_set:Nn \l_docxlike_format_ccglue_dim { \dim_eval:n {#1} }
     \cs_set:Npx \CJKglue
       {
         \exp_not:N \hskip \dim_eval:n {#1}
