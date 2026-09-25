@@ -28,7 +28,7 @@
 %   带限定词的取值单独一份，读时先看当前限定词那一份，再看不带的}
 % \changes{v3.2a}{2026/09/13}{\cs{docxlike\_format\_compute:n} 按 Word 的行盒模型换算：自然行高
 %   与上升部按字体名照 Windows Word 的规则由字体度量算（中易 1.296875 与 1.0078125、Times 1.1499
-%   与 0.9336）；倍数贴格时取整数格、固定值基线在盒顶下 0.8 倍；“一行”单位
+%   与 0.9336）；倍数贴格时取整数格、固定值基线在盒顶下 0.8 倍，字高过了也不撑行盒；“一行”单位
 %   认网格启不启用。四轮标定文档、三十组、一百六十
 %   多条基线，来路在 \file{docxlike-page.dtx}}
 % \changes{v3.2a}{2026/08/29}{\cs{docxlike\_format\_strut:} 把每一行的行盒撑成 Word 的尺寸，
@@ -2475,10 +2475,19 @@
 %
 % \cs{\_\_docxlike\_format\_first:} 早就按这条算了，只是它只管页首那一行的
 % \cs{topskip}；撑杆管每一行，缺了这条分支，固定值行距的段落每一行都偏。
+%
+% 字比盒顶到基线那 0.8 倍还高时，Word 让字压出行盒，行盒不长，基线不动。这里同样把
+% \cs{lineskiplimit} 压到底：行间胶照 \cs{baselineskip} 算，可以是负的，字高不把这一行往下顶。
+% 不压的话胶一不够就换成 \cs{lineskip}，这一行连同后面的都往下挪（四号字排在 12 磅固定值
+% 的行里，基线低了 2.6\,bp；Word 仍在盒顶下 9.6）。只在这里压，不在
+% \cs{docxlike\_format\_exact\_false:} 里还原：设值只在段落自己的组里生效，别处照原样。
 %    \begin{macrocode}
 \bool_new:N \l_docxlike_format_strut_exact_bool
 \cs_new_protected:Npn \docxlike_format_exact_true:
-  { \bool_set_true:N \l_docxlike_format_strut_exact_bool }
+  {
+    \bool_set_true:N \l_docxlike_format_strut_exact_bool
+    \dim_set:Nn \lineskiplimit { - \maxdimen }
+  }
 \cs_new_protected:Npn \docxlike_format_exact_false:
   { \bool_set_false:N \l_docxlike_format_strut_exact_bool }
 \bool_new:N \l_docxlike_format_strut_latin_bool

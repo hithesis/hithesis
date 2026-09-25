@@ -17,7 +17,7 @@
 %   \option{compatibility-mode} 分 Word 2003、2007、2010、2013 四档，样本的 doc 原件都是 2003。
 %   探针 100 个系列 90 个翻转点与 Word 相同，与 typst 逐行对拍}
 % \changes{v3.2a}{2026/09/20}{行盒照 Word 逐行算高（各 run 的字体字号取最大，倍数、贴网格、
-%   固定值三种落法），行盒直接摞，行间只放零宽胶与行间罚分；断点只认 TeX 的合法断点；
+%   固定值三种落法，固定值的行盒钉死，交回 TeX 断行的段也钉），行盒直接摞，行间只放零宽胶与行间罚分；断点只认 TeX 的合法断点；
 %   parshape、悬挂缩进、定值 leftskip/rightskip、窄版心的段也进 Lua；横向不贴格的段按
 %   整个版心装；汉字缝与汉西隙另记在两个属性上，Lua 装盒时照属性重设（先认这两种胶再认
 %   空格，关了自动间距的字不重设；输出例程里
@@ -1475,8 +1475,12 @@ local function linebox(box, ctx, strut_h, strut_d)
     local total = ctx.k * H
     asc = A; desc = total - A
   end
-  if objA > asc then asc = objA end
-  if objD > desc then desc = objD end
+  -- 固定值的行盒钉死，盒子、公式高了也不撑（Word 让它们压出行盒；封皮模板里四号字排在
+  -- 12 磅固定值的行里，基线仍在盒顶下 9.6）
+  if not ctx.exact then
+    if objA > asc then asc = objA end
+    if objD > desc then desc = objD end
+  end
   box.height = asc; box.depth = desc
   trace("BOX H=%.2f A=%.2f obj=%.2f+%.2f k=%.3f %s -> %.2f+%.2f", H / 65536, A / 65536, objA / 65536, objD / 65536, ctx.k,
     ctx.exact and "exact" or (ctx.snap and "snap" or "auto"), asc / 65536, desc / 65536)
@@ -2091,6 +2095,37 @@ function M.box_cjk_flag(n)
   return M.box_has_cjk(n) and 1 or 0
 end
 
+-- 交回 TeX 断行的段（居中、靠左靠右）里，固定值行距的行也钉成撑杆那么高：TeX 的行盒按
+-- 内容长，字比盒顶到基线那 0.8 倍还高时会把这一行连同后面的往下顶，Word 的行盒不长。
+-- 撑杆取段里零宽的普通 rule（格式层发的，luatexja 给每个汉字挂的那根是 subtype 3），
+-- 行间胶按钉过的高深重算，基线距仍是 baselineskip
+local traverse_id = node.traverse_id
+local function pin_exact(head)
+  if not getbool("l_docxlike_format_strut_exact_bool") then return true end
+  local sh, sd = 0, 0
+  for line in traverse_id(HLIST, head) do
+    for r in traverse_id(RULE, line.list) do
+      if r.width == 0 and r.subtype == 0 then
+        if r.height > sh then sh = r.height end
+        if r.depth > sd then sd = r.depth end
+      end
+    end
+  end
+  if sh == 0 and sd == 0 then return true end
+  local bls = tex.baselineskip.width
+  local prev = nil
+  for n in traverse(head) do
+    if n.id == HLIST and n.subtype == 1 then
+      n.height = sh; n.depth = sd
+      prev = n
+    elseif n.id == GLUE and (n.subtype == 1 or n.subtype == 2) and prev
+        and n.next and n.next.id == HLIST then
+      n.width = bls - sd - sh
+    end
+  end
+  return true
+end
+
 -- 装回调。attr 是类分的属性号：段首节点上为 0 的段不管（交回 TeX）；
 -- ks、xks 是汉字缝、汉西隙的属性号
 function M.install(attr, ks, xks, kern, code)
@@ -2100,6 +2135,8 @@ function M.install(attr, ks, xks, kern, code)
   M.code_attr = code
   luatexbase.add_to_callback("linebreak_filter",
     function(h, d) return M.filter(h, d) end, "docxlike.linebreak")
+  luatexbase.add_to_callback("post_linebreak_filter",
+    function(h) return pin_exact(h) end, "docxlike.exact")
   if ks and xks then
     luatexbase.add_to_callback("hpack_filter",
       function(h) fix_skips(h); return true end, "docxlike.skips")
@@ -2109,7 +2146,8 @@ function M.install(attr, ks, xks, kern, code)
 end
 function M.uninstall()
   for _, cb in ipairs({ { "linebreak_filter", "docxlike.linebreak" }, { "hpack_filter", "docxlike.skips" },
-                        { "pre_linebreak_filter", "docxlike.skips" } }) do
+                        { "pre_linebreak_filter", "docxlike.skips" },
+                        { "post_linebreak_filter", "docxlike.exact" } }) do
     if luatexbase.in_callback(cb[1], cb[2]) then luatexbase.remove_from_callback(cb[1], cb[2]) end
   end
 end
