@@ -7,7 +7,7 @@
 % \section{编号}
 %
 % \changes{v0.1.0}{2026/09/25}{多级列表：照“定义新多级列表”对话框定义各级，按 Word 的规则
-%   计数、重编、跳级，生成编号串；级别可以链接到样式}
+%   计数、重编、跳级，生成编号串，编号跟着段落标记的“全部大写字母”；级别可以链接到样式}
 %
 % Word 的编号是多级列表：一个列表最多九级，每一级有自己的编号格式、起始值、重编规则、
 % 编号位置与编号后面跟什么。标题、题注里的章号、有序列表都是它。规则是在 Windows Word 里
@@ -545,7 +545,9 @@
 %
 % \cs{\_\_docxlike\_numbering\_layout:n}\marg{样式} 把 \cs{l\_\_docxlike\_numbering\_text\_tl} 里的编号串
 % 排到首行开头，列表与级别已经在 \cs{l\_\_docxlike\_numbering\_cur\_list\_tl}、
-% \cs{l\_\_docxlike\_numbering\_cur\_lvl\_tl} 里。
+% \cs{l\_\_docxlike\_numbering\_cur\_lvl\_tl} 里。编号的字符格式是段落标记的（样式的）再叠这一级的
+% \option{font}，“全部大写字母”也在里面：开着时编号跟着大写（Windows Word 实测，
+% \file{test/headings/heads-caps}）。
 %    \begin{macrocode}
 \tl_new:N \l_docxlike_field_parnum_tl
 \cs_new_protected:Npn \__docxlike_numbering_layout:n #1
@@ -555,7 +557,9 @@
     \hbox_set:Nn \l__docxlike_numbering_box
       {
         \l__docxlike_numbering_font_tl
-        \l__docxlike_numbering_text_tl
+        \str_if_eq:VnTF \g__docxlike_numbering_caps_tl { true }
+          { \exp_args:NV \MakeUppercase \l__docxlike_numbering_text_tl }
+          { \l__docxlike_numbering_text_tl }
         \str_if_eq:eeT { \__docxlike_numbering_cur:n { suff } } { space }
           { \kern \dim_eval:n { 0.27783203125 \g__docxlike_numbering_size_dim } }
       }
@@ -598,11 +602,14 @@
       \__docxlike_format_build_font:n {#1}
       \tl_gset_eq:NN \g__docxlike_numbering_font_tl \l__docxlike_format_out_tl
       \dim_gset_eq:NN \g__docxlike_numbering_size_dim \l_docxlike_format_size_dim
+      \__docxlike_format_read:nnnN {#1} { rPr/caps } { false } \l__docxlike_numbering_value_tl
+      \tl_gset_eq:NN \g__docxlike_numbering_caps_tl \l__docxlike_numbering_value_tl
     \group_end:
     \tl_set_eq:NN \l__docxlike_numbering_font_tl \g__docxlike_numbering_font_tl
     \__docxlike_format_restore_saved:n {#1}
   }
 \tl_new:N \g__docxlike_numbering_font_tl
+\tl_new:N \g__docxlike_numbering_caps_tl
 \dim_new:N \g__docxlike_numbering_size_dim
 \cs_generate_variant:Nn \__docxlike_format_target:nn { ne }
 %    \end{macrocode}

@@ -6,6 +6,8 @@
 %
 % \section{中英文摘要页}
 %
+% \changes{v3.2a}{2026/09/25}{摘要标题的 1.25 倍行距直接设在标题这一段上；旧版面与博士后不再
+%   因此丢掉 \pkg{ctex} 的章标题格式（原先会把正文里的章题排成正文字号、左对齐）}
 % \changes{v3.2a}{2026/08/22}{\cs{hit@make@abstract} 迁到 expl3（写进目录的 \texttt{\string~}
 %   换成 \cs{nobreakspace}）；符号表提成 \env{symbols}，\env{denotation} 退回 v3.1e 原样
 %   只供老文档；摘要排完清一次缩写的「用过」状态}
@@ -28,12 +30,25 @@
 %
 % \changes{v3.0.0}{2020/05/21}{英文版目录之前有page行}
 % \changes{v3.0.0}{2020/05/21}{博后关键字加粗}
+%
+% 两个摘要标题照指南排 1.25 倍行距，是标题这一段上的直接格式，排完就没了。英文摘要的标题
+% 全是西文，标题自己会按西文行盒排（Word 按行里实际的字算行高）。旧版面与博士后的标题样式
+% 是空的，标题照 \pkg{ctex} 那一套排，这里不碰。
 %    \begin{macrocode}
+\cs_new_protected:Npn \__hit_abstract_heading:n #1
+  {
+    \docxlike_format_if_blank:nTF { Heading1 }
+      {#1}
+      {
+        \docxlike_format_with:nnn { Heading1 }
+          { paragraph = { spacing = { line-spacing = multiple , at = 1.25 } } }
+          {#1}
+      }
+  }
 \cs_new_protected:Npn \hit@make@abstract
   {
     \hit@clear@page
     \hit@layout@push@part:n { frontmatter }
-    \hit@ctex@heading:nn { chapter } { paragraph = { spacing = { line-spacing = multiple, at = 1.25 } } }
     \bool_if:NT \g__hit_en_bool
       {
         \addtocontents { toc } { \nobreakspace { } \hfill \textbf { \hit@term@table@of@contents@page@en } \par }
@@ -42,9 +57,12 @@
         \addtocontents { \ext@figure }
           { { \noindent \sihao \textbf { \hit@term@table@of@contents@figure@en } \nobreakspace { } \hfill \textbf { \hit@term@table@of@contents@page@en } } \par }
       }
-    \hit@appendix@chapter * [ \hit@term@abstract@heading@zh ]
-      { \hit@spread@by:nn { \hit@term@abstract@heading@spread } { \hit@term@abstract@heading@zh } }
-      [ \hit@term@abstract@in@english@toc@zh ]
+    \__hit_abstract_heading:n
+      {
+        \hit@appendix@chapter * [ \hit@term@abstract@heading@zh ]
+          { \hit@spread@by:nn { \hit@term@abstract@heading@spread } { \hit@term@abstract@heading@zh } }
+          [ \hit@term@abstract@in@english@toc@zh ]
+      }
     \pagestyle { hit@headings }
     \pagenumbering { Roman }
     \hit@abstract@zh
@@ -55,12 +73,8 @@
       { \bool_if:NT \g__hit_postdoc_bool { \bfseries } \heiti \hit@term@abstract@keywords@zh }
       { \hit@info@keywords@zh }
     \hit@clear@page
-    % 英文摘要标题是纯西文行。Word 按行内实际字体算行高，所以这一行走西文那一档
-    % ——目标上声明的 heiti 只在中文标题上成立
-    \hit@ctex@heading:nn { chapter }
-      { font = { latin-line = true }, paragraph = { spacing = { line-spacing = multiple, at = 1.25 } } }
-    \hit@appendix@chapter * { \hit@term@abstract@heading@en } [ \hit@term@abstract@in@english@toc@en ]
-    \hit@ctex@heading:nn { chapter } { paragraph = { spacing = { line-spacing = multiple, at = 1.25 } } }
+    \__hit_abstract_heading:n
+      { \hit@appendix@chapter * { \hit@term@abstract@heading@en } [ \hit@term@abstract@in@english@toc@en ] }
     % 英文摘要正文按范例排:Word 的 1.25 倍自动行距按行内字体自然行高算,
     % 纯西文段 TNR 12bp 实测行距 17.25;字符网格的行末余量 \rightskip 只属于
     % 汉字网格行,西文段排满真版心(例右缘 510.4);汉字行撑竿会把行距顶回
@@ -81,7 +95,6 @@
     \bool_if:NT \g__hit_abbr_reset_bool
       { \cs_if_exist:NT \glsresetall { \glsresetall } }
     \hit@layout@pop@part:
-    \hit@ctex@heading:n { chapter }
   }
 %    \end{macrocode}
 %

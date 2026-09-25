@@ -6,9 +6,10 @@
 %
 % \section{章节标题}
 %
-% \changes{v3.2a}{2026/09/25}{中文新版面终稿的章节标题改由 \pkg{docxlike} 排，不再经
+% \changes{v3.2a}{2026/09/25}{新版面终稿（中英文）的章节标题改由 \pkg{docxlike} 排，不再经
 %   \pkg{ctex}：编号来自链接到标题样式的多级列表，编号后照原件在题名前敲两个半角空格；两行的
-%   章题第二行照整行居中；四级标题后紧接标题时段前不再丢}
+%   章题第二行照整行居中；四级标题后紧接标题时段前不再丢；英文版章号独占一行是题名前敲的
+%   换行，章标题全大写是标题样式的“全部大写字母”，全是西文的章题按西文行盒排}
 % \changes{v3.2a}{2026/09/13}{章节命令与三套章节格式迁到 expl3；\cs{clubpenalty} 的赋值加
 %   花括号（裸写时 \hologo{TeX} 的数字扫描把标题后首段开头的数字一并吃进赋值，
 %   「1828年」变「年」）；中文那套里新版面已接管的三个键只对旧版面发；人文社科类的
@@ -154,25 +155,10 @@
 %
 % 章节格式分英文版、博后、其余三套。每套的 \cs{ctexset} 里有字面空格和控制空格，
 % 按 \ref{sec:expl3-space} 的规矩留在 expl3 之外，只把分派放进去。
-% 旧版面从这里开始冻结。做法是\emph{减法}：三个 \cs{ctexset} 块原样留着当共用
-% 基线，只把新版面确实接管了的键挪出来，包进 \cs{bool\_if:NF}。
 %
-% 这样旧版面收不到新版面的任何设置，不会再出现「\option{styles} 里没写
-% 加粗、排出来却是粗的」这种渗漏。将来删除旧版面时，整段连同
-% \cs{bool\_if:NF} 一起删即可。共用块里剩下的键，也正是新版面尚未接管的部分。
-%
-% 这一轮只动中文非博后那一套（\cs{hit@chapter@settings@other}），只挪四级编号
-% 标题的那三个键。英文版与博士后两套一个字没动：博士后整个还在旧版面，
-% 英文版新版面接管到什么程度没验过。
-%
-% 剩下的共用内容就是后续要接管的：摘要、目录、附录这类非编号标题的间距，
-% \option{aftername} 那套编号与标题之间的距离，\option{titleformat}，
-% 以及图题表题。每接管一类，就从共用块里再挪一条出来。
-% 这两套在冻结那一轮里被误删：\cs{hit@chapter@settings@english} 的定义头
-% 被改名成了下面那个 \cs{hit@chapter@settings@other@old:}，
-% \cs{hit@chapter@settings@postdoc} 整块没了，而分派仍旧在调它们。
-% 结果是所有 \option{en} 文档与所有博士后文档一编就报未定义控制序列。
-% 这里按冻结前的样子原样补回，两套内容一个字没动。
+% 新版面的标题已经交给 \pkg{docxlike} 排（见本节末），这三套只剩旧版面与博士后在用，
+% 冻结在旧版面的样子：英文版那一套给旧版面的英文稿，\cs{hit@chapter@settings@other@old:}
+% 是旧版面中文稿的字号与间距。将来删除旧版面时，这几套连同分派一起删。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@chapter@settings@english
   {
@@ -711,51 +697,26 @@
 %
 % \subsubsection{标题交给 \pkg{docxlike} 排}
 %
-% 目标是不再经 \pkg{ctex}：标题按样式排一段，编号来自多级列表，与 docx 同构。先做中文、
-% 非博士后、新版面的终稿，开关是 \cs{g\_\_hit\_heading\_docxlike\_bool}，关掉就回到 \pkg{ctex}
-% 那条路。与 \pkg{ctex} 那条路逐页比过，剩下的差别都照 iota 取舍：编号后的空白是一格
-% 连同字距（原先是 1\,em，节标题的题名右移 0.45\,bp，居中的章题左移 0.05\,bp）；目录里“附录A”的“录”与“A”之间与“第1章”一样空；四级标题后面紧接
-% 标题时，段前与四级标题的段后取大（原先段前丢了）；两行的章题第二行照整行居中，不按编号悬挂。
+% 终稿（新版面）的标题由 \pkg{docxlike} 排，共用的那一层在 \file{hit-docxlike.dtx}。与 \pkg{ctex}
+% 那条路逐页比过，剩下的差别都照 iota 取舍：编号后的空白是一格连同字距（原先是 1\,em，节标题的
+% 题名右移 0.45\,bp，居中的章题左移 0.05\,bp）；目录里“附录A”的“录”与“A”之间与“第1章”一样空；
+% 四级标题后面紧接标题时，段前与四级标题的段后取大（原先段前丢了）；两行的章题第二行照整行
+% 居中，不按编号悬挂。英文版的章号“CHAPTER 1”与题名之间是标题里的换行，两行的距离是 1.25 倍
+% 行距（原先是两段，中间夹着 \env{center} 的上下空白）；节号后原先是半个字，现在与中文版一样
+% 一个字。
 %
 % 外壳 \cs{chapter}、\cs{section}……不动（清页、书签锚点、英文目录），换的是里面借自
-% \pkg{ctex} 的 \cs{hit@chapter} 到 \cs{hit@subsubsection}。\pkg{ctex} 那几个命令除了排标题还做
+% \pkg{ctex} 的 \cs{hit@chapter} 到 \cs{hit@subsubsection}。\pkg{ctex} 的章命令除了排标题还做
 % 几件事，照样接上：章前按 \option{openright} 清页、章页的页面样式、章页不放顶部浮动体、
-% 不带星号的章在图表清单里空 10\,pt；节以下标题前的 \cs{@secpenalty}；前置部分的章不编号、
-% \cs{secnumdepth} 以下不编号；\cs{label} 记计数器（\cs{ref} 出“1”，作者写“第\cs{ref}\{…\}章”）。
-% 章前清页之后立起 \pkg{docxlike} 的“新一节开头”标记，章标题在页顶保住段前，对应 Word 里
-% 分页后插一个连续分节符。
+% 不带星号的章在图表清单里空 10\,pt。章前清页之后立起 \pkg{docxlike} 的“新一节开头”标记，
+% 章标题在页顶保住段前，对应 Word 里分页后插一个连续分节符。
 %
-% 编号格式照 Word 定义多级列表的写法：章“第\%1章”，节以下“\%1.\%2”等，章名的“第”“章”取词条
-% \option{chapter-name}。编号与题名之间的空白不写进编号格式，照原件在题名前敲两个半角空格，
-% 只在编号了的标题上敲：原件的兼容选项开着“平衡单字节与双字节字符”（\pkg{docxlike} 的
-% \option{balance-sbcs-characters-and-dbcs-characters}，在 \file{hit-docxlike.dtx} 打开），两个空格
-% 各占半格，合起来一个字，空格是西文字形，不抬行高，全是西文的题名仍按西文行盒；Windows Word
-% 实测，编号格式里的半角空格不受这个选项管，只有半个字，全角空格又会把西文题名的上升部抬成
-% 黑体的。空白取 \option{after-}\meta{级}\option{-number} 词条，没设就是两个半角空格。
-%
-% \pkg{docxlike} 的标题命令只管 Word 里有的东西：标题样式、链接的列表编号、段落上的“编号：无”。
-% 本类要的几件事在外面一层做（\cs{\_\_hit\_heading\_emit:Nnnnnn}）：前置部分的章与
-% \cs{secnumdepth} 以下的标题写“编号：无”；\cs{setcounter} 改过的计数器先设进列表（Word 的
-% “设置编号值”）；敲两个空格，目录与页眉拿不带空格的题名；\cs{label} 记计数器（\cs{ref} 出“1”，
-% 作者写“第\cs{ref}\{…\}章”）；节以下标题前加 \cs{@secpenalty}，前面是标题时不加。
-% 人文社科类照范例：章用中文数字，节“一、”、条“（一）”题序后不空，款“1.”。附录换一套列表：
-% 章“附录A”（本科“附录1”），节“A.1”。
-% 标题样式勾“与下段同页”，关掉“为字体调整字间距”：范例的标题样式就是这样，\pkg{ctex}
-% 那条路一律这样排。\option{chapterbold} 开着时英文摘要的标题加粗，用标题的局部格式给。
+% 编号格式照 Word 定义多级列表的写法：章“第\%1章”（英文版“Chapter~\%1”），节以下“\%1.\%2”等，
+% 章名取词条 \option{chapter-name}。人文社科类照范例：章用中文数字，节“一、”、条“（一）”，
+% 款“1.”。附录换一套列表：章“附录A”（本科“附录1”，英文版“Appendix~A”），节“A.1”。
+% \option{chapterbold} 开着时中文版里英文摘要的标题加粗，用标题的局部格式给；英文版的章标题
+% 一律不加粗，这一条不管它。
 %    \begin{macrocode}
-\bool_new:N \g__hit_heading_docxlike_bool
-\bool_gset_true:N \g__hit_heading_docxlike_bool
-\cs_new:Npn \__hit_heading_gap:n #1
-  { \hit@after@number:nnn {#1} { zh } { \c_space_tl \c_space_tl } }
-\cs_new:Npn \__hit_heading_after:n #1
-  {
-    \bool_lazy_and:nnF
-      { \bool_if_p:N \g__hit_hass_bool }
-      { \str_if_eq_p:nn {#1} { section } || \str_if_eq_p:nn {#1} { subsection } }
-      { \__hit_heading_gap:n {#1} }
-  }
-\cs_new:Npn \__hit_heading_term:nn #1#2
-  { \tl_if_exist:cT { g__hit_term_ctex_ #1 _tl } { \clist_item:cn { g__hit_term_ctex_ #1 _tl } {#2} } }
 \cs_new_protected:Npn \__hit_heading_docxlike_lists:
   {
     \bool_if:NTF \g__hit_hass_bool
@@ -786,14 +747,14 @@
     \bool_if:NTF \g__hit_bachelor_bool
       { \__hit_heading_appendix_list:n { decimal } }
       { \__hit_heading_appendix_list:n { upper-letter } }
-    \__hit_heading_docxlike_link:n { hit-headings }
+    \__hit_heading_link:nn { hit-headings } { 4 }
   }
 \cs_new_protected:Npn \__hit_heading_appendix_list:n #1
   {
     \docxlikesetup
       {
         multilevel-lists = { hit-appendix = {
-          level-1 = { enter-formatting-for-number = \__hit_heading_term:nn { appendixname } { 1 } \% 1 ,
+          level-1 = { enter-formatting-for-number = \__hit_heading_term:nn { appendixname } { 1 } \bool_if:NT \g__hit_en_bool { ~ } \% 1 ,
                       number-style-for-this-level = #1 , follow-number-with = nothing } ,
           level-2 = { enter-formatting-for-number = \% 1 . \% 2 , follow-number-with = nothing } ,
           level-3 = { enter-formatting-for-number = \% 1 . \% 2 . \% 3 , follow-number-with = nothing } ,
@@ -801,104 +762,11 @@
         } }
       }
   }
-\cs_new_protected:Npn \__hit_heading_docxlike_link:n #1
-  {
-    \docxlikesetup
-      {
-        multilevel-lists = { #1 = {
-          level-1 = { link-level-to-style = Heading~1 } , level-2 = { link-level-to-style = Heading~2 } ,
-          level-3 = { link-level-to-style = Heading~3 } , level-4 = { link-level-to-style = Heading~4 } ,
-        } }
-      }
-  }
-\NewDocumentCommand \__hit_dl_chapter:w { s o m } { }
-\NewDocumentCommand \__hit_dl_section:w { s o m } { }
-\NewDocumentCommand \__hit_dl_subsection:w { s o m } { }
-\NewDocumentCommand \__hit_dl_subsubsection:w { s o m } { }
-\tl_new:N \l__hit_heading_local_tl
-\tl_new:N \l__hit_heading_body_tl
-\tl_new:N \l__hit_heading_list_tl
-\tl_new:N \l__hit_heading_lvl_tl
-\clist_const:Nn \c__hit_heading_levels_clist { chapter , section , subsection , subsubsection }
-\cs_new_protected:Npn \__hit_heading_sync:nn #1#2
-  {
-    \docxlike_numbering_style:nNNT {#1} \l__hit_heading_list_tl \l__hit_heading_lvl_tl
-      {
-        \docxlike_numbering_set_value:eee { \l__hit_heading_list_tl }
-          { \int_eval:n { \l__hit_heading_lvl_tl + 1 } }
-          {
-            \int_step_function:nN { \l__hit_heading_lvl_tl + 1 }
-              \__hit_heading_sync_value:n
-          }
-      }
-  }
-\cs_new:Npn \__hit_heading_sync_value:n #1
-  {
-    \int_compare:nNnT {#1} > { 1 } { , }
-    \int_eval:n
-      {
-        \int_use:c { c@ \clist_item:Nn \c__hit_heading_levels_clist {#1} }
-        \int_compare:nNnT {#1} = { \l__hit_heading_lvl_tl + 1 } { + 1 }
-      }
-  }
-\cs_generate_variant:Nn \docxlike_numbering_set_value:nnn { eee }
-% #1 docxlike 的标题命令，#2 层级名，#3 样式标识，#4 星号（空或 *），#5 可选参数，#6 题名；
-% 编号的条件放在 \l__hit_heading_numbered_bool 里
-\bool_new:N \l__hit_heading_numbered_bool
-\cs_new_protected:Npn \__hit_heading_emit:Nnnnnn #1#2#3#4#5#6
-  {
-    \IfNoValueTF {#5}
-      { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#6} , } }
-      {
-        \tl_if_in:nnTF {#5} { = }
-          { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#6} , #5 , } }
-          { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#5} , } }
-      }
-    \tl_set:Nn \l__hit_heading_body_tl {#6}
-    \tl_if_empty:nTF {#4}
-      {
-        \bool_if:NTF \l__hit_heading_numbered_bool
-          {
-            \__hit_heading_sync:nn {#3} {#2}
-            \tl_set:Ne \l__hit_heading_body_tl
-              { \__hit_heading_after:n {#2} \exp_not:n {#6} }
-          }
-          { \tl_put_right:Nn \l__hit_heading_local_tl { numbering = none , } }
-      }
-      { \bool_set_false:N \l__hit_heading_numbered_bool }
-    \use:e
-      {
-        \exp_not:N #1 #4
-        [ \exp_not:V \l__hit_heading_local_tl ]
-        { \exp_not:V \l__hit_heading_body_tl }
-      }
-    \bool_if:NT \l__hit_heading_numbered_bool
-      {
-        \use:e
-          {
-            \exp_not:N \protected@edef \exp_not:N \@currentlabel
-              { \exp_not:c { p@ #2 } \exp_not:c { the #2 } }
-          }
-      }
-  }
-\cs_new_protected:Npn \__hit_heading_section:Nnnnnnn #1#2#3#4#5#6#7
-  {
-    \par
-    \legacy_if:nF { @nobreak } { \addpenalty { \@secpenalty } }
-    \tl_clear:N \l__hit_heading_local_tl
-    \bool_set:Nn \l__hit_heading_numbered_bool { \int_compare_p:nNn { \c@secnumdepth } > {#7} }
-    \__hit_heading_emit:Nnnnnn #1 {#2} {#3} {#4} {#5} {#6}
-  }
 \cs_new_protected:Npn \__hit_heading_docxlike:
   {
     \__hit_heading_docxlike_lists:
-    \docxlike_format_set:n
-      {
-        Heading1 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
-        Heading2 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
-        Heading3 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
-        Heading4 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
-      }
+    \__hit_heading_styles:
+    \NewDocumentCommand \__hit_dl_chapter:w { s o m } { }
     \docxlike_heading_new:Nnn \__hit_dl_chapter:w { Heading~1 } { chapter }
     \RenewDocumentCommand \hit@chapter { s o m }
       {
@@ -912,7 +780,7 @@
           }
         \bool_gset_true:N \g_docxlike_section_start_bool
         \tl_clear:N \l__hit_heading_local_tl
-        \bool_if:NT \g__hit_chapterbold_bool
+        \bool_lazy_and:nnT { \g__hit_chapterbold_bool } { ! \g__hit_en_bool }
           {
             \hit@if@same@TF {##3} { \hit@term@abstract@heading@en }
               { \tl_put_right:Nn \l__hit_heading_local_tl { font = { font-style = bold } , } }
@@ -924,35 +792,12 @@
           { \__hit_heading_emit:Nnnnnn \__hit_dl_chapter:w { chapter } { Heading1 } { * } {##2} {##3} }
           { \__hit_heading_emit:Nnnnnn \__hit_dl_chapter:w { chapter } { Heading1 } { } {##2} {##3} }
       }
-    \docxlike_heading_new:Nnn \__hit_dl_section:w { Heading~2 } { section }
-    \RenewDocumentCommand \hit@section { s o m }
-      {
-        \IfBooleanTF {##1}
-          { \__hit_heading_section:Nnnnnnn \__hit_dl_section:w { section } { Heading2 } { * } {##2} {##3} { 0 } }
-          { \__hit_heading_section:Nnnnnnn \__hit_dl_section:w { section } { Heading2 } { } {##2} {##3} { 0 } }
-      }
-    \docxlike_heading_new:Nnn \__hit_dl_subsection:w { Heading~3 } { subsection }
-    \RenewDocumentCommand \hit@subsection { s o m }
-      {
-        \IfBooleanTF {##1}
-          { \__hit_heading_section:Nnnnnnn \__hit_dl_subsection:w { subsection } { Heading3 } { * } {##2} {##3} { 1 } }
-          { \__hit_heading_section:Nnnnnnn \__hit_dl_subsection:w { subsection } { Heading3 } { } {##2} {##3} { 1 } }
-      }
-    \docxlike_heading_new:Nnn \__hit_dl_subsubsection:w { Heading~4 } { subsubsection }
-    \RenewDocumentCommand \hit@subsubsection { s o m }
-      {
-        \IfBooleanTF {##1}
-          { \__hit_heading_section:Nnnnnnn \__hit_dl_subsubsection:w { subsubsection } { Heading4 } { * } {##2} {##3} { 2 } }
-          { \__hit_heading_section:Nnnnnnn \__hit_dl_subsubsection:w { subsubsection } { Heading4 } { } {##2} {##3} { 2 } }
-      }
-    \AddToHook { env / appendix / begin } { \__hit_heading_docxlike_link:n { hit-appendix } }
+    \__hit_heading_section_new:Nnnnn \hit@section { section } { Heading~2 } { Heading2 } { 0 }
+    \__hit_heading_section_new:Nnnnn \hit@subsection { subsection } { Heading~3 } { Heading3 } { 1 }
+    \__hit_heading_section_new:Nnnnn \hit@subsubsection { subsubsection } { Heading~4 } { Heading4 } { 2 }
+    \AddToHook { env / appendix / begin } { \__hit_heading_link:nn { hit-appendix } { 4 } }
   }
-\bool_lazy_all:nT
-  {
-    { \g__hit_heading_docxlike_bool } { ! \g__hit_en_bool } { ! \g__hit_postdoc_bool }
-    { ! \g__hit_layout_two_bool }
-  }
-  { \__hit_heading_docxlike: }
+\bool_if:NF \g__hit_layout_two_bool { \__hit_heading_docxlike: }
 %    \end{macrocode}
 %
 % \subsubsection{定义封面}

@@ -6,14 +6,16 @@
 %
 % \section{接到 \pkg{docxlike} 上}
 %
+% \changes{v3.2a}{2026/09/25}{章节标题交给 \pkg{docxlike} 排的共用一层（终稿与深圳本科报告）；
+%   给 \pkg{ctex} 的标题发样式的那一层删去}
 % \changes{v3.2a}{2026/09/23}{类专有的几件事从 \pkg{docxlike} 里挪出来，经它的钩子与登记
 %   接回去：题序后间距、四级标题西文无衬线、旧选项与格式键的兼容桥、全局开关的同步}
 %
-% \pkg{docxlike} 只管照 Word 排版，不知道哪一种学位、哪一档报告。类在它的钩子上挂自己的
-% 规矩：标题题序后面空多少（\cs{docxlike\_format\_set\_heading\_keys:n}）、哪几级标题的西文
-% 走无衬线（\cs{docxlike\_format\_add\_font:nn}）、格式键设完之后回写旧选项的标志位
-% （\cs{docxlike\_format\_set\_after\_target:n}）；类自己的开关变了，同步到 \pkg{docxlike} 的
-% 全局开关上。
+% \pkg{docxlike} 只管照 Word 排版，不知道哪一种学位、哪一档报告。类在它上面挂自己的规矩：
+% 章节标题交给它排时本类要的那几件事（编号后敲的空白、“编号：无”、设置编号值、\cs{label}）、
+% 哪几级标题的西文走无衬线（\cs{docxlike\_format\_add\_font:nn}）、格式键设完之后回写旧选项的
+% 标志位（\cs{docxlike\_format\_set\_after\_target:n}）；类自己的开关变了，同步到 \pkg{docxlike}
+% 的全局开关上。
 %
 % ^^A ======================================================================
 % ^^A Module shared-docxlike: 类接到 docxlike 上的那一层（各档共用）
@@ -513,19 +515,17 @@
 % \subsection{题序后间距}
 %
 % \begin{macro}{\hit@heading@number@gap:}
-% 题序与标题之间的空当，新版面的兜底值：一个字宽。用 \texttt{1em}——标题不贴
-% 字符网格，一个汉字的宽度就是 \texttt{em}，跟着标题自己的字号走（章 18\,bp、
-% 节 15\,bp，范例量出来的正是各级自己的字宽）。用户设了
-% \option{after-<级>-number} 词条仍然优先，与旧版面同一条链。英文文档不动：
-% 范例是中文的，管不到它，英文章标题的 \cs{par}（编号独占一行）照旧。
+% 页眉与目录条目里章号后面的空当，兜底值一个字宽。用 \texttt{1em}，跟着各处自己的字号走。
+% 用户设了 \option{after-chapter-number} 词条仍然优先。标题本身不用它：编号后的空白是题名前
+% 敲的两个半角空格，见下文。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@heading@number@gap:
   { \skip_horizontal:n { 1em } }
 %    \end{macrocode}
 %
-% 章号与后面内容之间空多少，页眉、目录条目与章标题是同一件事。这里把
-% “章标题那条链”包成一个名字：用户设了 \option{after-chapter-number}
-% 词条用词条，没设走上面的兜底（一个字宽），语言跟文档。页眉直接排它，
+% 章号与后面内容之间空多少，页眉与目录条目是同一件事。这里把这条链包成一个
+% 名字：用户设了 \option{after-chapter-number} 词条用词条，没设走上面的兜底
+% （一个字宽），语言跟文档。页眉直接排它，
 % 目录条目把它装盒量宽再按摆法用（见 \file{hit-final-toc.dtx}）。
 %    \begin{macrocode}
 \cs_new:Npn \hit@chapter@number@gap:
@@ -537,140 +537,174 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \subsection{标题的题序后面}
+% \subsection{标题交给 \pkg{docxlike} 排}
 %
-% \emph{英文报告也发题序后间距，不留 \pkg{ctex} 的默认值 \cs{enspace}。}
-% iota-hit 逐级量 2026 年 9 月版深圳本科英文版那两份表单（号末到名首）：章 18.35／18 ＝ 1.02 个字，
-% 节 15.23／15.12 ＝ 1.01，条 14.05／13.92 ＝ 1.01——与中文版同数。原件那三处
-% 敲的都是两个半角，与中文版一样；中文那边两个半角就是一个全角，英文这边
-% Times 的半角只有 0.25\,em，可排出来仍是一个字，那两个空格各带了约 0.26\,em 的
-% 额外步进。跟排出来的数，不跟敲了几个空格。
+% 章节标题是按样式排的一段，编号来自链接到标题样式的多级列表，与 docx 同构。终稿与深圳本科
+% 那两份报告（正文照终稿排的那一档）都这样排，列表与层级各自定（\file{hit-final-heading.dtx}、
+% \file{hit-report-heading.dtx}），这里是两边共用的一层。旧版面、博士后与其余报告的标题样式是
+% 空的，标题还是 \pkg{ctex} 排的，各自的 \cs{ctexset} 写在那两个文件里。
 %
-% \emph{只发给报告，不发给英文学位论文。} 英文学位论文的章标题是
-% “\texttt{CHAPTER~1}”独占一行、题名另起一行，那一档的 \option{aftername} 由
-% \cs{hit@chapter@settings@english} 自己管着；这一条在 \cs{AfterPreamble} 才发，
-% 发过去会把它盖掉，题名居中位移半个字（实测英文论文的
-% “\texttt{INTRODUCTION}”右移 9.0，博士后那一档 12.0）。所以条件是
-% “不是英文档，或者不是终稿”。
+% \pkg{docxlike} 的标题命令只管 Word 里有的东西：标题样式、链接的列表编号、段落上的“编号：无”。
+% 本类要的几件事在外面这一层做（\cs{\_\_hit\_heading\_emit:Nnnnnn}）：前置部分的章与
+% \cs{secnumdepth} 以下的标题写“编号：无”；\cs{setcounter} 改过的计数器先设进列表（Word 的
+% “设置编号值”），列表第几级对哪个计数器记在 \cs{g\_\_hit\_heading\_levels\_clist}；编号了的标题在
+% 题名前敲编号后的空白，目录与页眉拿不带空白的题名；\cs{label} 记计数器（\cs{ref} 出“1”，作者写
+% “第\cs{ref}\{…\}章”）；节以下标题前加 \cs{@secpenalty}，前面是标题时不加。
 %
-% \emph{这一档也写宽了：验过的只有深圳本科英文版那两份表单。} 判据按语种给，
-% 所有英文报告都吃它——本部的英文报告没有一份带标题实例。拿到别的档的英文原件
-% 要重核。
-%
-% 人文社科类的节与条，题序自带全角顿号或括号（“一、”“（一）”），范例里题序
-% 贴着标题排，不再空那一个字；章“第一章”后面照旧空一个字。标志位只在学位
-% 终稿里有，报告没有这根轴，先问存在再问真假。
+% 编号后的空白照原件在题名前敲两个半角空格：原件的兼容选项开着“平衡单字节与双字节字符”
+% （\pkg{docxlike} 的 \option{balance-sbcs-characters-and-dbcs-characters}，在本文件打开），两个空格
+% 各占半格，合起来一个字；空格是西文字形，不抬行高，全是西文的题名仍按西文行盒。Windows Word
+% 实测，编号格式里的半角空格不受这个选项管，只有半个字，全角空格又会把西文题名的上升部抬成
+% 黑体的。英文版量出来也是一个字（iota-hit 量 2026 年 9 月版深圳本科英文版那两份表单，号末到
+% 名首：章 18.35／18，节 15.23／15.12，条 14.05／13.92），原件敲的同样是两个半角。英文学位论文的
+% 章号独占一行，题名前敲的是换行（Word 的 Shift+Enter），这一行照样居中。人文社科类的节与条题序
+% 自带顿号或括号（“一、”“（一）”），范例里题序贴着标题排，不敲。空白取
+% \option{after-}\meta{级}\option{-number} 词条，没设就是上面这些。人文社科那根轴只有终稿有，
+% 先问标志位在不在。
 %    \begin{macrocode}
-\cs_new:Npn \__hit_heading_level:n #1
+\tl_new:N \l__hit_heading_local_tl
+\tl_new:N \l__hit_heading_body_tl
+\tl_new:N \l__hit_heading_list_tl
+\tl_new:N \l__hit_heading_lvl_tl
+\bool_new:N \l__hit_heading_numbered_bool
+\clist_new:N \g__hit_heading_levels_clist
+\clist_gset:Nn \g__hit_heading_levels_clist { chapter , section , subsection , subsubsection }
+\cs_new:Npn \__hit_heading_gap:n #1
   {
-    \str_case:nn {#1}
+    \bool_if:NTF \g__hit_en_bool
       {
-        { Heading1 } { chapter } { Heading2 } { section }
-        { Heading3 } { subsection } { Heading4 } { subsubsection }
+        \hit@after@number:nnn {#1} { en }
+          {
+            \str_if_eq:nnTF {#1} { chapter }
+              { \exp_not:N \break } { \c_space_tl \c_space_tl }
+          }
       }
+      { \hit@after@number:nnn {#1} { zh } { \c_space_tl \c_space_tl } }
   }
-\cs_new:Npn \__hit_heading_hass_nogap_p:n #1
+\cs_new:Npn \__hit_heading_after:n #1
   {
-    \bool_lazy_all_p:n
+    \bool_lazy_all:nF
       {
         { \bool_if_exist_p:N \g__hit_hass_bool }
         { \bool_if_p:N \g__hit_hass_bool }
-        { \str_if_eq_p:nn {#1} { Heading2 } || \str_if_eq_p:nn {#1} { Heading3 } }
+        { \str_if_eq_p:nn {#1} { section } || \str_if_eq_p:nn {#1} { subsection } }
       }
+      { \__hit_heading_gap:n {#1} }
   }
-\cs_new_protected:Npn \__hit_ctex_heading_keys:nN #1#2
-  {
-    \bool_lazy_or:nnT
-      { ! \bool_if_p:N \g__hit_en_bool }
-      { ! \bool_if_p:N \g__hit_final_bool }
-      {
-        \bool_if:nTF { \__hit_heading_hass_nogap_p:n {#1} }
-          { \tl_put_right:Nn #2 { aftername = { } , } }
-          {
-            \tl_put_right:Nn #2
-              {
-                aftername =
-                  {
-                    \hit@after@number:nnn { \__hit_heading_level:n {#1} }
-                      { \bool_if:NTF \g__hit_en_bool { en } { zh } }
-                      { \hit@heading@number@gap: }
-                  } ,
-              }
-          }
-      }
-  }
+\cs_new:Npn \__hit_heading_term:nn #1#2
+  { \tl_if_exist:cT { g__hit_term_ctex_ #1 _tl } { \clist_item:cn { g__hit_term_ctex_ #1 _tl } {#2} } }
 %    \end{macrocode}
 %
-% \subsection{还交给 \pkg{ctex} 排的标题}
-%
-% 中文新版面终稿的标题由 \pkg{docxlike} 自己排（\file{hit-final-heading.dtx}），英文、博士后、
-% 旧版面与报告的标题还是 \pkg{ctex} 排的。\pkg{docxlike} 不碰 \pkg{ctex}，这一层在本类：按样式
-% 算出字体那串排版命令与段前段后，发一条 \cs{ctexset} 过去。一个样式一条都没写过就整条
-% 不发，\pkg{ctex} 原有的取值留着；段前段后只在样式里写过时才发，写了区间就带一段伸量；
-% 正文段间有 \cs{parskip} 时段前取两者的大者。\cs{hit@ctex@heading:nn} 先把覆盖的键值
-% 临时按到样式上（Word 里直接设在这一段上的格式），发完还回去；\pkg{ctex} 那边的取值不会
-% 自己回去，排完那个标题要再发一次 \cs{hit@ctex@heading:n}。
+% 列表 \meta{名字} 的第 1 到第 \meta{n} 级依次链接到“标题 1”到“标题 \meta{n}”。标题样式勾
+% “与下段同页”，关掉“为字体调整字间距”：范例的标题样式就是这样，\pkg{ctex} 那条路一律这样排。
 %    \begin{macrocode}
-\tl_new:N \l__hit_ctex_font_tl
-\tl_new:N \l__hit_ctex_keys_tl
-\cs_new:Npn \__hit_ctex_plus:N #1
-  { \dim_compare:nNnF {#1} = { 0pt } { ~ plus ~ \dim_use:N #1 } }
-\prop_const_from_keyval:Nn \c__hit_ctex_heading_style_prop
-  { chapter = Heading1 , section = Heading2 , subsection = Heading3 , subsubsection = Heading4 }
-\cs_new_protected:Npn \hit@ctex@heading@to:nn #1#2
+\cs_new_protected:Npn \__hit_heading_link:nn #1#2
   {
-    \docxlike_format_if_blank:nF {#1}
+    \int_step_inline:nn {#2}
       {
-        \docxlike_format_apply_font:nN {#1} \l__hit_ctex_font_tl
-        \tl_set:Ne \l__hit_ctex_keys_tl
-          {
-            format =
-              {
-                \exp_not:V \l__hit_ctex_font_tl
-                \cs_if_exist:NT \docxlike_linebreak_kern_off: { \exp_not:N \docxlike_linebreak_kern_off: }
-              } ,
-          }
-        \__hit_ctex_heading_keys:nN {#1} \l__hit_ctex_keys_tl
-        \docxlike_format_if_set:nnT {#1} { before }
-          {
-            \dim_compare:nNnT { \parskip } > { 0pt }
-              {
-                \dim_set:Nn \l_docxlike_format_before_dim
-                  { \dim_max:nn { \l_docxlike_format_before_dim } { \parskip } }
-              }
-            \tl_put_right:Ne \l__hit_ctex_keys_tl
-              {
-                beforeskip =
-                  {
-                    \dim_use:N \l_docxlike_format_before_dim
-                    \__hit_ctex_plus:N \l_docxlike_format_before_plus_dim
-                  } ,
-              }
-          }
-        \docxlike_format_if_set:nnT {#1} { after }
-          {
-            \tl_put_right:Ne \l__hit_ctex_keys_tl
-              {
-                afterskip =
-                  {
-                    \dim_use:N \l_docxlike_format_after_dim
-                    \__hit_ctex_plus:N \l_docxlike_format_after_plus_dim
-                  } ,
-              }
-          }
-        \use:e { \exp_not:N \ctexset { #2 = { \exp_not:V \l__hit_ctex_keys_tl } } }
+        \docxlikesetup
+          { multilevel-lists = { #1 = { level-##1 = { link-level-to-style = Heading~##1 } } } }
       }
   }
-\cs_generate_variant:Nn \hit@ctex@heading@to:nn { e }
-\cs_new_protected:Npn \hit@ctex@heading:n #1
-  { \hit@ctex@heading@to:en { \prop_item:Nn \c__hit_ctex_heading_style_prop {#1} } {#1} }
-\cs_new_protected:Npn \hit@ctex@headings:n #1
-  { \clist_map_inline:nn {#1} { \hit@ctex@heading:n {##1} } }
-\cs_new_protected:Npn \hit@ctex@heading:nn #1#2
+\cs_new_protected:Npn \__hit_heading_styles:
   {
-    \exp_args:Ne \docxlike_format_with:nnn
-      { \prop_item:Nn \c__hit_ctex_heading_style_prop {#1} } {#2}
-      { \hit@ctex@heading:n {#1} }
+    \docxlike_format_set:n
+      {
+        Heading1 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
+        Heading2 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
+        Heading3 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
+        Heading4 = { font = { kerning-for-fonts = false } , paragraph = { pagination = { keep-with-next } } } ,
+      }
+  }
+\cs_new_protected:Npn \__hit_heading_sync:nn #1#2
+  {
+    \docxlike_numbering_style:nNNT {#1} \l__hit_heading_list_tl \l__hit_heading_lvl_tl
+      {
+        \docxlike_numbering_set_value:eee { \l__hit_heading_list_tl }
+          { \int_eval:n { \l__hit_heading_lvl_tl + 1 } }
+          {
+            \int_step_function:nN { \l__hit_heading_lvl_tl + 1 }
+              \__hit_heading_sync_value:n
+          }
+      }
+  }
+\cs_new:Npn \__hit_heading_sync_value:n #1
+  {
+    \int_compare:nNnT {#1} > { 1 } { , }
+    \int_eval:n
+      {
+        \int_use:c { c@ \clist_item:Nn \g__hit_heading_levels_clist {#1} }
+        \int_compare:nNnT {#1} = { \l__hit_heading_lvl_tl + 1 } { + 1 }
+      }
+  }
+\cs_generate_variant:Nn \docxlike_numbering_set_value:nnn { eee }
+%    \end{macrocode}
+%
+% \cs{\_\_hit\_heading\_emit:Nnnnnn}\meta{标题命令}\marg{层级名}\marg{样式标识}\marg{星号}\marg{可选参数}\marg{题名}
+% 发一个标题，\meta{标题命令} 是 \pkg{docxlike} 定义的，\marg{星号} 空或 \texttt{*}；编号不编号
+% 事先放在 \cs{l\_\_hit\_heading\_numbered\_bool} 里。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_heading_emit:Nnnnnn #1#2#3#4#5#6
+  {
+    \IfNoValueTF {#5}
+      { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#6} , } }
+      {
+        \tl_if_in:nnTF {#5} { = }
+          { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#6} , #5 , } }
+          { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#5} , } }
+      }
+    \tl_set:Nn \l__hit_heading_body_tl {#6}
+    \tl_if_empty:nTF {#4}
+      {
+        \bool_if:NTF \l__hit_heading_numbered_bool
+          {
+            \__hit_heading_sync:nn {#3} {#2}
+            \tl_set:Ne \l__hit_heading_body_tl
+              { \__hit_heading_after:n {#2} \exp_not:n {#6} }
+          }
+          { \tl_put_right:Nn \l__hit_heading_local_tl { numbering = none , } }
+      }
+      { \bool_set_false:N \l__hit_heading_numbered_bool }
+    \use:e
+      {
+        \exp_not:N #1 #4
+        [ \exp_not:V \l__hit_heading_local_tl ]
+        { \exp_not:V \l__hit_heading_body_tl }
+      }
+    \bool_if:NT \l__hit_heading_numbered_bool
+      {
+        \use:e
+          {
+            \exp_not:N \protected@edef \exp_not:N \@currentlabel
+              { \exp_not:c { p@ #2 } \exp_not:c { the #2 } }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_heading_section:Nnnnnnn #1#2#3#4#5#6#7
+  {
+    \par
+    \legacy_if:nF { @nobreak } { \addpenalty { \@secpenalty } }
+    \tl_clear:N \l__hit_heading_local_tl
+    \bool_set:Nn \l__hit_heading_numbered_bool { \int_compare_p:nNn { \c@secnumdepth } > {#7} }
+    \__hit_heading_emit:Nnnnnn #1 {#2} {#3} {#4} {#5} {#6}
+  }
+\cs_generate_variant:Nn \__hit_heading_section:Nnnnnnn { c }
+%    \end{macrocode}
+%
+% \cs{\_\_hit\_heading\_section\_new:Nnnnn}\meta{命令}\marg{层级名}\marg{样式名}\marg{样式标识}\marg{门槛}
+% 把 \meta{命令} 定义成节一级的标题命令（\verb|s o m|），按 \marg{样式名} 排；\cs{secnumdepth} 大于
+% \marg{门槛} 时编号。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_heading_section_new:Nnnnn #1#2#3#4#5
+  {
+    \exp_args:Nc \DeclareDocumentCommand { __hit_dl_ #2 :w } { s o m } { }
+    \exp_args:Nc \docxlike_heading_new:Nnn { __hit_dl_ #2 :w } {#3} {#2}
+    \DeclareDocumentCommand #1 { s o m }
+      {
+        \IfBooleanTF {##1}
+          { \__hit_heading_section:cnnnnnn { __hit_dl_ #2 :w } {#2} {#4} { * } {##2} {##3} {#5} }
+          { \__hit_heading_section:cnnnnnn { __hit_dl_ #2 :w } {#2} {#4} { } {##2} {##3} {#5} }
+      }
   }
 %    \end{macrocode}
 %
