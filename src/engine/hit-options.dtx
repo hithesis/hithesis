@@ -35,8 +35,8 @@
 %   数学引擎换成 \pkg{unicode-math}，\option{newtxmath} 降级为 \option{math-font}
 %   的一档，加 \option{math-style}；加 \option{windows-font-dir}；siyuan fontset 去掉；
 %   伪粗体系数由 2 改 2.85，按 Word 实测}
-% \changes{v3.2a}{2026/08/25}{改名与三态：\option{newgeometry} 改成 \option{v2-layout}
-%   （本科与硕博分开，硕博不写就是新版面），\option{arialtitle} 改名
+% \changes{v3.2a}{2026/08/25}{改名与三态：旧版面移除，\option{newgeometry} 与 \option{zijv}
+%   废弃，\option{arialtitle} 改名
 %   \option{style}/\option{heading-latin-sans}，\option{tocfour} 改名
 %   \option{toc}/\option{depth}，\option{tocblank} 废弃，\option{language} 补上兼容路径；
 %   \option{subtitle} 改三态；右开页收成「一个三态总闸 + 四个跳页点 + 一张按学位的
@@ -44,8 +44,8 @@
 %   写在 \cs{ProcessKeyOptions} 之前恒为真，改由三态取值承载；加 \option{cover-script}；
 %   \option{split-entry} 默认改 \texttt{true}}
 % \changes{v3.2a}{2026/08/28}{类内部不再用 \cs{ifthenelse}（加 \cs{hit@if@same@TF}）；
-%   \option{style/glue} 的伸缩量抽成 \cs{hit@glue@skip} 与 \cs{hit@glue@font@size}；
-%   加 \cs{g\_\_hit\_new\_layout\_bool}；只挑取值的三个组合判断删掉，取值已进词条表}
+%   \option{style/glue} 的伸缩量抽成 \cs{hit@glue@skip}；只挑取值的三个组合判断删掉，
+%   取值已进词条表}
 %
 % \cs{documentclass} 上接受的选项：声明、默认值，以及 \cs{ProcessKeyOptions}
 % 之后按材料、校区与学位补齐的那批后处理。
@@ -249,7 +249,7 @@
 % 得译一道。
 %
 % 漏了这一条的后果是静默走错：老文档写 \option{language}\texttt{=english}，
-% 当前类既不认也不提示，整份按中文排（旧版面兼容回归里英文书的致谢、目录、
+% 当前类既不认也不提示，整份按中文排（拿 v3.1e 的英文示例实测，致谢、目录、
 % 章标题全是中文，参照那边是 \texttt{ACKNOWLEDGEMENTS}、\texttt{Contents}、
 % \texttt{CHAPTER 1}）。
 %    \begin{macrocode}
@@ -272,63 +272,16 @@
 %    \end{macrocode}
 %
 % \changes{v2.0.0}{2018/06/14}{此处添加geometry选项}
-% 版面按新规范排是默认，旧版面靠 \option{v2-layout} 显式要回来。它必须写在
-% \cs{documentclass} 的可选参数里：版心决定整份文档怎么分页，\pkg{geometry} 要在
-% 基础类前后就定下来，挪进 \cs{hitsetup} 太晚。
-% \begin{latex}
-% \documentclass[v2-layout={bachelor=true}]{hithesis}
-% \documentclass[v2-layout={graduate=two}]{hithesis}
-% \end{latex}
-%
-% 本科与硕博分成两个键：\texttt{one}/\texttt{two} 管的只是硕博那一套，本科另有自己的
-% 旧版面（深圳本科可能还要用一阵），所以 \option{bachelor} 是个真假开关，
-% \option{graduate} 才收 \texttt{one}/\texttt{two}。博士后不在 \option{graduate} 里：
-% 它有自己一套参数，直接上新版面，不留旧的。\option{newgeometry} 的 \texttt{no}
-% 取值没有对应物，那是 PlutoThesis 时代留下的版心，与现行规范差得太远。
+% \changes{v3.0.13}{2020/11/10}{设置字距选项，因为word和规范不一致}
+% \option{newgeometry} 与 \option{zijv} 在 v3.1e 管旧版面的版心与字距。v3.2a 只有按现行规范
+% 排的一套版面，版心与字距都由 \option{layout} 定，这两个键照旧认，写了只给一条提示，
+% 原因见 \file{src/engine/hit-keylist.dtx} 的废弃表。
 %    \begin{macrocode}
-\hit@define@boolean@option@as{v2-layout-bachelor}{layout_two_bachelor}{false}
-\hit@define@choice@option{v2-layout-graduate}{layout_two_graduate_}{one,two}{}
 \keys_define:nn { hit / class }
   {
-    v2-layout .code:n = { \keys_set:nn { hit / v2-layout } {#1} } ,
-    newgeometry .code:n = { \__hit_legacy_layout_two:n {#1} } ,
+    newgeometry .code:n = { } ,
+    zijv .code:n = { } ,
   }
-\keys_define:nn { hit / v2-layout }
-  {
-    bachelor .code:n =
-      { \keys_set:nn { hit / class } { v2-layout-bachelor = #1 } } ,
-    bachelor .default:n = { true } ,
-    graduate .code:n =
-      { \keys_set:nn { hit / class } { v2-layout-graduate = #1 } } ,
-    glue .code:n = { \keys_set:nn { hit / class } { glue = #1 } } ,
-    glue .default:n = { true } ,
-    bottom .choice: ,
-    bottom / ragged .code:n = { \bool_gset_true:N  \g__hit_raggedbottom_bool } ,
-    bottom / flush  .code:n = { \bool_gset_false:N \g__hit_raggedbottom_bool } ,
-    bottom .value_required:n = true ,
-  }
-%    \end{macrocode}
-%
-% v3.1e 的 \option{newgeometry} 管的是所有学位，所以旧文档写它时两边都要开，
-% 这样版面一字不变。\texttt{no} 已经没有对应的新写法，报一句然后当 \texttt{two} 走；
-% \texttt{two} 要显式设上，不然硕博会落到新版面去。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_legacy_layout_two:n #1
-  {
-    \str_if_eq:nnTF {#1} { no }
-      {
-        \msg_warning:nnn { hithesis } { removed-option } { newgeometry=no }
-        \keys_set:nn { hit / class } { v2-layout-graduate = two }
-      }
-      { \keys_set:nn { hit / class } { v2-layout-graduate = #1 } }
-    \keys_set:nn { hit / class } { v2-layout-bachelor = true }
-  }
-%    \end{macrocode}
-%
-% 设置字距选项，因为word和规范不一致
-% \changes{v3.0.13}{2020/11/10}{设置字距选项，因为word和规范不一致}
-%    \begin{macrocode}
-\hit@define@choice@option{zijv}{ziju_}{regu,word}{}
 %    \end{macrocode}
 %
 % \changes{v3.1c}{2023/04/16}{设置中文参考文献中相邻两个标号使用逗号“,”还是短线“-”。\issue[137]}
@@ -887,57 +840,10 @@
   { \PassOptionsToClass { fontset=none } { ctexbook } }
 %    \end{macrocode}
 %
-% 设置字距默认选项
 % \changes{v3.0.13}{2020/11/10}{设置字距默认选项}
-%    \begin{macrocode}
-\bool_lazy_or:nnF
-  { \bool_if_p:N \g__hit_ziju_regu_bool }
-  { \bool_if_p:N \g__hit_ziju_word_bool }
-  { \bool_gset_true:N \g__hit_ziju_regu_bool }
-%    \end{macrocode}
-%
 % \changes{v3.0.13}{2020/11/10}{重新设置geometry的默认选项}
-% 走哪套版面在这里定死一次，后面读标志位就行。本科与硕博都走新版面，同一套取值，
-% 见 \file{src/config/hit-layout.dtx}。博士后还留在旧版面上：那一档另有一套参数，
-% 还没量。
-%
-% 退回旧版面：本科写 \option{v2-layout}\texttt{=\{bachelor=true\}}，硕博写
-% \option{v2-layout}\texttt{=\{graduate=one\}} 或 \texttt{two}。深圳本科可能还要
-% 用一阵旧的，所以这个后路留着。
-%
-% \option{graduate} 原先不写也兜底成 \texttt{two}，那时候硕博只有旧版面一条路，
-% 兜底是为了在两组旧尺寸里选一组。现在不写等于要新版面，所以兜底挪进旧版面那一支：
-% 只有真的走旧版面又没指明是哪一组时才补 \texttt{two}，博士后就落在这一条上。
+% 页底排不排齐（\option{layout}/\option{bottom}）在选项读完之后定一次。
 %    \begin{macrocode}
-\bool_new:N \g__hit_layout_two_bool
-\bool_if:NT \g__hit_final_bool
-  {
-    \bool_lazy_and:nnT
-      { \bool_if_p:N \g__hit_bachelor_bool }
-      { \bool_if_p:N \g__hit_layout_two_bachelor_bool }
-      { \bool_gset_true:N \g__hit_layout_two_bool }
-    \bool_lazy_and:nnT
-      {
-        \bool_lazy_or_p:nn
-          { \bool_if_p:N \g__hit_master_bool }
-          { \bool_if_p:N \g__hit_doctor_bool }
-      }
-      {
-        \bool_lazy_or_p:nn
-          { \bool_if_p:N \g__hit_layout_two_graduate_one_bool }
-          { \bool_if_p:N \g__hit_layout_two_graduate_two_bool }
-      }
-      { \bool_gset_true:N \g__hit_layout_two_bool }
-    \bool_if:NT \g__hit_postdoc_bool
-      { \bool_gset_true:N \g__hit_layout_two_bool }
-    \bool_if:NT \g__hit_layout_two_bool
-      {
-        \bool_lazy_or:nnF
-          { \bool_if_p:N \g__hit_layout_two_graduate_one_bool }
-          { \bool_if_p:N \g__hit_layout_two_graduate_two_bool }
-          { \bool_gset_true:N \g__hit_layout_two_graduate_two_bool }
-      }
-  }
 \__hit_layout_bottom_apply:
 %    \end{macrocode}
 %
@@ -945,15 +851,9 @@
 % \file{src/engine/hit-option-engine.dtx}，各个类共用。按校区、学位组合出来的判断由
 % \cs{hit@define@condition} 生成，一条一行。名字摊开写，读条件本身就知道判的是什么。
 %
-% 现在只剩 \cs{hit@if@show@degree@type}，决定要不要在封面上标出学生类别；它是
-% \option{degree-type} 那个三态选项的 \texttt{auto} 分支，用户写显式值就盖过去。
-%
 % 参数从 expl3 之外传进来，里面的空格照原样保留。注意原写法里 \cs{fi} 之后的
 % 空格会被记号化跳过，换成以 \texttt{\}} 结尾之后那个空格就成了真的空格，
 % 所以替换时要把它一起吃掉。
-%
-% 标题前后的间距与行距。\option{style/glue} 开时给伸缩量，关时是固定值。
-% 两个函数都可展开，所以能直接写在 \cs{ctexset} 的取值里。
 
 %
 % \cs{hit@if@same@TF}\marg{甲}\marg{乙}\marg{真}\marg{假} 比两段文字是否相同。不能用
@@ -964,7 +864,6 @@
 %    \begin{macrocode}
 \tl_new:N \l__hit_compare_first_tl
 \tl_new:N \l__hit_compare_second_tl
-\hit@define@condition{show@degree@type}{ ! ( ! \g__hit_shenzhen_bool && ! \g__hit_master_bool && \g__hit_fulltime_bool ) }
 %    \end{macrocode}
 %
 % 选项处理完，把类的几个全局开关同步给 \pkg{docxlike}，见 \file{src/engine/hit-docxlike.dtx}。

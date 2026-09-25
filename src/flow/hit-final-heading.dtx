@@ -6,14 +6,14 @@
 %
 % \section{章节标题}
 %
-% \changes{v3.2a}{2026/09/25}{新版面终稿（中英文）的章节标题改由 \pkg{docxlike} 排，不再经
-%   \pkg{ctex}：编号来自链接到标题样式的多级列表，编号后照原件在题名前敲两个半角空格；两行的
-%   章题第二行照整行居中；四级标题后紧接标题时段前不再丢；英文版章号独占一行是题名前敲的
-%   换行，章标题全大写是标题样式的“全部大写字母”，全是西文的章题按西文行盒排}
-% \changes{v3.2a}{2026/09/13}{章节命令与三套章节格式迁到 expl3；\cs{clubpenalty} 的赋值加
+% \changes{v3.2a}{2026/09/25}{终稿（中英文）的章节标题改由 \pkg{docxlike} 排，不再经
+%   \pkg{ctex}，旧版面那几段 \cs{ctexset} 删掉：编号来自链接到标题样式的多级列表，编号后照原件在
+%   题名前敲两个半角空格；两行的章题第二行照整行居中；四级标题后紧接标题时段前不再丢；英文版
+%   章号独占一行是题名前敲的换行，章标题全大写是标题样式的“全部大写字母”，全是西文的章题按
+%   西文行盒排}
+% \changes{v3.2a}{2026/09/13}{章节命令迁到 expl3；\cs{clubpenalty} 的赋值加
 %   花括号（裸写时 \hologo{TeX} 的数字扫描把标题后首段开头的数字一并吃进赋值，
-%   「1828年」变「年」）；中文那套里新版面已接管的三个键只对旧版面发；人文社科类的
-%   层次编号第一章／一、／（一）／1.；页眉收排印用的标题}
+%   「1828年」变「年」）；人文社科类的层次编号第一章／一、／（一）／1.；页眉收排印用的标题}
 % \changes{v3.2a}{2026/09/05}{英文目录：章节没给英文名时条目不再整条消失，退回排印用的
 %   标题、中文版再缀一句红字提示；章条目走 \cs{numberline}，编号后一个字、折行悬挂到
 %   标题首字；去掉条目末尾来自源码换行的空格}
@@ -29,15 +29,7 @@
 %
 % \cs{hit@title@font} 是标题字体，\cs{hit@chapter@entry@font} 是目录里章标题的字体
 % （注意别跟 \file{book-toc} 里的 \cs{hit@chapter@entry@font} 弄混，那个只在
-% \option{toc/sans-font} 打开时才定义）。\cs{hit@chapter@separator} 与
-% \cs{hit@section@separator} 是编号与标题之间的间隔，前者给章、后者给节以下三级。
-% 四个都可展开，能直接写进 \cs{ctexset} 的取值。
-%
-% 本科三个校区已经统一，两条判断里都不再出现校区：章那一路只看本部硕士，
-% 节以下三级是本部硕士或本科。名字也跟着改，章那个与深圳已经没有关系，
-% 叫 \cs{hit@chapter@separator}。
-%    \begin{macrocode}
-%    \end{macrocode}
+% \option{toc/sans-font} 打开时才定义）。两个都可展开。
 %
 % \begin{macro}{\hit@if@same@TF}
 % \cs{hit@if@same@TF}\marg{甲}\marg{乙}\marg{真}\marg{假} 把两边先展开再比字符串。
@@ -61,66 +53,20 @@
   { \bool_if:NTF \g__hit_heading_latin_sans_bool { \sffamily } { \heiti } }
 \cs_new:Npn \hit@chapter@entry@font
   { \bool_if:NTF \g__hit_heading_latin_sans_bool { \sffamily \heiti } { \heiti } }
-\cs_new:Npn \hit@chapter@separator
-  { \hit@if@both@options@TF{harbin}{master}{\quad}{\enspace} }
-\cs_new:Npn \hit@section@separator
-  {
-    \bool_lazy_or:nnTF
-      {
-        \bool_lazy_and_p:nn
-          { \bool_if_p:N \g__hit_harbin_bool } { \bool_if_p:N \g__hit_master_bool }
-      }
-      { \bool_if_p:N \g__hit_bachelor_bool }
-      { \quad } { \enspace }
-  }
 %    \end{macrocode}
-% \begin{macro}{\hit@chapter@title@format}
-% 根据 \issue[220] 为英文摘要标题增加 chapterbold 的判断
-% \changes{v3.1d}{2025/03/03}{根据 \issue[220] 为英文摘要标题增加 chapterbold 的判断}
 %
-% 英文版全大写；中文版里英文摘要那一章不做悬挂缩进，其余按
-% \option{style/chapter-hang} 决定。悬挂宽度必须用
-% \cs{CTEX@chaptername}\cs{CTEX@chapter@aftername} 量，否则量到的是英文标题长度。
-% 两个分支末尾的 \texttt{\string~} 是原写法里换行带出来的空格，改写时要保留。
-%    \begin{macrocode}
-\cs_new_protected:Npn \hit@chapter@title@format #1
-  {
-    \bool_if:NTF \g__hit_en_bool
-      { \MakeUppercase {#1} ~ }
-      {
-        \hit@if@same@TF {#1} { \hit@term@abstract@heading@en }
-          { \bool_if:NT \g__hit_chapterbold_bool { \bfseries } #1 }
-          {
-            \bool_if:NT \g__hit_chapterhang_bool
-              {
-                \settowidth \hangindent { \CTEX@chaptername \CTEX@chapter@aftername }
-                \int_set:Nn \hangafter { 1 }
-              }
-            #1
-          } ~
-      }
-  }
-%    \end{macrocode}
-% \end{macro}
-% 添加英文版目录chapter title控制
+% v3.1e 的章节标题由 \pkg{ctex} 排，格式写在英文版、博士后、其余三段 \cs{ctexset} 里。现在标题
+% 交给 \pkg{docxlike} 排（见本节末），那几段随旧版面删掉，下面是它们的修改记录。
 % \changes{v3.0.0}{2020/05/21}{添加英文版目录chapter title控制}
-%    \begin{macrocode}
-\NewDocumentCommand \hit@chapter@english@format { m }
-  {
-    \begin { center }
-      \hit@title@font
-      \legacy_if:nTF { @mainmatter } { \hit@fontsize@x{xiaoer}{1.57481} } { \hit@fontsize@x{sanhao}{1.57481} }
-      \bfseries #1
-    \end { center }
-  }
-\NewDocumentCommand \hit@chapter@english@name@format { m }
-  { \begin { center } \MakeUppercase {#1}~\end { center } }
-\NewDocumentCommand \hit@chapter@postdocformat { m }
-  { \centering \hit@title@font \hit@fontsize@x{xiaoer}{1.57481} \textbf {#1} }
-%    \end{macrocode}
-%
-% 添加博后标题格式
 % \changes{v3.0.0}{2020/05/21}{添加博后标题格式}
+% \changes{v3.0.01}{2020/06/06}{添加本科生章标题加粗选项}
+% \changes{v3.0.10}{2020/10/28}{按照规范中规定行距的mm数定义各级行距}
+% \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
+% \changes{v3.1c}{2023/04/16}{按照威海本科模板调整章标题的上下间距。\issue[135]}
+% \changes{v3.1d}{2025/03/03}{将判断换成可以展开的 \cs{ifboolexpe} 来解决 "Missing number" 的错误，\issue[200]}
+% \changes{v3.1d}{2025/03/03}{发现 \issue[135] 中的间距改错位置了……}
+% \changes{v3.1d}{2025/03/03}{\issue[220] 说来就来，本部本科也改成两个空格了。但是章标题的间距没改}
+% \changes{v3.1f}{0000/00/00}{威海本科模板章标题的上下间距与其他校区统一}
 %
 % 罚分取 1 不取内核的 \cs{@M}：标题后允许断页是对齐 Word 的既有决定，见
 % \file{docxlike-format.dtx} 孤寡罚分一节。
@@ -144,242 +90,15 @@
   }
 %    \end{macrocode}
 %
-% 设置一到四级标题、目录、书签格式。
-%
-% 按照规范中规定行距的mm数定义各级行距
-% \changes{v3.0.10}{2020/10/28}{按照规范中规定行距的mm数定义各级行距}
-% \changes{v3.1c}{2023/04/16}{按照威海本科模板调整章标题的上下间距。\issue[135]}
-% \changes{v3.1d}{2025/03/03}{将判断换成可以展开的 \cs{ifboolexpe} 来解决 "Missing number" 的错误，\issue[200]}
-% \changes{v3.1d}{2025/03/03}{发现 \issue[135] 中的间距改错位置了……}
-% \changes{v3.1f}{0000/00/00}{威海本科模板章标题的上下间距与其他校区统一}
-%
-% 章节格式分英文版、博后、其余三套。每套的 \cs{ctexset} 里有字面空格和控制空格，
-% 按 \ref{sec:expl3-space} 的规矩留在 expl3 之外，只把分派放进去。
-%
-% 新版面的标题已经交给 \pkg{docxlike} 排（见本节末），这三套只剩旧版面与博士后在用，
-% 冻结在旧版面的样子：英文版那一套给旧版面的英文稿，\cs{hit@chapter@settings@other@old:}
-% 是旧版面中文稿的字号与间距。将来删除旧版面时，这几套连同分派一起删。
-%    \begin{macrocode}
-\cs_new_protected:Npn \hit@chapter@settings@english
-  {
-%
-~\ctexset{%
- chapter={~
- afterindent=true,~
- pagestyle={hit@headings},~
- beforeskip={28.34646bp},%一个空行 1.57481 × 18
- afterskip={28.74646bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
- aftername={\hit@after@number:nnn{chapter}{en}{\par}},~
- format={\hit@chapter@english@format},~
- nameformat={\hit@chapter@english@name@format},%\center 会影响之后全局
- numberformat=\relax,~
- titleformat={\hit@chapter@title@format},~
- fixskip=true,~% 添加这一行去除默认间距
- %hang=true,
- },~
- section={~
- afterindent=true,~
- beforeskip={\hit@glue@skip{19.84252bp}{2.834646bp}},%上下空0.5行
- afterskip={\hit@glue@skip{19.84252bp}{2.834646bp}},~
- format={\hit@title@font\hit@glue@font@size{15bp}{21bp}{1.677267bp~\@minus 1.157391bp}\selectfont\bfseries},~
- aftername={\hit@after@number:nnn{section}{en}{\enspace}},~
- fixskip=true,~
- break={},~
- },~
- subsection={~
- afterindent=true,~
- beforeskip={\hit@glue@skip{17.00787bp}{2.834646bp}},~
- afterskip={\hit@glue@skip{17.00787bp}{2.834646bp}},~
- format={\hit@title@font\hit@glue@font@size{14bp}{18bp}{1.842609bp~\@minus 0.9920497bp}\selectfont\bfseries},~
- aftername={\hit@after@number:nnn{subsection}{en}{\enspace}},~
- fixskip=true,~
- break={},~
- },~
- subsubsection={~
- afterindent=true,~
- beforeskip={\hit@glue@skip{8.503937bp}{2.834646bp}},~
- afterskip={\hit@glue@skip{8.503937bp}{2.834646bp}},~
- format={\hit@title@font\normalsize},~
- aftername={\hit@after@number:nnn{subsubsection}{en}{\enspace}},~
- fixskip=true,~
- break={},~
- },~
- paragraph/afterindent=true,~
- subparagraph/afterindent=true~
- }~
-  }
-\cs_new_protected:Npn \hit@chapter@settings@postdoc
-  {
-%
-~\ctexset{%
- chapter={~
- afterindent=true,~
- pagestyle={hit@headings},~
- beforeskip={28.34646bp},%一个空行 1.57481 × 18
- afterskip={28.74646bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
- aftername={\hit@after@number:nnn{chapter}{zh}{\enspace}},~
- format={\hit@chapter@postdocformat},%\center 会影响之后全局
- nameformat=\relax,~
- numberformat=\relax,~
- titleformat=\hit@chapter@title@format,~
- fixskip=true,~% 添加这一行去除默认间距
- %hang=true,
- },~
- section={~
- afterindent=true,~
- beforeskip={\hit@glue@skip{19.84252bp}{2.834646bp}},%上下空0.5行
- afterskip={\hit@glue@skip{19.84252bp}{2.834646bp}},~
- format={\hit@title@font\hit@glue@font@size{15bp}{21bp}{1.677267bp~\@minus 1.157391bp}\selectfont\bfseries},~
- aftername={\hit@after@number:nnn{section}{zh}{\enspace}},~
- fixskip=true,~
- break={},~
- },~
- subsection={~
- afterindent=true,~
- beforeskip={\hit@glue@skip{17.00787bp}{2.834646bp}},~
- afterskip={\hit@glue@skip{17.00787bp}{2.834646bp}},~
- format={\hit@title@font\hit@glue@font@size{14bp}{18bp}{1.842609bp~\@minus 0.9920497bp}\selectfont\bfseries},~
- aftername={\hit@after@number:nnn{subsection}{zh}{\enspace}},~
- fixskip=true,~
- break={},~
- },~
- subsubsection={~
- afterindent=true,~
- beforeskip={\hit@glue@skip{8.503937bp}{2.834646bp}},~
- afterskip={\hit@glue@skip{8.503937bp}{2.834646bp}},~
- format={\hit@title@font\normalsize},~
- aftername={\hit@after@number:nnn{subsubsection}{zh}{\enspace}},~
- fixskip=true,~
- break={},~
- },~
- paragraph/afterindent=true,~
- subparagraph/afterindent=true~
- }~
-\par
-  }
-%    \end{macrocode}
-%
-%    \begin{macrocode}
-\cs_new_protected:Npn \hit@chapter@settings@other@old:
-  {
-%
-~\ctexset{%
- chapter={~
- beforeskip={28.34646bp},%一个空行 1.57481 × 18
- afterskip={28.74646bp},%0.8应该不计算间距 0.8 × 18 + 0.57481×18
- format={\centering\hit@title@font\hit@fontsize@x{xiaoer}{1.57481}\hit@if@option@T{chapterbold}{\hit@if@option@T{bachelor}{\bfseries}}},%\center 会影响之后全局
- },~
- section={~
- beforeskip={\hit@glue@skip{19.84252bp}{2.834646bp}},%上下空0.5行
- afterskip={\hit@glue@skip{19.84252bp}{2.834646bp}},~
- format={\hit@title@font\hit@glue@font@size{15bp}{21bp}{1.677267bp~\@minus 1.157391bp}\selectfont},~
- },~
- subsection={~
- beforeskip={\hit@glue@skip{17.00787bp}{2.834646bp}},~
- afterskip={\hit@glue@skip{17.00787bp}{2.834646bp}},~
- format={\hit@title@font\hit@glue@font@size{14bp}{18bp}{1.842609bp~\@minus 0.9920497bp}\selectfont},~
- },~
- subsubsection={~
- beforeskip={\hit@glue@skip{8.503937bp}{2.834646bp}},~
- afterskip={\hit@glue@skip{8.503937bp}{2.834646bp}},~
- format={\hit@title@font\normalsize},~
- }~
- }~
-  }
-\cs_new_protected:Npn \hit@chapter@settings@other
-  {
-%
-~\ctexset{%
- chapter={~
- afterindent=true,~
- pagestyle={hit@headings},~
-%    \end{macrocode}
-%
-% \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
-% 本部硕士，深圳本科的序号与标题间距为两个半角空格，其余设置为一个半角空格，如果其他规范中有两个半角空格，欢迎提 \issue
-%    \begin{macrocode}
- aftername={\hit@after@number:nnn{chapter}{zh}{\hit@chapter@separator}},~
-%    \end{macrocode}
-%
-% 添加本科生章标题加粗选项
-% \changes{v3.0.01}{2020/06/06}{添加本科生章标题加粗选项}
-%    \begin{macrocode}
- nameformat=\relax,~
- numberformat=\relax,~
- titleformat=\hit@chapter@title@format,~
- fixskip=true,~% 添加这一行去除默认间距
- %hang=true,
- },~
- section={~
- afterindent=true,~
-%    \end{macrocode}
-%
-% \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
-%    \begin{macrocode}
- aftername={\hit@after@number:nnn{section}{zh}{\hit@section@separator}},~
- fixskip=true,~
- break={},~
- },~
- subsection={~
- afterindent=true,~
-%    \end{macrocode}
-%
-% \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
-% \changes{v3.1d}{2025/03/03}{\issue[220] 说来就来，本部本科也改成两个空格了。但是章标题的间距没改}
-%    \begin{macrocode}
- aftername={\hit@after@number:nnn{subsection}{zh}{\hit@section@separator}},~
- fixskip=true,~
- break={},~
- },~
- subsubsection={~
- afterindent=true,~
-%    \end{macrocode}
-%
-% \changes{v3.1b}{2022/06/06}{根据部分规范来设置序号和标题之间的间距}
-%    \begin{macrocode}
- aftername={\hit@after@number:nnn{subsubsection}{zh}{\hit@section@separator}},~
- fixskip=true,~
- break={},~
- },~
- paragraph/afterindent=true,~
- subparagraph/afterindent=true~
- }~
-  }
-\bool_if:NTF \g__hit_en_bool
-  { \hit@chapter@settings@english }
-  {
-    \bool_if:NTF \g__hit_postdoc_bool
-      { \hit@chapter@settings@postdoc }
-      {
-        \hit@chapter@settings@other
-        \bool_if:NT \g__hit_layout_two_bool
-          { \hit@chapter@settings@other@old: }
-      }
-  }
-%    \end{macrocode}
-%
 % \emph{人文社科类的层次编号。}两份人文指南（研究生（七）、本科三、（七））
 % 的层次表：章“第一章”、节“一、”顶格、条“（一）”、款“1.”，章序用一、二、
 % 三；理工那两份是 1／1.1／1.1.1。只换编号的写法，\cs{thechapter} 仍是阿拉伯
 % 数字——指南（十一）到（十三）写明公式、表、图“按章编排，如第一章第一个公式
-% 的序号为（1-1）”，人文范例里也是“表3-3”。节与条的题序后不再空一个字：范例
-% 目录与正文里“一、问题的提出”“（一）课题来源”都是题序贴着标题排，
-% 那一格空隙由 \file{docxlike-format.dtx} 里生成 \texttt{aftername} 的那一处按
-% 门类跳过。
+% 的序号为（1-1）”，人文范例里也是“表3-3”。标题的编号在本节末的多级列表里（节与条
+% 题序后不空）；这里只把章号换成中文数字，给页眉的 \cs{CTEXthechapter} 用。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@chapter@settings@hass:
-  {
-    \ctexset
-      {
-        chapter / number = \chinese { chapter } ,
-        section / name = { , 、 } ,
-        section / number = \chinese { section } ,
-        subsection / name = { （ , ） } ,
-        subsection / number = \chinese { subsection } ,
-        subsubsection / name = { , . } ,
-        subsubsection / number = \arabic { subsubsection } ,
-      }
-  }
+  { \ctexset { chapter / number = \chinese { chapter } } }
 \bool_if:NT \g__hit_hass_bool { \hit@chapter@settings@hass: }
 %    \end{macrocode}
 %
@@ -596,7 +315,6 @@
     \__hit_toe_title:nn {#3} {#4}
     \exp_args:NnnV \__hit_toe_section:nnn {#1} {#2} \l__hit_toe_title_tl
   }
-\cs_set_eq:NN \hit@chapter \chapter
 \RenewDocumentCommand \chapter { s o m o }
   {
     \hit@clear@page \phantomsection
@@ -633,7 +351,6 @@
 %    \end{macro}
 %    \begin{macro}{\section}
 %    \begin{macrocode}
-\cs_set_eq:NN \hit@section \section
 \RenewDocumentCommand \section { s o m o }
   {
     \IfBooleanTF {#1}
@@ -654,7 +371,6 @@
 %    \end{macro}
 %    \begin{macro}{\subsection}
 %    \begin{macrocode}
-\cs_set_eq:NN \hit@subsection \subsection
 \RenewDocumentCommand \subsection { s o m o }
   {
     \IfBooleanTF {#1}
@@ -675,7 +391,6 @@
 %    \end{macro}
 %    \begin{macro}{\subsubsection}
 %    \begin{macrocode}
-\cs_set_eq:NN \hit@subsubsection \subsubsection
 \RenewDocumentCommand \subsubsection { s o m o }
   {
     \IfBooleanTF {#1}
@@ -705,15 +420,16 @@
 % 行距（原先是两段，中间夹着 \env{center} 的上下空白）；节号后原先是半个字，现在与中文版一样
 % 一个字。
 %
-% 外壳 \cs{chapter}、\cs{section}……不动（清页、书签锚点、英文目录），换的是里面借自
-% \pkg{ctex} 的 \cs{hit@chapter} 到 \cs{hit@subsubsection}。\pkg{ctex} 的章命令除了排标题还做
-% 几件事，照样接上：章前按 \option{openright} 清页、章页的页面样式、章页不放顶部浮动体、
+% 外壳 \cs{chapter}、\cs{section}……管清页、书签锚点、英文目录，排标题的是里面的
+% \cs{hit@chapter} 到 \cs{hit@subsubsection}。v3.1e 借的是 \pkg{ctex} 的章节命令，它们除了排标题
+% 还做几件事，这里照样接上：章前按 \option{openright} 清页、章页的页面样式、章页不放顶部浮动体、
 % 不带星号的章在图表清单里空 10\,pt。章前清页之后立起 \pkg{docxlike} 的“新一节开头”标记，
 % 章标题在页顶保住段前，对应 Word 里分页后插一个连续分节符。
 %
 % 编号格式照 Word 定义多级列表的写法：章“第\%1章”（英文版“Chapter~\%1”），节以下“\%1.\%2”等，
 % 章名取词条 \option{chapter-name}。人文社科类照范例：章用中文数字，节“一、”、条“（一）”，
 % 款“1.”。附录换一套列表：章“附录A”（本科“附录1”，英文版“Appendix~A”），节“A.1”。
+% \changes{v3.1d}{2025/03/03}{根据 \issue[220] 为英文摘要标题增加 chapterbold 的判断}
 % \option{chapterbold} 开着时中文版里英文摘要的标题加粗，用标题的局部格式给；英文版的章标题
 % 一律不加粗，这一条不管它。
 %    \begin{macrocode}
@@ -768,7 +484,7 @@
     \__hit_heading_styles:
     \NewDocumentCommand \__hit_dl_chapter:w { s o m } { }
     \docxlike_heading_new:Nnn \__hit_dl_chapter:w { Heading~1 } { chapter }
-    \RenewDocumentCommand \hit@chapter { s o m }
+    \NewDocumentCommand \hit@chapter { s o m }
       {
         \legacy_if:nTF { @openright } { \cleardoublepage } { \clearpage }
         \thispagestyle { hit@headings }
@@ -797,7 +513,7 @@
     \__hit_heading_section_new:Nnnnn \hit@subsubsection { subsubsection } { Heading~4 } { Heading4 } { 2 }
     \AddToHook { env / appendix / begin } { \__hit_heading_link:nn { hit-appendix } { 4 } }
   }
-\bool_if:NF \g__hit_layout_two_bool { \__hit_heading_docxlike: }
+\__hit_heading_docxlike:
 %    \end{macrocode}
 %
 % \subsubsection{定义封面}

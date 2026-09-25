@@ -23,7 +23,7 @@
 %   与全篇的差异写在自己名下；页码线、页眉线、右开页从 \option{style} 挪进来按部件
 %   寻址；\option{header}／\option{footer} 的 \option{shift} 与 \option{shown} 照
 %   Word 的对话框设；\option{grid}/\option{chars}/\option{latin} 与
-%   \option{grid}/\option{enabled}；旧版面下不推部件版面（博士后摘要页曾被推成零边距）}
+%   \option{grid}/\option{enabled}}
 % \changes{v3.2a}{2026/09/21}{加 \option{style}/\option{em-dash}、
 %   \option{style}/\option{fake-slant-songti}、\option{style}/\option{float-sep}、
 %   \option{style}/\option{verb-space}}
@@ -252,17 +252,8 @@
 % 正文的余量算得出来：自然值 3.03\,mm、上限 4\,mm，每行富余 0.97\,mm，
 % 一页 33 行合计 32\,mm，而页底缺口通常不到 7\,mm。所以实际每行只拉 0.2\,mm
 % 上下，肉眼看不出来。
-% \emph{\cs{\_\_hit\_layout\_bottom:n}。}
-% \option{layout} 是新版面的接口，不该管旧版面：旧版面进了兼容期就锁死，
-% 章节格式在那边设了不管用，页底策略在那边设了却管用，说不通。所以这个键
-% 只记下取值，能不能落到标志位上由 \cs{\_\_hit\_layout\_bottom\_apply:} 决定。
-%
-% 类选项阶段 \cs{g\_\_hit\_new\_layout\_bool} 还没算出来（它要等所有类选项读完
-% 才知道 \option{v2-layout} 到底开没开），所以那时按兵不动，等选项后处理
-% 那里补一次。用 \cs{hitsetup} 设的时候标志位已经有值，当场就能落。
-% \file{hit-report.cls} 没有新旧版面之分，那边这个标志位不存在，直接落。
-%
-% 旧版面要改页底策略走 \option{v2-layout}\texttt{=\{bottom=\ldots\}}。
+% \emph{\cs{\_\_hit\_layout\_bottom:n}。}这个键记下取值，由 \cs{\_\_hit\_layout\_bottom\_apply:}
+% 落到标志位。类选项读完之后那里再落一次，压过选项后处理里按档给的默认值。
 %    \begin{macrocode}
 \tl_new:N \g__hit_layout_bottom_tl
 \cs_new_protected:Npn \__hit_layout_bottom:n #1
@@ -273,15 +264,6 @@
 \cs_new_protected:Npn \__hit_layout_bottom_apply:
   {
     \tl_if_empty:NF \g__hit_layout_bottom_tl
-      { \__hit_layout_bottom_check: }
-  }
-\cs_new_protected:Npn \__hit_layout_bottom_check:
-  {
-    \bool_if_exist:NTF \g__hit_layout_two_bool
-      {
-        \bool_if:NF \g__hit_layout_two_bool
-          { \__hit_layout_bottom_set: }
-      }
       { \__hit_layout_bottom_set: }
   }
 \cs_new_protected:Npn \__hit_layout_bottom_set:
@@ -469,46 +451,24 @@
   }
 %    \end{macrocode}
 %
-% \cs{\_\_hit\_layout\_msword\_active:TF} 这份文档走不走 Word 那套版面。旧版面的尺寸写在
-% \file{src/flow/hit-flow-geometry.dtx} 里，\option{layout} 那一族的默认值整段不发，
-% 攒出来的键值表是空的，拿空表去算只会得到一页零边距。报告没有这个标志位，
-% 那边只有一套版面，当作走。
-%    \begin{macrocode}
-\prg_new_protected_conditional:Npnn \__hit_layout_msword_active: { T , TF }
-  {
-    \bool_if_exist:NTF \g__hit_layout_two_bool
-      {
-        \bool_if:NTF \g__hit_layout_two_bool
-          { \prg_return_false: } { \prg_return_true: }
-      }
-      { \prg_return_true: }
-  }
-%    \end{macrocode}
-%
 % \begin{macro}{\hit@layout@push@part:n}
 % \begin{macro}{\hit@layout@pop@part:}
 % 排某个部件之前换上它那一节的版面，排完 \cs{hit@layout@pop@part:} 还回去。
 % 传进去的是「全篇取值 + 该部件的差异」，后写的覆盖先写的。
-%
-% 两条都跟着 \cs{\_\_hit\_layout\_msword\_active:TF} 走，一起做或者一起不做，
-% 不然 \cs{docxlike\_page\_setup\_pop:} 会拿上一次存的值往回还。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@layout@push@part:n #1
   {
-    \__hit_layout_msword_active:T
+    \use:x
       {
-        \use:x
+        \exp_not:N \docxlike_page_setup_push:n
           {
-            \exp_not:N \docxlike_page_setup_push:n
-              {
-                \exp_not:v { g__hit_layout_msword_tl }
-                \exp_not:v { g__hit_layout_msword_#1_tl }
-              }
+            \exp_not:v { g__hit_layout_msword_tl }
+            \exp_not:v { g__hit_layout_msword_#1_tl }
           }
       }
   }
 \cs_new_protected:Npn \hit@layout@pop@part:
-  { \__hit_layout_msword_active:T { \docxlike_page_setup_pop: } }
+  { \docxlike_page_setup_pop: }
 %    \end{macrocode}
 % \end{macro}
 % \end{macro}
@@ -629,11 +589,8 @@
   {
     \bool_if:NF \g__hit_layout_frozen_bool
       {
-        \__hit_layout_msword_active:T
-          {
-            \tl_if_empty:NF \g__hit_layout_msword_tl
-              { \exp_args:NV \docxlike_page_setup:n \g__hit_layout_msword_tl }
-          }
+        \tl_if_empty:NF \g__hit_layout_msword_tl
+          { \exp_args:NV \docxlike_page_setup:n \g__hit_layout_msword_tl }
       }
   }
 \cs_new_protected:Npn \hit@layout@set:n #1
@@ -1093,10 +1050,11 @@
 %
 % 另有一张废弃表，记的是没有新名可改的选项。这类键照旧认，只是什么也不做，
 % 提示里说清为什么。\option{tocblank} 插的那个空行规范里没有，所以整条去掉，
-% 行为等同于原先的 \option{tocblank}\texttt{=false}。
-% \option{glue} 和 \option{raggedbottom} 不能只报一个新名字。它们原来同时
-% 承担两件事：调旧版面那套手写的伸缩量，以及决定页底排不排齐。新版面把这
-% 两件事分开了，所以得问清楚用户到底要哪一种，两条路都写给他看。
+% 行为等同于原先的 \option{tocblank}\texttt{=false}。\option{newgeometry} 与 \option{zijv}
+% 管的是旧版面的版心与字距，旧版面在 v3.2a 移除，这两个一并废弃。
+% \option{glue} 和 \option{raggedbottom} 在 v3.1e 同时承担两件事：调旧版面那套手写的
+% 伸缩量，以及决定页底排不排齐。旧版面移除之后只剩页底那一件，提示里写新写法，
+% 并说明伸缩量不用自己填。
 %    \begin{macrocode}
 \prop_gset_from_keyval:Nn \g__hit_split_option_prop
   {
@@ -1109,6 +1067,8 @@
 \prop_gset_from_keyval:Nn \g__hit_removed_option_prop
   {
     tocblank = { 目录里第一章之前不再插空行，规范里没有这一条 } ,
+    newgeometry = { 旧版面在~v3.2a~移除，版心照现行规范排，要改写~layout~族 } ,
+    zijv = { 旧版面在~v3.2a~移除，字距由~layout~的字符网格定 } ,
   }
 \prop_gset_from_keyval:Nn \g__hit_renamed_option_prop
   {
@@ -1124,7 +1084,6 @@
     etitleauto       = { titlepage = { title-en-xiaoer = ... } } ,
     openright        = { layout = { openright = ... } } ,
     library          = { layout = { openright = false } } ,
-    zijv             = { layout = v2-layout~专用 } ,
     bsheadrule       = { layout = { header = { rule = ... } } } ,
     bsmainpagenumberline  = { layout = { mainmatter = { page-number-line = ... } } } ,
     bsfrontpagenumberline = { layout = { frontmatter = { page-number-line = ... } } } ,
@@ -1186,7 +1145,6 @@
     font        = { font = { latin-text-font = ... } } ,
     cjk-font    = { font = { asian-text-font = ... } } ,
     type        = { degree-level } ,
-    newgeometry = { v2-layout~=~{~bachelor~,~graduate~=~one|two~} } ,
   }
 %    \end{macrocode}
 %

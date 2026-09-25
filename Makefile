@@ -25,7 +25,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls docxlike-sync docxlike-check lineends lineends-self lineends-verb lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline compat-regression manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls docxlike-sync docxlike-check lineends lineends-self lineends-verb lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
         baseline smoke regression-test tl-packages testclean version version-check version-set
 
@@ -36,11 +36,6 @@ all: manual
 cls: $(TARGETS)
 
 # 行末回归：demo 与书写范例逐行比对（先重编 examples/demo/thesis.pdf）
-# 旧版面兼容回归：钉死 v3.1e，测 v2-layout 还原不还原得了老版面。
-# 名单与做法见 tests/compat/README.txt。
-compat-regression:
-	bash scripts/compat-regression.sh
-
 # 行末距离：断行交给 TeX，与 Word 不会归零；--max-diff 是棘轮上限，
 # 只保证不变坏，改进之后把这个数调低。
 #
@@ -53,8 +48,8 @@ compat-regression:
 # 同字体对同字体量才有意义（fandol 那档是 TeXGyreTermes 加 FandolSong，
 # 实测行差 80，windows 是 79）。
 #
-# 代价是这个目标要机器上装了 Office 字体才能跑。lineends 不进 CI（CI 只跑
-# compat-regression），是本机开发用的量具，可以这么钉。
+# 代价是这个目标要机器上装了 Office 字体才能跑。lineends 不进 CI，是本机开发用的
+# 量具，可以这么钉。
 #
 # 2026/09/15 起主线是 lualatex：断行由 src/docxlike/docxlike-linebreak.dtx 的 Lua 照 Word
 # 的贪心算法做，行差从 78 降到 61。基线是本科范例的 docx 转出来的 PDF，那份 docx

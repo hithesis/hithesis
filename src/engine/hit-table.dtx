@@ -48,11 +48,8 @@
 \cs_new_protected:Npn \__hit_table_float_begin:
   {
     \bool_set_true:N \l__hit_table_float_bool
-    \__hit_layout_msword_active:T
-      {
-        \skip_zero:N \lineskip
-        \skip_zero:N \normallineskip
-      }
+    \skip_zero:N \lineskip
+    \skip_zero:N \normallineskip
   }
 \cs_new_protected:Npn \hit@setup@table
   {
@@ -107,8 +104,7 @@
 % Word 是“行盒居中再加上升部”，即 $(19.15-13.617)/2 + 10.66 = 13.43$\,bp，
 % 差 0.02\,bp。不必另写居中的撑杆。
 %
-% 旧版面算不出网格（\cs{g\_docxlike\_page\_lead\_dim} 是零），退回 \cs{wuhao}。
-% 判据是“网格算出来没有”，不是“哪个版面”——问版面等于把同一件事写两遍。
+% 算不出网格时（普通报告，\cs{g\_docxlike\_page\_lead\_dim} 是零）退回 \cs{wuhao}。
 %
 % \emph{数从 \option{table-cell} 目标取，不再写死五号加网格。} 上面那段
 % “五号、行高一个网格行”是学位论文范例的样子，写成 \option{styles} 的话就是
@@ -138,22 +134,17 @@
 %
 % 字体状态用 \cs{docxlike\_format\_apply\_state\_else:nn} 设：它与
 % \cs{docxlike\_format\_apply\_font\_else:nn} 只差不发撑杆——环境开头是竖直模式，
-% 撑杆一发就起了一段。旧版面（\cs{\_\_hit\_layout\_msword\_active:TF} 为假）
-% 整段不走，仍是 \cs{wuhao}，那一档钉的是 v3.1e，一个字节都不能动。
+% 撑杆一发就起了一段。
 %    \begin{macrocode}
 \box_new:N \l__hit_table_strut_box
 \cs_new_protected:Npn \hit@table@font:
   {
-    \__hit_layout_msword_active:TF
+    \docxlike_format_apply_state_else:nn { table-cell } { \wuhao }
+    \cs_if_exist:NT \docxlike_format_strut:
       {
-        \docxlike_format_apply_state_else:nn { table-cell } { \wuhao }
-        \cs_if_exist:NT \docxlike_format_strut:
-          {
-            \docxlike_format_strut_box:N \l__hit_table_strut_box
-            \box_set_eq:NN \strutbox \l__hit_table_strut_box
-          }
+        \docxlike_format_strut_box:N \l__hit_table_strut_box
+        \box_set_eq:NN \strutbox \l__hit_table_strut_box
       }
-      { \wuhao }
   }
 %    \end{macrocode}
 % \end{macro}
@@ -170,9 +161,8 @@
 % 1½ 磅与 1 磅。
 %
 % \textbf{磅是 \texttt{bp} 不是 \texttt{pt}。} Word 的磅是 1/72 英寸，
-% \hologo{TeX} 的 \texttt{pt} 是 1/72.27 英寸，照 Word 写 \texttt{bp}。两个版面
-% 一套值，不为旧版面另留一支：v3.1e 写的 1.5\,pt 与 1.5\,bp 差 0.0056\,bp，
-% 印不出来，为这点差养一个分支不值。
+% \hologo{TeX} 的 \texttt{pt} 是 1/72.27 英寸，照 Word 写 \texttt{bp}。v3.1e 写的
+% 1.5\,pt 与 1.5\,bp 差 0.0056\,bp，印不出来。
 %
 % \cs{tabcolsep} 是单元格左右各留多少。范例的表没写 \texttt{tblCellMar}，用的是
 % \file{styles.xml} 里 \texttt{docDefaults} 那一份：上下 0、左右各 108 缇，
@@ -187,13 +177,10 @@
     \dim_set:Nn \tabcolsep { 5.4bp }
     \AddToHook { begindocument / end }
       {
-        \__hit_layout_msword_active:T
-          {
-            \skip_zero:N \abovetopsep
-            \skip_zero:N \belowrulesep
-            \skip_zero:N \aboverulesep
-            \skip_zero:N \belowbottomsep
-          }
+        \skip_zero:N \abovetopsep
+        \skip_zero:N \belowrulesep
+        \skip_zero:N \aboverulesep
+        \skip_zero:N \belowbottomsep
       }
   }
 %    \end{macrocode}
@@ -267,7 +254,7 @@
 %   撑起来：空段成了一整行，与 \texttt{presep} 叠成两行空白（实测表题比浮动表
 %   低 17.9），表盒底下多垫一个行深。所以这四处的 \cs{leavevmode} 与
 %   \cs{noindent} 前面各补一句 \cs{docxlike\_format\_blank\_para:}，让那一段两头都不发
-%   撑杆、也不走 Lua 的行盒；四个外距在新版面下按网格行设，旧版面不动。
+%   撑杆、也不走 Lua 的行盒；四个外距按网格行设。
 %   \cs{nobreak}\cs{noindent} 那一对打两遍：\cs{patchcmd} 只换第一处，换过的
 %   那处已经不匹配，第二遍换到的就是另一处。
 %   补丁用 \cs{patchcmd} 打在 \pkg{tabularray} 的内部函数上。\cs{patchcmd}
@@ -348,8 +335,7 @@
             \AddToHook { env/##1/begin }
               {
                 \SetTblrInner [##1] { colsep = \tabcolsep }
-                \__hit_layout_msword_active:T
-                  { \SetTblrInner [##1] { rowsep = 0pt } }
+                \SetTblrInner [##1] { rowsep = 0pt }
                 \bool_if:NT \l__hit_table_float_bool { \hit@table@font: }
               }
           }
@@ -358,8 +344,7 @@
             \AddToHook { env/##1/begin }
               {
                 \SetTblrInner [##1] { colsep = \tabcolsep }
-                \__hit_layout_msword_active:T
-                  { \SetTblrInner [##1] { rowsep = 0pt } }
+                \SetTblrInner [##1] { rowsep = 0pt }
                 \hit@table@font:
               }
           }
@@ -368,14 +353,11 @@
             \AddToHook { env/##1/begin }
               {
                 \SetTblrInner [##1] { rowhead = 1 }
-                \__hit_layout_msword_active:T
+                \SetTblrOuter [##1]
                   {
-                    \SetTblrOuter [##1]
-                      {
-                        presep  = \g_docxlike_page_lead_dim ,
-                        postsep = \g_docxlike_page_lead_dim ,
-                        headsep = 0pt , footsep = 0pt ,
-                      }
+                    presep  = \g_docxlike_page_lead_dim ,
+                    postsep = \g_docxlike_page_lead_dim ,
+                    headsep = 0pt , footsep = 0pt ,
                   }
               }
           }
