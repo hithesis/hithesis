@@ -248,7 +248,7 @@
         \legacy_if:nF { @nobreak }
           { \addpenalty { \l__docxlike_heading_penalty_tl } }
       }
-    \__docxlike_heading_latin:n { \l__docxlike_heading_num_tl #5 }
+    \exp_args:NV \__docxlike_heading_latin:nn \l__docxlike_heading_num_tl {#5}
     \exp_args:NnV \docxlike_format_par:nnn {#1} \l__docxlike_heading_local_tl
       {
         \__docxlike_heading_marks:nnnn {#1} {#2} {#3} {#4}
@@ -256,6 +256,7 @@
       }
     \mode_if_vertical:T { \tex_prevdepth:D = -1000pt \scan_stop: }
     \bool_set_false:N \l_docxlike_format_latin_pick_bool
+    \bool_set_false:N \l_docxlike_format_asian_ascent_bool
     \bool_set_false:N \l_docxlike_numbering_off_bool
     \bool_set_false:N \l_docxlike_numbering_pending_bool
   }
@@ -267,26 +268,40 @@
 % \option{fixskip} 做的一样。
 %
 % \emph{全是西文的题名按西文行盒排。}Word 的行高取行里实际的字，题名里没有汉字就是西文的
-% 行高与上升部（iota 也这样判）。编号也在这一行里，编号带汉字（“第一章”）就不算全是西文；
-% 编号与题名一起先展开再看。
+% 行高与上升部（iota 也这样判）。题名里敲的全角空格不算汉字，“1.1　Introduction”照样是西文
+% 行盒。编号另算：编号里有汉字或全角空格（“第1章”“1.1　”）时，这一行的上升部换成东亚字体
+% 的，行深仍是西文的。Windows Word 实测：黑体与 Times 14 磅单倍行距，西文 16.08、中文 18.12、
+% 带这种编号的西文题名 17.16，正是黑体的上升部加 Times 的行深；Arial 与微软雅黑 12 磅是
+% 13.80、20.58、17.64，同一条规律。编号与题名各自先展开再看。
 %    \begin{macrocode}
 \tl_new:N \l__docxlike_heading_text_tl
-\cs_new_protected:Npn \__docxlike_heading_latin:n #1
+\tl_new:N \l__docxlike_heading_numtext_tl
+\regex_const:Nn \c__docxlike_heading_asian_regex
+  { [\x{2E80}-\x{2FFF}\x{3001}-\x{9FFF}\x{F900}-\x{FAFF}\x{FF00}-\x{FFEF}] }
+\regex_const:Nn \c__docxlike_heading_asian_space_regex
+  { [\x{2E80}-\x{9FFF}\x{F900}-\x{FAFF}\x{FF00}-\x{FFEF}] }
+\cs_new_protected:Npn \__docxlike_heading_latin:nn #1#2
   {
     \group_begin:
       \cs_set_eq:NN \docxbookmark \use_ii:nn
-      \protected@edef \l__docxlike_heading_text_tl {#1}
+      \protected@edef \l__docxlike_heading_numtext_tl {#1}
+      \protected@edef \l__docxlike_heading_text_tl {#2}
       \regex_match:nVT { [A-Za-z0-9] } \l__docxlike_heading_text_tl
         {
-          \regex_match:nVF
-            { [\x{2E80}-\x{9FFF}\x{F900}-\x{FAFF}\x{FF00}-\x{FFEF}\x{3000}-\x{303F}] }
-            \l__docxlike_heading_text_tl
-            { \group_insert_after:N \__docxlike_heading_latin_true: }
+          \regex_match:NVF \c__docxlike_heading_asian_regex \l__docxlike_heading_text_tl
+            {
+              \group_insert_after:N \__docxlike_heading_latin_true:
+              \regex_match:NVT \c__docxlike_heading_asian_space_regex
+                \l__docxlike_heading_numtext_tl
+                { \group_insert_after:N \__docxlike_heading_asian_ascent_true: }
+            }
         }
     \group_end:
   }
 \cs_new_protected:Npn \__docxlike_heading_latin_true:
   { \bool_set_true:N \l_docxlike_format_latin_pick_bool }
+\cs_new_protected:Npn \__docxlike_heading_asian_ascent_true:
+  { \bool_set_true:N \l_docxlike_format_asian_ascent_bool }
 \cs_new:Npn \__docxlike_heading_level:n #1
   { \str_range:nnn {#1} { -1 } { -1 } }
 \cs_generate_variant:Nn \__docxlike_heading_level:n { V }
