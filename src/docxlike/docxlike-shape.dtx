@@ -1,0 +1,444 @@
+% \iffalse meta-comment
+%
+% docxlike-shape.dtx 是锚在段落上的对象：线条形状与图文框
+%
+% \fi
+%
+% \section{定位对象}
+%
+% \changes{v3.2a}{2026/09/26}{新增线条形状 \cs{docxshape} 与图文框 \cs{docxframe}：锚在段上，
+%   纵向从段顶量，横向从栏、版心或纸的左边量；两个引擎一样，经 \cs{vadjust}~\texttt{pre}
+%   放到锚定段首行之上}
+%
+% Word 里有两种不随正文流走、按坐标放的东西。一种是形状（插入 → 形状，旧文件里是 VML 的
+% \texttt{v:line}、\texttt{v:rect}），一种是图文框（段落的 \texttt{w:framePr}，页脚里居中的
+% 页码常是它）。两种都锚在某一段上，位置按“布局”对话框写：横向相对栏、页边距或页面，
+% 纵向相对段落、页边距或页面。
+%
+% \emph{段顶在哪。} 纵向相对段落时从段顶量，段顶连这一段的段前在内，上一段的段后不算：一份封皮
+% 上四条 VML 线，锚定段带 8.15 磅段前、前一段带 16.3 磅段后的那一条，这样量与导出件差 0.3 磅
+% 以内，从首行顶量差 8 磅，从上一段文字的底量差 16 磅。格式模块在段前那一步记下它放的空
+% （\cs{l\_docxlike\_format\_par\_gap\_dim}），这里倒推回去。
+%
+% \emph{放在哪。} 对象要画在锚定段之上，而写对象的命令在段里。\cs{vadjust}~\texttt{pre} 把
+% 材料放进竖直列表、排在它所在那一行的行间胶之前，不影响行距，两个引擎都有。放进去的是一只
+% 零高的盒，盒的左边就是栏的左边，与这一段怎么对齐无关。所以命令要写在锚定段的\emph{首行}
+% 里，照 docx 转过来时写在段首。写在两段之间（竖直模式）的，锚在下一段上。
+%
+% 纵向相对页边距、页面的，要知道锚定段落在哪一页的什么位置，这一版没有做，写了报错；横向
+% 相对页面的按奇数页的左边距折算。
+%    \begin{macrocode}
+%<*docxlike-shape>
+%    \end{macrocode}
+%
+% \subsection{线条形状}
+%
+% \cs{docxshape}\oarg{键}：
+% \begin{latex}
+% \docxshape[
+%   position = { horizontal = { absolute-position = 76.3 , to-the-right-of = column } ,
+%                vertical = { absolute-position = 27.6 , below = paragraph } } ,
+%   size = { width = 261.6 , height = 0 } ,
+%   line = { width = 0.75 , color = auto } ]
+% \end{latex}
+% 键照“布局”对话框的“位置”页与“设置形状格式”窗格的“线条”：\option{absolute-position}
+% 是“绝对位置”，\option{to-the-right-of} 取 \texttt{column}、\texttt{margin}、\texttt{page}，
+% \option{below} 取 \texttt{paragraph}；\option{size} 是“大小”页的宽与高，线从位置那一点画到
+% 宽、高之外；\option{line} 的 \option{width} 是线宽（默认 0.75 磅，与 VML 的默认一样），
+% \option{color} 取 \texttt{auto} 或颜色。线的粗细居中压在坐标上。现在只有横线与竖线。
+%
+% VML 的 \texttt{from}、\texttt{to} 两点照写：位置取两点中靠左上的一点，宽、高取两点之差。
+%    \begin{macrocode}
+\dim_new:N \l__docxlike_shape_x_dim
+\dim_new:N \l__docxlike_shape_y_dim
+\dim_new:N \l__docxlike_shape_w_dim
+\dim_new:N \l__docxlike_shape_h_dim
+\dim_new:N \l__docxlike_shape_lw_dim
+\tl_new:N \l__docxlike_shape_xrel_tl
+\tl_new:N \l__docxlike_shape_color_tl
+\msg_new:nnnn { docxlike } { shape-anchor }
+  { '#1'~must~be~placed~between~paragraphs~or~in~the~first~line~of~a~paragraph. }
+  { The~object~is~dropped. }
+\keys_define:nn { docxlike / shape }
+  {
+    type .choices:nn = { line } { } ,
+    position .code:n = { \__docxlike_keys_set:nn { docxlike / shape / position } {#1} } ,
+    size .code:n = { \__docxlike_keys_set:nn { docxlike / shape / size } {#1} } ,
+    line .code:n = { \__docxlike_keys_set:nn { docxlike / shape / line } {#1} } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / shape / position }
+  {
+    horizontal .code:n = { \__docxlike_keys_set:nn { docxlike / shape / horizontal } {#1} } ,
+    vertical .code:n = { \__docxlike_keys_set:nn { docxlike / shape / vertical } {#1} } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / shape / horizontal }
+  {
+    absolute-position .code:n =
+      { \dim_set:Nn \l__docxlike_shape_x_dim { \__docxlike_bp:n {#1} } } ,
+    to-the-right-of .choices:nn = { column , margin , page }
+      { \tl_set_eq:NN \l__docxlike_shape_xrel_tl \l_keys_choice_tl } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / shape / vertical }
+  {
+    absolute-position .code:n =
+      { \dim_set:Nn \l__docxlike_shape_y_dim { \__docxlike_bp:n {#1} } } ,
+    below .choices:nn = { paragraph , line , margin , page }
+      {
+        \str_if_eq:VnF \l_keys_choice_tl { paragraph }
+          {
+            \msg_error:nne { docxlike } { not-implemented }
+              { vertical~position~below~\l_keys_choice_tl }
+          }
+      } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / shape / size }
+  {
+    width .code:n = { \dim_set:Nn \l__docxlike_shape_w_dim { \__docxlike_bp:n {#1} } } ,
+    height .code:n = { \dim_set:Nn \l__docxlike_shape_h_dim { \__docxlike_bp:n {#1} } } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / shape / line }
+  {
+    width .code:n = { \dim_set:Nn \l__docxlike_shape_lw_dim { \__docxlike_bp:n {#1} } } ,
+    color .tl_set:N = \l__docxlike_shape_color_tl ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\cs_generate_variant:Nn \msg_error:nnn { nne }
+%    \end{macrocode}
+%
+% 横向折成相对栏的量。栏就是页边距之间（一栏的文档），相对页面的减去奇数页的左边距。
+%    \begin{macrocode}
+\cs_new:Npn \__docxlike_shape_page_left:
+  { 1in + \hoffset + \oddsidemargin }
+\cs_new_protected:Npn \__docxlike_shape_column:NV #1#2
+  {
+    \str_if_eq:VnT #2 { page }
+      { \dim_sub:Nn #1 { \__docxlike_shape_page_left: } }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\docxshape,\docxlike_shape:n}
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_shape:n #1
+  {
+    \group_begin:
+      \dim_zero:N \l__docxlike_shape_x_dim
+      \dim_zero:N \l__docxlike_shape_y_dim
+      \dim_zero:N \l__docxlike_shape_w_dim
+      \dim_zero:N \l__docxlike_shape_h_dim
+      \dim_set:Nn \l__docxlike_shape_lw_dim { 0.75bp }
+      \tl_set:Nn \l__docxlike_shape_xrel_tl { column }
+      \tl_set:Nn \l__docxlike_shape_color_tl { auto }
+      \__docxlike_keys_set:nn { docxlike / shape } {#1}
+      \__docxlike_shape_column:NV \l__docxlike_shape_x_dim \l__docxlike_shape_xrel_tl
+      \bool_lazy_and:nnTF
+        { \dim_compare_p:nNn { \l__docxlike_shape_w_dim } > { 0pt } }
+        { \dim_compare_p:nNn { \l__docxlike_shape_h_dim } > { 0pt } }
+        { \msg_error:nnn { docxlike } { not-implemented } { a~slanted~line } }
+        {
+          \use:e
+            {
+              \exp_not:N \__docxlike_anchor_put:nn { \exp_not:N \docxshape }
+                {
+                  \exp_not:N \__docxlike_shape_line:nnnnnn
+                    { \dim_use:N \l__docxlike_shape_x_dim } { \dim_use:N \l__docxlike_shape_y_dim }
+                    { \dim_use:N \l__docxlike_shape_w_dim } { \dim_use:N \l__docxlike_shape_h_dim }
+                    { \dim_use:N \l__docxlike_shape_lw_dim } { \l__docxlike_shape_color_tl }
+                }
+            }
+        }
+    \group_end:
+  }
+\NewDocumentCommand \docxshape { O { } } { \docxlike_shape:n {#1} }
+%    \end{macrocode}
+% \end{macro}
+%
+% 画线：\marg{横}\marg{纵}\marg{宽}\marg{高}\marg{线宽}\marg{颜色}，数都已折好。零高的竖盒里先往下
+% 走到坐标，横线再往上退半个线宽。挂起到下一段时组已经关了，所以数是展开了传进来的。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_shape_line:nnnnnn #1#2#3#4#5#6
+  {
+    \dim_compare:nNnTF {#4} > { 0pt }
+      {
+        \skip_vertical:n {#2}
+        \hbox_overlap_right:n
+          {
+            \skip_horizontal:n { #1 - #5 / 2 }
+            \__docxlike_shape_color:n {#6}
+            \rule {#5} {#4}
+          }
+      }
+      {
+        \skip_vertical:n { #2 - #5 / 2 }
+        \hbox_overlap_right:n
+          {
+            \skip_horizontal:n {#1}
+            \__docxlike_shape_color:n {#6}
+            \rule {#3} {#5}
+          }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_shape_color:n #1
+  {
+    \str_if_eq:nnF {#1} { auto }
+      {
+        \regex_match:nnTF { \A [0-9A-Fa-f]{6} \Z } {#1}
+          { \color_select:nn { HTML } {#1} }
+          { \color_select:n {#1} }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{放到锚定段上}
+%
+% \cs{\_\_docxlike\_anchor\_put:nn}\marg{命令名}\marg{画的代码}：\meta{画的代码} 在一只左边贴栏左、
+% 顶在段顶的竖盒里执行。竖直模式下（两段之间）先挂起，下一段开头放；段首行里用
+% \cs{vadjust}~\texttt{pre} 放到这一行之上，从那里往上退回段顶：这一段的段间距加上
+% \cs{parskip}。别处报错丢掉。
+%
+% 盒在竖直列表里净占零：高取首行的估计高（本包撑杆的上升部与 \cs{strutbox} 的高取大），深取它的
+% 相反数。不直接用零高的盒，是因为锚定段若是 \cs{vtop}（\cs{parbox}\texttt{[t]}）里的第一段，
+% \cs{vtop} 按第一项的高定基线，零高的盒会把整个 \cs{vtop} 的基线挪到顶上；高取首行的高，基线仍
+% 落在首行上。画的位置从盒顶算，与盒高无关。
+%    \begin{macrocode}
+\tl_new:N \g__docxlike_anchor_pending_tl
+\cs_new_protected:Npn \__docxlike_anchor_put:nn #1#2
+  {
+    \mode_if_vertical:TF
+      { \tl_gput_right:Nn \g__docxlike_anchor_pending_tl {#2} }
+      {
+        \bool_lazy_and:nnTF
+          { \mode_if_horizontal_p: }
+          { ! \mode_if_inner_p: }
+          { \__docxlike_anchor_vadjust:n {#2} }
+          { \msg_error:nnn { docxlike } { shape-anchor } { \token_to_str:N #1 } }
+      }
+  }
+\box_new:N \l__docxlike_anchor_box
+\dim_new:N \l__docxlike_anchor_dim
+\cs_new_protected:Npn \__docxlike_anchor_vadjust:n #1
+  {
+    \tex_vadjust:D pre
+      {
+        \vbox_set_to_ht:Nnn \l__docxlike_anchor_box { 0pt }
+          {
+            \skip_vertical:n { - \l_docxlike_format_par_gap_dim - \parskip }
+            #1
+            \tex_vss:D
+          }
+        \docxlike_format_strut_height:N \l__docxlike_anchor_dim
+        \dim_set:Nn \l__docxlike_anchor_dim
+          { \dim_max:nn { \l__docxlike_anchor_dim } { \box_ht:N \strutbox } }
+        \box_set_ht:Nn \l__docxlike_anchor_box { \l__docxlike_anchor_dim }
+        \box_set_dp:Nn \l__docxlike_anchor_box { - \l__docxlike_anchor_dim }
+        \box_use_drop:N \l__docxlike_anchor_box
+        \tex_penalty:D 10000 \scan_stop:
+      }
+  }
+\hook_gput_code:nnn { para / begin } { docxlike }
+  {
+    \tl_if_empty:NF \g__docxlike_anchor_pending_tl
+      {
+        \exp_args:NV \__docxlike_anchor_vadjust:n \g__docxlike_anchor_pending_tl
+        \tl_gclear:N \g__docxlike_anchor_pending_tl
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{图文框}
+%
+% \cs{docxframe}\oarg{键}\marg{内容} 是一段带 \texttt{w:framePr} 的段落，写在两段之间，锚在下一段
+% 上。键照“图文框”对话框：
+% \begin{latex}
+% \docxframe[
+%   style = Footer , text-wrapping = around ,
+%   size = { width = auto } ,
+%   horizontal = { position = center , relative-to = margin } ,
+%   vertical = { position = 0.05 , relative-to = paragraph } ]
+%   { \docxfield{PAGE} }
+% \end{latex}
+% \option{style} 是框里那一段的样式（默认 \texttt{Normal}），\option{format} 是这一段的直接格式
+% （与 \cs{docxpar} 的可选参数一样写 \option{font}、\option{paragraph}）；\option{size} 的 \option{width} 取
+% \texttt{auto}（照内容的宽，不超过栏宽）或长度，\option{height} 照收（框不画边框、不填底纹时看不出
+% 高来）；
+% \option{horizontal} 的 \option{position} 取 \texttt{left}、\texttt{center}、\texttt{right} 或长度，
+% \option{relative-to} 取 \texttt{margin}、\texttt{page}、\texttt{column}；\option{vertical} 的
+% \option{position} 取长度，\option{relative-to} 取 \texttt{paragraph}。\option{text-wrapping} 与两个
+% \option{distance-from-text} 照收，正文不绕排：框叠在正文上。
+%
+% 框里那一段照样式排，段前段后算在框里。排之前把格式模块的全局状态存下、排完放回，同页眉
+% 页脚那样（\cs{\_\_docxlike\_headfoot\_state\_save:}），另加上一段的段后与段间距那几个量：框
+% 不占正文流，下一段的段前照旧对着框前面那一段算。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_frame_style_tl
+\tl_new:N \l__docxlike_frame_format_tl
+\tl_new:N \l__docxlike_frame_width_tl
+\tl_new:N \l__docxlike_frame_height_tl
+\tl_new:N \l__docxlike_frame_xpos_tl
+\tl_new:N \l__docxlike_frame_xrel_tl
+\dim_new:N \l__docxlike_frame_y_dim
+\dim_new:N \l__docxlike_frame_w_dim
+\int_new:N \g__docxlike_frame_int
+\keys_define:nn { docxlike / frame }
+  {
+    style .tl_set:N = \l__docxlike_frame_style_tl ,
+    format .tl_set:N = \l__docxlike_frame_format_tl ,
+    text-wrapping .choices:nn = { none , around } { } ,
+    size .code:n = { \__docxlike_keys_set:nn { docxlike / frame / size } {#1} } ,
+    horizontal .code:n = { \__docxlike_keys_set:nn { docxlike / frame / horizontal } {#1} } ,
+    vertical .code:n = { \__docxlike_keys_set:nn { docxlike / frame / vertical } {#1} } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / frame / size }
+  {
+    width .tl_set:N = \l__docxlike_frame_width_tl ,
+    height .tl_set:N = \l__docxlike_frame_height_tl ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / frame / horizontal }
+  {
+    position .tl_set:N = \l__docxlike_frame_xpos_tl ,
+    relative-to .choices:nn = { margin , page , column }
+      { \tl_set_eq:NN \l__docxlike_frame_xrel_tl \l_keys_choice_tl } ,
+    distance-from-text .code:n = { } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / frame / vertical }
+  {
+    position .code:n =
+      {
+        \str_case:nnTF {#1} { { top } { } { center } { } { bottom } { } }
+          { \msg_error:nnn { docxlike } { not-implemented } { vertical~position~#1 } }
+          { \dim_set:Nn \l__docxlike_frame_y_dim { \__docxlike_bp:n {#1} } }
+      } ,
+    relative-to .choices:nn = { paragraph , margin , page }
+      {
+        \str_if_eq:VnF \l_keys_choice_tl { paragraph }
+          {
+            \msg_error:nne { docxlike } { not-implemented }
+              { frame~vertical~position~relative~to~\l_keys_choice_tl }
+          }
+      } ,
+    distance-from-text .code:n = { } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\docxframe,\docxlike_frame:nn}
+% 宽取 \texttt{auto} 时先把内容照样式的字体排成一行量宽。框里的盒按序号存，挂起的代码里只记
+% 序号与坐标。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_frame:nn #1#2
+  {
+    \group_begin:
+      \tl_set:Nn \l__docxlike_frame_style_tl { Normal }
+      \tl_clear:N \l__docxlike_frame_format_tl
+      \tl_set:Nn \l__docxlike_frame_width_tl { auto }
+      \tl_set:Nn \l__docxlike_frame_height_tl { auto }
+      \tl_set:Nn \l__docxlike_frame_xpos_tl { left }
+      \tl_set:Nn \l__docxlike_frame_xrel_tl { column }
+      \dim_zero:N \l__docxlike_frame_y_dim
+      \__docxlike_keys_set:nn { docxlike / frame } {#1}
+      \int_gincr:N \g__docxlike_frame_int
+      \box_if_exist:cF { g__docxlike_frame_ \int_use:N \g__docxlike_frame_int _box }
+        { \box_new:c { g__docxlike_frame_ \int_use:N \g__docxlike_frame_int _box } }
+      \__docxlike_headfoot_state_save:
+      \__docxlike_frame_state_save:
+      \str_if_eq:VnTF \l__docxlike_frame_width_tl { auto }
+        {
+          \hbox_set:Nn \l__docxlike_headfoot_box
+            {
+              \docxlike_format_with:VVn \l__docxlike_frame_style_tl \l__docxlike_frame_format_tl
+                { \docxlike_format_apply_state_else:Vn \l__docxlike_frame_style_tl { } }
+              #2
+            }
+          \dim_set:Nn \l__docxlike_frame_w_dim
+            { \dim_min:nn { \box_wd:N \l__docxlike_headfoot_box } { \linewidth } }
+        }
+        { \dim_set:Nn \l__docxlike_frame_w_dim { \__docxlike_bp:V \l__docxlike_frame_width_tl } }
+      \vbox_gset:cn { g__docxlike_frame_ \int_use:N \g__docxlike_frame_int _box }
+        {
+          \dim_set_eq:NN \hsize \l__docxlike_frame_w_dim
+          \dim_set_eq:NN \linewidth \l__docxlike_frame_w_dim
+          \dim_zero:N \parskip
+          \dim_zero:N \parindent
+          \everypar { }
+          \docxlike_format_par:VVn \l__docxlike_frame_style_tl \l__docxlike_frame_format_tl {#2}
+        }
+      \__docxlike_frame_state_restore:
+      \__docxlike_headfoot_state_restore:
+      \__docxlike_frame_x:
+      \use:e
+        {
+          \exp_not:N \__docxlike_anchor_put:nn { \exp_not:N \docxframe }
+            {
+              \exp_not:N \skip_vertical:n { \dim_use:N \l__docxlike_frame_y_dim }
+              \exp_not:N \hbox_overlap_right:n
+                {
+                  \exp_not:N \skip_horizontal:n { \dim_use:N \l__docxlike_shape_x_dim }
+                  \exp_not:N \box_use_drop:c
+                    { g__docxlike_frame_ \int_use:N \g__docxlike_frame_int _box }
+                }
+            }
+        }
+    \group_end:
+  }
+\cs_generate_variant:Nn \docxlike_format_apply_state_else:nn { V }
+\dim_new:N \l__docxlike_frame_prev_after_dim
+\dim_new:N \l__docxlike_frame_pending_after_dim
+\dim_new:N \l__docxlike_frame_gap_dim
+\bool_new:N \l__docxlike_frame_placed_bool
+\bool_new:N \l__docxlike_frame_gap_bool
+\cs_new_protected:Npn \__docxlike_frame_state_save:
+  {
+    \dim_set_eq:NN \l__docxlike_frame_prev_after_dim \g__docxlike_format_prev_after_dim
+    \dim_set_eq:NN \l__docxlike_frame_pending_after_dim \g__docxlike_format_pending_after_dim
+    \dim_set_eq:NN \l__docxlike_frame_gap_dim \g__docxlike_format_gap_dim
+    \bool_set_eq:NN \l__docxlike_frame_placed_bool \g__docxlike_format_after_placed_bool
+    \bool_set_eq:NN \l__docxlike_frame_gap_bool \g__docxlike_format_gap_bool
+  }
+\cs_new_protected:Npn \__docxlike_frame_state_restore:
+  {
+    \dim_gset_eq:NN \g__docxlike_format_prev_after_dim \l__docxlike_frame_prev_after_dim
+    \dim_gset_eq:NN \g__docxlike_format_pending_after_dim \l__docxlike_frame_pending_after_dim
+    \dim_gset_eq:NN \g__docxlike_format_gap_dim \l__docxlike_frame_gap_dim
+    \bool_gset_eq:NN \g__docxlike_format_after_placed_bool \l__docxlike_frame_placed_bool
+    \bool_gset_eq:NN \g__docxlike_format_gap_bool \l__docxlike_frame_gap_bool
+  }
+\cs_generate_variant:Nn \docxlike_format_par:nnn { VV }
+\cs_generate_variant:Nn \docxlike_format_with:nnn { VV }
+\cs_generate_variant:Nn \__docxlike_bp:n { V }
+\NewDocumentCommand \docxframe { O { } +m } { \docxlike_frame:nn {#1} {#2} }
+%    \end{macrocode}
+% \end{macro}
+%
+% 横向：左、中、右按栏宽（相对页面时按纸宽）与框宽算，长度照写，再折成相对栏的量。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_frame_x:
+  {
+    \dim_set:Nn \l__docxlike_shape_x_dim
+      {
+        \str_case:VnF \l__docxlike_frame_xpos_tl
+          {
+            { left } { 0pt }
+            { center } { ( \__docxlike_frame_span: - \l__docxlike_frame_w_dim ) / 2 }
+            { right } { \__docxlike_frame_span: - \l__docxlike_frame_w_dim }
+          }
+          { \__docxlike_bp:V \l__docxlike_frame_xpos_tl }
+      }
+    \__docxlike_shape_column:NV \l__docxlike_shape_x_dim \l__docxlike_frame_xrel_tl
+  }
+\cs_new:Npn \__docxlike_frame_span:
+  { \str_if_eq:VnTF \l__docxlike_frame_xrel_tl { page } { \paperwidth } { \linewidth } }
+\cs_generate_variant:Nn \str_case:nnF { VnF }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</docxlike-shape>
+%    \end{macrocode}
+%
+% \Finale

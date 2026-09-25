@@ -2574,6 +2574,23 @@
           { \l__docxlike_format_box_dim - \l__docxlike_format_asc_dim }
     \scan_stop:
   }
+\dim_new:N \g__docxlike_format_strut_ht_dim
+\cs_new_protected:Npn \docxlike_format_strut_height:N #1
+  {
+    \group_begin:
+      \bool_if:NTF \l_docxlike_format_strut_latin_bool
+        {
+          \__docxlike_format_strut_dims:nn
+            { \l_docxlike_format_natural_latin_tl } { \l_docxlike_format_ascent_latin_tl }
+        }
+        {
+          \__docxlike_format_strut_dims:nn
+            { \l__docxlike_format_strut_natural_tl } { \l_docxlike_format_ascent_tl }
+        }
+      \dim_gset_eq:NN \g__docxlike_format_strut_ht_dim \l__docxlike_format_asc_dim
+    \group_end:
+    \dim_set_eq:NN #1 \g__docxlike_format_strut_ht_dim
+  }
 \cs_new_protected:Npn \__docxlike_format_strut_dims:nn #1#2
   {
     \dim_set:Nn \l__docxlike_format_strut_dim { \f@size pt }
@@ -2598,6 +2615,8 @@
       }
   }
 %    \end{macrocode}
+%
+% \cs{docxlike\_format\_strut\_height:N}\meta{长度} 取当前撑杆的高（上升部），不排撑杆。
 %
 % \emph{固定值行距的基线。} Word 的 \texttt{w:lineRule="exact"} 下，行盒高被钉死
 % 成给定值，基线落在盒顶下 \cs{c\_docxlike\_format\_exact\_tl} 倍处，
@@ -3793,9 +3812,15 @@
 % 段后记没记、页首留不留）。段前读 \cs{l\_docxlike\_format\_before\_dim} 与它的伸量、
 % \cs{l\_\_docxlike\_format\_top\_keep\_bool}；段后读 \cs{g\_\_docxlike\_format\_after\_dim}、
 % 伸量与 \cs{g\_\_docxlike\_format\_keep\_tl}。
+%
+% 段前那一步顺手记下这一步放了多少空（上一段已经放下的段后不算，页首保留段前时是段前本身），
+% 段一开始转存到 \cs{l\_docxlike\_format\_par\_gap\_dim}。锚在段上的对象
+% （\file{docxlike-shape.dtx}）从这一段连段前在内的顶量起，要用它倒推回去；不是本包排的段记零。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__docxlike_format_before_put:
   {
+  \bool_gset_true:N \g__docxlike_format_gap_bool
+  \dim_gzero:N \g__docxlike_format_gap_dim
   \dim_compare:nNnT { \l_docxlike_format_before_dim } > { \c_zero_dim }
     {
       \par
@@ -3811,7 +3836,7 @@
         {
           \hbox:n { }
           \nointerlineskip
-          \skip_vertical:n
+          \dim_gset:Nn \g__docxlike_format_gap_dim
             {
               \bool_if:NTF \g__docxlike_format_add_spacing_bool
                 { \l_docxlike_format_before_dim }
@@ -3819,10 +3844,27 @@
                   \dim_max:nn { 0pt }
                     { \l_docxlike_format_before_dim - \g__docxlike_format_prev_after_dim }
                 }
-              - \topskip
             }
+          \skip_vertical:n { \g__docxlike_format_gap_dim - \topskip }
         }
         {
+          \dim_gset:Nn \g__docxlike_format_gap_dim
+            {
+              \bool_if:NTF \g__docxlike_format_add_spacing_bool
+                {
+                  \l_docxlike_format_before_dim
+                  \bool_if:NF \g__docxlike_format_after_placed_bool
+                    { + \g__docxlike_format_prev_after_dim }
+                }
+                {
+                  \dim_max:nn { 0pt }
+                    {
+                      \l_docxlike_format_before_dim
+                      \bool_if:NT \g__docxlike_format_after_placed_bool
+                        { - \g__docxlike_format_prev_after_dim }
+                    }
+                }
+            }
           \bool_if:NTF \g__docxlike_format_add_spacing_bool
             {
               \skip_vertical:n
@@ -3862,6 +3904,7 @@
   }
 \cs_new_protected:Npn \__docxlike_format_after_put:
   {
+    \bool_gset_false:N \g__docxlike_format_gap_bool
     \dim_gset_eq:NN \g__docxlike_format_prev_after_dim \g__docxlike_format_after_dim
     \bool_gset_true:N \g__docxlike_format_after_placed_bool
     \str_if_eq:VnT \g__docxlike_format_keep_tl { true } { \nobreak }
@@ -3888,8 +3931,14 @@
 \bool_new:N \g__docxlike_format_after_placed_bool
 \bool_new:N \g_docxlike_section_start_bool
 \bool_gset_true:N \g_docxlike_section_start_bool
+\dim_new:N \g__docxlike_format_gap_dim
+\bool_new:N \g__docxlike_format_gap_bool
+\dim_new:N \l_docxlike_format_par_gap_dim
 \hook_gput_code:nnn { para / begin } { docxlike }
   {
+    \dim_set:Nn \l_docxlike_format_par_gap_dim
+      { \bool_if:NTF \g__docxlike_format_gap_bool { \g__docxlike_format_gap_dim } { 0pt } }
+    \bool_gset_false:N \g__docxlike_format_gap_bool
     \bool_gset_false:N \g_docxlike_section_start_bool
     \dim_gset_eq:NN \g__docxlike_format_prev_after_dim \g__docxlike_format_body_after_dim
     \__docxlike_format_if_outer_par:T
