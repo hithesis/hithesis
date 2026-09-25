@@ -1522,6 +1522,7 @@
 \docxlike_format_target_new:nn { Normal } { }
 \clist_map_inline:nn { Heading1 , Heading2 , Heading3 , Heading4 , Header , Footer }
   { \docxlike_format_target_new:nn {#1} { Normal } }
+\int_step_inline:nnn { 1 } { 9 } { \docxlike_format_target_new:nn { TOC #1 } { Normal } }
 %    \end{macrocode}
 %
 % \option{hyphenation} 照“布局 → 断字”：\texttt{automatic} 自动断字，\texttt{none} 不断。
@@ -1707,7 +1708,9 @@
 %    \end{macrocode}
 %
 % 带单位的键：\meta{值}加\meta{单位}两条。\texttt{line} 折成一行的倍数，
-% \texttt{chars} 折成网格字距的倍数，文档类登记过的单位按它的代码折，其余当长度。
+% \texttt{chars} 折成“这一样式的字号加字符网格增量”的倍数（没有字符网格时增量为零，
+% 就是字号；先前乘网格格宽，没有字符网格的文档折成了零，字号与正文不同的样式也不对），
+% 文档类登记过的单位按它的代码折，其余当长度。
 %
 % \emph{“一行”有多长，看网格启不启用。} 启用时是网格行距；关着时 Word 仍认
 % “段前 0.5 行”，那个行是这一节\emph{正文的单倍行高}，也就是 \texttt{Normal}
@@ -1749,7 +1752,17 @@
                   }
               }
           }
-        { chars } { \dim_set:Nn #3 { #2 \g_docxlike_page_char_dim } }
+        { chars }
+          {
+            \dim_set:Nn #3
+              {
+                #2 \tex_dimexpr:D
+                  \l_docxlike_format_size_dim
+                  \dim_compare:nNnF { \g_docxlike_page_char_dim } = { 0pt }
+                    { + \__docxlike_format_grid_glue: }
+                \scan_stop:
+              }
+          }
       }
       {
         \cs_if_exist:cTF { __docxlike_format_space_unit_ #1 :nN }
@@ -4220,7 +4233,8 @@
 %
 % 只排一行：带制表符的段不断行，Word 的页眉页脚几乎都是这样用的。规则是量的：先按
 % 左对齐排开，居中制表位让那一截以停靠点为中心、右制表位让那一截右端贴停靠点，都不压到
-% 前一截上；整行排好再按段落的对齐方式分剩下的空白。
+% 前一截上；整行排好再按段落的对齐方式分剩下的空白。制表位从栏左量，文字从左缩进加首行
+% 缩进处起排（目录第二级起有缩进，页码仍对在栏宽处）。
 %    \begin{macrocode}
 \dim_new:N \g_docxlike_default_tab_stop_dim
 \dim_gset:Nn \g_docxlike_default_tab_stop_dim { 21bp }
@@ -4235,6 +4249,7 @@
 \tl_new:N \l__docxlike_format_tabs_tl
 \dim_new:N \l__docxlike_format_tab_x_dim
 \dim_new:N \l__docxlike_format_tab_start_dim
+\dim_new:N \l__docxlike_format_tab_origin_dim
 \box_new:N \l__docxlike_format_tab_seg_box
 \box_new:N \l__docxlike_format_tab_line_box
 \tl_new:N \l__docxlike_format_tab_kind_tl
@@ -4253,7 +4268,10 @@
     \seq_set_split:Nnn \l__docxlike_format_tab_seg_seq { \docxtab } {#2}
     \seq_pop_left:NN \l__docxlike_format_tab_seg_seq \l__docxlike_format_border_tl
     \hbox_set:Nn \l__docxlike_format_tab_line_box { \l__docxlike_format_border_tl }
-    \dim_set:Nn \l__docxlike_format_tab_x_dim { \box_wd:N \l__docxlike_format_tab_line_box }
+    \dim_set:Nn \l__docxlike_format_tab_origin_dim
+      { \l_docxlike_format_left_dim + \l_docxlike_format_indent_dim }
+    \dim_set:Nn \l__docxlike_format_tab_x_dim
+      { \l__docxlike_format_tab_origin_dim + \box_wd:N \l__docxlike_format_tab_line_box }
     \seq_map_inline:Nn \l__docxlike_format_tab_seg_seq
       {
         \hbox_set:Nn \l__docxlike_format_tab_seg_box {##1}
@@ -4286,7 +4304,8 @@
       }
     \__docxlike_format_read:nnnN {#1} { pPr/jc } { both } \l__docxlike_format_value_tl
     \leavevmode
-    \hbox_to_wd:nn { \linewidth }
+    \hbox_to_wd:nn
+      { \linewidth - \l__docxlike_format_tab_origin_dim - \l_docxlike_format_right_dim }
       {
         \str_case:VnF \l__docxlike_format_value_tl
           {
