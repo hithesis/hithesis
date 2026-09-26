@@ -8,10 +8,10 @@
 %
 % \changes{v3.2a}{2026/09/26}{“文字对齐字符网格”的节里另走一套装行与排行：汉字一格一个，连续的西文
 %   按自然宽占整数格，都居中；按格数断行，西文整截下行，行首禁则把前一个字推下去；对齐方式不起作用}
-% \changes{v3.2a}{2026/09/26}{对齐范围看段落自己的 \texttt{adjustRightInd}：开着时两端对齐只撑到整数个格，
-%   超出整数格的行再挤标点装进去（先前两端对齐一律撑满版心，只有居中、右对齐看段落）；断行仍按整个
-%   版心，\texttt{msword.rs} 里只在 \texttt{adjustRightInd} 开着时走的几支从没用上，删去；上标、下标两侧
-%   不加中西文间距（Windows 探针 \file{fn1} 的脚注号）}
+% \changes{v3.2a}{2026/09/26}{断行容量与对齐范围看段落自己的 \texttt{adjustRightInd}（先前全局当作关着）：
+%   开着时按整数个格装、两端对齐只撑到最后一格，这种段里西文字形加的量截到 1/6000 英寸（字距 1861 时
+%   0.216，不是半个增量 0.2271）。Windows 探针 \file{ari1} 144 行、\file{fn1} 与范例英文摘要的断行都与
+%   Word 同（不截时开着 ARI 的段早断一个词）。上标、下标两侧不加中西文间距（\file{fn1} 的脚注号）}
 % \changes{v3.2a}{2026/09/26}{“为字体调整字间距”照字体的老式 kern 表收字偶距，空格的配对也收（\pkg{luaotfload}
 %   只在 kern 表有两张以上子表时才读，Times New Roman 一对都不收）；合成粗体每个字形加字号的 1/280}
 % \changes{v3.2a}{2026/09/26}{单字步进照 Windows Word 实测（探针 adv1--adv5）：网格增量只看字体的
@@ -250,6 +250,17 @@ M.trace = false
 M.compat = 11   -- Word 兼容模式：11（2003）、12/14（2007/2010）、15（2013 起）
 M.snap = false  -- 段落贴行网格（Word 的 snapToGrid）
 M.cell = false  -- 段落在表格单元格里：闭号只压半格不挂出，老模式不按整格
+-- Word 排字的位置按 1/6000 英寸（0.012 磅）记（Windows 探针 sz3、sz4 的坐标都是它的整数倍）。按整数格
+-- 装的段里西文字形加的量截到它的整数倍（向零截），贴字符网格的西文串逐字截；汉字的格宽断行时不截（lb
+-- 探针在 Windows 与 Mac 上翻转点全同，截了反而错 14 组），排出来的位置 Word 是截过的（字距 1861 时
+-- 一格 12.444），这里没跟
+local DEVU = 0.012 * 65781.76
+local function devtrunc(x)
+  local q = x / DEVU
+  if q >= 0 then q = math.floor(q + 1e-6) else q = math.ceil(q - 1e-6) end
+  return q * DEVU
+end
+
 local function trace(...)
   if M.trace then texio.write_nl("term and log", "HG| " .. string.format(...)) end
 end
@@ -1036,6 +1047,12 @@ local function decide(items, P, shape, indent)
   -- 记得更多（(k+3)/5，一个位时只算 0.4）
   local G_TAB = { [0] = 0, 0.29, 0.54, 0.73, 0.9, 1.1, 1.29, 1.4, 1.5 }
 
+  -- 一行里的字（0..last）有没有汉字
+  local function has_cjk(first, m)
+    for i = first, m do if items[i].kind == 0 then return true end end
+    return false
+  end
+
   -- ===== Word 2013：单元 j..m（开号、一个字或西文串 core、后面的闭号）能超出版心多少 =====
   local function budget15(first, j0, j, core, m, isfirst)
     local openers_n = 0
@@ -1214,25 +1231,70 @@ local function decide(items, P, shape, indent)
     local latin = tc.kind == 3
     local gaps = autos_in(first, core)
     local own
-    if opener then
+    if opener and latin and m == core and P.ari then
+      local u_core = 0
+      for i = j + 1, m do u_core = u_core + items[i].nw end
+      local phys = half * (k + 1) + auto / 2 * gaps
+      own = math.min(phys, u_core + half + 0.3 * bp)
+    elseif opener then
       -- 开号带西文与闭号链的（（SSA）、）到三个位（msword.rs 的 c11k）；开号带汉字的
       -- 至多两个（lb4 探针 o2=o3=19）
       own = half + half * math.min(k, latin and 3 or 2)
     elseif latin then
       local b = j
-      while b > first + 1 and items[b - 1].kind == 4 do
+      while b > first + 1
+        and (items[b - 1].kind == 4
+             or (P.ari and ((items[b - 1].kind == 3 and items[b - 1].glyphs)
+                            or (items[b - 1].symbol and items[b - 1].nw < half * 1.5)))) do
         b = b - 1
       end
       local u = 0
       for i = b, m do u = u + items[i].nw end
-      local cap
-      if m == core and tc.gn == 1 and tc.c == 62 then cap = half * 2 else cap = u / 2 end
-      own = math.min(half * k + auto / 2 * gaps, cap)
-      -- 下面接着算闭号链；m == core 时在此返回
-      if m == core then
-        local ascii = (tc.tail_hang or 0)
-        if compat == 11 then ascii = math.min(ascii, 3 * bp) end
-        return own + ascii + ((ascii > 0) and P.latin_add or 0)
+      if P.ari then
+        local u2 = 0
+        for i = b, core do u2 = u2 + items[i].nw end
+        local cjk_line = has_cjk(first, m)
+        local inner_space = nil
+        for i = b + 1, core - 1 do if items[i].kind == 4 then inner_space = i; break end end
+        local spaces = 0
+        for i = first + 1, m do
+          local t = items[i]
+          if i < b and cjk_line and t.kind == 4 and not t.user and t.nw < half - 0.1 * bp then spaces = spaces + 1 end
+        end
+        local phys = half * k + auto / 2 * (gaps + spaces)
+        local glyphs = 0
+        for i = b, core do glyphs = glyphs + (items[i].gn or 0) end
+        local cap
+        if m == core and tc.gn == 1 and tc.c == 62 then
+          if compat ~= 11 then return half + tc.w end
+          cap = half * 2
+        elseif inner_space then
+          local s = 0
+          for i = b, inner_space - 1 do s = s + items[i].nw end
+          cap = u2 - s
+        elseif glyphs <= 1 then
+          cap = u2 - 0.3 * bp
+        elseif items[b].kind == 3 then
+          cap = u2 - (items[b].head_w or 0) - P.latin_add
+        else
+          cap = u2 - items[b].nw
+        end
+        trace("  lat b=%d core=%d m=%d k=%d phys=%.2f cap=%.2f u=%.2f", b, core, m, k, phys / bp, cap / bp, u2 / bp)
+        if m == core then
+          local ascii = (compat == 11 and tc.tail == 37) and 0 or (tc.tail_hang or 0)
+          return math.min(phys + ascii, cap)
+        end
+        return math.min(phys, cap)
+      else
+        local cap
+        if m == core and tc.gn == 1 and tc.c == 62 then cap = half * 2 else cap = u / 2 end
+        own = math.min(half * k + auto / 2 * gaps, cap)
+        -- 下面接着算闭号链；m == core 时在此返回
+        if m == core then
+          local ascii = (tc.tail_hang or 0)
+          if compat == 11 then ascii = math.min(ascii, 3 * bp) end
+          return own + ascii + ((ascii > 0) and P.latin_add or 0)
+        end
       end
     elseif k == 0 then
       -- 没有位时汉西隙每处半个隙（lb4 探针 g2：四个隙 6.0），总共不过半格（x1–x3）
@@ -1240,6 +1302,8 @@ local function decide(items, P, shape, indent)
     elseif j > first and items[j - 1].kind == 4 and not items[j - 1].user and j >= 3
       and items[j - 2].kind == 3 and items[j - 2].glyphs then
       own = half * k
+    elseif P.ari and j > first and items[j - 1].kind == 3 and items[j - 1].glyphs then
+      own = ((items[j - 1].tail_w or 0) + P.latin_add + tc.gap) / 2
     else
       local near = 0
       if tc.gap > 0 then
@@ -1250,10 +1314,16 @@ local function decide(items, P, shape, indent)
       own = half - penalty(k, near)
     end
     if own == nil then own = 0 end
+    if opener and j > 1 and items[j - 1].kind == 1 and items[j - 1].paired and m == core and P.ari then
+      own = own - 3 * bp
+    end
     if m == core then
       local ascii = (tc.kind == 3) and (tc.tail_hang or 0) or 0
       if compat == 11 then ascii = math.min(ascii, 3 * bp) end
       return own + ascii + ((ascii > 0) and P.latin_add or 0)
+    end
+    if items[m].kind == 3 and P.ari and compat == 11 then
+      return half * spots(first, m) + auto / 2 * gaps
     end
     local hang
     if P.table_cell then hang = half
@@ -1409,12 +1479,18 @@ local function decide(items, P, shape, indent)
     local li = #lines + 1
     local sh = shape(li)
     measure = sh.width
-    -- 断行按整个版心装，不看“如果定义了文档网格，则自动调整右缩进”，装进来的行排版时再挤进整数个格
-    -- （见 render）。Windows 探针 ari1 里开着的段其实按整数格断，比关着的早断一个词：Word 给西文字形
-    -- 平均只加 0.21（位置按 600dpi 取整，逐字在 0.11 到 0.25 之间），这里按半个增量 0.227 算，一行
-    -- 七八十个字宽出 1.4 左右；按整数格断就早断，按版心断正好抵掉，范例 d-stem 的英文摘要（开着 ARI）
-    -- 这样断才与 Word 同。字宽照 Word 取整之前先这样
-    local capacity = measure
+    -- 兼容模式低于 15、段落开着“如果定义了文档网格，则自动调整右缩进”时按整数个格装（Windows 探针
+    -- ari1：开着的段比关着的早断一个词或一个字，西文字形加的量照 Word 截到 1/6000 英寸之后 144 行
+    -- 全同），格数按整个版心与节的格宽数，悬挂缩进事后再减（Word 是按页面版心数格再减段落缩进）；
+    -- 关着就装到版心
+    local full = tex.hsize
+    local cellcap = measure
+    if P.grid and P.cell0 and P.cell0 > 0 then
+      local cells = math.floor((full + eps) / P.cell0)
+      cellcap = P.cell0 * cells - (full - measure)
+    end
+    local snaps = P.grid and compat ~= 15 and P.ari and not P.table_cell
+    local capacity = snaps and cellcap or measure
     local first = i
     local last = i
     local j = i
@@ -1451,7 +1527,7 @@ local function decide(items, P, shape, indent)
         if mandatory_after(m) then forced_end = true; break end
         j = m + 1
       else
-        local need = w - capacity
+        local need = w - (snaps and math.min(cellcap, capacity) or capacity)
         if it.kind == 1 then break end
         if it.kind == 3 and it.glyphs and ascii_close[it.head]
           and not (j > first and items[j - 1].kind == 4 and not items[j - 1].user) then
@@ -1534,7 +1610,7 @@ local function decide(items, P, shape, indent)
                           deep = deep and items[last].kind == 1, forced = forced,
                           ragged = forced_end or last >= n,
                           bp = (last < n) and ((items[last].emergency or items[last].soft) and items[last + 1].first or breakpoint_after(last)) or nil,
-                          measure = measure, capacity = capacity, shift = sh.shift,
+                          measure = measure, capacity = capacity, cellcap = cellcap, shift = sh.shift,
                           isfirst = isfirst }
     if M.trace then
       local txt = {}
@@ -2246,10 +2322,20 @@ local function snap_space_w(items, k, P)
   if P.balance and pv and pv.kind <= 2 then return (it.size or tex.sp("1em")) / 2 end
   return it.w
 end
+-- 西文串的宽按 Word 排字的位置单位逐字截过（snap2：“the lazy dog again and again”按字体设计宽
+-- 是 136.94，比 11 格多一丝，Word 排成 11 格）
+local function snap_item_w(it)
+  if it.kind == 3 and it.glist then
+    local w = it.kw or 0
+    for _, g in ipairs(it.glist) do w = w + devtrunc(g.width) end
+    return w
+  end
+  return it.w or 0
+end
 local function snap_latin_w(items, a, b, P)
   local w = 0
   for k = a, b do
-    if items[k].kind == 4 then w = w + snap_space_w(items, k, P) else w = w + (items[k].w or 0) end
+    if items[k].kind == 4 then w = w + devtrunc(snap_space_w(items, k, P)) else w = w + snap_item_w(items[k]) end
   end
   return w
 end
@@ -2392,9 +2478,13 @@ local function snap_render(items, line, P, strut_h, strut_d, indent, isfirst, ct
       for k = pt.from, pt.to do
         local it = items[k]
         if it.kind == 4 then
-          it.first.width = (k <= wto) and snap_space_w(items, k, P) or 0
+          it.first.width = (k <= wto) and devtrunc(snap_space_w(items, k, P)) or 0
         elseif it.kind == 3 and it.kerns then
           for _, e in ipairs(it.kerns) do e[1].kern = e[2] end
+          for _, g in ipairs(it.glist or {}) do
+            local d = devtrunc(g.width) - g.width
+            if d ~= 0 then node.insert_after(head, g, kern(d)) end
+          end
         end
       end
       local w = snap_latin_w(items, pt.from, wto, P)
@@ -2511,11 +2601,21 @@ function M.filter(head, is_display)
   local grid_inc = hsnap and inc or 0
   local sp2 = balance and 2 * spacing or spacing
   cell = em + grid_inc + sp2
+  -- 西文字形加的量：段落跟网格走（开着“自动调整右缩进”或段落“对齐到网格”）时截到 1/6000 英寸，字距
+  -- 1861 时 0.216 而不是半个增量 0.2271（Windows 探针 ari1 的两组、fn1 与范例英文摘要只有截了才与 Word
+  -- 断得一样；sz2 量到的步进是 0.212 到 0.216）；两样都关的段不截（lb 探针都是 adjustRightInd=0 加段落
+  -- 不对齐网格，lineends 靶子的正文“1.25 倍不贴格”，截了都早装一个字）。表格单元格里不截。空格在跟
+  -- 网格走的段里也加截过的半个增量（ari1 实测空格步进 3.228），别的段照旧加 0.25（lb5 翻转点）
+  local ari = getbool(pre .. "adjust_right_bool") ~= false
+  local lsnap = getbool("l_docxlike_format_line_snap_bool")
+  local whole = (ari or lsnap) and hsnap and not nogrid and not M.cell
+  local half_inc = whole and devtrunc(inc / 2) or inc / 2
+  local latin_add = (hsnap and (balance and half_inc or inc) or 0) + spacing
   local P = { cell = cell, em = em, bp = bp, excess = grid_inc + sp2, grid = hsnap,
-              latin_add = (hsnap and (balance and inc / 2 or inc) or 0) + spacing,
+              latin_add = latin_add,
               half_space = (em + grid_inc) / 2 + sp2, cell0 = cell0, nogrid = nogrid,
-              ari = getbool(pre .. "adjust_right_bool") ~= false,
-              space_add = (inc > 0) and 0.25 * bp or 0,
+              ari = ari,
+              space_add = whole and half_inc or ((inc > 0) and 0.25 * bp or 0),
               compat = M.compat, table_cell = M.cell,
               justify = align == "justify", align = align, autospace = true, compress = true,
               balance = balance,
