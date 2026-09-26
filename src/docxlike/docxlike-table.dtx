@@ -1,0 +1,115 @@
+% \iffalse meta-comment
+%
+% docxlike-table.dtx 是表格
+%
+% \fi
+%
+% \section{表格}
+%
+% \changes{v3.2a}{2026/09/26}{新增表格：\pkg{array} 一族（\env{tabular}、\env{tabularx}、
+%   \env{longtable} 等）照 Word 的表格排：格边距 5.4\,bp，竖线不占宽，\pkg{booktabs} 线外不留空，
+%   行的撑杆是 Word 的行盒，格里的字与正文一样吃网格增量，格里的段按“在表格单元格里”断行、
+%   居中右对齐按整个格宽；\pkg{tabularray} 的表只补字宽}
+%
+% 照 Windows Word 2019 的实测（探针 \file{tbl1}，学校模板的正文节：391 缇行距、1861 字距、兼容模式 11）：
+% \begin{itemize}
+% \item 格左右各有 5.4\,bp 的边距（\texttt{Normal Table} 的 \texttt{tblCellMar} 是 108 缇），上下没有。
+% \item 竖的框线画在格与格的分界上，不占宽，格里的字从分界起空一个格边距。横的框线占它自己的
+%   粗细：一行是“上边框、各格的段”摞起来，最后一行下面再是下边框；五号字单倍贴网格的一行
+%   是 19.55 加 0.5 的线，字的基线在线下 13.56。
+% \item 格里的段照正文的规矩吃网格增量（汉字一份、西文半份、空格 0.25\,bp），居中与右对齐的
+%   行宽也算上末字的增量；两端对齐的行撑满整个格宽，不按整数个网格装。
+% \item 表整体往左让出一个格边距，格里的字与正文左缘对齐。
+% \end{itemize}
+%
+% \hologo{LaTeX} 的表格宏包各有一套自己的量，这里把它们换成 Word 的：
+% \begin{itemize}
+% \item \cs{tabcolsep} 取 Word 的格边距 5.4\,bp（装包时设，文档里改了照改的）。
+% \item \cs{vline}（\pkg{array} 的 \texttt{\textbar} 也是它）画在分界线上、左右各退一半线宽，不占宽。
+%   横线（\cs{hline}、\cs{cline}、\pkg{booktabs} 的三条线）照旧占高，\pkg{booktabs} 线上线下的空
+%   归零：Word 的框线外面没有这一截。
+% \item 行的撑杆换成当前那一段的行盒（贴网格时一格），字在行里的高低与 Word 一样。
+% \item 格里的段按“在表格单元格里”断行（\cs{l\_docxlike\_table\_cell\_bool}）；格里写的
+%   \cs{centering}、\cs{raggedright}、\cs{raggedleft} 也算照样式设的对齐，交给断行层排，行宽
+%   算上末字的增量。\texttt{l}、\texttt{c}、\texttt{r} 列的格是一个盒，没有段，断行层在装盒时
+%   给格里的字补上增量与字偶距（属性 \cs{docxlike@cell@attr} 标着哪些字在格里）。
+% \end{itemize}
+% 探针 \file{tbl1} 的全框线表、折行的格、三线表照 \env{tabular} 与 \env{tabularx} 排，框线与
+% 基线差 0.07 以内，格里的字差 0.1 以内（\file{test/table/tbl1.tex}）。
+%
+% \pkg{tabularray} 只做后一条的字宽：它自己量每一格的盒来定行高与竖直居中，竖线的宽也
+% 算进列距，撑杆与格里的段换成 Word 的行盒后，居中的格与别的格基线对不齐。所以它的表
+% 不换撑杆、格里的段照旧交回 \hologo{TeX}（字宽照样补），竖线照它自己的占宽。
+%
+% \texttt{m} 列在 \pkg{array} 里是对着行的基线居中，跟 Word 的“垂直居中”（对着整行居中）
+% 不一样：同一行里有折成几行的 \texttt{p} 格时，\texttt{m} 格落在第一行上。这一条没有换。
+% 只在 Word 版面（\cs{g\_docxlike\_word\_layout\_bool}）下做；网格增量与断行只在
+% \hologo{LuaLaTeX} 上有。
+%    \begin{macrocode}
+%<*docxlike-table>
+\bool_new:N \l_docxlike_table_bool
+\bool_set_true:N \l_docxlike_table_bool
+\bool_new:N \l_docxlike_table_cell_bool
+\dim_set:Nn \tabcolsep { 5.4bp }
+\sys_if_engine_luatex:T { \newattribute \docxlike@cell@attr }
+\box_new:N \l__docxlike_table_strut_box
+\bool_new:N \l__docxlike_table_tblr_bool
+%    \end{macrocode}
+%
+% \cs{l\_docxlike\_table\_bool} 关掉就不换：文档类拿 \env{tabular} 当排版工具用的地方（堆几行字、
+% 对齐封面上的字段），Word 里那不是表，局部关掉；整篇不照 Word 排的文档全局关掉。
+%
+% \begin{macro}{\docxlike_table_begin:}
+% 表格环境开头调一次，设置都在环境的组里。文档类给自己的表另设字体时，在这之后设，撑杆
+% 再按新的字体取一次（\cs{docxlike\_format\_strut\_box:N}）。\cs{l\_\_docxlike\_table\_tblr\_bool}
+% 是 \pkg{tabularray} 的表，见上。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_table_begin:
+  {
+    \bool_lazy_and:nnT { \g_docxlike_word_layout_bool } { \l_docxlike_table_bool }
+      {
+        \bool_set_true:N \l_docxlike_table_cell_bool
+        \bool_if:NF \l__docxlike_table_tblr_bool
+          { \bool_set_true:N \l_docxlike_linebreak_align_bool }
+        \cs_set_protected:Npn \vline
+          {
+            \tex_hskip:D -0.5 \arrayrulewidth
+            \tex_vrule:D width \arrayrulewidth
+            \tex_hskip:D -0.5 \arrayrulewidth
+          }
+        \cs_if_exist:NT \aboverulesep
+          {
+            \dim_zero:N \aboverulesep
+            \dim_zero:N \belowrulesep
+            \dim_zero:N \abovetopsep
+            \dim_zero:N \belowbottomsep
+          }
+        \bool_if:NF \l__docxlike_table_tblr_bool
+          {
+            \docxlike_format_strut_box:N \l__docxlike_table_strut_box
+            \box_set_eq:NN \strutbox \l__docxlike_table_strut_box
+          }
+        \sys_if_engine_luatex:T { \docxlike@cell@attr = 1 \scan_stop: }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \pkg{array} 一族都在 \env{tabular} 或 \env{tabular*} 上搭，\pkg{tabularx}、\pkg{tabulary}
+% 的环境先量后排，量的那一遍也要同样的字宽，所以各自的环境都挂。\env{array} 是公式里的，
+% 不挂。\pkg{tabularray} 的表在装包之后挂。
+%    \begin{macrocode}
+\clist_map_inline:nn { tabular , tabular* , tabularx , tabulary , longtable , xltabular }
+  { \hook_gput_code:nnn { env / #1 / begin } { docxlike-table } { \docxlike_table_begin: } }
+\hook_gput_code:nnn { package / tabularray / after } { docxlike-table }
+  {
+    \clist_map_inline:nn { tblr , longtblr , talltblr }
+      {
+        \hook_gput_code:nnn { env / #1 / begin } { docxlike-table }
+          { \bool_set_true:N \l__docxlike_table_tblr_bool \docxlike_table_begin: }
+      }
+  }
+%</docxlike-table>
+%    \end{macrocode}
+%
+% \Finale

@@ -19,8 +19,9 @@
 %   不分字号（先前西文只在正文字号加）；居中、右对齐在兼容模式 15 以下、\texttt{adjustRightInd}
 %   开着且有字符网格时按整数格宽，否则按整个版心；贴字符网格的居中段也由断行层排。交回 TeX 断行的段
 %   （目录行、盒里 \cs{raggedright} 的段）照同一套补：西文字形的增量、按字体空格起算的词间空格与字偶距、
-%   贴着汉字盒子公式的空格占半格，汉字后面是空格或标点的 JFM 胶时 \pkg{luatexja} 丢掉的那份增量；
-%   先前一点不加，范例英文目录该折的那一行没折}
+%   贴着汉字盒子公式的空格占半格，汉字后面是空格或标点的 JFM 胶时 \pkg{luatexja} 丢掉的那份增量，
+%   段末、盒末与可伸的胶前面那个汉字的增量（居中、右对齐按它定位）；先前一点不加，范例英文目录
+%   该折的那一行没折。补过的字形打上属性 \cs{docxlike@grid@attr}，重新装盒不再补}
 % \changes{v3.2a}{2026/09/26}{没有字符网格的文档里，本包照样式设了居中、右对齐的段也由断行层排：格宽
 %   取字号、不按整数格装，行首（居中两头）补 fil；Word 行末的闭号不用挤时照全宽算，TeX 那边 JFM
 %   把它算成半格，居中偏右 3.5\,bp（博士后封皮“哈尔滨工业大学（哈尔滨）”）。只认
@@ -136,6 +137,7 @@
     \newattribute \docxlike@kanjiskip@attr
     \newattribute \docxlike@xkanjiskip@attr
     \newattribute \docxlike@kern@attr
+    \newattribute \docxlike@grid@attr
     \AddToHook { begindocument / end }
       {
         \bool_if:NT \g__docxlike_linebreak_word_bool
@@ -2153,9 +2155,9 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
       node.insert_after(head, node.tail(head), fil)
     end
     -- 对齐范围：兼容模式低于 15、“自动调整右缩进”开着、这一节有字符网格时是整数个格（节的格宽），
-    -- 否则整个版心（探针 adv1、adv3、adv4）
+    -- 否则整个版心（探针 adv1、adv3、adv4）；表格单元格里是整个格宽（探针 tbl1）
     local area = measure
-    if M.compat < 15 and P.ari and not P.nogrid and P.cell0 and P.cell0 > 0 then
+    if M.compat < 15 and P.ari and not P.nogrid and not P.table_cell and P.cell0 and P.cell0 > 0 then
       area = math.floor(measure / P.cell0 + 1e-6) * P.cell0
     end
     if area < measure then
@@ -2315,7 +2317,13 @@ end
 -- 再加与前后字的字偶距；贴着汉字的空格占半格。汉字的增量 luatexja 放在汉字缝与中西文胶里，
 -- 汉字后面紧跟空格或手写的 \hskip、标点后面是 JFM 胶时就丢了，这里补上（范例目录“摘␣␣要”，
 -- Word 的“要”在 109.94，不补差 0.45）。行内公式当一整块，里面的字形不加
-local function grid_latin(head)
+local function done(n)
+  return M.done_attr and node.get_attribute(n, M.done_attr) == 1
+end
+local function mark_done(n)
+  if M.done_attr then node.set_attribute(n, M.done_attr, 1) end
+end
+local function grid_latin(head, only_attr)
   local ok, cell = pcall(tex.getdimen, "g_docxlike_page_char_dim")
   local ok2, body = pcall(tex.getdimen, "g_docxlike_body_size_dim")
   if not ok or not cell or cell == 0 or not ok2 or not body or body <= 0 then return end
@@ -2331,10 +2339,19 @@ local function grid_latin(head)
   local function is_space(x)
     return x and x.id == GLUE and (x.subtype == 13 or x.subtype == 14)
   end
+  -- 行末（段末、盒末、可伸的胶前面）那个汉字的增量也算在行宽里（Word 居中、右对齐按它定位）
+  local function cjk_tail(g)
+    if g and inc + sp2 ~= 0 then
+      local kn = node.new(KERN); kn.kern = inc + sp2
+      node.insert_after(head, g, kn)
+    end
+  end
   local inmath, lastg, cjkg, widep, spacep = false, nil, nil, false, false
   for n in traverse(head) do
     local id = n.id
-    if id == MATH then
+    if id == GLYPH and (done(n) or (only_attr and node.get_attribute(n, only_attr) ~= 1)) then
+      lastg, cjkg, widep, spacep = nil, nil, true, false
+    elseif id == MATH then
       inmath = n.subtype == 0
       lastg, cjkg, widep, spacep = nil, nil, not inmath, false
     elseif not inmath then
@@ -2343,8 +2360,10 @@ local function grid_latin(head)
           local kn = node.new(KERN); kn.kern = a.latin
           node.insert_after(head, n, kn)
         end
+        mark_done(n)
         lastg, cjkg, widep, spacep = n, nil, false, false
       elseif id == GLYPH then
+        mark_done(n)
         lastg, cjkg, widep, spacep = nil, n, true, false
       elseif id == HLIST or id == VLIST then
         lastg, cjkg, widep, spacep = nil, nil, true, false
@@ -2397,11 +2416,31 @@ local function grid_latin(head)
           spacep = false
         end
         lastg, cjkg, widep = nil, nil, false
+      elseif id == GLUE and (n.subtype == 15 or n.subtype >= 100 or n.stretch_order > 0) then
+        cjk_tail(cjkg)
+        lastg, cjkg, widep, spacep = nil, nil, false, false
       elseif not transparent(n) then
         lastg, cjkg, widep, spacep = nil, nil, false, false
       end
     end
   end
+  cjk_tail(cjkg)
+end
+
+-- 表格里 l、c、r 列的格是一个盒，没有段：装盒时给格里（带 \docxlike@cell@attr 的）还没补过的字
+-- 补上增量与字偶距，照“在表格单元格里”的量
+local function grid_box(head)
+  if not M.cell_attr then return end
+  local any = false
+  for g in node.traverse_id(GLYPH, head) do
+    if node.get_attribute(g, M.cell_attr) == 1 and not done(g) then any = true; break end
+  end
+  if not any then return end
+  local saved = M.cell
+  M.cell = true
+  head = legacy_kern(head)
+  grid_latin(head, M.cell_attr)
+  M.cell = saved
 end
 
 local function to_tex(head, why)
@@ -2644,7 +2683,7 @@ local function shade_line(box, color, first, ctx, measure, P)
   local data = runm and runm.colors and runm.colors[color]
   if not data then return end
   local area = measure
-  if M.compat < 15 and P.ari and not P.nogrid and P.cell0 and P.cell0 > 0 then
+  if M.compat < 15 and P.ari and not P.nogrid and not P.table_cell and P.cell0 and P.cell0 > 0 then
     area = math.floor(measure / P.cell0 + 1e-6) * P.cell0
   end
   local ext = math.floor(1.5 * P.bp + 0.5)
@@ -2671,6 +2710,7 @@ local function shade_line(box, color, first, ctx, measure, P)
 end
 
 function M.filter(head, is_display)
+  M.cell = getbool("l_docxlike_table_cell_bool") == true
   local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
   local align = align_of(ls, rs)
   if M.attr and (node.get_attribute(head, M.attr) or 0) == 0 then return skip("attr") end
@@ -2701,6 +2741,9 @@ function M.filter(head, is_display)
     cell = em + inc
   end
   head = legacy_kern(head)
+  if M.done_attr then
+    for g in node.traverse_id(GLYPH, head) do mark_done(g) end
+  end
   local items, indent, strut_h, strut_d = tokenize(head)
   if #items == 0 then return true end
   local bp = 65781.76
@@ -2975,6 +3018,8 @@ function M.install(attr, ks, xks, kern, code)
   M.kern_attr = kern
   M.ks_attr, M.xks_attr = ks, xks
   M.code_attr = code
+  M.cell_attr = luatexbase.attributes["docxlike@cell@attr"]
+  M.done_attr = luatexbase.attributes["docxlike@grid@attr"]
   luatexbase.add_to_callback("linebreak_filter",
     function(h, d) return M.filter(h, d) end, "docxlike.linebreak")
   luatexbase.add_to_callback("post_linebreak_filter",
@@ -2985,9 +3030,14 @@ function M.install(attr, ks, xks, kern, code)
     luatexbase.add_to_callback("pre_linebreak_filter",
       function(h) fix_skips(h); return true end, "docxlike.skips")
   end
+  if M.cell_attr then
+    luatexbase.add_to_callback("hpack_filter",
+      function(h) grid_box(h); return true end, "docxlike.cells")
+  end
 end
 function M.uninstall()
   for _, cb in ipairs({ { "linebreak_filter", "docxlike.linebreak" }, { "hpack_filter", "docxlike.skips" },
+                        { "hpack_filter", "docxlike.cells" },
                         { "pre_linebreak_filter", "docxlike.skips" },
                         { "post_linebreak_filter", "docxlike.exact" } }) do
     if luatexbase.in_callback(cb[1], cb[2]) then luatexbase.remove_from_callback(cb[1], cb[2]) end
