@@ -27,7 +27,7 @@
 %   \cs{hit@fontsize@x}，永远是 $n \times$ 字号}
 % \changes{v3.2a}{2026/09/14}{字号存成常量 \cs{c\_\_hit\_font\_size\_}\meta{名}\cs{\_dim}
 %   给 \option{styles} 族取用；删掉 \cs{dachu}、\cs{banxiaosi}、\cs{dawu}（不在通行
-%   字号里，模板自己一处没用过）。封面美术字有字体就排字体、没字体才贴图
+%   字号里，模板自己一处没用过）。封面美术字有字体就排字体、没字体照轮廓画
 %   （\option{cover-script}），探测惰性、探头补空的尾随可选参数（否则
 %   \cs{newCJKfontfamily} 会扫出调用之外），深圳本科报告封面的华文新魏照隶书那套探；
 %   落款从词条表取；按路径加载的黑体扩展名 \texttt{.ttc} 改 \texttt{.ttf}}
@@ -742,10 +742,10 @@
 %
 % \subsection{封面上的美术字}
 %
-% 本科报告封面底下的“哈尔滨工业大学教务处制”不是正文字体排的，是隶书。
-% 贴图的毛病是选不中、搜不到，缩放之后与正文两样。有字体就该排字体。但装不装得上
-% 这个字体是机器的事，所以两条路都留着，由 \option{cover-script} 选：
-% \texttt{auto} 有字体就排字体、没有就贴图，\texttt{font} 与 \texttt{image} 各自钉死。
+% 本科报告封面底下的“哈尔滨工业大学教务处制”是隶书，深圳本科报告首页的校名与文种是
+% 华文新魏。有字体就排字体。装不装得上是机器的事，没有的时候照轮廓画（见
+% \file{src/engine/hit-outline.dtx}），所以两条路都留着，由 \option{cover-script} 选：
+% \texttt{auto} 有字体就排字体、没有就画，\texttt{font} 与 \texttt{outline} 各自钉死。
 %
 % 探测走 \cs{fontspec\_font\_if\_exist:nTF}，与上面挑英文字体是同一套。不查
 % \cs{lishu} 那种字体命令：那个只在 \option{fontset} 取 \texttt{windows} 时才有定义，
@@ -764,7 +764,10 @@
 % 而字体命令最终没留下来：\pkg{fontspec} 那边的字体族建好了，
 % 命令却报未定义，错误还指在别处，从现象上根本看不出是这里的事。
 %
-% 写一对空方括号把探头收住。空特性与不写特性排出来一样。
+% 写一对方括号把探头收住。\hologo{XeLaTeX} 上里面开合成粗体：隶书与新魏都没有粗体字面，
+% 两处样式又都要粗体，Word 是描边合成的（系数见上面的 \cs{c\_\_hit\_font\_fakebold\_tl}）。
+% 不开的话 \pkg{xeCJK} 找不到粗体就排常规，比 Word 与照轮廓画的那条路都细。
+% \hologo{LuaLaTeX} 上不用写，\pkg{docxlike} 出页前把样式要粗的常规字形换成描边的。
 %
 % \emph{定义还要抬成全局。} \cs{newCJKfontfamily} 定义的是个局部命令，
 % 而惰性探测赶上哪一组算哪一组。“探过了”那个标志位是全局的，字体命令却随组消失，
@@ -778,7 +781,10 @@
       {
         \bool_gset_true:N #3
         \use:x
-          { \exp_not:N \newCJKfontfamily \exp_not:c {#2} { \exp_not:n {#1} } [ ] }
+          {
+            \exp_not:N \newCJKfontfamily \exp_not:c {#2} { \exp_not:n {#1} }
+              [ \sys_if_engine_xetex:T { AutoFakeBold = \c__hit_font_fakebold_tl } ]
+          }
         \cs_gset_eq:cc {#2} {#2}
       }
       { }
@@ -796,7 +802,7 @@
 % 时候才探，探完记住。默认文档一次都不会探。
 %    \begin{macrocode}
 \bool_new:N \g__hit_lishu_probed_bool
-\cs_new_protected:Npn \__hit_cover_font_probe:
+\cs_new_protected:Npn \__hit_lishu_probe:
   {
     \bool_if:NF \g__hit_lishu_probed_bool
       {
@@ -810,8 +816,8 @@
 % 深圳校区本科报告封面的校名与文种是华文新魏。探测与落款那处隶书同构：
 % 惰性、探一次记住、装不上就退回去。
 %
-% 退路挑宋体。这处字号本来就大又加粗，宋体粗体排出来字面撑得住，
-% 换黑体反而与封面别的行混在一起分不出主次。
+% 装不上时这个命令退成宋体，只管那两段的行高（与新魏一样按中文字体算）；两行字本身照轮廓画，
+% 见 \file{src/pages/hit-report-cover-shenzhen-bachelor.dtx} 的 \cs{hit@szb@art:nnn}。
 %
 % 名字取 \cs{xinwei}，与 \cs{songti} \cs{heiti} 一路。样式里写 Word 的字体名
 % \texttt{STXinwei}，切过去用的就是它，见 \file{hit-docxlike.dtx} 的“字体名与字体集”。
@@ -835,51 +841,70 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@cover@script:nnn}
-% \meta{有没有这个字体}\marg{排字体的代码}\marg{贴图的代码}。
-% \option{cover-script} 写 \texttt{font} 而机器上没这个字体时给一句提示再贴图——
-% 钉死了却办不到，不说一声排出来会与预期两样。
+% \marg{字体}\marg{排字体的代码}\marg{照轮廓画的代码}，字体写 \texttt{lishu} 或
+% \texttt{xinwei}。\option{cover-script} 写 \texttt{font} 而机器上没这个字体时给一句提示
+% 再画：钉死了却办不到，不说一声排出来会与预期两样。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@cover@script:nnn #1#2#3
   {
-    \__hit_cover_font_probe:
+    \use:c { __hit_#1_probe: }
     \str_case:onF { \hit@cover@script }
       {
-        { image } {#3}
+        { outline } {#3}
         { font }
           {
-            \bool_if:NTF #1 {#2}
+            \bool_if:cTF { g__hit_#1_bool } {#2}
               { \msg_warning:nn { hithesis } { cover-script-no-font } #3 }
           }
       }
-      { \bool_if:NTF #1 {#2} {#3} }
+      { \bool_if:cTF { g__hit_#1_bool } {#2} {#3} }
   }
 %    \end{macrocode}
 % \end{macro}
 %
 % \begin{macro}{\hit@cover@bottommark}
-% 落款那处美术字的排法。尺寸是照原图逐像素标定出来的，两条路排出来一样：
-% 隶书小二，墨迹量出来 194.88 $\times$ 11.28\,pt，原图 195.12 $\times$ 11.52，
-% 差 0.24\,pt，即 300\,dpi 下的一个像素。不用缩放。
+% 落款那处美术字的排法：隶书小二，粗细随段落样式。
 %
 % 要把 \cs{CJKglue} 归零。\pkg{xeCJK} 在正文里给汉字之间留一段可伸缩的胶
-% 好让整行对齐，美术字这里不该有，原图本来也是紧排的。
+% 好让整行对齐，美术字这里不该有，原件本来也是紧排的。
 %
 % \textbf{归零必须写在 \cs{selectfont} 之后。} \cs{selectfont} 会按新字号把
 % \cs{CJKglue} 重设一遍，写在前面等于白写，逐字量左边界是均匀累积的每字距，
 % 正是这段胶。
+%
+% 照轮廓画的那条路每字后面补字号的 1/280：\hologo{LuaLaTeX} 上断行层给合成粗体的字
+% 每字加这么多（Word 的规矩，见 \pkg{docxlike} 的“字符格式”），轮廓盒不是字形，
+% 断行层不管，这里自己补，两条路才一样宽。\hologo{XeLaTeX} 上字体那条路也不加。
+% 词条改成了轮廓里没有的字，就排宋体。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@cover@bottommark
   {
-    \hit@cover@script:nnn \g__hit_lishu_bool
-      {
+    \group_begin:
+      \hit@cover@script:nnn { lishu }
         {
           \hit@cover@lishu
           \fontsize { 18bp } { 18bp } \selectfont
           \hit@engine@cjkglue@zero@cc:
           \hit@term@cover@bottommark
         }
-      }
-      { \includegraphics { hit-bachelor-report-bottommark } }
+        {
+          \fontsize { 18bp } { 18bp } \selectfont
+          \hit@outline@if@cover:nnTF { lishu } { \hit@term@cover@bottommark }
+            {
+              \sys_if_engine_luatex:T
+                {
+                  \str_if_in:NnT \f@series { b }
+                    { \dim_set:Nn \l__hit_outline_extra_dim { 18bp / 280 } }
+                }
+              \hit@outline:nn { lishu } { \hit@term@cover@bottommark }
+            }
+            {
+              \songti \selectfont
+              \hit@engine@cjkglue@zero@cc:
+              \hit@term@cover@bottommark
+            }
+        }
+    \group_end:
   }
 %    \end{macrocode}
 % \end{macro}

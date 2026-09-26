@@ -1636,16 +1636,21 @@ local function decide(items, P, shape, indent)
   return lines
 end
 
--- 行里的图片（\includegraphics 出的 image rule，graphicx 缩放时套的横盒竖盒里也找）：取装着
+-- 行里的图片（\includegraphics 出的 image rule，graphicx 缩放时套的横盒竖盒里也找；\docxpicture
+-- 标了属性的横盒整只算图，里面有字也不看）：取装着
 -- 它的那几件的高深。子树里有字的不算（minipage 里带分图题的分图、图文混排的盒子）。Word 的“装图段”：贴行网格时这一行占整数个网格行、
 -- 图在里面居中（博士后研究报告模板，142.15 磅的图占 8 格 144，题注基线离图底 0.73 加题注自己的
 -- 上升部）；不贴时上升部是图高，行深是（倍数 − 1）× 段落标记西文字体的单倍行高，多倍行距多出来
 -- 的那一截落在图下（banshi 同两条）
 local IMAGE_RULE = 2
+local function is_picture(g)
+  if g.id == RULE then return g.subtype == IMAGE_RULE end
+  return g.id == HLIST and M.picture_attr ~= nil and node.get_attribute(g, M.picture_attr) == 1
+end
 local function scan_image(list)
   local img, txt = false, false
   for g in traverse(list) do
-    if g.id == RULE and g.subtype == IMAGE_RULE then img = true
+    if is_picture(g) then img = true
     elseif g.id == GLYPH then txt = true
     elseif (g.id == HLIST or g.id == VLIST) and g.list then
       local i, t = scan_image(g.list)
@@ -1661,8 +1666,7 @@ end
 local function image_hd(list)
   local h, d = 0, 0
   for g in traverse(list) do
-    if ((g.id == HLIST or g.id == VLIST) and g.list and has_image(g.list))
-        or (g.id == RULE and g.subtype == IMAGE_RULE) then
+    if is_picture(g) or ((g.id == HLIST or g.id == VLIST) and g.list and has_image(g.list)) then
       local sh = (g.id == HLIST or g.id == VLIST) and g.shift or 0
       if g.height - sh > h then h = g.height - sh end
       if g.depth + sh > d then d = g.depth + sh end
@@ -3022,6 +3026,7 @@ function M.install(attr, ks, xks, kern, code)
   M.ks_attr, M.xks_attr = ks, xks
   M.code_attr = code
   M.cell_attr = luatexbase.attributes["docxlike@cell@attr"]
+  M.picture_attr = luatexbase.attributes["docxlike@picture@attr"]
   M.done_attr = luatexbase.attributes["docxlike@grid@attr"]
   luatexbase.add_to_callback("linebreak_filter",
     function(h, d) return M.filter(h, d) end, "docxlike.linebreak")

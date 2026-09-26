@@ -1,6 +1,6 @@
 % \iffalse meta-comment
 %
-% docxlike-shape.dtx 是锚在段落上的对象：线条形状与图文框
+% docxlike-shape.dtx 是锚在段落上的对象（线条形状与图文框）与嵌入型的图
 %
 % \fi
 %
@@ -9,6 +9,7 @@
 % \changes{v3.2a}{2026/09/26}{新增线条形状 \cs{docxshape} 与图文框 \cs{docxframe}：锚在段上，
 %   纵向从段顶量，横向从栏、版心或纸的左边量；两个引擎一样，经 \cs{vadjust}~\texttt{pre}
 %   放到锚定段首行之上}
+% \changes{v3.2a}{2026/09/26}{新增 \cs{docxpicture}：画出来的图标成嵌入型图片，行高照装图段算}
 %
 % Word 里有两种不随正文流走、按坐标放的东西。一种是形状（插入 → 形状，旧文件里是 VML 的
 % \texttt{v:line}、\texttt{v:rect}），一种是图文框（段落的 \texttt{w:framePr}，页脚里居中的
@@ -436,6 +437,28 @@
   { \str_if_eq:VnTF \l__docxlike_frame_xrel_tl { page } { \paperwidth } { \linewidth } }
 \cs_generate_variant:Nn \str_case:nnF { VnF }
 %    \end{macrocode}
+%
+% \subsection{嵌入型的图}
+%
+% \begin{macro}{\docxpicture,\docxlike_picture:n}
+% 环绕方式是“嵌入型”的图随正文走，行高照装图段的规矩定：不贴行网格时上升部是图高，多倍行距
+% 多出来的那一截落在图下；贴格时占整数个网格行，图在里面居中。\cs{includegraphics} 出的图
+% 断行层认得出来。用 PDF literal 或 TikZ 画在盒子里的图认不出，当成一个很高的字，行高就照字排了。
+% \cs{docxpicture}\marg{内容} 把内容装进一只横盒、标上属性，断行层见到这个属性就照图排，盒里
+% 有字也不管。只有 \hologo{LuaLaTeX} 上有断行层，\hologo{XeLaTeX} 上只装盒。
+%    \begin{macrocode}
+\sys_if_engine_luatex:T { \newattribute \docxlike@picture@attr }
+\cs_new_protected:Npn \docxlike_picture:n #1
+  {
+    \mode_leave_vertical:
+    \group_begin:
+      \sys_if_engine_luatex:T { \docxlike@picture@attr = 1 \scan_stop: }
+      \hbox:n {#1}
+    \group_end:
+  }
+\NewDocumentCommand \docxpicture { +m } { \docxlike_picture:n {#1} }
+%    \end{macrocode}
+% \end{macro}
 %
 %    \begin{macrocode}
 %</docxlike-shape>

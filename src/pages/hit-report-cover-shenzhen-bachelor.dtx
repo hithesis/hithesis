@@ -458,7 +458,14 @@
 % 两版都带 12\,bp 段前。这里按「段前加行高」折成一段竖距，不真排一个空段。
 %
 % 再是校名与文种。中文版两行都是小初华文新魏加粗、字距 2\,bp、字宽压到 90\%、
-% 行距 1.2 倍。
+% 行距 1.2 倍。\cs{hit@szb@art:nnn}\marg{是不是新魏}\marg{字距}\marg{文本}逐字排，
+% 头一个参数为真的那几行压字宽，机器上没有华文新魏时照轮廓画（\option{cover-script}，
+% 见 \file{src/engine/hit-outline.dtx}）；原件里压字宽的正是新魏那几行。
+%
+% \emph{括号占满一格。} 学校发的 PDF 里“（设计）”的括号与汉字同宽，步进一律 34.44。
+% \pkg{luatexja} 把单独装盒的括号排成半格（缺的半格在上下文里由前后的胶补上），逐字装盒
+% 就丢了那段胶，括号各窄 16.2。所以字体排出来不足一格的，开标点在前、其余在后补足一格。
+% 照轮廓画的步进本来就是整格。
 %
 % 英文版的校名与文种各排两行，上面那一行印中文、下面那一行印英文，
 % 两行之间还有一个 8\,bp 的空段。英文版的文种中文那一行改成宋体小一加粗、
@@ -489,16 +496,47 @@
 %
 % 表顶离文种那一行的行盒底 49.75\,bp，原件里表是浮动的，锚在表后那个空段上。
 %    \begin{macrocode}
+    \box_new:N \l__hit_szb_char_box
+    \tl_const:Nn \c__hit_szb_open_tl { （〔［｛〈《「『【“‘ }
+    \cs_new_protected:Npn \__hit_szb_full:n #1
+      {
+        \hbox_set:Nn \l__hit_szb_char_box {#1}
+        \dim_compare:nNnTF { \box_wd:N \l__hit_szb_char_box } < { \f@size pt - 0.01pt }
+          {
+            \hbox_to_wd:nn { \f@size pt }
+              {
+                \tl_if_in:NnT \c__hit_szb_open_tl {#1} { \tex_hfil:D }
+                \box_use_drop:N \l__hit_szb_char_box
+                \tl_if_in:NnF \c__hit_szb_open_tl {#1} { \tex_hfil:D }
+              }
+          }
+          { \box_use_drop:N \l__hit_szb_char_box }
+      }
+    \cs_new_eq:NN \__hit_szb_char:n \__hit_szb_full:n
     \cs_new_protected:Npn \hit@szb@art:nnn #1#2#3
       {
         \tl_set:Nx \l__hit_szb_term_tl {#3}
+        \cs_set_eq:NN \__hit_szb_char:n \__hit_szb_full:n
+        \bool_if:nT {#1}
+          {
+            \hit@cover@script:nnn { xinwei } { }
+              {
+                \hit@outline@if@cover:nVT { xinwei } \l__hit_szb_term_tl
+                  {
+                    \cs_set_protected:Npn \__hit_szb_char:n ##1
+                      { \hit@outline:nn { xinwei } {##1} }
+                  }
+              }
+          }
         \int_zero:N \l__hit_szb_idx_int
         \tl_map_inline:Nn \l__hit_szb_term_tl
           {
             \int_compare:nT { \l__hit_szb_idx_int > 0 }
               { \skip_horizontal:n {#2} }
             \int_incr:N \l__hit_szb_idx_int
-            \bool_if:nTF {#1} { \scalebox { 0.9 } [ 1 ] { ##1 } } { ##1 }
+            \bool_if:nTF {#1}
+              { \scalebox { 0.9 } [ 1 ] { \__hit_szb_char:n {##1} } }
+              { ##1 }
           }
       }
     \cs_new_protected:Npn \hit@report@shenzhen@bachelor@title@page

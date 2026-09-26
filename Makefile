@@ -294,8 +294,8 @@ inscheck:
 	  || { echo "hithesis.ins 与 src/hithesis.dtx 的 install 守卫不同步，把上面的改动提交进去"; exit 1; }
 	@echo "hithesis.ins 与源同步"
 
-# 六份图像转成 PDF 提交进仓库。XeLaTeX 不认 EPS，是把文件丢给 xdvipdfmx 调
-# ghostscript 转，也就是每个用户都得装 gs 才编得出封面。事先转好随包发，
+# 示例用的两份图像转成 PDF 提交进仓库。XeLaTeX 不认 EPS，是把文件丢给 xdvipdfmx
+# 调 ghostscript 转，也就是每个用户都得装 gs 才编得出来。事先转好随包发，
 # gs 就只有维护者跑这条时要。
 #
 # EPS 留在 hit-eps.dtx 里当可读、可 diff 的源；改图动那边，再跑一次这个。

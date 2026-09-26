@@ -28,9 +28,7 @@ unpackfiles = {"hithesis.dtx"}
 -- 装进 TEXMF 的东西。examples 里那几份副本由下面的 distribute 目标分发，
 -- 不属于安装内容。
 --
--- 图像装 PDF 不装 EPS：XeLaTeX 不认 EPS，要靠 ghostscript 转，装 PDF 用户就
--- 不必有 gs。这几份 PDF 由 make eps2pdf 从 hit-eps.dtx 解出的 EPS 转来，提交
--- 进 assets/，经 sourcefiles 进 build/unpacked 供这里取。
+-- 模板自己不装图像：封面上的校名字标与美术字照轮廓画，数据在 hithesis-outline.def。
 --
 -- 这里不用 *.sty 通配。dtx-style.sty 只在排手册时用，被通配捎进 TEXMF 会污染
 -- 用户机器，而且 dtx-style 这个名字相当通用，别的包也叫这个就撞了。要装的
@@ -48,7 +46,7 @@ installfiles = {
   "docxlike-run.lua",
   "docxlike-font-metrics.lua",
   "docxlike-font-metrics.def",
-  "hit-logo.pdf", "hit-bachelor-report-bottommark.pdf",
+  "hithesis-outline.def",
 }
 
 -- zfb.pdf（打赏二维码）与 golfer.pdf（插图样例）不进这里：它们是示例与手册的

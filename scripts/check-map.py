@@ -40,6 +40,7 @@ DESC = {
     "shared-messages": "面向用户的提示文案",
     "shared-lang": "支持哪几种语言",
     "shared-fonts": "字号命令与字体族",
+    "shared-outline": "照轮廓画的校名字标与美术字",
     "shared-math": "数学与定理环境",
     "shared-table": "长表格字号",
     "shared-footnote": "脚注格式",
