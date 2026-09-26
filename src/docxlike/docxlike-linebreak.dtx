@@ -2335,14 +2335,17 @@ end
 local function mark_done(n)
   if M.done_attr then node.set_attribute(n, M.done_attr, 1) end
 end
+-- 不贴格的段（节里没有字符网格，或者段落不对齐网格）没有增量，字距（w:spacing）与字偶距照样有：
+-- 与断行层对不贴格的段一样。Word 的字偶距不看网格：没有网格的节里 Times New Roman 粗体的
+-- “/ Title”照样收了“空格 T”的 −37/2048
 local function grid_latin(head, only_attr)
   local ok, cell = pcall(tex.getdimen, "g_docxlike_page_char_dim")
   local ok2, body = pcall(tex.getdimen, "g_docxlike_body_size_dim")
-  if not ok or not cell or cell == 0 or not ok2 or not body or body <= 0 then return end
-  local hsnap = getbool("l_docxlike_format_par_snap_horizontal_bool")
-  if hsnap == false then return end
-  local inc = cell - body
-  local a = latin_adds(inc, true, false)
+  if not ok2 or not body or body <= 0 then return end
+  local snap = ok and cell and cell ~= 0
+    and getbool("l_docxlike_format_par_snap_horizontal_bool") ~= false
+  local inc = snap and cell - body or 0
+  local a = latin_adds(inc, snap, not snap)
   local sp2 = a.balance and 2 * a.spacing or a.spacing
   local function half(fid) return (fsize(fid) + inc) / 2 + sp2 end
   -- lastg 是前面紧挨着的西文字形，cjkg 是前面紧挨着的汉字，widep 是前面紧挨着汉字、盒子或公式，
