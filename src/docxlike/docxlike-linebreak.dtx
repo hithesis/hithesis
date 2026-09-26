@@ -6,10 +6,12 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/26}{“文字对齐字符网格”的节里另走一套装行与排行：汉字一格一个，连续的西文
+%   按自然宽占整数格，都居中；按格数断行，西文整截下行，行首禁则把前一个字推下去；对齐方式不起作用}
 % \changes{v3.2a}{2026/09/26}{对齐范围看段落自己的 \texttt{adjustRightInd}：开着时两端对齐只撑到整数个格，
 %   超出整数格的行再挤标点装进去（先前两端对齐一律撑满版心，只有居中、右对齐看段落）；断行仍按整个
-%   版心（Windows 探针 \file{fn1}），\texttt{msword.rs} 里只在 \texttt{adjustRightInd} 开着时走的几支
-%   从没用上，删去}
+%   版心，\texttt{msword.rs} 里只在 \texttt{adjustRightInd} 开着时走的几支从没用上，删去；上标、下标两侧
+%   不加中西文间距（Windows 探针 \file{fn1} 的脚注号）}
 % \changes{v3.2a}{2026/09/26}{“为字体调整字间距”照字体的老式 kern 表收字偶距，空格的配对也收（\pkg{luaotfload}
 %   只在 kern 表有两张以上子表时才读，Times New Roman 一对都不收）；合成粗体每个字形加字号的 1/280}
 % \changes{v3.2a}{2026/09/26}{单字步进照 Windows Word 实测（探针 adv1--adv5）：网格增量只看字体的
@@ -716,6 +718,18 @@ end
 -- 探针（lb2–lb8，108 组）它只错 6 组、都在半格之内；曾试过「模式 15 加 0.25bp、其余加
 -- 余量的四分之一」，错 9 组，纸面上量到的 3.57 与 3.227 也不是算账用的数
 -- 段落上关了“自动调整中文与西文／数字的间距”的，数字看 DN、字母看 DE
+-- 上标、下标的字（格式层用属性标记、出页前抬高压低）两侧不加中西文间距：Windows 探针 fn1 里
+-- 脚注号“1”紧跟在句号后面、后面的汉字只隔一个西文增量
+local va_attr = luatexbase.attributes["docxlike@va@attr"]
+local vaja_attr = luatexbase.attributes["docxlike@vaja@attr"]
+local function raised(it)
+  if not it then return false end
+  local g = (it.glist and it.glist[1]) or it.core
+  if not g or g.id ~= GLYPH then return false end
+  local a = va_attr and node.get_attribute(g, va_attr)
+  local j = vaja_attr and node.get_attribute(g, vaja_attr)
+  return (a ~= nil and a ~= 0) or (j ~= nil and j ~= 0)
+end
 local function auto_ok(P, c)
   if c and c >= 48 and c <= 57 then return P.autospace_dn end
   return P.autospace_de
@@ -772,7 +786,8 @@ local function natural(items, P)
       if it.rigid then it.nw = it.w
       elseif latinish[it.c] and it.w >= it.size * 0.9 then it.nw = it.w + P.excess
       else it.nw = it.w + ((it.code and 0 or P.latin_add) + (it.fb or 0)) * it.gn end
-      if prev and prev.kind == 0 and not prev.symbol and is_alnum(it.head) and auto_ok(P, it.head) then gap = auto_at(P, prev.size) end
+      if prev and prev.kind == 0 and not prev.symbol and is_alnum(it.head) and auto_ok(P, it.head)
+        and not raised(prev) and not raised(it) then gap = auto_at(P, prev.size) end
       it.spot = false
     else
       if it.user then
@@ -810,7 +825,8 @@ local function natural(items, P)
       end
       it.spot = false
     end
-    if prev and prev.kind == 3 and it.kind == 0 and not it.symbol and is_alnum(prev.tail) and auto_ok(P, prev.tail) then
+    if prev and prev.kind == 3 and it.kind == 0 and not it.symbol and is_alnum(prev.tail) and auto_ok(P, prev.tail)
+      and not raised(prev) and not raised(it) then
       -- 混合字号量的：隙跟着前一个字的字号走
       gap = auto_at(P, prev.size)
     end
@@ -1393,8 +1409,11 @@ local function decide(items, P, shape, indent)
     local li = #lines + 1
     local sh = shape(li)
     measure = sh.width
-    -- 断行按整个版心装，不看“如果定义了文档网格，则自动调整右缩进”（Windows 探针 fn1：开着的段
-    -- 照样按版心断，装进来的行排版时再挤进整数个格，见 render）
+    -- 断行按整个版心装，不看“如果定义了文档网格，则自动调整右缩进”，装进来的行排版时再挤进整数个格
+    -- （见 render）。Windows 探针 ari1 里开着的段其实按整数格断，比关着的早断一个词：Word 给西文字形
+    -- 平均只加 0.21（位置按 600dpi 取整，逐字在 0.11 到 0.25 之间），这里按半个增量 0.227 算，一行
+    -- 七八十个字宽出 1.4 左右；按整数格断就早断，按版心断正好抵掉，范例 d-stem 的英文摘要（开着 ARI）
+    -- 这样断才与 Word 同。字宽照 Word 取整之前先这样
     local capacity = measure
     local first = i
     local last = i
@@ -1663,6 +1682,36 @@ local function linebox(box, ctx, strut_h, strut_d)
 end
 
 -- 渲染一行：定各处胶与 kern 的宽，装成 hlist。压缩与伸展的分配照 msword.rs 的 render
+-- 脚注、浮动体、标记、vadjust 不能留在行盒里：照 TeX 断行的做法搬到行盒后面
+local function move_out(box)
+  local moved = nil
+  local g = box.list
+  while g do
+    local nx = g.next
+    if g.id == INS or g.id == MARK or g.id == ADJUST then
+      box.list = node.remove(box.list, g)
+      g.prev = nil; g.next = nil
+      if g.id == ADJUST then
+        -- vadjust 的内容是一整段（浮动体、页边记号是罚分加盒子加罚分），整段接上：
+        -- node.insert_after 只接一个节点，后面的会丢，页边记号从第二个起就没了
+        local inner = g.list; g.list = nil
+        node.free(g)
+        if inner then
+          if moved then
+            local t = node.tail(moved); t.next = inner; inner.prev = t
+          else
+            moved = inner
+          end
+        end
+      else
+        moved = moved and node.insert_after(moved, node.tail(moved), g) or g
+      end
+    end
+    g = nx
+  end
+  return moved
+end
+
 local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, headnode)
   local p = P.cell
   local half = p / 2
@@ -2064,33 +2113,7 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
     if box.height < strut_h then box.height = strut_h end
     if box.depth < strut_d then box.depth = strut_d end
   end
-  -- 脚注、浮动体、标记、vadjust 不能留在行盒里：照 TeX 断行的做法搬到行盒后面
-  local moved = nil
-  local g = box.list
-  while g do
-    local nx = g.next
-    if g.id == INS or g.id == MARK or g.id == ADJUST then
-      box.list = node.remove(box.list, g)
-      g.prev = nil; g.next = nil
-      if g.id == ADJUST then
-        -- vadjust 的内容是一整段（浮动体、页边记号是罚分加盒子加罚分），整段接上：
-        -- node.insert_after 只接一个节点，后面的会丢，页边记号从第二个起就没了
-        local inner = g.list; g.list = nil
-        node.free(g)
-        if inner then
-          if moved then
-            local t = node.tail(moved); t.next = inner; inner.prev = t
-          else
-            moved = inner
-          end
-        end
-      else
-        moved = moved and node.insert_after(moved, node.tail(moved), g) or g
-      end
-    end
-    g = nx
-  end
-  return box, moved, nxt
+  return box, move_out(box), nxt
 end
 
 local function skip(why)
@@ -2191,6 +2214,211 @@ local function to_tex(head, why)
     end
   end
   return skip(why)
+end
+
+-- 文字对齐字符网格（docGrid 的 snapToChars，Windows 探针 snap1、snap2，兼容模式 11）：格宽是节的，
+-- 与字号无关。贴格的汉字、全角标点、东亚符号各占一格，字身居中；连续的西文（字母、数字、空格、西文
+-- 标点，夹在中间的盒子、公式）按自然宽排，占 ceil(宽/格) 格，在这几格里居中，跨行时每行那一截各自
+-- 居中，断开处的空格算在前一截里，只有占了行首又接到下一行的那一截靠左（snap2 整段西文的首行）；不加中西文间距，没有网格增量，不挤标点也不挂出。断行按格数装：
+-- 西文只在空格处断，一截装不下就整截挪到下一行（一个词比整行还长就照放）；下一行开头是不能起行
+-- 的字，就把本行最后一个字一起推下去，本行末尾是开号也推下去。两端对齐、居中、右对齐都不生效，
+-- 一律靠左。汉字后面紧跟的空格占半个字（开着“平衡单字节与双字节字符”时），汉字前面的照字体的宽
+local function snap_units(items)
+  local units = {}
+  local k, n = 1, #items
+  while k <= n do
+    if items[k].kind <= 2 then
+      units[#units + 1] = { cjk = true, from = k, to = k }
+      k = k + 1
+    else
+      local j = k
+      while j + 1 <= n and items[j + 1].kind >= 3 do j = j + 1 end
+      units[#units + 1] = { cjk = false, from = k, to = j }
+      k = j + 1
+    end
+  end
+  return units
+end
+local function snap_space_w(items, k, P)
+  local it = items[k]
+  if it.user then return it.w end
+  local pv = items[k - 1]
+  if P.balance and pv and pv.kind <= 2 then return (it.size or tex.sp("1em")) / 2 end
+  return it.w
+end
+local function snap_latin_w(items, a, b, P)
+  local w = 0
+  for k = a, b do
+    if items[k].kind == 4 then w = w + snap_space_w(items, k, P) else w = w + (items[k].w or 0) end
+  end
+  return w
+end
+local function snap_forced(items, k)
+  local it = items[k]
+  local g = it.first
+  while g do
+    if g.id == PENALTY and g.penalty <= -10000 then return true end
+    if g == it.last then break end
+    g = g.next
+  end
+  return false
+end
+local function snap_decide(items, P, shape, indent)
+  local cell, eps = P.cell0, P.eps
+  local units = snap_units(items)
+  local function cells_of(w) return math.max(1, math.ceil((w - eps) / cell)) end
+  local function starts_bad(ui, ustart)
+    local u = units[ui]
+    if not u then return false end
+    local it = items[ustart or u.from]
+    return it.kind == 1 or (it.kind == 3 and it.glyphs and no_line_start[it.head]) or false
+  end
+  -- 本包排的段（\docxlike_format_par:nn）首行缩进是段首的 kern，不是缩进盒，也要从首行扣掉
+  local lead_w = 0
+  if items[1] then
+    local g = items[1].first
+    while g and g.id ~= GLYPH and g.id ~= HLIST and g.id ~= GLUE and g.id ~= MATH do
+      if g.id == KERN then lead_w = lead_w + g.kern end
+      if g == items[1].last then break end
+      g = g.next
+    end
+  end
+  local lines = {}
+  local ui, ustart = 1, nil
+  while ui <= #units do
+    local li = #lines + 1
+    local sh = shape(li)
+    local isfirst = (li == 1)
+    local cap = math.floor((sh.width - (isfirst and (indent + lead_w) or 0) + eps) / cell)
+    local used, parts, forced = 0, {}, false
+    while ui <= #units do
+      local u = units[ui]
+      local from = ustart or u.from
+      if u.cjk then
+        if used + 1 > cap and #parts > 0 then break end
+        parts[#parts + 1] = { ui = ui, from = from, to = u.to, cells = 1, cjk = true }
+        used = used + 1; ui = ui + 1; ustart = nil
+      else
+        local c = cells_of(snap_latin_w(items, from, u.to, P))
+        if used + c <= cap then
+          parts[#parts + 1] = { ui = ui, from = from, to = u.to, cells = c }
+          used = used + c; ui = ui + 1; ustart = nil
+        else
+          local best, bestc = nil, nil
+          for s = u.to - 1, from + 1, -1 do
+            if items[s].kind == 4 then
+              local cs = cells_of(snap_latin_w(items, from, s, P))
+              if used + cs <= cap then best, bestc = s, cs; break end
+            end
+          end
+          if not best and #parts == 0 then
+            best = from
+            while best < u.to and items[best + 1].kind ~= 4 do best = best + 1 end
+            if best < u.to then best = best + 1 end
+            bestc = cells_of(snap_latin_w(items, from, best, P))
+          end
+          if not best then break end
+          local nx = best + 1
+          while nx <= u.to and items[nx].kind == 4 and not items[nx].user do nx = nx + 1 end
+          parts[#parts + 1] = { ui = ui, from = from, to = nx - 1, wto = best, cells = bestc,
+                                split = true }
+          used = used + bestc
+          if nx > u.to then ui = ui + 1; ustart = nil else ustart = nx end
+          break
+        end
+      end
+      if snap_forced(items, parts[#parts].to) then forced = true; break end
+    end
+    if not forced and ui <= #units then
+      local guard = 0
+      while #parts > 1 and guard < 3
+        and (starts_bad(ui, ustart) or (parts[#parts].cjk and items[parts[#parts].from].kind == 2)) do
+        local pt = table.remove(parts)
+        ui = pt.ui
+        ustart = (pt.from ~= units[pt.ui].from) and pt.from or nil
+        guard = guard + 1
+      end
+    end
+    lines[#lines + 1] = { first = parts[1].from, last = parts[#parts].to, parts = parts,
+                          measure = sh.width, capacity = sh.width, shift = sh.shift, isfirst = isfirst,
+                          forced = forced, width = 0, over = 0 }
+    if M.trace then
+      local txt, c = {}, 0
+      for _, pt in ipairs(parts) do
+        c = c + pt.cells
+        for k = pt.from, pt.to do
+          local it = items[k]
+          txt[#txt + 1] = it.c and utf8.char(it.c) or (it.kind == 4 and "_" or "[" .. (it.head and utf8.char(it.head) or "?") .. "]")
+        end
+      end
+      trace("SNAPLINE cells=%d/%d %s", c, cap, table.concat(txt))
+    end
+  end
+  if #lines > 0 then lines[#lines].islast = true end
+  return lines
+end
+local function snap_render(items, line, P, strut_h, strut_d, indent, isfirst, ctx)
+  local cell = P.cell0
+  local measure = line.measure
+  local head = items[line.first].first
+  local stop = items[line.last].last
+  local nxt = stop.next
+  if nxt then stop.next = nil; nxt.prev = nil end
+  head.prev = nil
+  -- 胶一律定死清零（空格下面另设宽，\hfill 留伸量），西文串的字距恢复成字偶距本身
+  for g in traverse(head) do
+    if g.id == GLUE then
+      if g.stretch_order == 0 then g.width = 0; g.stretch = 0; g.shrink = 0 else g.shrink = 0 end
+    elseif g.id == DISC and g.replace then
+      for r in traverse(g.replace) do if r.id == KERN and r.subtype == 0 then r.kern = 0 end end
+    end
+  end
+  local function kern(w) local kn = node.new(KERN); kn.kern = w; return kn end
+  for _, pt in ipairs(line.parts) do
+    if pt.cjk then
+      local it = items[pt.from]
+      local core = it.first
+      while core and core.id ~= GLYPH and core.id ~= HLIST and core ~= it.last do core = core.next end
+      if core then
+        local cw = core.width
+        local em = it.symbol and it.w or ((it.kind == 0) and cw or it.size)
+        local pre = (cell - em) / 2
+        if it.kind == 2 and not it.symbol then pre = pre + (em - cw) end
+        head = node.insert_before(head, core, kern(pre))
+        node.insert_after(head, core, kern(cell - pre - cw))
+      end
+    else
+      local wto = pt.wto or pt.to
+      for k = pt.from, pt.to do
+        local it = items[k]
+        if it.kind == 4 then
+          it.first.width = (k <= wto) and snap_space_w(items, k, P) or 0
+        elseif it.kind == 3 and it.kerns then
+          for _, e in ipairs(it.kerns) do e[1].kern = e[2] end
+        end
+      end
+      local w = snap_latin_w(items, pt.from, wto, P)
+      local pre = (pt.cells * cell - w) / 2
+      if pt.split and pt == line.parts[1] then pre = 0 end
+      head = node.insert_before(head, items[pt.from].first, kern(pre))
+      node.insert_after(head, items[pt.to].last, kern(pt.cells * cell - w - pre))
+    end
+  end
+  local fil = node.new(GLUE); fil.stretch = 65536; fil.stretch_order = 2
+  node.insert_after(head, node.tail(head), fil)
+  if isfirst and indent > 0 then
+    local ib = node.new(HLIST); ib.subtype = 3; ib.width = indent
+    ib.next = head; head.prev = ib; head = ib
+  end
+  local box = node.hpack(head, measure, "exactly")
+  box.shift = line.shift
+  if ctx then
+    linebox(box, ctx, strut_h, strut_d)
+  else
+    if box.height < strut_h then box.height = strut_h end
+    if box.depth < strut_d then box.depth = strut_d end
+  end
+  return box, move_out(box), nxt
 end
 
 -- 段落底纹（“边框和底纹”应用于段落）：装好的每一行垫一块色。横向比文字区左右各伸 1.5 磅，
@@ -2297,7 +2525,10 @@ function M.filter(head, is_display)
   trace("STEP cell=%.4f latin_add=%.4f half_space=%.4f", P.cell / bp, P.latin_add / bp, P.half_space / bp)
   trace("STEP snap=%s spacing=%.4f balance=%s", tostring(hsnap), spacing / bp, tostring(balance))
   soft_split(items, P)
-  local lines = decide(items, P, M.shape(), indent)
+  local snapchars = hsnap and getbool("g_docxlike_page_snap_chars_bool") and true or false
+  local lines
+  if snapchars then lines = snap_decide(items, P, M.shape(), indent)
+  else lines = decide(items, P, M.shape(), indent) end
   local ctx = M.linectx(strut_h, strut_d)
   local pfa = luatexbase.attributes["docxlike@pfill@attr"]
   local pfill = pfa and node.get_attribute(head, pfa)
@@ -2307,7 +2538,11 @@ function M.filter(head, is_display)
   local nexthead = nil
   for li, line in ipairs(lines) do
     local box, moved
-    box, moved, nexthead = render(items, line, P, strut_h, strut_d, indent, li == 1, ctx, nexthead)
+    if snapchars then
+      box, moved, nexthead = snap_render(items, line, P, strut_h, strut_d, indent, li == 1, ctx)
+    else
+      box, moved, nexthead = render(items, line, P, strut_h, strut_d, indent, li == 1, ctx, nexthead)
+    end
     if pfill then shade_line(box, pfill, li == 1, ctx, line.measure, P) end
     if li > 1 then
       -- 行间胶用 subtype 0：luatexja 的 post_linebreak_filter 会把 subtype 1、2 的胶按

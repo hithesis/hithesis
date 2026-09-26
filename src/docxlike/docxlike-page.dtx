@@ -6,6 +6,8 @@
 %
 % \section{Word 页面设置的换算}
 %
+% \changes{v3.2a}{2026/09/26}{网格可以是“文字对齐字符网格”（\texttt{snapToChars}）：格宽照字距算，
+%   每个字怎么落格由断行层排（Windows 探针 \file{snap1}、\file{snap2}）}
 % \changes{v3.2a}{2026/09/26}{按页换版面可以套嵌：压栈时把版面取值写成恢复代码压进栈，出栈执行；
 %   文档类的存取钩子改成往 \cs{l\_docxlike\_page\_restore\_tl} 里追加赋值，还原钩子取消。先前只存
 %   一层，出栈只还原行跨度那几样，版面指纹停在上一层}
@@ -172,9 +174,12 @@
 %
 % \option{grid} 是“网格”那一组单选：\texttt{no-grid}（无网格）、\texttt{specify-line-grid-only}
 % （只指定行网格，字距与每行字数不起作用）、\texttt{specify-line-and-character-grid}（指定行和
-% 字符网格）；“文字对齐字符网格”（\texttt{text-snaps-to-character-grid}）还没有做。不写时不动
-% \cs{g\_docxlike\_grid\_bool}，有没有字符网格看给没给字距或每行字数。
+% 字符网格）、\texttt{text-snaps-to-character-grid}（文字对齐字符网格，\texttt{docGrid} 的
+% \texttt{snapToChars}）。最后一种的格宽照“指定行和字符网格”算，每个字怎么落格由断行层排（汉字
+% 一格一个，连续的西文按自然宽占整数格，都居中），记在 \cs{g\_docxlike\_page\_snap\_chars\_bool}。
+% 不写时不动 \cs{g\_docxlike\_grid\_bool}，有没有字符网格看给没给字距或每行字数。
 %    \begin{macrocode}
+\bool_new:N \g_docxlike_page_snap_chars_bool
 \tl_new:N \l__docxlike_page_grid_tl
 \bool_new:N \l__docxlike_page_geometry_bool
 \keys_define:nn { docxlike / page-setup }
@@ -233,17 +238,7 @@
   {
     grid .choices:nn =
       { no-grid , specify-line-grid-only , specify-line-and-character-grid , text-snaps-to-character-grid }
-      {
-        \str_if_eq:VnTF \l_keys_choice_tl { text-snaps-to-character-grid }
-          {
-            \bool_if:NF \l_docxlike_page_replay_bool
-              {
-                \msg_error:nnn { docxlike } { not-implemented }
-                  { document-grid / grid~=~text-snaps-to-character-grid }
-              }
-          }
-          { \tl_set_eq:NN \l__docxlike_page_grid_tl \l_keys_choice_tl }
-      } ,
+      { \tl_set_eq:NN \l__docxlike_page_grid_tl \l_keys_choice_tl } ,
     grid / unknown .code:n =
       {
         \bool_if:NF \l_docxlike_page_replay_bool
@@ -355,6 +350,8 @@
       \keys_set:nn { docxlike / page-setup } {#1}
       \bool_set_false:N \l_docxlike_page_replay_bool
       \keys_set:nn { docxlike / page-setup } {#2}
+      \tl_if_empty:NF \l__docxlike_page_grid_tl
+        { \bool_gset_false:N \g_docxlike_page_snap_chars_bool }
       \str_case:Vn \l__docxlike_page_grid_tl
         {
           { no-grid } { \bool_gset_false:N \g_docxlike_grid_bool }
@@ -365,6 +362,11 @@
               \int_zero:N \l__docxlike_page_chars_int
             }
           { specify-line-and-character-grid } { \bool_gset_true:N \g_docxlike_grid_bool }
+          { text-snaps-to-character-grid }
+            {
+              \bool_gset_true:N \g_docxlike_grid_bool
+              \bool_gset_true:N \g_docxlike_page_snap_chars_bool
+            }
         }
 %    \end{macrocode}
 %
