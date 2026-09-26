@@ -7,9 +7,9 @@
 % \section{浮动体与图表}
 %
 % \changes{v3.2a}{2026/09/26}{题注按 \option{caption-figure}、\option{caption-table} 排成 \pkg{docxlike} 的段，
-%   居中写在样式里；\option{style}/\option{float-blank} 在图表前后排敲的空段}
-% \changes{v3.2a}{2026/09/20}{新版面下浮动体与正文的间距改成一个网格行（指南 2.12
-%   “插表的上下与文中文字间需空一行”，v3.1e 的 8.5\,bp 不到半行）；题注与图表之间不
+%   居中写在样式里}
+% \changes{v3.2a}{2026/09/20}{新版面下图表上下各一个正文格式的空段、浮动体间距归零（指南 2.12
+%   “插表的上下与文中文字间需空一行”，Word 里空一行是敲的回车；v3.1e 的 8.5\,bp 不到半行）；题注与图表之间不
 %   另加 6\,bp（没有来路，范例里表题到表顶线只有表题自己的行深）；题号与题名之间读
 %   \option{after-*-caption-number}，兜底一个字宽（两份范例印出来都是一个字宽，研究生
 %   规范叙述里的“空 1 个半角字符”与它自己的范例不符，不跟）；题注的字号行距从
@@ -51,12 +51,13 @@
   }
 %    \end{macrocode}
 %
-% 新版面把三个间距都设成一个网格行。“空一行”在 Word 里是一个空段，占一格
-% 文档网格；刚性不给伸缩，Word 的空段也不会伸。要等版面算完才知道网格行距，
-% 挂在 \texttt{begindocument/end}，比 \cs{AfterPreamble} 里的版面应用晚。
-% 网格行距是零时不动。\option{style}/\option{float-sep} 写了长度的也不动，
-% 那个值由 \file{src/engine/hit-caption.dtx} 设，键的说明见
-% \file{src/engine/hit-keylist.dtx}。
+% 新版面下图表与正文之间是空段：“空一行”在 Word 里是作者敲的一个回车，那一段与正文
+% 同一份格式，由 \option{style}/\option{float-blank} 在浮动体里排
+% （\file{src/engine/hit-caption.dtx}），浮动体自己的三个间距照 \option{style}/\option{float-sep}
+% 取零，都写在 \file{src/config/hit-layout.dtx} 末尾，键的说明见 \file{src/engine/hit-keylist.dtx}。
+% \option{float-sep} 被写空时这里退回一个网格行，刚性不给伸缩。要等版面算完才知道网格行距，
+% 挂在 \texttt{begindocument/end}，比 \cs{AfterPreamble} 里的版面应用晚。网格行距是零
+% （旧版面）时不动。
 %
 % 题注与图表之间那 6\,bp（\file{src/engine/hit-caption.dtx} 的
 % \texttt{skip=6bp}）也一并归零：\pkg{caption} 把它落在 \cs{abovecaptionskip}
@@ -66,45 +67,17 @@
 %    \begin{macrocode}
 \AddToHook { begindocument / end }
   {
-    \bool_lazy_and:nnT
-      { \dim_compare_p:nNn { \g_docxlike_page_lead_dim } > { \c_zero_dim } }
-      { \tl_if_empty_p:N \g__hit_float_sep_tl }
+    \dim_compare:nNnT { \g_docxlike_page_lead_dim } > { \c_zero_dim }
       {
-        \skip_set:Nn \intextsep    { \g_docxlike_page_lead_dim }
-        \skip_set:Nn \textfloatsep { \g_docxlike_page_lead_dim }
-        \skip_set:Nn \floatsep     { \g_docxlike_page_lead_dim }
+        \tl_if_empty:NT \g__hit_float_sep_tl
+          {
+            \skip_set:Nn \intextsep    { \g_docxlike_page_lead_dim }
+            \skip_set:Nn \textfloatsep { \g_docxlike_page_lead_dim }
+            \skip_set:Nn \floatsep     { \g_docxlike_page_lead_dim }
+          }
         \captionsetup { skip = 0pt }
       }
   }
-%    \end{macrocode}
-%
-% \option{style}/\option{float-blank} 写了的，在浮动体里排那几个空段：图前、表前的在浮动体
-% 盒子一开头（\cs{@floatboxreset} 那一步，已在盒里的竖直模式），图后、表后的在
-% \cs{end}\marg{figure} 之前。空段是 \cs{hitenter*}，落在页首页尾也不丢，与 Word 的空段一样。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_float_blank:n #1
-  {
-    \tl_if_empty:cF { g__hit_float_blank_ #1 _tl }
-      {
-        \par
-        \use:e
-          {
-            \exp_not:N \hitenter *
-              [ \exp_not:v { g__hit_float_blank_ #1 _tl } ]
-          }
-      }
-  }
-\tl_gput_right:Nn \@floatboxreset
-  {
-    \cs_if_exist:NT \@captype
-      { \__hit_float_blank:n { \@captype -above } }
-  }
-\cs_new_protected:Npn \__hit_float_blank_hook:nn #1#2
-  { \AddToHook { env / #1 / end } { \__hit_float_blank:n { #2 -below } } }
-\__hit_float_blank_hook:nn { figure } { figure }
-\__hit_float_blank_hook:nn { figure* } { figure }
-\__hit_float_blank_hook:nn { table } { table }
-\__hit_float_blank_hook:nn { table* } { table }
 %    \end{macrocode}
 %
 % 此处设置float在p选项时间隔，此处不设置\cs{@fptop}和\cs{@fpbot}以确保居中。

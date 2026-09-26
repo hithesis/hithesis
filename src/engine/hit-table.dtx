@@ -14,7 +14,7 @@
 %   线宽单位换 \texttt{bp}，\cs{tabcolsep} 按 Word 的单元格边距，新版面下三条线上下不垫
 %   \pkg{booktabs} 的那几段；长表格的包装改到 \texttt{begindocument} 才做（宏包加载期换
 %   \cs{LT@array} 会被后加载的 \pkg{caption} 整个重定义掉）；\env{longtblr} 与正文的
-%   空白照浮动表（前后各一个网格行，表题与顶线之间不垫），原先是 \pkg{tabularray}
+%   空白照浮动表（前后各一个空段，表题与顶线之间不垫），原先是 \pkg{tabularray}
 %   的默认外距再加段落撑杆撑出来的空段，表题上方比浮动表低 17.9\,bp、顶线下
 %   多 6\,bp、表后多 4\,bp}
 %
@@ -258,8 +258,11 @@
 % \item \emph{续表重复表头}：规范说“续表应重复表头”，\env{longtblr} 与
 %   \env{longtabs} 的 \texttt{rowhead} 默认给 1，用户在环境参数里写
 %   \texttt{rowhead=0} 或别的值照常覆盖。
-% \item \emph{与正文的空白照浮动表}：长表前后各空一个网格行，表题与顶线之间
-%   不垫东西，与 \file{src/flow/hit-final-float.dtx} 给浮动体的一套同值。
+% \item \emph{与正文的空白照浮动表}：长表前后各空一个 \option{style}/\option{float-blank} 的
+%   空段，外距照 \option{style}/\option{float-sep}（写空时一个网格行），表题与顶线之间不垫
+%   东西，与 \file{src/flow/hit-final-float.dtx} 给浮动体的一套同值。表前那个空段在
+%   \texttt{begin} 钩子里排，那时表格的五号已经设上了，空段要按正文字号算（它是表前正文里敲的
+%   回车），所以套一层组先回 \cs{normalsize}；照五号算是 15.1，表题比浮动表高 2.2。
 %   \pkg{tabularray} 自己的默认是 \texttt{presep}／\texttt{postsep} 各
 %   \texttt{1.5\string\bigskipamount}（17.7\,bp）、\texttt{headsep}／\texttt{footsep}
 %   各 6\,pt，而且它起表前先 \cs{leavevmode} 开一个空段去刷新 \cs{pagetotal}，
@@ -268,7 +271,7 @@
 %   撑起来：空段成了一整行，与 \texttt{presep} 叠成两行空白（实测表题比浮动表
 %   低 17.9），表盒底下多垫一个行深。所以这四处的 \cs{leavevmode} 与
 %   \cs{noindent} 前面各补一句 \cs{docxlike\_format\_blank\_para:}，让那一段两头都不发
-%   撑杆、也不走 Lua 的行盒；四个外距按网格行设。
+%   撑杆、也不走 Lua 的行盒；前后两个外距照浮动体，上下两个归零。
 %   \cs{nobreak}\cs{noindent} 那一对打两遍：\cs{patchcmd} 只换第一处，换过的
 %   那处已经不匹配，第二遍换到的就是另一处。
 %   补丁用 \cs{patchcmd} 打在 \pkg{tabularray} 的内部函数上。\cs{patchcmd}
@@ -339,6 +342,19 @@
     \char_set_catcode:nn { 58 } { \l__hit_table_catcode_colon_int }
     \char_set_catcode:nn { 32 } { \l__hit_table_catcode_space_int }
   }
+\cs_new:Npn \__hit_table_long_sep:
+  {
+    \tl_if_empty:NTF \g__hit_float_sep_tl
+      { \dim_use:N \g_docxlike_page_lead_dim }
+      { \g__hit_float_sep_tl }
+  }
+\cs_new_protected:Npn \__hit_table_long_blank:
+  {
+    \group_begin:
+      \normalsize
+      \__hit_float_blank:n { table-above }
+    \group_end:
+  }
 \cs_new_protected:Npn \hit@setup@tabularray
   {
     \AddToHook { package / tabularray / after }
@@ -366,14 +382,16 @@
           {
             \AddToHook { env/##1/begin }
               {
+                \__hit_table_long_blank:
                 \SetTblrInner [##1] { rowhead = 1 }
                 \SetTblrOuter [##1]
                   {
-                    presep  = \g_docxlike_page_lead_dim ,
-                    postsep = \g_docxlike_page_lead_dim ,
+                    presep  = \__hit_table_long_sep: ,
+                    postsep = \__hit_table_long_sep: ,
                     headsep = 0pt , footsep = 0pt ,
                   }
               }
+            \AddToHook { env/##1/after } { \__hit_float_blank:n { table-below } }
           }
         \cs_if_exist:NT \docxlike_format_blank_para:
           {

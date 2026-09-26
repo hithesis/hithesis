@@ -7,7 +7,8 @@
 % \section{共享双语题注}
 %
 % \changes{v3.2a}{2026/09/26}{中文文档的题号名字后紧跟编号，“图”与“1”之间交给中西文自动间距；
-%   英文那条名字后空不空写在名字词条里}
+%   英文那条名字后空不空写在名字词条里；\option{style}/\option{float-blank} 在图表前后排敲的
+%   空段（Word 里图表上下那一行是作者敲的空段）}
 % \changes{v3.2a}{2026/09/14}{双语题注抽出来共用：英文题注是 \cs{caption} 的尾随可选参数，
 %   \cs{bicaption} 降为兼容写法；短标题接到 \pkg{ccaption} 的第二个参数（原先被当成
 %   \cs{label}），题注后补 \cs{@currentlabel}；\option{styles/bilingual-caption}
@@ -229,6 +230,41 @@
 %    \end{macrocode}
 % \end{macro}
 %
+% \begin{macro}{\hit@setup@float@blank}
+% \option{style}/\option{float-blank} 写了的，在浮动体里排那几个空段：图前、表前的在浮动体
+% 盒子一开头（\cs{@floatboxreset} 那一步，已在盒里的竖直模式），图后、表后的在
+% \cs{end}\marg{figure} 之前。空段是 \cs{hitenter*}，落在页首页尾也不丢，与 Word 的空段一样。
+% 学位论文与照 Word 排正文的报告都用，所以放在共用这一层，由 \cs{hit@setup@caption} 装上。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_float_blank:n #1
+  {
+    \tl_if_empty:cF { g__hit_float_blank_ #1 _tl }
+      {
+        \par
+        \use:e
+          {
+            \exp_not:N \hitenter *
+              [ \exp_not:v { g__hit_float_blank_ #1 _tl } ]
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_float_blank_hook:nn #1#2
+  { \AddToHook { env / #1 / end } { \__hit_float_blank:n { #2 -below } } }
+\cs_new_protected:Npn \hit@setup@float@blank
+  {
+    \tl_gput_right:Nn \@floatboxreset
+      {
+        \cs_if_exist:NT \@captype
+          { \__hit_float_blank:n { \@captype -above } }
+      }
+    \__hit_float_blank_hook:nn { figure } { figure }
+    \__hit_float_blank_hook:nn { figure* } { figure }
+    \__hit_float_blank_hook:nn { table } { table }
+    \__hit_float_blank_hook:nn { table* } { table }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
 % 中文文档的题号是名字后面紧跟编号，不放 \cs{fnum@figure} 那个 \cs{nobreakspace}：范例与
 % 博士后模板里的“图1-1”都是连着敲的，“图”与“1”之间那一点是 Word 的中西文自动间距，段落上
 % 关了它（博士后的表题）就贴着排。英文文档照旧名字后面空一格。双语题注英文那条的名字从
@@ -246,6 +282,7 @@
 \cs_new_protected:Npn \hit@setup@caption
   {
     \cs_set_eq:NN \__hit_bicaption:w \bicaption
+    \hit@setup@float@blank
     \AddToHook { begindocument/end }
       {
     \hit@float@sep:
