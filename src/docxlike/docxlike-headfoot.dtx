@@ -6,6 +6,8 @@
 %
 % \section{页眉页脚、节与域}
 %
+% \changes{v3.2a}{2026/09/26}{分节可以写分栏（栏数、间距、分隔线），照 Windows 探针 \file{cols1}：
+%   每栏按自己的宽数整格，连续分节处各栏排平，行盒跨过节界照样直接摞}
 % \changes{v3.2a}{2026/09/26}{新增 \texttt{TOC} 域：每个标题一段，样式 \texttt{TOC~1} 到 \texttt{TOC~9}，
 %   段上直接带栏宽处右对齐、前导点的制表位；认 \texttt{\textbackslash o} 与 \texttt{\textbackslash h}}
 % \changes{v3.2a}{2026/09/26}{分节时可以写这一节自己的页边距、纸张、文档网格与页眉页脚距，换页的
@@ -524,6 +526,8 @@
   }
 \keys_define:nn { docxlike / section }
   {
+    columns .code:n =
+      { \__docxlike_keys_set:nn { docxlike / section / columns } {#1} } ,
     page-setup .code:n =
       { \__docxlike_keys_set:nn { docxlike / section / page-setup } {#1} } ,
     page-number-format .code:n =
@@ -623,6 +627,7 @@
 \int_gset:Nn \g__docxlike_headfoot_page_section_int { 1 }
 \cs_new_protected:Npn \docxlike_section_new:nn #1#2
   {
+    \__docxlike_cols_close:
     \tl_set:Nn \l__docxlike_section_type_tl {#1}
     \str_case:nnF {#1}
       {
@@ -640,7 +645,75 @@
         \__docxlike_bad_value:nnn { section~break } {#1}
           { next-page , continuous , even-page , odd-page }
       }
+    \__docxlike_cols_open:
   }
+%    \end{macrocode}
+%
+% \emph{分栏。} 照“栏”对话框：\option{columns} 里 \option{number-of-columns}（栏数）、
+% \option{spacing}（间距）、\option{line-between}（分隔线），存成节的 \texttt{cols/num}、
+% \texttt{cols/space}、\texttt{cols/sep}；导言区 \cs{docxlikesetup} 里写的是第一节的，
+% \cs{docxsectionbreak} 里写的是新一节的，没写的沿上一节。Windows 探针 \file{cols1}：栏宽是
+% （版心宽减各栏间距）除以栏数，每栏自己数整格；分隔线粗 0.72 磅，画在间距正中、与分栏区一样高；
+% 连续分节处各栏平衡。这里借 \pkg{multicol}：分节时先收上一节的 \env{multicols}，新一节
+% 多于一栏就再开一个，栏距是 \option{spacing}，分隔线是 \cs{columnseprule}，上下不另加空。
+% \pkg{multicol} 开头会按 \hologo{TeX} 的基线网格补一段，这里先把 \cs{prevdepth} 设成
+% $-1000$\,pt 跳过它：分栏区紧接上一行的行盒底，栏里首行按 \cs{topskip} 落位，行盒照样直接摞。
+% 断行层按当时的 \cs{hsize} 数格，栏里就是按栏宽。Word 在文档末尾不平衡最后一节，这里也平衡，
+% 是个偏差。
+%    \begin{macrocode}
+\RequirePackage { multicol }
+\keys_define:nn { docxlike / section / columns }
+  {
+    number-of-columns .code:n =
+      { \__docxlike_section_put:nn { cols/num } { \int_eval:n {#1} } } ,
+    spacing .code:n =
+      { \__docxlike_section_put:nn { cols/space } { \dim_eval:n { \__docxlike_bp:n {#1} } } } ,
+    line-between .choices:nn = { true , false }
+      { \__docxlike_section_put:nV { cols/sep } \l_keys_choice_tl } ,
+    line-between .default:n = true ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike }
+  {
+    columns .code:n =
+      { \__docxlike_keys_set:nn { docxlike / section / columns } {#1} } ,
+  }
+\bool_new:N \g__docxlike_cols_open_bool
+\tl_new:N \l__docxlike_cols_tl
+\cs_new_protected:Npn \__docxlike_cols_get:nnN #1#2#3
+  {
+    \prop_get:cnNF { g__docxlike_section_ \int_use:N \g_docxlike_section_int _prop } {#1} #3
+      { \tl_set:Nn #3 {#2} }
+  }
+\cs_new_protected:Npn \__docxlike_cols_open:
+  {
+    \__docxlike_cols_get:nnN { cols/num } { 1 } \l__docxlike_cols_tl
+    \int_compare:nNnT { \l__docxlike_cols_tl } > { 1 }
+      {
+        \bool_gset_true:N \g__docxlike_cols_open_bool
+        \__docxlike_cols_get:nnN { cols/space } { 21.25bp } \l_tmpa_tl
+        \dim_set:Nn \columnsep { \l_tmpa_tl }
+        \__docxlike_cols_get:nnN { cols/sep } { false } \l_tmpa_tl
+        \dim_set:Nn \columnseprule
+          { \str_if_eq:VnTF \l_tmpa_tl { true } { 0.72bp } { 0pt } }
+        \dim_zero:N \multicolsep
+        \dim_zero:N \premulticols
+        \dim_zero:N \postmulticols
+        \par
+        \tex_prevdepth:D = -1000pt \scan_stop:
+        \exp_args:NnV \begin { multicols } \l__docxlike_cols_tl
+      }
+  }
+\cs_new_protected:Npn \__docxlike_cols_close:
+  {
+    \bool_if:NT \g__docxlike_cols_open_bool
+      {
+        \bool_gset_false:N \g__docxlike_cols_open_bool
+        \end { multicols }
+      }
+  }
+\hook_gput_code:nnn { begindocument / end } { docxlike-columns } { \__docxlike_cols_open: }
+\hook_gput_code:nnn { enddocument } { docxlike-columns } { \__docxlike_cols_close: }
 \cs_new_protected:Npn \__docxlike_section_open:n #1
   {
     \__docxlike_section_close:

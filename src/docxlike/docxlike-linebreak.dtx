@@ -6,6 +6,10 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/26}{对齐范围看段落自己的 \texttt{adjustRightInd}：开着时两端对齐只撑到整数个格，
+%   超出整数格的行再挤标点装进去（先前两端对齐一律撑满版心，只有居中、右对齐看段落）；断行仍按整个
+%   版心（Windows 探针 \file{fn1}），\texttt{msword.rs} 里只在 \texttt{adjustRightInd} 开着时走的几支
+%   从没用上，删去}
 % \changes{v3.2a}{2026/09/26}{“为字体调整字间距”照字体的老式 kern 表收字偶距，空格的配对也收（\pkg{luaotfload}
 %   只在 kern 表有两张以上子表时才读，Times New Roman 一对都不收）；合成粗体每个字形加字号的 1/280}
 % \changes{v3.2a}{2026/09/26}{单字步进照 Windows Word 实测（探针 adv1--adv5）：网格增量只看字体的
@@ -243,7 +247,6 @@ local connectors = set_of("—–―…‖～")
 M.trace = false
 M.compat = 11   -- Word 兼容模式：11（2003）、12/14（2007/2010）、15（2013 起）
 M.snap = false  -- 段落贴行网格（Word 的 snapToGrid）
-M.ari0 = true   -- 模式 ≤14：adjustRightInd=0 时装到版心，否则整数格（adjust_right_indent）
 M.cell = false  -- 段落在表格单元格里：闭号只压半格不挂出，老模式不按整格
 local function trace(...)
   if M.trace then texio.write_nl("term and log", "HG| " .. string.format(...)) end
@@ -1017,12 +1020,6 @@ local function decide(items, P, shape, indent)
   -- 记得更多（(k+3)/5，一个位时只算 0.4）
   local G_TAB = { [0] = 0, 0.29, 0.54, 0.73, 0.9, 1.1, 1.29, 1.4, 1.5 }
 
-  -- 一行里的字（0..last）有没有汉字
-  local function has_cjk(first, m)
-    for i = first, m do if items[i].kind == 0 then return true end end
-    return false
-  end
-
   -- ===== Word 2013：单元 j..m（开号、一个字或西文串 core、后面的闭号）能超出版心多少 =====
   local function budget15(first, j0, j, core, m, isfirst)
     local openers_n = 0
@@ -1201,70 +1198,25 @@ local function decide(items, P, shape, indent)
     local latin = tc.kind == 3
     local gaps = autos_in(first, core)
     local own
-    if opener and latin and m == core and P.ari then
-      local u_core = 0
-      for i = j + 1, m do u_core = u_core + items[i].nw end
-      local phys = half * (k + 1) + auto / 2 * gaps
-      own = math.min(phys, u_core + half + 0.3 * bp)
-    elseif opener then
+    if opener then
       -- 开号带西文与闭号链的（（SSA）、）到三个位（msword.rs 的 c11k）；开号带汉字的
       -- 至多两个（lb4 探针 o2=o3=19）
       own = half + half * math.min(k, latin and 3 or 2)
     elseif latin then
       local b = j
-      while b > first + 1
-        and (items[b - 1].kind == 4
-             or (P.ari and ((items[b - 1].kind == 3 and items[b - 1].glyphs)
-                            or (items[b - 1].symbol and items[b - 1].nw < half * 1.5)))) do
+      while b > first + 1 and items[b - 1].kind == 4 do
         b = b - 1
       end
       local u = 0
       for i = b, m do u = u + items[i].nw end
-      if P.ari then
-        local u2 = 0
-        for i = b, core do u2 = u2 + items[i].nw end
-        local cjk_line = has_cjk(first, m)
-        local inner_space = nil
-        for i = b + 1, core - 1 do if items[i].kind == 4 then inner_space = i; break end end
-        local spaces = 0
-        for i = first + 1, m do
-          local t = items[i]
-          if i < b and cjk_line and t.kind == 4 and not t.user and t.nw < half - 0.1 * bp then spaces = spaces + 1 end
-        end
-        local phys = half * k + auto / 2 * (gaps + spaces)
-        local glyphs = 0
-        for i = b, core do glyphs = glyphs + (items[i].gn or 0) end
-        local cap
-        if m == core and tc.gn == 1 and tc.c == 62 then
-          if compat ~= 11 then return half + tc.w end
-          cap = half * 2
-        elseif inner_space then
-          local s = 0
-          for i = b, inner_space - 1 do s = s + items[i].nw end
-          cap = u2 - s
-        elseif glyphs <= 1 then
-          cap = u2 - 0.3 * bp
-        elseif items[b].kind == 3 then
-          cap = u2 - (items[b].head_w or 0) - P.latin_add
-        else
-          cap = u2 - items[b].nw
-        end
-        trace("  lat b=%d core=%d m=%d k=%d phys=%.2f cap=%.2f u=%.2f", b, core, m, k, phys / bp, cap / bp, u2 / bp)
-        if m == core then
-          local ascii = (compat == 11 and tc.tail == 37) and 0 or (tc.tail_hang or 0)
-          return math.min(phys + ascii, cap)
-        end
-        return math.min(phys, cap)
-      else
-        local cap
-        if m == core and tc.gn == 1 and tc.c == 62 then cap = half * 2 else cap = u / 2 end
-        own = math.min(half * k + auto / 2 * gaps, cap)
-        -- 下面接着算闭号链；m == core 时在此返回
-        if m == core then
-          local ascii = (tc.tail_hang or 0)
-          if compat == 11 then ascii = math.min(ascii, 3 * bp) end
-          return own + ascii + ((ascii > 0) and P.latin_add or 0)
-        end
+      local cap
+      if m == core and tc.gn == 1 and tc.c == 62 then cap = half * 2 else cap = u / 2 end
+      own = math.min(half * k + auto / 2 * gaps, cap)
+      -- 下面接着算闭号链；m == core 时在此返回
+      if m == core then
+        local ascii = (tc.tail_hang or 0)
+        if compat == 11 then ascii = math.min(ascii, 3 * bp) end
+        return own + ascii + ((ascii > 0) and P.latin_add or 0)
       end
     elseif k == 0 then
       -- 没有位时汉西隙每处半个隙（lb4 探针 g2：四个隙 6.0），总共不过半格（x1–x3）
@@ -1272,8 +1224,6 @@ local function decide(items, P, shape, indent)
     elseif j > first and items[j - 1].kind == 4 and not items[j - 1].user and j >= 3
       and items[j - 2].kind == 3 and items[j - 2].glyphs then
       own = half * k
-    elseif P.ari and j > first and items[j - 1].kind == 3 and items[j - 1].glyphs then
-      own = ((items[j - 1].tail_w or 0) + P.latin_add + tc.gap) / 2
     else
       local near = 0
       if tc.gap > 0 then
@@ -1284,16 +1234,10 @@ local function decide(items, P, shape, indent)
       own = half - penalty(k, near)
     end
     if own == nil then own = 0 end
-    if opener and j > 1 and items[j - 1].kind == 1 and items[j - 1].paired and m == core and P.ari then
-      own = own - 3 * bp
-    end
     if m == core then
       local ascii = (tc.kind == 3) and (tc.tail_hang or 0) or 0
       if compat == 11 then ascii = math.min(ascii, 3 * bp) end
       return own + ascii + ((ascii > 0) and P.latin_add or 0)
-    end
-    if items[m].kind == 3 and P.ari and compat == 11 then
-      return half * spots(first, m) + auto / 2 * gaps
     end
     local hang
     if P.table_cell then hang = half
@@ -1449,17 +1393,9 @@ local function decide(items, P, shape, indent)
     local li = #lines + 1
     local sh = shape(li)
     measure = sh.width
-    -- 格数按整个版心数，悬挂缩进事后再减（Word 是按页面版心数格再减段落缩进）
-    local full = tex.hsize
-    local cellcap
-    if P.grid then
-      local cells = math.floor((full + eps) / p)
-      cellcap = p * cells - (full - measure)
-    else
-      cellcap = measure
-    end
-    local snaps = P.grid and compat ~= 15 and P.ari and not P.table_cell
-    local capacity = snaps and cellcap or measure
+    -- 断行按整个版心装，不看“如果定义了文档网格，则自动调整右缩进”（Windows 探针 fn1：开着的段
+    -- 照样按版心断，装进来的行排版时再挤进整数个格，见 render）
+    local capacity = measure
     local first = i
     local last = i
     local j = i
@@ -1496,7 +1432,7 @@ local function decide(items, P, shape, indent)
         if mandatory_after(m) then forced_end = true; break end
         j = m + 1
       else
-        local need = w - (snaps and math.min(cellcap, capacity) or capacity)
+        local need = w - capacity
         if it.kind == 1 then break end
         if it.kind == 3 and it.glyphs and ascii_close[it.head]
           and not (j > first and items[j - 1].kind == 4 and not items[j - 1].user) then
@@ -1579,7 +1515,7 @@ local function decide(items, P, shape, indent)
                           deep = deep and items[last].kind == 1, forced = forced,
                           ragged = forced_end or last >= n,
                           bp = (last < n) and ((items[last].emergency or items[last].soft) and items[last + 1].first or breakpoint_after(last)) or nil,
-                          measure = measure, capacity = capacity, cellcap = cellcap, shift = sh.shift,
+                          measure = measure, capacity = capacity, shift = sh.shift,
                           isfirst = isfirst }
     if M.trace then
       local txt = {}
@@ -1717,6 +1653,11 @@ local function linebox(box, ctx, strut_h, strut_d)
     if objD > desc then desc = objD end
   end
   box.height = asc; box.depth = desc
+  M.last_text_ascent = A
+  if ctx.exact then
+    local ea = luatexbase.attributes["docxlike@exact@attr"]
+    if ea then node.set_attribute(box, ea, 1) end
+  end
   trace("BOX H=%.2f A=%.2f obj=%.2f+%.2f k=%.3f %s -> %.2f+%.2f", H / 65536, A / 65536, objA / 65536, objD / 65536, ctx.k,
     ctx.exact and "exact" or (ctx.snap and "snap" or "auto"), asc / 65536, desc / 65536)
 end
@@ -1841,14 +1782,28 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
   while start < last and items[start].kind == 4 do start = start + 1 end
   local ragged = line.ragged or line.islast or P.align ~= "justify"
 
+  -- 对齐范围：兼容模式低于 15、段落开着“如果定义了文档网格，则自动调整右缩进”、这一节有字符网格时是
+  -- 整数个格，否则整个版心（探针 adv1、adv3、adv4、cols1、fn1）。格数按整个版心（栏里是栏宽）与节的
+  -- 格宽数，再减段落缩进（shd1：左右各缩 24.9 的段装到 373.24，不是缩进后再数的 29 格）。两端对齐的段
+  -- 断行按版心装进来的行超出整数格的部分照挤标点的规矩挤掉，只撑到最后一格，余量留在行尾（范例 d-stem
+  -- 的摘要段没写 adjustRightInd，行尾停在第 34 格；正文段写了 0，撑满版心）。居中、右对齐的行只按整数格
+  -- 定位（见下面），不另挤；表格单元格里老模式不按整格
+  local target = line.capacity
+  if M.compat < 15 and P.ari and P.justify and not P.table_cell and not P.nogrid
+    and P.cell0 and P.cell0 > 0 then
+    local full = tex.hsize
+    target = math.min(target, math.floor(full / P.cell0 + 1e-6) * P.cell0 - (full - measure))
+  end
+  local over = line.over + line.capacity - target
+
   local whole_hang, in_place, cap_last = false, false, false
-  if line.over > 0 and not line.forced then
+  if over > 0 and not line.forced then
     local spot_idx = {}
     for k = first, last do
       local it = items[k]
       if it.spot and not (it.kind == 2 and k == start) and not (line.deep and k == last) then spot_idx[#spot_idx + 1] = k end
     end
-    local need = line.over
+    local need = over
     -- Word 2013 先压西文串里的空格（各四分之一），再压标点
     if compat == 15 and P.justify then
       local function give(k)
@@ -1951,14 +1906,14 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
   end
 
   -- 两端对齐的伸展
-  local symbol_hang = line.deep and items[last].symbol and line.over > 0 and compat ~= 11
+  local symbol_hang = line.deep and items[last].symbol and over > 0 and compat ~= 11
   local natural_w = width_of(items, first, last) + (isfirst and indent or 0)
   if symbol_hang or whole_hang then natural_w = natural_w - items[last].nw end
   local compressed = 0
   for k = first, last do compressed = compressed + delta[k] end
-  local slack = line.capacity - (natural_w + compressed)
+  local slack = target - (natural_w + compressed)
   if P.justify and not ragged and not line.forced and not hasfil and slack > 0
-    and (line.over <= 0 or symbol_hang or whole_hang or in_place) then
+    and (over <= 0 or symbol_hang or whole_hang or in_place) then
     local autos, spaces, cjkgaps, halves = {}, {}, {}, {}
     for k = first, last do
       local it = items[k]
@@ -2072,7 +2027,7 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
     -- 对齐范围：兼容模式低于 15、“自动调整右缩进”开着、这一节有字符网格时是整数个格（节的格宽），
     -- 否则整个版心（探针 adv1、adv3、adv4）
     local area = measure
-    if M.compat < 15 and P.adjust_right and not P.nogrid and P.cell0 and P.cell0 > 0 then
+    if M.compat < 15 and P.ari and not P.nogrid and P.cell0 and P.cell0 > 0 then
       area = math.floor(measure / P.cell0 + 1e-6) * P.cell0
     end
     if area < measure then
@@ -2082,10 +2037,13 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
   elseif ragged and not hasfil then
     local fil = node.new(GLUE); fil.subtype = 15; fil.stretch = 65536; fil.stretch_order = 2
     node.insert_after(head, node.tail(head), fil)
-  elseif line.capacity < measure and not hasfil then
-    -- 老模式按整数格装：版心剩下不到一格的量留在行尾
-    local kn = node.new(KERN); kn.kern = measure - line.capacity
-    node.insert_after(head, node.tail(head), kn)
+  elseif target < measure and not hasfil then
+    -- 对齐范围是整数个格：版心剩下不到一格的量留在行尾（挤不进整数格的行照实际宽）
+    local rest = measure - math.max(target, natural_w + compressed)
+    if rest > 0 then
+      local kn = node.new(KERN); kn.kern = rest
+      node.insert_after(head, node.tail(head), kn)
+    end
   end
   if isfirst and indent > 0 then
     local ib = node.new(HLIST); ib.subtype = 3; ib.width = indent
@@ -2096,7 +2054,7 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
   if M.trace then
     local dw = node.dimensions(box.list)
     if math.abs(dw - measure) > P.eps and not line.forced and not ragged then
-      trace("WIDTH content=%.2f measure=%.2f natural=%.2f compressed=%.2f slack=%.2f", dw / bp, measure / bp, natural_w / bp, compressed / bp, (line.capacity - (natural_w + compressed)) / bp)
+      trace("WIDTH content=%.2f measure=%.2f natural=%.2f compressed=%.2f slack=%.2f", dw / bp, measure / bp, natural_w / bp, compressed / bp, (target - (natural_w + compressed)) / bp)
     end
   end
   if ctx then
@@ -2184,9 +2142,18 @@ function M.shape()
   local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
   local lw, rw = ls.width, rs.width
   -- 格式层在 XeTeX 那条路上把整数格除不尽的余量放在 rightskip 里（不到一格），这里自己算格，不减它。
-  -- 小页里格数少，余量可以超过 6pt，与格式层当时算的余量相等也照余量算
+  -- 格式层记下了放进去多少、套完样式时 rightskip 有多宽，宽对得上就只减余量，右缩进留着（shd1 左右
+  -- 各缩两字的段）；对不上是文档类自己改过，照旧：不到 6pt 或与余量相等的当余量，小页里格数少，
+  -- 余量可以超过 6pt
   local okS, slack = pcall(tex.getdimen, "g_docxlike_page_slack_dim")
-  if rw > 0 and (rw <= 6 * 65536 or (okS and slack and math.abs(rw - slack) <= 2)) then rw = 0 end
+  local okR, rsl = pcall(tex.getdimen, "l_docxlike_format_right_slack_dim")
+  local okT, rtot = pcall(tex.getdimen, "l_docxlike_format_right_total_dim")
+  if okR and okT and rsl and rtot and rsl > 0 and math.abs(rw - rtot) <= 2 and rw >= rsl then
+    rw = rw - rsl
+    if rw <= 2 then rw = 0 end
+  elseif rw > 0 and (rw <= 6 * 65536 or (okS and slack and math.abs(rw - slack) <= 2)) then
+    rw = 0
+  end
   local ps = tex.parshape
   local hi, ha = tex.hangindent, tex.hangafter
   return function(li)
@@ -2224,6 +2191,40 @@ local function to_tex(head, why)
     end
   end
   return skip(why)
+end
+
+-- 段落底纹（“边框和底纹”应用于段落）：装好的每一行垫一块色。横向比文字区左右各伸 1.5 磅，
+-- 右边照居中那一套的整数格宽；纵向首行从文字顶（行里字形的上升部）起，别的行接上一行的底，
+-- 都到行盒底；固定值行距的行涂满行盒。段前段后不涂（Windows 探针 shd1）
+local function shade_line(box, color, first, ctx, measure, P)
+  local runm = docxlike and docxlike.run
+  local data = runm and runm.colors and runm.colors[color]
+  if not data then return end
+  local area = measure
+  if M.compat < 15 and P.ari and not P.nogrid and P.cell0 and P.cell0 > 0 then
+    area = math.floor(measure / P.cell0 + 1e-6) * P.cell0
+  end
+  local ext = math.floor(1.5 * P.bp + 0.5)
+  local up = box.height
+  if first and not ctx.exact and M.last_text_ascent and M.last_text_ascent > 0 then
+    up = math.min(box.height, M.last_text_ascent)
+  end
+  local function cs(cmd, d)
+    local w = node.new(WHATSIT, "pdf_colorstack"); w.stack = 0; w.command = cmd
+    if d then w.data = d end
+    return w
+  end
+  local r = node.new(RULE)
+  r.width, r.height, r.depth = area + 2 * ext, math.floor(up + 0.5), box.depth
+  local k1, k2 = node.new(KERN), node.new(KERN)
+  k1.kern = -ext; k2.kern = -(area + ext)
+  local h = box.head
+  h = node.insert_before(h, h, k2)
+  h = node.insert_before(h, h, cs(2))
+  h = node.insert_before(h, h, r)
+  h = node.insert_before(h, h, cs(1, data))
+  h = node.insert_before(h, h, k1)
+  box.head = h
 end
 
 function M.filter(head, is_display)
@@ -2285,9 +2286,9 @@ function M.filter(head, is_display)
   local P = { cell = cell, em = em, bp = bp, excess = grid_inc + sp2, grid = hsnap,
               latin_add = (hsnap and (balance and inc / 2 or inc) or 0) + spacing,
               half_space = (em + grid_inc) / 2 + sp2, cell0 = cell0, nogrid = nogrid,
-              adjust_right = getbool(pre .. "adjust_right_bool") ~= false,
+              ari = getbool(pre .. "adjust_right_bool") ~= false,
               space_add = (inc > 0) and 0.25 * bp or 0,
-              compat = M.compat, ari = not M.ari0, table_cell = M.cell,
+              compat = M.compat, table_cell = M.cell,
               justify = align == "justify", align = align, autospace = true, compress = true,
               balance = balance,
               autospace_de = getbool("l_docxlike_format_autospace_de_bool") ~= false,
@@ -2298,6 +2299,8 @@ function M.filter(head, is_display)
   soft_split(items, P)
   local lines = decide(items, P, M.shape(), indent)
   local ctx = M.linectx(strut_h, strut_d)
+  local pfa = luatexbase.attributes["docxlike@pfill@attr"]
+  local pfill = pfa and node.get_attribute(head, pfa)
   local newhead, tail = nil, nil
   local prevdepth = tex.prevdepth
   local nl = #lines
@@ -2305,6 +2308,7 @@ function M.filter(head, is_display)
   for li, line in ipairs(lines) do
     local box, moved
     box, moved, nexthead = render(items, line, P, strut_h, strut_d, indent, li == 1, ctx, nexthead)
+    if pfill then shade_line(box, pfill, li == 1, ctx, line.measure, P) end
     if li > 1 then
       -- 行间胶用 subtype 0：luatexja 的 post_linebreak_filter 会把 subtype 1、2 的胶按
       -- TeX 的 baselineskip 规矩重算，行盒恰好等于行距时舍入成负数就换成 lineskip，多出 1pt

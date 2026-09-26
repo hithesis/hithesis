@@ -6,6 +6,8 @@
 %
 % \section{元素格式（format）}
 %
+% \changes{v3.2a}{2026/09/26}{样式写了两端对齐就把左右边距胶与末行填充复位（先前什么都不做，
+%   外面的 \cs{raggedright} 留着）；正文的行末余量加在 \texttt{Normal} 的对齐之上，不再改写 \cs{rightskip}}
 % \changes{v3.2a}{2026/08/25}{加 \option{styles}：照 Word 的样式描述每种段落怎么排，内置
 %   \texttt{Normal}、\texttt{Heading 1} 到 \texttt{Heading 4}、\texttt{Header}、\texttt{Footer}，
 %   别的名字写了就新建、基于 \texttt{Normal}。键名照 Word 英文界面，按“字体”“段落”
@@ -65,6 +67,8 @@
 %   字面的西文字体照 Word 斜切），新增 \option{underline-style}、\option{underline-color}、
 %   \option{superscript}、\option{subscript}、样式的 \option{style-type} 与 \cs{docxrun}；下划线与
 %   上下标在 \hologo{LuaLaTeX} 上记在属性里，出页前由 \file{docxlike-run.lua} 落到节点上，断行照常}
+% \changes{v3.2a}{2026/09/26}{新增突出显示 \option{text-highlight-color}、文字底纹与段落底纹
+%   \option{shading}：照 Windows 探针 shd1，文字的只涂字自己的行盒，段落的左右伸 1.5 磅、首行从字顶起}
 % \changes{v3.2a}{2026/09/26}{合成粗体照 Word：没有粗体字面的字体，样式要了粗体就在出页前换成描边的
 %   同一副字体，断行层给合成粗体每个字形加字号的 1/280}
 % \changes{v3.2a}{2026/09/26}{新增段落键
@@ -114,6 +118,8 @@
 % \option{font}/\option{font-style}、\option{all-caps} & \texttt{rPr/b}、\texttt{rPr/i}、\texttt{rPr/caps} \\
 % \option{font}/\option{underline-style}、\option{underline-color} & \texttt{rPr/u}、\texttt{rPr/u/color}（六位十六进制） \\
 % \option{font}/\option{superscript}、\option{subscript} & \texttt{rPr/vertAlign}：\texttt{superscript}、\texttt{subscript}、\texttt{baseline} \\
+% \option{font}/\option{text-highlight-color}、\option{shading}/\option{fill} & \texttt{rPr/highlight}、\texttt{rPr/shd/fill}（六位十六进制） \\
+% \option{shading}/\option{fill}（样式顶层） & \texttt{pPr/shd/fill} \\
 % \option{font}/\option{size} & \texttt{rPr/sz}（半磅） \\
 % \option{font}/\option{character-spacing} & \texttt{rPr/spacing}（缇，带符号） \\
 % \option{font}/\option{snap-to-grid-when-document-grid-is-defined} & \texttt{rPr/snapToGrid} \\
@@ -892,6 +898,7 @@
       { \__docxlike_keys_set:nn { docxlike / style / paragraph } {#1} } ,
     tabs .code:n = { \__docxlike_style_tabs:n {#1} } ,
     border .code:n = { \__docxlike_keys_set:nn { docxlike / style / border } {#1} } ,
+    shading .code:n = { \__docxlike_keys_set:nn { docxlike / style / shading } {#1} } ,
     numbering .choices:nn = { none }
       { \__docxlike_format_put:nn { pPr/numPr/numId } { 0 } } ,
     style-type .code:n = { \__docxlike_style_type:n {#1} } ,
@@ -910,6 +917,8 @@
     all-caps .default:n = { true } ,
     underline-style .code:n = { \__docxlike_style_underline:n {#1} } ,
     underline-color .code:n = { \__docxlike_style_underline_color:n {#1} } ,
+    text-highlight-color .code:n = { \__docxlike_style_highlight:n {#1} } ,
+    shading .code:n = { \__docxlike_keys_set:nn { docxlike / style / font / shading } {#1} } ,
     superscript .code:n = { \__docxlike_style_vert_align:nn { superscript } {#1} } ,
     superscript .default:n = { true } ,
     subscript .code:n = { \__docxlike_style_vert_align:nn { subscript } {#1} } ,
@@ -1067,6 +1076,71 @@
       }
   }
 \cs_generate_variant:Nn \__docxlike_format_put:nn { nV }
+%    \end{macrocode}
+%
+% \option{text-highlight-color} 是“开始”选项卡上的“以不同颜色突出显示文本”，十五种颜色照下拉框：
+% \texttt{yellow}、\texttt{bright-green}、\texttt{turquoise}、\texttt{pink}、\texttt{blue}、\texttt{red}、
+% \texttt{dark-blue}、\texttt{teal}、\texttt{green}、\texttt{violet}、\texttt{dark-red}、\texttt{dark-yellow}、
+% \texttt{gray-50}、\texttt{gray-25}、\texttt{black}，\texttt{no-color} 是无，存成 docx 的
+% \texttt{rPr/highlight}（\texttt{yellow}、\texttt{green}、\texttt{cyan}……）。字体组里的
+% \option{shading} 是“边框和底纹”里应用于文字的底纹，\option{fill} 写颜色（六位十六进制或
+% \pkg{l3color} 的表达式），存成 \texttt{rPr/shd/fill}；样式顶层的 \option{shading} 是应用于段落
+% 的，存成 \texttt{pPr/shd/fill}。
+%    \begin{macrocode}
+\prop_const_from_keyval:Nn \c__docxlike_highlight_name_prop
+  {
+    yellow = yellow , bright-green = green , turquoise = cyan , pink = magenta ,
+    blue = blue , red = red , dark-blue = darkBlue , teal = darkCyan , green = darkGreen ,
+    violet = darkMagenta , dark-red = darkRed , dark-yellow = darkYellow ,
+    gray-50 = darkGray , gray-25 = lightGray , black = black , no-color = none ,
+  }
+\prop_const_from_keyval:Nn \c__docxlike_highlight_rgb_prop
+  {
+    yellow = FFFF00 , green = 00FF00 , cyan = 00FFFF , magenta = FF00FF , blue = 0000FF ,
+    red = FF0000 , darkBlue = 000080 , darkCyan = 008080 , darkGreen = 008000 ,
+    darkMagenta = 800080 , darkRed = 800000 , darkYellow = 808000 , darkGray = 808080 ,
+    lightGray = C0C0C0 , black = 000000 ,
+  }
+\cs_new_protected:Npn \__docxlike_style_highlight:n #1
+  {
+    \str_if_eq:nnTF {#1} { auto }
+      { \__docxlike_format_put:nn { rPr/highlight } { auto } }
+      {
+        \prop_get:NnNTF \c__docxlike_highlight_name_prop {#1} \l__docxlike_style_color_tl
+          { \__docxlike_format_put:nV { rPr/highlight } \l__docxlike_style_color_tl }
+          {
+            \__docxlike_bad_value:nnn { text-highlight-color } {#1}
+              {
+                yellow , bright-green , turquoise , pink , blue , red , dark-blue , teal ,
+                green , violet , dark-red , dark-yellow , gray-50 , gray-25 , black , no-color
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_style_fill:nn #1#2
+  {
+    \str_case:nnF {#2}
+      {
+        { auto } { \__docxlike_format_put:nn {#1} { auto } }
+        { none } { \__docxlike_format_put:nn {#1} { none } }
+      }
+      {
+        \regex_match:nnTF { \A [0-9A-Fa-f]{6} \Z } {#2}
+          { \tl_set:Ne \l__docxlike_style_color_tl { \str_uppercase:n {#2} } }
+          { \color_export:nnN {#2} { HTML } \l__docxlike_style_color_tl }
+        \__docxlike_format_put:nV {#1} \l__docxlike_style_color_tl
+      }
+  }
+\keys_define:nn { docxlike / style / font / shading }
+  {
+    fill .code:n = { \__docxlike_style_fill:nn { rPr/shd/fill } {#1} } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / style / shading }
+  {
+    fill .code:n = { \__docxlike_style_fill:nn { pPr/shd/fill } {#1} } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
 %    \end{macrocode}
 %
 % \option{superscript} 与 \option{subscript} 是“效果”里的两个勾，勾一个另一个就去掉，两个都
@@ -2159,17 +2233,32 @@
 % 左对齐、居中、右对齐各自先立一个局部标记 \cs{l\_docxlike\_linebreak\_align\_bool}：断行层只接本包
 % 照样式设了对齐的段，\hologo{LaTeX} 自己的 \cs{centering}、目录行这些借可伸边距做别的事的段照旧
 % 交回 \hologo{TeX}。文档类登记的对齐方式不立它。
+%
+% 两端对齐（\texttt{both}）也得明写一条，把左右边距胶与末行填充复位：样式写了两端对齐，
+% 外面是左对齐也照两端对齐排，Word 就是这样（空白预设的 \texttt{Normal} 左对齐，基于它的
+% 样式写 \texttt{both} 照样两端对齐）。只靠“什么都不做”会继承外面的 \cs{raggedright}。
+% 没写对齐的样式仍然什么都不做，跟着外面走。
 %    \begin{macrocode}
 \prop_new:N \g__docxlike_format_align_prop
 \prop_gset_from_keyval:Nn \g__docxlike_format_align_prop
   {
     left = \docxlike_linebreak_align: \raggedright ,
     center = \docxlike_linebreak_align: \centering ,
-    right = \docxlike_linebreak_align: \raggedleft
+    right = \docxlike_linebreak_align: \raggedleft ,
+    both = \__docxlike_format_justify:
   }
 \bool_new:N \l_docxlike_linebreak_align_bool
 \cs_new_protected:Npn \docxlike_linebreak_align:
   { \bool_set_true:N \l_docxlike_linebreak_align_bool }
+\cs_new_protected:Npn \__docxlike_format_justify:
+  {
+    \skip_zero:N \leftskip
+    \skip_zero:N \rightskip
+    \dim_zero:N \l_docxlike_format_right_slack_dim
+    \skip_zero:c { @rightskip }
+    \skip_set:Nn \parfillskip { 0pt plus 1fil }
+    \cs_set_eq:Nc \\ { @normalcr }
+  }
 %    \end{macrocode}
 %
 % \emph{字体。} 样式里的字体是名字。按名字取两对系数（东亚字体的自然行高与上升部、西文字体的），
@@ -3135,7 +3224,14 @@
       { \tl_put_right:Nn \l__docxlike_format_out_tl { \itshape } }
     \__docxlike_format_effects:n {#1}
     \__docxlike_format_font_hook:n {#1}
-    \__docxlike_format_pick:nnN {#1} { pPr/jc } \g__docxlike_format_align_prop
+    \__docxlike_format_read:nnnN {#1} { pPr/jc } { } \l__docxlike_format_value_tl
+    \prop_get:NVNT \g__docxlike_format_align_prop \l__docxlike_format_value_tl
+      \l__docxlike_format_coef_tl
+      {
+        \tl_put_right:Nn \l__docxlike_format_out_tl
+          { \dim_zero:N \l_docxlike_format_right_slack_dim }
+        \tl_put_right:NV \l__docxlike_format_out_tl \l__docxlike_format_coef_tl
+      }
     \__docxlike_format_read:nnnN {#1} { pPr/autoSpaceDE } { true } \l__docxlike_format_autospace_tl
     \__docxlike_format_read:nnnN {#1} { pPr/autoSpaceDN } { true } \l__docxlike_format_autospace_dn_tl
     \bool_lazy_and:nnF
@@ -3150,7 +3246,7 @@
       }
     \bool_if:NT \l_docxlike_format_snap_horizontal_bool
       {
-        \str_case:VnT \l__docxlike_format_value_tl { { center } { } { right } { } }
+        \str_case:VnT \l__docxlike_format_value_tl { { center } { } { right } { } { both } { } }
           {
             \tl_put_right:Nx \l__docxlike_format_out_tl
               {
@@ -3263,7 +3359,18 @@
     \__docxlike_format_read:nnnN {#1} { rPr/u } { } \l__docxlike_run_u_tl
     \__docxlike_format_read:nnnN {#1} { rPr/u/color } { auto } \l__docxlike_run_ucolor_tl
     \__docxlike_format_read:nnnN {#1} { rPr/vertAlign } { } \l__docxlike_run_va_tl
+    \__docxlike_format_read:nnnN {#1} { rPr/highlight } { } \l__docxlike_run_fill_tl
+    \tl_if_empty:NTF \l__docxlike_run_fill_tl
+      { \__docxlike_format_read:nnnN {#1} { rPr/shd/fill } { none } \l__docxlike_run_fill_tl }
+      {
+        \prop_get:NVNF \c__docxlike_highlight_rgb_prop \l__docxlike_run_fill_tl
+          \l__docxlike_run_fill_tl
+          { \tl_set:Nn \l__docxlike_run_fill_tl { none } }
+      }
+    \__docxlike_format_read:nnnN {#1} { pPr/shd/fill } { none } \l__docxlike_run_pfill_tl
   }
+\tl_new:N \l__docxlike_run_fill_tl
+\tl_new:N \l__docxlike_run_pfill_tl
 \cs_new_protected:Npn \__docxlike_format_effects:n #1
   {
     \__docxlike_format_effects_read:n {#1}
@@ -3279,6 +3386,11 @@
       {
         \tl_put_right:Ne \l__docxlike_format_out_tl
           { \exp_not:N \docxlike_format_vert_align:n { \l__docxlike_run_va_tl } }
+      }
+    \tl_put_right:Ne \l__docxlike_format_out_tl
+      {
+        \exp_not:N \docxlike_format_fill:nn
+          { \l__docxlike_run_fill_tl } { \l__docxlike_run_pfill_tl }
       }
   }
 %    \end{macrocode}
@@ -3339,6 +3451,35 @@
     \newattribute \docxlike@va@attr
     \newattribute \docxlike@vaja@attr
     \newattribute \docxlike@bold@attr
+    \newattribute \docxlike@fill@attr
+    \newattribute \docxlike@pfill@attr
+    \newattribute \docxlike@exact@attr
+    \cs_new_protected:Npn \__docxlike_run_color_index:nN #1#2
+      {
+        \prop_get:NnNF \g__docxlike_run_color_prop {#1} #2
+          {
+            \int_gincr:N \g__docxlike_run_color_int
+            \tl_set:Ne #2 { \int_use:N \g__docxlike_run_color_int }
+            \prop_gput:NnV \g__docxlike_run_color_prop {#1} #2
+            \lua_now:e { docxlike.run.color(#2, "#1") }
+          }
+      }
+    \cs_new_protected:Npn \docxlike_format_fill:nn #1#2
+      {
+        \str_if_eq:nnTF {#1} { none }
+          { \unsetattribute \docxlike@fill@attr }
+          {
+            \__docxlike_run_color_index:nN {#1} \l__docxlike_run_color_tl
+            \docxlike@fill@attr = \l__docxlike_run_color_tl \scan_stop:
+            \__docxlike_run_used:
+          }
+        \str_if_eq:nnTF {#2} { none }
+          { \unsetattribute \docxlike@pfill@attr }
+          {
+            \__docxlike_run_color_index:nN {#2} \l__docxlike_run_color_tl
+            \docxlike@pfill@attr = \l__docxlike_run_color_tl \scan_stop:
+          }
+      }
     \cs_new_protected:Npn \docxlike_format_bold:n #1
       {
         \str_if_eq:nnTF {#1} { true }
@@ -3408,11 +3549,18 @@
           luatexbase.attributes["docxlike@ulfont@attr"],
           luatexbase.attributes["docxlike@va@attr"],
           luatexbase.attributes["docxlike@vaja@attr"],
-          luatexbase.attributes["docxlike@bold@attr"])
+          luatexbase.attributes["docxlike@bold@attr"],
+          luatexbase.attributes["docxlike@fill@attr"],
+          luatexbase.attributes["docxlike@exact@attr"])
       }
   }
   {
     \cs_new_protected:Npn \docxlike_format_bold:n #1 { }
+    \cs_new_protected:Npn \docxlike_format_fill:nn #1#2
+      {
+        \str_if_eq:nnF {#1} { none } { \__docxlike_run_warn:n { shading } }
+        \str_if_eq:nnF {#2} { none } { \__docxlike_run_warn:n { shading } }
+      }
     \cs_new_protected:Npn \docxlike_format_underline:nn #1#2
       { \str_if_eq:nnF {#1} { none } { \__docxlike_run_warn:n { underline-style } } }
     \cs_new_protected:Npn \docxlike_format_vert_align:n #1
@@ -3678,11 +3826,18 @@
 % 第 $n$ 个格的末端。不贴行网格时扣一个字距增量，与正文同一条规矩。
 % \cs{\_\_docxlike\_format\_align\_slack:n} 排在 \cs{centering}、\cs{raggedleft} 之后，把余量
 % 加进它们设好的那段填充胶。
+%
+% 放进去的余量记在 \cs{l\_docxlike\_format\_right\_slack\_dim}，套完样式时 \cs{rightskip} 的宽记在
+% \cs{l\_docxlike\_format\_right\_total\_dim}。断行层自己数格，要从 \cs{rightskip} 里减掉余量、只留右缩进；
+% 两个数对得上才减，文档类自己改过 \cs{rightskip}（目录条目）就不碰。对齐方式一换，余量先清零。
 %    \begin{macrocode}
+\dim_new:N \l_docxlike_format_right_slack_dim
+\dim_new:N \l_docxlike_format_right_total_dim
 \cs_new_protected:Npn \__docxlike_format_align_slack:n #1
   {
     \docxlike_format_slack:
-    \skip_set:Nn \rightskip { \rightskip + #1 }
+    \dim_set:Nn \l_docxlike_format_right_slack_dim {#1}
+    \skip_set:Nn \rightskip { \rightskip + \l_docxlike_format_right_slack_dim }
   }
 \cs_new:Npn \__docxlike_format_hglue_cc:
   {
@@ -3902,6 +4057,7 @@
       \l__docxlike_format_par_tl
       \skip_set:Nn \leftskip { \leftskip + \l_docxlike_format_left_dim }
       \skip_set:Nn \rightskip { \rightskip + \l_docxlike_format_right_dim }
+      \dim_set:Nn \l_docxlike_format_right_total_dim { \rightskip }
       \dim_compare:nNnF { \l_docxlike_format_indent_dim } = { \c_zero_dim }
         { \kern \l_docxlike_format_indent_dim }
       \__docxlike_format_number_put:n {#1}
@@ -5728,6 +5884,7 @@
         \docxlike_format_reserve_depth:
         \docxlike_format_penalties:
         \normalsize
+        \__docxlike_format_justify:
         \__docxlike_format_get:nnNT { Normal } { pPr/jc } \l__docxlike_format_value_tl
           {
             \prop_get:NVNT \g__docxlike_format_align_prop \l__docxlike_format_value_tl
@@ -5739,7 +5896,9 @@
         \docxlike_format_latin_pitch:
 %    \end{macrocode}
 %
-% \emph{字距最后设。}
+% \emph{字距最后设。}行末余量加在 \texttt{Normal} 的对齐之上，不是改写 \cs{rightskip}：
+% 左对齐的 \cs{raggedright} 那段伸量要留着。前面先复位成两端对齐再套 \texttt{Normal} 的对齐，
+% 刷新几次都不会累加。
 %    \begin{macrocode}
         \dim_compare:nNnF { \g_docxlike_page_char_dim } = { 0pt }
           {
@@ -5750,12 +5909,12 @@
               {
                 \bool_if:NTF \l_docxlike_format_snap_vertical_bool
                   {
-                    \docxlike_format_slack:
-                    \skip_set_eq:NN \rightskip \g_docxlike_page_slack_dim
+                    \__docxlike_format_align_slack:n { \g_docxlike_page_slack_dim }
                   }
-                  { \skip_set:Nn \rightskip { \__docxlike_format_grid_glue: } }
+                  { \__docxlike_format_align_slack:n { \__docxlike_format_grid_glue: } }
               }
           }
+        \dim_set:Nn \l_docxlike_format_right_total_dim { \rightskip }
   }
 %    \end{macrocode}
 %
@@ -5804,7 +5963,11 @@
         \bool_set_eq:NN \l_docxlike_format_line_snap_bool
           \l_docxlike_format_snap_vertical_bool
         \bool_if:NF \l_docxlike_format_snap_horizontal_bool
-          { \skip_zero:N \rightskip }
+          {
+            \skip_zero:N \rightskip
+            \dim_zero:N \l_docxlike_format_right_slack_dim
+          }
+        \dim_set:Nn \l_docxlike_format_right_total_dim { \rightskip }
         \docxlike_format_hyphen:
       }
   }
@@ -6319,14 +6482,108 @@ local function underline(box)
   end
 end
 
+-- 突出显示与文字底纹：一行里带同一填充色的节点连成段，段下垫一块色。上下沿照 Word 的
+-- 行高系数（与 docxlike-metrics 同一套：win 度量加 GDI 外部行距，东亚字体 floor(1.3(A+D))
+-- 上下平分）取段里各字体的上升部与下降部；固定值行距的行涂满行盒（断行层给这种行盒打了标记）
+local fill_attr, exact_attr
+local wordbox = {}
+local function word_ascdesc(f)
+  local v = wordbox[f]
+  if v ~= nil then return v end
+  v = false
+  local t = fonts and fonts.hashes and fonts.hashes.identifiers and fonts.hashes.identifiers[f]
+  local path = t and t.filename
+  local reader = docxlike and docxlike.metrics and docxlike.metrics.read_file
+  if path and reader then
+    local faces = files[path]
+    if not faces then faces = reader(path); files[path] = faces end
+    local sub = t.specification and tonumber(t.specification.sub) or 1
+    local face = faces[sub] or faces[1]
+    if face and face.units then
+      local a, d, g
+      if face.use_typo then
+        a, d, g = face.typo[1], face.typo[2], face.typo[3]
+      else
+        a, d = face.win[1], face.win[2]
+        g = math.max(0, face.hhea[3] - ((a + d) - (face.hhea[1] + face.hhea[2])))
+      end
+      local u = face.units
+      if face.class == 'east-asian' then
+        local nat = math.floor((a + d) * 1.3)
+        local up = a + (nat - a - d) / 2
+        v = { up / u, (nat - up) / u }
+      else
+        v = { (a + g) / u, d / u }
+      end
+    end
+  end
+  wordbox[f] = v
+  return v
+end
+local function fill_line(box)
+  local exact = exact_attr and has_attr(box, exact_attr)
+  local n = box.head
+  while n do
+    local v = has_attr(n, fill_attr)
+    if v and (n.id == GLYPH or n.id == HLIST or n.id == GLUE) then
+      local first, last = n, n
+      local up, dn = 0, 0
+      local function grow(m)
+        local g = m.id == GLYPH and m or (m.id == HLIST and m.subtype ~= BOX and edge_glyph(m, false))
+        if g then
+          local s, w = fsize(g.font), word_ascdesc(g.font)
+          if w then up = math.max(up, w[1] * s); dn = math.max(dn, w[2] * s) end
+        end
+      end
+      grow(n)
+      local m = n.next
+      while m do
+        local mv = has_attr(m, fill_attr)
+        if mv == v then
+          grow(m)
+          if m.id ~= PENALTY then last = m end
+        elseif mv ~= nil or not bridge(m) then
+          break
+        end
+        m = m.next
+      end
+      -- 末一个字后面的网格增量、挤压 kern 算在段里
+      local t = last.next
+      while t and t.id == KERN and not has_attr(t, fill_attr) do last = t; t = t.next end
+      local w = node.dimensions(box.glue_set, box.glue_sign, box.glue_order, first, last.next)
+      if exact then up, dn = box.height, box.depth end
+      local data = M.colors[v]
+      if w > 0 and up + dn > 0 and data then
+        local r = node.new(RULE)
+        r.width, r.height, r.depth = w, math.floor(up + 0.5), math.floor(dn + 0.5)
+        local k = node.new(KERN)
+        k.kern = -w
+        local head = box.head
+        head = node.insert_before(head, first, colorstack(1, data))
+        head = node.insert_before(head, first, r)
+        head = node.insert_before(head, first, colorstack(2))
+        head = node.insert_before(head, first, k)
+        box.head = head
+      end
+      n = last.next
+    else
+      n = n.next
+    end
+  end
+end
+
 local function walk(box)
   for m in traverse(box.head) do
     local id = m.id
-    if id == VLIST or (id == HLIST and not (box.id == HLIST and has_attr(m, ul_attr))) then
+    if id == VLIST or (id == HLIST and not (box.id == HLIST
+        and (has_attr(m, ul_attr) or (fill_attr and has_attr(m, fill_attr))))) then
       walk(m)
     end
   end
-  if box.id == HLIST then underline(box) end
+  if box.id == HLIST then
+    if fill_attr then fill_line(box) end
+    underline(box)
+  end
 end
 
 local function shift(box)
@@ -6396,8 +6653,9 @@ local function bolden(head)
   end
 end
 
-function M.install(ul, ulc, ulfont, va, vaja, bold)
+function M.install(ul, ulc, ulfont, va, vaja, bold, fill, exact)
   ul_attr, ulc_attr, ulfont_attr, va_attr, vaja_attr, bold_attr = ul, ulc, ulfont, va, vaja, bold
+  fill_attr, exact_attr = fill, exact
   luatexbase.add_to_callback("pre_shipout_filter", function(h)
     if M.used then
       shift(h)
