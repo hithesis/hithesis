@@ -11,7 +11,8 @@
 %   字段行距从 docx 的 \texttt{w:pPr} 读出，三个间隔段按塞不塞得下增减；勾选项的字面从
 %   词条表取；英文内封也照范例的段落序列，没填的副导师、校外导师不再印空行（判空判的是
 %   宏本身而不是值），取值放不下一行时按 Word 的表格折行（格内固定值 18\,bp、格边距
-%   5.4\,bp）；博后封面的字段表改用 \cs{makebox} 定宽（\pkg{tabularx} 每张报一条 Overfull）}
+%   5.4\,bp），Affiliation 与 Date of Defence 两格照范例紧缩 0.2 磅（格里的西文吃网格增量，
+%   不紧缩排不进一行）；博后封面的字段表改用 \cs{makebox} 定宽（\pkg{tabularx} 每张报一条 Overfull）}
 %
 %    \begin{macrocode}
 %<*final-titlepage>
@@ -287,9 +288,9 @@
       { \hit@term@titlepage@degree@applied@en } { \hit@term@titlepage@degree@of@discipline@en }
     \hit@titlepage@en@field:nn
       { \hit@term@titlepage@major@en } { \hit@info@major@en }
-    \hit@titlepage@en@field:nn
+    \__hit_titlepage_en_field:nnn { titlepage-en-value-condensed }
       { \hit@term@titlepage@affiliation@en } { \hit@info@affiliation@en }
-    \hit@titlepage@en@field:nn
+    \__hit_titlepage_en_field:nnn { titlepage-en-value-condensed }
       { \hit@term@titlepage@date@en } { \hit@info@date@en }
     \hit@titlepage@en@field:nn
       { \hit@term@titlepage@institution@en } { \hit@term@titlepage@university@en }
@@ -315,6 +316,11 @@
 % 抬一抬。范例里 Speciality 那一行取值 584.9、标签 587.9，正是这 3.0。
 % 抬完把盒的高深都清零：这一行多高由标签那一格的撑杆定，折行多出来的那一截
 % 在下面另补，盒子自己再参与一次行高的话每一行都会往下掉 3.2，逐行累加。
+%
+% \emph{取值那一格的字按它自己的段落样式排。} 范例里 Affiliation 与 Date of Defence
+% 两格的 run 紧缩 0.2 磅，别的格没有，所以这两行用 \texttt{titlepage-en-value-condensed}，
+% 其余用 \texttt{titlepage-en-value}（取值见 \file{hit-layout.dtx}）。样式在盒里套，
+% 断行层到段末读的字距与贴格都是这一格的。
 %    \begin{macrocode}
 \dim_const:Nn \c__hit_titlepage_en_value_lead_dim { 18bp }
 \dim_new:N \g__hit_titlepage_label_lead_dim
@@ -322,38 +328,41 @@
 \dim_new:N \l__hit_titlepage_lead_dim
 \int_new:N \g__hit_titlepage_value_lines_int
 \box_new:N \l__hit_titlepage_value_box
-\cs_new_protected:Npn \__hit_titlepage_en_value_box:n #1
+\cs_new_protected:Npn \__hit_titlepage_en_value_box:nn #1#2
   {
     \hbox_set:Nn \l__hit_titlepage_value_box
       {
         \parbox [t] { \c__hit_titlepage_en_value_dim - 10.8bp }
           {
+            \docxlike_format_apply_par:n {#1}
             \dim_set_eq:NN \baselineskip \l__hit_titlepage_lead_dim
             \dim_set:Nn \lineskiplimit { -\maxdimen }
             \skip_zero:N \lineskip
             \skip_zero:N \parskip
             \raggedright
-            #1 \par
+            #2 \par
             \int_gset:Nn \g__hit_titlepage_value_lines_int { \prevgraf }
           }
       }
   }
-\cs_new_protected:Npn \hit@titlepage@en@field:nn #1#2
+\cs_new_protected:Npn \hit@titlepage@en@field:nn
+  { \__hit_titlepage_en_field:nnn { titlepage-en-value } }
+\cs_new_protected:Npn \__hit_titlepage_en_field:nnn #1#2#3
   {
-    \tl_if_empty:eF {#2}
+    \tl_if_empty:eF {#3}
       {
         \docxlike_format_par:nn { titlepage-en-field }
           {
             \dim_gset_eq:NN \g__hit_titlepage_label_lead_dim \l_docxlike_format_lead_dim
             \hbox_to_wd:nn { \c__hit_titlepage_en_label_dim }
-              { \bfseries #1 \hit@term@titlepage@title@separator@en \hfil }
+              { \bfseries #2 \hit@term@titlepage@title@separator@en \hfil }
             \dim_set_eq:NN \l__hit_titlepage_lead_dim
               \c__hit_titlepage_en_value_lead_dim
-            \__hit_titlepage_en_value_box:n {#2}
+            \__hit_titlepage_en_value_box:nn {#1} {#3}
             \int_compare:nNnT { \g__hit_titlepage_value_lines_int } < { 2 }
               {
                 \dim_set_eq:NN \l__hit_titlepage_lead_dim \l_docxlike_format_lead_dim
-                \__hit_titlepage_en_value_box:n {#2}
+                \__hit_titlepage_en_value_box:nn {#1} {#3}
               }
             \hbox_set:Nn \l__hit_titlepage_value_box
               {

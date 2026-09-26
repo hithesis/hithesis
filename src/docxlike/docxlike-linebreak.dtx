@@ -17,7 +17,10 @@
 % \changes{v3.2a}{2026/09/26}{单字步进照 Windows Word 实测（探针 adv1--adv5）：网格增量只看字体的
 %   “对齐到网格”；平衡选项开着时汉字加增量与两份 \texttt{w:spacing}、西文每个字形加半个增量与一份，
 %   不分字号（先前西文只在正文字号加）；居中、右对齐在兼容模式 15 以下、\texttt{adjustRightInd}
-%   开着且有字符网格时按整数格宽，否则按整个版心；贴字符网格的居中段也由断行层排}
+%   开着且有字符网格时按整数格宽，否则按整个版心；贴字符网格的居中段也由断行层排。交回 TeX 断行的段
+%   （目录行、盒里 \cs{raggedright} 的段）照同一套补：西文字形的增量、按字体空格起算的词间空格与字偶距、
+%   贴着汉字盒子公式的空格占半格，汉字后面是空格或标点的 JFM 胶时 \pkg{luatexja} 丢掉的那份增量；
+%   先前一点不加，范例英文目录该折的那一行没折}
 % \changes{v3.2a}{2026/09/26}{没有字符网格的文档里，本包照样式设了居中、右对齐的段也由断行层排：格宽
 %   取字号、不按整数格装，行首（居中两头）补 fil；Word 行末的闭号不用挤时照全宽算，TeX 那边 JFM
 %   把它算成半格，居中偏右 3.5\,bp（博士后封皮“哈尔滨工业大学（哈尔滨）”）。只认
@@ -614,7 +617,7 @@ local function tokenize(head)
         else
           attach(n)
         end
-      elseif n.subtype == 13 or n.subtype == 12 then
+      elseif n.subtype == 13 or n.subtype == 14 then
         -- 词间空格：宽按字体自己的空格，不按 spaceskip（见 fspace）
         local w = lastfont and fspace(lastfont) or 0
         if w <= 0 then w = n.width end
@@ -2283,11 +2286,133 @@ local function align_of(ls, rs)
   end
   return "left"
 end
+-- 西文字形与空格在网格里加的量（断行层自己排的段与交回 TeX 的段共用）。单字步进照 Windows Word
+-- 实测（探针 adv1–adv5）：网格增量只看字体的“对齐到网格”，不贴的 run 一点不加；开着“平衡单字节与
+-- 双字节字符”时西文每个字形加半个增量与一份 w:spacing，不平衡时加整份。段落跟网格走（开着“自动
+-- 调整右缩进”或段落“对齐到网格”）时半个增量截到 1/6000 英寸，字距 1861 时 0.216 而不是 0.2271
+-- （Windows 探针 ari1 的两组、fn1 与范例英文摘要只有截了才与 Word 断得一样；sz2 量到的步进是 0.212
+-- 到 0.216）；两样都关的段不截（lb 探针都是 adjustRightInd=0 加段落不对齐网格，lineends 靶子的正文
+-- “1.25 倍不贴格”，截了都早装一个字）。表格单元格里不截。空格在跟网格走的段里也加截过的半个增量
+-- （ari1 实测空格步进 3.228），别的段加 0.25（lb5 翻转点）
+local function latin_adds(inc, hsnap, nogrid)
+  local pre = "l_docxlike_format_par_"
+  local balance = getbool("g_docxlike_format_balance_bool") ~= false
+  local okS, spacing = pcall(tex.getdimen, pre .. "char_spacing_dim")
+  if not okS or not spacing then spacing = 0 end
+  local ari = getbool(pre .. "adjust_right_bool") ~= false
+  local lsnap = getbool("l_docxlike_format_line_snap_bool")
+  local whole = (ari or lsnap) and hsnap and not nogrid and not M.cell
+  local half_inc = whole and devtrunc(inc / 2) or inc / 2
+  local latin_add = (hsnap and (balance and half_inc or inc) or 0) + spacing
+  local space_add = whole and half_inc or ((inc > 0) and 0.25 * 65781.76 or 0)
+  return { latin = latin_add, space = space_add, ari = ari, balance = balance, spacing = spacing }
+end
+
+-- 交回 TeX 断行的段（目录行这类右边距可伸、本包没立对齐标记的段）也照上面的量给贴格的西文字形补
+-- kern、给词间空格加宽：LuaTeX 走断行层时不装 LetterSpace，不补的话这些段的西文一点增量都没有。
+-- 范例英文目录“…Defense Committee and Defense / Resolution”靠这份增量才折行（Word 到“Defense”宽
+-- 227.8，不补只有 218.5）。空格与断行层一样按字体自己的空格起算（TeX 句末那份加宽 Word 没有），
+-- 再加与前后字的字偶距；贴着汉字的空格占半格。汉字的增量 luatexja 放在汉字缝与中西文胶里，
+-- 汉字后面紧跟空格或手写的 \hskip、标点后面是 JFM 胶时就丢了，这里补上（范例目录“摘␣␣要”，
+-- Word 的“要”在 109.94，不补差 0.45）。行内公式当一整块，里面的字形不加
+local function grid_latin(head)
+  local ok, cell = pcall(tex.getdimen, "g_docxlike_page_char_dim")
+  local ok2, body = pcall(tex.getdimen, "g_docxlike_body_size_dim")
+  if not ok or not cell or cell == 0 or not ok2 or not body or body <= 0 then return end
+  local hsnap = getbool("l_docxlike_format_par_snap_horizontal_bool")
+  if hsnap == false then return end
+  local inc = cell - body
+  local a = latin_adds(inc, true, false)
+  local sp2 = a.balance and 2 * a.spacing or a.spacing
+  local function half(fid) return (fsize(fid) + inc) / 2 + sp2 end
+  -- lastg 是前面紧挨着的西文字形，cjkg 是前面紧挨着的汉字，widep 是前面紧挨着汉字、盒子或公式，
+  -- spacep 是前面紧挨着空格（中间只隔 kern、罚分、零宽 rule；luatexja 在汉字前面垫一条零宽的 rule）
+  local function transparent(x) return x.id == KERN or x.id == PENALTY or (x.id == RULE and x.width == 0) end
+  local function is_space(x)
+    return x and x.id == GLUE and (x.subtype == 13 or x.subtype == 14)
+  end
+  local inmath, lastg, cjkg, widep, spacep = false, nil, nil, false, false
+  for n in traverse(head) do
+    local id = n.id
+    if id == MATH then
+      inmath = n.subtype == 0
+      lastg, cjkg, widep, spacep = nil, nil, not inmath, false
+    elseif not inmath then
+      if id == GLYPH and not is_jfont(n.font) then
+        if a.latin ~= 0 and not (M.code_attr and (node.get_attribute(n, M.code_attr) or 0) ~= 0) then
+          local kn = node.new(KERN); kn.kern = a.latin
+          node.insert_after(head, n, kn)
+        end
+        lastg, cjkg, widep, spacep = n, nil, false, false
+      elseif id == GLYPH then
+        lastg, cjkg, widep, spacep = nil, n, true, false
+      elseif id == HLIST or id == VLIST then
+        lastg, cjkg, widep, spacep = nil, nil, true, false
+      elseif id == GLUE and is_jfmglue(n) then
+        -- 标点的 JFM 胶顶掉了汉字缝与中西文胶，前面那个字的增量跟着没了（“，汉”“，the”“汉（”）；
+        -- 旁边另有汉字缝的不补，段首段末的不补（前面得是汉字或装成盒的标点，缩进盒不算）
+        local p, q = n.prev, n.next
+        while p and (p.id == PENALTY or (p.id == RULE and p.width == 0)) do p = p.prev end
+        while q and (q.id == PENALTY or (q.id == RULE and q.width == 0)) do q = q.next end
+        local function ks(x) return x and x.id == GLUE and (is_kanjiskip(x) or is_xkanjiskip(x)) end
+        local after_char = p and ((p.id == GLYPH and is_jfont(p.font))
+          or (p.id == HLIST and p.subtype ~= 3 and p.width > 0))
+        if inc + sp2 ~= 0 and after_char and not ks(p) and not ks(q) and q
+            and (q.id == GLYPH or q.id == HLIST) then
+          local kn = node.new(KERN); kn.kern = inc + sp2
+          node.insert_after(head, n, kn)
+        end
+        lastg, cjkg, spacep = nil, nil, false
+      elseif id == GLUE and (is_space(n)
+          or (n.subtype == 0 and n.width > 0 and not is_kanjiskip(n) and not is_xkanjiskip(n))) then
+        if cjkg and inc + sp2 ~= 0 then
+          local kn = node.new(KERN); kn.kern = inc + sp2
+          node.insert_after(head, cjkg, kn)
+        end
+        if n.subtype ~= 0 then
+          -- 断行层的规矩：贴着汉字、盒子、公式的空格与连着的空格都占半格（开着“平衡单字节与双字节
+          -- 字符”时），别的按字体自己的空格起算
+          local nx = n.next
+          while nx and transparent(nx) do nx = nx.next end
+          local wide_next = nx and ((nx.id == GLYPH and is_jfont(nx.font)) or nx.id == HLIST
+            or nx.id == VLIST or (nx.id == MATH and nx.subtype == 0))
+          if a.balance and (widep or wide_next or spacep or is_space(nx)) then
+            local ref = (cjkg and cjkg.font) or (nx and nx.id == GLYPH and nx.font) or font.current()
+            n.width = half(ref)
+          elseif not (widep or wide_next) then
+            local w = lastg and fspace(lastg.font) or 0
+            if w > 0 then
+              n.width = w
+              if kern_enabled(lastg) then
+                n.width = n.width + pair_kern(lastg.font, lastg.char, 32)
+                if nx and nx.id == GLYPH and nx.font == lastg.font then
+                  n.width = n.width + pair_kern(lastg.font, 32, nx.char)
+                end
+              end
+            end
+            n.width = n.width + a.space
+          end
+          spacep = true
+        else
+          spacep = false
+        end
+        lastg, cjkg, widep = nil, nil, false
+      elseif not transparent(n) then
+        lastg, cjkg, widep, spacep = nil, nil, false, false
+      end
+    end
+  end
+end
+
 local function to_tex(head, why)
   if why ~= "attr" and getbool("g__docxlike_linebreak_rigid_bool") then
     for g in node.traverse_id(GLUE, head) do
       if g.shrink_order == 0 then g.shrink = 0 end
     end
+  end
+  if why == "skips" then
+    head = legacy_kern(head)
+    grid_latin(head)
   end
   return skip(why)
 end
@@ -2591,31 +2716,19 @@ function M.filter(head, is_display)
   local hsnap = getbool(pre .. "snap_horizontal_bool")
   if hsnap == nil then hsnap = true end
   if nogrid then hsnap = false end
-  -- 单字步进照 Windows Word 实测（探针 adv1–adv5）：网格增量只看字体的“对齐到网格”，不贴的 run
-  -- 一点不加；开着“平衡单字节与双字节字符”时汉字两个单位、西文一个，增量与字距（w:spacing）
-  -- 按单位分：汉字 +增量 +2s，西文每个字形 +增量/2 +s，贴汉字的空格占汉字格的一半再 +2s；
-  -- 不平衡时一律 +增量 +s。西文加半个增量不分字号
-  local balance = getbool("g_docxlike_format_balance_bool") ~= false
-  local okS, spacing = pcall(tex.getdimen, pre .. "char_spacing_dim")
-  if not okS or not spacing then spacing = 0 end
+  -- 汉字两个单位、西文一个，增量与字距（w:spacing）按单位分：汉字 +增量 +2s，西文见 latin_adds，
+  -- 贴汉字的空格占汉字格的一半再 +2s；不平衡时一律 +增量 +s
+  local A = latin_adds(inc, hsnap, nogrid)
+  local balance, spacing, ari = A.balance, A.spacing, A.ari
   local grid_inc = hsnap and inc or 0
   local sp2 = balance and 2 * spacing or spacing
   cell = em + grid_inc + sp2
-  -- 西文字形加的量：段落跟网格走（开着“自动调整右缩进”或段落“对齐到网格”）时截到 1/6000 英寸，字距
-  -- 1861 时 0.216 而不是半个增量 0.2271（Windows 探针 ari1 的两组、fn1 与范例英文摘要只有截了才与 Word
-  -- 断得一样；sz2 量到的步进是 0.212 到 0.216）；两样都关的段不截（lb 探针都是 adjustRightInd=0 加段落
-  -- 不对齐网格，lineends 靶子的正文“1.25 倍不贴格”，截了都早装一个字）。表格单元格里不截。空格在跟
-  -- 网格走的段里也加截过的半个增量（ari1 实测空格步进 3.228），别的段照旧加 0.25（lb5 翻转点）
-  local ari = getbool(pre .. "adjust_right_bool") ~= false
-  local lsnap = getbool("l_docxlike_format_line_snap_bool")
-  local whole = (ari or lsnap) and hsnap and not nogrid and not M.cell
-  local half_inc = whole and devtrunc(inc / 2) or inc / 2
-  local latin_add = (hsnap and (balance and half_inc or inc) or 0) + spacing
+  local latin_add = A.latin
   local P = { cell = cell, em = em, bp = bp, excess = grid_inc + sp2, grid = hsnap,
               latin_add = latin_add,
               half_space = (em + grid_inc) / 2 + sp2, cell0 = cell0, nogrid = nogrid,
               ari = ari,
-              space_add = whole and half_inc or ((inc > 0) and 0.25 * bp or 0),
+              space_add = A.space,
               compat = M.compat, table_cell = M.cell,
               justify = align == "justify", align = align, autospace = true, compress = true,
               balance = balance,
@@ -2704,7 +2817,7 @@ local function fix_skips(head)
       local p, q = g.prev, g.next
       if (p and p.id == GLYPH and node.get_attribute(p, M.ks_attr))
         or (q and q.id == GLYPH and node.get_attribute(q, M.ks_attr)) then g.kern = 0 end
-    elseif g.id == GLUE and (g.subtype == 0 or g.subtype == 12 or g.subtype == 13)
+    elseif g.id == GLUE and (g.subtype == 0 or g.subtype == 13 or g.subtype == 14)
         and g.next and g.next.id == GLYPH and node.get_attribute(g.next, M.ks_attr) then
       -- 空格也被 LetterSpace 加宽了一份增量（luaotfload 把 kern 量加进前面的胶），减回去
       local f = font.getfont(g.next.font)
