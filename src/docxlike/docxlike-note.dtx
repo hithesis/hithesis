@@ -1,0 +1,274 @@
+% \iffalse meta-comment
+%
+% docxlike-note.dtx 是脚注
+%
+% \fi
+%
+% \section{脚注}
+%
+% \changes{v3.2a}{2026/09/26}{新增脚注：照 Word 的“脚注和尾注”对话框设编号格式、起始编号与
+%   重编方式，脚注号与脚注文字用 Word 的两个内建样式，分隔线是一段 Normal 里画在基线上的
+%   线，脚注排在页底}
+%
+% 照 Windows Word 2019 的实测（探针 \file{fn1}、\file{fn1circ}：在 Word 里用“插入脚注”插的，
+% 样式与设置都是 Word 自己写的）：
+% \begin{itemize}
+% \item 脚注文字的段落样式 \texttt{footnote text} 基于 Normal，段落不贴行网格、左对齐、9 磅，
+%   每条是“脚注号、一个半角空格、文字”；脚注号用字符样式 \texttt{footnote reference}，只有上标
+%   一项。正文里的脚注号也是它。
+% \item 分隔线是一段 Normal（在脚注的故事里，没有别的格式），线画在这一段的基线上：长 144 磅
+%   （两英寸），粗 0.6 磅，从栏的左边起，线心比基线高 0.04 磅以内；这一段的行盒照 Normal 算，
+%   贴网格时一格高。第一条脚注的行盒顶就贴着这一段的底，脚注与脚注之间行盒直接摞。
+% \item 脚注排在页底：最后一行的行盒底落在版心底，分隔线段在它们上面，正文与分隔线之间的空
+%   是多出来的。
+% \item 编号格式、起始编号、连续还是每节、每页重编是节的属性（\texttt{w:footnotePr}），全文
+%   一样时写在设置里。“每页重新编号”的带圈数字是 \texttt{decimalEnclosedCircle}。
+% \end{itemize}
+%
+% 键照对话框：\option{footnotes} 里 \option{location}（位置：\texttt{bottom-of-page} 页面底端，
+% \texttt{below-text} 文字下方）、\option{number-format}（编号格式，取值与页码格式相同）、
+% \option{start-at}（起始编号）、\option{numbering}（编号：\texttt{continuous} 连续、
+% \texttt{restart-each-section} 每节重新编号、\texttt{restart-each-page} 每页重新编号）。
+% 写了这一组键才换成 Word 的脚注；没写的文档照 \hologo{LaTeX} 原样。
+%    \begin{macrocode}
+%<*docxlike-note>
+\docxlike_format_target_new:nn { FootnoteText } { Normal }
+\docxlike_format_target_new:nn { FootnoteReference } { }
+\prop_gput:Nnn \g__docxlike_format_type_prop { FootnoteReference } { character }
+\bool_gset_true:N \g_docxlike_format_defaults_bool
+\docxlike_format_set:n
+  {
+    FootnoteText =
+      {
+        font = { size = 9bp } ,
+        paragraph = { alignment = left , snap-to-grid-when-document-grid-is-defined = false } ,
+      } ,
+    FootnoteReference = { font = { superscript } } ,
+  }
+\bool_gset_false:N \g_docxlike_format_defaults_bool
+\tl_new:N \g__docxlike_note_format_tl
+\tl_gset:Nn \g__docxlike_note_format_tl { decimal }
+\int_new:N \g__docxlike_note_start_int
+\int_gset:Nn \g__docxlike_note_start_int { 1 }
+\bool_new:N \g__docxlike_note_bottom_bool
+\bool_gset_true:N \g__docxlike_note_bottom_bool
+\tl_new:N \g__docxlike_note_restart_tl
+\tl_gset:Nn \g__docxlike_note_restart_tl { continuous }
+\bool_new:N \g__docxlike_note_installed_bool
+\keys_define:nn { docxlike }
+  {
+    footnotes .code:n =
+      {
+        \__docxlike_keys_set:nn { docxlike / footnotes } {#1}
+        \__docxlike_note_install:
+      } ,
+  }
+\keys_define:nn { docxlike / footnotes }
+  {
+    location .choices:nn = { bottom-of-page , below-text }
+      {
+        \str_if_eq:VnTF \l_keys_choice_tl { bottom-of-page }
+          { \bool_gset_true:N \g__docxlike_note_bottom_bool }
+          { \bool_gset_false:N \g__docxlike_note_bottom_bool }
+      } ,
+    number-format .code:n =
+      {
+        \__docxlike_ooxml_value:nnVNTF { number-format } {#1} \c__docxlike_number_format_clist
+          \l__docxlike_note_value_tl
+          { \tl_gset_eq:NN \g__docxlike_note_format_tl \l__docxlike_note_value_tl }
+          { \__docxlike_bad_value:nnn { number-format } {#1} { } }
+      } ,
+    start-at .code:n = { \int_gset:Nn \g__docxlike_note_start_int {#1} } ,
+    numbering .choices:nn = { continuous , restart-each-section , restart-each-page }
+      {
+        \tl_gset:Nx \g__docxlike_note_restart_tl
+          {
+            \str_case:Vn \l_keys_choice_tl
+              {
+                { continuous } { continuous }
+                { restart-each-section } { section }
+                { restart-each-page } { page }
+              }
+          }
+      } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\tl_new:N \l__docxlike_note_value_tl
+\cs_generate_variant:Nn \str_case:nn { V }
+%    \end{macrocode}
+%
+% 重新编号。脚注计数器一直连续数，印出来的编号照重编方式换算。每节重新编号在分节时记下已有
+% 几条，当场就能算。每页重新编号要知道脚注号落在哪一页：正文里每个脚注号处往 \file{aux}
+% 写一条 \cs{docxlike@note}\marg{第几条}\marg{已出几页}（出页时才定），下一遍开头按页分段数，
+% 同一页里第几条就印几；头一遍没有记录，照连续编。\cs{docxlike\_footnote\_index:} 给出当前这条
+% 该印的序号（可展开，已算上起始编号），文档类要自己画编号（比如字体里缺的带圈字）时用它。
+%    \begin{macrocode}
+\prop_new:N \g__docxlike_note_page_prop
+\prop_new:N \g__docxlike_note_number_prop
+\int_new:N \g__docxlike_note_base_int
+\int_new:N \l__docxlike_note_count_int
+\tl_new:N \l__docxlike_note_prev_tl
+\bool_new:N \l__docxlike_note_in_note_bool
+\cs_new_protected:Npn \docxlike@note #1#2
+  { \prop_gput:Nnn \g__docxlike_note_page_prop {#1} {#2} }
+\hook_gput_code:nnn { begindocument / end } { docxlike-note }
+  {
+    \int_zero:N \l__docxlike_note_count_int
+    \tl_clear:N \l__docxlike_note_prev_tl
+    \int_step_inline:nn { \prop_count:N \g__docxlike_note_page_prop }
+      {
+        \prop_get:NnNT \g__docxlike_note_page_prop {#1} \l__docxlike_note_value_tl
+          {
+            \tl_if_eq:NNTF \l__docxlike_note_value_tl \l__docxlike_note_prev_tl
+              { \int_incr:N \l__docxlike_note_count_int }
+              { \int_set:Nn \l__docxlike_note_count_int { 1 } }
+            \tl_set_eq:NN \l__docxlike_note_prev_tl \l__docxlike_note_value_tl
+            \prop_gput:Nne \g__docxlike_note_number_prop {#1}
+              { \int_use:N \l__docxlike_note_count_int }
+          }
+      }
+  }
+\cs_new:Npn \__docxlike_note_number:n #1
+  {
+    \str_if_eq:VnTF \g__docxlike_note_restart_tl { page }
+      {
+        \prop_if_in:NnTF \g__docxlike_note_number_prop {#1}
+          { \prop_item:Nn \g__docxlike_note_number_prop {#1} } {#1}
+      }
+      {
+        \str_if_eq:VnTF \g__docxlike_note_restart_tl { section }
+          { \int_eval:n { #1 - \g__docxlike_note_base_int } } {#1}
+      }
+  }
+\cs_new:Npn \docxlike_footnote_index:
+  {
+    \int_eval:n
+      {
+        \exp_args:Ne \__docxlike_note_number:n { \int_use:N \c@footnote }
+        + \g__docxlike_note_start_int - 1
+      }
+  }
+\cs_new_protected:Npn \__docxlike_note_record:
+  {
+    \bool_lazy_and:nnT
+      { \str_if_eq_p:Vn \g__docxlike_note_restart_tl { page } }
+      { ! \bool_if_p:N \l__docxlike_note_in_note_bool }
+      {
+        \legacy_if:nT { @filesw }
+          {
+            \use:e
+              {
+                \iow_shipout_x:Nn \exp_not:N \@auxout
+                  {
+                    \exp_not:N \token_to_str:N \exp_not:N \docxlike@note
+                      { \int_use:N \c@footnote }
+                      { \exp_not:N \int_use:N \exp_not:N \ReadonlyShipoutCounter }
+                  }
+              }
+          }
+      }
+  }
+\cs_generate_variant:Nn \prop_gput:Nnn { Nne }
+%    \end{macrocode}
+%
+% 换成 Word 的脚注。脚注号：正文里是 \texttt{FootnoteReference} 的一截 run；脚注里是它加一个
+% 半角空格，段落照 \texttt{FootnoteText} 铺。\texttt{FootnoteText} 基于 Normal，没写的字体跟着
+% Normal，所以先铺一遍 Normal。\hologo{LaTeX} 在脚注文字头尾放的两根撑杆
+% （\cs{footnotesep} 高的零宽线与 \cs{@finalstrut}）去掉，行盒全由格式层的撑杆定，脚注之间就是
+% 行盒直接摞。编号是 \option{start-at} 起的第几条，按 \option{number-format} 印。脚注号里的汉字
+% （带圈数字）字号照汉字上标取原字号一半，抬高却照西文上标：9 磅脚注里的 ① 是 4.5 磅、抬 3，
+% 与同处的西文“1”一样高（普通上标里的汉字抬的是它自己的新字号）。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_note_install:
+  {
+    \bool_if:NF \g__docxlike_note_installed_bool
+      {
+        \bool_gset_true:N \g__docxlike_note_installed_bool
+        \cs_gset:Npn \thefootnote
+          {
+            \exp_args:NV \docxlike_number_format:nn \g__docxlike_note_format_tl
+              { \docxlike_footnote_index: }
+          }
+        \cs_gset_protected:Npn \@makefnmark
+          {
+            \__docxlike_note_record:
+            \docxlike_format_run:nn { style = FootnoteReference } { \__docxlike_note_raise: \@thefnmark }
+          }
+        \cs_gset:Npn \@makefntext ##1 { \__docxlike_note_text:n {##1} }
+        \cs_gset:Npn \footnoterule { \__docxlike_note_rule: }
+        \setlength \footnotesep { \c_zero_dim }
+        \hook_gput_code:nnn { begindocument } { docxlike } { \__docxlike_note_skip: }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_note_raise:
+  {
+    \sys_if_engine_luatex:T
+      { \cs_if_exist:NT \docxlike@vaja@attr { \docxlike@vaja@attr = \docxlike@va@attr \scan_stop: } }
+  }
+\cs_new_protected:Npn \__docxlike_note_text:n #1
+  {
+    \__docxlike_note_skip:
+    \cs_set_eq:NN \@finalstrut \use_none:n
+    \bool_set_true:N \l__docxlike_note_in_note_bool
+    \docxlike_format_apply_par:n { Normal }
+    \docxlike_format_apply_par:n { FootnoteText }
+    \noindent
+    \@makefnmark \c_space_tl
+    #1
+  }
+%    \end{macrocode}
+%
+% 带圈数字（U+2460--24FF，“每页重新编号”常配的 \texttt{decimalEnclosedCircle}）在中文 Word 里
+% 用东亚字体排（探针里脚注号是宋体的 ①），这里划归汉字：\pkg{luatexja} 用自定义区段 90，
+% \pkg{xeCJK} 放进 \texttt{CJK} 类。
+%
+% 分隔线那一段的行盒照 Normal：高是正文的行距 \cs{g\_docxlike\_body\_lead\_dim}，基线在盒顶下
+% \cs{g\_docxlike\_body\_first\_dim}（与版心第一行的落点同一个数）。线是 144 磅长、0.6 磅粗，
+% 线心在基线上。\hologo{LaTeX} 的分页只把 \cs{skip}\cs{footins} 算进脚注区，不算
+% \cs{footnoterule}，所以这一段的高记在 \cs{skip}\cs{footins} 里，\cs{footnoterule} 先退回
+% 同样的高再画：净高是零。放在页底时 \cs{skip}\cs{footins} 再带一份 \texttt{fil}，正文与分隔线
+% 之间的空都给它。正文的行距随分节会变，每条脚注里再设一次。
+%    \begin{macrocode}
+\hook_gput_code:nnn { begindocument / before } { docxlike }
+  {
+    \cs_if_exist:NT \ltjdefcharrange
+      {
+        \ltjdefcharrange { 90 } { "2460 - "24FF }
+        \ltjsetparameter { jacharrange = { +90 } }
+      }
+    \cs_if_exist:NT \xeCJKDeclareCharClass
+      { \xeCJKDeclareCharClass { CJK } { "2460 -> "24FF } }
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+\dim_const:Nn \c__docxlike_note_rule_length_dim { 144bp }
+\dim_const:Nn \c__docxlike_note_rule_width_dim { 0.6bp }
+\cs_new_protected:Npn \__docxlike_note_skip:
+  {
+    \tex_global:D \tex_skip:D \footins = \tex_glueexpr:D
+      \g_docxlike_body_lead_dim
+      \bool_if:NT \g__docxlike_note_bottom_bool { plus 1fil }
+    \scan_stop:
+  }
+\cs_new_protected:Npn \__docxlike_note_rule:
+  {
+    \skip_vertical:n { - \g_docxlike_body_lead_dim }
+    \vbox_to_ht:nn { \g_docxlike_body_lead_dim }
+      {
+        \skip_vertical:n
+          { \g_docxlike_body_first_dim - 0.5 \c__docxlike_note_rule_width_dim }
+        \hrule width \c__docxlike_note_rule_length_dim height \c__docxlike_note_rule_width_dim
+        \vss
+      }
+  }
+%    \end{macrocode}
+%
+% 每节重新编号：新的一节开头记下已有几条。
+%    \begin{macrocode}
+\hook_gput_code:nnn { docxlike / section } { docxlike-note }
+  { \int_gset:Nn \g__docxlike_note_base_int { \c@footnote } }
+%</docxlike-note>
+%    \end{macrocode}
+%
+% \Finale

@@ -2194,18 +2194,29 @@
 % （取大），行深不变，自然行高跟着加：西文题名配带汉字的编号就是这样的行盒（见
 % \file{docxlike-heading.dtx}）。
 % \cs{docxlike\_format\_font\_metrics:nnnn} 把四个数设进排版时用的那几个量，随字体命令一起
-% 发出去，每个样式的撑杆就用自己字体的数。
+% 发出去，每个样式的撑杆就用自己字体的数。样式没写字体时沿上级表找（Word 的“基于”：脚注
+% 文字基于 Normal，行高按 Normal 的字体算），都没写才用默认。
 %    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_format_font_name:nnnN #1#2#3#4
+  {
+    \__docxlike_format_get:nnNF {#1} {#2} #4
+      {
+        \prop_get:NnNTF \g__docxlike_format_parent_prop {#1} \l__docxlike_format_parent_tl
+          { \__docxlike_format_font_name:VnnN \l__docxlike_format_parent_tl {#2} {#3} #4 }
+          { \tl_set:Nn #4 {#3} }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_format_font_name:nnnN { Vnn , nnV }
 \cs_new_protected:Npn \__docxlike_format_font_metrics:n #1
   {
-    \__docxlike_format_read:nnnN {#1} { rPr/rFonts/eastAsia } { SimSun } \l__docxlike_format_font_tl
+    \__docxlike_format_font_name:nnnN {#1} { rPr/rFonts/eastAsia } { SimSun } \l__docxlike_format_font_tl
     \docxlike_font_metric:VNNF \l__docxlike_format_font_tl
       \l__docxlike_format_strut_natural_tl \l_docxlike_format_ascent_tl
       {
         \tl_set_eq:NN \l__docxlike_format_strut_natural_tl \c_docxlike_format_natural_tl
         \tl_set_eq:NN \l_docxlike_format_ascent_tl \c_docxlike_format_ascent_tl
       }
-    \__docxlike_format_read:nnVN {#1} { rPr/rFonts/ascii } \g_docxlike_format_default_latin_tl
+    \__docxlike_format_font_name:nnVN {#1} { rPr/rFonts/ascii } \g_docxlike_format_default_latin_tl
       \l__docxlike_format_font_tl
     \docxlike_font_metric:VNNF \l__docxlike_format_font_tl
       \l_docxlike_format_natural_latin_tl \l_docxlike_format_ascent_latin_tl

@@ -85,7 +85,7 @@ lineends-verb:
 # 那边 dtx 的副本。改动在那边做、提交，再跑 make docxlike-sync 拷过来验收；
 # make docxlike-check 看两边是否一致。那个仓库不在 CI 里，这两条只在本机用。
 DOCXLIKE_DIR ?= ../latex-docxlike
-DOCXLIKE_DTX = docxlike.dtx docxlike-page.dtx docxlike-metrics.dtx docxlike-format.dtx docxlike-linebreak.dtx docxlike-headfoot.dtx docxlike-shape.dtx docxlike-numbering.dtx docxlike-heading.dtx docxlike-preset.dtx
+DOCXLIKE_DTX = docxlike.dtx docxlike-page.dtx docxlike-metrics.dtx docxlike-format.dtx docxlike-linebreak.dtx docxlike-headfoot.dtx docxlike-shape.dtx docxlike-note.dtx docxlike-numbering.dtx docxlike-heading.dtx docxlike-preset.dtx
 
 docxlike-sync:
 	@test -d $(DOCXLIKE_DIR) || { echo "找不到 $(DOCXLIKE_DIR)，用 DOCXLIKE_DIR=路径 指定"; exit 2; }
