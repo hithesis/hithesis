@@ -117,11 +117,13 @@
 %
 % \emph{英文版标签的尾巴。} 这一族词条都写成「中文/ English：」，拿斜杠切开：
 % 前一半是核心汉字，跟本行字号走；后一半连着斜杠一起排 Times 加粗三号，
-% 末尾那个全角冒号是宋体、不加粗，原件量出来正是这样。
+% 末尾那个全角冒号是宋体、不加粗，原件量出来正是这样。斜杠后面的空格照原件留着
+% （“/ Name”），切的时候要保空格：\cs{seq\_set\_split:Nnn} 会把每段两头的空格去掉，
+% 先前因此排成了“/Name”，每个标签短一个空格。
 %    \begin{macrocode}
     \cs_new_protected:Npn \hit@szb@latin:n #1
       {
-        \seq_set_split:Nnn \l__hit_szb_parts_seq { ： } {#1}
+        \seq_set_split_keep_spaces:Nnn \l__hit_szb_parts_seq { ： } {#1}
         \fontsize { 16bp } { 16bp } \selectfont
         \int_compare:nTF { \seq_count:N \l__hit_szb_parts_seq > 1 }
           {
@@ -147,7 +149,8 @@
           }
         \bool_if:NTF \g__hit_en_bool
           {
-            \seq_set_split:NnV \l__hit_szb_parts_seq { / } \l__hit_szb_term_tl
+            \exp_args:NNnV \seq_set_split_keep_spaces:Nnn \l__hit_szb_parts_seq
+              { / } \l__hit_szb_term_tl
             \tl_set:Nx \l__hit_szb_head_tl
               { \seq_item:Nn \l__hit_szb_parts_seq { 1 } }
             \tl_set:Nx \l__hit_szb_tail_tl
@@ -212,6 +215,8 @@
     \dim_new:N \l__hit_szb_ascent_dim
     \dim_new:N \l__hit_szb_size_dim
     \dim_new:N \l__hit_szb_label_ascent_dim
+    \dim_new:N \g__hit_szb_label_ascent_dim
+    \tl_new:N \l__hit_szb_label_style_tl
     \dim_new:N \l__hit_szb_center_dim
     \dim_new:N \l__hit_szb_thick_dim
 %    \end{macrocode}
@@ -369,20 +374,25 @@
 % 填英文的基线比「题目：」高 1.4，填中文与它齐。
 %
 % \meta{目标}\meta{值的字号}\meta{最少几行}\meta{定汉字标记的那一句}\meta{标签}
-% \meta{值的字体}\meta{值}。
+% \meta{值的字体}\meta{值}。标签那一格的行盒默认也按\meta{目标}算；
+% \cs{l\_\_hit\_szb\_label\_style\_tl} 不空时按它写的那一档算，见题目那一格。
 %    \begin{macrocode}
     \cs_new_protected:Npn \hit@szb@line:nnnnnnn #1#2#3#4#5#6#7
       {
         \par
+        \group_begin:
+          \tl_if_empty:NTF \l__hit_szb_label_style_tl
+            { \docxlike_format_compute:n {#1} }
+            { \docxlike_format_compute:V \l__hit_szb_label_style_tl }
+          \dim_gset:Nn \g__hit_szb_label_ascent_dim
+            { \l_docxlike_format_ascent_tl \l_docxlike_format_size_dim }
+        \group_end:
+        \dim_set_eq:NN \l__hit_szb_label_ascent_dim \g__hit_szb_label_ascent_dim
         \docxlike_format_compute:n {#1}
         \dim_set:Nn \l__hit_szb_pitch_dim
           { \l_docxlike_format_lead_dim + \l_docxlike_format_before_dim }
         #4
         \hit@szb@metrics:n {#2}
-        \dim_set:Nn \l__hit_szb_label_ascent_dim
-          {
-            \l_docxlike_format_ascent_tl \l_docxlike_format_size_dim
-          }
         \docxlike_format_apply_font:nN {#1} \l__hit_szb_font_tl
         \hit@szb@fill:nnn {#3} { \l__hit_szb_font_tl #6 } {#7}
         \skip_vertical:n { \l_docxlike_format_before_dim }
@@ -454,8 +464,8 @@
 % \texttt{w:rPr} 写着小一，可那是\emph{段落标记}的字号，两个框与四个字的 run
 % 一个 \texttt{sz} 都没写，跟 Normal 走。
 %
-% 接着一个空段：中文版二号、行距 1.25 倍，英文版小一、行盒 19\,bp 固定值，
-% 两版都带 12\,bp 段前。这里按「段前加行高」折成一段竖距，不真排一个空段。
+% 接着一个空段：二号、行距 1.25 倍、12\,bp 段前，中英两版一样（Windows Word 导出的两份
+% 原件逐段比过；先前照 iota 给英文版写成小一、19\,bp 固定值，校名又多了 12\,bp 段前）。
 %
 % 再是校名与文种。中文版两行都是小初华文新魏加粗、字距 2\,bp、字宽压到 90\%、
 % 行距 1.2 倍。\cs{hit@szb@art:nnn}\marg{是不是新魏}\marg{字距}\marg{文本}逐字排，
@@ -616,7 +626,10 @@
 % 就是 at-least）。两行各一个步进共 94，凑不满就在末尾补齐，中间那截夹缝正是
 % 留给第三行的。
 %
-% 标签中文版小二、英文版三号，值两版都是黑体小二。
+% 标签中文版小二、英文版三号，值两版都是黑体小二。英文版标签那一格的行盒按字段
+% 那一档算：原件的标签是三号黑体加三号 Times 粗体，与下面六格的标签同一档，
+% Windows Word 导出件里“题目”与“姓名”两个标签的基线差正好是这一行的 112.55。
+% 按小二的行盒算，标签低 2\,bp。
 %
 % \emph{装不下时整体压缩没有照搬。} iota 那边表长过空表单的底时，会把每一行的
 % 步进匀着减一个量，压到字要碰上一行的线为止，再不够就在纸角发红字。这里没做：
@@ -625,6 +638,8 @@
 %    \begin{macrocode}
     \cs_new_protected:Npn \hit@szb@title@row:
       {
+        \bool_if:NT \g__hit_en_bool
+          { \tl_set:Nn \l__hit_szb_label_style_tl { report-cover-field } }
         \hit@szb@line:nnnnnnn { report-cover-title } { 18bp } { 2 }
           {
             \hit@szb@pick:nnn { hit@info@title@first@en }
@@ -636,6 +651,7 @@
           }
           { \heiti \xiaoer }
           { \l__hit_szb_value_tl }
+        \tl_clear:N \l__hit_szb_label_style_tl
         \dim_compare:nNnT
           { \l__hit_szb_lines_int \l__hit_szb_pitch_dim } < { 112.55bp }
           {
