@@ -55,12 +55,15 @@ cls: $(TARGETS)
 # 的贪心算法做，行差从 78 降到 61。基线是本科范例的 docx 转出来的 PDF，那份 docx
 # 转换时升成了 Word 现行版式 15，而类默认按学校 doc 原件的版式 11 排，所以这里把
 # 模式钉到 15 再比。剩下的 61 是七处平局与语料伪差各自往后串出来的行。
+#
+# 2026/09/27 起 × 默认按汉字排（宋体、占一格，用户定），范例那一章“即×.×.×”
+# “＋、－、×、÷”里的 × 在 Word 原件里没带东亚提示、排的是 Times，行差从 21 升到 24。
 lineends:
 	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex -g \
 	  -interaction=nonstopmode \
 	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}\AddToHook{class/hithesis/after}{\hitsetup{layout={compatibility-mode=word-2013}}}' final.tex \
 	  > /dev/null
-	python3 scripts/check-line-ends.py --pdf examples/demo/final.pdf --max-diff 21
+	python3 scripts/check-line-ends.py --pdf examples/demo/final.pdf --max-diff 24
 
 # 三个目标都带 -g 强制重编：latexmk 不知道 -usepretex 变了，lineends（钉 15）与
 # lineends-self（默认 11）接连跑时，第二个会拿第一个的 PDF 去比，满屏假差异。
