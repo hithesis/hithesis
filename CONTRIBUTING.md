@@ -872,9 +872,9 @@ Word 导出），`make lineends-typst` 比断点的实现（typst fork），`mak
 的哪个高度。最后这条的对拍件是 `tests/sample/doctor/` 与 `tests/sample/bachelor/`，照两份书写范例
 的段落序列写的整本（本科那份引博士那份的正文），内容以范例为准、别改成示例；靶子
 `tests/pages-*.tsv` 抽自范例按指南改齐后的 Word 导出（来路写在文件头；本科那份是模式 15）。
-三份靶子都是 Windows 版 Word 导出的（2026-09-26 起，虚拟机里的 Word 2019，`~/zhwordlike-win/export-fields2.vbs`）；
-此前用的是 Mac 版导出，Mac 与 Windows 的西文字宽取整不同，博士范例 Mac 版排 23 页、Windows 版 25 页，
-逐页对拍的棘轮随之从 233、146 换成 208、132。
+三份靶子都是 Windows 版 Word 导出的（2026-09-26 起，虚拟机里的 Word 2019，`~/zhwordlike-win/export-static.vbs`）；
+此前用的是 Mac 版导出，Mac 与 Windows 的西文字宽取整不同。导出靶子时不能更新域：更新了目录域，目录按样式
+重生成，博士范例会多排两页。逐页对拍的棘轮随之从 233、146 换成 232、153（同一份构建对 Mac 版靶子是 230、147）。
 `scripts/check-pages.py -v` 逐页列出差的行。行内代码另有一份靶子 `tests/lineends-verb.tsv`：
 `\verb` 的排法（Consolas 五号、空格印 U+02FD、长串分隔符前可断）每一样都对应 Word 里的一个
 字符或属性，探针 docx 就是照这套敲的，`make lineends-verb` 要求行文本与行末坐标全对上。
