@@ -7,6 +7,7 @@
 % \section{共享参考文献样式}
 %
 % \changes{v3.2a}{2026/09/26}{条目段照 \option{bibliography-item} 样式铺版面，没写的跟正文}
+% \changes{v3.2a}{2026/09/27}{文献表只排一次：正文里写了 \cs{bibliography} 的，后置部分不再排}
 % \changes{v3.2a}{2026/08/16}{参考文献分 \texttt{bibtex} 与 \texttt{biber} 两条路线，
 %   \option{bib}/\option{backend} 选，各开一个子组（\option{bibtex}/\option{style} 挑
 %   \file{.bst}，\option{biber} 原封透传 \pkg{biblatex} 的装载选项）；biblatex 一线由类
@@ -695,13 +696,17 @@
           { \token_to_str:N \citation { \c__hit_bib_ctl_key_tl } }
       }
   }
+\bool_new:N \g__hit_bib_printed_bool
 \cs_new_protected:Npn \hit@bib@print:
   {
     \@ifpackageloaded { biblatex }
       { \printbibliography }
       {
-        \exp_args:NV \bibliographystyle \g__hit_bib_style_tl
-        \exp_args:Nv \bibliography { g__hit_structure_bibliography_tl }
+        \bool_if:NF \g__hit_bib_printed_bool
+          {
+            \exp_args:NV \bibliographystyle \g__hit_bib_style_tl
+            \exp_args:Nv \bibliography { g__hit_structure_bibliography_tl }
+          }
       }
   }
 %    \end{macrocode}
@@ -714,6 +719,11 @@
 %
 % 所以改成包住 \cs{bibliography}：谁调都先下发一次。\cs{hit@bib@print:} 里那一句
 % 因此撤掉，两条路合成一条。下发本身是 \cs{keys\_set:nn}，重复调用无害。
+%
+% \emph{文献表只排一次。} 正文里已经写了 \cs{bibliography} 的（示例的报告正文与 v3.1 时代的
+% 文档都是），后置部分那一次就不排：包装里立一个标志，\cs{hit@bib@print:} 见了就跳过。
+% 不跳的话 \file{.aux} 里有两条 \cs{bibdata}，\hologo{BibTeX} 报错；正文照终稿排的那一档
+% 参考文献另起一页，还会多出一张只有页眉页脚的空白页。
 %
 % 挂的时机是 \cs{AtBeginDocument}：\pkg{natbib} 与 \pkg{gbt7714} 都在导言区加载，
 % 太早包会包到还没被它们改过的那一版。\pkg{biblatex} 一线没有 \cs{bibliography}
@@ -728,6 +738,7 @@
             \cs_set_eq:NN \hit@bib@inner@bibliography \bibliography
             \cs_set_protected:Npn \bibliography #1
               {
+                \bool_gset_true:N \g__hit_bib_printed_bool
                 \hit@bib@forward@ctl:
                 \use:e
                   {

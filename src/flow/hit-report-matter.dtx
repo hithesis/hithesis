@@ -45,9 +45,17 @@
 % 加上升部 18.23，丢了就只剩 125.98。这一档的标题由 \pkg{docxlike} 排，换完页立起它的
 % “新一节开头”标记，标题自己留住段前，与终稿的章一样（见
 % \file{src/flow/hit-report-heading.dtx}）。\cs{topskip} 归零是当初换页后垫 \cs{hrule} 那一招
-% 留下的，标题已经用不着它；去掉会动正文分页（示例开题报告 12 页变 11 页），哪一边对得上
-% 原件还没核，先留着。
+% 留下的，可去掉之后章标题在页首的段前就不按“段前减上一段段后”算了（第一章落到 137.9，
+% Windows Word 的导出件是 128.2），所以留着。
+%
+% \emph{正文排完要把 \cs{topskip} 还回去。} \hologo{LaTeX} 的 \cs{clearpage} 在页后放一个
+% \cs{write} 加一只零高的 \cs{vbox}，输出例程（\cs{@doclearpage}）先把整页 \cs{vsplit}
+% 到零高、放回主列表，本意是只救出页首的 \cs{write} 与 \cs{mark}，那只空盒随整页丢掉。
+% \cs{topskip} 为零时空盒前面那段胶也是零，整串都是零高，空盒跟着被放回来，下一次
+% \cs{clearpage} 就把它排成一页：示例开题报告的末尾因此多一张只有页眉页脚的空白页，原件
+% 没有。\cs{hitbackmatter} 末尾还回去，文末那两次 \cs{clearpage} 就不会再多出一页。
 %    \begin{macrocode}
+\dim_new:N \g__hit_report_topskip_dim
 \cs_set_protected:Npn \hitfrontmatter
   {
     \bool_gset_true:N \g__hit_matter_front_bool
@@ -65,6 +73,7 @@
         \legacy_if_gset_true:n { @mainmatter }
         \pagenumbering { arabic }
         \pagestyle { hit@headings }
+        \dim_gset_eq:NN \g__hit_report_topskip_dim \topskip
         \dim_zero:N \topskip
         \bool_gset_true:N \g__hit_report_top_break_bool
       }
@@ -79,6 +88,8 @@
         \hit@bib@print:
       }
     \bool_gset_false:N \g__hit_report_heading_raw_bool
+    \bool_if:NT \g__hit_final_body_bool
+      { \dim_set_eq:NN \topskip \g__hit_report_topskip_dim }
   }
   }
 %</report-matter>
