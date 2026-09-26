@@ -9,7 +9,8 @@
 % \changes{v3.2a}{2026/09/14}{报告的目录认 \option{toc}/\option{depth} 与
 %   \option{toc}/\option{latin-sans}；底类换 \cls{ctexbook} 后 \pkg{tocloft} 的三个量设回
 %   节模式；正文照终稿排的那一档目录也照 Word 排（标题走章标题那一套、条目步进由盒贴排
-%   模型算、每行排到制表位、折行缩进至题名首字、目录页带页眉、目录之后照原件补一个空段）}
+%   模型算、每行排到制表位、折行缩进至题名首字、目录页带页眉、目录之后照原件补一个空段）；
+%   本部与威海的报告目录标题另用 \texttt{toc-heading}，目录页不印页码}
 %
 % \option{depth} 数的是级数。报告是 \cls{ctexart}，最高一级是节，
 % \cs{tocdepth} 恰好等于级数；学位论文有章，那边要减一。
@@ -208,7 +209,10 @@
 %
 % 页首那一段段前 \hologo{TeX} 会在分页处丢掉，Word 不丢，所以标题前先发一条
 % 零高的 \cs{hrule} 把这一页垫成非空，\cs{topskip} 一并归零。标题这一段照“标题 1”
-% 排，段上写“编号：无”：正文的“标题 1”链接着编号列表，目录标题不编号。
+% 排，段上写“编号：无”：正文的“标题 1”链接着编号列表，目录标题不编号。本部与威海的
+% 报告正文的“标题 1”是节，目录标题另用 \texttt{toc-heading}（Word 的“TOC 标题”），
+% 取值照章标题那一档，与 iota-hit 的 \texttt{term-heading} 同；目录之后那个空段也只有
+% 深圳本科那两份原件有。
 %
 % \cs{topskip} 只在\emph{目录那一组}里归零，不发到组外。\pkg{tocloft} 的
 % \cs{tableofcontents} 把标题与条目整个裹在一对 \cs{begingroup} 里，目录这几页
@@ -221,6 +225,9 @@
 %    \begin{macrocode}
 \dim_new:N \g__hit_report_toc_hang_dim
 \cs_new_protected:Npn \hit@report@toc@tail: { }
+\tl_new:N \g__hit_report_toc_title_style_tl
+\tl_gset:Nx \g__hit_report_toc_title_style_tl
+  { \bool_if:NTF \g__hit_shenzhen_bool { Heading1 } { toc-heading } }
 \bool_if:NT \g__hit_final_body_bool
   {
     \dim_zero:N \cftbeforetoctitleskip
@@ -234,7 +241,8 @@
         \dim_zero:N \topskip
         \hrule ~ height ~ \c_zero_dim
         \bool_set_false:N \l_docxlike_format_latin_pick_bool
-        \docxlike_format_par:nnn { Heading1 } { numbering = none } { \use:c { cft #1 titlename } }
+        \exp_args:NV \docxlike_format_par:nnn \g__hit_report_toc_title_style_tl
+          { numbering = none } { \use:c { cft #1 titlename } }
         \use:c { cftmark #1 }
         \docxlike_format_stack_seed:n { toc-chapter }
         \dim_set:Nn \lineskiplimit { - \maxdimen }
@@ -272,21 +280,24 @@
         \cs_set:Npn \cftsecpagefont { \bfseries }
         \cs_set:Npn \cftsecleader   { \bfseries \cftdotfill { \cftsecdotsep } }
       }
-    \cs_set_protected:Npn \hit@report@toc@tail:
+    \bool_if:NT \g__hit_shenzhen_bool
       {
-        \group_begin:
-          \docxlike_format_compute:n { Heading1 }
-          \use:e
-            {
-              \exp_not:N \parmark
-                [
-                  font = { size = \dim_use:N \l_docxlike_format_size_dim } ,
-                  paragraph = { spacing = { line-spacing = multiple , at = 1.25 ,
-                    before = \dim_use:N \l_docxlike_format_before_dim ,
-                    after = \dim_use:N \l_docxlike_format_after_dim } }
-                ]
-            }
-        \group_end:
+        \cs_set_protected:Npn \hit@report@toc@tail:
+          {
+            \group_begin:
+              \docxlike_format_compute:n { Heading1 }
+              \use:e
+                {
+                  \exp_not:N \parmark
+                    [
+                      font = { size = \dim_use:N \l_docxlike_format_size_dim } ,
+                      paragraph = { spacing = { line-spacing = multiple , at = 1.25 ,
+                        before = \dim_use:N \l_docxlike_format_before_dim ,
+                        after = \dim_use:N \l_docxlike_format_after_dim } }
+                    ]
+                }
+            \group_end:
+          }
       }
     \clist_map_inline:nn { sec , subsec , subsubsec }
       {
@@ -309,7 +320,11 @@
 %  \fi
 %  \ifboolexpr{ bool {hit@weihai} or bool {hit@interim}}{\tocloftpagestyle{empty}}{\tocloftpagestyle{hit@shenzhen@headings@front}}
 \bool_if:NTF \g__hit_final_body_bool
-  { \tocloftpagestyle { hit@headings@front } }
+  {
+    \bool_if:NTF \g__hit_shenzhen_bool
+      { \tocloftpagestyle { hit@headings@front } }
+      { \tocloftpagestyle { hit@empty } }
+  }
   {
     \bool_lazy_and:nnTF
       { \bool_if_p:N \g__hit_shenzhen_bool }
@@ -327,7 +342,8 @@
 % 只有深圳硕士与博士的\emph{中期}目录页是空的（那一份的说明页写着「目录不需有
 % 页眉」），别的都带。本部三份整篇没有页眉，与这条无关。
 %
-% 正文照终稿排的那一档，目录页就用正文那一个页面样式，不另做一个。
+% 正文照终稿排的那一档，目录页就用正文那一个页面样式，不另做一个。本部与威海的报告
+% 目录页不印页码，正文从 \texttt{-1-} 起（iota-hit 同）。
 %    \begin{macrocode}
 %}{
   % \renewcommand\tableofcontents{%

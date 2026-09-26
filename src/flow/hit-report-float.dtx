@@ -8,9 +8,10 @@
 %
 % \changes{v3.2a}{2026/09/14}{题号与题名之间改调共享层的 \cs{hit@caption@separator}
 %   （发 \pkg{ccaption} 的 \cs{captiondelim}，\pkg{caption} 的 \texttt{labelsep} 到不了
-%   正题注），兜底中文一个字、英文一个西文空格；哈尔滨与威海本科开题的图表公式编号
-%   排「图 X-X」；正文照终稿排的那一档也排「图 1-1」（编号跟着节走），图表与正文之间
-%   不留空，题注上下的间距从 \option{caption-*} 取}
+%   正题注），兜底中文一个字、英文一个西文空格；哈尔滨与威海本科开题的图表编号
+%   排「图 X-X」，公式连续编号；深圳本科那两份图表公式都排「图 1-1」（编号跟着节走），
+%   图表与正文之间不留空；本部与威海的报告题注照 Word 排，图表前后空一个网格行；
+%   题注上下的间距从 \option{caption-*} 取}
 %
 % ^^A ======================================================================
 % ^^A Module report-floats: 浮动体默认行为与双语题注（hit-report）
@@ -22,8 +23,9 @@
 %    \end{macrocode}
 %
 % \emph{深圳本科那两份报告的图表与正文贴着排。} 那两份原件的图块与表块前后都
-% 没有空段，上下都是 0。终稿那一档的规矩是「空一行」（指南 2.12），这一档不是。
-% 走到这一支的只有它：正文照终稿排、\option{stage} 却不是 \texttt{final}。
+% 没有空段，上下都是 0，写在 \file{src/config/hit-layout.dtx} 的
+% \option{style}/\option{float-sep} 里。本部与威海的报告没写，照终稿的规矩空一个
+% 网格行（iota-hit 的表前表后各一行，行跨度 15.6）。
 %
 % 挂在 \texttt{begindocument/end} 上，与终稿那一处同一个时机，不然会被它盖掉。
 %
@@ -80,9 +82,13 @@
       {
         \AddToHook { begindocument / end }
           {
-            \skip_zero:N \intextsep
-            \skip_zero:N \textfloatsep
-            \skip_zero:N \floatsep
+            \tl_if_empty:NTF \g__hit_float_sep_tl
+              {
+                \skip_set:Nn \intextsep    { \g_docxlike_page_lead_dim }
+                \skip_set:Nn \textfloatsep { \g_docxlike_page_lead_dim }
+                \skip_set:Nn \floatsep     { \g_docxlike_page_lead_dim }
+              }
+              { \hit@float@sep: }
             \captionnamefont { \hit@caption@font: }
             \captiontitlefont { \hit@caption@font: }
             \cs_set_eq:NN \__hit_report_makecaption:nn \@makecaption
@@ -146,13 +152,25 @@
   }
 %    \end{macrocode}
 %
-% \emph{正文照终稿排的那一档一并进来。} 深圳本科那两份报告的第一级写的是
-% \cs{section}、按章排，题注也该是「图 1-1」。iota-hit 对原件的复刻件里中英两版
-% 都是这个写法（「图1-1」「Figure 1-1」）；先前这边只认本部与威海的本科开题，
-% 深圳本科排出来是 \cls{ctexart} 的「图 1:」。
+% \emph{正文照 Word 排的那几档，题注都照 Word 的写法。} 编号按节走的只有两档：深圳本科
+% 那两份（第一级写的是 \cs{section}、按章排，iota-hit 对原件的复刻件里中英两版都是
+% 「图1-1」「Figure 1-1」），与本部、威海的本科开题。别的报告连续编号，「表1」，
+% 与 iota-hit 的 \texttt{report-caption-by-section} 同一张表。公式只有深圳本科按节编
+% （它的正文照终稿排），本部与威海的本科开题图表按节、公式照报告连续编号，也照 iota-hit。
 %    \begin{macrocode}
+\bool_if:NT \g__hit_final_body_bool
+  {
+    \RequirePackage { caption }
+    \hit@report@declare@caption@separator:
+    \captionsetup [ figure ] { labelsep=hit@figure@number }
+    \captionsetup [ table ]  { labelsep=hit@table@number }
+  }
 \bool_lazy_or:nnT
-  { \bool_if_p:N \g__hit_final_body_bool }
+  {
+    \bool_lazy_and_p:nn
+      { \bool_if_p:N \g__hit_shenzhen_bool }
+      { \bool_if_p:N \g__hit_bachelor_bool }
+  }
   {
     \bool_lazy_all_p:n
       {
@@ -166,12 +184,15 @@
     \hit@report@declare@caption@separator:
     \cs_set:Npn \thefigure { \thesection - \arabic { figure } }
     \cs_set:Npn \thetable { \thesection - \arabic { table } }
-    \cs_set:Npn \theequation { \thesection - \arabic { equation } }
     \captionsetup [ figure ] { labelsep=hit@figure@number }
     \captionsetup [ table ]  { labelsep=hit@table@number }
     \@addtoreset { figure }   { section }
     \@addtoreset { table }    { section }
-    \@addtoreset { equation } { section }
+    \bool_if:NT \g__hit_shenzhen_bool
+      {
+        \cs_set:Npn \theequation { \thesection - \arabic { equation } }
+        \@addtoreset { equation } { section }
+      }
   }
   }
 %</report-floats>
