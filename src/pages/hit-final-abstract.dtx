@@ -6,6 +6,9 @@
 %
 % \section{中英文摘要页}
 %
+% \changes{v3.2a}{2026/09/27}{符号表与缩略语表的第一列按内容定宽（与 iota-hit 同一个算法：在 2.5\,cm
+%   与各标签自己的宽里挑整张表最矮的那个，标签溢出的每行记一行的罚），\option{labelwidth} 写了才钉死；
+%   合并成一页时两段取同一个宽}
 % \changes{v3.2a}{2026/09/25}{摘要标题的 1.25 倍行距直接设在标题这一段上；博士后的关键词照模板，
 %   不带冒号、后空一格，英文摘要单倍贴网格}
 % \changes{v3.2a}{2026/08/22}{\cs{hit@make@abstract} 迁到 expl3（写进目录的 \texttt{\string~}
@@ -110,9 +113,16 @@
 %
 % \env{symbols} 本身就是一个 \pkg{enumitem} 的 \texttt{description} 列表，
 % 一行一个符号 \cs{item}\oarg{符号}\meta{说明}。可选参数收键值：
-% \option{labelwidth} 是第一列宽度（默认 2.5\,cm），\option{subheading} 给这一段
+% \option{labelwidth} 是第一列宽度（不写就按内容定，见下），\option{subheading} 给这一段
 % 加个小标题——只在一页里排两段（符号加缩略语）时才用得着。不含等号的裸值当
 % 宽度，\cs{begin}\marg{symbols}\oarg{3cm} 照样认。
+%
+% \emph{第一列多宽按内容定}，与 iota-hit 的 \texttt{auto-label-width} 同一个算法：候选宽度是
+% 2.5\,cm（\pkg{thuthesis}、\pkg{bithesis} 的 \texttt{labelwidth}）与各个标签自己的宽里
+% 大于它、不过半个版心的那些；每个候选把整张表试排一遍，总高最小的胜，标签比列宽的每行
+% 另记一行的罚（第一列尽量不溢，除非为它加宽整列反倒让别的行折得更多），同高取宽的。
+% 试排是整张表排进盒子量高深，不排出来。合并成一页时两段要同宽，说明列才对齐：两段各自
+% 定下的宽取大的那个记进 \file{.aux}，下一遍两段都用它。
 %
 % 规范里允许把符号分成几张表、各有各的列，列表排不出来，所以还有
 % \env{symbols*}：标题和表号照旧，正文由用户自己写。
@@ -143,7 +153,7 @@
   }
 \cs_new_protected:Npn \__hit_symbols_opt:n #1
   {
-    \tl_set:Nn \l__hit_symbols_width_tl { 2.5cm }
+    \tl_set:Nn \l__hit_symbols_width_tl { auto }
     \tl_clear:N \l__hit_symbols_subheading_tl
     \tl_if_in:nnTF {#1} { = }
       { \hit@keys@set:nn { hit / symbols / opt } {#1} }
@@ -200,13 +210,140 @@
     \cs_set:Npn \thetable { \arabic { chapter } - \arabic { table } }% 表编号为 7-1
     \setcounter { table } { 0 }
   }
-\NewDocumentEnvironment { symbols } { O{} }
+\NewDocumentEnvironment { symbols } { O{} +b }
   {
     \__hit_symbols_opt:n {#1}
     \__hit_symbols_open:
-    \begin { hit@symbols } [ labelwidth = \l__hit_symbols_width_tl ]
+    \hit@symbols@list:n {#2}
   }
-  { \end { hit@symbols } \__hit_symbols_close: }
+  { \__hit_symbols_close: }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@symbols@list:n}
+% \cs{hit@symbols@list:n}\marg{条目} 把一串 \cs{item} 排成两列表，第一列宽度是
+% \texttt{auto} 时先按上面的算法定下来。缩略语表（\file{src/flow/hit-final-glossary.dtx}）
+% 也调它。
+%    \begin{macrocode}
+\dim_const:Nn \c__hit_symbols_width_min_dim { 2.5cm }
+\seq_new:N \g__hit_symbols_label_seq
+\seq_new:N \l__hit_symbols_candidate_seq
+\tl_new:N \l__hit_symbols_body_tl
+\box_new:N \l__hit_symbols_box
+\dim_new:N \l__hit_symbols_best_dim
+\dim_new:N \l__hit_symbols_cost_dim
+\dim_new:N \l__hit_symbols_best_cost_dim
+\dim_new:N \g__hit_symbols_shared_dim
+\dim_new:N \g__hit_symbols_shared_prev_dim
+\cs_new_protected:Npn \hit@symbols@list:n #1
+  {
+    \tl_set:Nn \l__hit_symbols_body_tl {#1}
+    \str_if_eq:VnT \l__hit_symbols_width_tl { auto }
+      {
+        \__hit_symbols_auto:
+        \bool_if:NT \g__hit_frontlist_open_bool
+          {
+            \dim_gset:Nn \g__hit_symbols_shared_dim
+              { \dim_max:nn { \g__hit_symbols_shared_dim } { \l__hit_symbols_best_dim } }
+            \dim_set:Nn \l__hit_symbols_best_dim
+              { \dim_max:nn { \l__hit_symbols_best_dim } { \g__hit_symbols_shared_prev_dim } }
+          }
+        \tl_set:Nx \l__hit_symbols_width_tl { \dim_use:N \l__hit_symbols_best_dim }
+      }
+    \begin { hit@symbols } [ labelwidth = \l__hit_symbols_width_tl ]
+      \l__hit_symbols_body_tl
+    \end { hit@symbols }
+  }
+\cs_new_protected:Npn \__hit_symbols_measure:n #1
+  {
+    \vbox_set:Nn \l__hit_symbols_box
+      {
+        \begin { hit@symbols } [ labelwidth = #1 ]
+          \l__hit_symbols_body_tl
+        \end { hit@symbols }
+      }
+  }
+%    \end{macrocode}
+%
+% 先试排一遍收各个标签的宽：列表里的 \cs{item} 换成一个先量标签再交还原来那个的版本。
+% 标签的字与列表里排的一样是 \cs{normalfont}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_symbols_auto:
+  {
+    \seq_gclear:N \g__hit_symbols_label_seq
+    \vbox_set:Nn \l__hit_symbols_box
+      {
+        \begin { hit@symbols } [ labelwidth = \c__hit_symbols_width_min_dim ]
+          \DeclareCommandCopy \__hit_symbols_item:w \item
+          \RenewDocumentCommand \item { o }
+            {
+              \IfValueTF {##1}
+                {
+                  \hbox_set:Nn \l_tmpa_box { \normalfont ##1 }
+                  \seq_gput_right:Nx \g__hit_symbols_label_seq
+                    { \dim_use:N \box_wd:N \l_tmpa_box }
+                  \__hit_symbols_item:w [ ##1 ]
+                }
+                { \__hit_symbols_item:w }
+            }
+          \l__hit_symbols_body_tl
+        \end { hit@symbols }
+      }
+    \seq_clear:N \l__hit_symbols_candidate_seq
+    \seq_put_right:Nx \l__hit_symbols_candidate_seq
+      { \dim_use:N \c__hit_symbols_width_min_dim }
+    \seq_map_inline:Nn \g__hit_symbols_label_seq
+      {
+        \bool_lazy_and:nnT
+          { \dim_compare_p:nNn {##1} > { \c__hit_symbols_width_min_dim } }
+          { ! \dim_compare_p:nNn {##1} > { \linewidth / 2 } }
+          { \seq_put_right:Nn \l__hit_symbols_candidate_seq {##1} }
+      }
+    \seq_remove_duplicates:N \l__hit_symbols_candidate_seq
+    \seq_sort:Nn \l__hit_symbols_candidate_seq
+      {
+        \dim_compare:nNnTF {##1} > {##2}
+          { \sort_return_swapped: } { \sort_return_same: }
+      }
+    \dim_set_eq:NN \l__hit_symbols_best_dim \c__hit_symbols_width_min_dim
+    \dim_set_eq:NN \l__hit_symbols_best_cost_dim \c_max_dim
+    \seq_map_inline:Nn \l__hit_symbols_candidate_seq
+      {
+        \__hit_symbols_measure:n {##1}
+        \dim_set:Nn \l__hit_symbols_cost_dim
+          { \box_ht:N \l__hit_symbols_box + \box_dp:N \l__hit_symbols_box }
+        \seq_map_inline:Nn \g__hit_symbols_label_seq
+          {
+            \dim_compare:nNnT {####1} > {##1}
+              { \dim_add:Nn \l__hit_symbols_cost_dim { \baselineskip } }
+          }
+        \dim_compare:nNnF { \l__hit_symbols_cost_dim } > { \l__hit_symbols_best_cost_dim }
+          {
+            \dim_set:Nn \l__hit_symbols_best_dim {##1}
+            \dim_set_eq:NN \l__hit_symbols_best_cost_dim \l__hit_symbols_cost_dim
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 合并页两段共用的宽：本遍取的大者文档结束时写进 \file{.aux}，下一遍读回来。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@symbols@shared #1
+  { \dim_gset:Nn \g__hit_symbols_shared_prev_dim {#1} }
+\AddToHook { enddocument }
+  {
+    \dim_compare:nNnT { \g__hit_symbols_shared_dim } > { \c_zero_dim }
+      {
+        \iow_now:Nx \@auxout
+          {
+            \token_to_str:N \hit@symbols@shared
+            { \dim_use:N \g__hit_symbols_shared_dim }
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
 \NewDocumentEnvironment { symbols* } { O{} }
   { \__hit_symbols_opt:n {#1} \__hit_symbols_open: }
   { \__hit_symbols_close: }
