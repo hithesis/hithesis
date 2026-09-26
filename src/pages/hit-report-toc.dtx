@@ -9,7 +9,7 @@
 % \changes{v3.2a}{2026/09/14}{报告的目录认 \option{toc}/\option{depth} 与
 %   \option{toc}/\option{latin-sans}；底类换 \cls{ctexbook} 后 \pkg{tocloft} 的三个量设回
 %   节模式；正文照终稿排的那一档目录也照 Word 排（标题走章标题那一套、条目步进由盒贴排
-%   模型算、每行排到制表位、折行缩进至题名首字、目录页带页眉）}
+%   模型算、每行排到制表位、折行缩进至题名首字、目录页带页眉、目录之后照原件补一个空段）}
 %
 % \option{depth} 数的是级数。报告是 \cls{ctexart}，最高一级是节，
 % \cs{tocdepth} 恰好等于级数；学位论文有章，那边要减一。
@@ -134,9 +134,11 @@
 % \pkg{tocloft} 的 \cs{cftbeforetoctitleskip} 与 \cs{cftaftertoctitleskip}
 % 一并归零，间距全由 \option{styles} 给。
 %
-% 条目走共享层的 \cs{hit@toc@line@metrics:nn}，与终稿那一份目录同一个模型；
-% 行深从标题那一块起算（\cs{docxlike\_format\_stack\_seed:n}）。级要错开一格：报告的
-% 节就是章，所以节传 1、条传 2、款传 3。
+% 条目走共享层的 \cs{hit@toc@line@metrics:nn}，与终稿那一份目录同一个模型，起头也与终稿
+% 一样按条目自己那一档（\cs{docxlike\_format\_stack\_seed:n}\,\texttt{\{toc-chapter\}}）。
+% 先前按标题那一块起头，头一条比 Windows Word 的导出件低 3.69：标题行下面
+% \pkg{docxlike} 已经把行盒直接摞上去（基线距 = 标题行深 + 段后 + 条目上升部），再补
+% 两块行深之差就算了两遍。级要错开一格：报告的节就是章，所以节传 1、条传 2、款传 3。
 %
 % \cs{cftbeforesecskip} 那三条要归零。步进整个由模型给，再叠一段 \texttt{1.2ex}
 % 就成了 25.94，原件是 19.45。
@@ -150,8 +152,15 @@
 % 于是折行条目的\emph{每一行}都提前 30.6 收住；末行由 \cs{parfillskip} 抵消，
 % 只有它排到制表位。原件不是这样：折行的那几行一直排到制表位，只有末行给点线与
 % 页码让路（iota-hit 对原件的复刻件里首行末字右缘 499.05，这边 479.62）。
-% 所以 \cs{@tocrmarg} 归零。它是个\emph{宏}不是长度寄存器
-% （\hologo{LaTeX} 里 \cs{def}\cs{@tocrmarg}\{2.55em\}），要用 \cs{cs\_set:Npn} 改。
+% 所以 \cs{@tocrmarg} 取零加一份 fil，与终稿那一份目录的 \cs{rightskip} 一样。
+% 它是个\emph{宏}不是长度寄存器（\hologo{LaTeX} 里 \cs{def}\cs{@tocrmarg}\{2.55em\}），
+% 要用 \cs{cs\_set:Npn} 改。
+%
+% \emph{那一份 fil 不能省。} 先前取的是零，条目成了两端对齐的段，交给
+% \pkg{docxlike} 的断行层去排：条目开头那段 \cs{hskip}\,$-$\cs{leftskip} 当作西文串里的胶
+% 被清成零，二级、三级条目各多缩了一截（二级落在 129.45，Word 是 96.98），题序盒子后面
+% 又按中西文补了 1/4 字（题序后空 15，Word 是 12）。带了 fil 就交回 \hologo{TeX} 断行，
+% 与终稿那一份目录一样。
 %
 % \emph{折行之后缩进至题名首字。} 指南 3.6 写着「对于超过一行的目录内容提前换行，
 % 换行后缩进至相应标题第一个字符处」。\pkg{tocloft} 的续行回到 \cs{leftskip}
@@ -189,6 +198,14 @@
 % \cs{leaders} 的原点挪不动（要挪得把整条条目装进一个位置已知的盒子，
 % 与折行冲突），这一格先记下来。
 %
+% \emph{目录之后还有一个空段。} 原件目录那一节的最后一段是空的，与目录标题同一档（二号、段前
+% 一行、段后 0.8 行、1.25 倍），分节符就在它上面。它的段后 9.6 留在目录页，可 Word 合并段距的
+% 办法是拿下一段的段前减上一段的段后，跨了页也照减，于是正文第一章的标题在新页页首只剩
+% $12 - 9.6 = 2.4$ 的段前：Windows Word 导出的三份原件里第一章标题都比目录标题高 9.6
+% （128.2 对 137.8，英文版 127.0 对 136.6）。这里照排这一段（\cs{hit@report@toc@tail:}，
+% 首页那边排完目录就调它；不可见），段距那一本账交给 \pkg{docxlike}。别的档什么都不做。
+% 不挂在 \pkg{tocloft} 身上：这一版没有 \cs{cftaftertoc}，收尾的 \cs{@cfttocfinish} 图表清单也用。
+%
 % 页首那一段段前 \hologo{TeX} 会在分页处丢掉，Word 不丢，所以标题前先发一条
 % 零高的 \cs{hrule} 把这一页垫成非空，\cs{topskip} 一并归零。标题这一段照“标题 1”
 % 排，段上写“编号：无”：正文的“标题 1”链接着编号列表，目录标题不编号。
@@ -199,6 +216,7 @@
 % \env{titlepage} 收尾那两下会各排出一张空白页（实测多两张，页码 II 与 -1-）。
 %    \begin{macrocode}
 \dim_new:N \g__hit_report_toc_hang_dim
+\cs_new_protected:Npn \hit@report@toc@tail: { }
 \bool_if:NT \g__hit_final_body_bool
   {
     \dim_zero:N \cftbeforetoctitleskip
@@ -214,7 +232,7 @@
         \bool_set_false:N \l_docxlike_format_latin_pick_bool
         \docxlike_format_par:nnn { Heading1 } { numbering = none } { \use:c { cft #1 titlename } }
         \use:c { cftmark #1 }
-        \docxlike_format_stack_seed:n { Heading1 }
+        \docxlike_format_stack_seed:n { toc-chapter }
         \dim_set:Nn \lineskiplimit { - \maxdimen }
         \@afterheading
       }
@@ -242,8 +260,24 @@
         \dim_set:Nn \@tempdima { \box_wd:N \l_tmpa_box }
         \dim_gset_eq:NN \g__hit_report_toc_hang_dim \@tempdima
       }
-    \cs_set:Npn \@tocrmarg { 0pt }
+    \cs_set:Npn \@tocrmarg { 0pt plus 1fil }
     \cs_set:Npn \cftdotsep { 0 }
+    \cs_set_protected:Npn \hit@report@toc@tail:
+      {
+        \group_begin:
+          \docxlike_format_compute:n { Heading1 }
+          \use:e
+            {
+              \exp_not:N \parmark
+                [
+                  font = { size = \dim_use:N \l_docxlike_format_size_dim } ,
+                  paragraph = { spacing = { line-spacing = multiple , at = 1.25 ,
+                    before = \dim_use:N \l_docxlike_format_before_dim ,
+                    after = \dim_use:N \l_docxlike_format_after_dim } }
+                ]
+            }
+        \group_end:
+      }
     \clist_map_inline:nn { sec , subsec , subsubsec }
       {
         \cs_set:cpn { cft #1 fillnum } ##1
