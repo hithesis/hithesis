@@ -6,6 +6,9 @@
 %
 % \section{元素格式（format）}
 %
+% \changes{v3.2a}{2026/09/27}{\hologo{XeLaTeX} 下两可字符（弯引号、破折号、省略号、间隔号）在西文场合
+%   排西文字体（\cs{docxlike\_format\_latin\_chars:n}：样式带 \option{latin-line} 或立了西文标志的段、
+%   全西文的标题）；\hologo{LuaLaTeX} 由断行层按整段判}
 % \changes{v3.2a}{2026/09/26}{样式写了两端对齐就把左右边距胶与末行填充复位（先前什么都不做，
 %   外面的 \cs{raggedright} 留着）；正文的行末余量加在 \texttt{Normal} 的对齐之上，不再改写 \cs{rightskip}}
 % \changes{v3.2a}{2026/08/25}{加 \option{styles}：照 Word 的样式描述每种段落怎么排，内置
@@ -2976,7 +2979,8 @@
 %
 % \begin{macro}{\docxlike_format_display_enter:}
 % 行间公式起头时如果还在竖排模式，这一段就是“只装一条公式”的段落：立标志、
-% 免缩进。挂在 \pkg{amsmath} 那一族环境上，\cs{[} 与 \env{displaymath} 都归到
+% 免缩进。公式收尾后告诉断行层一声：接着排的头一行照 \hologo{TeX} 的规矩与公式盒之间
+% 补行距胶（公式盒的高深是按那道胶配的），别的行仍是 Word 那样直接摞。挂在 \pkg{amsmath} 那一族环境上，\cs{[} 与 \env{displaymath} 都归到
 % \env{equation*}（实测 \cs{meaning} 是 \cs{begin}\marg{equation*}），所以那一条
 % 就够。
 %    \begin{macrocode}
@@ -2997,7 +3001,22 @@
 \cs_new_protected:Npn \docxlike_format_display_hooks:
   {
     \clist_map_inline:Nn \c__docxlike_format_display_clist
-      { \AddToHook { env/##1/begin } { \docxlike_format_display_enter: } }
+      {
+        \AddToHook { env/##1/begin } { \docxlike_format_display_enter: }
+        \AddToHook { env/##1/after } { \__docxlike_format_display_exit: }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_format_display_exit:
+  {
+    \sys_if_engine_luatex:T
+      {
+        \tex_directlua:D
+          {
+            if~docxlike~and~docxlike.linebreak~then~
+              docxlike.linebreak.after_display~=~true~
+            end
+          }
+      }
   }
 %    \end{macrocode}
 % \end{macro}
@@ -3162,6 +3181,14 @@
       {
         \bool_if_p:N \l_docxlike_format_latin_line_bool
         || \bool_if_p:N \l_docxlike_format_latin_pick_bool
+      }
+    \sys_if_engine_xetex:T
+      {
+        \tl_put_right:Ne \l__docxlike_format_out_tl
+          {
+            \exp_not:N \docxlike_format_latin_chars:n
+              { \bool_if:NTF \l__docxlike_format_latin_bool { \c_true_bool } { \c_false_bool } }
+          }
       }
     \__docxlike_format_read:nnnN {#1} { rPr/rFonts/eastAsia } { } \l__docxlike_format_value_tl
     \tl_if_empty:NF \l__docxlike_format_value_tl
@@ -5948,6 +5975,46 @@
       { \bool_if:NTF \g_docxlike_format_hyphen_bool { 85 } { 10000 } }
   }
 %    \end{macrocode}
+%
+% \begin{macro}{\docxlike_format_latin_chars:n}
+% \cs{docxlike\_format\_latin\_chars:n}\marg{布尔表达式}：两可字符（· – — ‘ ’ “ ” …）在西文场合排
+% 西文字体。Word 看这一段敲进来时带不带 \texttt{w:hint="eastAsia"}，英文里敲的不带，排西文字体。
+% \hologo{LuaLaTeX} 由断行层按整段的字判（\file{docxlike-linebreak.dtx} 的 \texttt{latin\_hint}），
+% 这里什么都不做；\hologo{XeLaTeX} 没有逐段的节点回调，只能由排版的地方说“这里是西文”：样式带
+% \option{latin-line} 或立了 \cs{l\_docxlike\_format\_latin\_pick\_bool} 的段、全西文的标题、目录里的
+% 西文条目。为真就在当前组里把这几个字的字符类改成 0（\pkg{xeCJK} 不管，字形跟当前的西文字体走），
+% 为假还回原来的类。原来的类在头一次调用时记下，那时各处的字符类声明都已落定。
+%    \begin{macrocode}
+\clist_const:Nn \c__docxlike_format_ambiguous_clist
+  { "B7 , "2013 , "2014 , "2018 , "2019 , "201C , "201D , "2026 }
+\prop_new:N \g__docxlike_format_ambiguous_prop
+\bool_new:N \g__docxlike_format_ambiguous_saved_bool
+\cs_new_protected:Npn \docxlike_format_latin_chars:n #1
+  {
+    \sys_if_engine_xetex:T
+      {
+        \bool_if:NF \g__docxlike_format_ambiguous_saved_bool
+          {
+            \bool_gset_true:N \g__docxlike_format_ambiguous_saved_bool
+            \clist_map_inline:Nn \c__docxlike_format_ambiguous_clist
+              {
+                \prop_gput:Nne \g__docxlike_format_ambiguous_prop {##1}
+                  { \int_eval:n { \tex_XeTeXcharclass:D ##1 } }
+              }
+          }
+        \bool_if:nTF {#1}
+          {
+            \clist_map_inline:Nn \c__docxlike_format_ambiguous_clist
+              { \tex_XeTeXcharclass:D ##1 = 0 \scan_stop: }
+          }
+          {
+            \prop_map_inline:Nn \g__docxlike_format_ambiguous_prop
+              { \tex_XeTeXcharclass:D ##1 = ##2 \scan_stop: }
+          }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
 %
 % \begin{macro}{\docxlike_format_apply_par:n}
 % \cs{docxlike\_format\_apply\_par:n}\marg{目标} 按目标给\emph{接下来那几段}铺好版面：

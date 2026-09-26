@@ -6,6 +6,10 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/27}{弯引号、破折号、省略号、间隔号照 Word 的东亚提示挑字体：一段里没有汉字、假名、
+%   全角字而有西文字母时排西文字体（英文目录里“Master’s”的撇号先前是黑体），别的段照旧按汉字排；
+%   行间公式前后照 TeX 的规矩留行距胶（被公式打断的段记下末行的深，公式后的头一行补胶），先前短公式
+%   与上下文只隔 15.7／14.6，XeLaTeX 是 19.45}
 % \changes{v3.2a}{2026/09/26}{“文字对齐字符网格”的节里另走一套装行与排行：汉字一格一个，连续的西文
 %   按自然宽占整数格，都居中；按格数断行，西文整截下行，行首禁则把前一个字推下去；对齐方式不起作用}
 % \changes{v3.2a}{2026/09/26}{网格不启用的节（\texttt{docGrid} 没写 \texttt{w:type}）对齐范围取整个版心，
@@ -2725,7 +2729,12 @@ local function shade_line(box, color, first, ctx, measure, P)
   box.head = h
 end
 
+-- 刚排完一条行间公式：格式层在公式环境的 after 钩子里立这个标志（竖直列表的末项看不到，
+-- 公式早被页面构造器搬走了），下一次进断行层时取走
+M.after_display = false
 function M.filter(head, is_display)
+  local after_display = M.after_display
+  M.after_display = false
   M.cell = getbool("l_docxlike_table_cell_bool") == true
   M.grid_on = getbool("g_docxlike_grid_bool") ~= false
   local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
@@ -2807,6 +2816,7 @@ function M.filter(head, is_display)
   local pfill = pfa and node.get_attribute(head, pfa)
   local newhead, tail = nil, nil
   local prevdepth = tex.prevdepth
+  after_display = after_display and prevdepth > -65536000
   local nl = #lines
   local nexthead = nil
   for li, line in ipairs(lines) do
@@ -2848,6 +2858,20 @@ function M.filter(head, is_display)
     end
     prevdepth = box.depth
   end
+  -- 行间公式后面的头一行照 TeX 的规矩补行距胶：公式盒的高深是按 TeX 的行间胶配的（文档类
+  -- 照 Word 的公式行盒算好、扣掉 lineskip 那一份），行盒直接摞只在 Word 的行与行之间成立
+  if after_display and newhead then
+    local g = node.new(GLUE); g.subtype = 0
+    g.width = tex.baselineskip.width - tex.prevdepth - newhead.height
+    if g.width < tex.lineskiplimit then g.width = tex.lineskip.width end
+    g.next = newhead; newhead.prev = g; newhead = g
+  end
+  -- linebreak_filter 交回的行 LuaTeX 原样接进竖直列表，不替我们记外层的 \prevdepth，
+  -- 那里留着的还是段前的值（标题后是 -1000pt，公式后是公式盒的深）。段落被行间公式
+  -- 打断时（is_display）接着要摞的是公式盒，TeX 按 \prevdepth 给它算行间胶，这里记成
+  -- 末行的深。别的时候不动：后面的盒子（居中段的行、eqdenote 的表）一直是照那个旧值
+  -- 排的，Word 那样直接摞，改了反倒多出一道 lineskip
+  if is_display then tex.nest.top.prevdepth = prevdepth end
   return newhead
 end
 
@@ -3028,6 +3052,50 @@ local function pin_exact(head)
   return true
 end
 
+-- 两可字符照 Word 的东亚提示挑字体。弯引号、破折号、省略号、间隔号这几个字 Unicode 不分中西，
+-- luatexja 按字符范围一律当汉字排（中文里敲的是宋体形）；Word 看的是这一段敲进来时带不带
+-- w:hint="eastAsia"：中文输入法敲的带，排宋体；英文里敲的不带，排西文字体（英文目录条目
+-- “Master’s”的撇号是 Times 的）。这里按整段判：一段里一个汉字、假名、全角字都没有而有西文字母，
+-- 就把这几个字改回西文，在 luatexja 分中西文（hyphenate 回调里的 ltj.hyphenate）之前改它的
+-- 字符范围属性。只看段落，不看盒子：表格里 @{——} 那种夹在格子里的破折号与数学符号同盒，照旧宋体
+local AMBIGUOUS = set_of("·–—‘’“”…")
+local function scan_script(head)
+  local wide, latin = false, false
+  for n in traverse(head) do
+    if n.id == GLYPH then
+      local c = n.char
+      if is_wide(c) then return true, latin end
+      if (c >= 65 and c <= 90) or (c >= 97 and c <= 122) then latin = true end
+    elseif (n.id == HLIST or n.id == VLIST) and n.list then
+      local w, l = scan_script(n.list)
+      if w then return true, latin end
+      latin = latin or l
+    end
+  end
+  return wide, latin
+end
+local function para_latin(head)
+  local wide, latin = scan_script(head)
+  return latin and not wide
+end
+local charrange = luatexja.charrange
+local function latin_hint(head)
+  if not para_latin(head) then return end
+  for n in traverse_id(GLYPH, head) do
+    local c = n.char
+    if AMBIGUOUS[c] and node.has_attribute(n, attr_icflag, 0) ~= nil
+        and charrange.is_ucs_in_japanese_char(n) then
+      local r = charrange.char_to_range(c)
+      if r and r > 0 and r < 217 then
+        local ka = luatexbase.attributes["ltj@kcat" .. math.floor(r / 31)]
+        local pw = 1 << (r % 31)
+        node.set_attribute(n, ka, (node.has_attribute(n, ka) or 0) | pw)
+      end
+    end
+  end
+end
+M.latin_hint = latin_hint
+
 -- 装回调。attr 是类分的属性号：段首节点上为 0 的段不管（交回 TeX）；
 -- ks、xks 是汉字缝、汉西隙的属性号
 function M.install(attr, ks, xks, kern, code)
@@ -3052,12 +3120,17 @@ function M.install(attr, ks, xks, kern, code)
     luatexbase.add_to_callback("hpack_filter",
       function(h) grid_box(h); return true end, "docxlike.cells")
   end
+  luatexbase.add_to_callback("hyphenate", function(h) latin_hint(h) end, "docxlike.hint")
+  if luatexbase.declare_callback_rule then
+    luatexbase.declare_callback_rule("hyphenate", "docxlike.hint", "before", "ltj.hyphenate")
+  end
 end
 function M.uninstall()
   for _, cb in ipairs({ { "linebreak_filter", "docxlike.linebreak" }, { "hpack_filter", "docxlike.skips" },
                         { "hpack_filter", "docxlike.cells" },
                         { "pre_linebreak_filter", "docxlike.skips" },
-                        { "post_linebreak_filter", "docxlike.exact" } }) do
+                        { "post_linebreak_filter", "docxlike.exact" },
+                        { "hyphenate", "docxlike.hint" } }) do
     if luatexbase.in_callback(cb[1], cb[2]) then luatexbase.remove_from_callback(cb[1], cb[2]) end
   end
 end
