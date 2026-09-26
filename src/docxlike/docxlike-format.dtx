@@ -65,6 +65,8 @@
 %   字面的西文字体照 Word 斜切），新增 \option{underline-style}、\option{underline-color}、
 %   \option{superscript}、\option{subscript}、样式的 \option{style-type} 与 \cs{docxrun}；下划线与
 %   上下标在 \hologo{LuaLaTeX} 上记在属性里，出页前由 \file{docxlike-run.lua} 落到节点上，断行照常}
+% \changes{v3.2a}{2026/09/26}{合成粗体照 Word：没有粗体字面的字体，样式要了粗体就在出页前换成描边的
+%   同一副字体，断行层给合成粗体每个字形加字号的 1/280}
 % \changes{v3.2a}{2026/09/26}{新增段落键
 %   \option{automatically-adjust-right-indent-when-document-grid-is-defined}（\texttt{pPr/adjustRightInd}）；
 %   平衡的半角空格照 Windows Word 实测排成半个字加半个网格增量再加两份 \texttt{w:spacing}（先前是
@@ -2362,10 +2364,11 @@
 %
 % 中文字体没有斜体字面，Word 的斜体是斜切出来的，倾角 18.4°，斜切系数 $\tan 18.4^\circ$
 % 约 0.3333，声明中文字族时带上。西文字体有斜体字面的用真的（Times New Roman），没有的
-% （等线）同样斜切：先照常声明，\pkg{fontspec} 没登记出斜体字形的，带上斜切再声明一次。粗体没有照办：中易宋体、黑体这些没有粗体字面，Word 描边
+% （等线）同样斜切：先照常声明，\pkg{fontspec} 没登记出斜体字形的，带上斜切再声明一次。粗体不在声明时办：中易宋体、黑体这些没有粗体字面，Word 描边
 % 合成，线宽是字号的 1/35；等线、微软雅黑有真粗体字面，Word 用真的。\pkg{fontspec} 的
-% \texttt{AutoFakeBold} 不分有没有，一律描边，所以没加；要描边的由文档类照
-% \cs{docxlike\_font\_select\_new:nn} 自己声明。
+% \texttt{AutoFakeBold} 不分有没有，一律描边，所以没加。\hologo{LuaLaTeX} 上样式要了粗体、
+% 排出来却是常规字面的字形，出页前换成描边的同一副字体（见“字符格式”）；文档类自己声明了
+% 合成粗体的字族照它的。
 %    \begin{macrocode}
 \prop_new:N \g__docxlike_font_select_prop
 \tl_new:N \l__docxlike_font_code_tl
@@ -3113,8 +3116,9 @@
           { \tl_put_right:Nn \l__docxlike_format_out_tl { \docxlike_linebreak_kern_on: } }
       }
     \__docxlike_format_read:nnnN {#1} { rPr/b } { false } \l__docxlike_format_value_tl
-    \str_if_eq:VnT \l__docxlike_format_value_tl { true }
-      { \tl_put_right:Nn \l__docxlike_format_out_tl { \bfseries } }
+    \str_if_eq:VnTF \l__docxlike_format_value_tl { true }
+      { \tl_put_right:Nn \l__docxlike_format_out_tl { \bfseries \docxlike_format_bold:n { true } } }
+      { \tl_put_right:Nn \l__docxlike_format_out_tl { \docxlike_format_bold:n { false } } }
     \__docxlike_format_read:nnnN {#1} { rPr/i } { false } \l__docxlike_format_value_tl
     \str_if_eq:VnT \l__docxlike_format_value_tl { true }
       { \tl_put_right:Nn \l__docxlike_format_out_tl { \itshape } }
@@ -3225,6 +3229,13 @@
 % 那一档靠 \pkg{luatexja} 的当前中文字体属性单独定：先按汉字字号选一次字体，记下中文字体，
 % 再按西文字号选，把中文字体放回去。
 %
+% \emph{粗体。} 字体有粗体字面的用真的；没有的（中易宋体、黑体、楷体、仿宋）Word 描边合成，
+% 线宽是字号的 1/35，每个字形的步进多字号的 1/280（Windows 探针 bold1、bold2：9 到 48 磅都是
+% 常规步进的 1.0036 倍左右，微软雅黑不加）。\hologo{LuaLaTeX} 上样式发粗体时立一个属性，出页前
+% 把带着它、字体又是常规字面也没描边的字形换成描边的同一副字体（线宽照 \pkg{luaotfload} 的
+% \texttt{embolden}，系数 2.85）；步进由断行层加，描了边的字体（文档类用 \texttt{AutoFakeBold}
+% 声明的）同样加。
+%
 % \hologo{XeLaTeX} 上没有属性。\cs{docxrun} 里的下划线与上下标退成装盒：下划线在盒下画线，
 % 线照 Times New Roman 的 \texttt{post} 表（粗体用粗体那一组），上下标整盒升降、汉字随西文
 % 字号，这一截不能断行。样式里写的警告一次、不画。
@@ -3316,6 +3327,13 @@
     \newattribute \docxlike@ulfont@attr
     \newattribute \docxlike@va@attr
     \newattribute \docxlike@vaja@attr
+    \newattribute \docxlike@bold@attr
+    \cs_new_protected:Npn \docxlike_format_bold:n #1
+      {
+        \str_if_eq:nnTF {#1} { true }
+          { \docxlike@bold@attr = 1 \scan_stop: \__docxlike_run_used: }
+          { \unsetattribute \docxlike@bold@attr }
+      }
     \cs_new_protected:Npn \__docxlike_run_used:
       {
         \bool_if:NF \g__docxlike_run_used_bool
@@ -3378,10 +3396,12 @@
           luatexbase.attributes["docxlike@ulc@attr"],
           luatexbase.attributes["docxlike@ulfont@attr"],
           luatexbase.attributes["docxlike@va@attr"],
-          luatexbase.attributes["docxlike@vaja@attr"])
+          luatexbase.attributes["docxlike@vaja@attr"],
+          luatexbase.attributes["docxlike@bold@attr"])
       }
   }
   {
+    \cs_new_protected:Npn \docxlike_format_bold:n #1 { }
     \cs_new_protected:Npn \docxlike_format_underline:nn #1#2
       { \str_if_eq:nnF {#1} { none } { \__docxlike_run_warn:n { underline-style } } }
     \cs_new_protected:Npn \docxlike_format_vert_align:n #1
@@ -3496,8 +3516,8 @@
     \__docxlike_format_read:nnnN {#1} { rPr/b } { } \l__docxlike_format_value_tl
     \str_case:VnT \l__docxlike_format_value_tl
       {
-        { true } { \tl_put_right:Nn \l__docxlike_format_out_tl { \bfseries } }
-        { false } { \tl_put_right:Nn \l__docxlike_format_out_tl { \mdseries } }
+        { true } { \tl_put_right:Nn \l__docxlike_format_out_tl { \bfseries \docxlike_format_bold:n { true } } }
+        { false } { \tl_put_right:Nn \l__docxlike_format_out_tl { \mdseries \docxlike_format_bold:n { false } } }
       }
       { }
     \__docxlike_format_read:nnnN {#1} { rPr/i } { } \l__docxlike_format_value_tl
@@ -6073,8 +6093,8 @@
 %
 % \subsection{\file{docxlike-run.lua}}
 %
-% 出页前走一遍整页：先挪上下标的字形，再画下划线。没用过这两样的文档不走。规则见前面
-% “字符格式”一节。
+% 出页前走一遍整页：先挪上下标的字形，再画下划线，最后给要了粗体却排成常规面的字形换上
+% 描边的字体。没用过这几样的文档不走。规则见前面“字符格式”一节。
 %    \begin{macrocode}
 %<*run-lua>
 local M = { used = false, colors = {} }
@@ -6322,12 +6342,56 @@ function M.color(i, hex)
   M.colors[i] = c .. " rg " .. c .. " RG"
 end
 
-function M.install(ul, ulc, ulfont, va, vaja)
-  ul_attr, ulc_attr, ulfont_attr, va_attr, vaja_attr = ul, ulc, ulfont, va, vaja
+-- 粗体：样式要了粗体、排出来的字体却是常规面的（中易宋体、黑体这些没有粗体字面，字体族
+-- 又没声明合成粗体），换成描边的同一副字体，线宽照 luaotfload 的 embolden（字号 × e /
+-- 6578.176），e = 2.85 即 Word 的字号/35。字体自己是粗体面、或已经描边的不动
+local bold_attr
+local EMBOLDEN = 2.85 / 6578.176
+local realbold, clones = {}, {}
+function M.real_bold(fid)
+  local v = realbold[fid]
+  if v == nil then
+    local f = font.getfont(fid)
+    local md = f and f.shared and f.shared.rawdata and f.shared.rawdata.metadata
+    local w = string.lower(md and md.weight or "")
+    v = (f ~= nil and f.mode == 2) or w:find("bold") ~= nil or w:find("black") ~= nil
+      or w:find("heavy") ~= nil
+    realbold[fid] = v
+  end
+  return v
+end
+local function embolden(fid)
+  local c = clones[fid]
+  if not c then
+    local f = font.getfont(fid)
+    if not f or not f.size then return fid end
+    local t = {}
+    for k, v in pairs(f) do t[k] = v end
+    t.mode, t.width = 2, f.size * EMBOLDEN
+    c = font.define(t)
+    clones[fid] = c
+    realbold[c] = true
+  end
+  return c
+end
+local function bolden(head)
+  for n in traverse(head) do
+    local id = n.id
+    if id == GLYPH then
+      if has_attr(n, bold_attr) and not M.real_bold(n.font) then n.font = embolden(n.font) end
+    elseif id == HLIST or id == VLIST then
+      bolden(n.list)
+    end
+  end
+end
+
+function M.install(ul, ulc, ulfont, va, vaja, bold)
+  ul_attr, ulc_attr, ulfont_attr, va_attr, vaja_attr, bold_attr = ul, ulc, ulfont, va, vaja, bold
   luatexbase.add_to_callback("pre_shipout_filter", function(h)
     if M.used then
       shift(h)
       walk(h)
+      if bold_attr then bolden(h) end
     end
     return true
   end, "docxlike.run")

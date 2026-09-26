@@ -6,6 +6,8 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/26}{“为字体调整字间距”照字体的老式 kern 表收字偶距，空格的配对也收（\pkg{luaotfload}
+%   只在 kern 表有两张以上子表时才读，Times New Roman 一对都不收）；合成粗体每个字形加字号的 1/280}
 % \changes{v3.2a}{2026/09/26}{单字步进照 Windows Word 实测（探针 adv1--adv5）：网格增量只看字体的
 %   “对齐到网格”；平衡选项开着时汉字加增量与两份 \texttt{w:spacing}、西文每个字形加半个增量与一份，
 %   不分字号（先前西文只在正文字号加）；居中、右对齐在兼容模式 15 以下、\texttt{adjustRightInd}
@@ -307,6 +309,147 @@ local function fspace(fid)
 end
 -- luaotfload 的 LetterSpace 往每个字形后面的 kern 里加的量（kerncharacters 乘 quad）；
 -- 字体自己的字距对（Word 开着字距调整时照用）是 kern 减去这一份
+-- 合成粗体的步进：Word 给没有粗体字面的字体描边合成粗体时，每个字形的步进多字号的 1/280
+-- （Windows 探针 bold1、bold2：中易宋体、黑体 9 到 48 磅都是常规步进的 1.0036 倍左右，
+-- 雅黑这种有真粗体的不加）。合成粗体是字体描了边（mode 2），或者样式要了粗体、字体却是常规面
+-- （出页前 docxlike-run.lua 才换成描边的），见 format 的“字符格式”
+local boldcache = {}
+local bold_attr = false
+-- 每副字体记三样：描没描边、是不是粗体字面、合成粗体多出的步进
+local function bold_info(fid)
+  local v = boldcache[fid]
+  if not v then
+    local f = font.getfont(fid)
+    local md = f and f.shared and f.shared.rawdata and f.shared.rawdata.metadata
+    local w = string.lower(md and md.weight or "")
+    v = { stroked = f ~= nil and f.mode == 2,
+          real = w:find("bold") ~= nil or w:find("black") ~= nil or w:find("heavy") ~= nil,
+          extra = ((f and f.size) or 0) / 280 }
+    boldcache[fid] = v
+  end
+  return v
+end
+local function fake_bold(n)
+  if bold_attr == false then bold_attr = luatexbase.attributes["docxlike@bold@attr"] end
+  local b = bold_info(n.font)
+  if b.stroked then return b.extra end
+  if bold_attr and not b.real and node.has_attribute(n, bold_attr) then return b.extra end
+  return 0
+end
+M.fake_bold = fake_bold
+-- 字偶距：Word 的“为字体调整字间距”照字体的老式 kern 表收（GDI 读的就是它，空格也有配对，
+-- Times New Roman 粗体“Y 空格”−76/2048 em）。luaotfload 的 fontloader 只在 kern 表有两张以上
+-- 子表时才读（checkkerns 的 noftables > 1），Times New Roman 5.01 只有一张、GPOS 里又没有 kern
+-- 特性，结果一对都不收；这里自己读格式 0 的横排子表。GPOS 有 kern 特性的仍交给 luaotfload
+local kernfile, kerncache = {}, {}
+local function read_kern_table(filename, subfont)
+  local fh = io.open(filename, "rb")
+  if not fh then return nil end
+  local hdr = fh:read(12)
+  if hdr and hdr:sub(1, 4) == "ttcf" then
+    fh:seek("set", 12 + 4 * ((subfont or 1) - 1))
+    local base = string.unpack(">I4", fh:read(4))
+    fh:seek("set", base); hdr = fh:read(12)
+  end
+  if not hdr or #hdr < 12 then fh:close(); return nil end
+  local n = string.unpack(">I2", hdr, 5)
+  local dir = fh:read(16 * n)
+  local kern, head
+  for i = 0, n - 1 do
+    local tag, _, off, len = string.unpack(">c4I4I4I4", dir, 1 + 16 * i)
+    if tag == "kern" then kern = { off, len } elseif tag == "head" then head = off end
+  end
+  if not kern or not head then fh:close(); return nil end
+  fh:seek("set", head + 18)
+  local upem = string.unpack(">I2", fh:read(2))
+  fh:seek("set", kern[1])
+  local data = fh:read(kern[2])
+  fh:close()
+  local version, ntab = string.unpack(">I2I2", data, 1)
+  if version ~= 0 then return nil end
+  local t, pos = {}, 5
+  for _ = 1, ntab do
+    local _, len, cov = string.unpack(">I2I2I2", data, pos)
+    if cov >> 8 == 0 and cov & 7 == 1 then
+      local np = string.unpack(">I2", data, pos + 6)
+      local q = pos + 14
+      for _ = 1, np do
+        local l, r, v = string.unpack(">I2I2i2", data, q)
+        local row = t[l]
+        if not row then row = {}; t[l] = row end
+        row[r] = (row[r] or 0) + v
+        q = q + 6
+      end
+    end
+    pos = pos + len
+  end
+  return t, upem
+end
+local function kern_pairs(fid)
+  local v = kerncache[fid]
+  if v ~= nil then return v end
+  v = false
+  local f = font.getfont(fid)
+  local gpos = f and f.resources and f.resources.features and f.resources.features.gpos
+  if f and f.filename and f.size and not is_jfont(fid) and not (gpos and gpos.kern) then
+    local sub = f.subfont or (f.specification and f.specification.sub)
+    local key = f.filename .. ":" .. tostring(sub)
+    local raw = kernfile[key]
+    if raw == nil then
+      local ok, t, upem = pcall(read_kern_table, f.filename, sub)
+      raw = (ok and t and upem) and { t, upem } or false
+      kernfile[key] = raw
+    end
+    -- 表是按字形号记的；查的时候按字符取字形号（空格与不间断空格共用一个字形，不能反查）
+    if raw then v = { pairs = raw[1], scale = f.size / raw[2], chars = f.characters or {} } end
+  end
+  kerncache[fid] = v
+  return v
+end
+local function pair_kern(fid, a, b)
+  local t = kern_pairs(fid)
+  if not t then return 0 end
+  local ca, cb = t.chars[a], t.chars[b]
+  local r = ca and cb and ca.index and t.pairs[ca.index]
+  local val = r and r[cb.index]
+  return val and math.floor(val * t.scale + 0.5) or 0
+end
+M.pair_kern = pair_kern
+local function kern_enabled(n)
+  if not M.kern_attr then return true end
+  local v = node.get_attribute(n, M.kern_attr)
+  return v == nil or v ~= 0
+end
+-- 相邻两个同字体的西文字形之间补字偶距；夹着 LetterSpace 的 kern 就加在它上面
+local function legacy_kern(head)
+  local lastg, mid = nil, nil
+  local n = head
+  while n do
+    local id = n.id
+    if id == GLYPH then
+      if lastg and lastg.font == n.font and kern_enabled(lastg) then
+        local k = pair_kern(n.font, lastg.char, n.char)
+        if k ~= 0 then
+          if mid then
+            mid.kern = mid.kern + k
+          else
+            local kn = node.new(KERN); kn.subtype = 0; kn.kern = k
+            head = node.insert_after(head, lastg, kn)
+          end
+        end
+      end
+      lastg, mid = n, nil
+    elseif id == KERN and n.subtype == 0 and lastg and not mid then
+      mid = n
+    elseif id == DISC and lastg and not mid then
+      -- 断字点（没断时两个字形照样相邻）：隔着它照收，kern 放在它前面
+    else
+      lastg, mid = nil, nil
+    end
+    n = n.next
+  end
+  return head
+end
 local lscache = {}
 local function fletter(fid)
   local v = lscache[fid]
@@ -390,8 +533,9 @@ local function tokenize(head)
     lastsize = size; lastfont = n.font
     if not run then
       run = { kind = 3, first = n, last = n, gw = 0, gn = 0, kw = 0, head = c, tail = c, kerns = {}, glist = {},
-              size = size, head_w = w, second_w = 0, tail_w = w, c = c }
+              size = size, head_w = w, second_w = 0, tail_w = w, c = c, fb = fake_bold(n), font = n.font }
     end
+    run.tailfont = n.font
     if is_code(n) then run.code = true end
     run.last = n; run.core = n; run.gw = run.gw + w; run.gn = run.gn + 1; run.tail = c; run.tail_w = w
     if run.gn == 2 then run.second_w = w end
@@ -402,12 +546,14 @@ local function tokenize(head)
   -- 交给 jfont 排的字：汉字/全角标点占一格，别的东亚符号按自己的宽
   local function putja(n, c, w, size)
     lastsize = size
-    if closers[c] then put(1, n, n, size, c, size)
-    elseif openers[c] then put(2, n, n, size, c, size)
+    local it
+    if closers[c] then it = put(1, n, n, size, c, size)
+    elseif openers[c] then it = put(2, n, n, size, c, size)
     elseif not is_wide(c) then
-      local it = put((no_line_start[c] and not connectors[c]) and 1 or 0, n, n, w, c, size)
+      it = put((no_line_start[c] and not connectors[c]) and 1 or 0, n, n, w, c, size)
       it.symbol = true
-    else put(0, n, n, size, c, size) end
+    else it = put(0, n, n, size, c, size) end
+    if n.id == GLYPH then it.fb = fake_bold(n) end
   end
   local n = head
   local indent = 0
@@ -456,7 +602,7 @@ local function tokenize(head)
         -- 词间空格：宽按字体自己的空格，不按 spaceskip（见 fspace）
         local w = lastfont and fspace(lastfont) or 0
         if w <= 0 then w = n.width end
-        put(4, n, n, w, nil)
+        put(4, n, n, w, nil).sfont = lastfont
       elseif n.subtype == 0 and n.width > 0 then
         -- 手写的 \hskip、\hspace：可断的位置，宽照它自己的（ulem 的负胶、leaders 不算）
         local it = put(4, n, n, n.width, nil)
@@ -604,25 +750,25 @@ local function natural(items, P)
     end
     it.paired = paired
     if it.kind == 0 then
-      it.nw = it.symbol and symbol_width(it) or (it.w + P.excess)
+      it.nw = it.symbol and symbol_width(it) or (it.w + P.excess + (it.fb or 0))
       it.spot = false
     elseif it.kind == 1 and it.symbol then
       -- 不能起行的符号（℃、°）：像闭号一样挂；只有间隔号有空白可压
       it.full = symbol_width(it); it.nw = it.full
       it.spot = (it.c == 0xB7)
     elseif it.kind == 1 then
-      it.full = it.w + P.excess
+      it.full = it.w + P.excess + (it.fb or 0)
       it.nw = paired and it.full / 2 or it.full
       it.spot = (not paired) and not never_compressed[it.c]
     elseif it.kind == 2 then
-      it.full = it.w + P.excess
+      it.full = it.w + P.excess + (it.fb or 0)
       it.nw = paired and it.full / 2 or it.full
       -- 紧跟在别的标点后面的开号没有自己的空白可让，除非那个标点已经缩成半格
       it.spot = (not paired) and not (prev and (prev.kind == 1 or prev.kind == 2) and not prev.paired and not prev.symbol)
     elseif it.kind == 3 then
       if it.rigid then it.nw = it.w
       elseif latinish[it.c] and it.w >= it.size * 0.9 then it.nw = it.w + P.excess
-      else it.nw = it.w + (it.code and 0 or P.latin_add) * it.gn end
+      else it.nw = it.w + ((it.code and 0 or P.latin_add) + (it.fb or 0)) * it.gn end
       if prev and prev.kind == 0 and not prev.symbol and is_alnum(it.head) and auto_ok(P, it.head) then gap = auto_at(P, prev.size) end
       it.spot = false
     else
@@ -645,7 +791,19 @@ local function natural(items, P)
           if i <= n and wide_next(items[i]) then ctx = true end
         end
         if ctx then it.nw = P.half_space or (it.size + P.excess) / 2; it.rigid = true
-        else it.nw = it.w + P.space_add; it.rigid = false end
+        else
+          -- 西文词间的空格：前字与空格、空格与后字两对字偶距（同一副字体、开着字距调整时）
+          local sk = 0
+          if it.sfont and kern_on(it) then
+            if prev and prev.kind == 3 and prev.glyphs and prev.tailfont == it.sfont then
+              sk = sk + pair_kern(it.sfont, prev.tail, 32)
+            end
+            if nx and nx.kind == 3 and nx.glyphs and nx.font == it.sfont then
+              sk = sk + pair_kern(it.sfont, 32, nx.head)
+            end
+          end
+          it.nw = it.w + P.space_add + sk; it.rigid = false
+        end
       end
       it.spot = false
     end
@@ -698,7 +856,7 @@ local function split_run(items, k, g, P)
   end
   a.discs, b.discs = da, db
   a.w, b.w = a.gw + a.kw, b.gw + b.kw
-  local ladd = it.code and 0 or P.latin_add
+  local ladd = (it.code and 0 or P.latin_add) + (it.fb or 0)
   a.nw, b.nw = a.w + ladd * a.gn, b.w + ladd * b.gn
   b.gap = 0
   a.emergency = true
@@ -1382,7 +1540,7 @@ local function decide(items, P, shape, indent)
         local g = 0
         local acc = w0
         for i, gn in ipairs(it.glist) do
-          local add = gn.width + (it.code and 0 or P.latin_add)
+          local add = gn.width + (it.code and 0 or P.latin_add) + (it.fb or 0)
           if acc + add <= capacity + eps then acc = acc + add; g = i else break end
         end
         -- 按实际的字形表判断：gn 与字形表长度可以不等，拆在最后一个字形后会拆出空的后半段
@@ -1642,7 +1800,8 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
         if g == it.last then break end
         g = g.next
       end
-      local add = (latinish[it.c] and it.w >= it.size * 0.9) and (it.nw - it.w) or (it.code and 0 or P.latin_add)
+      local add = (latinish[it.c] and it.w >= it.size * 0.9) and (it.nw - it.w)
+        or ((it.code and 0 or P.latin_add) + (it.fb or 0))
       for _, g in ipairs(it.glist) do
         local kn = node.new(KERN); kn.kern = add
         node.insert_after(head, g, kn)
@@ -2097,6 +2256,7 @@ function M.filter(head, is_display)
     atbody = math.abs(em - body) < 256
     cell = em + inc
   end
+  head = legacy_kern(head)
   local items, indent, strut_h, strut_d = tokenize(head)
   if #items == 0 then return true end
   local bp = 65781.76
@@ -2226,7 +2386,6 @@ function M.grid_box(n, inc, spacing, balance)
   if not b then return end
   local ec = inc + (balance and 2 or 1) * spacing
   local el = (balance and inc / 2 or inc) + spacing
-  if ec == 0 and el == 0 then return end
   local head, added = b.list, 0
   for g in traverse(head) do
     if g.id == GLYPH then
@@ -2237,6 +2396,7 @@ function M.grid_box(n, inc, spacing, balance)
       else
         add = el
       end
+      add = add + fake_bold(g)
       if add ~= 0 then
         local k = node.new(KERN); k.kern = add
         head = node.insert_after(head, g, k)
