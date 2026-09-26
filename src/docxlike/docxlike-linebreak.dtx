@@ -8,6 +8,8 @@
 %
 % \changes{v3.2a}{2026/09/26}{“文字对齐字符网格”的节里另走一套装行与排行：汉字一格一个，连续的西文
 %   按自然宽占整数格，都居中；按格数断行，西文整截下行，行首禁则把前一个字推下去；对齐方式不起作用}
+% \changes{v3.2a}{2026/09/26}{网格不启用的节（\texttt{docGrid} 没写 \texttt{w:type}）对齐范围取整个版心，
+%   不按节里记着的格宽收到整数格}
 % \changes{v3.2a}{2026/09/26}{断行容量与对齐范围看段落自己的 \texttt{adjustRightInd}（先前全局当作关着）：
 %   开着时按整数个格装、两端对齐只撑到最后一格，这种段里西文字形加的量截到 1/6000 英寸（字距 1861 时
 %   0.216，不是半个增量 0.2271）。Windows 探针 \file{ari1} 144 行、\file{fn1} 与范例英文摘要的断行都与
@@ -1924,10 +1926,12 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
   -- 格宽数，再减段落缩进（shd1：左右各缩 24.9 的段装到 373.24，不是缩进后再数的 29 格）。两端对齐的段
   -- 断行按版心装进来的行超出整数格的部分照挤标点的规矩挤掉，只撑到最后一格，余量留在行尾（范例 d-stem
   -- 的摘要段没写 adjustRightInd，行尾停在第 34 格；正文段写了 0，撑满版心）。居中、右对齐的行只按整数格
-  -- 定位（见下面），不另挤；表格单元格里老模式不按整格
+  -- 定位（见下面），不另挤；表格单元格里老模式不按整格。网格不启用（docGrid 没写 w:type）的节没有
+  -- 字符网格，节里记着的格宽不算，对齐范围是整个版心（Windows 探针 rep-szbprop：深圳本科报告首页的
+  -- 校名居中在整个版心上，按 12 磅的格宽收到 34 格就偏左 3.65）
   local target = line.capacity
   if M.compat < 15 and P.ari and P.justify and not P.table_cell and not P.nogrid
-    and P.cell0 and P.cell0 > 0 then
+    and M.grid_on and P.cell0 and P.cell0 > 0 then
     local full = tex.hsize
     target = math.min(target, math.floor(full / P.cell0 + 1e-6) * P.cell0 - (full - measure))
   end
@@ -2164,7 +2168,8 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
     -- 对齐范围：兼容模式低于 15、“自动调整右缩进”开着、这一节有字符网格时是整数个格（节的格宽），
     -- 否则整个版心（探针 adv1、adv3、adv4）；表格单元格里是整个格宽（探针 tbl1）
     local area = measure
-    if M.compat < 15 and P.ari and not P.nogrid and not P.table_cell and P.cell0 and P.cell0 > 0 then
+    if M.compat < 15 and P.ari and not P.nogrid and M.grid_on and not P.table_cell
+        and P.cell0 and P.cell0 > 0 then
       area = math.floor(measure / P.cell0 + 1e-6) * P.cell0
     end
     if area < measure then
@@ -2690,7 +2695,8 @@ local function shade_line(box, color, first, ctx, measure, P)
   local data = runm and runm.colors and runm.colors[color]
   if not data then return end
   local area = measure
-  if M.compat < 15 and P.ari and not P.nogrid and not P.table_cell and P.cell0 and P.cell0 > 0 then
+  if M.compat < 15 and P.ari and not P.nogrid and M.grid_on and not P.table_cell
+      and P.cell0 and P.cell0 > 0 then
     area = math.floor(measure / P.cell0 + 1e-6) * P.cell0
   end
   local ext = math.floor(1.5 * P.bp + 0.5)
@@ -2718,6 +2724,7 @@ end
 
 function M.filter(head, is_display)
   M.cell = getbool("l_docxlike_table_cell_bool") == true
+  M.grid_on = getbool("g_docxlike_grid_bool") ~= false
   local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
   local align = align_of(ls, rs)
   if M.attr and (node.get_attribute(head, M.attr) or 0) == 0 then return skip("attr") end
