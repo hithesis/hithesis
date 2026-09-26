@@ -109,7 +109,7 @@ lineends-typst:
 # 棘轮是配上且 |Δy| ≤ 0.5bp 的行数。靶子来路见 tests/pages-doctor.tsv 头注释
 pages-doctor:
 	cd tests/sample/doctor && TEXINPUTS="$(CURDIR):" BSTINPUTS="$(CURDIR):" latexmk main.tex > /dev/null
-	python3 scripts/check-pages.py --pdf tests/sample/doctor/main.pdf --fixture tests/pages-doctor.tsv --min-ok 232
+	python3 scripts/check-pages.py --pdf tests/sample/doctor/main.pdf --fixture tests/pages-doctor.tsv --min-ok 233
 
 # 本科那份同理：对拍件 tests/sample/bachelor 引博士那份的正文，靶子是模式 15 的本科范例修正版。
 # 2026-09-21 靶子重制（空段按正文格式、表后头一段段前一行空段也算、章前分节符、页码起点删）
