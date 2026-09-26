@@ -14,6 +14,10 @@
 % \changes{v3.2a}{2026/09/26}{填写线与签字线改用 \cs{docxrun} 的下划线：原件的填写线是带下划线
 %   的粗体空格，线照 Times New Roman 粗体的 post 表；先前数学模式的 \cs{underline} 跟着内容的
 %   深度走，各行高低不一}
+% \changes{v3.2a}{2026/09/26}{研究生与哈尔滨、威海本科报告的首页照原件的段落序列排，不再用
+%   \cs{parbox} 加 \env{tabular} 摆：原件那一页是一串段落，字段是标签加一串带下划线的半角空格。
+%   研究生照研究生院现行的模板（学院（部）、学科/专业学位类别，“（学位论文）”或“（实践成果）”
+%   一行，落款研究生院制），各校区一样；本科照教务处的中期报告原件，校徽嵌在段里}
 %
 % 深圳博士中期那份封面拿 \cs{AddToShipoutPicture} 往整页上贴图形，要 \pkg{eso-pic}
 % 与 \pkg{tikzpagenodes}。别的组合下这三个包一个都不装。
@@ -28,127 +32,179 @@
     \RequirePackage { tikz }
   }
 
-\cs_new_protected:Npn \hit@report@title@page@graduate
-  {
-~
- \hit@fontsize@x{xiaosi}{1}\textcolor[rgb]{1,1,1}{\songti{\hit@term@cover@hi}}%
- \vspace*{10mm}~
 %    \end{macrocode}
 %
+% \emph{研究生报告的首页照研究生院现行的模板排。} 那一页在原件里是一串段落，不是表：
+% 两个空段、校名、空段、“博士学位开题报告”、空段、“题\ 目：”、“（学位论文／实践成果）”、
+% 六个字段、五个空段、“研究生院制”。字段一段一个，标签是敲的字与半角空格，后面跟一串
+% 加下划线的半角空格当填写线，学院那一行 26 个、学科 25 个、别的 29 个，所以填写线的起止
+% 参差不齐，照抄。取值放在填写线正中。学号那个标签原件的 run 上有 0.6 磅字距，
+% 每个字与空格各多两份（没有字符网格，平衡单字节与双字节字符开着）。
+% 各段的格式在 \file{hit-layout.dtx}（\option{report-grad-} 那几个样式与 \option{cover}
+% 那一节的页面设置），标签在 \file{hit-terms.dtx}。说明页原件接在首页后面，这里不排。
+%    \begin{macrocode}
+\tl_new:N \l__hit_report_grad_label_tl
+\cs_new_protected:Npn \__hit_report_grad_blank:n #1
+  { \docxlike_format_par:nn {#1} { \mbox { } } }
+\cs_new_protected:Npn \__hit_report_grad_label:nn #1#2
+  {
+    \tl_set:Ne \l__hit_report_grad_label_tl {#2}
+    \dim_compare:nNnTF {#1} = { 0pt }
+      { \l__hit_report_grad_label_tl }
+      {
+        \tl_map_inline:Nn \l__hit_report_grad_label_tl
+          { ##1 \skip_horizontal:n { (#1) * 2 } }
+      }
+  }
+\cs_new_protected:Npn \__hit_report_grad_field:nnnnn #1#2#3#4#5
+  {
+    \docxlike_format_par:nnn { report-grad-field } {#1}
+      {
+        \__hit_report_grad_label:nn {#2} {#3}
+        \docxrun [ underline-style = single , font-style = bold ]
+          { \hbox_to_wd:nn { 0.5em * #4 } { \hfil #5 \hfil } }
+      }
+  }
+\cs_new_protected:Npn \__hit_report_grad_type:
+  {
+    \tl_clear:N \l__hit_report_grad_label_tl
+    \cs_if_exist:NT \hit@info@report@type@zh
+      { \tl_set:Ne \l__hit_report_grad_label_tl { \hit@info@report@type@zh } }
+    \tl_if_blank:VT \l__hit_report_grad_label_tl
+      {
+        \tl_set:Ne \l__hit_report_grad_label_tl
+          {
+            \bool_if:NTF \g__hit_practice_bool
+              { \hit@term@cover@report@type@practice }
+              { \hit@term@cover@report@type@dissertation }
+          }
+      }
+    （ \l__hit_report_grad_label_tl ）
+  }
+\cs_new_protected:Npn \hit@report@title@page@graduate
+  {
+    \hit@layout@push@part:n { cover }
+    \group_begin:
+      \dim_zero:N \parindent
+      \dim_zero:N \parskip
+      \__hit_report_grad_blank:n { report-grad-blank-head }
+      \__hit_report_grad_blank:n { report-grad-blank-head }
+      \docxlike_format_par:nn { report-grad-university }
+        {
+          \hit@term@cover@university@zh
+          \hit@if@option@T { weihai } { （ \hit@term@cover@campus ） }
+        }
+      \__hit_report_grad_blank:n { report-grad-blank-head }
+      \docxlike_format_par:nn { report-grad-name }
+        {
+          \hit@term@cover@degree@level@zh \hit@term@cover@document@type
+          \hit@stage@name \hit@term@cover@stage@document@type
+        }
+      \__hit_report_grad_blank:n { report-grad-blank }
+      \docxlike_format_par:nn { report-grad-title }
+        {
+          \hit@term@cover@title@prefix \hit@term@cover@title@separator@zh
+          \hit@info@title@cover@zh
+        }
+      \docxlike_format_par:nn { report-grad-type } { \__hit_report_grad_type: }
+      \__hit_report_grad_field:nnnnn { paragraph = { spacing = { before = 12bp } } }
+        { 0pt } { \hit@term@cover@affiliation } { 26 } { \hit@info@affiliation@zh }
+      \__hit_report_grad_field:nnnnn { } { 0pt } { \hit@term@cover@major } { 25 }
+        { \hit@info@major@zh }
+      \__hit_report_grad_field:nnnnn { } { 0pt } { \hit@term@cover@supervisor } { 29 }
+        { \hit@info@supervisor@zh }
+      \__hit_report_grad_field:nnnnn { } { 0pt } { \hit@term@cover@student } { 29 }
+        { \hit@info@author@zh }
+      \__hit_report_grad_field:nnnnn { } { 0.6bp } { \hit@term@cover@student@id } { 29 }
+        { \hit@info@student@id }
+      \__hit_report_grad_field:nnnnn { } { 0pt } { \hit@term@cover@report@date } { 29 }
+        { \hit@info@date@zh }
+      \prg_replicate:nn { 5 } { \__hit_report_grad_blank:n { report-grad-blank-foot } }
+      \docxlike_format_par:nn { report-grad-mark } { \hit@term@cover@bottom@mark@graduate }
+    \group_end:
+    \hit@layout@pop@part:
+  }
+%    \end{macrocode}
+%
+% 旧版首页（\cs{parbox} 加 \env{tabular} 排的）留下的修订记录：
 % \changes{v3.0.22}{2022/05/16}{深圳校区中期模板封面范例中为“哈尔滨工业大学”。\issue[126]}
 % \changes{v3.1c}{2023/04/16}{修改深圳校区硕士开题封面中的字号与字距。\issue[141]}
 % \changes{v3.1c}{2023/04/16}{修改深圳校区硕士中期封面中的字号与字距。\issue[166]}
 % \changes{v3.1d}{2025/03/03}{修改威海校区硕士开题封面中的字号与字距。\issue[219]}
-%    \begin{macrocode}
- \begin{center}~
- % \kaishu\xiaoer\textbf{\hit@term@cover@university@zh\hit@if@option@T{shenzhen}{（\hit@term@cover@campus）}}
- \hit@term@cover@university@font\kaishu\xiaoer\textbf{\hit@term@cover@university@zh\hit@if@option@T{weihai}{（\hit@term@cover@campus）}}
- \end{center}~
- \vspace{5mm}~
- \begin{center}~
- \hit@term@cover@document@type@font~
- \songti\textbf{\hit@term@cover@degree@level@zh\hit@term@cover@document@type
- \hit@stage@name
- \hit@term@cover@stage@document@type
- }
- \end{center}~
- \vspace{10mm}~
- \parbox[t][3cm][t]{\textwidth}{~
- \begin{center}~
- \songti\xiaoer\textbf{\hit@term@cover@title@prefix\hit@term@cover@title@separator@zh\hit@info@title@cover@zh}~
- \\[12bp]~
-%    \end{macrocode}
-%
-%    \begin{macrocode}
- \par
- \hit@term@cover@report@type@line
- \end{center}~
- }~
- \parbox[b][3cm][t]{\textwidth}{~
-%    \end{macrocode}
-%
-% \cs{hfuzz} 要设在 \cs{parbox} \emph{里面}：\hologo{LaTeX} 的 \cs{@parboxrestore} 末尾
-% 有一句 \cs{sloppy}，而 \cs{sloppy} 把 \cs{hfuzz} 定成 0.5pt，设在
-% \cs{makecover} 里的值一进 \cs{parbox} 就被复位了。
-%    \begin{macrocode}
- \dim_set:Nn \hfuzz { 1em }~
- \begin{center}\songti\sanhao
- \cs_set:Npn \arraystretch {2.1}~
- \begin{tabular}{l@{\ \ }c}~
- \textbf{\hit@term@cover@affiliation}~&~\docxrun[underline-style=single,font-style=bold]{\makebox[6.1cm]{\textbf{\hit@info@affiliation@zh}}}\\~
- \textbf{\hit@term@cover@major}~&~\docxrun[underline-style=single,font-style=bold]{\makebox[6.1cm]{\textbf{\hit@info@major@zh}}}\\~
- \textbf{\hit@term@cover@supervisor}~&~\docxrun[underline-style=single,font-style=bold]{\makebox[6.1cm]{\textbf{\hit@info@supervisor@zh}}}\\~
-%    \end{macrocode}
-%
 % \changes{v3.0.03}{2020/07/03}{fix author name bug}
-%    \begin{macrocode}
- \textbf{\hit@term@cover@student}~&~\docxrun[underline-style=single,font-style=bold]{\makebox[6.1cm]{\textbf{\hit@info@author@zh}}}\\~
- \textbf{\hit@term@cover@student@id}~&~\docxrun[underline-style=single,font-style=bold]{\makebox[6.1cm]{\textbf{\hit@info@student@id}}}\\~
- \textbf{\hit@term@cover@report@date}~&~\docxrun[underline-style=single,font-style=bold]{\makebox[6.1cm]{\textbf{\hit@info@date@zh}}}\\~
- \end{tabular}\cs_set:Npn \arraystretch {1}
- \end{center}~
- }~
- \vfill
- \hit@if@option@TF{harbin}{\hit@term@cover@school@bottom@mark}{%
-%    \end{macrocode}
-%
 % \changes{v3.0.22}{2022/05/16}{深圳校区中期模板封面范例中没有“哈工大（深圳）制”字样。\issue[126]}
 % \changes{v3.1c}{2023/04/16}{深圳校区硕士开题封面范例中有“深圳校区教务部~制”}
 %    \begin{macrocode}
- \hit@if@both@options@TF{shenzhen}{proposal}{\hit@term@cover@school@bottom@mark@shenzhen@master}{}%
- }~
+%    \end{macrocode}
+%
+% \emph{哈尔滨、威海本科报告的首页照教务处的原件排}（《本科毕业论文（设计）中期报告》，开题那份
+% 同一套、只差阶段）：一个 12 磅空段、两个 18 磅空段、嵌着校徽的一段、18 磅空段、文种、两个
+% 空段、“题\ 目：”、四个空段、五个字段、两个空段、落款。字段是标签、一个半角空格、21 个
+% 加下划线的半角空格；专业名长过填写线时填写线跟着放长（\issue[199]）。格式在
+% \file{hit-layout.dtx} 的 \option{report-bach-} 那几个样式。
+%    \begin{macrocode}
+\dim_new:N \l__hit_report_bach_line_dim
+\cs_new_protected:Npn \__hit_report_bach_field:nn #1#2
+  {
+    \docxlike_format_par:nn { report-bach-field }
+      {
+        #1 \hit@sp
+        \docxrun [ underline-style = single , font-style = bold ]
+          { \hbox_to_wd:nn { \l__hit_report_bach_line_dim } { \hfil #2 \hfil } }
+      }
   }
-
 \cs_new_protected:Npn \hit@report@title@page@bachelor
   {
-~
- \hit@fontsize@x{xiaosi}{1}\textcolor[rgb]{1,1,1}{\songti{\hit@term@cover@hi}}%
- \vspace*{10mm}~
- \begin{center}~
- \includegraphics[width=6.2cm]{hit-logo}
- \end{center}~
+    \hit@layout@push@part:n { cover }
+    \group_begin:
+      \dim_zero:N \parindent
+      \dim_zero:N \parskip
+      \__hit_report_grad_blank:n { report-bach-blank-small }
+      \__hit_report_grad_blank:n { report-bach-blank-head }
+      \__hit_report_grad_blank:n { report-bach-blank-head }
+      \docxlike_format_par:nn { report-bach-blank-head }
+        { \includegraphics [ width = 167.8bp ] { hit-logo } }
+      \__hit_report_grad_blank:n { report-bach-blank-head }
+      \docxlike_format_par:nn { report-bach-name }
+        {
+          \hit@term@cover@document@type@level \hit@term@cover@document@type
+          \hit@stage@name \hit@term@cover@stage@document@type
+        }
+      \__hit_report_grad_blank:n { report-bach-blank }
+      \__hit_report_grad_blank:n { report-bach-blank }
+      \docxlike_format_par:nn { report-bach-title }
+        {
+          \hit@term@cover@title@prefix \hit@term@cover@title@separator@zh
+          \hit@info@title@cover@zh
+        }
+      \__hit_report_grad_blank:n { report-bach-blank }
+      \prg_replicate:nn { 3 } { \__hit_report_grad_blank:n { report-bach-blank-wide } }
+      \docxlike_format_apply_font:nN { report-bach-field } \l_tmpa_tl
+      \hbox_set:Nn \l_tmpa_box
+        {
+          \l_tmpa_tl
+          \dim_gset:Nn \g_tmpa_dim { 10.5em }
+          \bfseries \hit@info@major@zh
+        }
+      \dim_set:Nn \l__hit_report_bach_line_dim
+        { \dim_max:nn { \g_tmpa_dim } { \box_wd:N \l_tmpa_box } }
+      \__hit_report_bach_field:nn { \hit@term@cover@major@bachelor } { \hit@info@major@zh }
+      \__hit_report_bach_field:nn { \hit@term@cover@student@bachelor } { \hit@info@author@zh }
+      \__hit_report_bach_field:nn { \hit@term@cover@student@id@bachelor } { \hit@info@student@id }
+      \__hit_report_bach_field:nn { \hit@term@cover@supervisor@bachelor } { \hit@info@supervisor@zh }
+      \__hit_report_bach_field:nn { \hit@term@cover@report@date@bachelor } { \hit@info@date@zh }
+      \__hit_report_grad_blank:n { report-bach-blank }
+      \__hit_report_grad_blank:n { report-bach-blank }
+      \docxlike_format_par:nn { report-bach-mark } { \hit@cover@bottommark }
+    \group_end:
+    \hit@layout@pop@part:
+  }
 %    \end{macrocode}
 %
+% 旧版本科首页（\cs{parbox} 加 \env{tabular} 排的）留下的修订记录：
 % \changes{v3.1d}{2025/03/03}{根据 \issue[213] 更改哈尔滨本科开题和中期封面，多了“本科”}
-%    \begin{macrocode}
- \begin{center}~
- \songti\xiaoyi\textbf{%
- \hit@term@cover@degree@prefix
- \hit@term@cover@document@type
- \hit@stage@name
- \hit@term@cover@stage@document@type
- }
- \end{center}~
- \vspace{15mm}~
- \parbox[t][6.5cm][t]{\textwidth}{~
- \begin{center}~
- \songti\xiaoer\textbf{\hit@term@cover@title@prefix\hit@term@cover@title@separator@zh\hit@info@title@cover@zh}
- \end{center}~
- }~
- \parbox[b][6cm][t]{\textwidth}{~
- \begin{center}\songti\sanhao
- \cs_set:Npn \arraystretch {2.1}~
-%    \end{macrocode}
-%
 % \changes{v3.1d}{2025/03/03}{本科专业可能太长，自适应一下。\issue[199]}
 %    \begin{macrocode}
- \skip_new:N \subject@length
- \skip_new:N \tmp@length
- \settowidth{\tmp@length}{\hit@info@major@zh}~
- \dim_set:Nn \subject@length {\dim_compare:nNnTF{\tmp@length}>{6.1cm}{\tmp@length }{6.1cm~}}~
- \begin{tabular}{l@{\ \ }c}~
- \textbf{\hit@term@cover@major@bachelor}~&~\docxrun[underline-style=single,font-style=bold]{\makebox[\subject@length]{\textbf{\hit@info@major@zh}}}\\~
- \textbf{\hit@term@cover@student@bachelor}~&~\docxrun[underline-style=single,font-style=bold]{\makebox[\subject@length]{\textbf{\hit@info@author@zh}}}\\~
- \textbf{\hit@term@cover@student@id@bachelor}~&~\docxrun[underline-style=single,font-style=bold]{\makebox[\subject@length]{\textbf{\hit@info@student@id}}}\\~
- \textbf{\hit@term@cover@supervisor@bachelor}~&~\docxrun[underline-style=single,font-style=bold]{\makebox[\subject@length]{\textbf{\hit@info@supervisor@zh}}}\\~
- \textbf{\hit@term@cover@report@date@bachelor}~&~\docxrun[underline-style=single,font-style=bold]{\makebox[\subject@length]{\textbf{\hit@info@date@zh}}}\\~
- \end{tabular}\cs_set:Npn \arraystretch {1}
- \end{center}~
- }~
- \vfill
- \hit@term@cover@school@bottom@mark@bachelor~
-  }
-
 \cs_new_protected:Npn \hit@report@back@page@bachelor
   {
     \thispagestyle { empty }
@@ -254,6 +310,10 @@
 % \emph{局部赋值没用。} 页脚是页面送出时才求值的，那会儿 \env{titlepage} 这个
 % 分组早关了，开关被还原成真，目录页照旧印带短横的。
 %
+% \emph{目录的字号行距。} 正文不照 Word 排的那几档，目录一直是小四单倍：先前是首页顶上那行
+% 白字（\cs{hit@fontsize@x}\{xiaosi\}\{1\}）顺带设的，与目录同在 \env{titlepage} 这一组里。首页改照
+% 原件排以后没有那行了，这里明写一遍，目录照旧。
+%
 % \emph{首页是个部件。} 基准那一页给研究生，本科与深圳本科各是一个变体：
 % 本科那一份在本文件里，深圳本科那一份在
 % \file{src/pages/hit-report-cover-shenzhen-bachelor.dtx}。取哪一份由档位定，
@@ -275,6 +335,7 @@
           \pagenumbering { Roman }
           \pagestyle { hit@headings@front }
         }
+      \bool_if:NF \g__hit_final_body_bool { \hit@fontsize@x { xiaosi } { 1 } }
       \hit@structure@switch:nnn { table-of-contents }
         { \bool_if_p:N \g__hit_report_toc_auto_bool } { \tableofcontents \clearpage }
     \end { titlepage }
