@@ -488,6 +488,7 @@ src/pages/
 | `hit-title.dtx` | `title` 键的解析与三种取用 |
 | `hit-caption.dtx` | 双语题注（`\caption{中}[英]`）与 `\bicaption` 兼容 |
 | `hit-subfigure.dtx` | `\subfigure` 兼容层，整个文件到 v4 可删 |
+| `hit-algorithm.dtx` | 伪代码：类装 algorithm2e，外框、关键字大小写、引导线、行号四个预设照 iota-hit |
 | `hit-option-engine.dtx` | 选项声明助手与读标志位的判断函数 |
 
 判断标准是“两档会不会分开改”。会分开改的（封面、页眉、章节标题、目录）留在分档的文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `engine/`。

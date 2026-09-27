@@ -1,0 +1,644 @@
+% \iffalse meta-comment
+%
+% hit-algorithm.dtx 是各个类共用的伪代码层
+%
+% \fi
+%
+% \section{伪代码}
+%
+% \changes{v3.2a}{2026/09/27}{伪代码改由文档类排：\pkg{algorithm2e} 在导言区末尾由类装上（文档自己装了
+%   别的算法宏包就不装），外框、关键字大小写、缩进引导线、行号照 iota-hit 的 \texttt{algorithm-style}
+%   做成 \option{style}/\option{algorithm} 的四个键；题注照表题排、博士档中英两行、续排不占新号且行号
+%   接着数。示例宏包不再装 \pkg{algorithm2e}，它的几个旧命令挪到这里兼容}
+%
+% 规范里没有伪代码的格式。iota-hit 把伪代码当成一种图，题注、编号、引用与图表同一套，版式
+% 做成四个预设，这里照它做：
+% \begin{itemize}
+% \item \option{frame}：\texttt{tabular}（默认）题注在上、居中，下面粗／细／粗三道线，细线只在
+%   有输入输出时画，隔开输入输出与正文；\texttt{ruled} 粗线、居左的题注、细线、正文、粗线；
+%   \texttt{boxed} 一圈 1\,bp 的框，题注在框下居中。线宽取三线表那两个（\option{style}/\option{table-rules}）。
+% \item \option{keyword-case}：关键字 \texttt{upper}（默认）全大写、\texttt{lower} 全小写、
+%   \texttt{title} 每个词首字母大写，一律加粗。关键字的词取自 \option{term} 族的
+%   \option{algorithm-input} 一类词条，写成中文就排中文，不受大小写影响。
+% \item \option{indent-guide}：\texttt{bar}（默认）每一级缩进画一道竖线，块尾照写“end for”
+%   这类收尾行；\texttt{hook} 竖线末端加一个半字长的钩；\texttt{none} 不画线。
+% \item \option{line-numbering}：行号的样子，首字定数字的写法（\texttt{1}、\texttt{①}、
+%   \texttt{一}、\texttt{i}、\texttt{I}、\texttt{a}、\texttt{A}），后面跟着的照印，比如
+%   \texttt{1:}；\texttt{none} 不编行号。默认 \texttt{1}。
+% \end{itemize}
+%
+% 排版器用 \pkg{algorithm2e}，写法照它（\cs{KwIn}、\cs{For}、\cs{If} 这些）。它按样式名分派外框
+% 与题注的位置（\cs{@algocf@pre@}\meta{样式}、\cs{@algocf@capt@}\meta{样式} 这一族），
+% 三种外框各定义成一个样式挂上去，不改它的主体。文档自己装了 \pkg{algorithm}、
+% \pkg{algorithmicx} 这一路的，类不再装 \pkg{algorithm2e}，两套会抢 \env{algorithm} 这个名字。
+%
+% 几何照 iota-hit 的排法（本部本科那一档实测）：正文用表格单元格的样式（五号、单倍贴网格）；
+% 左边从版心左缘起依次是单元格边距 5.4\,bp（\cs{tabcolsep}）、行号列 1.5\,em、间隔 0.5\,em，
+% 正文从那里起排；行号是 0.8 倍字号的正体，右端对齐在行号列右缘。每级缩进 2\,em，引导线
+% 0.5\,bp，画在缩进的一半处。三道线都骑在行盒的边界上：顶线之下、细线上下、底线之上各让出
+% 半个线宽。
+%    \begin{macrocode}
+%<*shared-algorithm>
+%    \end{macrocode}
+%
+% \subsection{键}
+%
+% 四个键的值各存一份全局 \texttt{tl}，每开一个算法环境现读，所以写在导言区还是正文里都行。
+% \texttt{auto} 一律退回默认值。
+%    \begin{macrocode}
+\tl_new:N \g__hit_algorithm_frame_tl
+\tl_new:N \g__hit_algorithm_case_tl
+\tl_new:N \g__hit_algorithm_guide_tl
+\tl_new:N \g__hit_algorithm_numbering_tl
+\tl_gset:Nn \g__hit_algorithm_frame_tl { tabular }
+\tl_gset:Nn \g__hit_algorithm_case_tl { upper }
+\tl_gset:Nn \g__hit_algorithm_guide_tl { bar }
+\tl_gset:Nn \g__hit_algorithm_numbering_tl { 1 }
+\cs_new_protected:Npn \__hit_algorithm_choice:Nn #1#2
+  {
+    \str_if_eq:VnTF \l_keys_choice_tl { auto }
+      { \tl_gset:Nn #1 {#2} }
+      { \tl_gset_eq:NN #1 \l_keys_choice_tl }
+  }
+\keys_define:nn { hit / style }
+  { algorithm .code:n = { \hit@keys@set:nn { hit / style / algorithm } {#1} } }
+\keys_define:nn { hit / style / algorithm }
+  {
+    frame .choices:nn = { tabular , ruled , boxed , auto }
+      { \__hit_algorithm_choice:Nn \g__hit_algorithm_frame_tl { tabular } } ,
+    frame .value_required:n = true ,
+    keyword-case .choices:nn = { upper , lower , title , auto }
+      { \__hit_algorithm_choice:Nn \g__hit_algorithm_case_tl { upper } } ,
+    keyword-case .value_required:n = true ,
+    indent-guide .choices:nn = { bar , hook , none , auto }
+      { \__hit_algorithm_choice:Nn \g__hit_algorithm_guide_tl { bar } } ,
+    indent-guide .value_required:n = true ,
+    line-numbering .code:n =
+      {
+        \str_if_eq:nnTF {#1} { auto }
+          { \tl_gset:Nn \g__hit_algorithm_numbering_tl { 1 } }
+          { \tl_gset:Nn \g__hit_algorithm_numbering_tl {#1} }
+      } ,
+    line-numbering .value_required:n = true ,
+  }
+%    \end{macrocode}
+%
+% \subsection{装包}
+%
+% 导言区末尾看一眼：文档没装任何算法宏包，类就装 \pkg{algorithm2e}；装的正是 \pkg{algorithm2e}，
+% 或者文档之后不排算法，都走同一个装后钩子。别的算法宏包在，就不装，那边的版式由文档自己管。
+% 装后钩子里只做一次性的设定（计数器、关键字、样式）；随键变化的在每个算法环境开头现设。
+%    \begin{macrocode}
+\bool_new:N \g__hit_algorithm_foreign_bool
+\AddToHook { begindocument / before }
+  {
+    \clist_map_inline:nn
+      {
+        algorithm , algorithmicx , algpseudocode , algpseudocodex ,
+        algorithmic , algcompatible , clrscode , clrscode3e , program , pseudocode
+      }
+      { \@ifpackageloaded {#1} { \bool_gset_true:N \g__hit_algorithm_foreign_bool } { } }
+    \bool_if:NF \g__hit_algorithm_foreign_bool
+      { \@ifpackageloaded { algorithm2e } { } { \RequirePackage { algorithm2e } } }
+  }
+\AddToHook { package / algorithm2e / after } { \__hit_algorithm_package: }
+%    \end{macrocode}
+%
+% 编号照图表：学位论文按章（“1-1”，附录里“A-1”），报告不排章，从 1 数下去。中文文档题号是
+% 名字后面紧跟编号，与“图1-1”一样；英文文档名字后面空一格。
+%
+% 算法上下的空段照表格的（\option{style}/\option{float-blank} 的 \option{table-above}、
+% \option{table-below}），iota-hit 把算法当图排，上下同样各有一个。上面的由浮动盒开头的那个
+% 钩子排（它按 \cs{@captype} 取键），下面的挂在 \env{algocf} 收尾处，那时算法的盒已经排完。
+% 装包在导言区末尾，那时导言区里的 \cs{hitsetup} 都已生效，取值照抄一份。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_algorithm_package:
+  {
+    \bool_if:NT \g__hit_chapter_bool
+      { \counterwithin* { algocf } { chapter } }
+    \cs_set:Npn \thealgocf
+      {
+        \bool_if:NT \g__hit_chapter_bool { \thechapter - }
+        \int_use:N \c@algocf
+      }
+    \__hit_algorithm_keywords:
+    \__hit_algorithm_styles:
+    \SetKwSty { hit@algorithm@kw }
+    \SetAlFnt { \hit@table@font: }
+    \SetAlgoSkip { relax }
+    \SetAlgoInsideSkip { relax }
+    \SetVlineSkip { 0pt }
+    \skip_set:Nn \AlCapSkip { 0pt }
+    \DontPrintSemicolon
+    \AddToHook { para / before } { \__hit_algorithm_para_before: }
+    \__hit_algorithm_legacy:
+    \AddToHook { env / algorithm / begin } { \__hit_algorithm_begin: }
+    \AddToHook { env / algorithm / end } { \__hit_algorithm_end: }
+    \AddToHook { env / algocf / end } { \__hit_float_blank:n { algocf-below } }
+    \clist_map_inline:nn { above , below }
+      {
+        \tl_gset_eq:cc { g__hit_float_blank_algocf-##1_tl }
+          { g__hit_float_blank_table-##1_tl }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{关键字}
+%
+% 关键字的词取自 \option{term} 族的词条，一个词一条（与 iota-hit 的关键字表一致），合成的
+% 关键字（“else if”“end for”“for each”）由词拼成。词条到排的时候才展开，写在导言区的
+% \option{term} 改动照样生效。输入输出几个另起一个内部名，外面包一层记下“这一段是输入输出”，
+% 表格型的细线要靠它。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_algorithm_word:n #1 { \use:c { hit@term@algorithm@ #1 } }
+\cs_new:Npn \__hit_algorithm_words:nn #1#2
+  { \__hit_algorithm_word:n {#1} \c_space_tl \__hit_algorithm_word:n {#2} }
+\cs_new_protected:Npn \__hit_algorithm_keywords:
+  {
+    \clist_map_inline:nn
+      { { KwIn } { input } , { KwOut } { output } , { KwData } { data } , { KwResult } { result } }
+      { \__hit_algorithm_head_kw:nn ##1 }
+    \SetKw { KwTo } { \__hit_algorithm_word:n { to } }
+    \SetKw { KwRet } { \__hit_algorithm_word:n { return } }
+    \SetKw { Return } { \__hit_algorithm_word:n { return } }
+    \SetKwRepeat { Repeat } { \__hit_algorithm_word:n { repeat } } { \__hit_algorithm_word:n { until } }
+    \SetKwIF { If } { ElseIf } { Else }
+      { \__hit_algorithm_word:n { if } } { \__hit_algorithm_word:n { then } }
+      { \__hit_algorithm_words:nn { else } { if } } { \__hit_algorithm_word:n { else } }
+      { \__hit_algorithm_words:nn { end } { if } }
+    \SetKwSwitch { Switch } { Case } { Other }
+      { \__hit_algorithm_word:n { switch } } { \__hit_algorithm_word:n { do } }
+      { \__hit_algorithm_word:n { case } } { \__hit_algorithm_word:n { otherwise } }
+      { \__hit_algorithm_words:nn { end } { case } } { \__hit_algorithm_words:nn { end } { switch } }
+    \SetKwFor { For } { \__hit_algorithm_word:n { for } } { \__hit_algorithm_word:n { do } }
+      { \__hit_algorithm_words:nn { end } { for } }
+    \SetKwFor { ForEach } { \__hit_algorithm_words:nn { for } { each } } { \__hit_algorithm_word:n { do } }
+      { \__hit_algorithm_words:nn { end } { for } }
+    \SetKwFor { ForAll } { \__hit_algorithm_words:nn { for } { all } } { \__hit_algorithm_word:n { do } }
+      { \__hit_algorithm_words:nn { end } { for } }
+    \SetKwFor { While } { \__hit_algorithm_word:n { while } } { \__hit_algorithm_word:n { do } }
+      { \__hit_algorithm_words:nn { end } { while } }
+    \SetKwProg { Fn } { \__hit_algorithm_word:n { function } } { } { \__hit_algorithm_word:n { end } }
+    \SetKwProg { Proc } { \__hit_algorithm_word:n { procedure } } { } { \__hit_algorithm_word:n { end } }
+  }
+\bool_new:N \g__hit_algorithm_head_bool
+\bool_new:N \g__hit_algorithm_has_head_bool
+\bool_new:N \l__hit_algorithm_in_head_bool
+\cs_new_protected:Npn \__hit_algorithm_head_kw:nn #1#2
+  {
+    \SetKwInput { hit@#1 } { \__hit_algorithm_word:n {#2} }
+    \cs_set_protected:cpn {#1} ##1
+      {
+        \bool_gset_true:N \g__hit_algorithm_head_bool
+        \bool_gset_true:N \g__hit_algorithm_has_head_bool
+        \bool_set_true:N \l__hit_algorithm_in_head_bool
+        \use:c { hit@#1 } {##1}
+        \bool_set_false:N \l__hit_algorithm_in_head_bool
+      }
+  }
+%    \end{macrocode}
+%
+% 关键字的大小写。\texttt{title} 是每个词首字母大写（“For Each”），所以先展开成字再按空格切开。
+% 中文词不受影响。首字母大写的函数在 2023 年改过名，两个名字都认。
+%    \begin{macrocode}
+\seq_new:N \l__hit_algorithm_words_seq
+\tl_new:N \l__hit_algorithm_title_tl
+\cs_new:Npn \__hit_algorithm_titlecase:n #1
+  {
+    \cs_if_exist:NTF \text_titlecase_first:n
+      { \text_titlecase_first:n {#1} }
+      { \text_titlecase:n {#1} }
+  }
+\cs_new_protected:Npn \__hit_algorithm_case:n #1
+  {
+    \str_case:VnF \g__hit_algorithm_case_tl
+      {
+        { upper } { \text_uppercase:n {#1} }
+        { lower } { \text_lowercase:n {#1} }
+        { title }
+          {
+            \tl_set:Ne \l__hit_algorithm_title_tl { \text_expand:n {#1} }
+            \seq_set_split:NnV \l__hit_algorithm_words_seq { ~ } \l__hit_algorithm_title_tl
+            \tl_clear:N \l__hit_algorithm_title_tl
+            \seq_map_inline:Nn \l__hit_algorithm_words_seq
+              {
+                \tl_if_empty:NF \l__hit_algorithm_title_tl
+                  { \tl_put_right:Nn \l__hit_algorithm_title_tl { ~ } }
+                \tl_put_right:Nx \l__hit_algorithm_title_tl
+                  { \__hit_algorithm_titlecase:n {##1} }
+              }
+            \l__hit_algorithm_title_tl
+          }
+      }
+      {#1}
+  }
+\cs_new_protected:cpn { hit@algorithm@kw } #1
+  { \textbf { \__hit_algorithm_case:n {#1} } }
+%    \end{macrocode}
+%
+% \subsection{每个算法开头现设的}
+%
+% 长度都按正文的字算：先在一个组里换上表格单元格的字，量出 1\,em 带出来。左边的格局是
+% 边距、行号列、间隔、正文；不编行号时正文从边距后起排。中文数字、罗马数字的行号比阿拉伯
+% 数字宽，行号列放宽到 2\,em。
+%    \begin{macrocode}
+\dim_new:N \l__hit_algorithm_em_dim
+\dim_new:N \l__hit_algorithm_rule_dim
+\tl_new:N \l__hit_algorithm_nl_style_tl
+\tl_new:N \l__hit_algorithm_nl_suffix_tl
+\bool_new:N \l__hit_algorithm_continued_bool
+\int_new:N \g__hit_algorithm_last_line_int
+\cs_new_protected:Npn \__hit_algorithm_begin:
+  {
+    \group_begin:
+      \hit@table@font:
+      \dim_gset:Nn \g_tmpa_dim { 1em }
+    \group_end:
+    \dim_set_eq:NN \l__hit_algorithm_em_dim \g_tmpa_dim
+    \dim_set:Nn \l__hit_algorithm_rule_dim { \g__hit_table_rule_inner_tl / 2 }
+    \bool_gset_false:N \g__hit_algorithm_head_bool
+    \bool_gset_false:N \g__hit_algorithm_has_head_bool
+    \bool_set_false:N \l__hit_algorithm_continued_bool
+    \tl_clear:N \l__hit_algorithm_en_tl
+    \cs_set:Npx \algocf@style { hit \g__hit_algorithm_frame_tl }
+    \__hit_algorithm_numbering:
+    \__hit_algorithm_guides:
+    \RenewDocumentCommand \caption { s o +m o }
+      { \__hit_algorithm_caption:nnnn {##1} {##2} {##3} {##4} }
+    \cs_set_protected:Npn \ContinuedFloat
+      {
+        \bool_set_true:N \l__hit_algorithm_continued_bool
+        \setcounter { AlgoLine } { \g__hit_algorithm_last_line_int }
+      }
+  }
+\cs_new_protected:Npn \__hit_algorithm_end:
+  {
+    \int_gset:Nn \g__hit_algorithm_last_line_int { \c@AlgoLine }
+    \bool_gset_false:N \g__hit_algorithm_head_bool
+  }
+%    \end{macrocode}
+%
+% 行号。样式的首字定写法，余下的照印在号码后面。\cs{theAlgoLine} 只换写法、不带后缀，
+% 引用行号时印的是光号码；后缀在 \cs{NlSty} 里加。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_algorithm_numbering:
+  {
+    \str_if_eq:VnTF \g__hit_algorithm_numbering_tl { none }
+      {
+        \LinesNotNumbered
+        \skip_set:Nn \algomargin { \tabcolsep }
+      }
+      {
+        \LinesNumbered
+        \tl_set:Nn \l__hit_algorithm_nl_style_tl { 1 }
+        \tl_set_eq:NN \l__hit_algorithm_nl_suffix_tl \g__hit_algorithm_numbering_tl
+        \clist_map_inline:nn { ① , 一 , 1 , i , I , a , A }
+          {
+            \str_if_eq:eeT
+              { \str_range:Nnn \g__hit_algorithm_numbering_tl { 1 } { \str_count:n {##1} } }
+              { \tl_to_str:n {##1} }
+              {
+                \tl_set:Nn \l__hit_algorithm_nl_style_tl {##1}
+                \tl_set:Ne \l__hit_algorithm_nl_suffix_tl
+                  { \str_range:Nnn \g__hit_algorithm_numbering_tl { \str_count:n {##1} + 1 } { -1 } }
+                \clist_map_break:
+              }
+          }
+        \cs_set_protected:Npn \NlSty ##1 { \__hit_algorithm_nl:n {##1} }
+        \SetNlSkip { 0.5 \l__hit_algorithm_em_dim }
+        \skip_set:Nn \algomargin
+          {
+            \tabcolsep + 0.5 \l__hit_algorithm_em_dim
+            + \str_case:VnF \l__hit_algorithm_nl_style_tl
+              { { 1 } { 1.5 } { ① } { 1.5 } } { 2 } \l__hit_algorithm_em_dim
+          }
+      }
+  }
+\tl_new:N \l__hit_algorithm_nl_tl
+\cs_new_protected:Npn \__hit_algorithm_nl:n #1
+  {
+    \tl_set:Ne \l__hit_algorithm_nl_tl {#1}
+    \textnormal
+      {
+        \fontsize
+          { \fp_eval:n { 0.8 * \dim_to_decimal_in_unit:nn { \l__hit_algorithm_em_dim } { 1pt } } }
+          { \l__hit_algorithm_em_dim } \selectfont
+        \rmfamily \mdseries
+        \exp_args:NnV \regex_match:nnTF { \A \d+ \Z } \l__hit_algorithm_nl_tl
+          { \__hit_algorithm_number:VV \l__hit_algorithm_nl_style_tl \l__hit_algorithm_nl_tl }
+          { \l__hit_algorithm_nl_tl }
+        \l__hit_algorithm_nl_suffix_tl
+      }
+  }
+\cs_new:Npn \__hit_algorithm_number:nn #1#2
+  {
+    \str_case:nnF {#1}
+      {
+        { ① } { \quan {#2} }
+        { 一 } { \zhnumber {#2} }
+        { i } { \int_to_roman:n {#2} }
+        { I } { \int_to_Roman:n {#2} }
+        { a } { \int_to_alph:n {#2} }
+        { A } { \int_to_Alph:n {#2} }
+      }
+      { \int_eval:n {#2} }
+  }
+\cs_generate_variant:Nn \__hit_algorithm_number:nn { VV }
+%    \end{macrocode}
+%
+% 缩进与引导线。每级缩进 2\,em，线在 1\,em 处；\pkg{algorithm2e} 的缩进量把竖线宽按 0.4\,pt
+% 算，这里的线是三线表细线的一半，缩进量照实际线宽重算。\texttt{bar} 用它的 \texttt{lined}
+% （竖线、块尾印收尾行），\texttt{hook} 在 \texttt{lined} 的竖线末端补一个钩（它自己的
+% \texttt{vlined} 带钩但不印收尾行，iota-hit 的钩是加在竖线上的），\texttt{none} 用 \texttt{noline}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_algorithm_guides:
+  {
+    \str_case:Vn \g__hit_algorithm_guide_tl
+      {
+        { none }
+          {
+            \SetAlgoNoLine
+            \SetInd { \l__hit_algorithm_em_dim } { \l__hit_algorithm_em_dim }
+          }
+        { bar }
+          {
+            \SetAlgoLined
+            \__hit_algorithm_set_ind:
+            \cs_set_eq:NN \algocf@Hlne \prg_do_nothing:
+          }
+        { hook }
+          {
+            \SetAlgoLined
+            \__hit_algorithm_set_ind:
+            \cs_set_protected:Npn \algocf@Hlne
+              {
+                \tex_hrule:D height \l__hit_algorithm_rule_dim depth 0pt
+                  width 0.5 \l__hit_algorithm_em_dim
+                \tex_kern:D - \l__hit_algorithm_rule_dim
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_algorithm_set_ind:
+  {
+    \skip_set:Nn \skiprule { \l__hit_algorithm_em_dim - 0.5 \l__hit_algorithm_rule_dim }
+    \skip_set:Nn \skiptext { \l__hit_algorithm_em_dim - 0.5 \l__hit_algorithm_rule_dim }
+    \skip_set:Nn \skiplength { 2 \l__hit_algorithm_em_dim }
+    \cs_set_protected:Npn \algocf@adjustskipindent
+      { \skip_set:Nn \algoskipindent { 2 \l__hit_algorithm_em_dim } }
+    \cs_set_protected:Npn \algocf@Vsline ##1
+      {
+        \strut \par \nointerlineskip
+        \algocf@bblockcode
+        \algocf@push { \skiprule }
+        \hbox:n
+          {
+            \tex_vrule:D width \l__hit_algorithm_rule_dim \scan_stop:
+            \vtop
+              {
+                \skip_add:Nn \skiptotal { \l__hit_algorithm_rule_dim }
+                \algocf@push { \skiptext }
+                \vtop { \algocf@addskiptotal ##1 }
+                \algocf@Hlne
+              }
+          }
+        \algocf@pop { \skiprule }
+        \algocf@eblockcode
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{外框}
+%
+% 三个样式。\pkg{algorithm2e} 在 \cs{algocf@makethealgo} 里依次放：题注（\texttt{above}）、
+% 前置、题注（\texttt{top}）、正文盒、题注（\texttt{bottom}）、后置、题注（\texttt{under}）。
+% 线的位置照 iota-hit：线骑在行盒边界上，顶线下半截压进第一行（有输入输出时）或再让出细线的
+% 半个线宽（没有时），底线上缘贴着末行行盒。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_algorithm_outer: { \g__hit_table_rule_outer_tl }
+\cs_new:Npn \__hit_algorithm_inner: { \g__hit_table_rule_inner_tl }
+\cs_new_protected:Npn \__hit_algorithm_hrule:n #1
+  { \tex_hrule:D width \algocf@ruledwidth height \dim_eval:n {#1} depth 0pt \scan_stop: }
+\cs_new_protected:Npn \__hit_algorithm_styles:
+  {
+    \cs_set:cpn { @algocf@capt@hittabular } { above }
+    \cs_set:cpn { @algocf@capt@hitruled } { top }
+    \cs_set:cpn { @algocf@capt@hitboxed } { under }
+    \cs_set_protected:cpn { algocf@makecaption@hittabular } ##1##2
+      { \__hit_algorithm_makecaption:nn { centered } {##2} }
+    \cs_set_protected:cpn { algocf@makecaption@hitruled } ##1##2
+      { \__hit_algorithm_makecaption:nn { left } {##2} }
+    \cs_set_protected:cpn { algocf@makecaption@hitboxed } ##1##2
+      { \__hit_algorithm_makecaption:nn { centered } {##2} }
+    \cs_set_protected:cpn { algocf@caption@hittabular }
+      { \box_use:N \algocf@capbox \__hit_algorithm_caption_gap: }
+    \cs_set_protected:cpn { @algocf@pre@hittabular }
+      {
+        \__hit_algorithm_hrule:n { \__hit_algorithm_outer: }
+        \tex_kern:D \dim_eval:n
+          {
+            \bool_if:NTF \g__hit_algorithm_has_head_bool
+              { 0pt - ( \__hit_algorithm_outer: ) / 2 }
+              { 0pt - ( \__hit_algorithm_outer: ) / 2 + ( \__hit_algorithm_inner: ) / 2 }
+          }
+      }
+    \cs_set_protected:cpn { @algocf@post@hittabular }
+      { \__hit_algorithm_hrule:n { \__hit_algorithm_outer: } }
+    \cs_set_protected:cpn { @algocf@pre@hitruled }
+      { \__hit_algorithm_hrule:n { \__hit_algorithm_outer: } }
+    \cs_set_protected:cpn { algocf@caption@hitruled }
+      {
+        \box_use:N \algocf@capbox
+        \__hit_algorithm_hrule:n { \__hit_algorithm_inner: }
+      }
+    \cs_set_protected:cpn { @algocf@post@hitruled }
+      { \__hit_algorithm_hrule:n { \__hit_algorithm_outer: } }
+    \cs_set_protected:cpn { @algocf@pre@hitboxed }
+      { \noindent \begin { lrbox } { \algocf@algoframe } }
+    \cs_set_protected:cpn { @algocf@post@hitboxed }
+      {
+        \end { lrbox }
+        \__hit_algorithm_box:
+      }
+    \cs_set_protected:cpn { algocf@caption@hitboxed }
+      { \__hit_algorithm_caption_gap: \box_use:N \algocf@capbox }
+  }
+%    \end{macrocode}
+%
+% 框图型的框：四条边各一道 \cs{vrule}，骑在边线上，框里上下各让出半个线宽。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_algorithm_box:
+  {
+    \dim_set:Nn \l_tmpa_dim { \__hit_algorithm_inner: }
+    \vbox:n
+      {
+        \moveleft 0.5 \l_tmpa_dim \hbox:n
+          {
+            \tex_vrule:D width \dim_eval:n { \algocf@ruledwidth + \l_tmpa_dim }
+              height \l_tmpa_dim depth 0pt \scan_stop:
+          }
+        \nointerlineskip
+        \hbox_to_wd:nn { \algocf@ruledwidth }
+          {
+            \tex_kern:D -0.5 \l_tmpa_dim
+            \tex_vrule:D width \l_tmpa_dim \scan_stop:
+            \tex_kern:D -0.5 \l_tmpa_dim
+            \box_use:N \algocf@algoframe
+            \tex_hfil:D
+            \tex_kern:D -0.5 \l_tmpa_dim
+            \tex_vrule:D width \l_tmpa_dim \scan_stop:
+            \tex_kern:D -0.5 \l_tmpa_dim
+          }
+        \nointerlineskip
+        \moveleft 0.5 \l_tmpa_dim \hbox:n
+          {
+            \tex_vrule:D width \dim_eval:n { \algocf@ruledwidth + \l_tmpa_dim }
+              height \l_tmpa_dim depth 0pt \scan_stop:
+          }
+      }
+    \par
+  }
+%    \end{macrocode}
+%
+% \subsection{表格型的细线}
+%
+% 输入输出之后的第一段开头画，挂在内核的 \texttt{para/before} 钩子上：那时还在竖直模式、
+% 段还没起。输入输出排过了、这一段又不是输入输出，就在竖直列表里放一道横贯整个框宽的线。
+% 线左移 \cs{algomargin}，从框的左缘起画；上下都不要行间胶，线紧贴上一行与下一行的行盒。
+% 不在 \cs{everypar} 里做：那时段已经起了，撤掉段首缩进盒，\hologo{LuaTeX} 的段首还有段落节点，
+% 结束它会排出一个空行。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_algorithm_para_before:
+  {
+    \bool_lazy_and:nnT
+      { \g__hit_algorithm_head_bool }
+      { ! \l__hit_algorithm_in_head_bool }
+      {
+        \bool_gset_false:N \g__hit_algorithm_head_bool
+        \str_if_eq:VnT \g__hit_algorithm_frame_tl { tabular }
+          {
+            \nointerlineskip
+            \moveleft \algomargin \hbox:n
+              {
+                \tex_vrule:D width \algocf@ruledwidth
+                  height \dim_eval:n { \__hit_algorithm_inner: } depth 0pt \scan_stop:
+              }
+            \nointerlineskip
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{题注}
+%
+% 题注照表题排（样式 \option{caption-table}）：居中或居左，线条型的题注在框里，照单元格的样式排，
+% 顶在单元格边距处。题注盒里先还原段落参数：续排与星号版的题注是在算法正文里直接装盒的，
+% 不还原的话 \pkg{algorithm2e} 的 \cs{everypar} 会给它编上行号。
+% 中文文档是“算法1-1”加题号与题名之间的间隔，博士档写了英文题的，下面再排一行“Algo. 1-1”
+% 加英文题。续排的只排“算法1-1（续算法）”，不占新号。
+%
+% \cs{caption} 在环境里换成这里的：星号版只排题文；写了尾随的英文题并且双语题注开着，记下
+% 英文题；有 \cs{ContinuedFloat} 的不步进计数器、不进算法清单，直接装题注盒。
+%    \begin{macrocode}
+\tl_new:N \l__hit_algorithm_en_tl
+\bool_new:N \l__hit_algorithm_star_bool
+\cs_new_protected:Npn \__hit_algorithm_caption:nnnn #1#2#3#4
+  {
+    \bool_set:Nn \l__hit_algorithm_star_bool {#1}
+    \tl_clear:N \l__hit_algorithm_en_tl
+    \bool_lazy_and:nnT { ! \tl_if_novalue_p:n {#4} } { \g__hit_bilingual_caption_bool }
+      { \tl_set:Nn \l__hit_algorithm_en_tl {#4} }
+    \bool_lazy_or:nnTF { \l__hit_algorithm_star_bool } { \l__hit_algorithm_continued_bool }
+      {
+        \use:c { algocf@makecaption@ \algocf@style } { } {#3}
+        \protected@edef \@currentlabel { \thealgocf }
+      }
+      {
+        \tl_if_novalue:nTF {#2}
+          { \hit@original@caption {#3} }
+          { \hit@original@caption [#2] {#3} }
+      }
+  }
+\cs_new:Npn \__hit_algorithm_label:n #1
+  {
+    \str_if_eq:eeTF {#1} { en }
+      {
+        \bool_if:NTF \g__hit_en_bool
+          { \hit@term@caption@algorithm@en \nobreakspace }
+          { \hit@term@caption@algorithm@prefix@en }
+      }
+      { \hit@term@caption@algorithm@zh }
+    \thealgocf
+  }
+\tl_new:N \l__hit_algorithm_caption_tl
+\cs_new_protected:Npn \__hit_algorithm_caption_line:nnn #1#2#3
+  {
+    \str_if_eq:nnTF {#1} { left }
+      {
+        \tl_set:Ne \l__hit_algorithm_caption_tl
+          {
+            { table-cell }
+            { paragraph = { alignment = left , indentation = { left = \dim_use:N \tabcolsep } } }
+          }
+      }
+      { \tl_set:Nn \l__hit_algorithm_caption_tl { { caption-table } { } } }
+    \exp_last_unbraced:NV \docxlike_format_par:nnn \l__hit_algorithm_caption_tl
+      {
+        \bool_if:NTF \l__hit_algorithm_star_bool
+          {#3}
+          {
+            \__hit_algorithm_label:n {#2}
+            \bool_if:NTF \l__hit_algorithm_continued_bool
+              { \hit@term@caption@algorithm@continued }
+              { \hit@caption@separator #3 }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_algorithm_makecaption:nn #1#2
+  {
+    \global \sbox \algocf@capbox
+      {
+        \vbox:n
+          {
+            \hsize \algocf@ruledwidth
+            \@parboxrestore
+            \tex_everypar:D { }
+            \linewidth \hsize
+            \__hit_algorithm_caption_line:nnn {#1}
+              { \bool_if:NTF \g__hit_en_bool { en } { zh } } {#2}
+            \bool_lazy_or:nnF { \g__hit_en_bool } { \tl_if_empty_p:N \l__hit_algorithm_en_tl }
+              {
+                \group_begin:
+                  \hit@caption@latin@pick:
+                  \__hit_algorithm_caption_line:nnn {#1} { en } { \l__hit_algorithm_en_tl }
+                \group_end:
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_algorithm_caption_gap: { }
+%    \end{macrocode}
+%
+% \subsection{旧命令}
+%
+% 示例宏包 \file{hithesis.sty} 原先装 \pkg{algorithm2e} 时定义的几个命令，老文档里有人用，
+% 名字照留。\cs{AlgoBiCaption} 就是写了英文题的 \cs{caption}；\cs{algoenname} 是英文算法名；
+% \cs{thealgoen} 是题号。\cs{foocaption} 与 \cs{algoencaption} 是那一版为了拼双语题注、英文算法
+% 清单打的补丁，现在题注由类排、没有英文算法清单，两个命令什么也不做，提示一次。
+% 文档自己定义过的不覆盖。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_algorithm_legacy:
+  {
+    \providecommand \AlgoBiCaption [2] { \caption {##1} [##2] }
+    \providecommand \algoenname { \hit@term@caption@algorithm@prefix@en }
+    \providecommand \thealgoen { \thealgocf }
+    \providecommand \foocaption [1]
+      { \msg_warning:nne { hithesis } { algorithm-legacy } { \token_to_str:N \foocaption } }
+    \providecommand \algoencaption [1]
+      { \msg_warning:nne { hithesis } { algorithm-legacy } { \token_to_str:N \algoencaption } }
+  }
+%</shared-algorithm>
+%    \end{macrocode}
+%
+% \Finale
+\endinput

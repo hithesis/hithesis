@@ -39,13 +39,13 @@ DEFINE = re.compile(
     r"\\(?:cs_new(?:_protected)?(?:_nopar)?:(?:Npn|cpn)"
     r"|cs_set(?:_protected)?(?:_nopar)?:(?:Npn|cpn)"
     r"|New(?:Expandable)?DocumentCommand|RenewDocumentCommand|DeclareRobustCommand|NewCommandCopy"
-    r"|newcommand\*?|renewcommand\*?|def|gdef"
+    r"|newcommand\*?|renewcommand\*?|providecommand\*?|def|gdef"
     r"|NewDocumentEnvironment|RenewDocumentEnvironment|newenvironment\*?|renewenvironment\*?"
     r"|newfloatlist|newfixedcaption)\s*\\?\{?\\([a-zA-Z]+)(?![a-zA-Z_:])"
 )
 
 # 正则在 @ 处截断留下的残片，不是真名字
-JUNK = {"CJK", "CTEX", "LT", "NAT", "ext", "make", "p", "tagform", "def", "bibstyle"}
+JUNK = {"CJK", "CTEX", "LT", "NAT", "ext", "make", "p", "tagform", "def", "bibstyle", "fnum", "pp", "algocf"}
 
 # 名字后面跟 _ 或 : 的由上面那个前瞻挡掉：那是 expl3 的内部名，用户打不出来。
 # 挡的是 \xeCJK_space_or_xecglue: 这种。截到 \xeCJK 就成了“类里定义了 \xeCJK”，
