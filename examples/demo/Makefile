@@ -57,14 +57,14 @@ $(FINALMAIN).idx: $(FINALMAIN).bbl
 	$(METHOD) $(FINALMAIN)
 	$(METHOD) $(FINALMAIN)
 
-$(FINALMAIN)_china.idx : $(CLSFILES) $(FINALMAIN).bbl $(FINALMAIN).idx
-	splitindex $(FINALMAIN) -- -s $(PACKAGE).ist  # 自动生成索引
+$(FINALMAIN)-china.idx : $(CLSFILES) $(FINALMAIN).bbl $(FINALMAIN).idx
+	splitindex $(FINALMAIN).idx -- -s $(PACKAGE).ist  # 自动生成索引
 
-$(FINALMAIN)_english.ind $(FINALMAIN)_china.ind $(FINALMAIN)_english.idx : $(FINALMAIN)_china.idx
+$(FINALMAIN)-english.ind $(FINALMAIN)-china.ind $(FINALMAIN)-english.idx : $(FINALMAIN)-china.idx
 
-$(FINALMAIN).pdf: $(CLSFILES) $(FINALCONTENTS) $(FINALMAIN)_china.ind $(FINALMAIN)_china.idx $(FINALMAIN)_english.ind $(FINALMAIN)_english.idx $(FINALMAIN).bbl
+$(FINALMAIN).pdf: $(CLSFILES) $(FINALCONTENTS) $(FINALMAIN)-china.ind $(FINALMAIN)-china.idx $(FINALMAIN)-english.ind $(FINALMAIN)-english.idx $(FINALMAIN).bbl
 	$(METHOD) $(FINALMAIN)
-	splitindex $(FINALMAIN) -- -s $(PACKAGE).ist  # 自动生成索引
+	splitindex $(FINALMAIN).idx -- -s $(PACKAGE).ist  # 自动生成索引
 	$(METHOD) $(FINALMAIN)
 
 $(FINALMAIN).bbl: $(BIBFILE)
