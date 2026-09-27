@@ -6,6 +6,8 @@
 %
 % \section{表格}
 %
+% \changes{v3.2a}{2026/09/27}{表格属性“行”的“指定高度”（\texttt{table-properties/row/specify-height}）：
+%   行高最小值，内容高了照内容，多出来的空在行的下面}
 % \changes{v3.2a}{2026/09/26}{新增表格：\pkg{array} 一族（\env{tabular}、\env{tabularx}、
 %   \env{longtable} 等）照 Word 的表格排：格边距 5.4\,bp，竖线不占宽，\pkg{booktabs} 线外不留空，
 %   行的撑杆是 Word 的行盒，格里的字与正文一样吃网格增量，格里的段按“在表格单元格里”断行、
@@ -68,6 +70,10 @@
   {
     \bool_lazy_and:nnT { \g_docxlike_word_layout_bool } { \l_docxlike_table_bool }
       {
+        \bool_lazy_and:nnT
+          { ! \l__docxlike_table_tblr_bool }
+          { \dim_compare_p:nNn { \l_docxlike_table_row_height_dim } > { \c_zero_dim } }
+          { \cs_set_protected:Npn \@arstrut { \tex_unhcopy:D \@arstrutbox \__docxlike_table_row_min: } }
         \bool_set_true:N \l_docxlike_table_cell_bool
         \bool_if:NF \l__docxlike_table_tblr_bool
           { \bool_set_true:N \l_docxlike_linebreak_align_bool }
@@ -94,6 +100,46 @@
   }
 %    \end{macrocode}
 % \end{macro}
+%
+% \subsection{行高}
+%
+% 表格属性“行”那一页的“指定高度”：\cs{docxlikesetup}\texttt{\{table-properties=\{row=\{specify-height=}\meta{长度}\texttt{\}\}\}}，
+% 之后（同一组里）的表每一行至少这么高，内容高了照内容。Word 勾上“指定高度”时“行高值是”默认
+% “最小值”，存成 \texttt{w:trHeight}，量的是两道横线之间的空（线宽另算）；“固定值”没有做。
+% 字在行里的高低不变，多出来的空在行的下面（Word 格里默认顶端对齐）。
+%
+% 落实的办法：\pkg{array} 在每一行的头一格（\cs{multicolumn} 的格、\pkg{longtable} 也一样）先放
+% \cs{@arstrut}，把它换成撑杆后面再跟一道零宽的竖线，深度补到行高减撑杆的高。行的高深取各格
+% 的最大值，\texttt{p} 格折成几行时它自己的深度大于这道线，行高就照内容，与 Word 一样。
+% \pkg{tabularray} 的表不做，它有自己的 \texttt{rows=\{ht\}}。
+%    \begin{macrocode}
+\dim_new:N \l_docxlike_table_row_height_dim
+\keys_define:nn { docxlike }
+  {
+    table-properties .code:n =
+      { \__docxlike_keys_set:nn { docxlike / table-properties } {#1} } ,
+  }
+\keys_define:nn { docxlike / table-properties }
+  {
+    row .code:n =
+      { \__docxlike_keys_set:nn { docxlike / table-properties / row } {#1} } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / table-properties / row }
+  {
+    specify-height .dim_set:N = \l_docxlike_table_row_height_dim ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\cs_new_protected:Npn \__docxlike_table_row_min:
+  {
+    \dim_compare:nNnT
+      { \l_docxlike_table_row_height_dim } > { \box_ht:N \@arstrutbox }
+      {
+        \tex_vrule:D height \c_zero_dim width \c_zero_dim
+          depth \dim_eval:n { \l_docxlike_table_row_height_dim - \box_ht:N \@arstrutbox }
+      }
+  }
+%    \end{macrocode}
 %
 % \pkg{array} 一族都在 \env{tabular} 或 \env{tabular*} 上搭，\pkg{tabularx}、\pkg{tabulary}
 % 的环境先量后排，量的那一遍也要同样的字宽，所以各自的环境都挂。\env{array} 是公式里的，

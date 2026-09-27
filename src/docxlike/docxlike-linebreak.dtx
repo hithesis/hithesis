@@ -6,6 +6,8 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/27}{读 \pkg{luatexja} 的 \texttt{icflag} 属性时去掉“处理过的一串的头一个”那一位
+%   （4096），段首、盒首装成盒的标点先前认不出来；格里装的盒补字距增量时跳过格的过滤器补过的字}
 % \changes{v3.2a}{2026/09/27}{段首的 kern 并进首行缩进：\cs{docxlike\_format\_par:nn} 把首行缩进写成 kern，
 %   先前它挂在第一个字上而不计宽，只有头一个字挪过去；编号盒、表格格里的盒头盒尾全角标点补回整格，
 %   盒里补字距增量时隔着禁则罚分也认得出后面的汉字缝（先前多给一份）}
@@ -283,8 +285,10 @@ end
 local function is_jfont(f)
   return luatexja.jfont.font_metric_table[f] ~= nil
 end
+-- luatexja 在一串和文处理过的节点的头一个上另加 PROCESSED_BEGIN_FLAG（4096），读时要去掉，
+-- 与它自己的 get_attr_icflag 一样；不去的话段首、盒首那个装成盒的标点认不出来
 local function icflag(n)
-  return node.get_attribute(n, attr_icflag) or 0
+  return (node.get_attribute(n, attr_icflag) or 0) % IC.PROCESSED_BEGIN_FLAG
 end
 local function is_jfmglue(n)
   local ic = icflag(n)
@@ -2941,7 +2945,8 @@ function M.grid_box(n, inc, spacing, balance)
   local head, added = b.list, 0
   for g in traverse(head) do
     local pg = packed_glyph(g)
-    if g.id == GLYPH or pg then
+    -- 表格格里装的盒，装盒时格的过滤器已经给字补过（记了 done），不再补第二份
+    if (g.id == GLYPH or pg) and not done(pg or g) then
       local add
       if pg or is_jfont(g.font) then
         -- 汉字缝前面常隔着 luatexja 的禁则罚分（“词”与后面装成盒的“：”之间），跳过再看
@@ -2957,6 +2962,7 @@ function M.grid_box(n, inc, spacing, balance)
         head = node.insert_after(head, g, k)
         added = added + add
       end
+      mark_done(pg or g)
     end
   end
   b.list = head
