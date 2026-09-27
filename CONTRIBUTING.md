@@ -78,6 +78,7 @@ make depslist      # 按当前代码打印一份策略表骨架，加包时拿�
 make baseline        # 45 个变体全编一遍，渲染结果存成本地基线
 make smoke           # 重编并与本地基线逐页比
 make regression-test # 与参照版本逐页比，发版前跑
+make feature         # 按功能的回归：每个用例跑遍分支与三个引擎，平时不跑（tests/README.md）
 make lineends-typst  # 与 typst-with-msword-linebreaks 逐行对拍（要本机有那个 fork）
 make lineends-verb   # 行内代码三段与 Word 探针导出逐行比，行文本与行末坐标都要对上
 make pages           # 博士与本科范例的整本复刻件与 Word 导出逐页逐行比基线
@@ -869,6 +870,9 @@ make manual-check  # 手册与基线逐页比
 ```
 
 纯重构（只挪代码、不改行为）的验收标准是零差异。有意的样式调整则要逐页确认差异是否符合预期，`tests/diff/` 下有标红的差异图。
+
+改的是某个功能，就再跑一遍它在 `tests/feature/cases/` 里的用例（`make feature CASES=…`），没有用例的
+顺手补一个：整本比只看得到示例碰到的那几个分支。
 
 对 Word 的版面对拍有三层，一层比一层粗：`make lineends` 比断点（规范章 58 段，靶子是本科范例的
 Word 导出），`make lineends-typst` 比断点的实现（typst fork），`make pages` 比每行落在页面

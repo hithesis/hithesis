@@ -27,7 +27,7 @@ NPROC ?= 8
 
 .PHONY: all cls docxlike-sync docxlike-check lineends lineends-self lineends-verb lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
-        baseline smoke regression-test tl-packages testclean version version-check version-set
+        baseline smoke feature regression-test tl-packages testclean version version-check version-set
 
 all: manual
 
@@ -243,6 +243,12 @@ baseline:
 # 全部变体重编一遍，跟本地基线逐页比
 smoke:
 	NPROC=$(NPROC) bash tools/smoke.sh
+
+# 按功能的回归：tests/feature/cases 里每个用例跑遍分支与引擎，平时不跑
+#   make feature CASES='algorithm-caption' ENGINES=lualatex BRANCHES='stage=final'
+feature:
+	texlua tests/feature/run.lua -j $(NPROC) $(if $(ENGINES),-e $(ENGINES)) \
+	  $(if $(BRANCHES),-b '$(BRANCHES)') $(CASES)
 
 # 跟上一个正式 release 逐页比排版，发版前跑，逐个人工确认
 regression-test:

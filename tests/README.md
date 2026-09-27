@@ -91,6 +91,40 @@ make manual-check      # 改完重编，与基线逐页比
 NPROC=4 make smoke
 ```
 
+## 按功能的回归（`tests/feature`）
+
+上面几条都是整本比：示例一改基线就全换，单个功能在冷门分支上坏了，要靠示例恰好碰到
+才发现（例如 pdfLaTeX 下成果页没有年份的条目让 natbib 连报三条错、
+XeLaTeX 下报告里的西文字母叠成一团）。这一条照 iota-hit 的 `tests/` 拆开：一个功能
+一份小文档，跑遍各分支（阶段 × 学位 × 校区 × 语种）与三个引擎，逐份查。平时不跑，改了哪个
+功能、或者发版前跑一次。
+
+```sh
+make feature                                   # 全部用例
+make feature CASES='algorithm-caption'         # 只跑这几个
+make feature ENGINES=lualatex BRANCHES='stage=final,campus=harbin'
+texlua tests/feature/run.lua --list            # 列出用例
+texlua tests/feature/run.lua --keep 用例        # 过了的工作目录也留着
+```
+
+一个用例是 `tests/feature/cases/` 下同名的两个文件：
+
+- `<名>.tex`：文档本身，`\documentclass` 由 `run.lua` 按分支补在最前面，接着读
+  `tests/feature/feature-prelude.tex`（关掉文末自动补排的前置、正文、后置，用例要哪段自己写）。
+  文件头的 `%!` 行是指令：`branches`（条件，写法与 `\hitsetup[…]` 相同，另认 `engine` 与
+  分支名 `id`）、`engines`、`options`（给 `\documentclass` 多加的选项）、`files`（一起拷进工作
+  目录的文件）、`allow`（容许的告警，Lua 模式，可写多行）。
+- `<名>.lua`：检查，返回一个函数，拿到的对象有 `branch`、`engine`、`log`，查 PDF 用
+  `has`/`hasnt`/`count`（找一段字，空白不算、不跨行）、`bold`（每个字粗或细）、`font`、`pos`、
+  `page_of`、`lines`（逐行的字，每个字带页、坐标、字体、字号、粗细），类按分支定的开关用
+  `fact`（`chapter`、`en`、`shenzhen`、`bilingual-caption`，由 prelude 写进日志），
+  不对就 `fail`/`expect`。可以没有，那样只查编没编出 PDF、有没有报错与告警。
+
+每份默认都查：编出了 PDF、日志里没有 `!` 开头的错、没有 hithesis 与 docxlike 的告警、没有
+“Font shape … undefined”。引擎自己写明了的局限（pdfLaTeX 下全角标点不贴格那一条）
+不算。PDF 靠 `mutool trace` 读，合成粗体认描边。工作目录在 `tests/feature/work/`，过了的删掉，
+不过的留着看。
+
 ## 两种参照物
 
 本地 PNG 基线（`make baseline` + `make smoke`）拿自己改动前的工作树作参照，改 dtx 时
