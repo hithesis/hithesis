@@ -6,6 +6,8 @@
 %
 % \section{目录与图表目录}
 %
+% \changes{v3.2a}{2026/09/28}{英文目录与英文版目录的章条目点线、页码也加粗，照 iota；本科中文目录的章条目
+%   不再加粗（\option{chapterbold} 默认改为关），范例与 iota 都是细的}
 % \changes{v3.2a}{2026/09/27}{题序末字按字取：\hologo{pdfLaTeX} 下一个汉字是几个记号，按记号取只拿到末字节，“一、”后面会多空一格}
 % \changes{v3.2a}{2026/09/13}{目录模块拆出来并迁到 expl3：\cs{@dottedtocline} 直接重定义
 %   （\pkg{etoolbox} 补丁在 expl3 里会吃掉宏体内的字面空格）；整块套 \option{stage} 闸；
@@ -347,6 +349,7 @@
   }
 \box_new:N \l__hit_toc_num_box
 \box_new:N \l__hit_toc_pnum_box
+\tl_new:N \l__hit_toc_tail_font_tl
 \box_new:N \l__hit_toc_gap_box
 %    \end{macrocode}
 %
@@ -449,7 +452,7 @@
             { \dim_set:Nn \l__hit_toc_indent_dim {#2} }
           \leftskip \l__hit_toc_indent_dim
           \hit@toc@line@metrics:nn { #1 + 1 } {#4}
-          \hbox_set:Nn \l__hit_toc_pnum_box { \normalfont #5 }
+          \hbox_set:Nn \l__hit_toc_pnum_box { \normalfont \l__hit_toc_tail_font_tl #5 }
           \bool_if_exist:NT \g_docxlike_format_verb_exit_bool
             { \bool_gset_false:N \g_docxlike_format_verb_exit_bool }
           \skip_set:Nn \rightskip { 0pt plus 1fil }
@@ -465,9 +468,10 @@
             { \advance \leftskip \@tempdima }
           \null \nobreak \hskip - \leftskip
           { \use:c { hit@toc@font } #4 } \nobreak
-          \leaders \hbox { $ \m@th \mkern \@dotsep mu \hbox {.} \mkern \@dotsep mu $ }
+          \leaders \hbox
+            { \l__hit_toc_tail_font_tl $ \m@th \mkern \@dotsep mu \hbox {.} \mkern \@dotsep mu $ }
           \hskip 1em \@plus 1fill \nobreak
-          \hbox { \hfil \normalfont \normalcolor #5 \kern -\p@ \kern \p@ }
+          \hbox { \hfil \normalfont \l__hit_toc_tail_font_tl \normalcolor #5 \kern -\p@ \kern \p@ }
           \str_if_eq:VnF \g__hit_toc_number_align_str { left }
             {
               \dim_set_eq:NN \hangindent \g__hit_toc_hang_dim
@@ -484,7 +488,8 @@
 % \changes{v3.0.0}{2020/05/21}{博后和英文版需要加粗}
 % 目录里章条目的字体。本科用 \cs{rmfamily}，其余取 \cs{hit@toc@font}
 % （\option{toc}/\option{latin-sans} 关着的时候它展开成空）。之后按博后、
-% 本科加粗、英文版依次叠加粗体。
+% 本科加粗、英文版依次叠加粗体。本科那一档跟着标题 1 的粗细走（\option{chapterbold}
+% 由标题 1 样式的 \texttt{b} 写回），默认是细的。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@toc@chapter@line@font
   {
@@ -539,7 +544,9 @@
           \dim_gzero:N \g__hit_toc_hang_dim
           \hit@toc@line@metrics:nn { 1 } {#1}
           \hit@toc@numwidth@apply:
-          \hbox_set:Nn \l__hit_toc_pnum_box { \normalfont #2 }
+          \bool_if:NT \g__hit_en_bool
+            { \tl_set:Nn \l__hit_toc_tail_font_tl { \bfseries } }
+          \hbox_set:Nn \l__hit_toc_pnum_box { \normalfont \l__hit_toc_tail_font_tl #2 }
           \bool_if_exist:NT \g_docxlike_format_verb_exit_bool
             { \bool_gset_false:N \g_docxlike_format_verb_exit_bool }
           \parindent \z@
@@ -547,9 +554,10 @@
           \skip_zero:N \parfillskip
           \leavevmode
           { \hit@toc@chapter@line@font #1 } \nobreak
-          \leaders \hbox { $ \m@th \mkern \@dotsep mu \hbox { . } \mkern \@dotsep mu $ }
+          \leaders \hbox
+            { \l__hit_toc_tail_font_tl $ \m@th \mkern \@dotsep mu \hbox { . } \mkern \@dotsep mu $ }
           \hskip 1em \@plus 1fill
-          \nobreak { \normalfont \normalcolor #2 }
+          \nobreak { \normalfont \l__hit_toc_tail_font_tl \normalcolor #2 }
           \dim_set_eq:NN \hangindent \g__hit_toc_hang_dim
           \int_set:Nn \hangafter { 1 }
           \par
@@ -581,10 +589,18 @@
 ~
 %    \end{macrocode}
 %
-% 此处添加英文目录的章标题格式，默认细点
+% 英文目录的章条目整行加粗，点线与页码也粗，照 iota（英文目录的一级条目 \texttt{bold-chapter}）。
+% 标题的粗体写在 \file{.toe} 的条目里，点线与页码由 \cs{l__hit_toc_tail_font_tl} 给，
+% 包一个组，免得漏到节条目上。英文版论文的目录走上面的 \cs{l@chapter}，同样整行粗。
 % \changes{v1.0.05}{2017/09/18}{矫正英文目录缩进与中文目录一致的bug}
 %    \begin{macrocode}
- \cs_set_nopar:Npn \l@chapter {\@dottedtocline{0}{0em}{5em}}%控制英文目录： 细点\@dottedtocline  粗点\@dottedtoclinebold
+ \cs_set:Npn \l@chapter ##1##2
+   {
+     \group_begin:
+     \tl_set:Nn \l__hit_toc_tail_font_tl { \bfseries }
+     \@dottedtocline {0} {0em} {5em} {##1} {##2}
+     \group_end:
+   }
  \@restonecolfalse
 %    \end{macrocode}
 % 「Contents」是纯西文行，行盒按 Times 算，标题自己会这样判（Word 按行里实际的字算行高）；
