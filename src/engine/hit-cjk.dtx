@@ -1,0 +1,640 @@
+% \iffalse meta-comment
+%
+% hit-cjk.dtx 是不经 ctex 的中文层：底类换成 book 之后，ctex 原先给的那几样由类自己给
+%
+% \fi
+%
+% \section{不经 \pkg{ctex} 的中文层}
+%
+% \changes{v3.2a}{2026/09/28}{\hologo{LuaLaTeX} 与 \hologo{XeLaTeX} 下底类换成 \cls{book}，中文排版的底由
+%   \pkg{docxlike} 装（\pkg{xeCJK}、\pkg{luatexja}），不再经 \pkg{ctex}：字号表、\cs{zihao}、\cs{ccwd}、
+%   \cs{chinese} 由类给，\hologo{LuaLaTeX} 下 \cs{setCJKmainfont}、\cs{setCJKfamilyfont}、\cs{CJKfamily}
+%   这一族架在 \pkg{luatexja-fontspec} 上；深圳硕博的开题与中期、\hologo{pdfLaTeX} 仍是 \cls{ctexbook}}
+%
+% 正文照 Word 排的文档（学位论文与本部、威海、深圳本科的报告）在 \hologo{LuaLaTeX} 与
+% \hologo{XeLaTeX} 下不再装 \pkg{ctex}，底类是 \cls{book}。标题、目录、题注、列表、页眉页脚都已经
+% 交给 \pkg{docxlike}，\pkg{ctex} 剩下的用处是下面这几样，这里一样一样补上，取值照 \pkg{ctex}
+% 抄（\pkg{ctex} 与本类同是 LPPL）：
+% \begin{itemize}
+% \item 字号：\option{zihao}~=~\texttt{-4} 的那张表（\file{ctex-cs4size.clo}），\cs{zihao}，公式里
+%   各级字号；
+% \item \cs{ccwd}（一个汉字的宽，字号加上汉字之间的字距），换字号时跟着变，首行缩进也照它；
+% \item \cs{chinese} 与 \pkg{enumitem} 的中文计数；
+% \item \hologo{LuaLaTeX} 下的中文字族：\cs{setCJKmainfont}、\cs{setCJKsansfont}、\cs{setCJKmonofont}、
+%   \cs{setCJKfamilyfont}、\cs{newCJKfontfamily}、\cs{CJKfamily}、\cs{addCJKfontfeatures}、
+%   \cs{defaultCJKfontfeatures}，写法与 \pkg{xeCJK} 一样。\hologo{XeLaTeX} 下这一族本来就是
+%   \pkg{xeCJK} 的，不用补。
+% \end{itemize}
+%
+% 中文排版的底（\pkg{xeCJK}，或 \pkg{luatexja} 经 \pkg{luatexja-fontspec}，字符范围、JFM、
+% 中文字体不缩放）由 \pkg{docxlike} 的 \cs{docxlike\_cjk\_base:} 装，与 \pkg{docxlike} 单独使用时
+% 同一套。\pkg{ctex} 的标题、名字、字体集这三层本类早已不用；字体集由 \option{font-zh}
+% 管，写 \option{fontset} 等于给 \option{font-zh} 定了取值，见 \file{src/engine/hit-fonts.dtx}。
+%
+% 仍装 \pkg{ctex} 的两处：深圳硕博的开题与中期（整篇还是 \pkg{ctex} 排的，没有可照的原件，
+% 不动），\hologo{pdfLaTeX}（\pkg{CJK} 宏包那一层与字体映射都靠 \pkg{ctex}）。分水岭那边按
+% \cs{g\_\_hit\_ctex\_base\_bool} 选底类，这里的函数只在不装 \pkg{ctex} 时调。
+%
+% ^^A ======================================================================
+% ^^A Module shared-cjk: 不经 ctex 的中文层
+% ^^A ======================================================================
+%    \begin{macrocode}
+%<*shared-cjk>
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@cjk@base:}
+% 分水岭在 \cs{LoadClass}\marg{book} 前后各调一句。前一句装 \pkg{fix-cm}，\cls{ctexbook} 也是在
+% 装 \cls{book} 之前装它。后一句装中文排版的底，再把字号、\cs{ccwd}、中文计数补上，末了
+% \cs{normalsize} 一下，与 \pkg{ctex} 结尾那句一样。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@cjk@before@class:
+  { \RequirePackage { fix-cm } }
+\cs_new_protected:Npn \hit@cjk@base:
+  {
+    \docxlike_cjk_base:
+    \sys_if_engine_luatex:T { \__hit_cjk_ltj_after: }
+    \__hit_cjk_sizes:
+    \__hit_cjk_ccwd:
+    \__hit_cjk_zhnumber:
+    \normalsize
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{字号}
+%
+% 字号名对磅数取 Word 的那一套，与 \pkg{ctex} 的默认（\option{font-size-system}~=~\texttt{word}）
+% 一样；行距取字号的 1.2 倍。\cs{normalsize} 以下十个尺寸命令照 \file{ctex-cs4size.clo}：
+% 小四为 \cs{normalsize}，\cs{small} 五号，\cs{footnotesize} 小五，往上 \cs{large} 小三、
+% \cs{Large} 小二、\cs{LARGE} 二号、\cs{huge} 小一、\cs{Huge} 一号。公式与列表的几段间距与
+% \file{bk12.clo} 相同，照抄。学位论文的 \cs{normalsize} 另由 \file{src/flow/hit-flow-fonts.dtx}
+% 按 Word 的正文重设。
+%    \begin{macrocode}
+\prop_const_from_keyval:Nn \c__hit_cjk_size_prop
+  {
+     8 = 5bp ,     7 = 5.5bp ,  -6 = 6.5bp ,   6 = 7.5bp ,
+    -5 = 9bp ,     5 = 10.5bp , -4 = 12bp ,    4 = 14bp ,
+    -3 = 15bp ,    3 = 16bp ,   -2 = 18bp ,    2 = 22bp ,
+    -1 = 24bp ,    1 = 26bp ,   -0 = 36bp ,    0 = 42bp ,
+  }
+\tl_new:N \l__hit_cjk_size_tl
+\cs_new:Npn \__hit_cjk_size_pair:n #1
+  { { \dim_to_decimal:n {#1} } { \dim_to_decimal:n { (#1) * 6 / 5 } } }
+\cs_new_protected:Npn \__hit_cjk_set_size:Nnn #1#2#3
+  {
+    \prop_get:NnN \c__hit_cjk_size_prop {#2} \l__hit_cjk_size_tl
+    \use:e
+      {
+        \cs_set_protected:Npn \exp_not:N #1
+          {
+            \exp_not:N \@setfontsize \exp_not:N #1
+              \__hit_cjk_size_pair:n { \l__hit_cjk_size_tl }
+            \exp_not:n {#3}
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 公式的三级字号（正文、上下标、二级上下标）照 \pkg{ctex} 那张表，字号名换成磅数，
+% 写成长度的原样取。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_cjk_math_size:n #1
+  {
+    \prop_if_in:NnTF \c__hit_cjk_size_prop {#1}
+      { \dim_to_decimal:n { \prop_item:Nn \c__hit_cjk_size_prop {#1} } }
+      { \dim_to_decimal:n {#1} }
+  }
+\cs_new_protected:Npn \__hit_cjk_math_sizes:nnnn #1#2#3#4
+  {
+    \use:e
+      {
+        \exp_not:N \DeclareMathSizes
+          { \__hit_cjk_math_size:n {#1} } { \__hit_cjk_math_size:n {#2} }
+          { \__hit_cjk_math_size:n {#3} } { \__hit_cjk_math_size:n {#4} }
+      }
+  }
+\cs_new_protected:Npn \__hit_cjk_sizes:
+  {
+    \clist_map_inline:nn
+      {
+        {  8 } {  8 } { 5pt } { 5pt } , {  7 } {  7 } { 5pt } { 5pt } ,
+        { -6 } { -6 } { 5pt } { 5pt } , {  6 } {  6 } { 5pt } { 5pt } ,
+        { -5 } { -5 } { 6pt } { 5pt } , {  5 } {  5 } { 7pt } { 5pt } ,
+        { -4 } { -4 } { 8pt } { 6pt } , {  4 } {  4 } {  5 } {  6 } ,
+        { -3 } { -3 } { -4 } { -5 } , {  3 } {  3 } {  4 } {  5 } ,
+        { -2 } { -2 } { -3 } { -4 } , {  2 } {  2 } {  3 } {  4 } ,
+        { -1 } { -1 } { -2 } { -3 } , {  1 } {  1 } {  2 } {  3 } ,
+        { -0 } { -0 } { -1 } { -2 } , {  0 } {  0 } {  1 } {  2 }
+      }
+      { \__hit_cjk_math_sizes:nnnn ##1 }
+    \__hit_cjk_set_size:Nnn \normalsize { -4 }
+      {
+        \abovedisplayskip 12 \p@ \@plus 3 \p@ \@minus 7 \p@
+        \abovedisplayshortskip \z@ \@plus 3 \p@
+        \belowdisplayshortskip 6.5 \p@ \@plus 3.5 \p@ \@minus 3 \p@
+        \belowdisplayskip \abovedisplayskip
+        \let \@listi \@listI
+      }
+    \__hit_cjk_set_size:Nnn \small { 5 }
+      {
+        \abovedisplayskip 11 \p@ \@plus 3 \p@ \@minus 6 \p@
+        \abovedisplayshortskip \z@ \@plus 3 \p@
+        \belowdisplayshortskip 6.5 \p@ \@plus 3.5 \p@ \@minus 3 \p@
+        \def \@listi
+          {
+            \leftmargin \leftmargini
+            \topsep 9 \p@ \@plus 3 \p@ \@minus 5 \p@
+            \parsep 4.5 \p@ \@plus 2 \p@ \@minus \p@
+            \itemsep \parsep
+          }
+        \belowdisplayskip \abovedisplayskip
+      }
+    \__hit_cjk_set_size:Nnn \footnotesize { -5 }
+      {
+        \abovedisplayskip 10 \p@ \@plus 2 \p@ \@minus 5 \p@
+        \abovedisplayshortskip \z@ \@plus 3 \p@
+        \belowdisplayshortskip 6 \p@ \@plus 3 \p@ \@minus 3 \p@
+        \def \@listi
+          {
+            \leftmargin \leftmargini
+            \topsep 6 \p@ \@plus 2 \p@ \@minus 2 \p@
+            \parsep 3 \p@ \@plus 2 \p@ \@minus \p@
+            \itemsep \parsep
+          }
+        \belowdisplayskip \abovedisplayskip
+      }
+    \__hit_cjk_set_size:Nnn \scriptsize { 6 } { }
+    \__hit_cjk_set_size:Nnn \tiny { -6 } { }
+    \__hit_cjk_set_size:Nnn \large { -3 } { }
+    \__hit_cjk_set_size:Nnn \Large { -2 } { }
+    \__hit_cjk_set_size:Nnn \LARGE { 2 } { }
+    \__hit_cjk_set_size:Nnn \huge { -1 } { }
+    \__hit_cjk_set_size:Nnn \Huge { 1 } { }
+    \NewDocumentCommand \zihao { m }
+      { \exp_args:Ne \__hit_cjk_zihao:n {##1} \tex_ignorespaces:D }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\zihao}
+% \cs{zihao}\marg{字号} 换到那个字号，行距 1.2 倍，写法与 \pkg{ctex} 一样：\texttt{-4} 是小四，
+% \texttt{0} 与 \texttt{-0} 是初号与小初。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_cjk_zihao:n #1
+  {
+    \prop_get:NnNTF \c__hit_cjk_size_prop {#1} \l__hit_cjk_size_tl
+      {
+        \use:e { \exp_not:N \fontsize \__hit_cjk_size_pair:n { \l__hit_cjk_size_tl } }
+        \selectfont
+      }
+      { \msg_error:nnn { hithesis } { zihao-unknown } {#1} }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{\cs{ccwd}、字距与首行缩进}
+%
+% 这一节照 \pkg{ctex} 挂在换字体上的那几件事（\pkg{ctex} 挂的也是 \texttt{selectfont} 钩子，
+% \cs{size@update} 之前），取值与时机都照它，没有字符网格的报告（本部与威海的开题、中期）排出来才与
+% 先前一样。有字符网格的文档里，\pkg{docxlike} 在正文开头就设了自己的字距，这里只剩重算 \cs{ccwd}。
+%
+% \begin{macro}{\ccwd}
+% \cs{ccwd} 是一个汉字占的宽：字号加上汉字之间那段胶的自然宽，字号变了才重算。汉字之间的胶
+% \hologo{XeLaTeX} 下是 \pkg{xeCJK} 的 \cs{CJKglue}，量一个盒子取宽；\hologo{LuaLaTeX} 下是
+% \pkg{luatexja} 的 \texttt{kanjiskip}，胶赋给长度取的就是自然宽。\pkg{docxlike} 按字符网格设了字距
+% 之后，这里算出来的就是网格的一格。
+%
+% \emph{字距没被别人设过时由这里设。} 换字号时按行宽定一段只伸不缩的胶：一行放得下 $n$ 个字
+% （行宽减两个字宽再除以字宽，取整），把行宽剩下的那点均给 $n$ 个字缝。\pkg{luatexja} 自己的
+% 默认字距能压缩（\texttt{minus 0.5pt}），\pkg{xeCJK} 的按行距伸，都与先前排的不一样。\pkg{docxlike}
+% 设了字距（\texttt{docxlike/hglue} 钩子，见 \file{hit-docxlike.dtx}）之后就是“设过”，这里不再动它，
+% \cs{ccwd} 改按它算。怎么看“设过”：\hologo{LuaLaTeX} 比 \texttt{kanjiskip} 与这里上次设的值，
+% \hologo{XeLaTeX} 比 \cs{CJKglue} 与这里上次设的那个宏（一开始是 \pkg{xeCJK} 自己的 \cs{CJKglue}，
+% 当没设过）。\hologo{LuaLaTeX} 下 \pkg{docxlike} 第一次设字距之前一概不比，照算，与 \pkg{ctex}
+% 在 \hologo{LuaLaTeX} 下的做法一样（别处临时改的 \texttt{kanjiskip}，比如分散对齐那一段，
+% 遇上换字号也被盖掉）。
+%
+% \emph{中西文之间的胶（\hologo{LuaLaTeX} 的 \texttt{xkanjiskip}）}每次换字体都设成四分之一个字号、
+% 能伸缩 1\,pt，同样只在没被别人设过时。\pkg{luatexja} 的默认值是装它那一刻按日文字号算死的
+% 2.4\,pt，不跟字号变。\hologo{XeLaTeX} 下 \pkg{ctex} 不管这一段，这里也不管。
+%
+% 首行缩进照 \pkg{ctex} 的 \option{autoindent}：换字号时缩进不为零就跟着 \cs{ccwd} 取两个字。正文交给
+% \pkg{docxlike} 排的时候关掉（Word 的首行缩进存成绝对长度，不跟字号变），见
+% \cs{hit@cjk@autoindent@off:}。
+%    \begin{macrocode}
+\box_new:N \l__hit_cjk_tmp_box
+\int_new:N \l__hit_cjk_tmp_int
+\skip_new:N \l__hit_cjk_ccglue_skip
+\skip_new:N \l__hit_cjk_xkanjiskip_skip
+\bool_new:N \g__hit_cjk_autoindent_bool
+\bool_new:N \g__hit_cjk_glue_check_bool
+\cs_new_protected:Npn \__hit_cjk_ccglue_xe: { }
+\prg_new_conditional:Npnn \__hit_cjk_if_glue_touched: { TF }
+  {
+    \sys_if_engine_luatex:TF
+      {
+        \bool_if:NTF \g__hit_cjk_glue_check_bool
+          {
+            \skip_if_eq:nnTF { \l__hit_cjk_ccglue_skip } { \ltjgetparameter { kanjiskip } }
+              { \prg_return_false: } { \prg_return_true: }
+          }
+          { \prg_return_false: }
+      }
+      {
+        \cs_if_eq:NNTF \CJKglue \__hit_cjk_ccglue_xe:
+          { \prg_return_false: } { \prg_return_true: }
+      }
+  }
+\cs_new_protected:Npn \hit@cjk@update@ccwd:
+  {
+    \sys_if_engine_luatex:TF
+      {
+        \ccwd = \tex_glueexpr:D \ltjgetparameter { kanjiskip } \scan_stop:
+      }
+      {
+        \hbox_set:Nn \l__hit_cjk_tmp_box { \CJKglue }
+        \dim_set:Nn \ccwd { \box_wd:N \l__hit_cjk_tmp_box }
+      }
+    \dim_add:Nn \ccwd { \f@size pt }
+  }
+\cs_new_protected:Npn \__hit_cjk_set_ccglue:
+  {
+    \int_set:Nn \l__hit_cjk_tmp_int { \tex_dimexpr:D \linewidth - \ccwd - \ccwd \scan_stop: }
+    \tex_divide:D \l__hit_cjk_tmp_int \ccwd
+    \int_compare:nNnTF \l__hit_cjk_tmp_int > \c_zero_int
+      {
+        \skip_set:Nn \l__hit_cjk_ccglue_skip
+          {
+            \c_zero_dim plus \dim_eval:n
+              { ( \linewidth - \ccwd - \l__hit_cjk_tmp_int \ccwd ) / \l__hit_cjk_tmp_int }
+          }
+      }
+      { \skip_zero:N \l__hit_cjk_ccglue_skip }
+    \sys_if_engine_luatex:TF
+      { \ltjsetparameter { kanjiskip = \l__hit_cjk_ccglue_skip } }
+      {
+        \cs_set_protected:Npn \CJKglue { \skip_horizontal:N \l__hit_cjk_ccglue_skip }
+        \cs_set_eq:NN \__hit_cjk_ccglue_xe: \CJKglue
+      }
+  }
+\cs_new_protected:Npn \__hit_cjk_update_size:
+  {
+    \dim_set:Nn \ccwd { \f@size pt }
+    \__hit_cjk_if_glue_touched:TF
+      { \hit@cjk@update@ccwd: }
+      { \__hit_cjk_set_ccglue: }
+    \bool_if:NT \g__hit_cjk_autoindent_bool
+      {
+        \dim_compare:nNnF \parindent = \c_zero_dim
+          { \dim_set:Nn \parindent { 2 \ccwd } }
+      }
+  }
+\cs_new_protected:Npn \__hit_cjk_update_xkanjiskip:
+  {
+    \skip_if_eq:nnT { \ltjgetparameter { xkanjiskip } } { \l__hit_cjk_xkanjiskip_skip }
+      {
+        \skip_set:Nn \l__hit_cjk_xkanjiskip_skip
+          { 0.25 \tex_dimexpr:D \f@size pt \scan_stop: plus 1pt minus 1pt }
+        \ltjsetparameter { xkanjiskip = \l__hit_cjk_xkanjiskip_skip }
+      }
+  }
+\cs_new_protected:Npn \__hit_cjk_ccwd:
+  {
+    \dim_new:N \ccwd
+    \bool_gset_true:N \g__hit_cjk_autoindent_bool
+    \sys_if_engine_luatex:TF
+      {
+        \skip_set:Nn \l__hit_cjk_xkanjiskip_skip { \ltjgetparameter { xkanjiskip } }
+        \AddToHook { selectfont }
+          {
+            \cs_if_free:NF \size@update { \__hit_cjk_update_size: }
+            \__hit_cjk_update_xkanjiskip:
+          }
+      }
+      {
+        \cs_set_eq:NN \__hit_cjk_ccglue_xe: \CJKglue
+        \AddToHook { selectfont }
+          { \cs_if_free:NF \size@update { \__hit_cjk_update_size: } }
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@cjk@glue@set:}
+% \pkg{docxlike} 设过字距之后调（\file{hit-docxlike.dtx} 的 \texttt{docxlike/hglue} 钩子）：从此比
+% “设过没有”，\cs{ccwd} 当场按新字距重算。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@cjk@glue@set:
+  {
+    \bool_gset_true:N \g__hit_cjk_glue_check_bool
+    \hit@cjk@update@ccwd:
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@cjk@autoindent@off:}
+% 两条底类各有一份开关：装着 \pkg{ctex} 时是它的 \option{autoindent}，不装时是上面那个标志位。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@cjk@autoindent@off:
+  {
+    \bool_if:NTF \g__hit_ctex_base_bool
+      { \ctexset { autoindent = false } }
+      { \bool_gset_false:N \g__hit_cjk_autoindent_bool }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{中文计数}
+%
+% \cs{chinese}、\cs{Chinese} 与 \cs{@chinese} 照 \pkg{ctex}，取自 \pkg{zhnumber}；\pkg{enumitem}
+% 装上之后登记三种中文计数，\texttt{label=\textbackslash chinese*} 这类写法才认。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_cjk_enumitem:
+  {
+    \cs_if_exist:NT \AddEnumerateCounter
+      {
+        \AddEnumerateCounter * { \zhnum } { \@zhnum } { 1 }
+        \AddEnumerateCounter * { \zhdig } { \@zhdig } { 1 }
+        \AddEnumerateCounter * { \chinese } { \@chinese } { 1 }
+      }
+  }
+\cs_new_protected:Npn \__hit_cjk_zhnumber:
+  {
+    \PassOptionsToPackage { encoding = UTF8 } { zhnumber }
+    \RequirePackage { zhnumber }
+    \cs_gset:Npn \chinese { \zhnum_counter:n }
+    \cs_gset_eq:NN \@chinese \@zhnum
+    \cs_gset_eq:NN \Chinese \chinese
+    \IfPackageLoadedTF { enumitem }
+      { \__hit_cjk_enumitem: }
+      { \AddToHook { package / enumitem / after } { \__hit_cjk_enumitem: } }
+  }
+%    \end{macrocode}
+%
+% \subsection{\hologo{LuaLaTeX} 下的中文字族}
+%
+% \pkg{ctex} 在 \hologo{LuaLaTeX} 下不用 \pkg{luatexja-fontspec}，自己搭了一层字族（一千多行）。
+% 这里架在 \pkg{luatexja-fontspec} 上，只做本类与用户文档用得到的那几条，写法与 \pkg{xeCJK}、
+% \pkg{ctex} 相同：
+% \begin{itemize}
+% \item 字族有名字（\texttt{zhsong}、\texttt{zhkai}……），正文、无衬线、等宽三族的名字是
+%   \cs{CJKrmdefault}、\cs{CJKsfdefault}、\cs{CJKttdefault}（\texttt{rm}、\texttt{sf}、\texttt{tt}）。
+%   每个名字记下字体名与特性，第一次用到时才交给 \pkg{luatexja-fontspec} 建 NFSS 字族：声明时
+%   就建的话，斜体那一遍（\file{hit-fonts.dtx} 的 \cs{hit@font@italic@pass:}）把每一族重声明
+%   一次，字体都要多载一遍。
+% \item \cs{CJKfamily}\marg{名字} 换到那一族；\cs{rmfamily}、\cs{sffamily}、\cs{ttfamily} 与
+%   \cs{normalfont} 顺带换到对应的中文字族，与 \pkg{xeCJK} 一样。换族挂在这几个命令自己的
+%   钩子上，钩子在它们的 \cs{selectfont} 之前，所以这里只设 \pkg{luatexja} 的
+%   \cs{kanjifamily}，不另 \cs{selectfont}。
+% \item 正文、无衬线、等宽三族建好之后写回 \pkg{luatexja} 的 \cs{mcdefault}、\cs{gtdefault}、
+%   \cs{jttdefault}，公式里的汉字（\texttt{mincho} 那个符号字体）也跟着正文那一族。
+% \end{itemize}
+%
+% 下面几条照 \pkg{ctex} 装完 \pkg{luatexja} 之后做的：\texttt{128}--\texttt{255} 这些码位在公式里当字母，
+% \cs{verb} 与等宽字体那几处（见下），\file{lltjcore.sty} 的版本号置空（\pkg{ctex} 也这么做，
+% 照抄，免得哪个补丁包按版本号走了另一支）。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_cjk_ltj_after:
+  {
+    \lua_now:n { for~x = 128 , 255 ~ do~luatexja.math.is_math_letters[x] = true ~ end }
+    \__hit_cjk_ltj_verb:
+    \cs_gset:cpn { ver@lltjcore.sty } { }
+    \__hit_cjk_ltj_commands:
+    \AddToHook { rmfamily } { \__hit_cjk_family_set:e { \CJKrmdefault } }
+    \AddToHook { sffamily } { \__hit_cjk_family_set:e { \CJKsfdefault } }
+    \AddToHook { ttfamily } { \__hit_cjk_family_set:e { \CJKttdefault } }
+    \AddToHook { normalfont } { \__hit_cjk_family_set:e { \CJKfamilydefault } }
+  }
+%    \end{macrocode}
+%
+% \cs{verb} 与 \cs{do@noligs} 照 \pkg{ctex}（它照的是 \file{lltjcore.sty}，装完再盖一遍）：行内代码
+% 前后不留 \cs{kern}，换成空的 \cs{vadjust}，\pkg{luatexja} 才不在代码与汉字之间插中西文间距；
+% 等宽字体里关掉中西文间距。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_cjk_ltj_verb:
+  {
+    \legacy_if:nF { @compatibility }
+      {
+        \cs_gset:Npn \verb
+          {
+            \relax \ifmmode \hbox \else \leavevmode \vadjust { } \fi
+            \bgroup
+              \verb@eol@error \let \do \@makeother \dospecials
+              \verbatim@font \@noligs
+              \language \l@nohyphenation
+              \@ifstar \@sverb \@verb
+          }
+      }
+    \patchcmd { \do@noligs } { \kern \z@ } { \vadjust { } } { } { }
+    \cs_gset_eq:NN \@@italiccorr \/
+    \AtBeginDocument
+      {
+        \g@addto@macro \verbatim@font
+          { \ltjsetparameter { autospacing = false , autoxspacing = false } }
+      }
+  }
+%    \end{macrocode}
+%
+% 字族表。三张属性表按字族名记字体名、声明时写的特性、建字族时实际给的特性（写的特性前面
+% 拼上当时 \cs{defaultCJKfontfeatures} 的默认特性，与 \pkg{ctex} 一样，默认特性在声明时取定）；
+% 第四张记建好的 NFSS 字族名，重声明时清掉，下次用到重建。斜体那一遍读的是前两张。
+%    \begin{macrocode}
+\prop_new:N \g__hit_cjk_family_font_name_prop
+\prop_new:N \g__hit_cjk_family_font_options_prop
+\prop_new:N \g__hit_cjk_family_build_options_prop
+\prop_new:N \g__hit_cjk_family_nfss_prop
+\clist_new:N \g__hit_cjk_default_features_clist
+\seq_new:N \g__hit_cjk_unknown_family_seq
+\tl_new:N \l__hit_cjk_family_tl
+\tl_new:N \l__hit_cjk_nfss_tl
+\tl_new:N \l__hit_cjk_font_tl
+\tl_new:N \l__hit_cjk_options_tl
+\tl_new:N \l__hit_cjk_name_tl
+\cs_new_protected:Npn \__hit_cjk_set_family:nnn #1#2#3
+  {
+    \prop_gput:Nnn \g__hit_cjk_family_font_name_prop {#1} {#3}
+    \prop_gput:Nnn \g__hit_cjk_family_font_options_prop {#1} {#2}
+    \prop_gput:Nnx \g__hit_cjk_family_build_options_prop {#1}
+      {
+        \clist_use:Nn \g__hit_cjk_default_features_clist { , }
+        \clist_if_empty:NF \g__hit_cjk_default_features_clist { , }
+        \exp_not:n {#2}
+      }
+    \prop_gremove:Nn \g__hit_cjk_family_nfss_prop {#1}
+  }
+%    \end{macrocode}
+%
+% 建字族。\cs{setjfontfamily} 是 \pkg{luatexja-fontspec} 的公开命令，建完的 NFSS 字族名留在
+% \pkg{fontspec} 的 \cs{l\_fontspec\_family\_tl} 里；它顺带定义的那个命令用不上，放在组里丢掉。
+% 正文、无衬线、等宽三族建好写回 \pkg{luatexja} 的缺省字族，照 \cs{setmainjfont} 那几句。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_cjk_build:n #1
+  {
+    \prop_get:NnN \g__hit_cjk_family_font_name_prop {#1} \l__hit_cjk_font_tl
+    \prop_get:NnN \g__hit_cjk_family_build_options_prop {#1} \l__hit_cjk_options_tl
+    \group_begin:
+      \use:e
+        {
+          \exp_not:N \setjfontfamily \exp_not:N \__hit_cjk_scratch:
+            [ \exp_not:V \l__hit_cjk_options_tl ] { \exp_not:V \l__hit_cjk_font_tl }
+        }
+      \prop_gput:NnV \g__hit_cjk_family_nfss_prop {#1} \l_fontspec_family_tl
+    \group_end:
+    \prop_get:NnN \g__hit_cjk_family_nfss_prop {#1} \l__hit_cjk_nfss_tl
+    \str_case_e:nn {#1}
+      {
+        { \CJKrmdefault }
+          {
+            \cs_gset:Npx \mcdefault { \l__hit_cjk_nfss_tl }
+            \cs_if_eq:NNF \DeclareSymbolFont \@notprerr
+              {
+                \DeclareSymbolFont { mincho } { JY3 } { \mcdefault } { \mddefault } { n }
+                \SetSymbolFont { mincho } { bold } { JY3 } { \mcdefault } { \bfdefault } { n }
+              }
+          }
+        { \CJKsfdefault } { \cs_gset:Npx \gtdefault { \l__hit_cjk_nfss_tl } }
+        { \CJKttdefault } { \cs_gset:Npx \jttdefault { \l__hit_cjk_nfss_tl } }
+      }
+  }
+\prg_new_protected_conditional:Npnn \__hit_cjk_nfss:nN #1#2 { T , F , TF }
+  {
+    \prop_get:NnNTF \g__hit_cjk_family_nfss_prop {#1} #2
+      { \prg_return_true: }
+      {
+        \prop_if_in:NnTF \g__hit_cjk_family_font_name_prop {#1}
+          {
+            \__hit_cjk_build:n {#1}
+            \prop_get:NnN \g__hit_cjk_family_nfss_prop {#1} #2
+            \prg_return_true:
+          }
+          { \prg_return_false: }
+      }
+  }
+%    \end{macrocode}
+%
+% 换族。没声明过的名字提示一次（一个字族都没声明时不提示，那是 \option{font-zh}~=~\texttt{none}
+% 还没设字体的时候），中文字体不变。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_cjk_family_set:n #1
+  {
+    \__hit_cjk_nfss:nNTF {#1} \l__hit_cjk_nfss_tl
+      {
+        \tl_set:Nn \l__hit_cjk_family_tl {#1}
+        \kanjifamily { \l__hit_cjk_nfss_tl }
+      }
+      {
+        \bool_lazy_or:nnF
+          { \prop_if_empty_p:N \g__hit_cjk_family_font_name_prop }
+          { \seq_if_in_p:Nn \g__hit_cjk_unknown_family_seq {#1} }
+          {
+            \seq_gput_right:Nn \g__hit_cjk_unknown_family_seq {#1}
+            \msg_warning:nnn { hithesis } { cjk-family-unknown } {#1}
+          }
+      }
+  }
+\cs_generate_variant:Nn \__hit_cjk_family_set:n { e }
+%    \end{macrocode}
+%
+% 临时加特性（\cs{addCJKfontfeatures}）与临时指定字体（\cs{CJKfontspec}）照 \pkg{ctex}：拿当前字族的
+% 字体名与特性，拼上新写的特性，另登记一族（名字就是特性加字体名，同样的组合只登记一次）再换过去。
+% 不交给 \pkg{luatexja-fontspec} 的 \cs{addjfontfeatures}：它借 \pkg{fontspec} 的
+% \cs{addfontfeatures}，在西文编码下按中文字族名选一次字体，每次报一条 \texttt{TU/SimSun(1)} 那样的
+% Font shape undefined。当前字族不在表里（字体不是经这一层设的）时什么也不做。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_cjk_fontspec:nn #1#2
+  {
+    \tl_set:Nn \l__hit_cjk_name_tl { fontspec / #1 / #2 }
+    \exp_args:NNV \prop_if_in:NnF \g__hit_cjk_family_font_name_prop \l__hit_cjk_name_tl
+      { \exp_args:NV \__hit_cjk_set_family:nnn \l__hit_cjk_name_tl {#1} {#2} }
+    \exp_args:NV \__hit_cjk_family_set:n \l__hit_cjk_name_tl
+    \selectfont
+  }
+\cs_new_protected:Npn \__hit_cjk_add_features:n #1
+  {
+    \exp_args:NNV \prop_get:NnNT \g__hit_cjk_family_font_name_prop \l__hit_cjk_family_tl \l__hit_cjk_font_tl
+      {
+        \exp_args:NNV \prop_get:NnN \g__hit_cjk_family_font_options_prop \l__hit_cjk_family_tl
+          \l__hit_cjk_options_tl
+        \use:e
+          {
+            \__hit_cjk_fontspec:nn
+              { \exp_args:NV \__hit_cjk_options:nn \l__hit_cjk_options_tl {#1} }
+              { \exp_not:V \l__hit_cjk_font_tl }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 用户命令。尾随的可选参数照 \pkg{xeCJK}：特性写在字体名前后都行，前后都写就拼起来。
+% \cs{setCJKmainfont} 这三条声明完 \cs{normalfont} 一下，当前字体换成新声明的那份，与
+% \pkg{ctex} 一样。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_cjk_options:nn #1#2
+  { \exp_not:n {#1} \tl_if_blank:nF {#1} { \tl_if_blank:nF {#2} { , } } \exp_not:n {#2} }
+\cs_new_protected:Npn \__hit_cjk_ltj_commands:
+  {
+    \tl_if_exist:NF \CJKrmdefault { \tl_const:Nn \CJKrmdefault { rm } }
+    \tl_if_exist:NF \CJKsfdefault { \tl_const:Nn \CJKsfdefault { sf } }
+    \tl_if_exist:NF \CJKttdefault { \tl_const:Nn \CJKttdefault { tt } }
+    \tl_if_exist:NF \CJKfamilydefault { \tl_new:N \CJKfamilydefault }
+    \tl_gset:Nn \CJKfamilydefault { \CJKrmdefault }
+    \NewDocumentCommand \setCJKmainfont { O { } m O { } }
+      {
+        \use:e { \__hit_cjk_set_family:nnn { \CJKrmdefault } { \__hit_cjk_options:nn {##1} {##3} } } {##2}
+        \normalfont
+      }
+    \NewDocumentCommand \setCJKsansfont { O { } m O { } }
+      {
+        \use:e { \__hit_cjk_set_family:nnn { \CJKsfdefault } { \__hit_cjk_options:nn {##1} {##3} } } {##2}
+        \normalfont
+      }
+    \NewDocumentCommand \setCJKmonofont { O { } m O { } }
+      {
+        \use:e { \__hit_cjk_set_family:nnn { \CJKttdefault } { \__hit_cjk_options:nn {##1} {##3} } } {##2}
+        \normalfont
+      }
+    \NewDocumentCommand \setCJKfamilyfont { m O { } m O { } }
+      { \use:e { \__hit_cjk_set_family:nnn {##1} { \__hit_cjk_options:nn {##2} {##4} } } {##3} }
+    \NewDocumentCommand \newCJKfontfamily { o m O { } m O { } }
+      {
+        \cs_if_exist:NTF ##2
+          {
+            \msg_error:nnxx { kernel } { command-already-defined }
+              { \token_to_str:N ##2 } { \token_to_meaning:N ##2 }
+          }
+          {
+            \tl_set:Nx \l__hit_cjk_name_tl
+              { \IfNoValueTF {##1} { \cs_to_str:N ##2 } {##1} }
+            \cs_set_protected:Npx ##2
+              { \exp_not:N \CJKfamily { \l__hit_cjk_name_tl } }
+            \use:e
+              {
+                \__hit_cjk_set_family:nnn { \l__hit_cjk_name_tl }
+                  { \__hit_cjk_options:nn {##3} {##5} }
+              }
+              {##4}
+          }
+      }
+    \NewDocumentCommand \CJKfamily { m }
+      { \__hit_cjk_family_set:e {##1} \selectfont \tex_ignorespaces:D }
+    \NewDocumentCommand \addCJKfontfeatures { m }
+      { \__hit_cjk_add_features:n {##1} \tex_ignorespaces:D }
+    \cs_gset_eq:NN \addCJKfontfeature \addCJKfontfeatures
+    \NewDocumentCommand \defaultCJKfontfeatures { m }
+      { \clist_gset:Nn \g__hit_cjk_default_features_clist {##1} }
+    \NewDocumentCommand \CJKfontspec { O { } m O { } }
+      {
+        \use:e { \__hit_cjk_fontspec:nn { \__hit_cjk_options:nn {##1} {##3} } } {##2}
+        \tex_ignorespaces:D
+      }
+    \@onlypreamble \setCJKmainfont
+    \@onlypreamble \setCJKsansfont
+    \@onlypreamble \setCJKmonofont
+    \@onlypreamble \defaultCJKfontfeatures
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
+%</shared-cjk>
+%    \end{macrocode}
+%
+% \Finale

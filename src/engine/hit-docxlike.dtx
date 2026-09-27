@@ -6,7 +6,7 @@
 %
 % \section{接到 \pkg{docxlike} 上}
 %
-% \changes{v3.2a}{2026/09/28}{只粗西文的那一档（\option{latin-bold}）汉字的粗体面指回常规面（\texttt{BoldFont=*}），
+% \changes{v3.2a}{2026/09/28}{只粗西文的那一档（\option{latin-bold}）汉字的粗体面指回常规面（\texttt{BoldFont!=*}），
 %   不再每编一次报 Font shape undefined；排出来一样}
 % \changes{v3.2a}{2026/09/27}{引用文字剥末尾全角空格在 \hologo{pdfLaTeX} 下认 \pkg{ctex} 展开后的写法}
 % \changes{v3.2a}{2026/09/25}{章节标题交给 \pkg{docxlike} 排的共用一层（终稿与照 Word 排正文的报告）；
@@ -845,7 +845,8 @@
 % \subsection{字距与 \pkg{ctex} 同步}
 %
 % \pkg{docxlike} 设字符网格的字距时（\cs{docxlike\_format\_hglue:nn}）只管 \pkg{xeCJK} 与
-% \pkg{luatexja}，设完发钩子 \texttt{docxlike/hglue}。本类还在 \pkg{ctex} 上，它有自己一份：
+% \pkg{luatexja}，设完发钩子 \texttt{docxlike/hglue}。不装 \pkg{ctex} 的文档在这里重算一次 \cs{ccwd}
+% （\file{hit-cjk.dtx}），别的不用管。装着 \pkg{ctex} 的（深圳硕博的报告、\hologo{pdfLaTeX}）它有自己一份：
 % \pkg{ctex} 的 \cs{CJKglue} 读 \cs{l\_\_ctex\_ccglue\_skip}，字号变化时由
 % \cs{\_\_ctex\_update\_stretch\_auxi:} 重设，重设前先问 \cs{ctex\_if\_ccglue\_touched:}（比的是
 % \cs{CJKglue} 与 \cs{\_\_ctex\_ccglue:} 的 meaning）。\TeX~Live 2026 的 \cs{ctex\_update\_ccglue:}
@@ -863,6 +864,7 @@
 \bool_new:N \g__hit_ctex_ccwd_patched_bool
 \hook_gput_code:nnn { docxlike / hglue } { hithesis }
   {
+    \bool_if:NF \g__hit_ctex_base_bool { \hit@cjk@glue@set: }
     \cs_if_exist:NT \l__ctex_ccglue_skip
       { \skip_set:Nn \l__ctex_ccglue_skip { \l_docxlike_format_ccglue_dim } }
     \cs_if_exist:NT \ctex_update_ccwd: { \ctex_update_ccwd: }
@@ -885,8 +887,8 @@
   }
 %    \end{macrocode}
 %
-% 这几步只在 \texttt{Normal} 样式写过时做（普通报告不写，正文照 \pkg{ctex} 排）。
-% 正文交给 \pkg{docxlike} 之前先关掉 \pkg{ctex} 的 \option{autoindent}（“首行缩进跟着字号走，恒为
+% 这几步只在 \texttt{Normal} 样式写过时做（深圳硕博的报告不写，正文照 \pkg{ctex} 排）。
+% 正文交给 \pkg{docxlike} 之前先关掉 \option{autoindent}（\pkg{ctex} 的，或 \file{hit-cjk.dtx} 照它做的那一份：“首行缩进跟着字号走，恒为
 % 两个汉字宽”，每次换字号都重设 \cs{parindent}；Word 的首行缩进存盘时就折成了绝对长度）。排完正文、
 % 有字符网格时（网格步进是排正文时才算出来的）再停掉 \pkg{ctex} 挂在字号变化上的 \cs{ctex\_update\_ccglue:}：TL2025 下它判不出我们动过
 % \cs{CJKglue}，换字号就把字距冲回裸字号；停成空操作两版都稳，实测汉字步进都是 12.5040，没有网格的
@@ -895,7 +897,7 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@docxlike@apply@body:
   {
-    \docxlike_format_if_blank:nF { Normal } { \ctexset { autoindent = false } }
+    \docxlike_format_if_blank:nF { Normal } { \hit@cjk@autoindent@off: }
     \docxlike_format_apply_body:
     \docxlike_format_if_blank:nF { Normal }
       {

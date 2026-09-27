@@ -184,7 +184,7 @@ src/
 | 改一句提示文案 | `src/engine/hit-messages.dtx` 一处，24 条全在里面 |
 | 前置后置排哪些部件 | `src/engine/hit-structure.dtx` 声明键，`src/flow/hit-*-matter.dtx` 定顺序 |
 | 第三方宏包加载与先后 | `src/flow/hit-final-deps.dtx`、`src/flow/hit-report-deps.dtx` |
-| 装哪个基础类 | `src/engine/hit-loadclass.dtx`，一句 `\LoadClass{ctexbook}` 加报告那档的四条补偿 |
+| 装哪个基础类 | `src/engine/hit-loadclass.dtx`：`book`（深圳硕博报告与 pdfLaTeX 是 `ctexbook`）加报告那档的四条补偿；不装 ctex 时的中文层在 `src/engine/hit-cjk.dtx` |
 | 各个类共用的小工具 | `src/engine/hit-*.dtx` |
 | 论文的某一页 | `src/pages/hit-final-*.dtx`、`src/pages/hit-report-*.dtx` |
 | 版心、页眉、标题、浮动体、字体、数学、脚注 | `src/flow/hit-final-*.dtx`、`src/flow/hit-report-*.dtx` |

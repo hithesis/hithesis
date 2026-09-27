@@ -6,33 +6,50 @@
 %
 % \section{分水岭：\cs{LoadClass}}
 %
-% \changes{v3.2a}{2026/09/13}{两条装配线的 \cs{LoadClass} 合成一份，底类都是 \cls{ctexbook}：
-%   报告从基础类白拿的默认值显式写出来，节号与 \cs{appendix} 照 \cls{article}；
-%   新版面下 \cs{paragraph}、\cs{subparagraph} 报错（规范只到款）}
+% \changes{v3.2a}{2026/09/28}{两条装配线的 \cs{LoadClass} 合成一份。底类：正文照 Word 排的文档在
+%   \hologo{LuaLaTeX} 与 \hologo{XeLaTeX} 下是 \cls{book}，不装 \pkg{ctex}（标题、目录、题注、列表都已交给
+%   \pkg{docxlike}，\pkg{ctex} 的字族、字号与字距那一层与 Word 的模型打架）；深圳硕博的开题与中期
+%   （整篇还是 \pkg{ctex} 排的）与 \hologo{pdfLaTeX}（中文靠 \pkg{ctex} 的 \pkg{CJK} 那一层）是 \cls{ctexbook}。
+%   报告从基础类白拿的默认值显式写出来，节号与 \cs{appendix} 照 \cls{article}；\cs{paragraph}、
+%   \cs{subparagraph} 报错（规范只到款）}
 %
 % ^^A ======================================================================
-% ^^A Module shared-loadclass: \LoadClass{ctexbook} 与紧随其后的几条补偿
+% ^^A Module shared-loadclass: \LoadClass{book 或 ctexbook} 与紧随其后的几条补偿
 % ^^A ======================================================================
 %    \begin{macrocode}
 %<*shared-loadclass>
 %    \end{macrocode}
 %
-% 使用 \pkg{ctexbook} 类，优于调用 \pkg{ctex} 宏包。
+% 底类两选一，按 \cs{g\_\_hit\_ctex\_base\_bool}（定在 \file{src/engine/hit-options.dtx}）：
+% 正文照 Word 排的文档在 \hologo{LuaLaTeX} 与 \hologo{XeLaTeX} 下装 \cls{book}，中文层由
+% \file{src/engine/hit-cjk.dtx} 补；深圳硕博的开题与中期、\hologo{pdfLaTeX} 装 \cls{ctexbook}。
+% \cls{ctexbook} 给 \cls{book} 传的也是 \texttt{12pt}（\option{zihao}~=~\texttt{-4}），\cls{book} 这一支照写。
 %
 % \emph{单双面不写在这里。} 原先两条装配线各自在方括号里写死
 % （终稿 \texttt{openany}、报告 \texttt{oneside}），合成一份之后按
 % \option{stage} 与学位分，所以改由 \cs{PassOptionsToClass} 在选项模块里发，
-% 见 \file{src/engine/hit-options.dtx}。两条路进的是同一张选项表，效果一样。
+% 见 \file{src/engine/hit-options.dtx}。\cs{documentclass} 里本类不认的选项也在那边记下，
+% 这里传给装的那个底类。
 %    \begin{macrocode}
-\LoadClass[a4paper,UTF8,zihao=-4,scheme=plain]{ctexbook}
+\bool_if:NTF \g__hit_ctex_base_bool
+  {
+    \exp_args:No \PassOptionsToClass { \g__hit_base_class_options_clist } { ctexbook }
+    \LoadClass [ a4paper , UTF8 , zihao = -4 , scheme = plain ] { ctexbook }
+  }
+  {
+    \exp_args:No \PassOptionsToClass { \g__hit_base_class_options_clist } { book }
+    \hit@cjk@before@class:
+    \LoadClass [ a4paper , 12pt ] { book }
+    \hit@cjk@base:
+  }
 \bool_gset_true:N \g__hit_base_class_loaded_bool
 %    \end{macrocode}
 %
 % \subsection{报告那一档的四条补偿}
 %
 % \emph{下面这一段只有开题与中期跑。} 报告原先的底类是 \cls{ctexart}，四条默认值
-% 是从那边白拿的；底类换成 \cls{ctexbook} 之后 \cls{book} 那几条各不相同，所以
-% 显式写回来。终稿本来就是 \cls{ctexbook}，这几条正是它要的，不能跟着一起改。
+% 是从那边白拿的；底类换成 \cls{book}（或 \cls{ctexbook}）之后 \cls{book} 那几条各不相同，所以
+% 显式写回来。终稿要的正是 \cls{book} 那几条，不能跟着一起改。
 %
 % \begin{itemize}
 % \item \cs{secnumdepth}：\cls{article} 是 3，\cls{book} 是 2。报告通篇没写过
@@ -65,10 +82,21 @@
 %    \begin{macrocode}
     \cs_gset_protected:Npn \appendix
       {
-        \ctexset { appendix / number = \@Alph \c@section }
         \setcounter { section } { 0 }
         \setcounter { subsection } { 0 }
         \cs_gset:Npn \thesection { \@Alph \c@section }
+        \__hit_report_appendix_ctex:
+      }
+  }
+%    \end{macrocode}
+%
+% 标题由 \pkg{ctex} 排的那几档（深圳硕博的报告）还要把 \pkg{ctex} 自己的附录编号接上。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_report_appendix_ctex:
+  {
+    \bool_if:NT \g__hit_ctex_base_bool
+      {
+        \ctexset { appendix / number = \@Alph \c@section }
         \gdef \CTEX@presection { \CTEX@preappendix }
         \gdef \CTEX@thesection { \CTEX@appendix@number }
         \gdef \CTEX@postsection { \CTEX@postappendix }
@@ -80,7 +108,7 @@
 % \subsection{款以下不许写}
 %
 % 规范的标题只到款（终稿的第四级、报告的第三级），再往下是项，写列表。
-% \cs{paragraph}、\cs{subparagraph} 在 \cls{ctexbook} 里有定义、默认不编号，照旧
+% \cs{paragraph}、\cs{subparagraph} 在 \cls{book} 里有定义、默认不编号，照旧
 % 放行就是静默排出一个规范里没有的层级，所以一律报错。出错之后照原来的
 % 定义排，后面的内容照常编下去。
 %    \begin{macrocode}

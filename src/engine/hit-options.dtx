@@ -479,9 +479,8 @@
 \hit@define@string@option@as{fontset-en}{font@en}
 %    \end{macrocode}
 %
-% 中文字体。不写就照旧把 \option{fontset} 转给 \pkg{ctexbook}，由 \pkg{ctex} 设置；
-% 写了就由模板自己设，\pkg{ctexbook} 收到的是 \texttt{fontset=none}。这样默认行为
-% 一点没变，想换字体来源的人才走新路。
+% 中文字体，默认 \texttt{auto}，由模板按 \option{fontset} 或平台选一档设置。底类是 \cls{ctexbook} 的
+% 那两处（见下面“底类装哪个”）写了 \option{fontset} 而没写这个键时，字体交给 \pkg{ctex} 的同名字体集。
 %    \begin{macrocode}
 \hit@define@string@option@as{fontset-zh}{font@zh}
 \tl_gset:cn { hit@font@zh } { auto }
@@ -509,7 +508,7 @@
   }
 \keys_define:nn { hit / class }
   {
-    unknown .code:n = { \hit@pass@or@warn { ctexbook } {#1} } ,
+    unknown .code:n = { \hit@pass@or@warn {#1} } ,
   }
 %    \end{macrocode}
 %
@@ -745,6 +744,18 @@
   { \bool_gset_true:N \g__hit_harbin_report_bool }
 %    \end{macrocode}
 %
+% \emph{底类装哪个。} 正文照 Word 排的那几档（\cs{g\_\_hit\_final\_body\_bool}）在 \hologo{LuaLaTeX}
+% 与 \hologo{XeLaTeX} 下装 \cls{book}，中文层见 \file{src/engine/hit-cjk.dtx}；深圳硕博的开题与中期
+% 整篇还是 \pkg{ctex} 排的，\hologo{pdfLaTeX} 的中文靠 \pkg{ctex} 的 \pkg{CJK} 那一层，这两处装
+% \cls{ctexbook}。
+%    \begin{macrocode}
+\bool_new:N \g__hit_ctex_base_bool
+\bool_lazy_or:nnT
+  { \sys_if_engine_pdftex_p: }
+  { \bool_if_p:N \g__hit_report_body_bool }
+  { \bool_gset_true:N \g__hit_ctex_base_bool }
+%    \end{macrocode}
+%
 % 校区与学位这时才定下来，\option{bsfrontpagenumberline} 的默认值在此补齐。
 % 用户显式设过就不动。
 %    \begin{macrocode}
@@ -838,9 +849,9 @@
       { \PassOptionsToClass { oneside } { book } }
     \bool_if:NT \g__hit_doctor_bool
       { \PassOptionsToClass { twoside } { book } }
-    \PassOptionsToClass { openany } { ctexbook }
+    \PassOptionsToClass { openany } { book }
   }
-  { \PassOptionsToClass { oneside } { ctexbook } }
+  { \PassOptionsToClass { oneside } { book } }
 %    \end{macrocode}
 %
 % \changes{v1.0.02}{2017/08/27}{添加了思源字体说明}
@@ -853,10 +864,24 @@
 % 留着是怕旧论文里直接写了 \cs{ifthenelse} 而没自己加载。
 %    \begin{macrocode}
 \RequirePackage{ifthen}
-\bool_lazy_and:nnT
-  { \str_if_eq_p:Vn \hit@font@zh { auto } }
-  { ! \tl_if_empty_p:N \hit@fontset }
+%    \end{macrocode}
+%
+% \emph{\option{fontset} 在两种底类下意思不同。} 装 \cls{ctexbook} 时，写了 \option{fontset}
+% 而 \option{font-zh} 还是 \texttt{auto}，中文字体交给 \pkg{ctex} 的同名字体集；装 \cls{book} 时
+% 没有 \pkg{ctex}，\option{fontset} 只是替 \option{font-zh} 选一档（\file{src/engine/hit-fonts.dtx}
+% 按它的取值挑），字体一律由模板设，\option{font-zh} 写空也按 \texttt{auto}（没有 \pkg{ctex} 可交）。
+%    \begin{macrocode}
+\bool_lazy_all:nT
+  {
+    { \bool_if_p:N \g__hit_ctex_base_bool }
+    { \str_if_eq_p:Vn \hit@font@zh { auto } }
+    { ! \tl_if_empty_p:N \hit@fontset }
+  }
   { \tl_gclear:N \hit@font@zh }
+\bool_lazy_and:nnT
+  { ! \bool_if_p:N \g__hit_ctex_base_bool }
+  { \tl_if_empty_p:N \hit@font@zh }
+  { \tl_gset:Nn \hit@font@zh { auto } }
 \tl_if_empty:NTF \hit@font@zh
   {
 %    \end{macrocode}
@@ -869,7 +894,10 @@
     \tl_if_empty:NF \hit@fontset
       { \PassOptionsToClass { fontset=\hit@fontset } { ctexbook } }
   }
-  { \PassOptionsToClass { fontset=none } { ctexbook } }
+  {
+    \bool_if:NT \g__hit_ctex_base_bool
+      { \PassOptionsToClass { fontset=none } { ctexbook } }
+  }
 %    \end{macrocode}
 %
 % \changes{v3.0.13}{2020/11/10}{设置字距默认选项}
