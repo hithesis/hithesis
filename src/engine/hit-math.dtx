@@ -13,10 +13,9 @@
 %   的补救钩子（v3.1e 的 \file{hithesis.sty} 无条件装它，升级后照旧优先加载）；定理环境
 %   换 \pkg{thmtools}，样式与声明收进 \cs{hit@theorem@style} 与 \cs{hit@theorem@list}，
 %   \pkg{ntheorem} 专有命令加兼容层，补回 \pkg{aliasctr} 丢掉的 \cs{theH}（\issue[183]）}
-% \changes{v3.2a}{2026/08/29}{新增 \env{eqdenote}：底下是 \pkg{xltabular} 可转页；段前
-%   补 \pkg{longtable} 漏掉的行距胶；关段时停掉段末撑竿钩子（空续段曾撑成幽灵行）；行撑竿
-%   0.9 倍（恰好等于行距时 \hologo{TeX} 退到 lineskip 堆叠）；清空表头盒、局部关掉
-%   \pkg{hyperref} 的锚点（两者落在新页页顶都会吃掉 \cs{topskip} 基线）；不占表号；收尾按段落
+% \changes{v3.2a}{2026/09/28}{新增 \env{eqdenote}：照写作指南用表格对齐，照 iota-hit 排成四列（引导词、
+%   符号、破折号、说明），底下是 \pkg{tabularray} 的长表，可转页、不印续表、不占表号；不写引导词时符号列
+%   沿用上一张的宽；段前补长表漏掉的行距胶；关段时停掉段末撑竿钩子（空续段曾撑成幽灵行）；收尾按段落
 %   撑竿深度。行间公式段前胶归零、单行公式那一段装进按 Word 模型算的行盒，断口的撑竿
 %   只插在已有字的段里（两条公式紧挨着时曾多出一行）}
 %
@@ -418,16 +417,32 @@
   }
 %    \end{macrocode}
 %
-% \env{eqdenote} 排公式下面那张「式中……」注释表。规范要求注释的转行与破折号后
-% 第一个字对齐，所以底下是一个 \pkg{tabularx}，说明列取 \texttt{X}。
+% \env{eqdenote} 排公式下面那张「式中……」注释表。规范要求注释的转行与破折号后第一个字对齐，
+% 写作指南推荐用表格对齐，所以排成一张不带线的表，照 iota-hit 的 \texttt{eqdenote}：四列，依次是
+% 引导词、符号、破折号、说明。引导词那一列至少两个字宽（引导词更宽就取它的宽），后面空一个字；
+% 符号右对齐，列宽取这一张里最宽的符号；破折号居中，列宽取它自己的宽；说明占满余下的宽，转行
+% 回到这一列的左缘。行与行之间不另加空，每一行就是说明那一段的行盒，与正文逐行一样。
 %
-% 排出来是三列：引导词、符号、说明。用户只写后两列，第二行起那个空的引导词格子
-% 由环境自己补。可选参数换引导词，传空则留出等宽的空位，拆成两段接排时左缘对得上。
+% 用户只写后两列（\cs{item} 符号 \texttt{\&} 说明），引导词只在第一行，破折号每行补。可选参数换
+% 引导词，传空则不排引导词；这时符号列沿用上一张的宽（照 iota-hit），引导词那一列也沿用上一张的宽，
+% 一组注释拆成两段接排时破折号上下对齐。iota-hit 那一列不沿用、取两个字宽，英文的 where 比两个字宽，
+% 续排那一段的破折号就错开 5.3，这里多沿用一样。
+%
+% 底下是 \pkg{tabularray} 的长表（\texttt{long}），能转页接排；另起一个环境名，不经类给 \env{longtblr}
+% 挂的那几样（表格字号、表前表后的空段、表题）。页头页尾的模板都是空的，转页处不印“续表”。
+% 不进表格清单、不占表号（\texttt{entry=none}、\texttt{label=none}）。
 %    \begin{macrocode}
-\dim_new:N \l__hit_eqdenote_depth_dim
+\dim_new:N \l__hit_eqdenote_lead_dim
+\dim_new:N \l__hit_eqdenote_sym_dim
+\dim_new:N \g__hit_eqdenote_sym_dim
+\dim_new:N \g__hit_eqdenote_lead_dim
+\dim_new:N \l__hit_eqdenote_row_ht_dim
+\skip_new:N \l__hit_eqdenote_pre_skip
 \box_new:N \l__hit_eqdenote_box
 \seq_new:N \l__hit_eqdenote_seq
 \tl_new:N \l__hit_eqdenote_tl
+\tl_new:N \l__hit_eqdenote_rows_tl
+\bool_new:N \l__hit_eqdenote_first_bool
 \cs_new:Npn \hit@eqdenote@label
   {
     \bool_if_exist:NTF \g__hit_en_bool
@@ -437,56 +452,55 @@
       }
       { \hit@term@mainmatter@eqdenote@label@zh }
   }
-%    \end{macrocode}
-%
-% 表格要用 \cs{begin}\marg{tabularx} 与 \cs{end}\marg{tabularx} 成对写在一条命令
-% 里。\pkg{tabularx} 会把正文反复排好几遍来定 \texttt{X} 列宽度，直接在环境的开始
-% 代码里写 \cs{tabularx}，收尾那几句也会被卷进去重排，\cs{prevdepth} 在受限水平
-% 模式下会报错。
-%    \begin{macrocode}
-\tl_new:N \l__hit_eqdenote_font_tl
-%    \end{macrocode}
-%
-% \pkg{longtable} 被模板改成了五号（\cs{LT@array} 里加了 \cs{wuhao}），那是给插表
-% 用的。式中注释是正文的一部分，字号要跟正文一样，所以进表格前用 \cs{ltfontsize}
-% 把当前字号还回去。字号对了，\cs{ccwd}、\cs{strutbox} 与行距也就都跟正文一致。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_eqdenote_keep_font:
+\AddToHook { package / tabularray / after }
   {
-    \tl_set:Nx \l__hit_eqdenote_font_tl
+    \NewTblrTheme { hit@eqdenote }
       {
-        \exp_not:N \fontsize { \f@size } { \f@baselineskip }
-        \exp_not:N \selectfont
+        \SetTblrTemplate { head } { empty }
+        \SetTblrTemplate { foot } { empty }
       }
-    \exp_args:NV \ltfontsize \l__hit_eqdenote_font_tl
+    \NewTblrEnviron { hit@eqdenote@tblr }
+    \SetTblrOuter [ hit@eqdenote@tblr ]
+      {
+        long , theme = hit@eqdenote , entry = none , label = none ,
+        headsep = 0pt , footsep = 0pt , postsep = 0pt ,
+      }
   }
 %    \end{macrocode}
 %
-% \pkg{xltabular} 是 \pkg{longtable} 加 \texttt{X} 列，表格能自动跨页接排。
-% \cs{LTleft} 与 \cs{LTright} 让表格靠左，\cs{LTpost} 去掉 \pkg{longtable} 默认在
-% 表格后面加的 \cs{bigskipamount}。
-%
-% \cs{LTpre} 不能简单置零。\pkg{longtable} 把首块排在一个新 vbox 里
-%（\cs{LT@bchunk} 的 \cs{setbox}\cs{z@}\cs{vbox}），vbox 开头 \cs{prevdepth} 是
-% \texttt{-1000pt}，TeX 不给首行插行距胶；\cs{unvbox} 出来时也不补。于是表首行的基线
-% 与上一行正文之间只隔「上一行的深度加首行的高度」，比正常行距紧。量出来是 4.4278pt，
-% 而 \cs{baselineskip} 减去这两项正好是这个数，可见缺的就是那份胶。
-%
-% \cs{\_\_hit\_eqdenote\_pre\_skip:} 把它算出来放进 \cs{LTpre}。先 \cs{par}，
-% 否则 \cs{prevdepth} 还是上一段的。算出来比 \cs{lineskiplimit} 小时改用
-% \cs{lineskip}，与 TeX 自己的规则一致。\cs{prevdepth} 是 \texttt{-1000pt}（页首、
-% 紧跟标题）时本来就不该有胶，置零。
+% 符号列的宽：每条的符号在当前字体下量一遍取最宽的，前后的空格先去掉（\cs{item}~\verb|$x$ & …|
+% 里 \texttt{\&} 前面那个空格量进去会宽出一个字间）。引导词与破折号也装进横盒再放进格里：定了宽的格是
+% 段落，段落里的西文要加网格的半份增量，横盒里不加，量的与排的得是同一种，不然英文的 where 比量出来的
+% 宽 1.13，压进后面那一个字的空里。
 %    \begin{macrocode}
+\cs_new_protected:Npn \__hit_eqdenote_measure:w #1 & #2 \q_stop
+  {
+    \hbox_set:Nn \l__hit_eqdenote_box { \tl_trim_spaces:n {#1} }
+    \dim_set:Nn \l__hit_eqdenote_sym_dim
+      { \dim_max:nn { \l__hit_eqdenote_sym_dim } { \box_wd:N \l__hit_eqdenote_box } }
+  }
+\cs_new_protected:Npn \__hit_eqdenote_row:nw #1#2 & #3 \q_stop
+  {
+    \tl_put_right:Nx \l__hit_eqdenote_rows_tl
+      {
+        \bool_if:NT \l__hit_eqdenote_first_bool { \exp_not:n { \hbox:n {#1} } }
+        & \exp_not:n { #2 & \hbox:n { \hit@term@mainmatter@eqdenote@dash } & #3 \\ }
+      }
+    \bool_set_false:N \l__hit_eqdenote_first_bool
+  }
 %    \end{macrocode}
 %
-% \emph{关段要避开撑竿钩子。} \cs{end}\marg{equation} 之后段落还开着（行间
-% 公式属于所在段落），紧跟 \env{eqdenote} 时这个续段是空的。\hologo{TeX} 对
-% 空续段的 \cs{par} 本不产生任何行，但 \texttt{para/end} 钩子里的段落撑竿把
-% 它撑成一行只有零宽 rule 的幽灵行：行中形态下公式到「式中」多出一个行距
-% （实测 48 对范例 22），表被推到新页时幽灵行抢走 \cs{topskip} 基线，
-% 「式中」首行比正文页首低一行（实测 140.5 对 119.9）。关段那一下把
-% \cs{docxlike\_format\_strut:} 临时置空，空续段不再成行；前一行真正文的撑竿在
-% 各自成行时已经排进去了，不受影响。
+% \emph{段前补一份行距胶。} 长表的首行排在一只新的竖盒里，盒头的 \cs{prevdepth} 是 \texttt{-1000pt}，
+% \hologo{TeX} 不给首行插行距胶，表首行与上一行之间只隔“上一行的深度加首行的高度”，比正文行距紧
+% （公式后面实测 14.66，正文接公式是 19.45）。缺的就是那份胶：\cs{baselineskip} 减上一行的深再减
+% 首行的高，首行的高是说明那一段的撑竿高，放进表前的 \texttt{presep}。先 \cs{par}，否则
+% \cs{prevdepth} 还是上一段的；比 \cs{lineskiplimit} 小时改用 \cs{lineskip}，与 \hologo{TeX} 自己的规则一致；
+% \cs{prevdepth} 是 \texttt{-1000pt}（页首、紧跟标题）时本来就不该有胶，置零。
+%
+% \emph{关段要避开撑竿钩子。} \cs{end}\marg{equation} 之后段落还开着（行间公式属于所在段落），紧跟
+% \env{eqdenote} 时这个续段是空的。\hologo{TeX} 对空续段的 \cs{par} 本不产生任何行，但段落撑竿会把它
+% 撑成一行只有零宽 rule 的幽灵行：公式到「式中」多出一个行距，表被推到新页时幽灵行抢走 \cs{topskip}
+% 基线。关段那一下把 \cs{docxlike\_format\_strut:} 临时置空，空续段不再成行。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_eqdenote_pre_skip:
   {
@@ -495,76 +509,83 @@
       { \cs_set_eq:NN \docxlike_format_strut: \prg_do_nothing: }
     \par
     \group_end:
-    \dim_compare:nNnTF { \tex_prevdepth:D } < { -999pt }
-      { \skip_zero:N \LTpre }
+    \cs_if_exist:NTF \docxlike_format_strut:
       {
-        \skip_set:Nn \LTpre
-          { \baselineskip - \tex_prevdepth:D - \arraystretch \ht \strutbox }
-        \dim_compare:nNnT { \LTpre } < { \lineskiplimit }
-          { \skip_set_eq:NN \LTpre \lineskip }
+        \hbox_set:Nn \l__hit_eqdenote_box { \docxlike_format_strut: }
+        \dim_set:Nn \l__hit_eqdenote_row_ht_dim { \box_ht:N \l__hit_eqdenote_box }
+      }
+      { \dim_set:Nn \l__hit_eqdenote_row_ht_dim { \ht \strutbox } }
+    \dim_compare:nNnTF { \tex_prevdepth:D } < { -999pt }
+      { \skip_zero:N \l__hit_eqdenote_pre_skip }
+      {
+        \skip_set:Nn \l__hit_eqdenote_pre_skip
+          { \baselineskip - \tex_prevdepth:D - \l__hit_eqdenote_row_ht_dim }
+        \dim_compare:nNnT { \l__hit_eqdenote_pre_skip } < { \lineskiplimit }
+          { \skip_set_eq:NN \l__hit_eqdenote_pre_skip \lineskip }
       }
   }
-\cs_new_protected:Npn \__hit_eqdenote_table:nn #1#2
+%    \end{macrocode}
+%
+% 排表。\pkg{tabularray} 自己的行撑竿关掉（\texttt{stretch=-1}），行高由说明那一段的段落撑竿给，
+% 与正文行盒一样；列距、行距都是零，引导词后那一个字的空写成它的右边距。各列顶端对齐，说明转行时
+% 符号与破折号对着第一行。
+%
+% \emph{转页后的首行。} \pkg{tabularray} 在新页页顶先放一只空盒再退掉 \cs{topskip}，表从版心顶排起，
+% 接下来那一块作为一行进来，\hologo{TeX} 在两者之间插 \cs{lineskip}，续排的首行比正文页首低 1\,pt
+% （120.84 对 119.84）。表里用不着 \cs{lineskip}（行与行直接摞），在环境里置零。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_eqdenote_table:n #1
   {
-    \__hit_eqdenote_keep_font:
-%    \end{macrocode}
-%
-% 行撑竿要\emph{小于}行距。\cs{strutbox} 的高深加起来正好一个 \cs{baselineskip}，
-% \cs{arraystretch} 取 1 时表格行高不小于行距，基线间距放不下，\hologo{TeX} 退到
-% 按 \cs{lineskip} 堆叠，行距变成「行高加 1\,pt」（实测 20.9 对正文 19.45）；
-% 换页后首行的基线取行高而不是 \cs{topskip}，比正文页首低约 22\,bp——1--7 页版
-% 实测正文页首基线 119.9，注释表首行 141.8。缩到 0.89 后撑竿高 12.16 低于
-% 正文撑竿 12.22，行盒尺寸由格内段落撑竿接管，恰为一个 \cs{baselineskip}，
-% 行距与页首基线两处一起归位（0.9 时撑竿高 12.30 仍比上限多 0.08\,pt，
-% 还是掉进 lineskip 堆叠）。
-%    \begin{macrocode}
-    \cs_set:Npn \arraystretch { 0.89 }
-    \skip_zero:N \LTleft
-    \skip_set:Nn \LTright { 0pt~plus~1fill }
+    \hbox_set:Nn \l__hit_eqdenote_box {#1}
+    \dim_set:Nn \l__hit_eqdenote_lead_dim
+      { \dim_max:nn { 2 \ccwd } { \box_wd:N \l__hit_eqdenote_box } }
+    \dim_zero:N \l__hit_eqdenote_sym_dim
+    \seq_map_inline:Nn \l__hit_eqdenote_seq
+      { \__hit_eqdenote_measure:w ##1 & \q_stop }
+    \bool_lazy_and:nnT
+      { \tl_if_blank_p:n {#1} }
+      { \dim_compare_p:nNn { \g__hit_eqdenote_sym_dim } > { 0pt } }
+      {
+        \dim_set_eq:NN \l__hit_eqdenote_sym_dim \g__hit_eqdenote_sym_dim
+        \dim_set_eq:NN \l__hit_eqdenote_lead_dim \g__hit_eqdenote_lead_dim
+      }
+    \dim_gset_eq:NN \g__hit_eqdenote_sym_dim \l__hit_eqdenote_sym_dim
+    \dim_gset_eq:NN \g__hit_eqdenote_lead_dim \l__hit_eqdenote_lead_dim
+    \tl_clear:N \l__hit_eqdenote_rows_tl
+    \bool_set_true:N \l__hit_eqdenote_first_bool
+    \seq_map_inline:Nn \l__hit_eqdenote_seq
+      { \__hit_eqdenote_row:nw {#1} ##1 \q_stop }
     \__hit_eqdenote_pre_skip:
-    \skip_zero:N \LTpost
-%    \end{macrocode}
-%
-% 表头盒要清成 void 而不是留个空盒。\pkg{longtable} 没写 \cs{endhead} 时表头
-% 是零高空盒，仍会作为盒子进主竖列；断页恰好断在它前面时，新页第一个盒子
-% 就是它，\cs{topskip} 的基线给了它，真正的首行再往下一个行距。清成 void
-% 后 \pkg{longtable} 的 \cs{ifvoid} 守卫直接跳过，不再有这只盒子。
-%
-% \pkg{longtable} 的 \cs{LT@start} 给每张表排一个链接锚
-% （\cs{MakeLinkTarget}，\cs{LTcaptype} 为空时也照排一个
-% \texttt{LT@tables} 的），锚变成一个只装撑竿的空段落（\cs{showoutput} 里
-% 是 12.2+7.3 的空行盒，内容只有段落撑竿那根零宽 rule，后跟
-% \texttt{dest (table.1.1)}）。表整个被推到新页时，空段落抢走 \cs{topskip}
-% 基线，「式中」首行低一个行距（1--7 页版实测 140.5 对正文页首 119.9）。
-% 注释表不是编号插表，锚没有用处，环境组内把 \cs{MakeLinkTarget} 换成
-% 吞参数的空操作，空段落连同锚一起消失。
-%
-% 同样的道理，\pkg{longtable} 每开一张表就给 \cs{LTcaptype}（默认 \texttt{table}）
-% 的计数器加一，不管有没有表题。注释表不该占表号，否则同一章里公式注释后面的
-% 第一张表编成“表 2-2”。\cs{LTcaptype} 清空，\pkg{longtable} 就不碰计数器。
-%    \begin{macrocode}
-    \box_gclear:N \LT@head
-    \box_gclear:N \LT@firsthead
-    \cs_if_exist:NT \MakeLinkTarget
-      { \cs_set_eq:NN \MakeLinkTarget \use_none:n }
-    \cs_set:Npn \LTcaptype { }
-    \begin{xltabular} { \textwidth }
-      { @{} l @{ \hspace { \ccwd } } r @{ \hit@term@mainmatter@eqdenote@dash } X @{} }
-      #1 & #2 \\
-    \end{xltabular}
+    \skip_zero:N \lineskip
+    \use:e
+      {
+        \exp_not:N \begin { hit@eqdenote@tblr }
+          [ presep = \skip_use:N \l__hit_eqdenote_pre_skip ]
+          {
+            colspec =
+              {
+                Q [ l , wd = \dim_use:N \l__hit_eqdenote_lead_dim ]
+                Q [ r , wd = \dim_use:N \l__hit_eqdenote_sym_dim ]
+                Q [ c ] X [ l ]
+              } ,
+            colsep = 0pt , rowsep = 0pt , stretch = -1 ,
+            column { 1 } = { rightsep = \dim_use:N \ccwd } ,
+            cells = { valign = t } ,
+          }
+          \exp_not:V \l__hit_eqdenote_rows_tl
+        \exp_not:N \end { hit@eqdenote@tblr }
+      }
   }
 %    \end{macrocode}
 %
-% 每条注释一个 \cs{item}，不必自己写 \cs{\textbackslash\textbackslash}，也不必记着
-% 末条不加。做法是把环境正文按 \cs{item} 切开，再用「\cs{\textbackslash
-% \textbackslash} 加一个空格子」接起来。切分只认顶层的 \cs{item}，嵌在花括号里的
-% 不算。正文里一个 \cs{item} 都没有时会给出警告，因为那样第二行起缺一个空格子，
-% 表格会错位。
+% 每条注释一个 \cs{item}，不必自己写 \cs{\textbackslash\textbackslash}，也不必记着末条不加：
+% 环境正文按 \cs{item} 切开，一条一行。切分只认顶层的 \cs{item}，嵌在花括号里的不算。正文里一个
+% \cs{item} 都没有时给出警告。
 %
-% 收尾的三句是给后面的元素定位用的。整张表是段落里的一个高盒子，深度取自表格行的
-% strut，比正文行深，\hologo{TeX} 只好退到 \cs{lineskip}，末行会与后面的正文挨得比正文
-% 行距近；而标题的 \cs{addvspace} 是从盒子底量的，又会偏松。把盒子底与
-% \cs{prevdepth} 都收到正文行的深度，接正文和接标题就都跟正文一致。
+% 收尾要把表底整理成「一行正文的底」：量一只段落撑竿的盒子，把 \cs{prevdepth} 设成撑竿深度，之后
+% 不管接段落、标题还是公式，几何上与接在一段正文后面相同。\cs{prevdepth} 是组内状态，组一关就被
+% 还原，所以存进全局量，由 \cs{group\_insert\_after:N} 在 \cs{end}\marg{eqdenote} 关组之后设回去。
+% 撑竿宏不存在时不动。
 %    \begin{macrocode}
 \NewDocumentEnvironment { eqdenote } { O{\hit@eqdenote@label} +b }
   {
@@ -573,21 +594,7 @@
     \tl_if_blank:VTF \l__hit_eqdenote_tl
       { \seq_pop_left:NN \l__hit_eqdenote_seq \l__hit_eqdenote_tl }
       { \msg_warning:nn { hithesis } { eqdenote-no-item } }
-    \tl_set:Nn \l__hit_eqdenote_tl {#1}
-    \tl_if_blank:nT {#1}
-      { \tl_set:Nn \l__hit_eqdenote_tl { \hphantom { \hit@eqdenote@label } } }
-    \exp_args:NV \__hit_eqdenote_table:nn \l__hit_eqdenote_tl
-      { \seq_use:Nn \l__hit_eqdenote_seq { \\ & } }
-%    \end{macrocode}
-%
-% 收尾要把表底整理成「一行正文的底」。正文行靠段落撑竿把高深撑成正好一个
-% \cs{baselineskip}（高 12.22、深 7.30），后面的行距胶、标题的
-% \cs{addvspace} 都按这个深度记账。原来按「中」字形深度收，与撑竿体系
-% 对不上：接正文 20.9（应 19.45），接小节标题 26.3（应 31.0）。现在量一只
-% 段落撑竿的盒子，把 \cs{prevdepth}（此刻等于末行行深）kern 到撑竿深度，
-% 再把 \cs{prevdepth} 设成撑竿深度——之后不管接段落、标题还是公式，
-% 几何上与接在一段正文后面完全相同。撑竿宏不存在时不动，保持原样。
-%    \begin{macrocode}
+    \__hit_eqdenote_table:n {#1}
     \par
     \cs_if_exist:NT \docxlike_format_strut:
       {
@@ -598,16 +605,6 @@
       }
   }
   { }
-%    \end{macrocode}
-%
-% 修正必须推迟到环境组外，而且只设 \cs{prevdepth} 不补 kern。
-% \cs{prevdepth} 是组内状态，组一关就被还原，组内设的那份白设；表格行的
-% X 列 parbox 里段落撑竿照常生效，行盒的深度本来就是正文行深 7.30，不需要
-% kern 找齐（先补过一道 kern，间距反而多出约 7\,bp）。表格收尾后
-% \cs{prevdepth} 被 \pkg{longtable} 留成别的值（实测 0.42），所以还是要把
-% 撑竿深度存进全局量，\cs{group\_insert\_after:N} 在 \cs{end}\marg{eqdenote}
-% 关组之后设回去。
-%    \begin{macrocode}
 \dim_new:N \g__hit_eqdenote_dp_dim
 \cs_new_protected:Npn \__hit_eqdenote_finish:
   { \tex_prevdepth:D \g__hit_eqdenote_dp_dim }
