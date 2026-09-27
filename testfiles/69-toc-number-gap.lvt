@@ -4,25 +4,29 @@
 % 与目录同一条链。natural（默认）是编号实宽加间距；left 是量宽取齐，列宽
 % 取额定列宽与实宽加半个间距的较大者——兜底值下恰是 v3.1e 的半字号；
 % right 编号右贴额定列缘、右侧再空足间距，章条目没有额定列宽、退化成
-% natural。断言打的是排完条目后导出的悬挂宽。
+% natural。断言打的是排完条目后导出的悬挂宽（\cs{g\_docxlike\_toc\_hang\_dim}，目录域照它悬挂）。
+% 条目走 docxlike 的目录条目，编号换成类的排法（\cs{hit@toc@layout:n} 里换上）。
 \input{regression-test}
 \documentclass[fontset=fandol,degree-level=doctor,campus=harbin]{hithesis}
 \begin{document}
-\START
 \makeatletter
 \ExplSyntaxOn
-\cs_new_protected:Npn \CHAPENTRY
+\cs_new_protected:Npn \ENTRY #1#2
   {
     \vbox_set:Nn \l_tmpa_box
-      { \l@chapter { \numberline { 第1章 } 标题 } { 5 } }
-    \iow_term:x { hang = \dim_use:N \g__hit_toc_hang_dim }
+      {
+        \hit@toc@layout:n { zh }
+        \int_set:Nn \l_docxlike_toc_level_int {#1}
+        \cs_set_protected:Npn \numberline { \docxlike_toc_numberline:n }
+        \docxlike_toc_entry:nnnnn { TOC #1 } { } { \numberline {#2} 标题 } { 5 } { }
+      }
+    \iow_term:x { hang = \dim_use:N \g_docxlike_toc_hang_dim }
   }
-\cs_new_protected:Npn \SECENTRY
-  {
-    \vbox_set:Nn \l_tmpa_box
-      { \l@section { \numberline { 1.1 } 标题 } { 6 } }
-    \iow_term:x { hang = \dim_use:N \g__hit_toc_hang_dim }
-  }
+\cs_new_protected:Npn \CHAPENTRY { \ENTRY { 1 } { 第1章 } }
+\cs_new_protected:Npn \SECENTRY { \ENTRY { 2 } { 1.1 } }
+% 先排一条把字体都装上，装字体的那些信息不进基线
+\CHAPENTRY \SECENTRY
+\START
 \TEST{natural~default~gives~width~plus~one~em}{ \CHAPENTRY }
 \TEST{after-chapter-number~term~is~followed}{
   \hitsetup{ term = { zh = { after-chapter-number = { \hspace{2em} } } } }

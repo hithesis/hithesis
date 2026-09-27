@@ -44,6 +44,13 @@ EN_ONLY = {
     # 英文版目录、图索引、表索引上方那一行栏头（Figure / Table / Page）。
     # 中文版的三张表都没有这一行，所以没有 -zh 对应。
     "table-of-contents-figure", "table-of-contents-table", "table-of-contents-page",
+    # 英文目录里章节没给英文名时排的那句“(Error! English heading not defined.)”，
+    # 照 Word 目录域出错的样子，只在英文目录里出现。
+    "table-of-contents-undefined",
+    # 英文关键词标签后面那个冒号单列（标签粗、冒号细）；中文的“关键词：”冒号写在标签里。
+    "abstract-keywords-colon",
+    # 双语算法题注英文那一行的前缀，同上面图表那一对；中文那行用 caption-algorithm-zh。
+    "caption-algorithm-prefix",
 }
 
 # \use:c 按 \@captype 之类拼出来的，正则查不到，逐条列明
@@ -51,6 +58,11 @@ CONSTRUCTED = {
     "caption-figure-prefix-en", "caption-table-prefix-en",
     "listfigurename", "listtablename", "listequationname",
     "equationname", "figurename", "tablename",
+    # 伪代码的关键字由 \__hit_algorithm_word:n 现拼 hit@term@algorithm@<词>
+    *(f"algorithm-{w}" for w in (
+        "input", "output", "data", "result", "if", "then", "else", "for", "each", "all",
+        "to", "do", "while", "repeat", "until", "return", "end", "function", "procedure",
+        "switch", "case", "otherwise")),
     # \hit@after@number:nnn{层级}{语言}{兜底} 现拼 hit@term@after@<层级>@number@<语言>
     *(f"after-{lvl}-number-{lang}"
       for lvl in ("chapter", "section", "subsection", "subsubsection",

@@ -8,8 +8,11 @@
 %
 % \changes{v3.2a}{2026/09/26}{分节可以写分栏（栏数、间距、分隔线），照 Windows 探针 \file{cols1}：
 %   每栏按自己的宽数整格，连续分节处各栏排平，行盒跨过节界照样直接摞}
-% \changes{v3.2a}{2026/09/26}{新增 \texttt{TOC} 域：每个标题一段，样式 \texttt{TOC~1} 到 \texttt{TOC~9}，
-%   段上直接带栏宽处右对齐、前导点的制表位；认 \texttt{\textbackslash o} 与 \texttt{\textbackslash h}}
+% \changes{v3.2a}{2026/09/28}{新增 \texttt{TOC} 域：每一条一段，样式 \texttt{TOC~1} 到 \texttt{TOC~9}（图表目录
+%   \texttt{Table~of~Figures}），页码停在样式的右制表位上、前导点；长条目照 Word 折行（每行排到制表位，
+%   末行给点线与页码让路），行盒按内容的字体算；认 \texttt{\textbackslash o}、\texttt{\textbackslash t}、
+%   \texttt{\textbackslash f}、\texttt{\textbackslash c}、\texttt{\textbackslash h}；各级可带直接格式，编号的排法与
+%   折行悬挂可由文档类换}
 % \changes{v3.2a}{2026/09/26}{分节时可以写这一节自己的页边距、纸张、文档网格与页眉页脚距，换页的
 %   分节换了页再套上；连续分节写了报错}
 % \changes{v0.1.0}{2026/09/24}{照 Word 的模型排页眉页脚：每节首页、奇数页、偶数页三份，
@@ -1301,16 +1304,31 @@
 %
 % \subsection{目录域}
 %
-% \texttt{TOC} 域的结果是一串段落：每个标题一段，样式是 \texttt{TOC~1} 到 \texttt{TOC~9}（按
-% 标题的大纲级别），段上直接带一个制表位，位置在栏宽处、右对齐、前导符是点，页码写在制表符
-% 后面。这是 docx 里目录域结果的样子，样式里本身不带这个制表位。认两个开关：
-% \texttt{\textbackslash o~"1-3"} 取哪几级（默认 1 到 3），\texttt{\textbackslash h} 做成超链接（装了
-% \pkg{hyperref} 时；标题文字与页码各一段链接，制表符要留在段的最外层才切得开）。别的开关照收不管。
+% \texttt{TOC} 域的结果是一串段落：每一条一段，样式是 \texttt{TOC~1} 到 \texttt{TOC~9}（按
+% 条目的大纲级别），图表目录是 \texttt{Table~of~Figures}。条目的文字后面跟一个制表符再跟页码，
+% 停在右制表位上，前导符是点。这是 docx 里目录域结果的样子。认这几个开关：
+% \begin{itemize}
+% \item \texttt{\textbackslash o~"1-3"} 取哪几级，默认 1 到 3。
+% \item \texttt{\textbackslash t~"名,级,名,级"} 另把这几种条目排成指定的级。Word 写样式名，
+%   \hologo{LaTeX} 这边条目按层级名记（\cs{addcontentsline} 的第二个参数），写的就是它，
+%   比如节即章的报告写 \texttt{\textbackslash t~"section,1,subsection,2"}。
+% \item \texttt{\textbackslash f~"x"} 条目从哪一份清单来。Word 是只收类型标识为 \texttt{x} 的
+%   \texttt{TC} 域；\hologo{LaTeX} 的条目按清单文件分，标识就写扩展名（\texttt{\textbackslash f~"toe"}
+%   读 \file{.toe}）。不写是 \file{.toc}。
+% \item \texttt{\textbackslash c~"标签"} 图表目录：收题注编号是这个标签的条目，全排成
+%   \texttt{Table~of~Figures}，不分级。标签对到哪一份清单由
+%   \cs{docxlike\_toc\_caption\_file:nn}\marg{标签}\marg{扩展名} 登记，\texttt{Figure}、\texttt{图}
+%   对 \file{.lof}，\texttt{Table}、\texttt{表} 对 \file{.lot}，没登记的把标签本身当扩展名。
+% \item \texttt{\textbackslash h} 做成超链接（装了 \pkg{hyperref} 时；文字与页码各一段链接）。
+% \end{itemize}
+% 别的开关照收不管。条目按层级名查大纲级别：\texttt{\textbackslash t} 写了的照它，
+% \cs{docxlike\_heading\_new:Nnn} 登记过的照登记，别的照 \hologo{LaTeX} 的惯例（有 \cs{chapter} 的从
+% \texttt{chapter} 起算 1 级，没有的从 \texttt{section} 起算）。
 %
-% 条目取自 \hologo{LaTeX} 的 \file{toc} 文件，每一行 \cs{contentsline}\marg{层级}\marg{文字}\marg{页码}
-% 按层级名查大纲级别：\cs{docxlike\_heading\_new:Nnn} 登记过的照登记，别的照 \hologo{LaTeX} 的
-% 惯例（有 \cs{chapter} 的从 \texttt{chapter} 起算 1 级，没有的从 \texttt{section} 起算）。
-% 编号后面空一格，与标题里编号跟一个空格一样。
+% \cs{docxlike\_toc\_field:nn}\marg{开关}\marg{各级的直接格式} 的第二个参数按级写段上的直接格式，
+% 写法与 \cs{docxlike\_format\_par:nnn} 的覆盖一样，如 \texttt{1~=~\{~font~=~\{~font-style~=~bold~\}~\}}。
+% Word 里是域结果里那几段自己带的格式（同一篇里两份目录，一级条目一粗一细，样式只有一个
+% \texttt{TOC~1}）。
 %
 % \texttt{TOC~n} 九个样式照 Word 的内置样式：基于正文，\texttt{TOC~2} 起每一级比上一级多缩进
 % 两个字（中文 Word 的 \texttt{leftChars} 200、400……），这一条写在空白文档预设里。
@@ -1320,19 +1338,57 @@
 \bool_new:N \l__docxlike_toc_link_bool
 \tl_new:N \l__docxlike_toc_level_tl
 \seq_new:N \l__docxlike_toc_range_seq
-\cs_new_protected:Npn \docxlike_toc_field:n #1
+\tl_new:N \l__docxlike_toc_code_tl
+\tl_new:N \l__docxlike_toc_file_tl
+\tl_new:N \l_docxlike_toc_label_tl
+\int_new:N \l_docxlike_toc_level_int
+\prop_new:N \l__docxlike_toc_map_prop
+\prop_new:N \l__docxlike_toc_local_prop
+\tl_new:N \l__docxlike_toc_local_tl
+\prop_new:N \g__docxlike_toc_caption_file_prop
+\cs_new_protected:Npn \docxlike_toc_caption_file:nn #1#2
+  { \prop_gput:Nnn \g__docxlike_toc_caption_file_prop {#1} {#2} }
+\docxlike_toc_caption_file:nn { Figure } { lof }
+\docxlike_toc_caption_file:nn { 图 } { lof }
+\docxlike_toc_caption_file:nn { Table } { lot }
+\docxlike_toc_caption_file:nn { 表 } { lot }
+\cs_new_protected:Npn \docxlike_toc_field:n #1 { \docxlike_toc_field:nn {#1} { } }
+\cs_new_protected:Npn \docxlike_toc_field:nn #1#2
   {
+    \tl_set:Ne \l__docxlike_toc_code_tl { \tl_to_str:n {#1} }
     \int_set:Nn \l__docxlike_toc_first_int { 1 }
     \int_set:Nn \l__docxlike_toc_last_int { 3 }
-    \regex_extract_once:nnNT { \\o \s* \" (\d) \- (\d) \" } { \tl_to_str:n {#1} }
+    \regex_extract_once:nVNT { \\o \s* \" (\d) \- (\d) \" } \l__docxlike_toc_code_tl
       \l__docxlike_toc_range_seq
       {
         \int_set:Nn \l__docxlike_toc_first_int { \seq_item:Nn \l__docxlike_toc_range_seq { 2 } }
         \int_set:Nn \l__docxlike_toc_last_int { \seq_item:Nn \l__docxlike_toc_range_seq { 3 } }
       }
-    \regex_match:nnTF { \\h \b } { \tl_to_str:n {#1} }
+    \regex_match:nVTF { \\h \b } \l__docxlike_toc_code_tl
       { \bool_set_true:N \l__docxlike_toc_link_bool }
       { \bool_set_false:N \l__docxlike_toc_link_bool }
+    \tl_set:Nn \l__docxlike_toc_file_tl { toc }
+    \regex_extract_once:nVNT { \\f \s* \" ([^\"]*) \" } \l__docxlike_toc_code_tl
+      \l__docxlike_toc_range_seq
+      { \tl_set:Ne \l__docxlike_toc_file_tl { \seq_item:Nn \l__docxlike_toc_range_seq { 2 } } }
+    \tl_clear:N \l_docxlike_toc_label_tl
+    \regex_extract_once:nVNT { \\c \s* \" ([^\"]*) \" } \l__docxlike_toc_code_tl
+      \l__docxlike_toc_range_seq
+      {
+        \tl_set:Ne \l_docxlike_toc_label_tl { \seq_item:Nn \l__docxlike_toc_range_seq { 2 } }
+        \prop_get:NVNF \g__docxlike_toc_caption_file_prop \l_docxlike_toc_label_tl
+          \l__docxlike_toc_file_tl
+          { \tl_set_eq:NN \l__docxlike_toc_file_tl \l_docxlike_toc_label_tl }
+      }
+    \prop_clear:N \l__docxlike_toc_map_prop
+    \regex_extract_once:nVNT { \\t \s* \" ([^\"]*) \" } \l__docxlike_toc_code_tl
+      \l__docxlike_toc_range_seq
+      {
+        \exp_args:Ne \__docxlike_toc_map:n { \seq_item:Nn \l__docxlike_toc_range_seq { 2 } }
+      }
+    \prop_clear:N \l__docxlike_toc_local_prop
+    \keyval_parse:nnn { \use_none:n }
+      { \prop_put:Nnn \l__docxlike_toc_local_prop } {#2}
     \par
     \group_begin:
       \cs_set_protected:Npn \contentsline ##1##2##3
@@ -1341,30 +1397,161 @@
             { \__docxlike_toc_line:nnnn {##1} {##2} {##3} }
             { \__docxlike_toc_line:nnnn {##1} {##2} {##3} { } }
         }
-      \cs_set:Npn \numberline ##1 { ##1 \c_space_tl }
-      \@starttoc { toc }
+      \cs_set_protected:Npn \numberline ##1 { \docxlike_toc_numberline:n {##1} }
+      \dim_set:Nn \lineskiplimit { - \maxdimen }
+      \docxlike_format_stack_seed:e
+        { \__docxlike_toc_style:n { \int_use:N \l__docxlike_toc_first_int } }
+      \exp_args:NV \@starttoc \l__docxlike_toc_file_tl
     \group_end:
   }
+\cs_generate_variant:Nn \regex_extract_once:nnNT { nV }
+\cs_generate_variant:Nn \regex_match:nnTF { nV }
+\cs_generate_variant:Nn \docxlike_format_stack_seed:n { e }
+\cs_new_protected:Npn \__docxlike_toc_map:n #1
+  {
+    \seq_set_from_clist:Nn \l__docxlike_toc_range_seq {#1}
+    \bool_until_do:nn { \int_compare_p:nNn { \seq_count:N \l__docxlike_toc_range_seq } < { 2 } }
+      {
+        \seq_pop_left:NN \l__docxlike_toc_range_seq \l__docxlike_toc_level_tl
+        \seq_pop_left:NN \l__docxlike_toc_range_seq \l__docxlike_toc_code_tl
+        \prop_put:NVV \l__docxlike_toc_map_prop \l__docxlike_toc_level_tl \l__docxlike_toc_code_tl
+      }
+  }
+\cs_generate_variant:Nn \prop_put:Nnn { NVV }
+\cs_new:Npn \__docxlike_toc_style:n #1
+  { \tl_if_empty:NTF \l_docxlike_toc_label_tl { TOC #1 } { TableofFigures } }
+%    \end{macrocode}
+%
+% 一条条目。图表目录不分级；别的查出级来，落在 \texttt{\textbackslash o} 的范围里才排。
+% 级数记在 \cs{l\_docxlike\_toc\_level\_int}，编号的写法（\cs{docxlike\_toc\_numberline:n}）要按级
+% 分时读它。
+%    \begin{macrocode}
 \cs_new_protected:Npn \__docxlike_toc_line:nnnn #1#2#3#4
   {
-    \prop_get:NnNF \g_docxlike_toc_level_prop {#1} \l__docxlike_toc_level_tl
-      { \tl_set:Ne \l__docxlike_toc_level_tl { \__docxlike_toc_level:n {#1} } }
+    \tl_if_empty:NTF \l_docxlike_toc_label_tl
+      {
+        \prop_get:NnNF \l__docxlike_toc_map_prop {#1} \l__docxlike_toc_level_tl
+          {
+            \prop_get:NnNF \g_docxlike_toc_level_prop {#1} \l__docxlike_toc_level_tl
+              { \tl_set:Ne \l__docxlike_toc_level_tl { \__docxlike_toc_level:n {#1} } }
+          }
+      }
+      { \tl_set:Nn \l__docxlike_toc_level_tl { 1 } }
     \bool_lazy_and:nnT
       { \int_compare_p:nNn { \l__docxlike_toc_level_tl } > { 0 } }
       {
-        \int_compare_p:nNn { \l__docxlike_toc_level_tl } > { \l__docxlike_toc_first_int - 1 }
-        && \int_compare_p:nNn { \l__docxlike_toc_level_tl } < { \l__docxlike_toc_last_int + 1 }
+        ! \tl_if_empty_p:N \l_docxlike_toc_label_tl
+        || (
+          \int_compare_p:nNn { \l__docxlike_toc_level_tl } > { \l__docxlike_toc_first_int - 1 }
+          && \int_compare_p:nNn { \l__docxlike_toc_level_tl } < { \l__docxlike_toc_last_int + 1 }
+        )
       }
       {
+        \int_set:Nn \l_docxlike_toc_level_int { \l__docxlike_toc_level_tl }
+        \prop_get:NVNF \l__docxlike_toc_local_prop \l__docxlike_toc_level_tl \l__docxlike_toc_local_tl
+          { \tl_clear:N \l__docxlike_toc_local_tl }
         \use:e
           {
-            \exp_not:N \docxlike_format_par:nnn { TOC \l__docxlike_toc_level_tl }
-              {
-                tabs =
-                  { \dim_to_decimal_in_bp:n { \linewidth } bp ~ right ~ dot }
-              }
+            \exp_not:N \docxlike_toc_entry:nnnnn
+              { \__docxlike_toc_style:n { \l__docxlike_toc_level_tl } }
+              { \exp_not:V \l__docxlike_toc_local_tl }
           }
-          { \__docxlike_toc_link:nn {#4} {#2} \docxtab \__docxlike_toc_link:nn {#4} {#3} }
+          {#2} {#3} {#4}
+      }
+  }
+%    \end{macrocode}
+%
+% \cs{docxlike\_toc\_entry:nnnnn}\marg{样式}\marg{直接格式}\marg{文字}\marg{页码}\marg{锚点}排一条。
+% 公开出来给文档类自己的清单用（格式照目录条目，条目不从清单文件来的时候）。
+%
+% \emph{每一行都排到制表位，只有末行给尾巴让路。} Word 的目录条目长了会折行：正文每一行都排到
+% 右制表位为止，末行放不下“最短一截点线加页码”时连末词一起退下去，页码永不独占一行。落到
+% \hologo{TeX} 上是 \cs{rightskip} 一份 fil（行内不再拉伸字距，末行的 fill 压过它）、
+% \cs{parfillskip} 为零，点线那段胶自然宽 1\,em（最短一截）再加 fill，文字、点线、页码之间
+% 各一个 \cs{nobreak}。右制表位取样式里最靠右的那个右对齐制表位，没写就是栏宽。页码不装盒：
+% Word 的页码也在字符网格上，“10”两位之间多一份增量（范例 6.24），装进盒子断行层就不补了。
+%
+% \emph{行盒按内容的字体算。} 一条纯西文的条目行盒比汉字的矮，Word 的步进跟着变，模型见
+% \cs{docxlike\_format\_stack\_line:n}。样式的字体在段一开头才换：换字体那一串里带撑杆，
+% 竖排模式里就会先起一段（带着正文的首行缩进）；\cs{fontsize} 还会改 \cs{baselineskip}，
+% 换完照盒贴排算出的值设回去。\cs{l\_docxlike\_toc\_latin\_line\_bool} 关掉就一律按样式写的
+% 那副字算（文档类另有规矩时用）。
+%
+% \emph{编号。} 条目里的 \cs{numberline}\marg{编号} 交给 \cs{docxlike\_toc\_numberline:n}：默认排编号
+% 再空一格（Word 把标题编号连同后面的空格抄进目录）；图表目录在编号前加标签。文档类要别的
+% 排法就在自己的组里重定义它。折行悬挂到哪儿由它写进 \cs{g\_docxlike\_toc\_hang\_dim}，每条开头
+% 清零，段尾照这个量悬挂；样式写了悬挂缩进的，按样式。
+%    \begin{macrocode}
+\bool_new:N \l_docxlike_toc_latin_line_bool
+\bool_set_true:N \l_docxlike_toc_latin_line_bool
+\dim_new:N \g_docxlike_toc_hang_dim
+\tl_new:N \l__docxlike_toc_font_tl
+\tl_new:N \l__docxlike_toc_tabs_tl
+\dim_new:N \l__docxlike_toc_indent_dim
+\dim_new:N \l__docxlike_toc_tab_dim
+\dim_new:N \l__docxlike_toc_baseline_dim
+\cs_new_protected:Npn \docxlike_toc_entry:nnnnn #1#2#3#4#5
+  {
+    \tl_if_blank:nTF {#2}
+      { \__docxlike_toc_entry:nnnn {#1} {#3} {#4} {#5} }
+      { \docxlike_format_with:nnn {#1} {#2} { \__docxlike_toc_entry:nnnn {#1} {#3} {#4} {#5} } }
+  }
+\cs_new_protected:Npn \__docxlike_toc_entry:nnnn #1#2#3#4
+  {
+    \par
+    \group_begin:
+      \bool_set_false:N \l_docxlike_format_latin_pick_bool
+      \docxlike_format_cjk:nTF {#2}
+        { \docxlike_format_latin_chars:n { \c_false_bool } }
+        {
+          \bool_set_eq:NN \l_docxlike_format_latin_pick_bool \l_docxlike_toc_latin_line_bool
+          \docxlike_format_latin_chars:n { \c_true_bool }
+        }
+      \docxlike_format_stack_line:n {#1}
+      \dim_set_eq:NN \l__docxlike_toc_baseline_dim \baselineskip
+      \docxlike_format_apply_font:nN {#1} \l__docxlike_toc_font_tl
+      \docxlike_format_left_indent:nN {#1} \l__docxlike_toc_indent_dim
+      \__docxlike_toc_tab:n {#1}
+      \bool_if_exist:NT \g_docxlike_format_verb_exit_bool
+        { \bool_gset_false:N \g_docxlike_format_verb_exit_bool }
+      \skip_set:Nn \leftskip { \l__docxlike_toc_indent_dim }
+      \skip_set:Nn \rightskip
+        { \dim_eval:n { \linewidth - \l__docxlike_toc_tab_dim } plus 1fil }
+      \skip_zero:N \parfillskip
+      \dim_zero:N \parindent
+      \int_set:Nn \interlinepenalty { 10000 }
+      \dim_gzero:N \g_docxlike_toc_hang_dim
+      \leavevmode
+      \tl_use:N \l__docxlike_toc_font_tl
+      \dim_set_eq:NN \baselineskip \l__docxlike_toc_baseline_dim
+      { \__docxlike_toc_link:nn {#4} {#2} }
+      \nobreak
+      \tex_leaders:D \hbox:n { . } \skip_horizontal:n { 1em plus 1fill }
+      \nobreak
+      \__docxlike_toc_link:nn {#4} {#3}
+      \dim_set_eq:NN \hangindent \g_docxlike_toc_hang_dim
+      \int_set:Nn \hangafter { 1 }
+      \par
+    \group_end:
+  }
+\cs_new_protected:Npn \docxlike_toc_numberline:n #1
+  {
+    \tl_if_empty:NF \l_docxlike_toc_label_tl
+      {
+        \l_docxlike_toc_label_tl
+        \exp_args:NV \docxlike_format_cjk:nF \l_docxlike_toc_label_tl { \c_space_tl }
+      }
+    #1 \c_space_tl
+  }
+\cs_new_protected:Npn \__docxlike_toc_tab:n #1
+  {
+    \dim_set_eq:NN \l__docxlike_toc_tab_dim \linewidth
+    \__docxlike_format_read:nnnN {#1} { pPr/tabs } { } \l__docxlike_toc_tabs_tl
+    \clist_map_inline:Nn \l__docxlike_toc_tabs_tl
+      {
+        \__docxlike_format_tab_stop:w ##1 ~ \q_mark ~ \q_stop
+        \str_if_eq:VnT \l__docxlike_format_tab_stop_kind_tl { right }
+          { \dim_set_eq:NN \l__docxlike_toc_tab_dim \l__docxlike_format_tab_stop_pos_dim }
       }
   }
 \cs_new_protected:Npn \__docxlike_toc_link:nn #1#2
