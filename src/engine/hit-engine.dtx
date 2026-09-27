@@ -7,9 +7,9 @@
 % \section{引擎层}
 %
 % \changes{v3.2a}{2026/09/20}{新增引擎层，模板 \hologo{XeLaTeX}、\hologo{LuaLaTeX} 与 \hologo{pdfLaTeX} 都能编，
-%   报错文案里推荐引擎 \texttt{lualatex} 排在前面；\hologo{pdfLaTeX} 下中西文之间的间距在交界处自己补
-%   （\pkg{CJK} 没有这个机制），\texttt{\textasciitilde} 还原成 \cs{nobreakspace}（\pkg{CJK} 的那个不健壮）；\cs{CJKglue} 的直接改写、
-%   \cs{hit@engine@cjk@char:n}、\cs{hit@engine@latin@chars:n} 收进这里；
+%   报错文案里推荐引擎 \texttt{lualatex} 排在前面；\hologo{pdfLaTeX} 下 \texttt{\textasciitilde} 还原成
+%   \cs{nobreakspace}（\pkg{CJK} 的那个不健壮）；\cs{CJKglue} 的直接改写、
+%   按东亚提示排的字符交给 \pkg{docxlike}（Word 的 \texttt{w:hint}）；
 %   东八区的今天（\cs{c\_sys\_year\_int} 跟编译机器
 %   时区走，国外编译封面日期差一天）；下划线按 Word 画：线心在基线下 0.135\,em、粗 0.05\,em}
 %
@@ -49,75 +49,15 @@
   }
 %    \end{macrocode}
 %
-% \subsection{把码位归成汉字}
+% \subsection{按东亚提示排的字符}
 %
-% \cs{hit@engine@cjk@chars:n}\marg{码位列表} 把列出的码位当汉字排，让它们从中文
-% 字体取字形。用处见 \file{src/engine/hit-fonts.dtx}：\texttt{□} 这类几何符号按
-% Unicode 区块归了西文，西文字体里没有就整个字排丢了。
-%
-% 两个引擎的分法不一样。\pkg{xeCJK} 是逐个码位声明字符类，一个码位一句；
-% \pkg{luatexja} 是先把一批码位定义成一个「字符范围」，再把整个范围划归和文，
-% 两句管一批。范围号 \pkg{luatexja} 预定义了 1--8、留给用户 1--217，这里从 100
-% 起编，离预定义的那几个远一点；每调用一次占一个号。
+% 把一些字按汉字排（中文字体、汉字类）或者交回西文，是 Word 的 \texttt{w:hint}，由 \pkg{docxlike} 做：
+% \cs{docxlike\_font\_hint\_east\_asian:n}、\cs{docxlike\_font\_hint\_default:n} 与只管一处的
+% \cs{docxlike\_font\_hint\_east\_asian\_char:n}（\file{src/docxlike/docxlike-format.dtx}）。类里哪些字按哪样排
+% 写在 \file{src/engine/hit-fonts.dtx}。配置层点名用的 \cs{hit@engine@cjk@char}\marg{字符} 接到最后那个上。
 %    \begin{macrocode}
-\sys_if_engine_luatex:TF
-  {
-    \int_new:N \g__hit_engine_range_int
-    \int_gset:Nn \g__hit_engine_range_int { 100 }
-    \cs_new_protected:Npn \hit@engine@cjk@chars:n #1
-      {
-        \int_gincr:N \g__hit_engine_range_int
-        \exp_args:Nx \ltjdefcharrange
-          { \int_use:N \g__hit_engine_range_int } {#1}
-        \exp_args:Nx \ltjsetparameter
-          { jacharrange = { + \int_use:N \g__hit_engine_range_int } }
-      }
-  }
-  {
-    \cs_new_protected:Npn \hit@engine@cjk@chars:n #1
-      { \clist_map_inline:nn {#1} { \xeCJKDeclareCharClass { CJK } {##1} } }
-  }
-%    \end{macrocode}
-%
-% \cs{hit@engine@latin@chars:n}\marg{码位列表} 反过来：把列出的码位交回西文，
-% 让它们从西文字体取字形。破折号要用它，见 \file{src/engine/hit-fonts.dtx}。
-%
-% \pkg{xeCJK} 那边把字符类改成 \texttt{Default}——那一类的意思就是「\pkg{xeCJK}
-% 不管」，字形跟当前字体走。\pkg{luatexja} 那边把码位划成一个范围再从和文里减掉，
-% 范围号与上面同一条序列。
-%    \begin{macrocode}
-\sys_if_engine_luatex:TF
-  {
-    \cs_new_protected:Npn \hit@engine@latin@chars:n #1
-      {
-        \int_gincr:N \g__hit_engine_range_int
-        \exp_args:Nx \ltjdefcharrange
-          { \int_use:N \g__hit_engine_range_int } {#1}
-        \exp_args:Nx \ltjsetparameter
-          { jacharrange = { - \int_use:N \g__hit_engine_range_int } }
-      }
-  }
-  {
-    \cs_new_protected:Npn \hit@engine@latin@chars:n #1
-      { \clist_map_inline:nn {#1} { \xeCJKDeclareCharClass { Default } {##1} } }
-  }
-%    \end{macrocode}
-%
-% \hologo{pdfTeX} 下 \pkg{CJKutf8} 把 0x80 以上的字节全接走了，码位不必再归成汉字；归成西文
-% 只用得上破折号那一个，写成 \pkg{inputenc} 的 \cs{textemdash}。
-%    \begin{macrocode}
-\sys_if_engine_pdftex:T
-  {
-    \cs_set_protected:Npn \hit@engine@cjk@chars:n #1 { }
-    \cs_set_protected:Npn \hit@engine@latin@chars:n #1
-      {
-        \clist_map_inline:nn {#1}
-          {
-            \int_compare:nNnT {##1} = { "2014 }
-              { \DeclareUnicodeCharacter { 2014 } { \textemdash } }
-          }
-      }
-  }
+\cs_new_protected:Npn \hit@engine@cjk@char #1
+  { \docxlike_font_hint_east_asian_char:n {#1} }
 %    \end{macrocode}
 %
 % \subsection{汉字之间的字距}
@@ -188,36 +128,6 @@
     \cs_new_protected:Npn \hit@engine@ecglue@off:
       { \cs_set_eq:NN \CJKecglue \prg_do_nothing: }
   }
-%    \end{macrocode}
-%
-% \subsection{按汉字排一个字符}
-%
-% \cs{hit@engine@cjk@char:n}\marg{字符} 把一个字符按汉字排：中文字体、汉字类，只管这一处。
-% 整类归汉字用上面的 \cs{hit@engine@cjk@chars:n}（\texttt{×} 就是那样一律归的）；
-% 这一个给个别地方点名用。参数收字符本身，不收码位：配置层的取值在
-% \pkg{expl3} 之外记号化，\texttt{"D7} 那种十六进制在那儿会碎。
-%
-% \hologo{XeLaTeX} 这边在\emph{分组里}把这个字符临时声明进汉字类——
-% \cs{XeTeXcharclass} 赋值随分组，出组即还原，正文里的乘号一根汗毛不动
-% （实测组内宋体、组外 Times）。\pkg{xeCJK} 的 \cs{CJKsymbol} 帮不上忙，
-% 它就是 \cs{use:n}，字体切换在类对的记号表里。\pkg{luatexja} 有现成的
-% \cs{ltjjachar}，按 JAchar 排一个码位。
-%    \begin{macrocode}
-\sys_if_engine_luatex:TF
-  {
-    \cs_new_protected:Npn \hit@engine@cjk@char:n #1
-      { \ltjjachar `#1 \scan_stop: }
-  }
-  {
-    \cs_new_protected:Npn \hit@engine@cjk@char:n #1
-      {
-        \group_begin:
-        \xeCJKDeclareCharClass { CJK } { \int_value:w `#1 }
-        #1
-        \group_end:
-      }
-  }
-\cs_new_eq:NN \hit@engine@cjk@char \hit@engine@cjk@char:n
 %    \end{macrocode}
 %
 % \subsection{今天（东八区）}
@@ -650,235 +560,20 @@
   }
 %    \end{macrocode}
 %
-% \subsection{中西文之间的间距（\hologo{pdfTeX}）}
+% \subsection{\texttt{\textasciitilde} 还原（\hologo{pdfTeX}）}
 %
-% Word 在汉字与西文字母、数字之间自动留一段空（\texttt{autoSpaceDE}/\texttt{DN}），
-% \pkg{docxlike} 把它算好放进 \cs{CJKecglue}。\pkg{xeCJK} 与 \pkg{luatexja} 按字符类自己在
-% 交界处插这段胶，\pkg{CJK} 宏包没有这个机制，只在前一个也是汉字时插 \cs{CJKglue}。这里照
-% \pkg{gxuthesis} 的办法补上，包的是 \pkg{ctex} 排三字节、四字节字的 \cs{CTEX@char@nnn} 与
-% \cs{CTEX@char@nnnn}（汉字的活动字节展开后就是它们）：
-% \begin{itemize}
-% \item 左边界：排字之前看上一个节点。是字符、连字（上一个是西文字）、行内公式，或者不是
-%   \pkg{CJK} 记号的 kern（\cs{textit} 之后的斜体校正）就插胶。前面是字符的再看
-%   \cs{spacefactor}：只有字母与数字（999、1000）才插。kern 也按前一个字符看，直立体的斜体
-%   校正是一个零宽的 kern，1--3\,sp 的是记号。\texttt{( [ ) ] / -} 的 sfcode 改成
-%   998，\cs{frenchspacing} 把句号那几个拨回 1000 时也跟着改，Word 在这些符号旁不留空。
-%   取小于 1000 的数是因为大于 1000 的跟在大写字母后面会被 \hologo{TeX} 压回 1000；
-%   998 对词间胶的影响是千分之二。
-% \item 右边界：排完之后吞掉空格（与 \pkg{xeCJK} 的 \texttt{CJKspace=false} 一致），看下一个
-%   记号。字母、数字、\verb|$| 插胶；控制序列里几个排字体与引用的，先插胶再垫一个 3\,sp 的
-%   kern 当记号，里面排出来的若是汉字，它的左边界认出记号把胶撤掉。
-%   别的控制序列能展开、又不是 \cs{protected} 的，先展开一层再看（\verb|\the\month| 展开出数字，
-%   日期里“年”后面就有胶），最多十六层；展开出下一个汉字（活动字节展开头一步是 \pkg{CJK} 的
-%   \cs{CJK@@@}）或者碰到不能展开的就停，不插。\cs{label}、\cs{index} 这类先落一个 whatsit，
-%   插了就撤不掉，所以不走试探那一条。先展开一层与 \hologo{TeX} 自己往下走时展开的是同一个记号，
-%   次序不变。
-% \item 全角标点两边都不插。码位落在通用标点、中日韩符号与标点、全角 ASCII 标点这几段的
-%   是标点；\pkg{CJKpunct} 自己接管的弯引号、破折号、省略号不走 \cs{CTEX@char@nnn}，本来就不插。
-% \item 行内代码与 \env{verbatim} 里不插，与 \pkg{xeCJK} 一样。
-% \end{itemize}
-% 没有 \pkg{docxlike} 设过的地方（封面那一类整页）\cs{CJKecglue} 取 0.25\,em，与
-% \pkg{luatexja} 的缺省相当。
+% \pkg{ctex} 在导言区末尾调 \pkg{CJK} 的 \cs{CJKtilde}，把 \verb|~| 换成一个会看两边是不是汉字的宏，
+% 不健壮：英文题注前缀 \texttt{Fig.\textasciitilde} 在 \pkg{ccaption} 的 \cs{edef} 里一展开就报错。
+% 另两个引擎下它本来就是 \cs{nobreakspace}，这里在 \texttt{begindocument} 上还原。
 %
-% \verb|~| 也在这里还原成 \cs{nobreakspace}。\pkg{ctex} 在导言区末尾调 \pkg{CJK} 的
-% \cs{CJKtilde}，把它换成一个会看两边是不是汉字的宏，不健壮：英文题注前缀 \texttt{Fig.\textasciitilde}
-% 在 \pkg{ccaption} 的 \cs{edef} 里一展开就报错。另两个引擎下它本来就是 \cs{nobreakspace}。
+% 汉字与西文之间的空、汉字的合成粗体与斜体是 Word 的事，\hologo{pdfTeX} 下也由 \pkg{docxlike} 做
+% （\file{src/docxlike/docxlike-format.dtx} 的“\hologo{pdfTeX} 下的汉字”），挂在 \pkg{CJK} 宏包的接口上。
 %    \begin{macrocode}
-\bool_new:N \l_hit_engine_ec_off_bool
 \sys_if_engine_pdftex:T
   {
-    \bool_new:N \l__hit_engine_ec_punct_bool
-    \int_new:N \l__hit_engine_ec_cp_int
-    \tl_const:Nn \c__hit_engine_ec_start_tl
-      {
-        \textbf \textit \textsl \textrm \textsf \texttt \textup \textmd
-        \textnormal \textsc \emph \ref \eqref \pageref \autoref \num \SI
-        \si \qty \unit \LaTeX \TeX \LaTeXe
-      }
-    \cs_new_protected:Npn \__hit_engine_ec_glue:
-      {
-        \cs_if_exist:NTF \CJKecglue
-          { \CJKecglue }
-          { \tex_hskip:D 0.25em plus 0.125em minus 0.08em \scan_stop: }
-      }
-    \cs_new_protected:Npn \__hit_engine_ec_punct:n #1
-      {
-        \int_set:Nn \l__hit_engine_ec_cp_int {#1}
-        \bool_set:Nn \l__hit_engine_ec_punct_bool
-          {
-            \int_compare_p:n { "2010 <= \l__hit_engine_ec_cp_int <= "205F }
-            || \int_compare_p:n { "3000 <= \l__hit_engine_ec_cp_int <= "303F }
-            || \int_compare_p:n { "FE10 <= \l__hit_engine_ec_cp_int <= "FE6F }
-            || \int_compare_p:n { "FF01 <= \l__hit_engine_ec_cp_int <= "FF0F }
-            || \int_compare_p:n { "FF1A <= \l__hit_engine_ec_cp_int <= "FF20 }
-            || \int_compare_p:n { "FF3B <= \l__hit_engine_ec_cp_int <= "FF40 }
-            || \int_compare_p:n { "FF5B <= \l__hit_engine_ec_cp_int <= "FF65 }
-          }
-      }
-    \cs_new_protected:Npn \__hit_engine_ec_nnn:nnn #1#2#3
-      {
-        \__hit_engine_ec_punct:n
-          { (#1 - "E0) * "1000 + (#2 - "80) * "40 + #3 - "80 }
-        \__hit_engine_ec_wrap:n { \__hit_engine_ec_orig_nnn:nnn {#1} {#2} {#3} }
-      }
-    \cs_new_protected:Npn \__hit_engine_ec_nnnn:nnnn #1#2#3#4
-      {
-        \bool_set_false:N \l__hit_engine_ec_punct_bool
-        \__hit_engine_ec_wrap:n
-          { \__hit_engine_ec_orig_nnnn:nnnn {#1} {#2} {#3} {#4} }
-      }
-    \cs_new_protected:Npn \__hit_engine_ec_wrap:n #1
-      {
-        \mode_if_math:TF {#1}
-          {
-            \mode_leave_vertical:
-            \__hit_engine_ec_left:
-            #1
-            \bool_if:NF \l_hit_engine_ec_off_bool
-              {
-                \int_zero:N \l__hit_engine_ec_expand_int
-                \__hit_engine_ec_right:
-              }
-          }
-      }
-%    \end{macrocode}
-%
-% 左边界。先撤右边界垫过的胶：上一个节点是 3\,sp 的记号就连它前面那段胶一起拿掉。
-%    \begin{macrocode}
-    \cs_new_protected:Npn \__hit_engine_ec_left:
-      {
-        \bool_lazy_and:nnT
-          { \int_compare_p:nNn { \tex_lastnodetype:D } = { 12 } }
-          { \int_compare_p:nNn { \tex_lastkern:D } = { 3 } }
-          { \tex_unkern:D \tex_unskip:D }
-        \bool_lazy_or:nnF
-          { \l__hit_engine_ec_punct_bool }
-          { \l_hit_engine_ec_off_bool }
-          {
-            \int_case:nn { \tex_lastnodetype:D }
-              {
-                { 0 } { \__hit_engine_ec_after_char: }
-                { 7 } { \__hit_engine_ec_after_char: }
-                { 10 } { \__hit_engine_ec_glue: }
-                { 12 }
-                  {
-                    \bool_lazy_and:nnF
-                      { \int_compare_p:nNn { \tex_lastkern:D } > { 0 } }
-                      { \int_compare_p:nNn { \tex_lastkern:D } < { 4 } }
-                      { \__hit_engine_ec_after_char: }
-                  }
-              }
-          }
-      }
-    \cs_new_protected:Npn \__hit_engine_ec_after_char:
-      {
-        \int_compare:nNnT { \tex_spacefactor:D } > { 998 }
-          {
-            \int_compare:nNnT { \tex_spacefactor:D } < { 1001 }
-              { \__hit_engine_ec_glue: }
-          }
-      }
-%    \end{macrocode}
-%
-% 右边界。下一个记号只比含义，不取下来：前瞻碰到单元格的 \verb|&| 时 \hologo{TeX} 已经把
-% 模板的后半截插了进来，取下来再放回去就把单元格排乱了。空格自己吞，不用
-% \cs{peek\_remove\_spaces:n}：它在对齐安全组里前瞻，出组后再前瞻一次，单元格末尾的
-% \verb|&| 就报“Extra alignment tab”，纯 \cls{article} 里也是这样。
-%    \begin{macrocode}
-    \cs_new_protected:Npn \__hit_engine_ec_right:
-      { \peek_after:Nw \__hit_engine_ec_skip: }
-    \cs_new_protected:Npn \__hit_engine_ec_skip:
-      {
-        \token_if_eq_meaning:NNTF \l_peek_token \c_space_token
-          {
-            \tex_afterassignment:D \__hit_engine_ec_right:
-            \cs_set_eq:NN \__hit_engine_ec_tmp:w
-          }
-          { \__hit_engine_ec_peek: }
-      }
-    \int_new:N \l__hit_engine_ec_expand_int
-    \cs_new_protected:Npn \__hit_engine_ec_expand:
-      {
-        \int_incr:N \l__hit_engine_ec_expand_int
-        \exp_after:wN \__hit_engine_ec_right:
-      }
-    \cs_new_protected:Npn \__hit_engine_ec_peek:
-      {
-        \cs_set_eq:NN \__hit_engine_ec_next: \prg_do_nothing:
-        \bool_if:NF \l__hit_engine_ec_punct_bool
-          {
-            \bool_lazy_or:nnTF
-              { \token_if_letter_p:N \l_peek_token }
-              { \token_if_math_toggle_p:N \l_peek_token }
-              { \__hit_engine_ec_glue: }
-              {
-                \token_if_other:NTF \l_peek_token
-                  {
-                    \tl_map_inline:nn { 0123456789 }
-                      {
-                        \token_if_eq_charcode:NNT \l_peek_token ##1
-                          { \__hit_engine_ec_glue: \tl_map_break: }
-                      }
-                  }
-                  { \token_if_cs:NT \l_peek_token { \__hit_engine_ec_cs: } }
-              }
-          }
-        \__hit_engine_ec_next:
-      }
-    \bool_new:N \l__hit_engine_ec_start_bool
-    \cs_new_protected:Npn \__hit_engine_ec_cs:
-      {
-        \bool_set_false:N \l__hit_engine_ec_start_bool
-        \tl_map_inline:Nn \c__hit_engine_ec_start_tl
-          {
-            \token_if_eq_meaning:NNT \l_peek_token ##1
-              {
-                \bool_set_true:N \l__hit_engine_ec_start_bool
-                \tl_map_break:
-              }
-          }
-        \bool_if:NT \l__hit_engine_ec_start_bool
-          {
-            \__hit_engine_ec_glue:
-            \tex_kern:D 3 sp \scan_stop:
-          }
-        \bool_lazy_all:nT
-          {
-            { ! \l__hit_engine_ec_start_bool }
-            { ! \token_if_eq_meaning_p:NN \l_peek_token \CJK@@@ }
-            { \token_if_expandable_p:N \l_peek_token }
-            { ! \token_if_protected_macro_p:N \l_peek_token }
-            { ! \token_if_protected_long_macro_p:N \l_peek_token }
-            { \int_compare_p:nNn { \l__hit_engine_ec_expand_int } < { 16 } }
-          }
-          { \cs_set_eq:NN \__hit_engine_ec_next: \__hit_engine_ec_expand: }
-      }
-%    \end{macrocode}
-%
-% 装上。\pkg{ctex} 在导言区末尾才开 \pkg{CJK} 环境，这里等到 \texttt{begindocument}。
-%    \begin{macrocode}
-    \cs_new_protected:Npn \__hit_engine_ec_sfcodes:
-      {
-        \clist_map_inline:nn { `( , `[ , `) , `] , `/ , `- , `. , `? , `! , `: , `; , `, }
-          { \tex_sfcode:D ##1 = 998 \scan_stop: }
-      }
-    \cs_new_protected:Npn \__hit_engine_ec_install:
-      {
-        \char_set_active_eq:nN { `\~ } \nobreakspace
-        \cs_set_eq:NN \__hit_engine_ec_orig_nnn:nnn \CTEX@char@nnn
-        \cs_set_eq:NN \__hit_engine_ec_orig_nnnn:nnnn \CTEX@char@nnnn
-        \cs_set_eq:NN \CTEX@char@nnn \__hit_engine_ec_nnn:nnn
-        \cs_set_eq:NN \CTEX@char@nnnn \__hit_engine_ec_nnnn:nnnn
-        \tl_put_right:Nn \verbatim@font { \bool_set_true:N \l_hit_engine_ec_off_bool }
-        \tl_put_right:Nn \frenchspacing { \__hit_engine_ec_sfcodes: }
-        \int_compare:nNnTF { \tex_sfcode:D `\. } = { 1000 }
-          { \__hit_engine_ec_sfcodes: }
-          {
-            \clist_map_inline:nn { `( , `[ , `) , `] , `/ , `- }
-              { \tex_sfcode:D ##1 = 998 \scan_stop: }
-          }
-      }
-    \AddToHook { begindocument } { \__hit_engine_ec_install: }
+    \cs_new_protected:Npn \__hit_engine_tilde:
+      { \char_set_active_eq:nN { `\~ } \nobreakspace }
+    \AddToHook { begindocument } { \__hit_engine_tilde: }
   }
 %    \end{macrocode}
 %
@@ -919,7 +614,7 @@
   {
     \cs_new_protected:Npn \hit@engine@postload:
       {
-        \hit@engine@cjk@chars:n
+        \docxlike_font_hint_east_asian:n
           { "2460 - "2473 , "3251 - "325F , "32B1 - "32BF }
         \cs_set_eq:NN \CJKunderline \uline
         \cs_set_eq:NN \CJKunderdblline \uuline

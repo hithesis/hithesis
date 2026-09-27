@@ -2466,13 +2466,22 @@
 % 字体常在段落的组里第一次用到，出组就没了，所以声明之后改成全局的。
 %
 % 中文字体没有斜体字面，Word 的斜体是斜切出来的，倾角 18.4°，斜切系数 $\tan 18.4^\circ$
-% 约 0.3333，声明中文字族时带上。西文字体有斜体字面的用真的（Times New Roman），没有的
+% 约 0.3333（Word 排一段宋体与黑体的斜体导成 PDF，文本矩阵都是 \texttt{24 0 7.9992 24}），声明中文字族时带上。西文字体有斜体字面的用真的（Times New Roman），没有的
 % （等线）同样斜切：先照常声明，\pkg{fontspec} 没登记出斜体字形的，带上斜切再声明一次。粗体不在声明时办：中易宋体、黑体这些没有粗体字面，Word 描边
 % 合成，线宽是字号的 1/35；等线、微软雅黑有真粗体字面，Word 用真的。\pkg{fontspec} 的
 % \texttt{AutoFakeBold} 不分有没有，一律描边，所以没加。\hologo{LuaLaTeX} 上样式要了粗体、
 % 排出来却是常规字面的字形，出页前换成描边的同一副字体（见“字符格式”）；文档类自己声明了
 % 合成粗体的字族照它的。
+%
+% 两个数存成常量，文档类自己声明中文字族时也取它们：\cs{c\_docxlike\_font\_fake\_slant\_tl} 是
+% 斜切系数，\cs{c\_docxlike\_font\_fake\_bold\_tl} 是描边的线宽、以字号的百分之一计（\pkg{fontspec}
+% 的 \texttt{AutoFakeBold} 与 \pkg{luaotfload} 的 \texttt{embolden} 用的都是这个单位）。2.85 是量出来的：
+% 同字号、同字体、同分辨率渲两侧，数版心里的墨点，Word 的合成粗与常规之比是 1.7168，
+% \texttt{FakeBold=2} 只到 1.50；梯度扫到 2.85 时墨点 56778，与 Word 逐值相同，换一组字（小四）与
+% 换一档字号（二号）复验，墨点与字高都逐值相同，所以这个系数与字号无关。
 %    \begin{macrocode}
+\tl_const:Nn \c_docxlike_font_fake_slant_tl { 0.3333 }
+\tl_const:Nn \c_docxlike_font_fake_bold_tl { 2.85 }
 \prop_new:N \g__docxlike_font_select_prop
 \tl_new:N \l__docxlike_font_code_tl
 \tl_new:N \l__docxlike_font_group_tl
@@ -2523,13 +2532,13 @@
                 \cs_if_exist:NTF \xeCJK_set_family:nnn
                   {
                     \xeCJK_set_family:enn { docxlike-\l__docxlike_font_key_str }
-                      { AutoFakeSlant = 0.3333 , BoldItalicFeatures = { FakeSlant = 0.3333 } } {#1}
+                      { AutoFakeSlant = \c_docxlike_font_fake_slant_tl , BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl } } {#1}
                     \tl_gset:ce { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
                       { \exp_not:N \CJKfamily { docxlike-\l__docxlike_font_key_str } }
                   }
                   {
                     \exp_args:Nc \newjfontfamily { docxlike@jf@ \l__docxlike_font_key_str }
-                      [ JFM = zh_CN/quanjiao , AutoFakeSlant = 0.3333 , BoldItalicFeatures = { FakeSlant = 0.3333 } ] {#1}
+                      [ JFM = zh_CN/quanjiao , AutoFakeSlant = \c_docxlike_font_fake_slant_tl , BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl } ] {#1}
                     \cs_gset_eq:cc { docxlike@jf@ \l__docxlike_font_key_str }
                       { docxlike@jf@ \l__docxlike_font_key_str }
                     \cs_if_exist:cT { docxlike@jf@ \l__docxlike_font_key_str \c_space_tl code }
@@ -2562,7 +2571,7 @@
                   {
                     \fontspec_set_family:cnn
                       { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
-                      { AutoFakeSlant = 0.3333 , BoldItalicFeatures = { FakeSlant = 0.3333 } } {#1}
+                      { AutoFakeSlant = \c_docxlike_font_fake_slant_tl , BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl } } {#1}
                   }
                 \tl_gset_eq:cc { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
                   { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
@@ -2584,6 +2593,336 @@
   }
 \cs_generate_variant:Nn \fontspec_set_family:Nnn { cnn }
 \cs_generate_variant:Nn \tl_gset:Nn { ce }
+%    \end{macrocode}
+%
+% \emph{\hologo{pdfTeX} 下的汉字。} \hologo{pdfTeX} 没有 \pkg{fontspec}，中文靠 \pkg{CJK} 宏包排：UTF-8 的
+% 每个字节是个活动字符，一个字交给 \pkg{CJK} 按 256 个字一组的子字体排。字体从哪来本包不管（文档类用
+% \pkg{CJK} 的字族与映射自己配），只把 Word 在字形与字间上的两件事补上，挂在 \pkg{CJK} 宏包自己的接口上：
+% \pkg{CJKpunct} 存下的原件 \cs{CJKosymbol}、\cs{CJKopunctsymbol}（\cs{CJKsymbol} 是它插断点的包装，不能动），
+% 与每个字排完都调的 \cs{CJK@ignorespaces}。
+% \begin{itemize}
+% \item 合成粗体与合成斜体。\pkg{CJK} 的伪粗把一个字叠印三遍、后两遍各右移 0.015\,em，步进多出
+%   0.03\,em，复制出来还是三个字；斜体形状映射到同一个 TrueType 文件，\hologo{pdfTeX} 的
+%   \texttt{SlantFont} 只管 Type~1，排出来是正体。这里粗体写 PDF 文本渲染模式~2（填充加描边），笔宽取
+%   \cs{c\_docxlike\_font\_fake\_bold\_tl} 个百分之一字号，收尾连笔宽一起复位，不漏给后面的描边路径；斜体与
+%   倾斜形状包一层 \cs{pdfsetmatrix}，斜切 \cs{c\_docxlike\_font\_fake\_slant\_tl}。某个字族的斜体形状是
+%   真的字面（文档类拿别的字体顶的）就不斜切，用 \cs{docxlike\_font\_real\_italic:n}\marg{字族}登记。
+%   正体不粗的字原样走 \cs{symbol}，断行与标点挤压都不受影响。
+% \item 中西文之间的空（“自动调整中文与西文的间距”）。\pkg{CJK} 只在前一个也是汉字时插
+%   \cs{CJKglue}，汉字与西文之间什么都不插。左边界在排字形之前看上一个节点：字符、连字、行内公式，
+%   或者不是 \pkg{CJK} 记号（1、2\,sp）的 kern（\cs{textit} 之后的斜体校正，直立体的是零宽的），就插
+%   \cs{CJKecglue}。前面是字符的再看 \cs{spacefactor} 认是哪一类，与 \hologo{XeLaTeX} 那边的字符类同一套
+%   （\pkg{xeCJK} 的 \texttt{HalfLeft}、\texttt{HalfRight}、\texttt{NormalSpace}，加上“标点”一节照 Word 实测改的
+%   边界）：半角开号 \texttt{( [ \`{}} 与 \texttt{- / \textbackslash} 之后什么都不插，半角闭号与句读
+%   \texttt{) ] , . : ; ? ! " ' \%} 之后插一道零宽的胶（Word 是裸宽，胶只给断点），别的西文字符（999、1000）
+%   插中西文间距。三类的 sfcode 设成 996、997、998，\cs{frenchspacing} 把句号那几个拨回 1000 时也跟着设；
+%   取小于 1000 的数是因为大于 1000 的跟在大写字母后面会被 \hologo{TeX} 压回 1000，对词间胶的影响不到百分之一。
+%   右边界在排完之后：吞掉空格（与 \pkg{xeCJK} 的 \texttt{CJKspace=false} 一致），看下一个记号。字母、
+%   数字、\verb|$| 与别的西文符号插；开号前插汉字间的 \cs{CJKglue}，闭号与句读前插
+%   \cs{docxlike\_format\_punct\_ngap:}，\texttt{- / \textbackslash} 前不插，都照 \hologo{XeLaTeX} 那边；\cs{textbf} 这一类字体命令看参数的头一个记号；\cs{ref}、\cs{num} 这一类排出来
+%   是数字或西文的直接插；别的能展开又不是 \cs{protected} 的先展开一层再看（\verb|\the\month| 展开出数字，
+%   日期里“年”后面就有空），最多十六层，展开出下一个汉字（活动字节展开的头一步是 \pkg{CJK} 的
+%   \cs{CJK@@@}）或者碰到不能展开的就停。先展开一层与 \hologo{TeX} 自己往下走时展开的是同一个记号，
+%   次序不变。前瞻只比含义不取记号：碰到单元格的 \verb|&| 时 \hologo{TeX} 已经把模板的后半截插了进来，
+%   取下来再放回去就把单元格排乱了。空格自己吞，不用 \cs{peek\_remove\_spaces:n}：它在对齐安全组里
+%   前瞻，出组后再前瞻一次，单元格末尾的 \verb|&| 就报“Extra alignment tab”。
+% \item 全角标点两边都不插，按码位认（通用标点、中日韩符号与标点、竖排与小型变体、全角 ASCII 的
+%   标点那几段）；数学里、行内代码与 \env{verbatim} 里不插。\cs{CJKecglue} 还没设过的地方取 0.25\,em。
+% \end{itemize}
+% 装在 \texttt{begindocument} 上：\pkg{CJK} 的环境在导言区末尾才开，\cs{CJK@ignorespaces} 那时才设好。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_font_real_italic:n #1
+  { \cs_gset_eq:cN { __docxlike_cjk_real_italic_ #1 : } \prg_do_nothing: }
+\bool_new:N \l_docxlike_cjk_autospace_off_bool
+\sys_if_engine_pdftex:T
+  {
+    \box_new:N \l__docxlike_cjk_glyph_box
+    \bool_new:N \g__docxlike_cjk_punct_bool
+    \int_new:N \l__docxlike_cjk_cp_int
+    \int_new:N \l__docxlike_cjk_expand_int
+    \bool_new:N \l__docxlike_cjk_hit_bool
+    \tl_const:Nn \c__docxlike_cjk_font_cmd_tl
+      {
+        \textbf \textit \textsl \textrm \textsf \texttt \textup \textmd
+        \textnormal \textsc \emph
+      }
+    \tl_const:Nn \c__docxlike_cjk_latin_cmd_tl
+      { \ref \eqref \pageref \num \SI \si \qty \unit \LaTeX \TeX \LaTeXe }
+    \cs_new_protected:Npn \__docxlike_cjk_ecglue:
+      {
+        \cs_if_exist:NTF \CJKecglue
+          { \CJKecglue }
+          { \tex_hskip:D 0.25em plus 0.125em minus 0.08em \scan_stop: }
+      }
+%    \end{macrocode}
+%
+% 字形这一层。码位由 \pkg{CJK} 当时的子字体号（\cs{CJK@plane}，十六进制的高字节）与参数（低字节）拼出来。
+%    \begin{macrocode}
+    \cs_new_protected:Npn \__docxlike_cjk_symbol:n #1
+      {
+        \int_set:Nn \l__docxlike_cjk_cp_int
+          { \exp_args:No \int_from_hex:n { \CJK@plane } * 256 + #1 }
+        \bool_gset:Nn \g__docxlike_cjk_punct_bool
+          {
+            \int_compare_p:n { "2010 <= \l__docxlike_cjk_cp_int <= "205F }
+            || \int_compare_p:n { "3000 <= \l__docxlike_cjk_cp_int <= "303F }
+            || \int_compare_p:n { "FE10 <= \l__docxlike_cjk_cp_int <= "FE6F }
+            || \int_compare_p:n { "FF01 <= \l__docxlike_cjk_cp_int <= "FF0F }
+            || \int_compare_p:n { "FF1A <= \l__docxlike_cjk_cp_int <= "FF20 }
+            || \int_compare_p:n { "FF3B <= \l__docxlike_cjk_cp_int <= "FF40 }
+            || \int_compare_p:n { "FF5B <= \l__docxlike_cjk_cp_int <= "FF65 }
+          }
+        \bool_if:NF \g__docxlike_cjk_punct_bool { \__docxlike_cjk_left: }
+        \__docxlike_cjk_glyph:n { \symbol {#1} }
+      }
+    \cs_new_protected:Npn \__docxlike_cjk_punct_symbol:n #1
+      {
+        \bool_gset_true:N \g__docxlike_cjk_punct_bool
+        \__docxlike_cjk_glyph:n { \symbol {#1} }
+      }
+    \cs_new_protected:Npn \__docxlike_cjk_symbols:nn #1#2
+      { \__docxlike_cjk_glyph:n { \tex_char:D #1 \tex_char:D #2 \scan_stop: } }
+    \cs_new_protected:Npn \__docxlike_cjk_glyph:n #1
+      {
+        \bool_lazy_and:nnTF
+          {
+            \bool_lazy_or_p:nn
+              { \str_if_eq_p:Vn \f@shape { it } }
+              { \str_if_eq_p:Vn \f@shape { sl } }
+          }
+          { ! \cs_if_exist_p:c { __docxlike_cjk_real_italic_ \f@family : } }
+          {
+            \hbox_set:Nn \l__docxlike_cjk_glyph_box { \__docxlike_cjk_bold:n {#1} }
+            \hbox:n
+              {
+                \pdfsave
+                \pdfsetmatrix { 1 ~ 0 ~ \c_docxlike_font_fake_slant_tl \c_space_tl 1 }
+                \hbox_overlap_right:n { \box_use:N \l__docxlike_cjk_glyph_box }
+                \pdfrestore
+                \skip_horizontal:n { \box_wd:N \l__docxlike_cjk_glyph_box }
+              }
+          }
+          { \__docxlike_cjk_bold:n {#1} }
+      }
+    \cs_new_protected:Npn \__docxlike_cjk_bold:n #1
+      {
+        \legacy_if:nTF { CJK@bold@ }
+          {
+            \pdfliteral direct
+              {
+                \dim_to_decimal_in_bp:n
+                  { \fp_to_dim:n { \c_docxlike_font_fake_bold_tl / 100 * \f@size pt } }
+                \c_space_tl w ~ 2 ~ Tr
+              }
+            #1
+            \pdfliteral direct { 0 ~ w ~ 0 ~ Tr }
+          }
+          {#1}
+      }
+%    \end{macrocode}
+%
+% 左边界。
+%    \begin{macrocode}
+    \cs_new_protected:Npn \__docxlike_cjk_left:
+      {
+        \bool_if:NF \l_docxlike_cjk_autospace_off_bool
+          {
+            \int_case:nn { \tex_lastnodetype:D }
+              {
+                { 0 } { \__docxlike_cjk_after_char: }
+                { 7 } { \__docxlike_cjk_after_char: }
+                { 10 } { \__docxlike_cjk_ecglue: }
+                { 12 }
+                  {
+                    \bool_lazy_and:nnF
+                      { \int_compare_p:nNn { \tex_lastkern:D } > { 0 } }
+                      { \int_compare_p:nNn { \tex_lastkern:D } < { 3 } }
+                      { \__docxlike_cjk_after_char: }
+                  }
+              }
+          }
+      }
+    \cs_new_protected:Npn \__docxlike_cjk_after_char:
+      {
+        \int_case:nn { \tex_spacefactor:D }
+          {
+            { 998 } { \skip_horizontal:N \c_zero_skip }
+            { 999 } { \__docxlike_cjk_ecglue: }
+            { 1000 } { \__docxlike_cjk_ecglue: }
+          }
+      }
+%    \end{macrocode}
+%
+% 右边界。
+%    \begin{macrocode}
+    \cs_new_protected:Npn \__docxlike_cjk_right:
+      {
+        \bool_lazy_or:nnTF { \mode_if_math_p: } { \l_docxlike_cjk_autospace_off_bool }
+          { \__docxlike_cjk_orig_ignorespaces: }
+          {
+            \int_zero:N \l__docxlike_cjk_expand_int
+            \__docxlike_cjk_right_peek:
+          }
+      }
+    \cs_new_protected:Npn \__docxlike_cjk_right_peek:
+      { \peek_after:Nw \__docxlike_cjk_skip: }
+    \cs_new_protected:Npn \__docxlike_cjk_skip:
+      {
+        \token_if_eq_meaning:NNTF \l_peek_token \c_space_token
+          {
+            \tex_afterassignment:D \__docxlike_cjk_right_peek:
+            \cs_set_eq:NN \__docxlike_cjk_tmp:w
+          }
+          { \__docxlike_cjk_peek: }
+      }
+    \cs_new_protected:Npn \__docxlike_cjk_peek:
+      {
+        \cs_set_eq:NN \__docxlike_cjk_next: \prg_do_nothing:
+        \bool_if:NF \g__docxlike_cjk_punct_bool
+          {
+            \__docxlike_cjk_if_latin:NTF \l_peek_token
+              { \__docxlike_cjk_ecglue: }
+              {
+                \token_if_other:NTF \l_peek_token
+                  { \__docxlike_cjk_before_symbol: }
+                  { \token_if_cs:NT \l_peek_token { \__docxlike_cjk_cs: } }
+              }
+          }
+        \__docxlike_cjk_next:
+      }
+    \tl_const:Nn \c__docxlike_cjk_open_tl { ( [ ` }
+    \tl_const:Ne \c__docxlike_cjk_close_tl { ) ] , . : ; ? ! " ' \c_percent_str }
+    \tl_const:Ne \c__docxlike_cjk_nospace_tl { - / \c_backslash_str }
+    \cs_new_protected:Npn \__docxlike_cjk_before_symbol:
+      {
+        \__docxlike_cjk_if_char_in:NNTF \l_peek_token \c__docxlike_cjk_open_tl
+          { \CJKglue }
+          {
+            \__docxlike_cjk_if_char_in:NNTF \l_peek_token \c__docxlike_cjk_close_tl
+              { \docxlike_format_punct_ngap: }
+              {
+                \__docxlike_cjk_if_char_in:NNF \l_peek_token \c__docxlike_cjk_nospace_tl
+                  { \__docxlike_cjk_ecglue: }
+              }
+          }
+      }
+    \prg_new_protected_conditional:Npnn \__docxlike_cjk_if_char_in:NN #1#2 { F , TF }
+      {
+        \bool_set_false:N \l__docxlike_cjk_hit_bool
+        \tl_map_inline:Nn #2
+          {
+            \token_if_eq_charcode:NNT #1 ##1
+              { \bool_set_true:N \l__docxlike_cjk_hit_bool \tl_map_break: }
+          }
+        \bool_if:NTF \l__docxlike_cjk_hit_bool { \prg_return_true: } { \prg_return_false: }
+      }
+    \prg_new_protected_conditional:Npnn \__docxlike_cjk_if_latin:N #1 { T , TF }
+      {
+        \bool_set_false:N \l__docxlike_cjk_hit_bool
+        \bool_lazy_or:nnTF
+          { \token_if_letter_p:N #1 }
+          { \token_if_math_toggle_p:N #1 }
+          { \bool_set_true:N \l__docxlike_cjk_hit_bool }
+          {
+            \token_if_other:NT #1
+              {
+                \tl_map_inline:nn { 0123456789 }
+                  {
+                    \token_if_eq_charcode:NNT #1 ##1
+                      { \bool_set_true:N \l__docxlike_cjk_hit_bool \tl_map_break: }
+                  }
+              }
+          }
+        \bool_if:NTF \l__docxlike_cjk_hit_bool { \prg_return_true: } { \prg_return_false: }
+      }
+    \prg_new_protected_conditional:Npnn \__docxlike_cjk_if_in:NN #1#2 { TF }
+      {
+        \bool_set_false:N \l__docxlike_cjk_hit_bool
+        \tl_map_inline:Nn #2
+          {
+            \token_if_eq_meaning:NNT #1 ##1
+              { \bool_set_true:N \l__docxlike_cjk_hit_bool \tl_map_break: }
+          }
+        \bool_if:NTF \l__docxlike_cjk_hit_bool { \prg_return_true: } { \prg_return_false: }
+      }
+    \cs_new_protected:Npn \__docxlike_cjk_cs:
+      {
+        \__docxlike_cjk_if_in:NNTF \l_peek_token \c__docxlike_cjk_latin_cmd_tl
+          { \__docxlike_cjk_ecglue: }
+          {
+            \__docxlike_cjk_if_in:NNTF \l_peek_token \c__docxlike_cjk_font_cmd_tl
+              { \cs_set_eq:NN \__docxlike_cjk_next: \__docxlike_cjk_font_arg:Nn }
+              {
+                \bool_lazy_all:nT
+                  {
+                    { ! \token_if_eq_meaning_p:NN \l_peek_token \CJK@@@ }
+                    { \token_if_expandable_p:N \l_peek_token }
+                    { ! \token_if_protected_macro_p:N \l_peek_token }
+                    { ! \token_if_protected_long_macro_p:N \l_peek_token }
+                    { \int_compare_p:nNn { \l__docxlike_cjk_expand_int } < { 16 } }
+                  }
+                  { \cs_set_eq:NN \__docxlike_cjk_next: \__docxlike_cjk_expand: }
+              }
+          }
+      }
+    \cs_new_protected:Npn \__docxlike_cjk_expand:
+      {
+        \int_incr:N \l__docxlike_cjk_expand_int
+        \exp_after:wN \__docxlike_cjk_right_peek:
+      }
+%    \end{macrocode}
+%
+% 字体命令取下来连同参数一起看，看完原样放回去：参数头一个是字母、数字或 \verb|$| 就插。
+% 这一步取的是命令自己的必选参数，与它排的时候取的同一个。
+%    \begin{macrocode}
+    \cs_new_protected:Npn \__docxlike_cjk_font_arg:Nn #1#2
+      {
+        \tl_if_head_is_N_type:nT {#2}
+          { \__docxlike_cjk_font_head:w #2 \q_stop }
+        #1 {#2}
+      }
+    \cs_new_protected:Npn \__docxlike_cjk_font_head:w #1#2 \q_stop
+      { \__docxlike_cjk_if_latin:NT #1 { \__docxlike_cjk_ecglue: } }
+%    \end{macrocode}
+%
+% 装上。\cs{CJKsymbols} 是 HLaTeX 编码那一路的两字节入口，只管字形。
+%    \begin{macrocode}
+    \cs_new_protected:Npn \__docxlike_cjk_sfcodes:nn #1#2
+      { \clist_map_inline:nn {#1} { \tex_sfcode:D ##1 = #2 \scan_stop: } }
+    \cs_new_protected:Npn \__docxlike_cjk_install:
+      {
+        \cs_if_exist:NTF \CJKosymbol
+          {
+            \cs_set_eq:NN \CJKosymbol \__docxlike_cjk_symbol:n
+            \cs_if_exist:NT \CJKopunctsymbol
+              { \cs_set_eq:NN \CJKopunctsymbol \__docxlike_cjk_punct_symbol:n }
+          }
+          {
+            \cs_if_exist:NT \CJKsymbol
+              {
+                \cs_set_eq:NN \CJKsymbol \__docxlike_cjk_symbol:n
+                \cs_set_eq:NN \CJKpunctsymbol \__docxlike_cjk_punct_symbol:n
+              }
+          }
+        \cs_if_exist:NT \CJKsymbols
+          { \cs_set_eq:NN \CJKsymbols \__docxlike_cjk_symbols:nn }
+        \cs_if_exist:NT \CJK@ignorespaces
+          {
+            \cs_set_eq:NN \__docxlike_cjk_orig_ignorespaces: \CJK@ignorespaces
+            \cs_set_eq:NN \CJK@ignorespaces \__docxlike_cjk_right:
+          }
+        \tl_put_right:Nn \verbatim@font
+          { \bool_set_true:N \l_docxlike_cjk_autospace_off_bool }
+        \tl_put_right:Nn \frenchspacing
+          { \__docxlike_cjk_sfcodes:nn { `\. , `\? , `\! , `\: , `\; , `\, } { 998 } }
+        \__docxlike_cjk_sfcodes:nn { `\- , `\/ , 92 } { 996 }
+        \__docxlike_cjk_sfcodes:nn { `\( , `\[ , `\` } { 997 }
+        \__docxlike_cjk_sfcodes:nn { `\) , `\] , `\" , `\' , `\% } { 998 }
+        \int_compare:nNnT { \tex_sfcode:D `\. } = { 1000 }
+          { \__docxlike_cjk_sfcodes:nn { `\. , `\? , `\! , `\: , `\; , `\, } { 998 } }
+      }
+    \hook_gput_code:nnn { begindocument } { docxlike } { \__docxlike_cjk_install: }
+  }
 %    \end{macrocode}
 %
 % \cs{docxlike\_format\_strut:} 是一根零宽的撑杆，把它所在那一行的行盒撑成 Word 的尺寸。
@@ -3800,6 +4139,9 @@
 % 再加上 \texttt{spacing}。两项相加是 Word 的算法，\texttt{docGrid} 的字距被
 % \texttt{snapToGrid=0} 关掉，run 上的 \texttt{w:spacing} 照样生效，
 % 章标题正是这个情形（\texttt{snapToGrid=0} 且 \texttt{w:spacing=-4}）。
+% 开着“平衡单字节与双字节字符”时 \texttt{spacing} 算两份，Word 给汉字加两份、西文一份（Windows Word
+% 实测：加宽 2 磅的一行汉字步进多 4.0）。\hologo{LuaLaTeX} 这里仍给一份：断行层的 \texttt{grid\_box} 自己补
+% 第二份，这里也算两份的话，全角开号前那一截会被它当成多出来的字距挪到开号后面。
 %
 % \cs{CJKecglue} 是汉字与西文之间的，它是两截相加：网格那一份，加上 Word 的
 % “自动调整中文与西文的间距”那一份（\texttt{w:autoSpaceDE}/\texttt{DN}，
@@ -3876,6 +4218,8 @@
   {
     \bool_if:NT \l_docxlike_format_snap_horizontal_bool
       { \__docxlike_format_grid_glue: + }
+    \sys_if_engine_luatex:F
+      { \bool_if:NT \g_docxlike_format_balance_bool { 2 } }
     \l_docxlike_format_char_spacing_dim
   }
 \cs_new:Npn \__docxlike_format_hglue_ec:
@@ -4139,9 +4483,6 @@
   \bool_gset_true:N \g__docxlike_format_gap_bool
   \dim_gzero:N \g__docxlike_format_gap_dim
   \dim_compare:nNnT { \l_docxlike_format_before_dim } > { \c_zero_dim }
-% 开着“平衡单字节与双字节字符”时 \texttt{spacing} 算两份，Word 给汉字加两份、西文一份（Windows Word
-% 实测：加宽 2 磅的一行汉字步进多 4.0）。\hologo{LuaLaTeX} 这里仍给一份：断行层的 \texttt{grid\_box} 自己补
-% 第二份，这里也算两份的话，全角开号前那一截会被它当成多出来的字距挪到开号后面。
     {
       \par
       \bool_lazy_all:nTF
@@ -4218,8 +4559,6 @@
                       \__docxlike_format_plus:N \l_docxlike_format_before_plus_dim
                     }
                 }
-    \sys_if_engine_luatex:F
-      { \bool_if:NT \g_docxlike_format_balance_bool { 2 } }
             }
         }
     }
@@ -5998,6 +6337,110 @@
   }
 %    \end{macrocode}
 %
+% \begin{macro}{\docxlike_font_hint_east_asian:n,\docxlike_font_hint_default:n,\docxlike_font_hint_east_asian_char:n}
+% \emph{按东亚提示排的字符。} Word 按字符挑字体槽：Unicode 里归西文的一些字（几何符号 □、单位 ℃、
+% 带圈数字 ①、乘号 ×），中文输入法敲出来的带 \texttt{w:hint="eastAsia"}，排东亚字体、按汉字算宽与
+% 中西文间距；\pkg{xeCJK} 与 \pkg{luatexja} 默认都交给西文字体，西文字体里没有的就整个排丢。文档里
+% 这些字是哪样敲的，由文档类说：
+% \begin{itemize}
+% \item \cs{docxlike\_font\_hint\_east\_asian:n}\marg{码位列表} 这几个字一律按东亚提示排（全局）；
+% \item \cs{docxlike\_font\_hint\_default:n}\marg{码位列表} 反过来交回西文（全局），比如破折号；
+% \item \cs{docxlike\_font\_hint\_east\_asian\_char:n}\marg{字符} 只把这一处的这个字按东亚提示排。参数收
+%   字符本身，不收码位：文档类配置层的取值在 \pkg{expl3} 之外记号化，\texttt{"D7} 那种十六进制在那儿会碎。
+% \end{itemize}
+% 码位列表是逗号分隔的码位，也可以写 \texttt{"2460 - "2473} 这样的一段。
+%
+% 三个引擎的做法不一样。\pkg{xeCJK} 逐个码位声明字符类（\texttt{CJK} 或 \texttt{Default}，后者的意思是
+% \pkg{xeCJK} 不管、字形跟当前字体走）；只管一处的那个在分组里临时声明，\cs{XeTeXcharclass} 赋值随
+% 分组，出组即还原（\pkg{xeCJK} 的 \cs{CJKsymbol} 帮不上忙，它就是 \cs{use:n}，字体切换在类对的记号表里）。
+% \pkg{luatexja} 先把一批码位定义成一个“字符范围”，再把整个范围划归和文或从和文里减掉，两句管一批；
+% 范围号 \pkg{luatexja} 预定义了 1--8、留给用户 1--217，这里从 101 起编，每调用一次占一个号；只管一处的
+% 用现成的 \cs{ltjjachar}。\hologo{pdfTeX} 下 0x80 以上的字节都归 \pkg{CJK}，只有 \LaTeX{} 的 \pkg{inputenc}
+% 自己定义过的字（× 是 \cs{texttimes}）会被截走：东亚提示把那个定义撤掉，交回西文给几个两可字符写上
+% \LaTeX{} 的文字命令（破折号、连接号、弯引号、省略号、间隔号），别的字 \hologo{pdfTeX} 下交不回去。
+% 定义直接写进 \pkg{inputenc} 的 \texttt{u8:} 那个宏，不走 \cs{DeclareUnicodeCharacter}：文档类常在
+% \texttt{begindocument/end} 上调，那时它已经只许在导言区用了。
+%    \begin{macrocode}
+\int_new:N \g__docxlike_font_range_int
+\int_gset:Nn \g__docxlike_font_range_int { 100 }
+\seq_new:N \l__docxlike_font_hint_seq
+\cs_new_protected:Npn \__docxlike_font_hint_map:nn #1#2
+  {
+    \cs_set_protected:Npn \__docxlike_font_hint_do:n ##1 {#2}
+    \clist_map_function:nN {#1} \__docxlike_font_hint_item:n
+  }
+\cs_new_protected:Npn \__docxlike_font_hint_item:n #1
+  {
+    \seq_set_split:Nnn \l__docxlike_font_hint_seq { - } {#1}
+    \int_step_function:nnN
+      { \seq_item:Nn \l__docxlike_font_hint_seq { 1 } }
+      { \seq_item:Nn \l__docxlike_font_hint_seq { -1 } }
+      \__docxlike_font_hint_do:n
+  }
+\prop_const_from_keyval:Nn \c__docxlike_font_hint_text_prop
+  {
+    B7 = \textperiodcentered , 2013 = \textendash , 2014 = \textemdash ,
+    2018 = \textquoteleft , 2019 = \textquoteright , 201C = \textquotedblleft ,
+    201D = \textquotedblright , 2026 = \textellipsis ,
+  }
+\sys_if_engine_luatex:TF
+  {
+    \cs_new_protected:Npn \docxlike_font_hint_east_asian:n #1
+      {
+        \int_gincr:N \g__docxlike_font_range_int
+        \exp_args:Nx \ltjdefcharrange { \int_use:N \g__docxlike_font_range_int } {#1}
+        \exp_args:Nx \ltjsetparameter
+          { jacharrange = { + \int_use:N \g__docxlike_font_range_int } }
+      }
+    \cs_new_protected:Npn \docxlike_font_hint_default:n #1
+      {
+        \int_gincr:N \g__docxlike_font_range_int
+        \exp_args:Nx \ltjdefcharrange { \int_use:N \g__docxlike_font_range_int } {#1}
+        \exp_args:Nx \ltjsetparameter
+          { jacharrange = { - \int_use:N \g__docxlike_font_range_int } }
+      }
+    \cs_new_protected:Npn \docxlike_font_hint_east_asian_char:n #1
+      { \ltjjachar `#1 \scan_stop: }
+  }
+  {
+    \sys_if_engine_xetex:TF
+      {
+        \cs_new_protected:Npn \docxlike_font_hint_east_asian:n #1
+          { \clist_map_inline:nn {#1} { \xeCJKDeclareCharClass { CJK } {##1} } }
+        \cs_new_protected:Npn \docxlike_font_hint_default:n #1
+          { \clist_map_inline:nn {#1} { \xeCJKDeclareCharClass { Default } {##1} } }
+        \cs_new_protected:Npn \docxlike_font_hint_east_asian_char:n #1
+          {
+            \group_begin:
+            \xeCJKDeclareCharClass { CJK } { \int_value:w `#1 }
+            #1
+            \group_end:
+          }
+      }
+      {
+        \cs_new_protected:Npn \docxlike_font_hint_east_asian:n #1
+          {
+            \__docxlike_font_hint_map:nn {#1}
+              { \cs_undefine:c { u8: \codepoint_str_generate:n {##1} } }
+          }
+        \cs_new_protected:Npn \docxlike_font_hint_default:n #1
+          {
+            \__docxlike_font_hint_map:nn {#1}
+              {
+                \exp_args:NNe \prop_get:NnNT \c__docxlike_font_hint_text_prop
+                  { \int_to_Hex:n {##1} } \l__docxlike_font_code_tl
+                  {
+                    \cs_gset:cpe { u8: \codepoint_str_generate:n {##1} }
+                      { \exp_not:N \IeC { \exp_not:V \l__docxlike_font_code_tl } }
+                  }
+              }
+          }
+        \cs_new_protected:Npn \docxlike_font_hint_east_asian_char:n #1 {#1}
+      }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
 % \begin{macro}{\docxlike_format_latin_chars:n}
 % \cs{docxlike\_format\_latin\_chars:n}\marg{布尔表达式}：两可字符（· – — ‘ ’ “ ” …）在西文场合排
 % 西文字体。Word 看这一段敲进来时带不带 \texttt{w:hint="eastAsia"}，英文里敲的不带，排西文字体。
@@ -6711,9 +7154,9 @@ end
 
 -- 粗体：样式要了粗体、排出来的字体却是常规面的（中易宋体、黑体这些没有粗体字面，字体族
 -- 又没声明合成粗体），换成描边的同一副字体，线宽照 luaotfload 的 embolden（字号 × e /
--- 6578.176），e = 2.85 即 Word 的字号/35。字体自己是粗体面、或已经描边的不动
+-- 6578.176），e 即 Word 的字号/35，取 \c_docxlike_font_fake_bold_tl。字体自己是粗体面、或已经描边的不动
 local bold_attr
-local EMBOLDEN = 2.85 / 6578.176
+local EMBOLDEN = tonumber(token.get_macro("c_docxlike_font_fake_bold_tl")) / 6578.176
 local realbold, clones = {}, {}
 function M.real_bold(fid)
   local v = realbold[fid]
