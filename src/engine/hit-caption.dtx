@@ -6,6 +6,9 @@
 %
 % \section{共享双语题注}
 %
+% \changes{v3.2a}{2026/09/28}{双语题注不再借 \pkg{ccaption} 的 \cs{bicaption}：中文那段是普通的 \cs{caption}
+%   （\cs{label} 照常写在后面），英文那段接着排一段、用同一个号、不进清单，同 Word 的
+%   \texttt{SEQ~\textbackslash c}；排题注的 \cs{@makecaption} 挪到共享层，照 Word 排正文的报告也用它}
 % \changes{v3.2a}{2026/09/26}{中文文档的题号名字后紧跟编号，“图”与“1”之间交给中西文自动间距；
 %   英文那条名字后空不空写在名字词条里；\option{style}/\option{float-blank} 在图表前后排敲的
 %   空段（Word 里图表上下那一行是作者敲的空段）}
@@ -146,35 +149,23 @@
   }
 %    \end{macrocode}
 %
-% 排双语题注：走 \pkg{ccaption} 的原形，英文图表名取 \option{const} 族里的
-% \option{figure-prefix-en} 与 \option{table-prefix-en}，用户不必每次手写
-% \texttt{Fig.} 加负细空格去抵 \cs{fnum@figure} 插的那个空格。
+% 排双语题注：两段题注，中文那段编号、进清单，英文那段接着排、用同一个号，不进清单，
+% 与 Word 里第二段写 \texttt{SEQ~\textbackslash c}（重复当前编号）一样。英文图表名取
+% \option{term} 的 \option{caption-figure-prefix-en} 与 \option{caption-table-prefix-en}，要不要空格写在
+% 名字里（\cs{fnum@figure} 在中文文档里是名字紧跟编号）。
 %
-% 短标题给 \cs{bicaption} 的\emph{第二个必选参数}，不是可选参数。ccaption 的
-% \cs{bicaption}\oarg{标签}\marg{短标题}\marg{题注}\marg{英文图表名}\marg{英文题注}
-% 里，可选参数是 \cs{label}：
-% \begin{latex}
-% \newcommand{\bicaption}[5][\@empty]{%
-%   \@if@contemptyarg{#2}{\caption{#3}}{\caption[#2]{#3}}
-%   \ifx\@empty#1\else \label{#1} \fi
-% \end{latex}
-% 接错了的后果是同一个 \cs{caption}\oarg{短标题} 两条路径含义不同：单语时进插图索引，
-% 双语时变成一个标签，索引里排的还是完整题注。
-%
-% \pkg{ccaption} 之所以提供“可选参数当标签”这条路，是因为 \cs{bicaption} 把整段
-% 包在 \cs{begingroup}\ldots\cs{endgroup} 里，\cs{caption} 设的 \cs{@currentlabel}
-% 是局部的，出了组就没了——写在后面的 \cs{label} 只能拿到章节号。所以排完之后
-% 按计数器重建一次 \cs{@currentlabel}，让 \cs{label} 与普通 \hologo{LaTeX} 一样写在
-% \cs{caption} 后面。
+% 先前借 \pkg{ccaption} 的 \cs{bicaption}：它把两条题注包在一对 \cs{begingroup} 里，第一条设的
+% \cs{@currentlabel} 出组就没了，写在后面的 \cs{label} 只拿到章节号，还得按计数器重建一次；
+% 第二条走 \cs{contcaption}，计数器退一步再进一步。现在第一条就是普通的 \cs{caption}，
+% \cs{label} 照常；第二条只排一段，不碰计数器。
 %    \begin{macrocode}
 %    \end{macrocode}
 %
 % \emph{英文那一行按西文的行盒排。} 整行只有西文，Word 的行盒就按 Times 算
 % （单倍 1.15 倍字号），跟着题注目标写的宋体算会高出一截：五号 1.25 倍下
-% 两行的步进 15.2 变成 16.2。\pkg{ccaption} 在两条题注之间留了 \cs{midbicaption}
-% 这个钩子，在那里立 \cs{l\_docxlike\_format\_latin\_pick\_bool}，与目录里整条西文的
-% 条目同一个机关（\file{src/engine/hit-keylist.dtx} 的 \cs{hit@toc@latin@pick:n}）。
-% 标志位是局部的，\cs{bicaption} 自己套着一层组，出组即还。
+% 两行的步进 15.2 变成 16.2。所以排英文那一段之前立 \cs{l\_docxlike\_format\_latin\_pick\_bool}，
+% 与目录里整条西文的条目同一个机关（\file{src/engine/hit-keylist.dtx} 的 \cs{hit@toc@latin@pick:n}）。
+% 标志位是局部的，英文那一段自己套着一层组，出组即还。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@caption@latin@pick:
   {
@@ -185,12 +176,17 @@
   }
 \cs_new_protected:Npn \hit@bilingual@caption #1#2#3
   {
-    \midbicaption { \hit@caption@latin@pick: }
-    \tl_if_novalue:nTF {#1}
-      { \__hit_bicaption:w {} {#2} { \use:c { hit@term@caption@ \@captype @prefix@en } } {#3} }
-      { \__hit_bicaption:w {#1} {#2} { \use:c { hit@term@caption@ \@captype @prefix@en } } {#3} }
-    \protected@edef \@currentlabel
-      { \use:c { p@ \@captype } \use:c { the \@captype } }
+    \hit@single@caption {#1} {#2}
+    \hit@caption@repeat:nn
+      { \use:c { hit@term@caption@ \@captype @prefix@en } } {#3}
+  }
+\cs_new_protected:Npn \hit@caption@repeat:nn #1#2
+  {
+    \group_begin:
+      \hit@caption@latin@pick:
+      \cs_set:cpn { \@captype name } {#1}
+      \@makecaption { \use:c { fnum@ \@captype } } {#2}
+    \group_end:
   }
 \cs_new_protected:Npn \hit@single@caption #1#2
   {
@@ -287,7 +283,6 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@setup@caption
   {
-    \cs_set_eq:NN \__hit_bicaption:w \bicaption
     \hit@setup@float@blank
     \AddToHook { begindocument/end }
       {
@@ -344,9 +339,11 @@
 \cs_new_protected:Npn \__hit_bicaption_legacy:nnnn #1#2#3#4#5
   {
     \msg_warning:nn { hithesis } { bicaption-five-args }
-    \tl_if_novalue:nTF {#1}
-      { \__hit_bicaption:w {#2} {#3} {#4} {#5} }
-      { \__hit_bicaption:w [#1] {#2} {#3} {#4} {#5} }
+    \tl_if_blank:nTF {#2}
+      { \hit@original@caption {#3} }
+      { \hit@original@caption [#2] {#3} }
+    \tl_if_novalue:nF {#1} { \label {#1} }
+    \hit@caption@repeat:nn {#4} {#5}
   }
 %    \end{macrocode}
 % \end{macro}
@@ -399,6 +396,25 @@
 % 贴不贴网格。表里没取值（普通报告）就退回 \cs{wuhao}，行距跟着
 % \cs{wuhao} 自带的 1.3 倍走，与 v3.1e 一样。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \cs{hit@makecaption:nn}\marg{题号}\marg{题名} 排一段题注：\pkg{docxlike} 的段，目标按图还是表挑
+% （\texttt{caption-figure}／\texttt{caption-table}），字体、行距、段前段后、对齐都从样式取，与 Word 里
+% 题注是一段“题注”样式的段落一样。星号版的题注（\cs{caption*}）只排题名，标志位由星号分支立起。
+% 学位论文与照 Word 排正文的报告都用它。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@makecaption:nn #1#2
+  {
+    \bool_if:NTF \l_hit_caption_star_bool
+      { \__hit_make_caption:n {#2} }
+      { \__hit_make_caption:n { #1 \hit@caption@separator #2 } }
+  }
+\cs_new_protected:Npn \__hit_make_caption:n #1
+  {
+    \par
+    \tex_global:D \@minipagefalse
+    \exp_args:Ne \docxlike_format_par:nn { caption- \hit@caption@type: } {#1}
+  }
 \cs_new_protected:Npn \hit@caption@font:
   {
     \docxlike_format_apply_font_else:en { caption- \hit@caption@type: } { \wuhao }

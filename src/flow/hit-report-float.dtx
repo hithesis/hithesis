@@ -6,6 +6,8 @@
 %
 % \section{开题报告的浮动体}
 %
+% \changes{v3.2a}{2026/09/28}{照 Word 排正文的那几档，题注改成 \pkg{docxlike} 的段（与学位论文同一个
+%   \cs{@makecaption}），不再借 \pkg{ccaption} 的再裹一层；多行题注的对齐、段前段后照样式}
 % \changes{v3.2a}{2026/09/14}{题号与题名之间改调共享层的 \cs{hit@caption@separator}
 %   （发 \pkg{ccaption} 的 \cs{captiondelim}，\pkg{caption} 的 \texttt{labelsep} 到不了
 %   正题注），兜底中文一个字、英文一个西文空格；哈尔滨与威海本科开题的图表编号
@@ -29,51 +31,15 @@
 %
 % 挂在 \texttt{begindocument/end} 上，与终稿那一处同一个时机，不然会被它盖掉。
 %
-% \emph{题注上下那两段间距从 \option{styles} 取。} 报告的 \cs{@makecaption} 是
-% \pkg{ccaption} 的，它读 \cs{abovecaptionskip} 与 \cs{belowcaptionskip}，
-% 而那两个是 \hologo{LaTeX} 的类默认值（10\,pt／0），与 Word 无关：中文报告的
-% 表题因此比原件低 18.54。
-%
-% 取值去 \file{docx} 里读。2026 年 9 月版深圳本科\emph{中文}中期原件：图段、
-% 图题、表题、表格全是光 \texttt{w:line="300" w:lineRule="auto" snapToGrid=0}，
-% 段上一个 \texttt{w:before}／\texttt{w:after} 都没写，四个空当都是零。
-% \emph{英文}那一份不同：图题走 \texttt{caption} 样式、段上写着
-% \texttt{w:before="0" w:after="60"}（段后 3\,bp）与 \texttt{w:line="360"}（1.5 倍）；
-% 表题走「题注-tab」样式、段上写着 \texttt{w:beforeLines="20"}（0.2 行 ＝ 2.4\,bp），
-% 样式里 \texttt{w:after="0"}。
-%
-% 落法是排题注之前按图还是表挑一个 \option{styles} 目标，把算出来的段前段后写进
-% 那两个长度。目标名与 \cs{hit@caption@font:} 那一处同一个拼法。
-%
-% \emph{段前自己发，不交给 \cs{abovecaptionskip}。} \pkg{ccaption} 的
-% \cs{@makecaption} 在发那一段之前先问 \cs{ifdim}\cs{prevdepth}\texttt{>-99pt}，
-% 而表题排在浮动体的\emph{顶端}，那会儿 \cs{prevdepth} 是 $-1000$，整段被跳过——
-% 英文报告的表题段前 2.4\,bp 因此一直发不出去。所以 \cs{abovecaptionskip} 归零，
-% 段前由这边自己 \cs{skip\_vertical:n}；图题那一头两条路等价（图在题注之前，
-% \cs{prevdepth} 正常）。
-%
-% \emph{字号行距也从这一档取。} \pkg{ccaption} 的 \cs{@makecaption} 不调
-% \cs{hit@caption@font:}（只有终稿那一份调），报告的题注因此跟着正文排成小四，
-% 规范要的是五号。\pkg{ccaption} 给了 \cs{captionnamefont} 与
-% \cs{captiontitlefont} 两个口子，题号与题名各发一次。
-%
-% \emph{裹一层，不用 \cs{pretocmd}。} 那条补丁命令把宏体 detokenize 之后按
-% \emph{当时}的 catcode 重扫，而这一处发在 \texttt{begindocument/end} 上，
-% 那会儿 \texttt{:} 与 \texttt{@} 都不是字母，插进去的名字当场碎掉
-% （实测报 \texttt{Undefined~control~sequence}，接着一串
-% \texttt{Improper}~\cs{prevdepth}）。
-%    \begin{macrocode}
-\cs_new:Npn \__hit_report_makecaption:nn #1#2 { }
-\cs_new_protected:Npn \hit@report@caption@skips:
-  {
-    \use:x { \docxlike_format_compute:n { caption- \hit@caption@type: } }
-    \skip_zero:N \abovecaptionskip
-    \skip_set:Nn \belowcaptionskip { \l_docxlike_format_after_dim }
-    \dim_compare:nNnT { \l_docxlike_format_before_dim } > { \c_zero_dim }
-      { \skip_vertical:n { \l_docxlike_format_before_dim } }
-  }
-%    \end{macrocode}
-%
+% \emph{题注是 \pkg{docxlike} 的段。} 与学位论文同一个 \cs{@makecaption}（\cs{hit@makecaption:nn}，
+% \file{hit-caption.dtx}）：按图还是表挑 \texttt{caption-figure}／\texttt{caption-table}，字号、行距、段前段后
+% 都从样式取。取值去 \file{docx} 里读：2026 年 9 月版深圳本科\emph{中文}中期原件的图段、图题、表题、
+% 表格全是光 \texttt{w:line="300" w:lineRule="auto" snapToGrid=0}，四个空当都是零；\emph{英文}那一份
+% 图题段后 60 缇（3\,bp）、1.5 倍，表题段前 \texttt{w:beforeLines="20"}（2.4\,bp）。
+% 先前借 \pkg{ccaption} 的 \cs{@makecaption} 再裹一层：字号靠 \cs{captionnamefont} 那两个口子，
+% 段前要自己发（它见浮动体顶端的 \cs{prevdepth} 是 $-1000$ 就不发，英文报告表题的 2.4\,bp 一直丢），
+% 单行居中、多行两端对齐也是它自己的规矩，不看样式。\cs{abovecaptionskip} 与
+% \cs{belowcaptionskip} 归零，间距全由样式给。
 %    \begin{macrocode}
     \bool_if:NT \g__hit_final_body_bool
       {
@@ -86,14 +52,9 @@
                 \skip_set:Nn \floatsep     { \g_docxlike_page_lead_dim }
               }
               { \hit@float@sep: }
-            \captionnamefont { \hit@caption@font: }
-            \captiontitlefont { \hit@caption@font: }
-            \cs_set_eq:NN \__hit_report_makecaption:nn \@makecaption
-            \cs_set:Npn \@makecaption #1#2
-              {
-                \hit@report@caption@skips:
-                \__hit_report_makecaption:nn {#1} {#2}
-              }
+            \skip_zero:N \abovecaptionskip
+            \skip_zero:N \belowcaptionskip
+            \cs_set_eq:NN \@makecaption \hit@makecaption:nn
           }
       }
 %    \end{macrocode}

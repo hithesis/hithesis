@@ -6,6 +6,8 @@
 %
 % \section{浮动体与图表}
 %
+% \changes{v3.2a}{2026/09/28}{长表格的题注也排成 \texttt{caption-table} 的段；双语的英文那一行与中文排在
+%   同一个题注格子里、同号不进清单，不再另起一行拿写死的间距去凑；双语开关关着时长表格也不排英文那一行}
 % \changes{v3.2a}{2026/09/26}{题注按 \option{caption-figure}、\option{caption-table} 排成 \pkg{docxlike} 的段，
 %   居中写在样式里}
 % \changes{v3.2a}{2026/09/20}{新版面下图表上下各一个正文格式的空段、浮动体间距归零（指南 2.12
@@ -120,55 +122,28 @@
 % 常量为空退回兜底值：有网格时一律一个汉字宽（\cs{ccwd}，题注贴字符网格，
 % 一个字就是一格）；没有网格时照 v3.1e，本科一个字宽、其余 \cs{enskip}。
 % 图还是表看 \cs{@captype}；\cs{LT@makecaption} 那条路上它也是有的，取不到就按图算。
-% \cs{hit@caption@last@line} 把最后一行单独取出来居中，\option{capcenterlast} 开时用，
-% 只剩长表格的题注在用（\option{capcenterlast}）。浮动体的题注整段居中（范例里题注段是
-% \texttt{w:jc="center"}，折成两行时两行各自居中），“只居中末行”是 v3.1e 的做法。
-% 里面的盒子编号与分组照抄原来的写法，只是换成 expl3 的拼法。量宽仍用 \cs{sbox}
-% 而不是 \cs{hbox\_set:Nn}：前者会套一层 \cs{color@begingroup}，盒子里的颜色
-% 改动不会漏出去，后者没有。
+% 排题注的是共享层的 \cs{hit@makecaption:nn}（\file{hit-caption.dtx}）：一段 \pkg{docxlike} 的段，
+% 浮动体的题注整段按样式对齐（范例里题注段是 \texttt{w:jc="center"}，折成两行时两行各自居中；
+% \option{capcenterlast} 写的是样式的 \texttt{last-line-centered}）。
 %    \begin{macrocode}
-%    \end{macrocode}
-%
-% \cs{hit@caption@font:} 按图还是表挑目标，从 \option{styles} 表取字号、行距、
-% 贴不贴网格。表里没取值就退回 \cs{wuhao}，行距跟着 \cs{wuhao} 自带的
-% 1.3 倍走，与 v3.1e 一样。
-%
-% 星号版的题注（\cs{caption*}）只排正文，不带“图 1-1”和分隔符，标志位由
-% \file{hit-caption.dtx} 的星号分支立起。
-%    \begin{macrocode}
-\cs_new_protected:Npn \hit@caption@last@line #1
-  {
-    \vskip 6.3bp
-    {
-      \tex_setbox:D 0 = \tex_vbox:D {#1}
-      \tex_setbox:D 1 = \tex_vbox:D
-        {
-          \tex_unvbox:D 0
-          \tex_setbox:D 2 = \tex_lastbox:D
-          \hbox_to_wd:nn { \textwidth }
-            { \hfill \tex_unhcopy:D 2 \unskip \unskip \hfill }
-        }
-      \tex_unvbox:D 1
-    }
-  }
-\cs_set:Npn \@makecaption #1#2
-  {
-    \bool_if:NTF \l_hit_caption_star_bool
-      { \__hit_make_caption:n {#2} }
-      { \__hit_make_caption:n { #1 \hit@caption@separator #2 } }
-  }
-\cs_new_protected:Npn \__hit_make_caption:n #1
-  {
-    \par
-    \tex_global:D \@minipagefalse
-    \exp_args:Ne \docxlike_format_par:nn { caption- \hit@caption@type: } {#1}
-  }
+\cs_set_eq:NN \@makecaption \hit@makecaption:nn
 %    \end{macrocode}
 %
 %    \end{macro}
 %    \begin{macro}{\LT@makecaption}
-% 有关longtable的caption支持
+% 长表格的题注。\pkg{longtable} 把题注排成一行跨满各列的格子，格子里一个 \cs{LTcapwidth} 宽的
+% \cs{parbox}；里面排的与浮动体一样是 \texttt{caption-table} 的段，字体、行距、对齐都照样式。
+% 先前这里自己量宽：一行装得下就居中，装不下时 \option{capcenterlast} 开着就把末行单独取出来
+% 居中（前面还垫 6.3\,bp），跟样式无关。
+%
+% 双语的英文那一行排在同一个格子里，紧接着中文那一段，用同一个号、不进表清单（同 Word 的
+% \texttt{SEQ~\textbackslash c}）。先前是另起一行题注，中英之间与表题到表顶之间各拿一个写死的量
+% （$-0.5$\,em、3.15\,bp）去凑，还借了 \pkg{ccaption} 换掉写清单的那一步。英文题目由下面
+% \cs{LT@caption} 的外层放进 \cs{g\_\_hit\_lt\_caption\_en\_tl}（在它的 \cs{noalign} 组里放：出了组就是
+% 表格行首，赋值会当场开一个单元格），这里取出来就清掉。
 %    \begin{macrocode}
+\tl_new:N \g__hit_lt_caption_en_tl
+\tl_new:N \l__hit_lt_caption_en_tl
 \cs_set:Npn \LT@makecaption #1#2#3
   {
     \LT@mcol \LT@cols c
@@ -178,20 +153,19 @@
             \hss
             \parbox [t] \LTcapwidth
               {
-                \hit@caption@font:
-                \sbox \@tempboxa { #1 { #2 \hit@caption@separator } #3 }
-                \dim_compare:nNnTF { \box_wd:N \@tempboxa } > { \hsize }
+                \tex_global:D \@minipagefalse
+                \docxlike_format_par:nn { caption-table } { #1 { #2 \hit@caption@separator } #3 }
+                \tl_if_empty:NF \g__hit_lt_caption_en_tl
                   {
-                    \hit@if@option@TF { capcenterlast }
-                      { \hit@caption@last@line { #1 { #2 \hit@caption@separator } #3 } }
-                      { #1 { #2 \hit@caption@separator } #3 }
-                    \par
+                    \group_begin:
+                      \hit@caption@latin@pick:
+                      \cs_set_eq:NN \tablename \hit@term@caption@table@prefix@en
+                      \tl_set_eq:NN \l__hit_lt_caption_en_tl \g__hit_lt_caption_en_tl
+                      \tl_gclear:N \g__hit_lt_caption_en_tl
+                      \docxlike_format_par:nn { caption-table }
+                        { \fnum@table \hit@caption@separator \l__hit_lt_caption_en_tl }
+                    \group_end:
                   }
-                  {
-                    \tex_global:D \@minipagefalse
-                    \hbox_to_wd:nn { \hsize } { \hfil \box \@tempboxa \hfil }
-                  }
-                \endgraf \vskip \belowcaptionskip
               }
             \hss
           }
@@ -245,14 +219,15 @@
 %
 % 这里给 \cs{LT@caption} 加一层：先自己接下 \texttt{*}、\oarg{短标题}、\marg{正文}，
 % 再探一眼后面有没有 \oarg{英文}。没有就把接到的参数原样交回原命令——星号形式与
-% \pkg{caption} 宏包那条路都不碰，行为一个字不变；有就转给
-% \cs{longbionenumcaption}。
+% \pkg{caption} 宏包那条路都不碰，行为一个字不变；有就把英文题目记下，再交回原命令，
+% \cs{LT@makecaption} 排完中文那一段接着排它。双语开关关着（硕士、本科）就不记，
+% 英文题目丢掉，与浮动体的 \cs{caption} 一样；先前这里不看开关，硕士的长表格照排英文那一行。
 %
 % 接参数与探看都在 \cs{noalign}\cs{bgroup} 里做，跟原命令一样：那个位置只做展开，
 % \cs{futurelet} 这类赋值会当场开一个单元格，题注的 \cs{noalign} 就错位了。分叉之后
 % 先 \cs{egroup} 退出来，再调原命令，它自己会重新进 \cs{noalign}。
 %
-% \cs{longbionenumcaption} 内部还要调 \cs{caption}，那时没有尾随可选参数，走的是
+% 旧写法 \cs{longbionenumcaption} 内部还要调 \cs{caption}，那时没有尾随可选参数，走的是
 % 交回原命令那条，不会绕回来。
 %    \begin{macrocode}
 \cs_set_eq:NN \hit@original@LT@caption \LT@caption
@@ -277,9 +252,12 @@
   }
 \cs_set:Npn \hit@lt@caption@bilingual #1#2 [#3]
   {
+    \bool_if:NT \g__hit_bilingual_caption_bool
+      { \tl_gset:Nn \g__hit_lt_caption_en_tl {#3} }
     \egroup
-    \hit@long@bicaption {#1} {#2} { \hit@term@caption@table@prefix@en } { } {#3}
-      { -0.5em } { 3.15bp }
+    \tl_if_empty:nTF {#1}
+      { \hit@original@LT@caption {#2} }
+      { \hit@original@LT@caption [#1] {#2} }
   }
 %    \end{macrocode}
 %    \end{macro}
