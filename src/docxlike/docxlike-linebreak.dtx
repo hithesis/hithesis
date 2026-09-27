@@ -6,6 +6,8 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/28}{\cs{vadjust}~\texttt{pre} 的内容放到行盒前面（先前与别的 \cs{vadjust} 一起放到后面）：锚在段上的
+%   图文框、形状要靠它放到锚定段首行之上，页脚里居中的页码框曾整个错到下一行}
 % \changes{v3.2a}{2026/09/27}{行内公式在 \hologo{TeX} 留下的可断处（罚分小于 10000）照断：\pkg{url} 把网址排在
 %   公式里、在 / . 这些字符后面给断点，先前整段当一块，长网址整个挪到下一行，上一行撑出大洞}
 % \changes{v3.2a}{2026/09/27}{读 \pkg{luatexja} 的 \texttt{icflag} 属性时去掉“处理过的一串的头一个”那一位
@@ -1808,9 +1810,18 @@ local function linebox(box, ctx, strut_h, strut_d)
 end
 
 -- 渲染一行：定各处胶与 kern 的宽，装成 hlist。压缩与伸展的分配照 msword.rs 的 render
--- 脚注、浮动体、标记、vadjust 不能留在行盒里：照 TeX 断行的做法搬到行盒后面
+-- 脚注、浮动体、标记、vadjust 不能留在行盒里：照 TeX 断行的做法搬出去。\vadjust pre 的
+-- 放到行盒前面（TeX 把它接在这一行的行间胶之前），别的放到行盒后面。锚在段上的对象（图文框、
+-- 形状）靠 pre 放到锚定段首行之上，放到行后面就整个往下错了一行
+local function append_list(list, inner)
+  if list then
+    local t = node.tail(list); t.next = inner; inner.prev = t
+    return list
+  end
+  return inner
+end
 local function move_out(box)
-  local moved = nil
+  local moved, pre = nil, nil
   local g = box.list
   while g do
     local nx = g.next
@@ -1821,13 +1832,10 @@ local function move_out(box)
         -- vadjust 的内容是一整段（浮动体、页边记号是罚分加盒子加罚分），整段接上：
         -- node.insert_after 只接一个节点，后面的会丢，页边记号从第二个起就没了
         local inner = g.list; g.list = nil
+        local is_pre = g.subtype == 1
         node.free(g)
         if inner then
-          if moved then
-            local t = node.tail(moved); t.next = inner; inner.prev = t
-          else
-            moved = inner
-          end
+          if is_pre then pre = append_list(pre, inner) else moved = append_list(moved, inner) end
         end
       else
         moved = moved and node.insert_after(moved, node.tail(moved), g) or g
@@ -1835,7 +1843,7 @@ local function move_out(box)
     end
     g = nx
   end
-  return moved
+  return moved, pre
 end
 
 local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, headnode)
@@ -2252,7 +2260,8 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
     if box.height < strut_h then box.height = strut_h end
     if box.depth < strut_d then box.depth = strut_d end
   end
-  return box, move_out(box), nxt
+  local moved, pre = move_out(box)
+  return box, moved, nxt, pre
 end
 
 local function skip(why)
@@ -2733,7 +2742,8 @@ local function snap_render(items, line, P, strut_h, strut_d, indent, isfirst, ct
     if box.height < strut_h then box.height = strut_h end
     if box.depth < strut_d then box.depth = strut_d end
   end
-  return box, move_out(box), nxt
+  local moved, pre = move_out(box)
+  return box, moved, nxt, pre
 end
 
 -- 段落底纹（“边框和底纹”应用于段落）：装好的每一行垫一块色。横向比文字区左右各伸 1.5 磅，
@@ -2862,13 +2872,17 @@ function M.filter(head, is_display)
   local nl = #lines
   local nexthead = nil
   for li, line in ipairs(lines) do
-    local box, moved
+    local box, moved, pre
     if snapchars then
-      box, moved, nexthead = snap_render(items, line, P, strut_h, strut_d, indent, li == 1, ctx)
+      box, moved, nexthead, pre = snap_render(items, line, P, strut_h, strut_d, indent, li == 1, ctx)
     else
-      box, moved, nexthead = render(items, line, P, strut_h, strut_d, indent, li == 1, ctx, nexthead)
+      box, moved, nexthead, pre = render(items, line, P, strut_h, strut_d, indent, li == 1, ctx, nexthead)
     end
     if pfill then shade_line(box, pfill, li == 1, ctx, line.measure, P) end
+    if pre then
+      if newhead == nil then newhead = pre else tail.next = pre; pre.prev = tail end
+      tail = node.tail(pre)
+    end
     if li > 1 then
       -- 行间胶用 subtype 0：luatexja 的 post_linebreak_filter 会把 subtype 1、2 的胶按
       -- TeX 的 baselineskip 规矩重算，行盒恰好等于行距时舍入成负数就换成 lineskip，多出 1pt

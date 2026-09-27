@@ -6,6 +6,8 @@
 %
 % \section{页眉页脚、节与域}
 %
+% \changes{v3.2a}{2026/09/28}{新增 \cs{docxlike\_headfoot\_put:nn}：当场把一份页眉或页脚排好放到这一页上，给自己
+%   决定每页放什么的文档类用（不查节、不看首页与奇偶页），\cs{docxlike\_headfoot\_page:} 也改由它放}
 % \changes{v3.2a}{2026/09/26}{分节可以写分栏（栏数、间距、分隔线），照 Windows 探针 \file{cols1}：
 %   每栏按自己的宽数整格，连续分节处各栏排平，行盒跨过节界照样直接摞}
 % \changes{v3.2a}{2026/09/28}{新增 \texttt{TOC} 域：每一条一段，样式 \texttt{TOC~1} 到 \texttt{TOC~9}（图表目录
@@ -1051,39 +1053,57 @@
     \dim_compare:nNnF { \g__docxlike_headfoot_push_dim } = { 0pt }
       { \dim_gadd:Nn \headsep { \g__docxlike_headfoot_push_dim } }
     \__docxlike_headfoot_type:
-    \dim_set:Nn \l__docxlike_headfoot_ref_dim { 1in + \voffset + \topmargin + \headheight }
     \__docxlike_headfoot_find:nnV { \g__docxlike_headfoot_page_section_int } { header }
       \l__docxlike_headfoot_type_tl
-    \tl_if_empty:NF \l__docxlike_headfoot_content_tl
-      {
-        \__docxlike_headfoot_build:nN { header } \l__docxlike_headfoot_content_tl
-        \dim_set:Nn \l__docxlike_headfoot_edge_dim
-          {
-            \dim_compare:nNnTF { \g_docxlike_page_header_edge_dim } > { 0pt }
-              { \g_docxlike_page_header_edge_dim }
-              { 1in + \voffset + \topmargin }
-          }
-        \__docxlike_headfoot_put:n
-          {
-            \l__docxlike_headfoot_edge_dim + \box_ht:N \l__docxlike_headfoot_box
-            - \l__docxlike_headfoot_ref_dim
-          }
-      }
+    \__docxlike_headfoot_put_content:n { header }
     \__docxlike_headfoot_find:nnV { \g__docxlike_headfoot_page_section_int } { footer }
       \l__docxlike_headfoot_type_tl
+    \__docxlike_headfoot_put_content:n { footer }
+  }
+\cs_generate_variant:Nn \__docxlike_headfoot_find:nnn { nnV }
+%    \end{macrocode}
+%
+% \cs{docxlike\_headfoot\_put:nn}\marg{header 或 footer}\marg{内容} 把一份页眉或页脚当场排好放到这一页上，
+% 内容的写法与 \cs{docxheader} 相同，不查节、不看首页与奇偶页：给自己决定每页放什么的文档类用，
+% 在 \hologo{LaTeX} 页眉槽里调（\cs{@oddhead} 这些）。内容为空就什么也不放。只用它、不用
+% \cs{docxheader} 的文档不做“让位”，页眉页脚高过边距时与正文重叠，版面由文档类自己留够。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_headfoot_put:nn #1#2
+  {
+    \tl_set:Nn \l__docxlike_headfoot_content_tl {#2}
+    \__docxlike_headfoot_put_content:n {#1}
+  }
+\cs_new_protected:Npn \__docxlike_headfoot_put_content:n #1
+  {
+    \dim_set:Nn \l__docxlike_headfoot_ref_dim { 1in + \voffset + \topmargin + \headheight }
     \tl_if_empty:NF \l__docxlike_headfoot_content_tl
       {
-        \__docxlike_headfoot_build:nN { footer } \l__docxlike_headfoot_content_tl
-        \__docxlike_headfoot_put:n
+        \__docxlike_headfoot_build:nN {#1} \l__docxlike_headfoot_content_tl
+        \str_if_eq:nnTF {#1} { header }
           {
-            \dim_compare:nNnTF { \g_docxlike_page_footer_edge_dim } > { 0pt }
-              { \paperheight - \g_docxlike_page_footer_edge_dim }
-              { \l__docxlike_headfoot_ref_dim + \headsep + \textheight + \footskip }
-            - \l__docxlike_headfoot_ref_dim
+            \dim_set:Nn \l__docxlike_headfoot_edge_dim
+              {
+                \dim_compare:nNnTF { \g_docxlike_page_header_edge_dim } > { 0pt }
+                  { \g_docxlike_page_header_edge_dim }
+                  { 1in + \voffset + \topmargin }
+              }
+            \__docxlike_headfoot_put:n
+              {
+                \l__docxlike_headfoot_edge_dim + \box_ht:N \l__docxlike_headfoot_box
+                - \l__docxlike_headfoot_ref_dim
+              }
+          }
+          {
+            \__docxlike_headfoot_put:n
+              {
+                \dim_compare:nNnTF { \g_docxlike_page_footer_edge_dim } > { 0pt }
+                  { \paperheight - \g_docxlike_page_footer_edge_dim }
+                  { \l__docxlike_headfoot_ref_dim + \headsep + \textheight + \footskip }
+                - \l__docxlike_headfoot_ref_dim
+              }
           }
       }
   }
-\cs_generate_variant:Nn \__docxlike_headfoot_find:nnn { nnV }
 \cs_new_protected:Npn \__docxlike_headfoot_put:n #1
   {
     \hbox_set:Nn \l__docxlike_headfoot_box
