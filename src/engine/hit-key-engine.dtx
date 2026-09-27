@@ -1161,16 +1161,18 @@
 %
 % 有两类可本地化的词不走 \cs{hit@}\meta{名} 这个存法：一类是 \cs{equationname}、
 % \cs{cabstractcname} 这种早就对外可见的名字，改名会破坏接口；一类是
-% \cs{contentsname}、\cs{figurename} 这种归 \pkg{ctex} 管的名字，得走 \cs{ctexset}。
+% \cs{contentsname}、\cs{figurename} 这种 \hologo{LaTeX} 自己的名字。
 %
 % \cs{hit@declare@constant@as}\marg{键名列表} 声明的键，值直接写进同名命令
 % （\texttt{equationname} 写 \cs{equationname}，不是 \cs{hit@equationname}）。
-% \cs{hit@declare@constant@ctex}\marg{键名=ctex键,\ldots} 声明的键，值转给
-% \cs{ctexset}；两个名字常常一样，不一样的写等号（\texttt{chapter-name=chapter/name}）。
+% \cs{hit@declare@constant@ctex}\marg{键名=目标,\ldots} 声明的键，目标是 \hologo{LaTeX} 的名字
+% （\cs{contentsname} 这些）就直接写进那个命令；目标带斜线的（\texttt{chapter-name=chapter/name}）是
+% \CTeX\ 的标题键，只有 \CTeX\ 还在（照旧路排的深圳硕博报告）时才转给 \cs{ctexset}。
+% 两个名字常常一样，不一样的写等号。先前九个一律转给 \cs{ctexset}，名字本身也由 \CTeX\ 去写。
 %
-% 两者都照旧认取值里的 \texttt{<键名>} 引用。转给 \pkg{ctex} 的那些另存一份在
+% 两者都照旧认取值里的 \texttt{<键名>} 引用。这一类另存一份在
 % \cs{g\_\_hit\_term\_ctex\_}\meta{键名}\cs{\_tl}：标题交给 \pkg{docxlike} 排时，章名“第”“章”
-% 要拼进编号格式，不能只存在 \pkg{ctex} 里。
+% 要拼进编号格式。
 %    \begin{macrocode}
 %    \end{macrocode}
 %
@@ -1223,8 +1225,18 @@
     \__hit_expand_references:N \l__hit_constant_value_tl
     \tl_gset_eq:cN { g__hit_term_ctex_ \l_keys_key_str _tl } \l__hit_constant_value_tl
     \__hit_constant_target:
-    \exp_args:Nx \ctexset
-      { \l__hit_constant_target_tl = { \exp_not:V \l__hit_constant_value_tl } }
+    \tl_if_in:NnTF \l__hit_constant_target_tl { / }
+      {
+        \cs_if_exist:NT \ctexset
+          {
+            \exp_args:Nx \ctexset
+              { \l__hit_constant_target_tl = { \exp_not:V \l__hit_constant_value_tl } }
+          }
+      }
+      {
+        \cs_gset:cpx { \l__hit_constant_target_tl }
+          { \exp_not:V \l__hit_constant_value_tl }
+      }
   }
 \cs_new_protected:Npn \hit@declare@constant@as #1
   {
