@@ -6,6 +6,7 @@
 %
 % \section{结论、致谢、简历、成果与索引页}
 %
+% \changes{v3.2a}{2026/09/28}{没有参考文献表的文档里成果页照样排得出：控制条目的库还没写时不列进成果页的 \cs{bibdata}}
 % \changes{v3.2a}{2026/09/26}{成果组名写了 \option{publications-group} 样式的排成 \pkg{docxlike} 的段；
 %   博士后的组名照模板不编号、组间不另加空当}
 % \changes{v3.2a}{2026/09/13}{成果页的条目从 \file{.bib} 里出：\env{publication} 收库名，
@@ -185,14 +186,22 @@
 % \cs{citation} 送进 \pkg{bibtex}。成果页这一次是独立的 \pkg{bibtex}，
 % 不把那个库和那句 \cs{citation} 一并写上，它读到的就全是 \file{.bst} 的
 % 出厂默认，与参考文献表两个样。
+%
+% 那个库是排参考文献表时才写的。文档里没有参考文献表（或者成果页排在它前面）时
+% 库还不存在，写进 \cs{bibdata} 的话 \pkg{bibtex} 找不到库，成果页一条都排不出来；
+% 这时只列成果库，走 \file{.bst} 的默认。
 %    \begin{macrocode}
-    \iow_now:Nx \g__hit_pub_aux_iow
+    \file_if_exist:nTF { \c_sys_jobname_str \c__hit_bib_ctl_suffix_tl .bib }
       {
-        \token_to_str:N \bibdata
-          { \c_sys_jobname_str \c__hit_bib_ctl_suffix_tl , #1 }
+        \iow_now:Nx \g__hit_pub_aux_iow
+          {
+            \token_to_str:N \bibdata
+              { \c_sys_jobname_str \c__hit_bib_ctl_suffix_tl , #1 }
+          }
+        \iow_now:Nx \g__hit_pub_aux_iow
+          { \token_to_str:N \citation { \c__hit_bib_ctl_key_tl } }
       }
-    \iow_now:Nx \g__hit_pub_aux_iow
-      { \token_to_str:N \citation { \c__hit_bib_ctl_key_tl } }
+      { \iow_now:Nx \g__hit_pub_aux_iow { \token_to_str:N \bibdata {#1} } }
 %    \end{macrocode}
 %
 % 借 \pkg{bibentry} 的壳读自己的 \file{.bbl}：把它那句会写 \cs{bibdata} 的
