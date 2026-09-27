@@ -6,6 +6,8 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/27}{行内公式在 \hologo{TeX} 留下的可断处（罚分小于 10000）照断：\pkg{url} 把网址排在
+%   公式里、在 / . 这些字符后面给断点，先前整段当一块，长网址整个挪到下一行，上一行撑出大洞}
 % \changes{v3.2a}{2026/09/27}{读 \pkg{luatexja} 的 \texttt{icflag} 属性时去掉“处理过的一串的头一个”那一位
 %   （4096），段首、盒首装成盒的标点先前认不出来；格里装的盒补字距增量时跳过格的过滤器补过的字}
 % \changes{v3.2a}{2026/09/27}{段首的 kern 并进首行缩进：\cs{docxlike\_format\_par:nn} 把首行缩进写成 kern，
@@ -713,13 +715,30 @@ local function tokenize(head)
         it.rigid = true; it.frame = true
       end
     elseif id == MATH then
-      local last = n
-      local m = n.next
-      while m and m.id ~= MATH do last = m; m = m.next end
-      if m then last = m end
+      -- 行内公式是刚性的一段，但 TeX 在里面留下的可断处照认：公式转成节点时二元运算符、关系符
+      -- 后面放了 \binoppenalty、\relpenalty，\pkg{url} 正是借这个在 / . 这些字符后面给断点（它把
+      -- 网址排在公式里）。在罚分小于 10000 的地方切成几段，罚分挂在前一段末尾，由 breakpoint_after
+      -- 认成断点；各段仍是刚性、之间没有隙。先前整段一个条目，长网址只能整个挪到下一行，上一行
+      -- 两端对齐时只剩几处能撑，撑出大洞（Word 本身没有网址的断点，这是宏包带来的，不该吞掉）
       flush_run()
-      items[#items + 1] = { kind = 3, first = n, last = last, core = last, w = node.dimensions(n, last.next),
-                            math = true, rigid = true, frame = true, size = lastsize or tex.sp("1em") }
+      local size = lastsize or tex.sp("1em")
+      local first = n
+      local m = n.next
+      local last = n
+      while m do
+        if m.id == PENALTY and m.penalty < 10000 then
+          items[#items + 1] = { kind = 3, first = first, last = m, core = m.prev, w = node.dimensions(first, m),
+                                math = true, rigid = true, frame = true, size = size }
+          first = m.next
+        elseif m.id == MATH then
+          break
+        end
+        last = m
+        m = m.next
+      end
+      if m then last = m end
+      items[#items + 1] = { kind = 3, first = first, last = last, core = last, w = node.dimensions(first, last.next),
+                            math = true, rigid = true, frame = true, size = size }
       nxt = last.next
     elseif id == HLIST or id == VLIST then
       flush_run()
