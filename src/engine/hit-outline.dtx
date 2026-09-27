@@ -6,6 +6,8 @@
 %
 % \section{照轮廓画的字标与美术字}
 %
+% \changes{v3.2a}{2026/09/27}{\hologo{pdfLaTeX} 下用 \cs{pdfliteral} 画（xdvipdfmx 的 special 在 pdfTeX 下被忽略）；逐字查轮廓
+%  按字取，\hologo{pdfLaTeX} 下一个汉字是几个记号}
 % \changes{v3.2a}{2026/09/26}{报告首页的校名字标、本科报告落款的隶书、深圳本科报告首页的
 %   华文新魏照 iota-hit 的轮廓直接画：字标不再随包带 PDF；两种字体机器上没有时照轮廓画，
 %   不再贴图或退成宋体}
@@ -46,6 +48,7 @@
 \dim_new:N \l__hit_outline_extra_dim
 \dim_new:N \l__hit_outline_height_dim
 \tl_new:N \l__hit_outline_text_tl
+\tl_new:N \l__hit_outline_key_tl
 \tl_new:N \l__hit_outline_glyph_tl
 \tl_new:N \l__hit_outline_scale_tl
 \tl_new:N \l__hit_outline_stroke_tl
@@ -75,7 +78,7 @@
   }
 %    \end{macrocode}
 %
-% PDF literal。两个引擎都把原点挪到当前点，单位是 bp。
+% PDF literal。三个引擎都把原点挪到当前点，单位是 bp。
 %    \begin{macrocode}
 \sys_if_engine_luatex:TF
   {
@@ -83,8 +86,15 @@
       { \tex_pdfextension:D literal {#1} }
   }
   {
-    \cs_new_protected:Npn \__hit_outline_literal:e #1
-      { \tex_special:D { pdf:literal~#1 } }
+    \sys_if_engine_pdftex:TF
+      {
+        \cs_new_protected:Npn \__hit_outline_literal:e #1
+          { \tex_pdfliteral:D {#1} }
+      }
+      {
+        \cs_new_protected:Npn \__hit_outline_literal:e #1
+          { \tex_special:D { pdf:literal~#1 } }
+      }
   }
 %    \end{macrocode}
 %
@@ -96,12 +106,14 @@
   {
     \__hit_outline_load:
     \tl_set:Ne \l__hit_outline_text_tl {#2}
+    \hit@engine@group@chars:N \l__hit_outline_text_tl
     \prop_if_exist:cTF { c__hit_outline_#1_prop }
       {
         \bool_set_true:N \l__hit_outline_cover_bool
         \tl_map_inline:Nn \l__hit_outline_text_tl
           {
-            \prop_if_in:cnF { c__hit_outline_#1_prop } {##1}
+            \hit@engine@char@key:nN {##1} \l__hit_outline_key_tl
+            \prop_if_in:cVF { c__hit_outline_#1_prop } \l__hit_outline_key_tl
               {
                 \bool_set_false:N \l__hit_outline_cover_bool
                 \tl_map_break:
@@ -132,9 +144,11 @@
           { \bool_set_false:N \l__hit_outline_bold_bool }
         \exp_last_unbraced:Nv \__hit_outline_metrics:nnn { c__hit_outline_#1_metrics_tl }
         \tl_set:Ne \l__hit_outline_text_tl {#2}
+        \hit@engine@group@chars:N \l__hit_outline_text_tl
         \tl_map_inline:Nn \l__hit_outline_text_tl
           {
-            \prop_get:cnNTF { c__hit_outline_#1_prop } {##1} \l__hit_outline_glyph_tl
+            \hit@engine@char@key:nN {##1} \l__hit_outline_key_tl
+            \prop_get:cVNTF { c__hit_outline_#1_prop } \l__hit_outline_key_tl \l__hit_outline_glyph_tl
               {
                 \exp_after:wN \__hit_outline_glyph:nnn \l__hit_outline_glyph_tl
                 \dim_compare:nNnF \l__hit_outline_extra_dim = \c_zero_dim

@@ -27,7 +27,7 @@ make final       # 学位论文
 make report      # 开题或中期报告
 ```
 
-默认引擎是 LuaLaTeX。XeLaTeX 仍能编译，但模板的 Word 式断行和逐行行高计算只在
+默认引擎是 LuaLaTeX。XeLaTeX 与 pdfLaTeX 也能编译，但模板的 Word 式断行和逐行行高计算只在
 LuaLaTeX 下启用。一份即将提交的稿件不要中途换引擎。
 
 最小的类选项写法如下：
@@ -66,6 +66,7 @@ LuaLaTeX 下启用。一份即将提交的稿件不要中途换引擎。
 
 模板支持 TeX Live 2022 及以上版本，排版基准是 TeX Live 2026。LuaLaTeX 和
 XeLaTeX 都需要 OpenType 中文字体；没有学校常用字体时可用 TeX Live 自带的 Fandol。
+pdfLaTeX 用中易宋体等几个 TrueType 字体文件，找不到时退到 TeX Live 自带的文鼎。
 
 最省事的做法是安装完整 TeX Live。精简安装可按
 [`.github/tl_packages`](.github/tl_packages) 补齐项目实际用到的宏包：

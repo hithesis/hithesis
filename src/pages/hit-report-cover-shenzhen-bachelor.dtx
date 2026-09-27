@@ -20,6 +20,7 @@
 % ^^A Module report-cover-shenzhen-bachelor: 深圳本科开题与中期的首页表单
 % ^^A ======================================================================
 %
+% \changes{v3.2a}{2026/09/27}{\hologo{pdfLaTeX} 下逐字排之前按字打包，开括号按字节串比（一个汉字是几个记号）}
 % \changes{v3.2a}{2026/09/13}{深圳本科那两份报告的首页，中英各一套}
 % 基准那一份在 \file{src/pages/hit-report-cover.dtx}。这一份是另一页，与基准
 % 没有重叠的部件，所以整页自己排，登记成 \texttt{report-cover-page} 的
@@ -102,10 +103,13 @@
     \tl_new:N \l__hit_szb_head_tl
     \tl_new:N \l__hit_szb_tail_tl
     \seq_new:N \l__hit_szb_parts_seq
+    \tl_new:N \l__hit_szb_spread_tl
     \cs_new_protected:Npn \hit@szb@spread:nnn #1#2#3
       {
         \int_zero:N \l__hit_szb_idx_int
-        \tl_map_inline:nn {#3}
+        \tl_set:Nn \l__hit_szb_spread_tl {#3}
+        \hit@engine@group@chars:N \l__hit_szb_spread_tl
+        \tl_map_inline:Nn \l__hit_szb_spread_tl
           {
             \int_incr:N \l__hit_szb_idx_int
             \int_compare:nT { 1 < \l__hit_szb_idx_int <= #2 }
@@ -242,11 +246,15 @@
     \cs_new_protected:Npn \hit@szb@cjk@scan:n #1
       {
         \bool_set_false:N \l__hit_szb_cjk_bool
-        \str_set:Nx \l__hit_szb_scan_str {#1}
-        \str_map_inline:Nn \l__hit_szb_scan_str
+        \sys_if_engine_pdftex:TF
+          { \hit@engine@pdftex@cjk@scan:nN {#1} \l__hit_szb_cjk_bool }
           {
-            \int_compare:nT { `##1 > "2E7F }
-              { \bool_set_true:N \l__hit_szb_cjk_bool \str_map_break: }
+            \str_set:Nx \l__hit_szb_scan_str {#1}
+            \str_map_inline:Nn \l__hit_szb_scan_str
+              {
+                \int_compare:nT { `##1 > "2E7F }
+                  { \bool_set_true:N \l__hit_szb_cjk_bool \str_map_break: }
+              }
           }
       }
     \cs_new_protected:Npn \hit@szb@pick:nnn #1#2#3
@@ -522,9 +530,31 @@
 % 那一段的段后 3.9 就记到下一页，目录标题的段前只剩 8.1（Windows Word 导出件里“Contents”
 % 在 136.6，先前排在 132.7）。这一段照排会贴着版心底、可能挤出一页，所以排一个零高的空段，
 % 只让“上一段的段后”回到零。
+%
+% \hologo{pdfTeX} 下一个汉字是几个记号，逐字走之前先按字打包（\cs{hit@engine@group@chars:N}）；
+% 开括号那张表按字节串比，展开过的汉字先 purify 回裸字节。
 %    \begin{macrocode}
     \box_new:N \l__hit_szb_char_box
     \tl_const:Nn \c__hit_szb_open_tl { （〔［｛〈《「『【“‘ }
+    \sys_if_engine_pdftex:TF
+      {
+        \str_const:Ne \c__hit_szb_open_str { \tl_to_str:N \c__hit_szb_open_tl }
+        \tl_new:N \l__hit_szb_key_tl
+        \prg_new_protected_conditional:Npnn \__hit_szb_open:n #1 { T , F }
+          {
+            \hit@engine@char@key:nN {#1} \l__hit_szb_key_tl
+            \exp_args:NNe \str_if_in:NnTF \c__hit_szb_open_str
+              { \tl_to_str:N \l__hit_szb_key_tl }
+              { \prg_return_true: } { \prg_return_false: }
+          }
+      }
+      {
+        \prg_new_protected_conditional:Npnn \__hit_szb_open:n #1 { T , F }
+          {
+            \tl_if_in:NnTF \c__hit_szb_open_tl {#1}
+              { \prg_return_true: } { \prg_return_false: }
+          }
+      }
     \cs_new_protected:Npn \__hit_szb_full:n #1
       {
         \hbox_set:Nn \l__hit_szb_char_box {#1}
@@ -532,9 +562,9 @@
           {
             \hbox_to_wd:nn { \f@size pt }
               {
-                \tl_if_in:NnT \c__hit_szb_open_tl {#1} { \tex_hfil:D }
+                \__hit_szb_open:nT {#1} { \tex_hfil:D }
                 \box_use_drop:N \l__hit_szb_char_box
-                \tl_if_in:NnF \c__hit_szb_open_tl {#1} { \tex_hfil:D }
+                \__hit_szb_open:nF {#1} { \tex_hfil:D }
               }
           }
           { \box_use_drop:N \l__hit_szb_char_box }
@@ -543,6 +573,7 @@
     \cs_new_protected:Npn \hit@szb@art:nnn #1#2#3
       {
         \tl_set:Nx \l__hit_szb_term_tl {#3}
+        \hit@engine@group@chars:N \l__hit_szb_term_tl
         \cs_set_eq:NN \__hit_szb_char:n \__hit_szb_full:n
         \bool_if:nT {#1}
           {

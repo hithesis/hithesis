@@ -188,7 +188,7 @@
             \__docxlike_numbering_stext:VVN \l__docxlike_numbering_cur_list_tl
               \l__docxlike_numbering_cur_lvl_tl \l__docxlike_heading_snum_tl
             \tl_set:Ne \l__docxlike_heading_ref_tl { \l__docxlike_heading_num_tl }
-            \regex_replace_once:nnN { [\s\x{3000}]+ \Z } { } \l__docxlike_heading_ref_tl
+            \regex_replace_once:NnN \c__docxlike_heading_trail_regex { } \l__docxlike_heading_ref_tl
           }
         \int_if_exist:cT { c@ #2 }
           { \tl_set_eq:cN { @currentlabel } \l__docxlike_heading_ref_tl }
@@ -220,19 +220,45 @@
 % 的，行深仍是西文的。Windows Word 实测：黑体与 Times 14 磅单倍行距，西文 16.08、中文 18.12、
 % 带这种编号的西文题名 17.16，正是黑体的上升部加 Times 的行深；Arial 与微软雅黑 12 磅是
 % 13.80、20.58、17.64，同一条规律。编号与题名各自先展开再看。
+%
+% \hologo{pdfTeX} 下汉字是 UTF-8 的几个字节，展开之后有的还是活动字节，有的成了带三个十进制
+% 字节参数的命令。两样都先用 \cs{text\_purify:n} 还原成裸字节，再按首字节的范围认；编号末尾的
+% 全角空格要从引用文字里剥掉，那份文字不能 purify，两种写法都列进去。
 %    \begin{macrocode}
 \tl_new:N \l__docxlike_heading_text_tl
 \tl_new:N \l__docxlike_heading_numtext_tl
-\regex_const:Nn \c__docxlike_heading_asian_regex
-  { [\x{2E80}-\x{2FFF}\x{3001}-\x{9FFF}\x{F900}-\x{FAFF}\x{FF00}-\x{FFEF}] }
-\regex_const:Nn \c__docxlike_heading_asian_space_regex
-  { [\x{2E80}-\x{9FFF}\x{F900}-\x{FAFF}\x{FF00}-\x{FFEF}] }
+\sys_if_engine_pdftex:TF
+  {
+    \regex_const:Nn \c__docxlike_heading_asian_regex
+      {
+        \x{E2} [\x{BA}-\x{BF}] | \x{E3} ( [\x{81}-\x{BF}] | \x{80} [\x{81}-\x{BF}] ) | [\x{E4}-\x{E9}]
+        | \x{EF} [\x{A4}-\x{AB}\x{BC}-\x{BF}]
+      }
+    \regex_const:Nn \c__docxlike_heading_asian_space_regex
+      { \x{E2} [\x{BA}-\x{BF}] | [\x{E3}-\x{E9}] | \x{EF} [\x{A4}-\x{AB}\x{BC}-\x{BF}] }
+    \regex_const:Nn \c__docxlike_heading_trail_regex
+      {
+        ( \s | \x{E3} \x{80} \x{80} | \c{.*} \cB. 227 \cE. \cB. 128 \cE. \cB. 128 \cE. )+ \Z
+      }
+    \cs_new_protected:Npn \__docxlike_heading_bytes:N #1
+      { \tl_set:Ne #1 { \text_purify:V #1 } }
+  }
+  {
+    \regex_const:Nn \c__docxlike_heading_asian_regex
+      { [\x{2E80}-\x{2FFF}\x{3001}-\x{9FFF}\x{F900}-\x{FAFF}\x{FF00}-\x{FFEF}] }
+    \regex_const:Nn \c__docxlike_heading_asian_space_regex
+      { [\x{2E80}-\x{9FFF}\x{F900}-\x{FAFF}\x{FF00}-\x{FFEF}] }
+    \regex_const:Nn \c__docxlike_heading_trail_regex { [\s\x{3000}]+ \Z }
+    \cs_new_protected:Npn \__docxlike_heading_bytes:N #1 { }
+  }
 \cs_new_protected:Npn \__docxlike_heading_latin:nn #1#2
   {
     \group_begin:
       \cs_set_eq:NN \docxbookmark \use_ii:nn
       \protected@edef \l__docxlike_heading_numtext_tl {#1}
       \protected@edef \l__docxlike_heading_text_tl {#2}
+      \__docxlike_heading_bytes:N \l__docxlike_heading_numtext_tl
+      \__docxlike_heading_bytes:N \l__docxlike_heading_text_tl
       \regex_match:nVT { [A-Za-z0-9] } \l__docxlike_heading_text_tl
         {
           \regex_match:NVF \c__docxlike_heading_asian_regex \l__docxlike_heading_text_tl

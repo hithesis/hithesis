@@ -16,6 +16,8 @@
 %
 % \section{终稿的术语与符号表}
 %
+% \changes{v3.2a}{2026/09/27}{\hologo{pdfLaTeX} 下也装 \pkg{xpinyin}（它认 \pkg{CJKutf8}），首字按 UTF-8 解出码位查拼音；
+%  中文词条写进 \file{.idx} 前还原成字节：展开过的写法里带 \texttt{@}，\pkg{makeindex} 当成实际符整条拒收}
 % \changes{v3.2a}{2026/09/13}{中英两线统一到 \pkg{glossaries-extra}，后端
 %   \cs{makenoidxglossaries}；缩略语表改成两列悬挂与符号表同款，加 \cs{abbr} 一族与
 %   索引挂钩 \cs{hitindex}；中文索引的拼音排序键查 \pkg{xpinyin} 自动推（只在
@@ -45,8 +47,8 @@
 % \pkg{xpinyin} 只为中文索引的拼音排序键而装，见下文。它随包带一张四万七千行
 % 的汉字拼音表，纯 \hologo{TeX} 查表，不调外部程序，加载实测四十毫秒。
 %
-% 只有 \hologo{XeLaTeX} 装得了它——\pkg{xpinyin} 见到 \hologo{LuaLaTeX} 直接
-% 报 Critical Error 停机。查表宏 \cs{\_\_hit\_pinyin\_lookup:nN} 本来就以
+% \hologo{XeLaTeX} 与 \hologo{pdfLaTeX}（\pkg{CJKutf8}）装得了它，\pkg{xpinyin} 见到
+% \hologo{LuaLaTeX} 直接报 Critical Error 停机。查表宏 \cs{\_\_hit\_pinyin\_lookup:nnN} 本来就以
 % \cs{cs\_if\_exist:c} 探每个字的表项，包不在等于全部查不到，走的正是「查不到
 % 就提示手写 \option{pinyin} 排序键」那条既有的路，不必另写分支。
 %    \begin{macrocode}
@@ -213,6 +215,11 @@
               { \bool_set_true:N \l__hit_abbr_cjk_bool }
           }
       }
+  }
+\sys_if_engine_pdftex:T
+  {
+    \cs_set_protected:Npn \__hit_abbr_cjk_scan:n #1
+      { \hit@engine@pdftex@cjk@scan:nN {#1} \l__hit_abbr_cjk_bool }
   }
 \cs_new_protected:Npn \__hit_abbr_cjk_set:n #1
   {
@@ -401,22 +408,54 @@
   {
     \tl_clear:N \l__hit_pinyin_head_tl
     \tl_set:Nn \l__hit_pinyin_tone_tl { 5 }
-    \tl_map_inline:nn {#1}
-      {
-        \prop_get:NnNTF \c__hit_pinyin_tone_prop {##1} \l_tmpa_tl
-          {
-            \tl_put_right:Nx \l__hit_pinyin_head_tl
-              { \tl_head:V \l_tmpa_tl }
-            \tl_if_empty:NF \l_tmpa_tl
-              {
-                \tl_set:Nx \l_tmpb_tl { \tl_tail:V \l_tmpa_tl }
-                \tl_if_empty:NF \l_tmpb_tl
-                  { \tl_set_eq:NN \l__hit_pinyin_tone_tl \l_tmpb_tl }
-              }
-          }
-          { \tl_put_right:Nn \l__hit_pinyin_head_tl {##1} }
-      }
+    \__hit_pinyin_detone_map:n {#1}
     \tl_put_right:NV \l__hit_pinyin_head_tl \l__hit_pinyin_tone_tl
+  }
+\cs_new_protected:Npn \__hit_pinyin_detone_map:n #1
+  { \tl_map_function:nN {#1} \__hit_pinyin_detone_char:n }
+\cs_new_protected:Npn \__hit_pinyin_detone_char:n #1
+  {
+    \prop_get:NnNTF \c__hit_pinyin_tone_prop {#1} \l_tmpa_tl
+      {
+        \tl_put_right:Nx \l__hit_pinyin_head_tl
+          { \tl_head:V \l_tmpa_tl }
+        \tl_if_empty:NF \l_tmpa_tl
+          {
+            \tl_set:Nx \l_tmpb_tl { \tl_tail:V \l_tmpa_tl }
+            \tl_if_empty:NF \l_tmpb_tl
+              { \tl_set_eq:NN \l__hit_pinyin_tone_tl \l_tmpb_tl }
+          }
+      }
+      { \tl_put_right:Nn \l__hit_pinyin_head_tl {#1} }
+  }
+%    \end{macrocode}
+%
+% \hologo{pdfTeX} 下库里的带调字母是两个字节，逐记号走会拆开。这里转成字节串，按 UTF-8
+% 把后续字节（0x80--0xBF）并进前一个字再查表；上表的键本来就按字节串存。
+%    \begin{macrocode}
+\str_new:N \l__hit_pinyin_str
+\str_new:N \l__hit_pinyin_char_str
+\sys_if_engine_pdftex:T
+  {
+    \cs_set_protected:Npn \__hit_pinyin_detone_map:n #1
+      {
+        \str_set:Nn \l__hit_pinyin_str {#1}
+        \str_clear:N \l__hit_pinyin_char_str
+        \str_map_inline:Nn \l__hit_pinyin_str
+          {
+            \bool_lazy_and:nnF
+              { \int_compare_p:nNn { `##1 } > { "7F } }
+              { \int_compare_p:nNn { `##1 } < { "C0 } }
+              {
+                \str_if_empty:NF \l__hit_pinyin_char_str
+                  { \exp_args:NV \__hit_pinyin_detone_char:n \l__hit_pinyin_char_str }
+                \str_clear:N \l__hit_pinyin_char_str
+              }
+            \str_put_right:Nn \l__hit_pinyin_char_str {##1}
+          }
+        \str_if_empty:NF \l__hit_pinyin_char_str
+          { \exp_args:NV \__hit_pinyin_detone_char:n \l__hit_pinyin_char_str }
+      }
   }
 %    \end{macrocode}
 %
@@ -430,26 +469,74 @@
       { \tl_use:N \l__hit_pinyin_tl } #2
   }
 \cs_new_protected:Npn \__hit_pinyin_lookup:nN #1#2
+  { \exp_args:Nf \__hit_pinyin_lookup:nnN { \int_value:w `#1 } {#1} #2 }
+\cs_new_protected:Npn \__hit_pinyin_lookup:nnN #1#2#3
   {
-    \cs_if_exist:cTF { c__xpinyin_ \int_value:w `#1 _tl }
+    \cs_if_exist:cTF { c__xpinyin_ #1 _tl }
       {
-        \exp_args:Nv \__hit_pinyin_detone:n
-          { c__xpinyin_ \int_value:w `#1 _tl }
-        \tl_set_eq:NN #2 \l__hit_pinyin_head_tl
+        \exp_args:Nv \__hit_pinyin_detone:n { c__xpinyin_ #1 _tl }
+        \tl_set_eq:NN #3 \l__hit_pinyin_head_tl
 %    \end{macrocode}
 %
 % 提示里给的是排序键该写成的样子，也就是转过数字的形式，不是库里那个带调的。
 %    \begin{macrocode}
-        \clist_if_exist:cT { c__xpinyin_multiple_ \int_value:w `#1 _clist }
+        \clist_if_exist:cT { c__xpinyin_multiple_ #1 _clist }
           {
-            \msg_warning:nnxxx { hithesis } { pinyin-multiple } {#1}
+            \msg_warning:nnxxx { hithesis } { pinyin-multiple } {#2}
               { \tl_use:N \l__hit_pinyin_head_tl }
-              { \use:c { c__xpinyin_multiple_ \int_value:w `#1 _clist } }
+              { \tl_to_str:c { c__xpinyin_multiple_ #1 _clist } }
           }
       }
       {
-        \msg_warning:nnn { hithesis } { pinyin-missing } {#1}
-        \tl_clear:N #2
+        \msg_warning:nnn { hithesis } { pinyin-missing } {#2}
+        \tl_clear:N #3
+      }
+  }
+%    \end{macrocode}
+%
+% \hologo{pdfTeX} 下一个汉字是三个字节，\cs{tl\_head:n} 只取到第一个。这里用
+% \cs{text\_purify:n} 还原成裸字节，按 UTF-8 的首字节定长度，把首字的码位拼出来再查表；
+% 提示里给的是首字那几个字节，写进日志就是那个字。
+%    \begin{macrocode}
+\int_new:N \l__hit_pinyin_cp_int
+\int_new:N \l__hit_pinyin_left_int
+\sys_if_engine_pdftex:T
+  {
+    \cs_set_protected:Npn \hit@pinyin@head:nN #1#2
+      {
+        \str_set:Ne \l__hit_pinyin_str { \text_purify:n {#1} }
+        \str_clear:N \l__hit_pinyin_char_str
+        \int_set:Nn \l__hit_pinyin_left_int { -1 }
+        \str_map_inline:Nn \l__hit_pinyin_str
+          {
+            \str_put_right:Nn \l__hit_pinyin_char_str {##1}
+            \int_compare:nNnTF \l__hit_pinyin_left_int < { 0 }
+              {
+                \int_set:Nn \l__hit_pinyin_cp_int { `##1 }
+                \int_set:Nn \l__hit_pinyin_left_int
+                  {
+                    \int_compare:nNnTF { `##1 } < { "C0 } { 0 }
+                      {
+                        \int_compare:nNnTF { `##1 } < { "E0 } { 1 }
+                          { \int_compare:nNnTF { `##1 } < { "F0 } { 2 } { 3 } }
+                      }
+                  }
+                \int_set:Nn \l__hit_pinyin_cp_int
+                  {
+                    \l__hit_pinyin_cp_int -
+                    \int_case:nn { \l__hit_pinyin_left_int }
+                      { { 0 } { 0 } { 1 } { "C0 } { 2 } { "E0 } { 3 } { "F0 } }
+                  }
+              }
+              {
+                \int_set:Nn \l__hit_pinyin_cp_int
+                  { \l__hit_pinyin_cp_int * 64 + `##1 - "80 }
+                \int_decr:N \l__hit_pinyin_left_int
+              }
+            \int_compare:nNnT \l__hit_pinyin_left_int = { 0 } { \str_map_break: }
+          }
+        \exp_args:NVV \__hit_pinyin_lookup:nnN
+          \l__hit_pinyin_cp_int \l__hit_pinyin_char_str #2
       }
   }
 %    \end{macrocode}
@@ -537,9 +624,15 @@
 % 排印），从前误写成层级符 \texttt{!}，拼音键被当成父条目印了出来
 % （“duan4”一行、词缩进在下），官方示例（规范附录 6）里只有词，
 % 组标题是单个大写字母。
+%
+% \hologo{pdfTeX} 下词条可能已经展开过，汉字成了 \cs{CTEX@char@nnn} 加三个字节参数，原样写进
+% \file{.idx} 的话名字里的 \texttt{@} 被 \pkg{makeindex} 当成实际符，整条拒收；读回 \file{.ind}
+% 时 \texttt{@} 也不是字母。写之前用 \cs{text\_purify:n} 还原成裸字节。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_index_emit:
   {
+    \sys_if_engine_pdftex:T
+      { \tl_set:Ne \l__hit_index_zh_tl { \text_purify:V \l__hit_index_zh_tl } }
     \tl_if_empty:NF \l__hit_index_zh_tl
       {
         \tl_if_empty:NT \l__hit_index_pinyin_tl

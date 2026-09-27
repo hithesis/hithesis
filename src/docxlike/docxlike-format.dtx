@@ -3112,15 +3112,18 @@
 %    \end{macrocode}
 %
 % 一块内容里有没有汉字。串成字符串逐字符看码位，过了 \texttt{U+2E7F}
-% （康熙部首之前那一格）就算；宏名全是 ASCII，不会误判。
+% （康熙部首之前那一格）就算；宏名全是 ASCII，不会误判。\hologo{pdfTeX} 下串出来的是
+% UTF-8 字节，看有没有 0xE3 起（\texttt{U+3000} 以上）的首字节。
 %    \begin{macrocode}
 \bool_new:N \l__docxlike_format_cjk_bool
+\int_const:Nn \c__docxlike_format_cjk_above_int
+  { \sys_if_engine_pdftex:TF { "E2 } { "2E7F } }
 \prg_new_protected_conditional:Npnn \docxlike_format_cjk:n #1 { TF , T , F }
   {
     \bool_set_false:N \l__docxlike_format_cjk_bool
     \str_map_inline:nn {#1}
       {
-        \int_compare:nNnT { `##1 } > { "2E7F }
+        \int_compare:nNnT { `##1 } > { \c__docxlike_format_cjk_above_int }
           { \bool_set_true:N \l__docxlike_format_cjk_bool \str_map_break: }
       }
     \bool_if:NTF \l__docxlike_format_cjk_bool \prg_return_true: \prg_return_false:
@@ -5520,10 +5523,20 @@
 % Word 也是；默认的模式 11 不会。
 %
 % \env{verbatim} 环境（竖排模式进来）不动。
+%
+% \hologo{pdfTeX} 的字体只有 256 个位，U+02FD 排不出来，看得见的空格印 \cs{textvisiblespace}，
+% 等宽字体里同样是一格。
 %    \begin{macrocode}
 \sys_if_engine_luatex:T { \newattribute \docxlike@code@attr }
-\cs_new_protected:Npn \docxlike_format_verb_space_visible:
-  { \leavevmode \tex_char:D "02FD \scan_stop: \tex_penalty:D \c_zero_int }
+\sys_if_engine_pdftex:TF
+  {
+    \cs_new_protected:Npn \docxlike_format_verb_space_visible:
+      { \leavevmode \textvisiblespace \tex_penalty:D \c_zero_int }
+  }
+  {
+    \cs_new_protected:Npn \docxlike_format_verb_space_visible:
+      { \leavevmode \tex_char:D "02FD \scan_stop: \tex_penalty:D \c_zero_int }
+  }
 \cs_new_protected:Npn \docxlike_format_verb_space_cell:
   { \leavevmode \skip_horizontal:n { \tex_fontdimen:D 2 \tex_font:D } }
 \cs_new_protected:Npn \docxlike_format_verb_space:
@@ -5786,7 +5799,11 @@
       {
         \sys_if_engine_luatex:TF
           { \msg_warning:nn { docxlike } { luatex-punct-grid } }
-          { \msg_error:nn { docxlike } { xecjk-punct-grid } }
+          {
+            \sys_if_engine_pdftex:TF
+              { \msg_warning:nn { docxlike } { pdftex-punct-grid } }
+              { \msg_error:nn { docxlike } { xecjk-punct-grid } }
+          }
       }
   }
 %    \end{macrocode}

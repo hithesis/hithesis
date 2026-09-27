@@ -6,6 +6,10 @@
 %
 % \section{共享字体层}
 %
+% \changes{v3.2a}{2026/09/27}{\hologo{pdfLaTeX} 下中文走 \pkg{ctex} 的 \pkg{CJKutf8} 后端，字形映射到找到的中易 TrueType 文件（与另两个引擎
+%  同一批），宋体一副都找不到时退文鼎；伪粗改描边、斜体改斜切、宋体里的 \cs{emph} 换楷体，与另两个
+%  引擎同宽同样（\pkg{CJK} 的伪粗叠印三遍、步进多 0.03\,em，斜体映射到同一个 TrueType 排出来是正体）；
+%  隶书与华文新魏没有度量，照轮廓画}
 % \changes{v3.2a}{2026/08/15}{字体设置合成一份共享层。\option{fontset-en} 与
 %   \option{fontset-zh} 可以分别指定：西文 \texttt{auto} 时除开源字体集外一律优先
 %   Times New Roman（原先 \texttt{adobe} 与 \texttt{founder} 拿不到），取值无效报错
@@ -47,6 +51,12 @@
 \str_new:N \l__hit_font_en_str
 \str_new:N \l__hit_font_zh_str
 \cs_new_protected:Npn \hit@setup@fonts
+  {
+    \sys_if_engine_pdftex:TF
+      { \__hit_setup_fonts_pdftex: }
+      { \__hit_setup_fonts_unicode: }
+  }
+\cs_new_protected:Npn \__hit_setup_fonts_unicode:
   {
 %    \end{macrocode}
 %
@@ -470,6 +480,251 @@
   }% \hit@setup@fonts 到此为止
 %    \end{macrocode}
 %
+% \subsection{\hologo{pdfLaTeX} 的字体}
+%
+% \hologo{pdfTeX} 不认 OpenType，\pkg{fontspec}、\pkg{xeCJK}、\pkg{luatexja} 都用不了。中文走
+% \pkg{ctex} 的 \hologo{pdfTeX} 后端（\pkg{CJKutf8}），字形由 \pkg{zhmetrics} 的
+% \texttt{unisong}、\texttt{unihei}、\texttt{unikai}、\texttt{unifs} 几套度量映射到中易的
+% TrueType 字体文件上，用的与 \hologo{XeLaTeX}、\hologo{LuaLaTeX} 是同一批文件。做法参考
+% \pkg{gxuthesis}：
+% \begin{itemize}
+% \item 字体文件逐个目录去找：\option{windows-font-dir}（默认当前目录）、
+%   \texttt{\$HOME/Library/Fonts}、\texttt{/Library/Fonts}、Windows 与常见 Linux 的字体目录，最后问
+%   \texttt{kpsewhich}（在受限的 shell escape 白名单里）。文件名大小写几种写法都试。
+% \item 路径带空格的目录不找。映射行以空格分段，带空格的路径写不进去，只能在文档结尾嵌字体时
+%   才报“打不开字体文件”；Word 自带的那个目录在 \file{Microsoft Word.app} 里，所以也用不上。
+% \item \pkg{ctex} 自己那份 Windows 字体映射写的是裸文件名，靠 kpathsea 找，多半找不到；
+%   这里用找到的绝对路径各写一条 \cs{pdfmapline} 压过去，挂在 \texttt{shipout/firstpage} 上，
+%   与 \pkg{ctex} 同一个钩子、排在它后面。
+% \item 宋体一副都找不到时整个退到 \TeX~Live 自带的文鼎（\texttt{gbsn}／\texttt{gkai}），
+%   没有真黑体与仿宋，外观降级但编得过；别的字体缺了退到宋体。
+% \item 粗体与斜体在字形这一层自己画，见下面 \cs{\_\_hit\_pdftex\_glyph:n}。
+% \end{itemize}
+% 西文用 \pkg{newtxtext}（Times 的克隆），T1 编码；数学在 \file{src/engine/hit-math.dtx} 里
+% 走 \pkg{newtxmath} 那一档。
+%    \begin{macrocode}
+\seq_new:N \l__hit_pdftex_dir_seq
+\tl_new:N \l__hit_pdftex_file_tl
+\tl_new:N \l__hit_pdftex_home_tl
+\tl_new:N \l__hit_pdftex_song_tl
+\tl_new:N \l__hit_pdftex_hei_tl
+\tl_new:N \l__hit_pdftex_kai_tl
+\tl_new:N \l__hit_pdftex_fs_tl
+\tl_new:N \l__hit_pdftex_li_tl
+\bool_new:N \g__hit_pdftex_arphic_bool
+\cs_new_protected:Npn \__hit_pdftex_dirs:
+  {
+    \seq_clear:N \l__hit_pdftex_dir_seq
+    \exp_args:Nx \tl_if_in:nnTF { \hit@windows@font@dir } { ~ }
+      { \msg_warning:nnx { hithesis } { pdftex-font-dir-space } { \hit@windows@font@dir } }
+      { \seq_put_right:Nx \l__hit_pdftex_dir_seq { \hit@windows@font@dir } }
+    \sys_if_shell:T
+      {
+        \sys_get_shell:nnN { kpsewhich~-var-value=HOME } { } \l__hit_pdftex_home_tl
+        \tl_trim_spaces:N \l__hit_pdftex_home_tl
+        \tl_if_empty:NF \l__hit_pdftex_home_tl
+          {
+            \tl_if_in:NnF \l__hit_pdftex_home_tl { ~ }
+              { \seq_put_right:Nx \l__hit_pdftex_dir_seq { \l__hit_pdftex_home_tl /Library/Fonts } }
+          }
+      }
+    \seq_put_right:Nn \l__hit_pdftex_dir_seq { /Library/Fonts }
+    \seq_put_right:Nn \l__hit_pdftex_dir_seq { C:/Windows/Fonts }
+    \seq_put_right:Nn \l__hit_pdftex_dir_seq { /usr/share/fonts/truetype/windows }
+    \seq_put_right:Nn \l__hit_pdftex_dir_seq { /usr/share/fonts/windows }
+    \seq_put_right:Nn \l__hit_pdftex_dir_seq { /usr/local/share/fonts }
+  }
+% \__hit_pdftex_find:nN {候选文件名 clist} \tl ：逐目录逐名字找，找到存绝对路径，找不到清空
+\cs_new_protected:Npn \__hit_pdftex_find:nN #1#2
+  {
+    \tl_clear:N #2
+    \seq_map_inline:Nn \l__hit_pdftex_dir_seq
+      {
+        \clist_map_inline:nn {#1}
+          {
+            \file_if_exist:nT { ##1 / ####1 }
+              {
+                \tl_set:Nn #2 { ##1 / ####1 }
+                \clist_map_break:n { \seq_map_break: }
+              }
+          }
+      }
+    \tl_if_empty:NT #2
+      {
+        \sys_if_shell:T
+          {
+            \clist_map_inline:nn {#1}
+              {
+                \sys_get_shell:nnN { kpsewhich~##1 } { } \l__hit_pdftex_file_tl
+                \tl_trim_spaces:N \l__hit_pdftex_file_tl
+                \tl_if_empty:NF \l__hit_pdftex_file_tl
+                  {
+                    \tl_set_eq:NN #2 \l__hit_pdftex_file_tl
+                    \clist_map_break:
+                  }
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_pdftex_map:nV #1#2
+  {
+    \use:x
+      {
+        \exp_not:N \AddToHook { shipout / firstpage }
+          {
+            \exp_not:N \pdfmapline { = #1 @Unicode@ ~ < #2 }
+            \exp_not:N \pdfmapline { = #1 sl @Unicode@ ~ < #2 }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_setup_fonts_pdftex:
+  {
+    \__hit_pdftex_dirs:
+    \__hit_pdftex_find:nN { simsun.ttc , Simsun.ttc , SIMSUN.TTC , simsun.ttf } \l__hit_pdftex_song_tl
+    \tl_if_empty:NTF \l__hit_pdftex_song_tl
+      {
+        \bool_gset_true:N \g__hit_pdftex_arphic_bool
+        \msg_warning:nn { hithesis } { pdftex-arphic }
+        \tl_set:Nn \CJKrmdefault { gbsn }
+        \tl_set:Nn \CJKsfdefault { gkai }
+        \tl_set:Nn \CJKttdefault { gkai }
+      }
+      {
+        \__hit_pdftex_find:nN { simhei.ttf , SimHei.ttf , SIMHEI.TTF } \l__hit_pdftex_hei_tl
+        \__hit_pdftex_find:nN { simkai.ttf , Kaiti.ttf , KaiTi.ttf , SIMKAI.TTF } \l__hit_pdftex_kai_tl
+        \__hit_pdftex_find:nN { simfang.ttf , Fangsong.ttf , FangSong.ttf , SIMFANG.TTF } \l__hit_pdftex_fs_tl
+        \tl_if_empty:NT \l__hit_pdftex_hei_tl { \tl_set_eq:NN \l__hit_pdftex_hei_tl \l__hit_pdftex_song_tl }
+        \tl_if_empty:NT \l__hit_pdftex_kai_tl { \tl_set_eq:NN \l__hit_pdftex_kai_tl \l__hit_pdftex_song_tl }
+        \tl_if_empty:NT \l__hit_pdftex_fs_tl  { \tl_set_eq:NN \l__hit_pdftex_fs_tl  \l__hit_pdftex_kai_tl }
+        \ctex_load_zhmap:nnnn { zhsong } { zhhei } { zhfs } { windows }
+        \__hit_pdftex_map:nV { unisong } \l__hit_pdftex_song_tl
+        \__hit_pdftex_map:nV { unihei } \l__hit_pdftex_hei_tl
+        \__hit_pdftex_map:nV { unikai } \l__hit_pdftex_kai_tl
+        \__hit_pdftex_map:nV { unifs } \l__hit_pdftex_fs_tl
+      }
+    \bool_if:NTF \g__hit_pdftex_arphic_bool
+      {
+        \cs_set_protected:Npn \songti { \CJKfamily { gbsn } }
+        \cs_set_protected:Npn \heiti { \CJKfamily { gbsn } }
+        \cs_set_protected:Npn \fangsong { \CJKfamily { gkai } }
+        \cs_set_protected:Npn \kaishu { \CJKfamily { gkai } }
+      }
+      {
+        \cs_set_protected:Npn \songti { \CJKfamily { zhsong } }
+        \cs_set_protected:Npn \heiti { \CJKfamily { zhhei } }
+        \cs_set_protected:Npn \fangsong { \CJKfamily { zhfs } }
+        \cs_set_protected:Npn \kaishu { \CJKfamily { zhkai } }
+      }
+    \RequirePackage [ T1 ] { fontenc }
+    \RequirePackage { newtxtext }
+    \cs_gset_protected:Npn \hit@font@fakebold@zh: { \bfseries }
+    \__hit_pdftex_emph_family:
+    \AddToHook { begindocument } { \__hit_pdftex_glyph_patch: }
+  }
+%    \end{macrocode}
+%
+% \emph{汉字的伪粗与斜切。} \pkg{CJK} 宏包的伪粗把一个字叠印三遍、后两遍各右移
+% 0.015\,em，每个字的步进多出 0.03\,em，与另两个引擎的 \texttt{AutoFakeBold} 不同宽，复制出来
+% 还是三个字；斜体形状映射到同一个 TrueType 文件，\hologo{pdfTeX} 的 \texttt{SlantFont}
+% 只管 Type~1，排出来是正体。这里照 \pkg{gxuthesis} 的办法换掉真正画字形的
+% \cs{CJKosymbol}（\pkg{CJKpunct} 存下的原件；\cs{CJKsymbol} 是它插断点的包装，不能动）：
+% \begin{itemize}
+% \item 粗体写 PDF 文本渲染模式~2（填充加描边），笔宽取字号的 2.85\%，与
+%   \texttt{AutoFakeBold=2.85} 同宽；收尾连笔宽一起复位，不漏给后面的描边路径。
+% \item 斜体与倾斜形状用 \cs{pdfsetmatrix} 斜切 0.3333，与另两个引擎的
+%   \texttt{AutoFakeSlant} 同一个数；\cs{emph} 换进来的楷体那一族是正体，不斜。
+% \end{itemize}
+% 正体不粗的字原样走 \cs{symbol}，断行与标点挤压都不受影响。
+%    \begin{macrocode}
+\box_new:N \l__hit_pdftex_glyph_box
+\cs_new_protected:Npn \__hit_pdftex_glyph_patch:
+  {
+    \cs_if_exist:NTF \CJKosymbol
+      {
+        \cs_set_eq:NN \CJKosymbol \__hit_pdftex_symbol:n
+        \cs_if_exist:NT \CJKopunctsymbol
+          { \cs_set_eq:NN \CJKopunctsymbol \__hit_pdftex_symbol:n }
+      }
+      {
+        \cs_set_eq:NN \CJKsymbol \__hit_pdftex_symbol:n
+        \cs_set_eq:NN \CJKpunctsymbol \__hit_pdftex_symbol:n
+      }
+    \cs_set_eq:NN \CJKsymbols \__hit_pdftex_symbols:nn
+  }
+\cs_new_protected:Npn \__hit_pdftex_symbol:n #1
+  { \__hit_pdftex_glyph:n { \symbol {#1} } }
+\cs_new_protected:Npn \__hit_pdftex_symbols:nn #1#2
+  { \__hit_pdftex_glyph:n { \tex_char:D #1 \tex_char:D #2 \scan_stop: } }
+\cs_new_protected:Npn \__hit_pdftex_glyph:n #1
+  {
+    \bool_lazy_and:nnTF
+      {
+        \bool_lazy_or_p:nn
+          { \str_if_eq_p:Vn \f@shape { it } }
+          { \str_if_eq_p:Vn \f@shape { sl } }
+      }
+      { ! \str_if_eq_p:Vn \f@family { hitemphsong } }
+      {
+        \hbox_set:Nn \l__hit_pdftex_glyph_box { \__hit_pdftex_bold:n {#1} }
+        \hbox:n
+          {
+            \pdfsave
+            \pdfsetmatrix { 1 ~ 0 ~ 0.3333 ~ 1 }
+            \hbox_overlap_right:n { \box_use:N \l__hit_pdftex_glyph_box }
+            \pdfrestore
+            \skip_horizontal:n { \box_wd:N \l__hit_pdftex_glyph_box }
+          }
+      }
+      { \__hit_pdftex_bold:n {#1} }
+  }
+\cs_new_protected:Npn \__hit_pdftex_bold:n #1
+  {
+    \legacy_if:nTF { CJK@bold@ }
+      {
+        \pdfliteral direct
+          {
+            \dim_to_decimal_in_bp:n { \f@size pt * 285 / 10000 }
+            \c_space_tl w ~ 2 ~ Tr
+          }
+        #1
+        \pdfliteral direct { 0 ~ w ~ 0 ~ Tr }
+      }
+      {#1}
+  }
+%    \end{macrocode}
+%
+% \cs{emph} 在宋体里换楷体正体（\option{style}/\option{emph-songti}）。\hologo{pdfTeX} 下只有
+% 找到的那副楷体，写了别的字体名也用它；\texttt{fake-slant} 不声明，\cs{emph} 与
+% \cs{textit} 一样斜切。字族 \texttt{hitemphsong} 的正、斜、倾斜三种形状都指向楷体的正体，标点间距照
+% \texttt{zhkai} 那一族。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_pdftex_emph_family:
+  {
+    \str_if_eq:VnF \g__hit_font_emph_songti_tl { fake-slant }
+      {
+        \str_if_eq:VnF \g__hit_font_emph_songti_tl { kaiti }
+          { \msg_warning:nn { hithesis } { pdftex-emph-font } }
+        \tl_set:Nx \l__hit_pdftex_file_tl
+          { \bool_if:NTF \g__hit_pdftex_arphic_bool { gkaiu } { unikai } }
+        \DeclareFontFamily { C70 } { hitemphsong } { \tex_hyphenchar:D \tex_font:D = -1 ~ }
+        \clist_map_inline:nn { n , it , sl }
+          {
+            \use:x
+              {
+                \exp_not:N \DeclareFontShape { C70 } { hitemphsong } { m } {##1}
+                  { <-> CJK * \l__hit_pdftex_file_tl } { \exp_not:N \CJKnormal }
+                \exp_not:N \DeclareFontShape { C70 } { hitemphsong } { b } {##1}
+                  { <-> CJKb * \l__hit_pdftex_file_tl } { \exp_not:N \CJKbold }
+                \exp_not:N \DeclareFontShape { C70 } { hitemphsong } { bx } {##1}
+                  { <-> CJKb * \l__hit_pdftex_file_tl } { \exp_not:N \CJKbold }
+              }
+          }
+        \ctex_punct_map_family:nn { hitemphsong } { zhkai }
+        \bool_gset_true:N \g__hit_font_emph_bool
+      }
+  }
+%    \end{macrocode}
+%
 % \begin{macro}{\hit@font@italic@pass:}
 % \emph{中文斜体的规矩落到字族上。} 两个引擎把每个字族的字体名与特性表各记在一对属性表里：
 % \pkg{xeCJK} 是 \cs{g\_\_xeCJK\_family\_font\_name\_prop} 与
@@ -656,7 +911,7 @@
 % \cs{emph} 在 \cs{em} 之后看一眼：字形已经变斜、中文字族是宋体的，中文换到
 % \texttt{hitemphsong}；嵌套的 \cs{emph} 把字形变回正体时，中文也回到进来之前的宋体那一族。
 % 别的字族不动，\cs{em} 的斜体已经把它们斜切了。当前字族两个引擎各记在
-% \cs{l\_xeCJK\_family\_tl} 与 \cs{l\_ctex\_ltj\_family\_tl} 里。\cs{textit} 不经过这里。
+% \cs{l\_xeCJK\_family\_tl} 与 \cs{l\_ctex\_ltj\_family\_tl} 里，\hologo{pdfTeX} 下是 \pkg{CJK} 的 \cs{CJK@family}。\cs{textit} 不经过这里。
 %    \begin{macrocode}
 \tl_new:N \l__hit_emph_family_tl
 \tl_new:N \l__hit_emph_song_tl
@@ -664,7 +919,11 @@
   {
     \cs_if_exist:NTF \l_xeCJK_family_tl
       { \l_xeCJK_family_tl }
-      { \cs_if_exist:NT \l_ctex_ltj_family_tl { \l_ctex_ltj_family_tl } }
+      {
+        \cs_if_exist:NTF \l_ctex_ltj_family_tl
+          { \l_ctex_ltj_family_tl }
+          { \cs_if_exist:NT \CJK@family { \CJK@family } }
+      }
   }
 \cs_new_protected:Npn \__hit_emph_cjk:
   {
@@ -852,6 +1111,8 @@
 % 不开的话 \pkg{xeCJK} 找不到粗体就排常规，比 Word 与照轮廓画的那条路都细。
 % \hologo{LuaLaTeX} 上不用写，\pkg{docxlike} 出页前把样式要粗的常规字形换成描边的。
 %
+% \hologo{pdfTeX} 下没有 \pkg{fontspec}，也没有这两副字的度量，一律当没装上，两处都照轮廓画。
+%
 % \emph{定义还要抬成全局。} \cs{newCJKfontfamily} 定义的是个局部命令，
 % 而惰性探测赶上哪一组算哪一组。“探过了”那个标志位是全局的，字体命令却随组消失，
 % 于是同一页上第一处排得出来、第二处报未定义。字体族那边
@@ -860,17 +1121,19 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_cover_font:nnN #1#2#3
   {
-    \fontspec_font_if_exist:nTF {#1}
+    \sys_if_engine_pdftex:F
       {
-        \bool_gset_true:N #3
-        \use:x
+        \fontspec_font_if_exist:nT {#1}
           {
-            \exp_not:N \newCJKfontfamily \exp_not:c {#2} { \exp_not:n {#1} }
-              [ \sys_if_engine_xetex:T { AutoFakeBold = \c__hit_font_fakebold_tl } ]
+            \bool_gset_true:N #3
+            \use:x
+              {
+                \exp_not:N \newCJKfontfamily \exp_not:c {#2} { \exp_not:n {#1} }
+                  [ \sys_if_engine_xetex:T { AutoFakeBold = \c__hit_font_fakebold_tl } ]
+              }
+            \cs_gset_eq:cc {#2} {#2}
           }
-        \cs_gset_eq:cc {#2} {#2}
       }
-      { }
   }
 %    \end{macrocode}
 %

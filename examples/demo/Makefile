@@ -2,9 +2,9 @@
 
 # Compiling method: latexmk/xelatex/lualatex
 #
-# 模板认 xelatex 与 lualatex 两个引擎。默认 lualatex：2026 年 9 月起断行照 Word 的
-# 贪心算法在 Lua 里做，只有 lualatex 有这条路，xelatex 编出来的断行是 TeX 自己的。
-# 换回 xelatex 两行一起改：METHOD = xelatex，LATEXMKOPTS = -xelatex。
+# 模板认 lualatex、xelatex 与 pdflatex 三个引擎。默认 lualatex：2026 年 9 月起断行照 Word 的
+# 贪心算法在 Lua 里做，只有 lualatex 有这条路，另两个编出来的断行是 TeX 自己的。
+# 换引擎两行一起改：METHOD = xelatex，LATEXMKOPTS = -xelatex；或 METHOD = pdflatex，LATEXMKOPTS = -pdf。
 METHOD = lualatex
 # Set opts for latexmk if you use it
 LATEXMKOPTS = -lualatex
@@ -51,7 +51,7 @@ ifeq ($(METHOD),latexmk)
 $(FINALMAIN).pdf: $(CLSFILES)
 	$(METHOD) $(LATEXMKOPTS) $(FINALMAIN)
 
-else ifneq ($(filter $(METHOD),xelatex lualatex),)
+else ifneq ($(filter $(METHOD),xelatex lualatex pdflatex),)
 
 $(FINALMAIN).idx: $(FINALMAIN).bbl
 	$(METHOD) $(FINALMAIN)

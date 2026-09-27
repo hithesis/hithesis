@@ -6,8 +6,9 @@
 %
 % \section{引擎层}
 %
-% \changes{v3.2a}{2026/09/20}{新增引擎层，模板 \hologo{XeLaTeX} 与 \hologo{LuaLaTeX} 都能编，
-%   报错文案里推荐引擎 \texttt{lualatex} 排在前面；\cs{CJKglue} 的直接改写、
+% \changes{v3.2a}{2026/09/20}{新增引擎层，模板 \hologo{XeLaTeX}、\hologo{LuaLaTeX} 与 \hologo{pdfLaTeX} 都能编，
+%   报错文案里推荐引擎 \texttt{lualatex} 排在前面；\hologo{pdfLaTeX} 下中西文之间的间距在交界处自己补
+%   （\pkg{CJK} 没有这个机制），\texttt{\textasciitilde} 还原成 \cs{nobreakspace}（\pkg{CJK} 的那个不健壮）；\cs{CJKglue} 的直接改写、
 %   \cs{hit@engine@cjk@char:n}、\cs{hit@engine@latin@chars:n} 收进这里；
 %   东八区的今天（\cs{c\_sys\_year\_int} 跟编译机器
 %   时区走，国外编译封面日期差一天）；下划线按 Word 画：线心在基线下 0.135\,em、粗 0.05\,em}
@@ -30,13 +31,22 @@
 % \subsection{引擎守卫}
 %
 % 引擎是先决条件，不对就不必再往下走，所以守卫在装配表里排得比选项模块还早。
-% \hologo{pdfTeX} 与 \texttt{latex} 仍旧挡在门外：那两个引擎不认 OpenType，中文得走
-% \pkg{CJK} 那一套，与本模板的字体子系统是两条路。
+% \hologo{LuaLaTeX} 是主线，\hologo{XeLaTeX} 次之；\hologo{pdfLaTeX} 也能编：中文走
+% \pkg{ctex} 的 \pkg{CJK} 后端，字体见 \file{src/engine/hit-fonts.dtx} 的“\hologo{pdfLaTeX} 的字体”，
+% 只认直接出 PDF 的 \texttt{pdflatex}，\texttt{latex} 出 DVI 那条路挡在门外。
 %    \begin{macrocode}
-\bool_lazy_or:nnF
-  { \sys_if_engine_xetex_p: }
-  { \sys_if_engine_luatex_p: }
-  { \ClassError { hithesis } { Please~use:~\MessageBreak~lualatex~(or~xelatex) } { } }
+\bool_lazy_any:nF
+  {
+    { \sys_if_engine_xetex_p: }
+    { \sys_if_engine_luatex_p: }
+    { \sys_if_engine_pdftex_p: }
+  }
+  { \ClassError { hithesis } { Please~use:~\MessageBreak~lualatex~(or~xelatex,~pdflatex) } { } }
+\sys_if_engine_pdftex:T
+  {
+    \int_compare:nNnT { \tex_pdfoutput:D } < { 1 }
+      { \ClassError { hithesis } { Please~use~pdflatex,~not~latex~(DVI~output) } { } }
+  }
 %    \end{macrocode}
 %
 % \subsection{把码位归成汉字}
@@ -90,6 +100,23 @@
   {
     \cs_new_protected:Npn \hit@engine@latin@chars:n #1
       { \clist_map_inline:nn {#1} { \xeCJKDeclareCharClass { Default } {##1} } }
+  }
+%    \end{macrocode}
+%
+% \hologo{pdfTeX} 下 \pkg{CJKutf8} 把 0x80 以上的字节全接走了，码位不必再归成汉字；归成西文
+% 只用得上破折号那一个，写成 \pkg{inputenc} 的 \cs{textemdash}。
+%    \begin{macrocode}
+\sys_if_engine_pdftex:T
+  {
+    \cs_set_protected:Npn \hit@engine@cjk@chars:n #1 { }
+    \cs_set_protected:Npn \hit@engine@latin@chars:n #1
+      {
+        \clist_map_inline:nn {#1}
+          {
+            \int_compare:nNnT {##1} = { "2014 }
+              { \DeclareUnicodeCharacter { 2014 } { \textemdash } }
+          }
+      }
   }
 %    \end{macrocode}
 %
@@ -362,6 +389,102 @@
   {
     \cs_if_exist:NT \creationdate
       { \exp_args:Nx \__hit_engine_today_parse:n { \creationdate } }
+    \sys_if_engine_pdftex:T
+      { \exp_args:Nx \__hit_engine_today_parse:n { \pdfcreationdate } }
+  }
+%    \end{macrocode}
+%
+% \subsection{一串文字里有没有汉字（\hologo{pdfTeX}）}
+%
+% \cs{hit@engine@pdftex@cjk@scan:nN}\marg{文字}\meta{布尔}：文字里有汉字就把布尔设真。两个 Unicode
+% 引擎上汉字是一个字符记号，调用方自己逐记号取码位比 \texttt{U+2E7F}；\hologo{pdfTeX} 下
+% 汉字是几个字节，展开后又成了 \cs{CTEX@char@nnn} 那样的宏，那一套取不到码位。这里先用
+% \cs{text\_purify:n} 还原成裸字节（\pkg{ctex} 给那几个宏登记了还原办法），再看有没有
+% 0xE3 起头的三字节字（\texttt{U+3000} 以上：汉字、假名、全角标点）。
+%    \begin{macrocode}
+\str_new:N \l__hit_engine_scan_str
+\cs_new_protected:Npn \hit@engine@pdftex@cjk@scan:nN #1#2
+  {
+    \str_set:Ne \l__hit_engine_scan_str { \text_purify:n {#1} }
+    \str_map_inline:Nn \l__hit_engine_scan_str
+      {
+        \int_compare:nNnT { `##1 } > { 226 }
+          { \bool_set_true:N #2 \str_map_break: }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{按字拆开（\hologo{pdfTeX}）}
+%
+% \cs{hit@engine@pdftex@chars:nN}\marg{文字}\meta{序列} 把文字按字拆成一串，每项一个字。
+% 两个 Unicode 引擎上一个汉字就是一个记号，\cs{tl\_map\_inline:nn} 逐项走就是逐字走；
+% \hologo{pdfTeX} 下 \pkg{CJKutf8} 把 UTF-8 的每个字节做成一个活动字符，一个汉字三个记号，
+% 逐记号走会把一个字劈开（首字节展开时去抓后面两个字节，抓到的是映射本身的记号）。这里先
+% 用 \cs{text\_purify:n} 把文字还原成裸字节，再照当前的 catcode 重新记号化（字节回到活动字符），
+% 然后把 0x80--0xBF 的后续字节并进前一个字。\cs{text\_purify:n} 顺手把命令也剥掉了，
+% 所以只拿它拆字，不拿它排带格式的文字。
+%    \begin{macrocode}
+\tl_new:N \l__hit_engine_chars_tl
+\tl_new:N \l__hit_engine_char_tl
+\cs_new_protected:Npn \hit@engine@pdftex@chars:nN #1#2
+  {
+    \seq_clear:N #2
+    \tl_clear:N \l__hit_engine_char_tl
+    \str_set:Ne \l__hit_engine_scan_str { \text_purify:n {#1} }
+    \tl_set_rescan:NnV \l__hit_engine_chars_tl { } \l__hit_engine_scan_str
+    \tl_map_inline:Nn \l__hit_engine_chars_tl
+      {
+        \bool_lazy_and:nnTF
+          { \tl_if_single_token_p:n {##1} }
+          { \token_if_active_p:N ##1 }
+          {
+            \int_compare:nNnTF { `##1 } < { "C0 }
+              { \tl_put_right:Nn \l__hit_engine_char_tl {##1} }
+              {
+                \tl_if_empty:NF \l__hit_engine_char_tl
+                  { \seq_put_right:NV #2 \l__hit_engine_char_tl }
+                \tl_set:Nn \l__hit_engine_char_tl {##1}
+              }
+          }
+          {
+            \tl_if_empty:NF \l__hit_engine_char_tl
+              { \seq_put_right:NV #2 \l__hit_engine_char_tl }
+            \tl_set:Nn \l__hit_engine_char_tl {##1}
+          }
+      }
+    \tl_if_empty:NF \l__hit_engine_char_tl
+      { \seq_put_right:NV #2 \l__hit_engine_char_tl }
+  }
+\cs_generate_variant:Nn \hit@engine@pdftex@chars:nN { V }
+%    \end{macrocode}
+%
+% \cs{hit@engine@group@chars:N}\meta{记号列} 把记号列里的汉字各包成一组，别的记号不动，之后逐项
+% 走（\cs{tl\_map\_inline:Nn}、\cs{tl\_item:Nn}）就是逐字走。两个 Unicode 引擎上一个汉字本来就是
+% 一个记号，什么都不做。\hologo{pdfTeX} 下汉字有两种样子：还没展开的是一串活动字节（首字节
+% 0xC0 以上，后面跟 0x80--0xBF），\cs{tl\_set:Ne} 展开过的是 \pkg{ctex} 的
+% \cs{CTEX@char@nnn} 带三个十进制字节参数（两字节、四字节的同理）。与上面那个不同，这里不
+% purify，夹在字间的命令（\cs{hit@sp} 之类）都留着。
+%
+% \cs{hit@engine@char@key:nN}\marg{一个字}\meta{记号列} 取查表用的键：属性表的键是字符串，
+% \hologo{pdfTeX} 下写在文件里的字存成裸字节，展开过的那种样子要先 purify 回去才对得上。
+%    \begin{macrocode}
+\sys_if_engine_pdftex:TF
+  {
+    \regex_const:Nn \c__hit_engine_char_regex
+      {
+        \c{CTEX@char@nnnn} (\cB. \d+ \cE.){4}
+        | \c{CTEX@char@nnn} (\cB. \d+ \cE.){3}
+        | \c{CTEX@char@nn} (\cB. \d+ \cE.){2}
+        | \cA[\x{C0}-\x{FF}] \cA[\x{80}-\x{BF}]*
+      }
+    \cs_new_protected:Npn \hit@engine@group@chars:N #1
+      { \regex_replace_all:NnN \c__hit_engine_char_regex { \cB\{ \0 \cE\} } #1 }
+    \cs_new_protected:Npn \hit@engine@char@key:nN #1#2
+      { \tl_set:Ne #2 { \text_purify:n {#1} } }
+  }
+  {
+    \cs_new_protected:Npn \hit@engine@group@chars:N #1 { }
+    \cs_new_protected:Npn \hit@engine@char@key:nN #1#2 { \tl_set:Nn #2 {#1} }
   }
 %    \end{macrocode}
 %
@@ -404,6 +527,20 @@
   {
     \cs_new_protected:Npn \hit@engine@spread@to:nn #1#2
       { \begin { CJKfilltwosides } [b] {#1} #2 \end { CJKfilltwosides } }
+  }
+%    \end{macrocode}
+%
+% \hologo{pdfTeX} 下 \pkg{CJK} 在汉字之间插的也是 \cs{CJKglue}，照 \hologo{LuaLaTeX} 那一支的办法撑它。
+%    \begin{macrocode}
+\sys_if_engine_pdftex:T
+  {
+    \cs_set_protected:Npn \hit@engine@spread@to:nn #1#2
+      {
+        \group_begin:
+          \cs_set:Npn \CJKglue { \hskip 0pt~plus~2filll~minus~1filll \scan_stop: }
+          \makebox [ #1 ] [ l ] {#2}
+        \group_end:
+      }
   }
 %    \end{macrocode}
 %
@@ -472,6 +609,279 @@
   }
 %    \end{macrocode}
 %
+% \hologo{pdfTeX} 下中文字族是 \pkg{CJK} 的 C70 编码，拿它配西文编码是个不存在的字体形状，
+% 切不过去，这里什么都不做；问字形也问不了，带圈数字只认中易宋体一定有的 ①--⑳，文鼎那一档
+% 一律画。\cs{hit@engine@char:n}\marg{码位} 排一个字：两个 Unicode 引擎是 \cs{char}，\hologo{pdfTeX}
+% 下把码位拆成 UTF-8 的三个字节交给 \pkg{ctex} 的 \cs{CTEX@char@nnn}（活动字符展开后就是它）。
+%    \begin{macrocode}
+\int_new:N \l__hit_engine_cp_int
+\sys_if_engine_pdftex:TF
+  {
+    \cs_set_protected:Npn \hit@engine@use@cjk@font: { }
+    \prg_set_conditional:Npnn \hit@engine@if@cjk@glyph:n #1 { p , TF }
+      {
+        \bool_lazy_and:nnTF
+          { ! \bool_if_p:N \g__hit_pdftex_arphic_bool }
+          {
+            \bool_lazy_and_p:nn
+              { ! \int_compare_p:nNn {#1} < { "2460 } }
+              { ! \int_compare_p:nNn {#1} > { "2473 } }
+          }
+          { \prg_return_true: } { \prg_return_false: }
+      }
+    \cs_new_protected:Npn \hit@engine@char:n #1
+      {
+        \int_set:Nn \l__hit_engine_cp_int {#1}
+        \use:e
+          {
+            \exp_not:N \CTEX@char@nnn
+              { \int_eval:n { 224 + \int_div_truncate:nn { \l__hit_engine_cp_int } { 4096 } } }
+              {
+                \int_eval:n
+                  { 128 + \int_mod:nn { \int_div_truncate:nn { \l__hit_engine_cp_int } { 64 } } { 64 } }
+              }
+              { \int_eval:n { 128 + \int_mod:nn { \l__hit_engine_cp_int } { 64 } } }
+          }
+      }
+  }
+  {
+    \cs_new_protected:Npn \hit@engine@char:n #1
+      { \tex_char:D \int_eval:n {#1} \scan_stop: }
+  }
+%    \end{macrocode}
+%
+% \subsection{中西文之间的间距（\hologo{pdfTeX}）}
+%
+% Word 在汉字与西文字母、数字之间自动留一段空（\texttt{autoSpaceDE}/\texttt{DN}），
+% \pkg{docxlike} 把它算好放进 \cs{CJKecglue}。\pkg{xeCJK} 与 \pkg{luatexja} 按字符类自己在
+% 交界处插这段胶，\pkg{CJK} 宏包没有这个机制，只在前一个也是汉字时插 \cs{CJKglue}。这里照
+% \pkg{gxuthesis} 的办法补上，包的是 \pkg{ctex} 排三字节、四字节字的 \cs{CTEX@char@nnn} 与
+% \cs{CTEX@char@nnnn}（汉字的活动字节展开后就是它们）：
+% \begin{itemize}
+% \item 左边界：排字之前看上一个节点。是字符、连字（上一个是西文字）、行内公式，或者不是
+%   \pkg{CJK} 记号的 kern（\cs{textit} 之后的斜体校正）就插胶。前面是字符的再看
+%   \cs{spacefactor}：只有字母与数字（999、1000）才插。kern 也按前一个字符看，直立体的斜体
+%   校正是一个零宽的 kern，1--3\,sp 的是记号。\texttt{( [ ) ] / -} 的 sfcode 改成
+%   998，\cs{frenchspacing} 把句号那几个拨回 1000 时也跟着改，Word 在这些符号旁不留空。
+%   取小于 1000 的数是因为大于 1000 的跟在大写字母后面会被 \hologo{TeX} 压回 1000；
+%   998 对词间胶的影响是千分之二。
+% \item 右边界：排完之后吞掉空格（与 \pkg{xeCJK} 的 \texttt{CJKspace=false} 一致），看下一个
+%   记号。字母、数字、\verb|$| 插胶；控制序列里几个排字体与引用的，先插胶再垫一个 3\,sp 的
+%   kern 当记号，里面排出来的若是汉字，它的左边界认出记号把胶撤掉。
+%   别的控制序列能展开、又不是 \cs{protected} 的，先展开一层再看（\verb|\the\month| 展开出数字，
+%   日期里“年”后面就有胶），最多十六层；展开出下一个汉字（活动字节展开头一步是 \pkg{CJK} 的
+%   \cs{CJK@@@}）或者碰到不能展开的就停，不插。\cs{label}、\cs{index} 这类先落一个 whatsit，
+%   插了就撤不掉，所以不走试探那一条。先展开一层与 \hologo{TeX} 自己往下走时展开的是同一个记号，
+%   次序不变。
+% \item 全角标点两边都不插。码位落在通用标点、中日韩符号与标点、全角 ASCII 标点这几段的
+%   是标点；\pkg{CJKpunct} 自己接管的弯引号、破折号、省略号不走 \cs{CTEX@char@nnn}，本来就不插。
+% \item 行内代码与 \env{verbatim} 里不插，与 \pkg{xeCJK} 一样。
+% \end{itemize}
+% 没有 \pkg{docxlike} 设过的地方（封面那一类整页）\cs{CJKecglue} 取 0.25\,em，与
+% \pkg{luatexja} 的缺省相当。
+%
+% \verb|~| 也在这里还原成 \cs{nobreakspace}。\pkg{ctex} 在导言区末尾调 \pkg{CJK} 的
+% \cs{CJKtilde}，把它换成一个会看两边是不是汉字的宏，不健壮：英文题注前缀 \texttt{Fig.\textasciitilde}
+% 在 \pkg{ccaption} 的 \cs{edef} 里一展开就报错。另两个引擎下它本来就是 \cs{nobreakspace}。
+%    \begin{macrocode}
+\bool_new:N \l_hit_engine_ec_off_bool
+\sys_if_engine_pdftex:T
+  {
+    \bool_new:N \l__hit_engine_ec_punct_bool
+    \int_new:N \l__hit_engine_ec_cp_int
+    \tl_const:Nn \c__hit_engine_ec_start_tl
+      {
+        \textbf \textit \textsl \textrm \textsf \texttt \textup \textmd
+        \textnormal \textsc \emph \ref \eqref \pageref \autoref \num \SI
+        \si \qty \unit \LaTeX \TeX \LaTeXe
+      }
+    \cs_new_protected:Npn \__hit_engine_ec_glue:
+      {
+        \cs_if_exist:NTF \CJKecglue
+          { \CJKecglue }
+          { \tex_hskip:D 0.25em plus 0.125em minus 0.08em \scan_stop: }
+      }
+    \cs_new_protected:Npn \__hit_engine_ec_punct:n #1
+      {
+        \int_set:Nn \l__hit_engine_ec_cp_int {#1}
+        \bool_set:Nn \l__hit_engine_ec_punct_bool
+          {
+            \int_compare_p:n { "2010 <= \l__hit_engine_ec_cp_int <= "205F }
+            || \int_compare_p:n { "3000 <= \l__hit_engine_ec_cp_int <= "303F }
+            || \int_compare_p:n { "FE10 <= \l__hit_engine_ec_cp_int <= "FE6F }
+            || \int_compare_p:n { "FF01 <= \l__hit_engine_ec_cp_int <= "FF0F }
+            || \int_compare_p:n { "FF1A <= \l__hit_engine_ec_cp_int <= "FF20 }
+            || \int_compare_p:n { "FF3B <= \l__hit_engine_ec_cp_int <= "FF40 }
+            || \int_compare_p:n { "FF5B <= \l__hit_engine_ec_cp_int <= "FF65 }
+          }
+      }
+    \cs_new_protected:Npn \__hit_engine_ec_nnn:nnn #1#2#3
+      {
+        \__hit_engine_ec_punct:n
+          { (#1 - "E0) * "1000 + (#2 - "80) * "40 + #3 - "80 }
+        \__hit_engine_ec_wrap:n { \__hit_engine_ec_orig_nnn:nnn {#1} {#2} {#3} }
+      }
+    \cs_new_protected:Npn \__hit_engine_ec_nnnn:nnnn #1#2#3#4
+      {
+        \bool_set_false:N \l__hit_engine_ec_punct_bool
+        \__hit_engine_ec_wrap:n
+          { \__hit_engine_ec_orig_nnnn:nnnn {#1} {#2} {#3} {#4} }
+      }
+    \cs_new_protected:Npn \__hit_engine_ec_wrap:n #1
+      {
+        \mode_if_math:TF {#1}
+          {
+            \mode_leave_vertical:
+            \__hit_engine_ec_left:
+            #1
+            \bool_if:NF \l_hit_engine_ec_off_bool
+              {
+                \int_zero:N \l__hit_engine_ec_expand_int
+                \__hit_engine_ec_right:
+              }
+          }
+      }
+%    \end{macrocode}
+%
+% 左边界。先撤右边界垫过的胶：上一个节点是 3\,sp 的记号就连它前面那段胶一起拿掉。
+%    \begin{macrocode}
+    \cs_new_protected:Npn \__hit_engine_ec_left:
+      {
+        \bool_lazy_and:nnT
+          { \int_compare_p:nNn { \tex_lastnodetype:D } = { 12 } }
+          { \int_compare_p:nNn { \tex_lastkern:D } = { 3 } }
+          { \tex_unkern:D \tex_unskip:D }
+        \bool_lazy_or:nnF
+          { \l__hit_engine_ec_punct_bool }
+          { \l_hit_engine_ec_off_bool }
+          {
+            \int_case:nn { \tex_lastnodetype:D }
+              {
+                { 0 } { \__hit_engine_ec_after_char: }
+                { 7 } { \__hit_engine_ec_after_char: }
+                { 10 } { \__hit_engine_ec_glue: }
+                { 12 }
+                  {
+                    \bool_lazy_and:nnF
+                      { \int_compare_p:nNn { \tex_lastkern:D } > { 0 } }
+                      { \int_compare_p:nNn { \tex_lastkern:D } < { 4 } }
+                      { \__hit_engine_ec_after_char: }
+                  }
+              }
+          }
+      }
+    \cs_new_protected:Npn \__hit_engine_ec_after_char:
+      {
+        \int_compare:nNnT { \tex_spacefactor:D } > { 998 }
+          {
+            \int_compare:nNnT { \tex_spacefactor:D } < { 1001 }
+              { \__hit_engine_ec_glue: }
+          }
+      }
+%    \end{macrocode}
+%
+% 右边界。下一个记号只比含义，不取下来：前瞻碰到单元格的 \verb|&| 时 \hologo{TeX} 已经把
+% 模板的后半截插了进来，取下来再放回去就把单元格排乱了。空格自己吞，不用
+% \cs{peek\_remove\_spaces:n}：它在对齐安全组里前瞻，出组后再前瞻一次，单元格末尾的
+% \verb|&| 就报“Extra alignment tab”，纯 \cls{article} 里也是这样。
+%    \begin{macrocode}
+    \cs_new_protected:Npn \__hit_engine_ec_right:
+      { \peek_after:Nw \__hit_engine_ec_skip: }
+    \cs_new_protected:Npn \__hit_engine_ec_skip:
+      {
+        \token_if_eq_meaning:NNTF \l_peek_token \c_space_token
+          {
+            \tex_afterassignment:D \__hit_engine_ec_right:
+            \cs_set_eq:NN \__hit_engine_ec_tmp:w
+          }
+          { \__hit_engine_ec_peek: }
+      }
+    \int_new:N \l__hit_engine_ec_expand_int
+    \cs_new_protected:Npn \__hit_engine_ec_expand:
+      {
+        \int_incr:N \l__hit_engine_ec_expand_int
+        \exp_after:wN \__hit_engine_ec_right:
+      }
+    \cs_new_protected:Npn \__hit_engine_ec_peek:
+      {
+        \cs_set_eq:NN \__hit_engine_ec_next: \prg_do_nothing:
+        \bool_if:NF \l__hit_engine_ec_punct_bool
+          {
+            \bool_lazy_or:nnTF
+              { \token_if_letter_p:N \l_peek_token }
+              { \token_if_math_toggle_p:N \l_peek_token }
+              { \__hit_engine_ec_glue: }
+              {
+                \token_if_other:NTF \l_peek_token
+                  {
+                    \tl_map_inline:nn { 0123456789 }
+                      {
+                        \token_if_eq_charcode:NNT \l_peek_token ##1
+                          { \__hit_engine_ec_glue: \tl_map_break: }
+                      }
+                  }
+                  { \token_if_cs:NT \l_peek_token { \__hit_engine_ec_cs: } }
+              }
+          }
+        \__hit_engine_ec_next:
+      }
+    \bool_new:N \l__hit_engine_ec_start_bool
+    \cs_new_protected:Npn \__hit_engine_ec_cs:
+      {
+        \bool_set_false:N \l__hit_engine_ec_start_bool
+        \tl_map_inline:Nn \c__hit_engine_ec_start_tl
+          {
+            \token_if_eq_meaning:NNT \l_peek_token ##1
+              {
+                \bool_set_true:N \l__hit_engine_ec_start_bool
+                \tl_map_break:
+              }
+          }
+        \bool_if:NT \l__hit_engine_ec_start_bool
+          {
+            \__hit_engine_ec_glue:
+            \tex_kern:D 3 sp \scan_stop:
+          }
+        \bool_lazy_all:nT
+          {
+            { ! \l__hit_engine_ec_start_bool }
+            { ! \token_if_eq_meaning_p:NN \l_peek_token \CJK@@@ }
+            { \token_if_expandable_p:N \l_peek_token }
+            { ! \token_if_protected_macro_p:N \l_peek_token }
+            { ! \token_if_protected_long_macro_p:N \l_peek_token }
+            { \int_compare_p:nNn { \l__hit_engine_ec_expand_int } < { 16 } }
+          }
+          { \cs_set_eq:NN \__hit_engine_ec_next: \__hit_engine_ec_expand: }
+      }
+%    \end{macrocode}
+%
+% 装上。\pkg{ctex} 在导言区末尾才开 \pkg{CJK} 环境，这里等到 \texttt{begindocument}。
+%    \begin{macrocode}
+    \cs_new_protected:Npn \__hit_engine_ec_sfcodes:
+      {
+        \clist_map_inline:nn { `( , `[ , `) , `] , `/ , `- , `. , `? , `! , `: , `; , `, }
+          { \tex_sfcode:D ##1 = 998 \scan_stop: }
+      }
+    \cs_new_protected:Npn \__hit_engine_ec_install:
+      {
+        \char_set_active_eq:nN { `\~ } \nobreakspace
+        \cs_set_eq:NN \__hit_engine_ec_orig_nnn:nnn \CTEX@char@nnn
+        \cs_set_eq:NN \__hit_engine_ec_orig_nnnn:nnnn \CTEX@char@nnnn
+        \cs_set_eq:NN \CTEX@char@nnn \__hit_engine_ec_nnn:nnn
+        \cs_set_eq:NN \CTEX@char@nnnn \__hit_engine_ec_nnnn:nnnn
+        \tl_put_right:Nn \verbatim@font { \bool_set_true:N \l_hit_engine_ec_off_bool }
+        \tl_put_right:Nn \frenchspacing { \__hit_engine_ec_sfcodes: }
+        \int_compare:nNnTF { \tex_sfcode:D `\. } = { 1000 }
+          { \__hit_engine_ec_sfcodes: }
+          {
+            \clist_map_inline:nn { `( , `[ , `) , `] , `/ , `- }
+              { \tex_sfcode:D ##1 = 998 \scan_stop: }
+          }
+      }
+    \AddToHook { begindocument } { \__hit_engine_ec_install: }
+  }
+%    \end{macrocode}
+%
 % \subsection{装载基础类之后要补的两件事}
 %
 % \cs{hit@engine@postload:} 由两个 \file{*-deps.dtx} 调用。本文件整体排在
@@ -520,7 +930,22 @@
         \cs_set_eq:NN \CJKunderdashline \dashuline
       }
   }
-  { \cs_new_protected:Npn \hit@engine@postload: { } }
+  {
+    \sys_if_engine_pdftex:TF
+      {
+        \cs_new_protected:Npn \hit@engine@postload:
+          {
+            \cs_set_eq:NN \CJKunderline \uline
+            \cs_set_eq:NN \CJKunderdblline \uuline
+            \cs_set_eq:NN \CJKunderwave \uwave
+            \cs_set_eq:NN \CJKsout \sout
+            \cs_set_eq:NN \CJKxout \xout
+            \cs_set_eq:NN \CJKunderdot \dotuline
+            \cs_set_eq:NN \CJKunderdashline \dashuline
+          }
+      }
+      { \cs_new_protected:Npn \hit@engine@postload: { } }
+  }
 %    \end{macrocode}
 %
 % \textbf{三、下划线的位置与粗细按 Word。}Word 是一个 run 一条线，线心在
