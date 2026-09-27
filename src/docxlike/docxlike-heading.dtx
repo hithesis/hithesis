@@ -291,6 +291,11 @@
 % 前一段的段后，两段之间成了段后加段前，Word 是取大的那个。样式开着“全部大写字母”时整段
 % 内容过 \cs{MakeUppercase}，这一步用 \cs{NoCaseChange} 挡在外面：Word 的大写只管显示，
 % 目录、\texttt{STYLEREF} 取的仍是原文，这里的层级名也不能被改成大写。
+%
+% 编号先展开再交给 \cs{addcontentsline}。留着 \cs{exp\_not:V} 的话，\pkg{hyperref} 做书签时
+% 转 PDF 字符串那一遍也展开不进去，编号里的 \cs{enskip} 之类既不走
+% \cs{pdfstringdefDisableCommands} 的替换，还要被整个删掉并报一条警告，
+% 书签成了 \texttt{Chapter1}。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__docxlike_heading_marks:nnnn #1#2#3#4
   {
@@ -309,8 +314,11 @@
         \tl_if_empty:NTF \l__docxlike_heading_ref_tl
           { \addcontentsline { toc } {#2} {#4} }
           {
-            \addcontentsline { toc } {#2}
-              { \protect \numberline { \exp_not:V \l__docxlike_heading_ref_tl } #4 }
+            \exp_args:Nnne \addcontentsline { toc } {#2}
+              {
+                \exp_not:N \protect \exp_not:N \numberline
+                  { \exp_not:V \l__docxlike_heading_ref_tl } \exp_not:n {#4}
+              }
           }
       }
   }

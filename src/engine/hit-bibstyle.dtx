@@ -1237,6 +1237,32 @@
 %    \end{macrocode}
 % \end{macro}
 %
+% \subsection{\hologo{pdfTeX} 下没有年份的条目}
+%
+% \pkg{natbib} 读 \cs{bibitem} 的可选标签时把年份拆成年与区分字母（\texttt{1998a}），
+% 办法是看前四个记号哪个的 \cs{catcode} 是 11。样式给没有年份的条目写的是“无日期”，
+% \hologo{pdfTeX} 下汉字已经展开成 \cs{CTEX@char@nnn} 加三个字节，拿控制序列取字符码，
+% 一条条目连报三条错（成果页里项目、奖励那几类常没有年份）。首个记号是控制序列时
+% 整串当年份，不拆。顺序编码制用不到年份，排出来的东西不受影响。
+%    \begin{macrocode}
+\sys_if_engine_pdftex:T
+  {
+    \AddToHook { package / natbib / after }
+      {
+        \cs_new_eq:NN \__hit_bib_nat_parse_date:w \NAT@parse@date
+        \cs_set:Npn \NAT@parse@date #1#2#3#4#5#6 @@
+          {
+            \token_if_cs:NTF #1
+              {
+                \cs_set_eq:NN \NAT@year \NAT@date
+                \cs_set:Npn \NAT@exlab { }
+              }
+              { \__hit_bib_nat_parse_date:w #1#2#3#4#5#6 @@ }
+          }
+      }
+  }
+%    \end{macrocode}
+%
 % \subsection{包冲突守卫}
 %
 % 「先装了 A 再装 B」才报错，所以一对包要两个方向各登记一条。用内核的

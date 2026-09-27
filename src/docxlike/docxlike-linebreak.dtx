@@ -2227,6 +2227,16 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
     local ib = node.new(HLIST); ib.subtype = 3; ib.width = indent
     ib.next = head; head.prev = ib; head = ib
   end
+  -- 行末的半角闭标点按预算挂进右边距（tail_hang）是 Word 的排法，不是溢出：伸出版心的量
+  -- 在盒尾用负 kern 收回，字形位置不动，TeX 不再报 Overfull
+  local tail = items[last]
+  if not line.forced and line.over > 0 and tail.kind == 3 and (tail.tail_hang or 0) > 0 then
+    local dw = node.dimensions(head)
+    if dw > measure and dw - measure <= tail.tail_hang + P.eps then
+      local kn = node.new(KERN); kn.kern = measure - dw
+      node.insert_after(head, node.tail(head), kn)
+    end
+  end
   local box = node.hpack(head, measure, "exactly")
   box.shift = line.shift
   if M.trace then
