@@ -6,6 +6,9 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/27}{段首的 kern 并进首行缩进：\cs{docxlike\_format\_par:nn} 把首行缩进写成 kern，
+%   先前它挂在第一个字上而不计宽，只有头一个字挪过去；编号盒、表格格里的盒头盒尾全角标点补回整格，
+%   盒里补字距增量时隔着禁则罚分也认得出后面的汉字缝（先前多给一份）}
 % \changes{v3.2a}{2026/09/27}{弯引号、破折号、省略号、间隔号照 Word 的东亚提示挑字体：一段里没有汉字、假名、
 %   全角字而有西文字母时排西文字体（英文目录里“Master’s”的撇号先前是黑体），别的段照旧按汉字排；
 %   行间公式前后照 TeX 的规矩留行距胶（被公式打断的段记下末行的深，公式后的头一行补胶），先前短公式
@@ -638,6 +641,12 @@ local function tokenize(head)
       else
         attach(n)
       end
+    elseif id == KERN and #items == 0 and not run then
+      -- 段首的 kern 是格式层排的首行缩进（\docxlike_format_par:nn 把 \parindent 清零、
+      -- 另放一个 kern，悬挂缩进是负的）：并进缩进，渲染时与缩进盒一起放。不并的话它挂在
+      -- 第一个字上，字宽里没有它，只有头一个字挪过去
+      indent = indent + n.kern
+      n.kern = 0
     elseif id == KERN then
       if run then
         run.last = n
@@ -2191,7 +2200,7 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
       node.insert_after(head, node.tail(head), kn)
     end
   end
-  if isfirst and indent > 0 then
+  if isfirst and indent ~= 0 then
     local ib = node.new(HLIST); ib.subtype = 3; ib.width = indent
     ib.next = head; head.prev = ib; head = ib
   end
@@ -2679,7 +2688,7 @@ local function snap_render(items, line, P, strut_h, strut_d, indent, isfirst, ct
   end
   local fil = node.new(GLUE); fil.stretch = 65536; fil.stretch_order = 2
   node.insert_after(head, node.tail(head), fil)
-  if isfirst and indent > 0 then
+  if isfirst and indent ~= 0 then
     local ib = node.new(HLIST); ib.subtype = 3; ib.width = indent
     ib.next = head; head.prev = ib; head = ib
   end
@@ -2917,6 +2926,13 @@ end
 -- +增量 +2s、西文每个字形 +增量/2 +s，关着一律 +增量 +s，不分字号；s 是 w:spacing，增量只在
 -- 字体贴网格时有。盒里汉字接汉字的地方已经有汉字缝（增量 +s），只补差；编号里不加中西文间距，
 -- 汉字后面跟着西文的地方没有胶，整份补上
+local function packed_glyph(n)
+  if n and n.id == HLIST and icflag(n) == IC.PACKED then
+    local g = n.head
+    while g and g.id ~= GLYPH do g = g.next end
+    return g
+  end
+end
 function M.grid_box(n, inc, spacing, balance)
   local b = tex.box[n]
   if not b then return end
@@ -2924,15 +2940,18 @@ function M.grid_box(n, inc, spacing, balance)
   local el = (balance and inc / 2 or inc) + spacing
   local head, added = b.list, 0
   for g in traverse(head) do
-    if g.id == GLYPH then
+    local pg = packed_glyph(g)
+    if g.id == GLYPH or pg then
       local add
-      if is_jfont(g.font) then
+      if pg or is_jfont(g.font) then
+        -- 汉字缝前面常隔着 luatexja 的禁则罚分（“词”与后面装成盒的“：”之间），跳过再看
         local nx = g.next
+        while nx and (nx.id == PENALTY or (nx.id == RULE and nx.width == 0)) do nx = nx.next end
         if nx and nx.id == GLUE and is_kanjiskip(nx) then add = ec - nx.width else add = ec end
       else
         add = el
       end
-      add = add + fake_bold(g)
+      add = add + fake_bold(pg or g)
       if add ~= 0 then
         local k = node.new(KERN); k.kern = add
         head = node.insert_after(head, g, k)
@@ -2946,6 +2965,35 @@ end
 
 -- 盒里有没有汉字（jfont 的字形，盒套盒也找）。页眉页脚的行盒按内容定：
 -- 纯西文的行按 Times 的行高算，TeX 那头照这个结果换常量
+-- 编号盒首尾的全角标点：luatexja 把标点装成半格的盒，另一半是它与邻字之间的 JFM 胶，编号盒的
+-- 头尾没有邻字，那半格就丢了。Word 里编号与题名排在同一行，标点照占一格（人文社科范例的“一、”
+-- “（一）”，本科中期原件的“二、”，Windows 导出件逐字量），盒头的开号、盒尾的闭号补回整格
+function M.box_punct(n)
+  local b = tex.box[n]
+  if not b or not b.list then return end
+  local head, added = b.list, 0
+  local first = head
+  while first and (first.id == WHATSIT or first.id == PENALTY
+                   or (first.id == RULE and first.width == 0)) do
+    first = first.next
+  end
+  local g = packed_glyph(first)
+  if g and openers[g.char] then
+    local k = node.new(KERN); k.kern = fsize(g.font) - first.width
+    head = node.insert_before(head, first, k)
+    added = added + k.kern
+  end
+  local last = node.tail(head)
+  g = packed_glyph(last)
+  if g and closers[g.char] then
+    local k = node.new(KERN); k.kern = fsize(g.font) - last.width
+    head = node.insert_after(head, last, k)
+    added = added + k.kern
+  end
+  b.list = head
+  b.width = b.width + added
+end
+
 function M.box_has_cjk(n)
   local b = tex.box[n]
   local function walk(list)

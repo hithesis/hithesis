@@ -6,6 +6,8 @@
 %
 % \section{编号}
 %
+% \changes{v0.1.0}{2026/09/27}{编号头尾的全角标点（“一、”“（一）”）占整格，与 Word 一样；
+%   \cs{docxlike\_format\_run\_hbox\_set:Nn} 给文档类装先量宽再排的标签}
 % \changes{v0.1.0}{2026/09/26}{编号盒补字距增量与 \texttt{w:spacing} 照正文的规矩，西文不分字号
 %   （节标题“4.1”小三号，先前少三个半份增量，题名首字比 Windows Word 偏左 0.68）}
 % \changes{v0.1.0}{2026/09/25}{多级列表：照“定义新多级列表”对话框定义各级，按 Word 的规则
@@ -559,29 +561,59 @@
 % 半份增量加一份字距，不分字号；盒里汉字缝之外的那几处由 Lua 补（\hologo{XeLaTeX} 不补）；
 % 模板里“第”到“1”是 18.5。编号的字符格式是段落标记的（样式的）再叠这一级的
 % \option{font}，“全部大写字母”也在里面：开着时编号跟着大写（Windows Word 实测，
-% \file{test/headings/heads-caps}）。
+% \file{test/headings/heads-caps}）。编号头尾的全角标点（“一、”“（一）”）占整格：\pkg{luatexja}
+% 把它们装成半格的盒、另一半放在与邻字之间的胶里，盒边没有邻字，由 Lua 补回。
+%
+% \cs{docxlike\_format\_run\_hbox\_set:Nn}\meta{盒}\marg{内容} 是同一件事的公开版：把一段文字
+% 装盒，装出来与它在 Word 的行里一样宽（盒头的开号、盒尾的闭号占整格，字距增量照当前段落补）。文档类要先量宽再排
+% 的标签（关键词的“关键词：”那种）用它，不用 \cs{hbox\_set:Nn}。
 %    \begin{macrocode}
 \tl_new:N \l_docxlike_field_parnum_tl
-\cs_new_protected:Npn \__docxlike_numbering_grid:
+\cs_new_protected:Npn \__docxlike_box_edge_punct:N #1
+  {
+    \sys_if_engine_luatex:T
+      {
+        \tex_directlua:D
+          {
+            if~docxlike~and~docxlike.linebreak~then~
+              docxlike.linebreak.box_punct( \int_use:N #1 )~
+            end
+          }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_box_grid:NNn #1#2#3
   {
     \sys_if_engine_luatex:T
       {
         \bool_lazy_or:nnT
-          { \l_docxlike_format_snap_horizontal_bool }
-          { ! \dim_compare_p:nNn { \g__docxlike_numbering_spacing_dim } = { 0pt } }
+          { #2 }
+          { ! \dim_compare_p:nNn {#3} = { 0pt } }
           {
             \tex_directlua:D
               {
                 if~docxlike~and~docxlike.linebreak~then~
-                  docxlike.linebreak.grid_box( \int_use:N \l__docxlike_numbering_box ,
-                    \bool_if:NTF \l_docxlike_format_snap_horizontal_bool
+                  docxlike.linebreak.grid_box( \int_use:N #1 ,
+                    \bool_if:NTF #2
                       { \dim_to_decimal_in_sp:n { \__docxlike_format_grid_glue: } } { 0 } ,
-                    \dim_to_decimal_in_sp:n { \g__docxlike_numbering_spacing_dim } ,
+                    \dim_to_decimal_in_sp:n {#3} ,
                     \bool_if:NTF \g_docxlike_format_balance_bool { true } { false } )~
                 end
               }
           }
       }
+  }
+\cs_new_protected:Npn \docxlike_format_run_hbox_set:Nn #1#2
+  {
+    \hbox_set:Nn #1 {#2}
+    \__docxlike_box_edge_punct:N #1
+    \__docxlike_box_grid:NNn #1 \l_docxlike_format_par_snap_horizontal_bool
+      { \l_docxlike_format_par_char_spacing_dim }
+  }
+\cs_new_protected:Npn \__docxlike_numbering_grid:
+  {
+    \__docxlike_box_edge_punct:N \l__docxlike_numbering_box
+    \__docxlike_box_grid:NNn \l__docxlike_numbering_box \l_docxlike_format_snap_horizontal_bool
+      { \g__docxlike_numbering_spacing_dim }
   }
 \cs_new_protected:Npn \__docxlike_numbering_no_xspace:
   {
