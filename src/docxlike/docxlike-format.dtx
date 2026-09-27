@@ -6,6 +6,8 @@
 %
 % \section{元素格式（format）}
 %
+% \changes{v3.2a}{2026/09/28}{\hologo{XeLaTeX} 下按名字建的中文字族，Windows 自带、没有粗体字面的那几副
+%   （宋体、黑体、楷体、仿宋、隶书、华文系列等）开合成粗体，与 Word 一样描边；先前排成常规}
 % \changes{v3.2a}{2026/09/27}{\hologo{XeLaTeX} 下两可字符（弯引号、破折号、省略号、间隔号）在西文场合
 %   排西文字体（\cs{docxlike\_format\_latin\_chars:n}：样式带 \option{latin-line} 或立了西文标志的段、
 %   全西文的标题）；\hologo{LuaLaTeX} 由断行层按整段判}
@@ -2481,6 +2483,20 @@
 % 换一档字号（二号）复验，墨点与字高都逐值相同，所以这个系数与字号无关。
 %    \begin{macrocode}
 \tl_const:Nn \c_docxlike_font_fake_slant_tl { 0.3333 }
+%    \end{macrocode}
+%
+% \hologo{XeLaTeX} 下 \pkg{xeCJK} 用到一个字族才去建它，声明的时候查不到这副字有没有粗体字面。
+% Windows 自带的这几副中文字体都没有，Word 一律描边合成；按名字建族时认得的就开合成粗体
+% （名字照字体键的写法，小写、不计空格）。别的字体照 \pkg{fontspec} 找真粗体，找不到就排常规。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_font_opts_tl
+\clist_const:Nn \c__docxlike_font_no_bold_clist
+  {
+    simsun , nsimsun , simhei , kaiti , fangsong , lisu , youyuan , stxinwei ,
+    stkaiti , stsong , stfangsong , stzhongsong , sthupo , stcaiyun , stliti , stxingkai ,
+    宋体 , 新宋体 , 黑体 , 楷体 , 仿宋 , 隶书 , 幼圆 , 华文新魏 , 华文楷体 , 华文宋体 , 华文仿宋 ,
+    华文中宋 , 华文琥珀 , 华文彩云 , 华文隶书 , 华文行楷
+  }
 \tl_const:Nn \c_docxlike_font_fake_bold_tl { 2.85 }
 \prop_new:N \g__docxlike_font_select_prop
 \tl_new:N \l__docxlike_font_code_tl
@@ -2531,8 +2547,25 @@
               {
                 \cs_if_exist:NTF \xeCJK_set_family:nnn
                   {
-                    \xeCJK_set_family:enn { docxlike-\l__docxlike_font_key_str }
-                      { AutoFakeSlant = \c_docxlike_font_fake_slant_tl , BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl } } {#1}
+                    \tl_set:Nn \l__docxlike_font_opts_tl
+                      {
+                        AutoFakeSlant = \c_docxlike_font_fake_slant_tl ,
+                        BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl }
+                      }
+                    \clist_map_inline:Nn \c__docxlike_font_no_bold_clist
+                      {
+                        \str_if_eq:VnT \l__docxlike_font_key_str {##1}
+                          {
+                            \tl_put_right:Nn \l__docxlike_font_opts_tl
+                              { , AutoFakeBold = \c_docxlike_font_fake_bold_tl }
+                            \clist_map_break:
+                          }
+                      }
+                    \use:e
+                      {
+                        \exp_not:N \xeCJK_set_family:nnn { docxlike-\l__docxlike_font_key_str }
+                          { \exp_not:V \l__docxlike_font_opts_tl } { \exp_not:n {#1} }
+                      }
                     \tl_gset:ce { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
                       { \exp_not:N \CJKfamily { docxlike-\l__docxlike_font_key_str } }
                   }

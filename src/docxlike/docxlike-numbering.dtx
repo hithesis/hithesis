@@ -6,6 +6,9 @@
 %
 % \section{编号}
 %
+% \changes{v0.1.0}{2026/09/28}{加 \cs{docxlike\_numbering\_get:nnnN} 与 \cs{c\_docxlike\_numbering\_space\_tl}，文档类照多级列表的
+%   定义配别的排版器；\hologo{XeLaTeX} 下 \cs{docxlike\_format\_run\_hbox\_set:Nn} 盒头的开号、盒尾的闭号也占整格
+%   （先前只有 Lua 补，“（1）”的盒子窄 6.8）；编号格式加 \texttt{bullet}}
 % \changes{v0.1.0}{2026/09/27}{编号头尾的全角标点（“一、”“（一）”）占整格，与 Word 一样；
 %   \cs{docxlike\_format\_run\_hbox\_set:Nn} 给文档类装先量宽再排的标签}
 % \changes{v0.1.0}{2026/09/26}{编号盒补字距增量与 \texttt{w:spacing} 照正文的规矩，西文不分字号
@@ -454,6 +457,27 @@
 \cs_generate_variant:Nn \tl_replace_all:Nnn { Nne }
 %    \end{macrocode}
 %
+% \cs{docxlike\_numbering\_get:nnnN}\marg{列表}\marg{级别}\marg{键}\meta{tl 变量} 取一级的定义，给文档类
+% 拿去配别的排版器用（比如照多级列表的定义设 \pkg{enumitem}）。键照 \texttt{w:lvl} 的名字：\texttt{lvlText}、
+% \texttt{numFmt}、\texttt{suff}、\texttt{lvlJc}、\texttt{start}、\texttt{ind/left}、\texttt{ind/hanging}、
+% \texttt{ind/firstLine}（这三个是缇）、\texttt{tabs}、\texttt{rPr}；没写的取出来是空的。级别从 1 数。
+% 编号后跟空格时那一格的宽是 \cs{c\_docxlike\_numbering\_space\_tl} 个字号（Arial 的空格，见下面“编号怎么排”）。
+%    \begin{macrocode}
+\tl_const:Nn \c_docxlike_numbering_space_tl { 0.27783203125 }
+\cs_new_protected:Npn \docxlike_numbering_get:nnnN #1#2#3#4
+  {
+    \tl_clear:N #4
+    \__docxlike_numbering_known:nT {#1}
+      {
+        \tl_set:Ne #4
+          {
+            \__docxlike_numbering_get:nnn { \l__docxlike_numbering_list_str }
+              { \int_eval:n { #2 - 1 } } {#3}
+          }
+      }
+  }
+%    \end{macrocode}
+%
 % \cs{docxlike\_numbering\_reset:n}\marg{列表} 让整个列表从头编，给“重新开始编号”用。
 %    \begin{macrocode}
 \cs_new_protected:Npn \docxlike_numbering_reset:n #1
@@ -581,6 +605,55 @@
           }
       }
   }
+%    \end{macrocode}
+%
+% \hologo{XeLaTeX} 下没有 Lua 可补。\pkg{xeCJK} 把盒头的开号、盒尾的闭号排成半格（“（1）”的盒子
+% 宽 23.29，该是 30.11），这里在装盒之前看内容的头一个与末一个记号：是全角开号就装进一个字宽的盒子
+% 靠右，是全角闭号或点号就装进一个字宽的盒子靠左，与字身里墨迹的位置一致。内容外面包着一层
+% 花括号的先剥掉；头尾不是单个字符记号的照原样装。
+%    \begin{macrocode}
+\tl_const:Nn \c__docxlike_box_open_tl { （〔［｛《〈「『【“‘ }
+\tl_const:Nn \c__docxlike_box_close_tl { ）〕］｝》〉」』】”’、。，：；！？ }
+\tl_new:N \l__docxlike_box_body_tl
+\tl_new:N \l__docxlike_box_head_tl
+\tl_new:N \l__docxlike_box_tail_tl
+\cs_new_protected:Npn \__docxlike_box_edge_xetex:Nn #1#2
+  {
+    \tl_set:Nn \l__docxlike_box_body_tl {#2}
+    \tl_clear:N \l__docxlike_box_head_tl
+    \tl_clear:N \l__docxlike_box_tail_tl
+    \tl_if_single_token:VF \l__docxlike_box_body_tl
+      {
+        \tl_set:Ne \l__docxlike_box_head_tl { \tl_head:N \l__docxlike_box_body_tl }
+        \__docxlike_box_edge_keep:NN \l__docxlike_box_head_tl \c__docxlike_box_open_tl
+        \tl_if_empty:NF \l__docxlike_box_head_tl
+          { \tl_set:Ne \l__docxlike_box_body_tl { \tl_tail:N \l__docxlike_box_body_tl } }
+        \tl_set:Ne \l__docxlike_box_tail_tl { \tl_item:Nn \l__docxlike_box_body_tl { -1 } }
+        \__docxlike_box_edge_keep:NN \l__docxlike_box_tail_tl \c__docxlike_box_close_tl
+        \tl_if_empty:NF \l__docxlike_box_tail_tl
+          {
+            \tl_set:Ne \l__docxlike_box_body_tl
+              { \tl_range:Nnn \l__docxlike_box_body_tl { 1 } { -2 } }
+          }
+      }
+    \hbox_set:Nn #1
+      {
+        \tl_if_empty:NF \l__docxlike_box_head_tl
+          { \hbox_to_wd:nn { 1em } { \tex_hss:D \l__docxlike_box_head_tl } }
+        \l__docxlike_box_body_tl
+        \tl_if_empty:NF \l__docxlike_box_tail_tl
+          { \hbox_to_wd:nn { 1em } { \l__docxlike_box_tail_tl \tex_hss:D } }
+      }
+  }
+% 记号 \#1 是单个记号、在 \#2 那一串里，就留着，否则清掉（控制序列的名字不会落在那一串里）。
+\cs_new_protected:Npn \__docxlike_box_edge_keep:NN #1#2
+  {
+    \tl_if_single_token:VTF #1
+      { \exp_args:NVV \str_if_in:nnF #2 #1 { \tl_clear:N #1 } }
+      { \tl_clear:N #1 }
+  }
+\cs_generate_variant:Nn \tl_if_single_token:nF { V }
+\cs_generate_variant:Nn \tl_if_single_token:nTF { V }
 \cs_new_protected:Npn \__docxlike_box_grid:NNn #1#2#3
   {
     \sys_if_engine_luatex:T
@@ -604,7 +677,9 @@
   }
 \cs_new_protected:Npn \docxlike_format_run_hbox_set:Nn #1#2
   {
-    \hbox_set:Nn #1 {#2}
+    \sys_if_engine_xetex:TF
+      { \__docxlike_box_edge_xetex:Nn #1 {#2} }
+      { \hbox_set:Nn #1 {#2} }
     \__docxlike_box_edge_punct:N #1
     \__docxlike_box_grid:NNn #1 \l_docxlike_format_par_snap_horizontal_bool
       { \l_docxlike_format_par_char_spacing_dim }
@@ -636,7 +711,7 @@
           { \exp_args:NV \MakeUppercase \l__docxlike_numbering_text_tl }
           { \l__docxlike_numbering_text_tl }
         \str_if_eq:eeT { \__docxlike_numbering_cur:n { suff } } { space }
-          { \skip_horizontal:n { 0.27783203125 \g__docxlike_numbering_size_dim } }
+          { \skip_horizontal:n { \c_docxlike_numbering_space_tl \g__docxlike_numbering_size_dim } }
       }
     \__docxlike_numbering_grid:
     \dim_set:Nn \l__docxlike_numbering_start_dim

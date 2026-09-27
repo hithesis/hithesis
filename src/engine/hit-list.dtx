@@ -6,6 +6,8 @@
 %
 % \section{共享列表环境}
 %
+% \changes{v3.2a}{2026/09/28}{列表照 \pkg{docxlike} 的多级列表排：编号格式、位置、编号之后跟什么都照 Word 的定义，
+%   \pkg{enumitem} 的参数由它算}
 % \changes{v3.2a}{2026/08/10}{\pkg{enumitem} 的加载、列表间距与 \env{publist} 抽出来共用，
 %   \env{publist} 改用 \cs{newlist} 实现，报告也能写}
 %
@@ -33,6 +35,184 @@
       { \exp_args:NV \setitemize \g__hit_list_itemize_clist }
     \clist_if_empty:NF \g__hit_list_enumerate_clist
       { \exp_args:NV \setenumerate \g__hit_list_enumerate_clist }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@list@docxlike:nnn}
+% \cs{hit@list@docxlike:nnn}\marg{\pkg{enumitem} 列表}\marg{多级列表}\marg{级数}：照 \pkg{docxlike} 的多级列表
+% （Word“定义新多级列表”那一套，写在 \file{hithesis.cfg} 的 \option{multilevel-lists} 里）给 \pkg{enumitem}
+% 的列表设参数。\pkg{enumitem} 只当排版器：标号是哪几个字、摆在哪、后面空多少、折行缩进到哪，都从
+% Word 的定义算：
+% \begin{itemize}
+% \item 标号照这一级的“输入编号的格式”，\verb|\%|\meta{k} 换成第 \meta{k} 级的号、用第 \meta{k} 级的编号
+%   格式；项目符号（\texttt{bullet}）照印。编号格式登记成 \pkg{enumitem} 的计数器写法
+%   （\cs{AddEnumerateCounter}，与 \cs{arabic*} 同一路），这一级的号写成带星号的那种，上级的写明计数器，
+%   标号与引用什么时候取值都交给 \pkg{enumitem}（它在列表开头展开一遍标号，那时计数器还是零，
+%   直接读计数器就取成零）。装盒用
+%   \cs{docxlike\_format\_run\_hbox\_set:Nn}，“（1）”这种头尾的全角括号占整格，与 Word 一样。
+% \item 编号位置是 \texttt{ind/left} 加首行缩进（悬挂时减），就是首行起点；文本缩进位置 \texttt{ind/left} 是
+%   \cs{leftmargin}，折行回到这里。
+% \item 编号之后：空格是 Arial 的空格（\cs{c\_docxlike\_numbering\_space\_tl} 个字号），落成 \texttt{labelsep}；
+%   什么都不跟是零；制表符跳到文本缩进位置（悬挂缩进的那个停靠点），落成标号列宽 \texttt{labelwidth}，
+%   标号比它宽时照标号自己的宽。
+% \end{itemize}
+% \pkg{enumitem} 把标号摆在“\cs{leftmargin} 加 \cs{itemindent} 减 \cs{labelsep} 减 \cs{labelwidth}”处，
+% 所以 \cs{itemindent} 取“编号位置减文本缩进位置加列宽加间隔”，首行正好从编号位置起。
+% 列表的计数器名：\env{enumerate} 是 \texttt{enumi} 一族，\cs{newlist} 出来的是列表名加罗马数字。
+%    \begin{macrocode}
+\tl_new:N \l__hit_list_value_tl
+\tl_new:N \l__hit_list_label_tl
+\tl_new:N \l__hit_list_suff_tl
+\dim_new:N \l__hit_list_left_dim
+\dim_new:N \l__hit_list_first_dim
+\dim_new:N \l__hit_list_width_dim
+\tl_new:N \l__hit_list_sep_tl
+\box_new:N \l__hit_list_label_box
+\cs_new:Npn \__hit_list_counter:nn #1#2
+  { \str_if_eq:nnTF {#1} { enumerate } { enum } {#1} \int_to_roman:n {#2} }
+\cs_new_protected:Npn \__hit_list_twips:nnN #1#2#3
+  {
+    \docxlike_numbering_get:nnnN {#1} {#2} {#3} \l__hit_list_value_tl
+    \tl_if_blank:VT \l__hit_list_value_tl { \tl_set:Nn \l__hit_list_value_tl { 0 } }
+  }
+\cs_new_protected:Npn \hit@list@label:n #1
+  {
+    \docxlike_format_run_hbox_set:Nn \l__hit_list_label_box {#1}
+    \box_use_drop:N \l__hit_list_label_box
+  }
+\cs_new_protected:Npn \__hit_list_format:n #1
+  {
+    \cs_if_exist:cF { hitlist@ #1 }
+      {
+        \cs_gset:cpn { @hitlist@ #1 } ##1
+          { \docxlike_number_format:nn {#1} { \int_use:N ##1 } }
+        \cs_gset:cpn { hitlist@ #1 } ##1
+          { \use:c { @hitlist@ #1 } { \use:c { c@ ##1 } } }
+        \exp_args:Ncc \AddEnumerateCounter { hitlist@ #1 } { @hitlist@ #1 } { 0 }
+      }
+  }
+\cs_new_protected:Npn \hit@list@docxlike:nnn #1#2#3
+  {
+    \int_step_inline:nn {#3}
+      {
+        \docxlike_numbering_get:nnnN {#2} {##1} { lvlText } \l__hit_list_label_tl
+        \int_step_inline:nn { 9 }
+          {
+            \tl_if_in:NnT \l__hit_list_label_tl { \% ####1 }
+              {
+                \docxlike_numbering_get:nnnN {#2} {####1} { numFmt } \l__hit_list_value_tl
+                \exp_args:NV \__hit_list_format:n \l__hit_list_value_tl
+                \int_compare:nNnTF {####1} = {##1}
+                  {
+                    \tl_replace_all:Nne \l__hit_list_label_tl { \% ####1 }
+                      { \exp_not:c { hitlist@ \l__hit_list_value_tl } * }
+                  }
+                  {
+                    \tl_replace_all:Nne \l__hit_list_label_tl { \% ####1 }
+                      {
+                        \exp_not:c { hitlist@ \l__hit_list_value_tl }
+                          { \__hit_list_counter:nn {#1} {####1} }
+                      }
+                  }
+              }
+          }
+        \__hit_list_twips:nnN {#2} {##1} { ind/left }
+        \dim_set:Nn \l__hit_list_left_dim { \l__hit_list_value_tl bp / 20 }
+        \__hit_list_twips:nnN {#2} {##1} { ind/firstLine }
+        \dim_set:Nn \l__hit_list_first_dim { \l__hit_list_value_tl bp / 20 }
+        \__hit_list_twips:nnN {#2} {##1} { ind/hanging }
+        \dim_sub:Nn \l__hit_list_first_dim { \l__hit_list_value_tl bp / 20 }
+        \docxlike_numbering_get:nnnN {#2} {##1} { suff } \l__hit_list_suff_tl
+        \dim_zero:N \l__hit_list_width_dim
+        \str_case:VnF \l__hit_list_suff_tl
+          {
+            { space } { \tl_set:Ne \l__hit_list_sep_tl { \c_docxlike_numbering_space_tl em } }
+            { nothing } { \tl_set:Nn \l__hit_list_sep_tl { 0pt } }
+          }
+          {
+            \tl_set:Nn \l__hit_list_sep_tl { 0pt }
+            \dim_set:Nn \l__hit_list_width_dim
+              { \dim_max:nn { \c_zero_dim } { - \l__hit_list_first_dim } }
+          }
+        \use:e
+          {
+            \exp_not:N \setlist [ #1 , ##1 ]
+              {
+                leftmargin = \dim_use:N \l__hit_list_left_dim ,
+                itemindent = \exp_not:N \dimexpr \dim_use:N \l__hit_list_first_dim
+                  + \dim_use:N \l__hit_list_width_dim + \l__hit_list_sep_tl \exp_not:N \relax ,
+                labelwidth = \dim_use:N \l__hit_list_width_dim ,
+                labelsep = \l__hit_list_sep_tl ,
+                align = left ,
+                label = \exp_not:N \hit@list@label:n { \exp_not:V \l__hit_list_label_tl } ,
+                ref = \exp_not:V \l__hit_list_label_tl ,
+              }
+          }
+      }
+  }
+\cs_generate_variant:Nn \tl_replace_all:Nnn { Nne }
+\cs_generate_variant:Nn \tl_if_blank:nT { V }
+\cs_generate_variant:Nn \str_case:nnF { V }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@list@word:nn}
+% 照 Word 排的那几档（学位论文、照终稿排正文的报告）列表都是 Word 的多级列表：编号在首行缩进
+% 处（正文的首行缩进，两个字），续行回到版心左缘，与范例里手敲“（1）……”的段落一个样。
+% \cs{hit@list@word:nn}\marg{一级编号}\marg{编号之后} 定两个多级列表 \texttt{hit-enumerate} 与
+% \texttt{hit-itemize}，再照它们设 \env{enumerate} 与 \env{itemize}。一级编号用“输入编号的格式”
+% 的写法（\verb|（\%1）|、\verb|\%1.|），编号之后取 \texttt{space} 或 \texttt{nothing}；二到四级照
+% \pkg{enumitem} 原来的标号（(a)、i.、A.；项目符号 \textbullet、\textendash、\textasteriskcentered、
+% \textperiodcentered），后面跟空格，一级套一级、各自从上一级的正文起点量。
+%
+% 首行缩进要等正文的样式设好才有值，所以在 \texttt{begindocument/end} 上定，从 \texttt{Normal}
+% 现算。\pkg{enumitem} 的 \cs{setlist} 在正文里也能写。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@list@word:nn #1#2
+  {
+    \AddToHook { begindocument / end }
+      {
+        \group_begin:
+          \docxlike_format_compute:n { Normal }
+          \dim_gset_eq:NN \g__hit_list_indent_dim \l_docxlike_format_indent_dim
+        \group_end:
+        \use:e
+          {
+            \exp_not:N \docxlikesetup
+              {
+                multilevel-lists =
+                  {
+                    hit-enumerate =
+                      {
+                        level-1 = { \__hit_list_level:nnn { \exp_not:n {#1} } { decimal } {#2} } ,
+                        level-2 = { \__hit_list_level:nnn { ( \exp_not:N \% 2 ) } { lower-letter } { space } } ,
+                        level-3 = { \__hit_list_level:nnn { \exp_not:N \% 3 . } { lower-roman } { space } } ,
+                        level-4 = { \__hit_list_level:nnn { \exp_not:N \% 4 . } { upper-letter } { space } } ,
+                      } ,
+                    hit-itemize =
+                      {
+                        level-1 = { \__hit_list_level:nnn { \exp_not:N \textbullet } { bullet } { space } } ,
+                        level-2 = { \__hit_list_level:nnn { \exp_not:N \textendash } { bullet } { space } } ,
+                        level-3 = { \__hit_list_level:nnn { \exp_not:N \textasteriskcentered } { bullet } { space } } ,
+                        level-4 = { \__hit_list_level:nnn { \exp_not:N \textperiodcentered } { bullet } { space } } ,
+                      } ,
+                  }
+              }
+          }
+        \hit@list@docxlike:nnn { enumerate } { hit-enumerate } { 4 }
+        \hit@list@docxlike:nnn { itemize } { hit-itemize } { 4 }
+        \setlist { nosep }
+      }
+  }
+\dim_new:N \g__hit_list_indent_dim
+\cs_new:Npn \__hit_list_level:nnn #1#2#3
+  {
+    enter-formatting-for-number = {#1} ,
+    number-style-for-this-level = #2 ,
+    aligned-at = \dim_use:N \g__hit_list_indent_dim ,
+    text-indent-at = 0pt ,
+    follow-number-with = #3
   }
 %    \end{macrocode}
 % \end{macro}
