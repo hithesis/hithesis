@@ -5,7 +5,10 @@ return function(t)
   local indent_x = body.glyphs[1].x
   local l = t:find("第一条")
   if not t:expect(l ~= nil, "缺第一条") then return end
-  t:expect(math.abs(l.glyphs[1].x - indent_x) < 0.1,
+  -- pdfLaTeX 的西文网格增量是 \letterspacefont 加宽的字体实例，字形居中在加宽后的步进里，
+  -- 行首的西文字形比 Word 右移半份增量（小四 0.108），编号“(1)”落在首行缩进右边这么多
+  local tol = t.engine == "pdflatex" and 0.2 or 0.1
+  t:expect(math.abs(l.glyphs[1].x - indent_x) < tol,
     string.format("编号该在首行缩进处 %.2f，排在 %.2f", indent_x, l.glyphs[1].x))
   local lines = t:lines()
   for i, x in ipairs(lines) do

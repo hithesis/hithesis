@@ -6,6 +6,9 @@
 %
 % \section{元素格式（format）}
 %
+% \changes{v3.2a}{2026/09/28}{\hologo{pdfLaTeX} 下西文也加网格的半份增量：换字体时换成 \cs{letterspacefont} 加宽的实例
+%   （字偶距照留），量与 Lua 断行层一样，段落不对齐网格时不加；空格加它自己那半份。英文版学位论文与
+%   \hologo{LuaLaTeX} 行末相同的行从 53 到 58}
 % \changes{v3.2a}{2026/09/28}{\hologo{XeLaTeX} 下按名字建的中文字族，Windows 自带、没有粗体字面的那几副
 %   （宋体、黑体、楷体、仿宋、隶书、华文系列等）开合成粗体，与 Word 一样描边；先前排成常规}
 % \changes{v3.2a}{2026/09/27}{\hologo{XeLaTeX} 下两可字符（弯引号、破折号、省略号、间隔号）在西文场合
@@ -5204,6 +5207,13 @@
   {
     \bool_lazy_all:nT
       {
+        { \sys_if_engine_pdftex_p: }
+        { \bool_if_p:N \g_docxlike_latin_pitch_bool }
+        { ! \dim_compare_p:nNn { \g_docxlike_page_char_dim } = { 0pt } }
+      }
+      { \__docxlike_format_latin_pitch_pdftex: }
+    \bool_lazy_all:nT
+      {
         { \bool_if_p:N \g_docxlike_latin_pitch_bool }
         { ! \dim_compare_p:nNn { \g_docxlike_page_char_dim } = { 0pt } }
         { ! \hook_if_empty_p:n { docxlike / latin-font-reload } }
@@ -5245,6 +5255,89 @@
           }
         \frenchspacing
       }
+  }
+%    \end{macrocode}
+%
+% \emph{\hologo{pdfLaTeX} 那一路。} 没有 \pkg{fontspec}，也没有 Lua 断行层，西文字体换成 \hologo{pdfTeX}
+% 的 \cs{letterspacefont} 造的加宽实例：每个字形加宽一份、字形居中，字偶距照留（\cs{pdfappendkern}
+% 在字后补 kern 也能加宽，但会把字体自带的字偶距顶掉，“Te”这种对就宽出一截，Word 的字偶距是开着的）。
+% 量与 Lua 断行层一样（\file{docxlike-linebreak.dtx} 的 \texttt{latin\_adds}）：半个增量；段落跟网格走
+% （自动调整右缩进或段落对齐网格）时截到 1/6000 英寸，字距 1861 时 0.216；段落不对齐网格（页眉页脚、
+% \texttt{snap-to-grid=false} 的段）不加。换字体时看这一段的属性（\texttt{selectfont} 钩子），只动西文正文的
+% 编码。\cs{letterspacefont} 的单位是千分之一 em，按字号折，同一字体同一量的实例只造一次。空格加它自己
+% 那半份（跟网格走的段）或 0.25\,bp：词尾那个字母的半份已经在字形里，与 \hologo{XeLaTeX} 那一路不同。
+%    \begin{macrocode}
+\bool_new:N \g__docxlike_format_ls_bool
+\bool_new:N \g__docxlike_format_ls_hook_bool
+\dim_new:N \l__docxlike_format_ls_dim
+\int_new:N \l__docxlike_format_ls_int
+\tl_new:N \l__docxlike_format_ls_tl
+\clist_const:Nn \c__docxlike_format_ls_enc_clist { T1 , OT1 , TS1 , LY1 , QX , T5 , L7x }
+\cs_new_protected:Npn \__docxlike_format_ls_half:N #1
+  {
+    \dim_set:Nn #1 { ( \g_docxlike_page_char_dim - \g_docxlike_body_size_dim ) / 2 }
+    \bool_lazy_or:nnT
+      { \bool_if_p:N \l_docxlike_format_par_adjust_right_bool }
+      { \bool_if_p:N \l_docxlike_format_line_snap_bool }
+      {
+        \dim_set:Nn #1
+          { \fp_to_dim:n { trunc ( \dim_to_fp:n {#1} / 0.012bp ) * 0.012bp } }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_format_ls_font:
+  {
+    \bool_lazy_and:nnT
+      { \g__docxlike_format_ls_bool }
+      { \l_docxlike_format_par_snap_horizontal_bool }
+      {
+        \clist_if_in:NeT \c__docxlike_format_ls_enc_clist { \f@encoding }
+          {
+            \__docxlike_format_ls_half:N \l__docxlike_format_ls_dim
+            \int_set:Nn \l__docxlike_format_ls_int
+              {
+                \fp_eval:n
+                  {
+                    round ( 1000 * \dim_to_fp:n { \l__docxlike_format_ls_dim }
+                      / \dim_to_fp:n { \f@size pt } )
+                  }
+              }
+            \int_compare:nNnF { \l__docxlike_format_ls_int } = { 0 }
+              {
+                \tl_set:Ne \l__docxlike_format_ls_tl
+                  { docxlike@ls/ \fontname \font / \int_use:N \l__docxlike_format_ls_int }
+                \cs_if_exist:cF { \l__docxlike_format_ls_tl }
+                  {
+                    \exp_after:wN \tex_letterspacefont:D
+                      \cs:w \l__docxlike_format_ls_tl \cs_end:
+                      \font \l__docxlike_format_ls_int
+                  }
+                \use:c { \l__docxlike_format_ls_tl }
+              }
+          }
+      }
+  }
+\prg_generate_conditional_variant:Nnn \clist_if_in:Nn { Ne } { T , F , TF }
+\cs_new_protected:Npn \__docxlike_format_latin_pitch_pdftex:
+  {
+    \bool_gset_true:N \g__docxlike_format_ls_bool
+    \bool_if:NF \g__docxlike_format_ls_hook_bool
+      {
+        \bool_gset_true:N \g__docxlike_format_ls_hook_bool
+        \hook_gput_code:nnn { selectfont } { docxlike } { \__docxlike_format_ls_font: }
+      }
+    \normalsize
+    \__docxlike_format_ls_half:N \l__docxlike_format_ls_dim
+    \bool_lazy_or:nnF
+      { \bool_if_p:N \l_docxlike_format_par_adjust_right_bool }
+      { \bool_if_p:N \l_docxlike_format_line_snap_bool }
+      { \dim_set:Nn \l__docxlike_format_ls_dim { 0.25bp } }
+    \skip_set:Nn \spaceskip
+      {
+        \dim_eval:n { \fontdimen 2 \font + \l__docxlike_format_ls_dim }
+        plus \c__docxlike_format_ccstretch_tl \baselineskip
+        minus 0.25 \fontdimen 2 \font
+      }
+    \frenchspacing
   }
 %    \end{macrocode}
 %
