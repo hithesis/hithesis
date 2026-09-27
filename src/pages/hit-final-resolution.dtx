@@ -7,8 +7,8 @@
 % \section{答辩决议页}
 %
 % \changes{v3.2a}{2026/09/27}{答辩决议页从贴扫描件改成排出来，照范例 \file{docx} 里那张 Word 表：
-%   \pkg{docxlike} 的 \env{tabular}，六栏宽照 \texttt{tblGrid}、行高最小值 425 缇、框线半磅，格里的字
-%   照 Word 的格排；合并格照 iota-hit（一行的标签顶端对齐，竖排与两个字的标签在合并出来的高度里居中，多字竖排
+%   \pkg{docxlike} 的 \env{tabular}，六栏宽照 \texttt{tblGrid}、行高最小值 425 缇、框线半磅；格边距与格里
+%   的字照 iota-hit 紧排（1\,pt、不加网格字距增量，七个字的单位名排得进一行）；合并格照 iota-hit（一行的标签顶端对齐，竖排与两个字的标签在合并出来的高度里居中，多字竖排
 %   一字一格，两个字的中间空行）；决议区是接在表下的一格，排到本页剩下的整数个网格行，放不下就跨页
 %   接着排。名单与决议正文由 \texttt{defense} 族给，某一块人数超了先向还有空行的块借；
 %   \cs{resolution} 只剩带废弃提示的转发，排过就记闸门}
@@ -46,8 +46,16 @@
 % \bottomrule
 % \end{longtblr}
 %
-% 表比版心宽 10.8\,bp，居中就两边各探出一个格边距，第一栏里的字落在版心左缘，与正文对齐。
+% 表比版心宽 10.8\,bp，居中就两边各探出 5.4\,bp，外框的位置与 Word 一样。
+%
+% \emph{格边距与格里的字不跟 Word，跟 iota-hit：边距 1\,pt、字紧排。} Word 的格边距 0.19\,cm 下，
+% “工作单位”那一栏留给字 81.35，“哈尔滨工业大学”七个字加上网格字距增量要 87.2，最常见的单位名就得
+% 折行；纸质表本来就是紧排的。iota-hit 把边距收到 1\,pt、格里的字不加增量，那一栏留给字 90.15，七个字
+% 84 排得下、八个字折（旧 \hithesis 用 \pkg{tabularray} 时也是 1\,pt）。“紧排”写成一个样式
+% \option{resolution-table}：字体不对齐网格，Word 里就是不加增量。决议那一格照旧：边距 0.19\,cm、
+% 字带增量，正文从版心左缘起。
 %    \begin{macrocode}
+\dim_const:Nn \c__hit_res_inset_dim { 1pt }
 \dim_const:Nn \c__hit_res_row_dim  { 21.25bp }
 \dim_const:Nn \c__hit_res_rule_dim { 0.5bp }
 \dim_new:N \g__hit_res_wa_dim  \dim_new:N \g__hit_res_wb_dim
@@ -55,7 +63,7 @@
 \dim_new:N \g__hit_res_we_dim  \dim_new:N \g__hit_res_wf_dim
 \dim_new:N \g__hit_res_wab_dim \dim_new:N \g__hit_res_text_dim
 \cs_new_protected:Npn \__hit_res_col:Nn #1#2
-  { \dim_gset:Nn #1 { #2 - 2 \tabcolsep } }
+  { \dim_gset:Nn #1 { #2 - 2 \c__hit_res_inset_dim } }
 \cs_new_protected:Nn \__hit_resolution_calc:
   {
     \__hit_res_col:Nn \g__hit_res_wa_dim  { 33.75bp }
@@ -65,7 +73,7 @@
     \__hit_res_col:Nn \g__hit_res_we_dim  { 92.15bp }
     \__hit_res_col:Nn \g__hit_res_wf_dim  { 104.55bp }
     \__hit_res_col:Nn \g__hit_res_wab_dim { 76.30bp }
-    \__hit_res_col:Nn \g__hit_res_text_dim { 436.00bp }
+    \dim_gset:Nn \g__hit_res_text_dim { 436.00bp - 2 \tabcolsep }
   }
 %    \end{macrocode}
 %
@@ -140,7 +148,8 @@
 % 格里的 \verb|\\| 是换行：词条里用它分行（“评阅人\verb|\\|（根据实际\verb|\\|人数填写）”），
 % 行尾另写 \cs{tabularnewline}。表头各格在 \hologo{LuaLaTeX} 下是普通的段，由断行层照 Word 断（“职称（是否
 % 博导）”行末的括号压半格，一行排下）；别的引擎 \hologo{TeX} 断行不压标点，这八个字会折成两行，所以按
-% \verb|\\| 分行、一行一个行盒，与 Word 一样排成一行。格里的段是 \option{resolution-cell}：范例这张表的段没写行距，
+% \verb|\\| 分行、一行一个行盒，与 Word 一样排成一行。表里的段是 \option{resolution-table}，决议那一格是
+% \option{resolution-cell}，两个只差紧排（见上）：范例这张表的段没写行距，
 % 跟 \texttt{Normal}，单倍、贴网格，一行一格（iota-hit 的 \texttt{cell-style} 也是这样）；正文的
 % \texttt{Normal} 是 1.25 倍，不能直接用。加粗是宋体描边，与 Word 给中易宋体合成粗体同一个做法，
 % 见 \file{hit-fonts.dtx} 的 \cs{hit@font@fakebold@zh:}。
@@ -148,6 +157,14 @@
 \cs_new_protected:Npn \__hit_res_cell:
   { \cs_set_eq:NN \\ \newline }
 \cs_new_protected:Npn \__hit_res_font:
+  {
+    \docxlike_format_apply_state_else:nn { resolution-table } { \xiaosi }
+    \bool_set_eq:NN \l_docxlike_format_par_snap_horizontal_bool
+      \l_docxlike_format_snap_horizontal_bool
+    \dim_set_eq:NN \l_docxlike_format_par_char_spacing_dim
+      \l_docxlike_format_char_spacing_dim
+  }
+\cs_new_protected:Npn \__hit_res_body_font:
   { \docxlike_format_apply_state_else:nn { resolution-cell } { \xiaosi } }
 \cs_new_protected:Nn \__hit_res_bold: { \hit@font@fakebold@zh: }
 \cs_new_protected:Npn \__hit_res_head:n #1 { \__hit_res_bold: #1 }
@@ -586,6 +603,7 @@
   {
     \group_begin:
       \dim_set:Nn \arrayrulewidth { \c__hit_res_rule_dim }
+      \dim_set_eq:NN \tabcolsep \c__hit_res_inset_dim
       \__hit_res_font:
       \docxlikesetup
         { table-properties = { row = { specify-height = \dim_use:N \c__hit_res_row_dim } } }
@@ -653,7 +671,7 @@
   {
     \vbox_set:Nn \l__hit_res_body_box
       {
-        \__hit_res_font:
+        \__hit_res_body_font:
         \docxlike_table_begin:
         \dim_set_eq:NN \hsize \g__hit_res_text_dim
         \dim_set_eq:NN \linewidth \hsize
