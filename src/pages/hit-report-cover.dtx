@@ -6,6 +6,8 @@
 %
 % \section{开题报告的封面与扉页}
 %
+% \changes{v3.2a}{2026/09/27}{深圳博士中期正文的边框改用 \cs{vrule} 画，挂内核的 \texttt{shipout/background}；
+%   \pkg{tikz}、\pkg{eso-pic}、\pkg{tikzpagenodes} 原先只为这一个框装，不再装}
 % \changes{v3.2a}{2026/09/27}{研究生报告首页标签的拉开字距按字走，\hologo{pdfLaTeX} 下一个汉字是几个记号；
 %   删掉 \cs{makebackcover}（不兼容的改动，调用它的老文档要删掉那一行）：那一页“指导教师评语”是老模板的，
 %   现行的本科开题与中期原件都没有}
@@ -21,20 +23,10 @@
 %   \cs{parbox} 加 \env{tabular} 摆：原件那一页是一串段落，字段是标签加一串带下划线的半角空格。
 %   研究生照研究生院现行的模板（学院（部）、学科/专业学位类别，“（学位论文）”或“（实践成果）”
 %   一行，落款研究生院制），各校区一样；本科照教务处的中期报告原件，校名字标嵌在段里}
-%
-% 深圳博士中期那份封面拿 \cs{AddToShipoutPicture} 往整页上贴图形，要 \pkg{eso-pic}
-% 与 \pkg{tikzpagenodes}。别的组合下这三个包一个都不装。
 %    \begin{macrocode}
 %<*report-cover>
 \bool_if:NF \g__hit_final_bool
   {
-\hit@if@shenzhen@doctor@interim
-  {
-    \RequirePackage { tikzpagenodes }
-    \RequirePackage { eso-pic }
-    \RequirePackage { tikz }
-  }
-
 %    \end{macrocode}
 %
 % \emph{研究生报告的首页照研究生院现行的模板排。} 那一页在原件里是一串段落，不是表：
@@ -275,12 +267,59 @@
  }~
   }
 
+%    \end{macrocode}
+%
+% 深圳博士中期正文每一页四周的边框：左右各出版心 5\,mm，上边出版心 2\,mm，下边齐版心底，
+% 线宽 0.4\,pt。原先是 \pkg{eso-pic} 往整页上贴一张 \pkg{tikz} 图，版心的四个角从
+% \pkg{tikzpagenodes} 取，三个包只为这一个框装。现在挂内核的 \texttt{shipout/background}，
+% 那里的原点在纸的左上角；版心的位置按 \cs{hoffset}、\cs{oddsidemargin} 这几个参数现算，
+% 与 \pkg{tikzpagenodes} 取的是同一组。四条边各是一道 \cs{vrule}，跨在边线内外各一半，
+% 四角各多出半个线宽，与 \pkg{tikz} 描矩形的斜接角一样是方角。
+%    \begin{macrocode}
+\dim_new:N \l__hit_report_frame_x_dim
+\dim_new:N \l__hit_report_frame_y_dim
+\cs_new_protected:Npn \__hit_report_frame_rule:nnnn #1#2#3#4
+  {
+    \hbox_overlap_right:n
+      {
+        \skip_horizontal:n {#1}
+        \box_move_down:nn { #2 + #4 }
+          {
+            \hbox:n
+              {
+                \tex_vrule:D width \dim_eval:n {#3}
+                  height \dim_eval:n {#4} depth 0pt \scan_stop:
+              }
+          }
+      }
+  }
 \cs_new_protected:Npn \hit@report@shenzhen@doctor@frame@picture
   {
-%
-~\begin{tikzpicture}[remember~picture,overlay]~
- \draw ([shift={(-5mm,0mm)}]current~page~text~area.south~west)~rectangle~([shift={(5mm,2mm)}]current~page~text~area.north~east);~
- \end{tikzpicture}%
+    \dim_set:Nn \l__hit_report_frame_x_dim
+      {
+        1in + \hoffset
+        + \legacy_if:nTF { @twoside }
+          { \int_if_odd:nTF { \value { page } } { \oddsidemargin } { \evensidemargin } }
+          { \oddsidemargin }
+        - 5mm - 0.2pt
+      }
+    \dim_set:Nn \l__hit_report_frame_y_dim
+      { 1in + \voffset + \topmargin + \headheight + \headsep - 2mm - 0.2pt }
+    \put ( 0 , 0 )
+      {
+        \__hit_report_frame_rule:nnnn
+          { \l__hit_report_frame_x_dim } { \l__hit_report_frame_y_dim }
+          { \textwidth + 10mm + 0.4pt } { 0.4pt }
+        \__hit_report_frame_rule:nnnn
+          { \l__hit_report_frame_x_dim } { \l__hit_report_frame_y_dim + 2mm + \textheight }
+          { \textwidth + 10mm + 0.4pt } { 0.4pt }
+        \__hit_report_frame_rule:nnnn
+          { \l__hit_report_frame_x_dim } { \l__hit_report_frame_y_dim }
+          { 0.4pt } { \textheight + 2mm + 0.4pt }
+        \__hit_report_frame_rule:nnnn
+          { \l__hit_report_frame_x_dim + \textwidth + 10mm } { \l__hit_report_frame_y_dim }
+          { 0.4pt } { \textheight + 2mm + 0.4pt }
+      }
   }
 %    \end{macrocode}
 %
@@ -297,7 +336,7 @@
       \hit@structure@switch:nnn { table-of-contents }
         { \bool_if_p:N \g__hit_report_toc_auto_bool } { \clearpage \tableofcontents \clearpage }
     \end { titlepage }
-    \AddToShipoutPicture { \hit@report@shenzhen@doctor@frame@picture }
+    \AddToHook { shipout / background } { \hit@report@shenzhen@doctor@frame@picture }
     \pagestyle { hit@shenzhen@doctor@headings@main }
   }
 %    \end{macrocode}
