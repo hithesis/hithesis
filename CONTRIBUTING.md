@@ -81,6 +81,7 @@ make regression-test # 与参照版本逐页比，发版前跑
 make feature         # 按功能的回归：每个用例跑遍分支与三个引擎，平时不跑（tests/README.md）
 make lineends-typst  # 与 typst-with-msword-linebreaks 逐行对拍（要本机有那个 fork）
 make lineends-verb   # 行内代码三段与 Word 探针导出逐行比，行文本与行末坐标都要对上
+make lineends-hang   # 行末半角标点挂出的 24 段与 Word 探针导出逐行比，同上
 make pages           # 博士与本科范例的整本复刻件与 Word 导出逐页逐行比基线
 make manual-baseline # 改动前存一份手册 PDF
 make manual-check    # 改完与之比对
@@ -886,7 +887,9 @@ Word 导出），`make lineends-typst` 比断点的实现（typst fork），`mak
 `\verb` 的排法（Consolas 五号、空格印 U+02FD、长串分隔符前可断）每一样都对应 Word 里的一个
 字符或属性，探针 docx 就是照这套敲的，`make lineends-verb` 要求行文本与行末坐标全对上。
 造探针的脚本与 Word 导出在 `~/Downloads/最新版硕博/lb/code/`（要本机的 Word），改 `\verb`
-的排法先改那边、重导、重制基线。范例原件与指南原话打架的地方（章标题与条标题的
+的排法先改那边、重导、重制基线。行末半角标点挂出同样有一份 `tests/lineends-hang.tsv`（探针在
+`lb/hang/`，`make lineends-hang`）：超出版心的量行里压得下（标点位各半格、汉西隙各半个隙，模式 15
+另加空格）就压，压不下就把标点整个挂出去、前面的字对齐到右缘。范例原件与指南原话打架的地方（章标题与条标题的
 行距、网格行距、声明页标题下的空段）类跟指南，与靶子同一边。对 Mac 版靶子时目录、第 1 章首页、
 结论、声明、致谢、简历这些页整页对上，没对上的是图页（范例手排）、英文目录的占位行、封面到内封的
 空白页、本科内封与声明页的新旧文本这几类；换成 Windows 版靶子后要逐页重查。改齐脚本也有误伤（本科成果页组名的段前段后被清成零），

@@ -6,6 +6,9 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/28}{行末的半角闭标点（, . ; ) 等）超出版心时照 Word 排：行里压得下（标点位各半格、
+%   汉西隙各半个隙，模式 15 另加空格）就压，压不下就把标点整个挂出去，前面的字对齐到右缘；先前一律先压，
+%   压不下的整行照自然宽伸出去一截（探针 hang3、hang4，模式 11 与 15 相同）}
 % \changes{v3.2a}{2026/09/28}{\cs{vadjust}~\texttt{pre} 的内容放到行盒前面（先前与别的 \cs{vadjust} 一起放到后面）：锚在段上的
 %   图文框、形状要靠它放到锚定段首行之上，页脚里居中的页码框曾整个错到下一行}
 % \changes{v3.2a}{2026/09/27}{行内公式在 \hologo{TeX} 留下的可断处（罚分小于 10000）照断：\pkg{url} 把网址排在
@@ -1981,27 +1984,52 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
   end
   local over = line.over + line.capacity - target
 
+  -- 行末的半角闭标点（逗号、句点、分号、右括号等）超出版心：行里压得下（标点位各半格、汉西隙
+  -- 各半个隙）就压，压不下就把标点整个挂出去，起点在右缘上，前面的字两端对齐到右缘，挂了还超的
+  -- 余下照常压（探针 hang3，模式 11 与 15 一样：「律吕iiiiii,」超 1.05，一个隙压得下，逗号收在
+  -- 版心里；「律吕调iii,」超 2.8，逗号全在外、i 收在右缘；「律吕iiiiiii,」超 4.6，挂出 3.2 再压 1.4；
+  -- 先前一律压，压不下的整行照自然宽伸出去）
+  -- Word 2013 压西文串里的空格：各四分之一，标点后的整个
+  local function give(k)
+    local t = items[k]
+    -- 贴着汉字的半格空格不压（样本文档「人称, 采用“分析了……」：闭号压半格、三个开号各出
+    -- 4.7，逗号后的半格空格仍是 6.3），与账本里的 space_give 一致
+    if t.kind ~= 4 or t.user or t.rigid then return 0 end
+    local in_run = (k > 1 and items[k - 1].kind == 4) or (k < #items and items[k + 1].kind == 4)
+    if in_run then return 0 end
+    local after_punct = k > 1 and (items[k - 1].kind == 1 or items[k - 1].kind == 2) and not items[k - 1].symbol
+    if after_punct then return t.nw end
+    return t.nw * 0.25
+  end
+  local ascii_hang = 0
+  do
+    local lt = items[last]
+    if over > 0 and not line.forced and not line.deep and not P.table_cell
+      and lt.kind == 3 and (lt.tail_hang or 0) > 0 then
+      local room, spaces, first_space = 0, 0, nil
+      for k = first, last do
+        if items[k].spot and not (items[k].kind == 2 and k == start) then room = room + half end
+        if k < last and items[k + 1].gap > 0 then room = room + items[k + 1].gap / 2 end
+        if compat == 15 and P.justify and k > first and k < last then
+          local g = give(k)
+          if g > 0 then spaces = spaces + g; first_space = first_space or items[k].nw end
+        end
+      end
+      if first_space then room = room + math.min(spaces, 1.85 * first_space) end
+      if over > room + eps then ascii_hang = lt.tail_hang + P.latin_add end
+    end
+  end
+
   local whole_hang, in_place, cap_last = false, false, false
-  if over > 0 and not line.forced then
+  if over - ascii_hang > 0 and not line.forced then
     local spot_idx = {}
     for k = first, last do
       local it = items[k]
       if it.spot and not (it.kind == 2 and k == start) and not (line.deep and k == last) then spot_idx[#spot_idx + 1] = k end
     end
-    local need = over
+    local need = over - ascii_hang
     -- Word 2013 先压西文串里的空格（各四分之一），再压标点
     if compat == 15 and P.justify then
-      local function give(k)
-        local t = items[k]
-        -- 贴着汉字的半格空格不压（样本文档「人称, 采用“分析了……」：闭号压半格、三个开号各出
-        -- 4.7，逗号后的半格空格仍是 6.3），与账本里的 space_give 一致
-        if t.kind ~= 4 or t.user or t.rigid then return 0 end
-        local in_run = (k > 1 and items[k - 1].kind == 4) or (k < #items and items[k + 1].kind == 4)
-        if in_run then return 0 end
-        local after_punct = k > 1 and (items[k - 1].kind == 1 or items[k - 1].kind == 2) and not items[k - 1].symbol
-        if after_punct then return t.nw end
-        return t.nw * 0.25
-      end
       local sp, cap = {}, 0
       for k = first + 1, last - 1 do
         local g = give(k)
@@ -2094,11 +2122,12 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
   local symbol_hang = line.deep and items[last].symbol and over > 0 and compat ~= 11
   local natural_w = width_of(items, first, last) + (isfirst and indent or 0)
   if symbol_hang or whole_hang then natural_w = natural_w - items[last].nw end
+  natural_w = natural_w - ascii_hang
   local compressed = 0
   for k = first, last do compressed = compressed + delta[k] end
   local slack = target - (natural_w + compressed)
   if P.justify and not ragged and not line.forced and not hasfil and slack > 0
-    and (over <= 0 or symbol_hang or whole_hang or in_place) then
+    and (over <= 0 or symbol_hang or whole_hang or in_place or ascii_hang > 0) then
     local autos, spaces, cjkgaps, halves = {}, {}, {}, {}
     for k = first, last do
       local it = items[k]
@@ -2240,7 +2269,7 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
   local tail = items[last]
   if not line.forced and line.over > 0 and tail.kind == 3 and (tail.tail_hang or 0) > 0 then
     local dw = node.dimensions(head)
-    if dw > measure and dw - measure <= tail.tail_hang + P.eps then
+    if dw > measure and dw - measure <= tail.tail_hang + P.latin_add + P.eps then
       local kn = node.new(KERN); kn.kern = measure - dw
       node.insert_after(head, node.tail(head), kn)
     end

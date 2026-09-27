@@ -25,7 +25,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls docxlike-sync docxlike-check lineends lineends-self lineends-verb lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls docxlike-sync docxlike-check lineends lineends-self lineends-verb lineends-hang lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
         baseline smoke feature regression-test tl-packages testclean version version-check version-set
 
@@ -92,6 +92,12 @@ lineends-self:
 lineends-verb:
 	cd tests/sample/verb && TEXINPUTS="$(CURDIR):" lualatex -interaction=nonstopmode main.tex > /dev/null
 	python3 scripts/check-line-ends.py --pdf tests/sample/verb/main.pdf --fixture tests/lineends-verb.tsv
+
+# 行末半角标点挂出与 Word 对拍：24 段照 Word 探针 docx 逐字抄（tests/sample/hang/），行末的 , . ; )
+# 超出版心时行里压得下就压、压不下整个挂出去。靶子是 Mac Word 导出抽成的 tests/lineends-hang.tsv，棘轮 0
+lineends-hang:
+	cd tests/sample/hang && TEXINPUTS="$(CURDIR):" lualatex -interaction=nonstopmode main.tex > /dev/null
+	python3 scripts/check-line-ends.py --pdf tests/sample/hang/main.pdf --fixture tests/lineends-hang.tsv
 
 # 排版引擎 docxlike 的正本在独立仓库 latex-docxlike（默认与本仓库并列），src/docxlike/ 是
 # 那边 dtx 的副本。改动在那边做、提交，再跑 make docxlike-sync 拷过来验收；
