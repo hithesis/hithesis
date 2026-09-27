@@ -2539,6 +2539,7 @@
                   {
                     \exp_args:Nc \newjfontfamily { docxlike@jf@ \l__docxlike_font_key_str }
                       [ JFM = zh_CN/quanjiao , AutoFakeSlant = \c_docxlike_font_fake_slant_tl , BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl } ] {#1}
+                    \exp_args:NV \__docxlike_font_bold_ssub:n \l_fontspec_family_tl
                     \cs_gset_eq:cc { docxlike@jf@ \l__docxlike_font_key_str }
                       { docxlike@jf@ \l__docxlike_font_key_str }
                     \cs_if_exist:cT { docxlike@jf@ \l__docxlike_font_key_str \c_space_tl code }
@@ -2553,6 +2554,31 @@
               { \msg_warning:nnn { docxlike } { font-not-found } {#1} }
           }
         \tl_use:c { g__docxlike_font_ea_ \l__docxlike_font_key_str _tl }
+      }
+  }
+%    \end{macrocode}
+%
+% 没有粗体字面的字族（楷体、隶书这些），样式要粗体时 \cs{bfseries} 找不到 \texttt{b} 那一形，
+% NFSS 退回常规并报一条 Font shape undefined。字形反正在出页前换成描边的，这条告警只是噪声；
+% 缺的粗形声明成常规那一形的静默替换（\texttt{ssub}），斜的照样替成斜的。编码
+% 看 \pkg{luatexja} 自己的与 \pkg{ctex} 挂上去的两套，常规形在哪套就补哪套。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_font_bold_ssub:n #1
+  {
+    \clist_map_inline:nn { JY3 , JT3 , LTJY3 , LTJT3 }
+      {
+        \cs_if_exist:cT { ##1 / #1 / m / n }
+          {
+            \clist_map_inline:nn { b , bx }
+              {
+                \cs_if_exist:cF { ##1 / #1 / ####1 / n }
+                  { \DeclareFontShape {##1} {#1} {####1} {n} { <-> ssub * #1 / m / n } { } }
+                \bool_lazy_and:nnT
+                  { \cs_if_exist_p:c { ##1 / #1 / m / it } }
+                  { ! \cs_if_exist_p:c { ##1 / #1 / ####1 / it } }
+                  { \DeclareFontShape {##1} {#1} {####1} {it} { <-> ssub * #1 / m / it } { } }
+              }
+          }
       }
   }
 \cs_new_protected:Npn \__docxlike_font_latin:n #1
