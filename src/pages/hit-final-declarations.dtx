@@ -39,32 +39,147 @@
  \hit@appendix@chapter*{\hit@term@declarations@heading@zh}[\hit@term@declarations@heading@en]~
 %    \end{macrocode}
 %
-% 照研究生范例 \file{docx} 段 708--728 排。间隔全是\emph{空段}，不是
-% \cs{vspace}：小节标题前后各一个，两节之间三个（四号），末两个签名行之间一个。
-%
 % 章标题之后范例原件还有一个 16\,bp 的空段，不排：章标题自带段后 0.8 行，
-% 本科范例这一页也没有它。
-%
-% 空段一律按\emph{西文}自然行高算：范例那几段没写 \texttt{w:rFonts} 的 ascii
-% 槽，继承 docDefaults 的 Times New Roman。实测那三个四号空段是 20.16 一档，
-% 正是 1.25×1.15×14；按汉字的 1.296875 算成 22.70 就多出 7.7，整页会溢出。
+% 本科范例这一页也没有它。其余段落与空段见上面的 \cs{\_\_hit\_decl\_other\_body:}。
 %    \begin{macrocode}
-\docxlike_format_par:nn{statement-heading}{\hit@term@declarations@statement}%
-\hitenter*[lines=1,font={size=xiaosi,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=multiple,at=1.25}}]%
-\par\hit@term@declarations@statement@text
-\hitenter*[lines=1,font={size=xiaosi,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=multiple,at=1.25}}]%
-\hit@declarations@signature:nn{statement-signature}{\hit@term@declarations@author@signature}%
-\hitenter*[lines=3,font={size=sihao,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=multiple,at=1.25}}]%
-\docxlike_format_par:nn{authorization-heading}{\hit@term@declarations@authorization}%
-\hitenter*[lines=1,font={size=xiaosi,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=multiple,at=1.25}}]%
-\par\hit@term@declarations@authorization@text
-\hitenter*[lines=2,font={size=xiaosi,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=multiple,at=1.25}}]%
-\hit@declarations@signature:nn{authorization-signature}{\hit@term@declarations@author@signature}%
-\hitenter*[lines=1,font={size=xiaosi,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=multiple,at=1.25}}]%
-\hit@declarations@signature:nn{authorization-signature}{\hit@term@declarations@supervisor@signature}
+\__hit_decl_place:n { other }
   }
 %    \end{macrocode}
 %    \end{macro}
+%
+% \subsection{放不下时让掉空段}
+%
+% \changes{v3.2a}{2026/09/28}{整页放不下时照 iota-hit 按次序让掉空段（先两节之间的，再签名前的只留一个、
+%   声明签名前的只留一个、研究生小节标题下的，最后签名前剩的那一个），导师签名不再掉到下一页}
+%
+% 题目长、声明正文多一两行时，导师签名那一行会掉到下一页。照 iota-hit 的做法：页上的空段分四组，
+% 两节之间的（\texttt{gap}，本科两个四号、研究生三个）、授权书作者签名前的（\texttt{auth}，两个）、
+% 声明作者签名前的（\texttt{stmt}，一个）、研究生两个小节标题下的（\texttt{sub}，各一个）；两个签名行之间
+% 那一个不动。让的次序是：两节之间的全让，作者签名前的让到剩一个，声明签名前的让到剩一个，小节标题下的
+% 全让（先声明那一节的），最后作者签名前、声明签名前剩的那一个。一次多让一个，每种排法试排一遍量
+% 高度（\cs{docxlike\_format\_measure:Nn}，试排不动之后真排用的段落状态），头一个放得下的就用它，都放不下
+% 就全让。放不放得下看这一页还剩多少（\cs{pagegoal} 减 \cs{pagetotal}）。
+%    \begin{macrocode}
+\int_new:N \l__hit_decl_gap_int
+\int_new:N \l__hit_decl_auth_int
+\int_new:N \l__hit_decl_stmt_int
+\int_new:N \l__hit_decl_sub_int
+\int_new:N \l__hit_decl_left_int
+\int_new:N \l__hit_decl_take_int
+\int_new:N \l__hit_decl_n_int
+\int_new:N \l__hit_decl_total_int
+\bool_new:N \l__hit_decl_fit_bool
+\box_new:N \l__hit_decl_box
+\cs_new_protected:Npn \__hit_decl_counts:n #1
+  {
+    \str_if_eq:nnTF {#1} { bachelor }
+      {
+        \int_set:Nn \l__hit_decl_gap_int { 2 } \int_set:Nn \l__hit_decl_auth_int { 2 }
+        \int_set:Nn \l__hit_decl_stmt_int { 1 } \int_set:Nn \l__hit_decl_sub_int { 0 }
+      }
+      {
+        \int_set:Nn \l__hit_decl_gap_int { 3 } \int_set:Nn \l__hit_decl_auth_int { 2 }
+        \int_set:Nn \l__hit_decl_stmt_int { 1 } \int_set:Nn \l__hit_decl_sub_int { 2 }
+      }
+  }
+\cs_new_protected:Npn \__hit_decl_take:Nn #1#2
+  {
+    \int_set:Nn \l__hit_decl_take_int
+      { \int_min:nn { \l__hit_decl_left_int } { \int_max:nn {#2} { 0 } } }
+    \int_sub:Nn \l__hit_decl_left_int { \l__hit_decl_take_int }
+    \int_sub:Nn #1 { \l__hit_decl_take_int }
+  }
+\cs_new_protected:Npn \__hit_decl_config:nn #1#2
+  {
+    \__hit_decl_counts:n {#1}
+    \int_set:Nn \l__hit_decl_left_int {#2}
+    \__hit_decl_take:Nn \l__hit_decl_gap_int { \l__hit_decl_gap_int }
+    \__hit_decl_take:Nn \l__hit_decl_auth_int { 1 }
+    \__hit_decl_take:Nn \l__hit_decl_stmt_int { \l__hit_decl_stmt_int - 1 }
+    \__hit_decl_take:Nn \l__hit_decl_sub_int { \l__hit_decl_sub_int }
+    \__hit_decl_take:Nn \l__hit_decl_auth_int { 1 }
+    \__hit_decl_take:Nn \l__hit_decl_stmt_int { 1 }
+  }
+\cs_new_protected:Npn \__hit_decl_place:n #1
+  {
+    \par
+    \__hit_decl_counts:n {#1}
+    \int_set:Nn \l__hit_decl_total_int
+      {
+        \l__hit_decl_gap_int + \l__hit_decl_auth_int
+        + \l__hit_decl_stmt_int + \l__hit_decl_sub_int
+      }
+    \int_zero:N \l__hit_decl_n_int
+    \bool_set_false:N \l__hit_decl_fit_bool
+    \bool_until_do:nn
+      {
+        \l__hit_decl_fit_bool
+        || \int_compare_p:nNn { \l__hit_decl_n_int } > { \l__hit_decl_total_int }
+      }
+      {
+        \__hit_decl_config:nn {#1} { \l__hit_decl_n_int }
+        \docxlike_format_measure:Nn \l__hit_decl_box { \use:c { __hit_decl_ #1 _body: } }
+        \dim_compare:nNnTF
+          { \box_ht:N \l__hit_decl_box + \box_dp:N \l__hit_decl_box }
+          > { \pagegoal - \pagetotal }
+          { \int_incr:N \l__hit_decl_n_int }
+          { \bool_set_true:N \l__hit_decl_fit_bool }
+      }
+    \bool_if:NF \l__hit_decl_fit_bool
+      { \__hit_decl_config:nn {#1} { \l__hit_decl_total_int } }
+    \use:c { __hit_decl_ #1 _body: }
+  }
+\cs_new_protected:Npn \__hit_decl_blank:nn #1#2
+  {
+    \int_compare:nNnT {#1} > { 0 }
+      {
+        \hitenter* [ lines = #1 , font = { size = #2 , latin-text-font = Times~New~Roman } ,
+          paragraph = { spacing = { line-spacing = multiple , at = 1.25 } } ]
+      }
+  }
+%    \end{macrocode}
+%
+% 研究生那一页的段落序列，照研究生范例 \file{docx} 段 708--728：小节标题后各一个空段（\texttt{sub}），
+% 两节之间三个四号空段，末两个签名行之间一个。空段一律按\emph{西文}自然行高算：范例那几段没写
+% \texttt{w:rFonts} 的 ascii 槽，继承 docDefaults 的 Times New Roman。实测那三个四号空段是 20.16 一档，
+% 正是 1.25×1.15×14；按汉字的 1.296875 算成 22.70 就多出 7.7，整页会溢出。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_decl_other_body:
+  {
+    \docxlike_format_par:nn { statement-heading } { \hit@term@declarations@statement }
+    \__hit_decl_blank:nn { \int_min:nn { 1 } { \l__hit_decl_sub_int - 1 } } { xiaosi }
+    \par \hit@term@declarations@statement@text
+    \__hit_decl_blank:nn { \l__hit_decl_stmt_int } { xiaosi }
+    \hit@declarations@signature:nn { statement-signature } { \hit@term@declarations@author@signature }
+    \__hit_decl_blank:nn { \l__hit_decl_gap_int } { sihao }
+    \docxlike_format_par:nn { authorization-heading } { \hit@term@declarations@authorization }
+    \__hit_decl_blank:nn { \int_min:nn { 1 } { \l__hit_decl_sub_int } } { xiaosi }
+    \par \hit@term@declarations@authorization@text
+    \__hit_decl_blank:nn { \l__hit_decl_auth_int } { xiaosi }
+    \hit@declarations@signature:nn { authorization-signature } { \hit@term@declarations@author@signature }
+    \__hit_decl_blank:nn { 1 } { xiaosi }
+    \hit@declarations@signature:nn { authorization-signature } { \hit@term@declarations@supervisor@signature }
+  }
+%    \end{macrocode}
+%
+% 本科那一页，照本科范例 \file{docx} 段 660--677。与研究生那一份有两处不同：小节标题带 195 缇即 0.5 行的
+% 段前段后（研究生没有，见按学位的预设），标题下不空段；两节之间是两个空段（研究生是三个）。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_decl_bachelor_body:
+  {
+    \docxlike_format_par:nn { statement-heading } { \hit@term@declarations@statement@bachelor }
+    \par \hit@term@declarations@statement@text@bachelor
+    \__hit_decl_blank:nn { \l__hit_decl_stmt_int } { xiaosi }
+    \hit@declarations@signature:nn { statement-signature } { \hit@term@declarations@author@signature }
+    \__hit_decl_blank:nn { \l__hit_decl_gap_int } { sihao }
+    \docxlike_format_par:nn { authorization-heading } { \hit@term@declarations@authorization@bachelor }
+    \par \hit@term@declarations@authorization@text@bachelor
+    \__hit_decl_blank:nn { \l__hit_decl_auth_int } { xiaosi }
+    \hit@declarations@signature:nn { authorization-signature } { \hit@term@declarations@author@signature }
+    \__hit_decl_blank:nn { 1 } { xiaosi }
+    \hit@declarations@signature:nn { authorization-signature } { \hit@term@declarations@supervisor@signature }
+  }
+%    \end{macrocode}
 %    \begin{macro}{\hit@declarations@bachelor}
 %    \begin{macrocode}
 \cs_set:Npn \hit@declarations@bachelor
@@ -93,21 +208,9 @@
 %    \begin{macrocode}
 %    \end{macrocode}
 %
-% 照本科范例 \file{docx} 段 660--677 排。与研究生那一份有两处不同：小节标题带
-% 195 缇即 0.5 行的段前段后（研究生没有，见按学位的预设），两节之间是两个空段
-% （研究生是三个）。空段一律按西文自然行高算，理由同 \cs{hit@declarations@other}。
+% 段落与空段见上面的 \cs{\_\_hit\_decl\_bachelor\_body:}。
 %    \begin{macrocode}
-\docxlike_format_par:nn{statement-heading}{\hit@term@declarations@statement@bachelor}%
-\par\hit@term@declarations@statement@text@bachelor
-\hitenter*[lines=1,font={size=xiaosi,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=multiple,at=1.25}}]%
-\hit@declarations@signature:nn{statement-signature}{\hit@term@declarations@author@signature}%
-\hitenter*[lines=2,font={size=sihao,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=multiple,at=1.25}}]%
-\docxlike_format_par:nn{authorization-heading}{\hit@term@declarations@authorization@bachelor}%
-\par\hit@term@declarations@authorization@text@bachelor
-\hitenter*[lines=2,font={size=xiaosi,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=multiple,at=1.25}}]%
-\hit@declarations@signature:nn{authorization-signature}{\hit@term@declarations@author@signature}%
-\hitenter*[lines=1,font={size=xiaosi,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=multiple,at=1.25}}]%
-\hit@declarations@signature:nn{authorization-signature}{\hit@term@declarations@supervisor@signature}
+\__hit_decl_place:n { bachelor }
   }
 %    \end{macrocode}
 %    \end{macro}

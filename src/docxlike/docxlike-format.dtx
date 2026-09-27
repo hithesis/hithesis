@@ -6,6 +6,8 @@
 %
 % \section{元素格式（format）}
 %
+% \changes{v3.2a}{2026/09/28}{新增 \cs{docxlike\_format\_measure:Nn}：试排一段内容量高度，排完把段落钩子动过的全局状态
+%   还原，给文档类在几种排法里挑放得下的那一种}
 % \changes{v3.2a}{2026/09/28}{\hologo{pdfLaTeX} 下西文也加网格的半份增量：换字体时换成 \cs{letterspacefont} 加宽的实例
 %   （字偶距照留），量与 Lua 断行层一样，段落不对齐网格时不加；空格加它自己那半份。英文版学位论文与
 %   \hologo{LuaLaTeX} 行末相同的行从 53 到 58}
@@ -6957,6 +6959,67 @@
         \__docxlike_format_after_put:
       }
     \group_end:
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\docxlike_format_measure:Nn}
+% \cs{docxlike\_format\_measure:Nn}\meta{盒}\marg{内容} 把内容照样排进一只竖盒量高度，排完把段落钩子动过的
+% 全局状态还原：上一段的段后与行深、留着待放的段后、空段与公式段的标志、行内代码收尾的标志、“新一节
+% 开头”标记。给文档类试排用：同一段内容换几种排法、挑放得下的那一种，试排不能改动之后真排的那一遍。
+% 盒头的 \cs{prevdepth} 取调用时外面的，首段与上一行之间的行距胶照在页上时算。要在竖直模式下调。
+%    \begin{macrocode}
+\clist_const:Nn \c__docxlike_format_state_dim_clist
+  {
+    g__docxlike_format_after_dim , g__docxlike_format_after_plus_dim ,
+    g__docxlike_format_body_after_dim , g__docxlike_format_depth_dim ,
+    g__docxlike_format_pending_after_dim , g__docxlike_format_prev_after_dim ,
+    g__docxlike_format_strut_ht_dim , g__docxlike_format_gap_dim ,
+    g__docxlike_format_parskip_dim ,
+  }
+\clist_const:Nn \c__docxlike_format_state_bool_clist
+  {
+    g__docxlike_format_after_placed_bool , g__docxlike_format_blank_para_bool ,
+    g__docxlike_format_boundary_cjk_bool , g__docxlike_format_display_para_bool ,
+    g__docxlike_format_gap_bool , g__docxlike_format_interline_bool ,
+    g__docxlike_format_ambiguous_saved_bool , g_docxlike_format_verb_exit_bool ,
+    g_docxlike_section_start_bool ,
+  }
+\tl_new:N \l__docxlike_format_state_tl
+\dim_new:N \l__docxlike_format_measure_pd_dim
+\cs_new_protected:Npn \docxlike_format_measure:Nn #1#2
+  {
+    \tl_clear:N \l__docxlike_format_state_tl
+    \clist_map_inline:Nn \c__docxlike_format_state_dim_clist
+      {
+        \dim_if_exist:cT {##1}
+          {
+            \tl_put_right:Nx \l__docxlike_format_state_tl
+              { \exp_not:N \dim_gset:Nn \exp_not:c {##1} { \dim_use:c {##1} } }
+          }
+      }
+    \clist_map_inline:Nn \c__docxlike_format_state_bool_clist
+      {
+        \bool_if_exist:cT {##1}
+          {
+            \tl_put_right:Nx \l__docxlike_format_state_tl
+              {
+                \bool_if:cTF {##1}
+                  { \exp_not:N \bool_gset_true:N } { \exp_not:N \bool_gset_false:N }
+                \exp_not:c {##1}
+              }
+          }
+      }
+    \tl_put_right:Nx \l__docxlike_format_state_tl
+      {
+        \exp_not:N \int_gset:Nn \exp_not:N \g__docxlike_format_blank_attr_int
+          { \int_use:N \g__docxlike_format_blank_attr_int }
+        \exp_not:N \tl_gset:Nn \exp_not:N \g__docxlike_format_keep_tl
+          { \exp_not:o { \g__docxlike_format_keep_tl } }
+      }
+    \dim_set:Nn \l__docxlike_format_measure_pd_dim { \tex_prevdepth:D }
+    \vbox_set:Nn #1 { \tex_prevdepth:D \l__docxlike_format_measure_pd_dim #2 \par }
+    \l__docxlike_format_state_tl
   }
 %    \end{macrocode}
 % \end{macro}
