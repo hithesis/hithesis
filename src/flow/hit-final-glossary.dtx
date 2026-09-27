@@ -23,8 +23,9 @@
 %  查不到与多音字的提示按字只报一次}
 % \changes{v3.2a}{2026/09/13}{中英两线统一到 \pkg{glossaries-extra}，后端
 %   \cs{makenoidxglossaries}；缩略语表改成两列悬挂与符号表同款，加 \cs{abbr} 一族与
-%   索引挂钩 \cs{hitindex}；中文索引的拼音排序键查 \pkg{xpinyin} 的表自动推，
-%   排序键用实际符；缩写的组尾边界跨版本对齐}
+%   索引挂钩 \cs{hitindex}，都照 iota-hit：缩写的首次形式跟所在一段的语种走（英文版里的
+%   中文摘要排中文那套），\cs{hitindex} 写什么排什么、按有没有汉字归中英文索引；中文索引的
+%   拼音排序键查 \pkg{xpinyin} 的表自动推，排序键用实际符；缩写的组尾边界跨版本对齐}
 %
 % ^^A ======================================================================
 % ^^A Module final-glossary: 术语与符号表（glossaries 配置 + 示例条目）（hit-thesis）
@@ -178,21 +179,21 @@
 % \begin{center}
 % 体细胞拷贝数变异（Somatic copy number alteration，SCNA）
 % \end{center}
-% 三种取值各一种排法，中英文版又各一套括号：
+% 三种取值各一种排法，中文里与英文里又各一套括号：
 % \begin{longtblr}[caption={缩写首次出现的排法}, label={tab:impl-abbr}]
 %   {colspec={l l l}}
 % \toprule
-% 定义 & 中文版首次 & 英文版首次 \\ \midrule
+% 定义 & 中文里首次 & 英文里首次 \\ \midrule
 % \texttt{zh}+\texttt{en} & X（Y，S） & Y (S) \\
 % 只有 \texttt{zh}       & X（S）    & X (S) \\
 % 只有 \texttt{en}       & S（Y）    & Y (S) \\
 % \bottomrule
 % \end{longtblr}
 %
-% 落实的办法是在声明时就把整串首次形式算好，存进词条的 \texttt{long} 字段，
-% 再配上游现成的 \texttt{long-only-short-only} 样式——它首次排 \texttt{long}、
-% 之后排 \texttt{short}，正是要的行为。复数另存 \texttt{longplural}，
-% 括号里的缩写取复数而全称不动，中文全称加不上 \texttt{s}。
+% 落实的办法是把整串首次形式拼好存进词条的 \texttt{long} 字段，再配上游现成的
+% \texttt{long-only-short-only} 样式：它首次排 \texttt{long}、之后排 \texttt{short}，正是要的
+% 行为。复数另存 \texttt{longplural}，括号里的缩写取复数而全称不动，中文全称加不上
+% \texttt{s}。中文里还是英文里按用的那一段定，所以每用一次重拼一次，见 \cs{\_\_hit\_abbr\_localize:n}。
 %
 % v3.1e 是把括号手写进 \cs{newacronym} 的第三个参数里，单数看着对而复数漏了，
 % 排出来半角括号套全角括号。现在括号由样式生成，两边不会再各走各的。
@@ -279,25 +280,24 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% 拼首次形式。中文版用全角括号与全角逗号，英文版用半角括号与空格。
-%    \begin{macrocode}
-%    \end{macrocode}
+% 拼首次形式。排法与括号都按语种：中文全称在前、括号里依次是英文原词与缩写，
+% 用全角括号与全角逗号；英文全称在前、括号里只有缩写，用半角括号。语种取的是
+% 这一段的（\cs{hit@lang@if@en:TF}），英文版里的中文摘要照中文排。
 %
-% 括号与逗号取哪一档由 \option{abbr}/\option{punct} 定，\texttt{auto} 按语种走。
-% 排法本身仍按语种：中文版全称在前、英文版全称在前但括号里只有缩写，这个不受
-% 标点档位影响，档位只换那三个符号。
+% 括号与逗号取哪一档由 \option{abbr}/\option{punct} 定，\texttt{auto} 按语种走，
+% 另两档只换那三个符号，不动排法。
 %    \begin{macrocode}
 \tl_new:N \l__hit_abbr_lparen_tl
 \tl_new:N \l__hit_abbr_rparen_tl
 \tl_new:N \l__hit_abbr_comma_tl
-\cs_new_protected:Npn \__hit_abbr_punct_pick:
+\cs_new_protected:Npn \__hit_abbr_punct_pick:n #1
   {
     \bool_lazy_or:nnTF
       { \str_if_eq_p:Vn \g__hit_abbr_punct_str { half } }
       {
         \bool_lazy_and_p:nn
           { \str_if_eq_p:Vn \g__hit_abbr_punct_str { auto } }
-          { \bool_if_p:N \g__hit_en_bool }
+          { \str_if_eq_p:nn {#1} { en } }
       }
       {
         \tl_set:Nn \l__hit_abbr_lparen_tl { \c_space_tl ( }
@@ -312,10 +312,15 @@
   }
 \cs_new_protected:Npn \__hit_abbr_compose:n #1
   {
-    \__hit_abbr_punct_pick:
-    \bool_if:NTF \g__hit_en_bool
-      { \__hit_abbr_compose_en:n {#1} }
-      { \__hit_abbr_compose_zh:n {#1} }
+    \hit@lang@if@en:TF
+      {
+        \__hit_abbr_punct_pick:n { en }
+        \__hit_abbr_compose_en:n {#1}
+      }
+      {
+        \__hit_abbr_punct_pick:n { zh }
+        \__hit_abbr_compose_zh:n {#1}
+      }
   }
 \cs_new_protected:Npn \__hit_abbr_compose_en:n #1
   {
@@ -329,7 +334,7 @@
       }
 %    \end{macrocode}
 %
-% 全称的复数只在它是西文时才加 \texttt{s}。英文版里引一条中文全称的条目
+% 全称的复数只在它是西文时才加 \texttt{s}。英文段里引一条只有中文全称的条目
 % 是少见但合法的写法，那时候「树结构折筷过程s」显然不对。
 %    \begin{macrocode}
     \__hit_abbr_cjk_set:V \l__hit_abbr_pick_tl
@@ -377,6 +382,32 @@
             #1 s \exp_not:V \l__hit_abbr_rparen_tl
           }
       }
+  }
+%    \end{macrocode}
+%
+% 声明时按全文的语种拼一份存进 \texttt{long}，给不经 \cs{abbr} 取全称的地方用；
+% 用的时候再按那一段的语种重拼一次，写回这一条的 \texttt{long} 与 \texttt{longplural}
+% 再交给 \cs{gls}，\option{punct} 写在词条后面也照样生效。两个字段都空的是
+% \cs{newacronym} 立的条目，没有中英两份可拼，原样不动。
+%    \begin{macrocode}
+\tl_new:N \l__hit_abbr_short_tl
+\cs_new_protected:Npn \__hit_abbr_localize:n #1
+  {
+    \ifglsentryexists {#1}
+      {
+        \glsletentryfield \l__hit_abbr_zh_tl {#1} { hitzh }
+        \glsletentryfield \l__hit_abbr_en_tl {#1} { hiten }
+        \bool_lazy_and:nnF
+          { \tl_if_empty_p:N \l__hit_abbr_zh_tl }
+          { \tl_if_empty_p:N \l__hit_abbr_en_tl }
+          {
+            \glsletentryfield \l__hit_abbr_short_tl {#1} { short }
+            \exp_args:NV \__hit_abbr_compose:n \l__hit_abbr_short_tl
+            \GlsXtrLetField {#1} { long } \l__hit_abbr_long_tl
+            \GlsXtrLetField {#1} { longplural } \l__hit_abbr_longpl_tl
+          }
+      }
+      { }
   }
 \glsaddstoragekey { hitzh } { } { \hitabbrzh }
 \glsaddstoragekey { hiten } { } { \hitabbren }
@@ -573,7 +604,8 @@
 %
 % \begin{macro}{\abbr,\abbrs}
 % 正文里用缩写。\cs{abbr} 首次排全称、之后排缩写；\cs{abbrs} 是复数；
-% 带星号是强制全写，不改「用过」状态，摘要或新一章想再展开一次时用。
+% 带星号是强制全写，不改「用过」状态，新一章想再展开一次时用。首次的排法跟这一段的
+% 语种走，英文版里的中文摘要排中文的那一套，与 iota-hit 一样。
 %
 % 缩写排出来的东西裹在 \pkg{glossaries} 的组里，组尾边界两版 xeCJK
 % 各走各的：首次形态收在闭括号上，按“闭号接汉字摘胶”该贴排，2026 的
@@ -605,12 +637,14 @@
 \NewDocumentCommand \abbr { s O{} m }
   {
     \__hit_abbr_use:nn {#2} {#3}
+    \__hit_abbr_localize:n {#3}
     \IfBooleanTF {#1} { \glsentrylong {#3} }
       { \__hit_abbr_edge:nn {#3} { \gls {#3} } }
   }
 \NewDocumentCommand \abbrs { s O{} m }
   {
     \__hit_abbr_use:nn {#2} {#3}
+    \__hit_abbr_localize:n {#3}
     \IfBooleanTF {#1} { \glsentrylongpl {#3} }
       { \__hit_abbr_edge:nn {#3} { \glspl {#3} } }
   }
@@ -622,9 +656,9 @@
 % 但要索引的词与要缩写的词重合度很高，所以缩写条目顺带登记索引，开关是
 % \option{abbr}/\option{indexing}，单处可用可选参数压过。
 %
-% \cs{hitindex} 给不缩写的词：\cs{hitindex}\marg{zh=乔峰, en=Qiao~Feng} 排出当前
-% 语种的那一份，两个索引都登记。裸值按有没有汉字归边。带星号只登记不排——正文里
-% 写的是「乔帮主」而索引条目要「乔峰」时用。
+% \cs{hitindex}\oarg{键值}\marg{文字} 给不缩写的词，照 iota-hit 的 \texttt{idx}：写什么排什么，
+% 同一个词按有没有汉字登记进中文或英文索引，不分语种、不配对。\option{entry} 给另一个词条，
+% 正文写的是「乔帮主」而索引条目要「乔峰」时用；带星号只登记不排。
 %
 % 中文索引的排序键取首字的拼音，见上面的 \cs{hit@pinyin@head:nN}；写了
 % \option{pinyin} 就以写的为准。
@@ -632,11 +666,11 @@
 \tl_new:N \l__hit_index_zh_tl
 \tl_new:N \l__hit_index_en_tl
 \tl_new:N \l__hit_index_pinyin_tl
+\tl_new:N \l__hit_index_entry_tl
 \bool_new:N \l__hit_index_on_bool
 \keys_define:nn { hit / index / one }
   {
-    zh     .tl_set:N = \l__hit_index_zh_tl ,
-    en     .tl_set:N = \l__hit_index_en_tl ,
+    entry  .tl_set:N = \l__hit_index_entry_tl ,
     pinyin .tl_set:N = \l__hit_index_pinyin_tl ,
   }
 \keys_define:nn { hit / abbr / use }
@@ -687,38 +721,30 @@
           { \exp_not:N \sindex [ english ] { \exp_not:V \l__hit_index_en_tl } }
       }
   }
-\cs_new_protected:Npn \__hit_index_read:n #1
+\cs_new_protected:Npn \__hit_index_term:n #1
   {
     \tl_clear:N \l__hit_index_zh_tl
     \tl_clear:N \l__hit_index_en_tl
-    \tl_clear:N \l__hit_index_pinyin_tl
-    \tl_if_in:nnTF {#1} { = }
-      { \hit@keys@set:nn { hit / index / one } {#1} }
+    \tl_if_blank:nF {#1}
       {
         \__hit_abbr_cjk_set:n {#1}
         \bool_if:NTF \l__hit_abbr_cjk_bool
           { \tl_set:Nn \l__hit_index_zh_tl {#1} }
           { \tl_set:Nn \l__hit_index_en_tl {#1} }
+        \tl_trim_spaces:N \l__hit_index_zh_tl
+        \tl_trim_spaces:N \l__hit_index_en_tl
+        \__hit_index_emit:
       }
   }
-\NewDocumentCommand \hitindex { s m }
+\NewDocumentCommand \hitindex { s O{} m }
   {
-    \__hit_index_read:n {#2}
-    \__hit_index_emit:
-    \IfBooleanF {#1}
-      {
-        \bool_if:NTF \g__hit_en_bool
-          {
-            \tl_if_empty:NTF \l__hit_index_en_tl
-              { \tl_use:N \l__hit_index_zh_tl }
-              { \tl_use:N \l__hit_index_en_tl }
-          }
-          {
-            \tl_if_empty:NTF \l__hit_index_zh_tl
-              { \tl_use:N \l__hit_index_en_tl }
-              { \tl_use:N \l__hit_index_zh_tl }
-          }
-      }
+    \tl_clear:N \l__hit_index_entry_tl
+    \tl_clear:N \l__hit_index_pinyin_tl
+    \hit@keys@set:nn { hit / index / one } {#2}
+    \tl_if_empty:NTF \l__hit_index_entry_tl
+      { \__hit_index_term:n {#3} }
+      { \exp_args:NV \__hit_index_term:n \l__hit_index_entry_tl }
+    \IfBooleanF {#1} {#3}
   }
 %    \end{macrocode}
 % \end{macro}
