@@ -16,7 +16,7 @@ PACKAGE = hithesis
 
 FINALCONTENTS=$(FINALMAIN).tex $(REPORTMAIN).tex info.tex final/frontmatter/*.tex final/mainmatter/*.tex proposal/mainmatter/*.tex interim/mainmatter/*.tex final/backmatter/*.tex $(FIGURES)
 # NOTE: update this to reflect your local file types.
-FIGURES=$(wildcard figures/*.eps figures/*.pdf)
+FIGURES=$(wildcard figures/*.eps figures/*.pdf figures/*.png)
 BIBFILE=$(wildcard final/backmatter/*.bib)
 CLSFILES=$(PACKAGE).cls $(PACKAGE).cfg $(PACKAGE).ist *.bst
 
@@ -115,12 +115,13 @@ clean:
 GENERATED = hithesis.cls hithesis.cfg hithesis.sty hithesis.ist hithesis.bst \
             hithesisbook.cls hithesisart.cls hithesisartplus.cls \
             docxlike.sty docxlike.lua hithesis-outline.def \
-            zfb.pdf figures/golfer.pdf
+            figures/aerostatic.png figures/aerodynamic.png figures/hybrid.png figures/squeeze-film.png \
+            figures/volute-section.png
 
 # 已经不再生成、但旧版本拷进来过的那几份。留在这张表里，从旧版升上来的目录
 # 才扫得干净；生成物那边删掉一个名字就往这里补一个。
 LEGACY = hit-thesis.cfg hit-report.cfg hit-thesis.cls hit-report.cls banshi.sty banshi.lua zhwordlike.sty zhwordlike.lua hit-linebreak.lua \
-         hit-logo.pdf hit-bachelor-report-bottommark.pdf
+         hit-logo.pdf hit-bachelor-report-bottommark.pdf zfb.pdf figures/golfer.pdf
 
 clean-generated:
 	-@$(RM) $(GENERATED) $(LEGACY)

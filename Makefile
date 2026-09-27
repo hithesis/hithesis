@@ -35,11 +35,11 @@ all: manual
 
 cls: $(TARGETS)
 
-# 行末回归：demo 与书写范例逐行比对（先重编 examples/demo/thesis.pdf）
+# 行末回归：对拍件 tests/lineends（摘要与撰写规范章）与书写范例逐行比对
 # 行末距离：断行交给 TeX，与 Word 不会归零；--max-diff 是棘轮上限，
 # 只保证不变坏，改进之后把这个数调低。
 #
-# 必须先重编 demo。这个目标从前直接读 examples/demo 的 PDF，那个文件是
+# 必须先重编对拍件。这个目标从前直接读 examples/demo 的 PDF，那个文件是
 # 上一次谁编过就是谁的，改了 cls 不重编就量的是陈货——2026/08/25 实测：
 # 报了好几轮的“行差 84”量的是两天前的 PDF，当天新鲜构建其实是 88。
 #
@@ -58,25 +58,34 @@ cls: $(TARGETS)
 #
 # 2026/09/27 起 × 默认按汉字排（宋体、占一格，用户定），范例那一章“即×.×.×”
 # “＋、－、×、÷”里的 × 在 Word 原件里没带东亚提示、排的是 Times，行差从 21 升到 24。
+#
+# 同日示例照博士范例改写，规范章与原先的摘要挪到 tests/lineends/ 单独编，
+# 段落与断行不变，行差仍是 24。
 lineends:
-	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex -g \
+	cd tests/lineends && TEXINPUTS="$(CURDIR):" BSTINPUTS="$(CURDIR):" latexmk -lualatex -g \
 	  -interaction=nonstopmode \
-	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}\AddToHook{class/hithesis/after}{\hitsetup{layout={compatibility-mode=word-2013}}}' final.tex \
+	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}\AddToHook{class/hithesis/after}{\hitsetup{layout={compatibility-mode=word-2013}}}' main.tex \
 	  > /dev/null
-	python3 scripts/check-line-ends.py --pdf examples/demo/final.pdf --max-diff 24
+	python3 scripts/check-line-ends.py --pdf tests/lineends/main.pdf --max-diff 24
 
 # 三个目标都带 -g 强制重编：latexmk 不知道 -usepretex 变了，lineends（钉 15）与
 # lineends-self（默认 11）接连跑时，第二个会拿第一个的 PDF 去比，满屏假差异。
 #
-# 自比对：拿 demo 全文（256 段 671 行）与 tests/lineends-demo.tsv 逐行比，钉住 Lua
-# 断行层的现状，改动之后看见的差异都得是有意的。上面的 lineends 只比规范那一章
-# 与 Word 的差距，这一条比全文与自己的差距。默认兼容模式（11）、fontset=windows。
+# 自比对：拿 demo 全文与 tests/lineends-demo.tsv、规范章对拍件与 tests/lineends-self-regu.tsv
+# 逐行比，钉住 Lua 断行层的现状，改动之后看见的差异都得是有意的。上面的 lineends 只比
+# 规范那一章与 Word 的差距，这一条比与自己的差距。默认兼容模式（11）、fontset=windows。
+# 规范章 2026-09-27 随示例改写挪出 demo，两份一起比才不少覆盖。
 lineends-self:
 	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex -g \
 	  -interaction=nonstopmode \
 	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' final.tex \
 	  > /dev/null
+	cd tests/lineends && TEXINPUTS="$(CURDIR):" BSTINPUTS="$(CURDIR):" latexmk -lualatex -g \
+	  -interaction=nonstopmode \
+	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' main.tex \
+	  > /dev/null
 	python3 scripts/check-line-ends.py --pdf examples/demo/final.pdf --fixture tests/lineends-demo.tsv
+	python3 scripts/check-line-ends.py --pdf tests/lineends/main.pdf --fixture tests/lineends-self-regu.tsv
 
 # 行内代码与 Word 对拍：三段带 \verb 的文字照 Word 探针 docx 逐字抄（tests/sample/verb/），
 # 靶子是 Mac Word 导出的 PDF 抽成的 tests/lineends-verb.tsv。行文本与行末坐标都要对上，棘轮 0
@@ -130,10 +139,18 @@ lineends-self-baseline:
 	  -interaction=nonstopmode \
 	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' final.tex \
 	  > /dev/null
+	cd tests/lineends && TEXINPUTS="$(CURDIR):" BSTINPUTS="$(CURDIR):" latexmk -lualatex -g \
+	  -interaction=nonstopmode \
+	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}' main.tex \
+	  > /dev/null
 	{ echo '# 行末基线，由 scripts/check-line-ends.py --gen 生成'; \
 	  echo '# 来源：examples/demo/final.pdf，lualatex，fontset=windows，兼容模式默认（Word 2003）'; \
-	  echo '# 用途：新版面轨的自比对，钉住 Lua 断行层的现状；改断行规则后确认差异都是有意的，再用 make lineends-self-baseline 重制'; \
+	  echo '# 用途：自比对，钉住 Lua 断行层的现状；改断行规则后确认差异都是有意的，再用 make lineends-self-baseline 重制'; \
 	  python3 scripts/check-line-ends.py --gen examples/demo/final.pdf | tail -n +3; } > tests/lineends-demo.tsv
+	{ echo '# 行末基线，由 scripts/check-line-ends.py --gen 生成'; \
+	  echo '# 来源：tests/lineends/main.pdf（摘要与撰写规范章），lualatex，fontset=windows，兼容模式默认（Word 2003）'; \
+	  echo '# 用途：自比对，钉住 Lua 断行层的现状；改断行规则后确认差异都是有意的，再用 make lineends-self-baseline 重制'; \
+	  python3 scripts/check-line-ends.py --gen tests/lineends/main.pdf | tail -n +3; } > tests/lineends-self-regu.tsv
 
 # 解压走自解压的 dtx，不走 .ins：解压规则写在 src/hithesis.dtx 的 install 守卫里，
 # hithesis.ins 是它的产物之一（提交进仓库，随 CTAN 包发出去，供拿到源码包的人用）。

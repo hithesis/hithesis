@@ -49,10 +49,10 @@ installfiles = {
   "hithesis-outline.def",
 }
 
--- zfb.pdf（打赏二维码）与 golfer.pdf（插图样例）不进这里：它们是示例与手册的
+-- 示例的插图（气体轴承那四张、涡室截面图）与手册的 zfb.pdf、golfer.pdf 不进这里：它们是示例与手册的
 -- 内容，不是模板资源。装进 tex/latex/hithesis/ 的话，用户装完模板，那个目录里
 -- 躺着一张二维码。thuthesis 与 fduthesis 都是这么分的——tex/ 下只有校徽校名这类
--- 模板资源，示例在 doc/ 下，一张图都不带。两张图随示例目录一起进 doc/。
+-- 模板资源，示例在 doc/ 下，一张图都不带。示例的图随示例目录一起进 doc/。
 
 typesetfiles = {"hithesis.dtx"}
 typesetexe   = "lualatex"

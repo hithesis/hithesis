@@ -826,9 +826,10 @@ scripts/convert-macro.py src/pages/hit-final-cover.dtx hit@engcover --apply
 改完跑 `make productcheck`，四份对不上会逐条说是哪一份漏了。
 
 图片分两类。**模板资源**（封面上的校徽、题名、落款）要装进 `tex/latex/hithesis/`，
-四份清单都要有。**示例与手册的内容**（`zfb.pdf` 打赏二维码、`golfer.pdf` 插图样例）
-只随示例目录发，在 `tools/distfiles.txt` 里行首写 `@`，不进 `installfiles` 也不进
-安装横幅——用户装完模板，`tex/latex/hithesis/` 里躺着一张二维码说不过去。
+四份清单都要有。**示例的内容**（照范例的四张气体轴承插图、深圳本科中期的涡室截面图）只随示例目录发，在
+`tools/distfiles.txt` 里行首写 `@`，不进 `installfiles` 也不进安装横幅——用户装完模板，
+`tex/latex/hithesis/` 里躺着几张示例插图说不过去。手册用的 `zfb.pdf` 打赏二维码、
+`golfer.pdf` 插图样例同理，放在 `assets/`，只在排手册时用。
 thuthesis 与 fduthesis 都是这么分的：`tex/` 下只有校徽校名，示例在 `doc/` 下，
 一张图都不带。
 
