@@ -9,16 +9,16 @@
 % \changes{v3.2a}{2026/09/28}{没有参考文献表的文档里成果页照样排得出：控制条目的库还没写时不列进成果页的 \cs{bibdata}}
 % \changes{v3.2a}{2026/09/26}{成果组名写了 \option{publications-group} 样式的排成 \pkg{docxlike} 的段；
 %   博士后的组名照模板不编号、组间不另加空当}
+% \changes{v3.2a}{2026/09/28}{八个整页环境照 iota-hit 收可选参数 \option{shown}（\texttt{auto}、\texttt{true}、\texttt{false}）：默认终稿排、报告里静默
+%   跳过，\texttt{true} 在报告里也排（不另起页，标题照章标题那一档，目录里与节同级），\texttt{false} 终稿里
+%   也不排；\env{publication} 的库名也可写成 \option{bib} 键}
 % \changes{v3.2a}{2026/09/13}{成果页的条目从 \file{.bib} 里出：\env{publication} 收库名，
 %   \env{pubgroup} 分组，组名段照范例（编号、段前段后 5 磅、1.25 倍行盒、宋体伪粗；
 %   人文社科类走节标题那一档），编号版式与参考文献表同源，\pkg{biblatex} 一线也加进
-%   资源；索引页照规范附录 6 的官方示例自定义 \env{theindex}；报告那一档把这八个
-%   环境定义成空环境静默跳过}
+%   资源；索引页照规范附录 6 的官方示例自定义 \env{theindex}}
 %
 %    \begin{macrocode}
 %<*final-backmatter>
-\bool_if:NT \g__hit_final_bool
-  {
 \RequirePackage{changepage}
 \RequirePackage{multicol}
 %    \end{macrocode}
@@ -26,17 +26,84 @@
 % 索引那一页要比正文更宽的左右边距（\env{adjustwidth}）和双栏（\env{multicols*}），
 % 这两个包只服务于它。
 %
+% \emph{排不排由 \option{shown} 定，照 iota-hit。} 这几页是终稿的整章，学校的开题与中期报告
+% 规范里没有对应的一页，所以默认（\texttt{auto}）终稿排、报告不排。写
+% \oarg{shown=true} 在报告里也排，\oarg{shown=false} 连终稿也不排，与 iota-hit 每一页的
+% \texttt{shown} 同一个三态（\texttt{final-only-wanted}）。
+%
+% \emph{报告里不排是静默的，这是本类唯一容许的静默失效，写在这里免得日后被「修」掉。}
+% 别处一律相反：覆盖键落进没人读的桶、选项取值拼错、词条查不到，每一处都专门做了报错。
+% 这里反过来，是因为它不是错：同一份正文通吃三档时，开题报告里出现 \env{conclusions} 是必然的，
+% 改一行 \option{stage} 就该出任何一档，用户不必把十来行调用注释来注释去。判据照抄 iota-hit
+% 的 \texttt{src/flow/stage.typ}。
+%
+% 不排的时候整段跳到 \cs{end}\marg{环境名} 为止，只记号化、不执行，里面的标签、索引、目录行
+% 一样都不留。
+%    \begin{macrocode}
+\tl_new:N \l__hit_back_shown_tl
+\bool_new:N \l__hit_back_shown_bool
+\keys_define:nn { hit / back / page }
+  {
+    shown .choices:nn = { auto , true , false }
+      { \tl_set_eq:NN \l__hit_back_shown_tl \l_keys_choice_tl } ,
+    shown .value_required:n = true ,
+  }
+\cs_new_protected:Npn \__hit_back_resolve:
+  {
+    \exp_args:NV \str_case:nnF \l__hit_back_shown_tl
+      {
+        { true }  { \bool_set_true:N \l__hit_back_shown_bool }
+        { false } { \bool_set_false:N \l__hit_back_shown_bool }
+      }
+      { \bool_set_eq:NN \l__hit_back_shown_bool \g__hit_final_bool }
+  }
+\cs_new_protected:Npn \__hit_back_shown:n #1
+  {
+    \tl_set:Nn \l__hit_back_shown_tl { auto }
+    \hit@keys@set:nn { hit / back / page } {#1}
+    \__hit_back_resolve:
+  }
+\cs_new_protected:Npn \__hit_back_skip:
+  { \exp_args:No \__hit_back_skip:n { \@currenvir } }
+\cs_new_protected:Npn \__hit_back_skip:n #1
+  {
+    \cs_set_protected:Npn \__hit_back_skip_loop:w ##1 \end ##2
+      { \str_if_eq:nnTF {##2} {#1} { \end {#1} } { \__hit_back_skip_loop:w } }
+    \__hit_back_skip_loop:w
+  }
+%    \end{macrocode}
+%
+% 终稿里每一页另起一页；报告没有章，这几页接着排，照 iota-hit。标题那一步报告另有一份
+% \cs{hit@appendix@chapter}，见本节末尾。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_back_clear:
+  { \bool_if:NT \g__hit_final_bool { \hit@clear@page } }
+%    \end{macrocode}
+%
 % \begin{environment}{conclusions}
 % \changes{v3.1d}{2025/03/03}{\cs{hit@appendix@chapter*}如果不给第四个参数就不写英文目录}
 %    \begin{macrocode}
-\NewDocumentEnvironment { conclusions } { }
+\NewDocumentEnvironment { conclusions } { O{} }
   {
-    \hit@clear@page
-    \hit@if@option@TF{en}%
-      {\hit@appendix@chapter*{\hit@term@conclusion@heading@en}[\hit@term@conclusion@heading@en]}%
-      {\hit@appendix@chapter*[\hit@term@conclusion@heading@zh]%
-        {\hit@spread@by{\hit@term@conclusion@heading@spread}{\hit@term@conclusion@heading@zh}}%
-        [\hit@term@conclusion@heading@en]}%
+    \__hit_back_shown:n {#1}
+    \bool_if:NTF \l__hit_back_shown_bool
+      {
+        \__hit_back_clear:
+        \hit@if@option@TF { en }
+          {
+            \hit@appendix@chapter * { \hit@term@conclusion@heading@en }
+              [ \hit@term@conclusion@heading@en ]
+          }
+          {
+            \hit@appendix@chapter * [ \hit@term@conclusion@heading@zh ]
+              {
+                \hit@spread@by
+                  { \hit@term@conclusion@heading@spread } { \hit@term@conclusion@heading@zh }
+              }
+              [ \hit@term@conclusion@heading@en ]
+          }
+      }
+      { \__hit_back_skip: }
   }
   { }
 %    \end{macrocode}
@@ -44,14 +111,28 @@
 % \begin{environment}{acknowledgements}
 % \changes{v3.1d}{2025/03/03}{\cs{hit@appendix@chapter*}如果不给第四个参数就不写英文目录}
 %    \begin{macrocode}
-\NewDocumentEnvironment { acknowledgements } { }
+\NewDocumentEnvironment { acknowledgements } { O{} }
   {
-    \hit@clear@page
-    \hit@if@option@TF{en}%
-      {\hit@appendix@chapter*{\hit@term@acknowledgements@heading@en}[\hit@term@acknowledgements@heading@en]}%
-      {\hit@appendix@chapter*[\hit@term@acknowledgements@heading@zh]%
-        {\hit@spread@by{\hit@term@acknowledgements@heading@spread}{\hit@term@acknowledgements@heading@zh}}%
-        [\hit@term@acknowledgements@heading@en]}%
+    \__hit_back_shown:n {#1}
+    \bool_if:NTF \l__hit_back_shown_bool
+      {
+        \__hit_back_clear:
+        \hit@if@option@TF { en }
+          {
+            \hit@appendix@chapter * { \hit@term@acknowledgements@heading@en }
+              [ \hit@term@acknowledgements@heading@en ]
+          }
+          {
+            \hit@appendix@chapter * [ \hit@term@acknowledgements@heading@zh ]
+              {
+                \hit@spread@by
+                  { \hit@term@acknowledgements@heading@spread }
+                  { \hit@term@acknowledgements@heading@zh }
+              }
+              [ \hit@term@acknowledgements@heading@en ]
+          }
+      }
+      { \__hit_back_skip: }
   }
   { }
 %    \end{macrocode}
@@ -59,8 +140,18 @@
 % \begin{environment}{correspondingaddr}
 %    \begin{macrocode}
 
-\NewDocumentEnvironment { correspondingaddr } { }
-  { \hit@clear@page \hit@appendix@chapter * { \hit@term@resume@corresponding@address@zh } [ \hit@term@resume@corresponding@address@en ] } { }
+\NewDocumentEnvironment { correspondingaddr } { O{} }
+  {
+    \__hit_back_shown:n {#1}
+    \bool_if:NTF \l__hit_back_shown_bool
+      {
+        \__hit_back_clear:
+        \hit@appendix@chapter * { \hit@term@resume@corresponding@address@zh }
+          [ \hit@term@resume@corresponding@address@en ]
+      }
+      { \__hit_back_skip: }
+  }
+  { }
 %    \end{macrocode}
 %
 % 博后用到的通讯页面
@@ -69,8 +160,17 @@
 %    \begin{macrocode}
 
 
-\NewDocumentEnvironment { resume } { }
-  { \hit@clear@page \hit@appendix@chapter * { \hit@term@resume@heading@zh } [ \hit@term@resume@heading@en ] } { }
+\NewDocumentEnvironment { resume } { O{} }
+  {
+    \__hit_back_shown:n {#1}
+    \bool_if:NTF \l__hit_back_shown_bool
+      {
+        \__hit_back_clear:
+        \hit@appendix@chapter * { \hit@term@resume@heading@zh } [ \hit@term@resume@heading@en ]
+      }
+      { \__hit_back_skip: }
+  }
+  { }
 %    \end{macrocode}
 %
 % \begin{environment}{publication,pubgroup}
@@ -215,19 +315,41 @@
       \nobibliography {#1}
     \group_end:
   }
+\tl_new:N \l__hit_pub_bib_tl
+\keys_define:nn { hit / back / pub }
+  {
+    bib   .tl_set:N = \l__hit_pub_bib_tl ,
+    shown .meta:nn  = { hit / back / page } { shown = {#1} } ,
+  }
+\cs_new_protected:Npn \__hit_pub_options:n #1
+  {
+    \tl_clear:N \l__hit_pub_bib_tl
+    \tl_set:Nn \l__hit_back_shown_tl { auto }
+    \tl_if_in:nnTF {#1} { = }
+      { \hit@keys@set:nn { hit / back / pub } {#1} }
+      { \tl_set:Nn \l__hit_pub_bib_tl {#1} }
+    \__hit_back_resolve:
+  }
 \NewDocumentEnvironment { publication } { O{} }
   {
-    \hit@clear@page
-    \hit@appendix@chapter * { \hit@term@publications@heading@zh }
-      [ \hit@term@publications@heading@en ]
-    \int_gzero:N \g__hit_pub_group_int
-    \tl_if_blank:nF {#1}
+    \__hit_pub_options:n {#1}
+    \bool_if:NTF \l__hit_back_shown_bool
       {
-        \@ifpackageloaded { biblatex }
-          { \__hit_pub_resource:n {#1} } { \__hit_pub_open:n {#1} }
+        \__hit_back_clear:
+        \bool_set_true:N \l__hit_pub_in_bool
+        \hit@appendix@chapter * { \hit@term@publications@heading@zh }
+          [ \hit@term@publications@heading@en ]
+        \int_gzero:N \g__hit_pub_group_int
+        \tl_if_blank:VF \l__hit_pub_bib_tl
+          {
+            \@ifpackageloaded { biblatex }
+              { \exp_args:NV \__hit_pub_resource:n \l__hit_pub_bib_tl }
+              { \exp_args:NV \__hit_pub_open:n \l__hit_pub_bib_tl }
+          }
       }
+      { \__hit_back_skip: }
   }
-  { \iow_close:N \g__hit_pub_aux_iow }
+  { \bool_if:NT \l__hit_back_shown_bool { \iow_close:N \g__hit_pub_aux_iow } }
 %    \end{macrocode}
 %
 % \emph{组名段照范例排。}两份范例（研究生、本科理工）三条组名的段落属性一字
@@ -324,7 +446,8 @@
 % 手排（学位论文那几档）。《博士后研究工作报告模板》的六个组名是手敲的段，黑体加粗四号、固定值
 % 15.5 磅、两个自动间距不勾，组名不编号，组与组之间也不另加空当（模板里是作者敲的空段）。
 %    \begin{macrocode}
-\NewDocumentEnvironment { pubgroup } { O{auto} m }
+\bool_new:N \l__hit_pub_in_bool
+\cs_new_protected:Npn \__hit_pub_group_begin:nn #1#2
   {
     \int_gincr:N \g__hit_pub_group_int
     \docxlike_format_if_blank:nTF { publications-group }
@@ -366,6 +489,7 @@
     \RenewDocumentCommand \item { m }
       { \__hit_pub_olditem: \__hit_pub_entry:n {##1} }
   }
+\cs_new_protected:Npn \__hit_pub_group_end:
   {
     \int_gset:Nn \g__hit_pub_count_int { \value { enumiv } }
     \protected@write \@auxout { }
@@ -375,6 +499,19 @@
       }
     \endlist
   }
+\NewDocumentEnvironment { pubgroup } { O{auto} m }
+  {
+    \bool_lazy_or:nnTF { \g__hit_final_bool } { \l__hit_pub_in_bool }
+      {
+        \bool_set_true:N \l__hit_back_shown_bool
+        \__hit_pub_group_begin:nn {#1} {#2}
+      }
+      {
+        \bool_set_false:N \l__hit_back_shown_bool
+        \__hit_back_skip:
+      }
+  }
+  { \bool_if:NT \l__hit_back_shown_bool { \__hit_pub_group_end: } }
 \cs_new_protected:Npn \__hit_pub_olditem: { }
 \int_new:N \g__hit_pub_count_int
 %    \end{macrocode}
@@ -383,8 +520,18 @@
 %    \begin{macrocode}
 
 
-\NewDocumentEnvironment { doctorpublication } { }
-  { \hit@clear@page \hit@appendix@chapter * { \hit@term@publications@doctoral@heading@zh } [ \hit@term@publications@doctoral@heading@en ] } { }
+\NewDocumentEnvironment { doctorpublication } { O{} }
+  {
+    \__hit_back_shown:n {#1}
+    \bool_if:NTF \l__hit_back_shown_bool
+      {
+        \__hit_back_clear:
+        \hit@appendix@chapter * { \hit@term@publications@doctoral@heading@zh }
+          [ \hit@term@publications@doctoral@heading@en ]
+      }
+      { \__hit_back_skip: }
+  }
+  { }
 %    \end{macrocode}
 %
 % 此处添加博后用到的博士生发表页面
@@ -403,27 +550,32 @@
 % 先前的栏距 4\,em 与两侧各缩 2\,em 都无据，去掉；条目行距 1.35
 % （\texttt{w:line="324" auto}），比正文的 1.25 松。
 %    \begin{macrocode}
-\NewDocumentEnvironment { ceindex } { }
+\NewDocumentEnvironment { ceindex } { O{} }
   {
-    \hit@clear@page
-    \hit@if@option@TF { en }
+    \__hit_back_shown:n {#1}
+    \bool_if:NTF \l__hit_back_shown_bool
       {
-        \hit@appendix@chapter * { \hit@term@index@heading@en }
-          [ \hit@term@index@heading@en ]
-      }
-      {
-        \hit@appendix@chapter * [ \hit@term@index@heading@zh ]
+        \__hit_back_clear:
+        \hit@if@option@TF { en }
           {
-            \hit@spread@by
-              { \hit@term@index@heading@spread } { \hit@term@index@heading@zh }
+            \hit@appendix@chapter * { \hit@term@index@heading@en }
+              [ \hit@term@index@heading@en ]
           }
-          [ \hit@term@index@heading@en ]
+          {
+            \hit@appendix@chapter * [ \hit@term@index@heading@zh ]
+              {
+                \hit@spread@by
+                  { \hit@term@index@heading@spread } { \hit@term@index@heading@zh }
+              }
+              [ \hit@term@index@heading@en ]
+          }
+        \dim_set:Nn \columnsep { 10.8 bp }
+        \begin { multicols* } { 2 }
+        \dim_set:Nn \baselineskip { 21.01 bp }
       }
-    \dim_set:Nn \columnsep { 10.8 bp }
-    \begin { multicols* } { 2 }
-    \dim_set:Nn \baselineskip { 21.01 bp }
+      { \__hit_back_skip: }
   }
-  { \end { multicols* } }
+  { \bool_if:NT \l__hit_back_shown_bool { \end { multicols* } } }
 %    \end{macrocode}
 %
 % \emph{\env{theindex} 自己写一个。}\pkg{book} 的原版开头是
@@ -449,57 +601,59 @@
     \cs_set_protected:Npn \indexspace { \par }
   }
   { \par }
-
-\newlist{idxwordlist}{description}{3}
-\setlist[idxwordlist,~1]{%
-  itemsep=\baselineskip,
-  labelindent=8em,
-  font=\normalsize\bfseries,
-}
-\setlist[idxwordlist,~2]{%
-  nosep,
-  labelindent=2em,
-  font=\wuhao\rm,
-}
-\setlist[idxwordlist,~3]{%
-  nosep,
-  labelindent=4em,
-  font=\wuhao\rm,
-}
 %    \end{macrocode}
 %
+% \env{idxwordlist} 是 v3.1e 留给用户手排索引的列表。报告那一档到这里 \pkg{enumitem} 还没装
+% （报告的依赖在目录模块之后才装），定义挪到导言区结束时；终稿照旧当场定义，导言区里能改它。
 %    \begin{macrocode}
+\cs_new_protected:Npn \__hit_back_idxwordlist:
+  {
+    \newlist{idxwordlist}{description}{3}
+    \setlist[idxwordlist,~1]{%
+      itemsep=\baselineskip,
+      labelindent=8em,
+      font=\normalsize\bfseries,
+    }
+    \setlist[idxwordlist,~2]{%
+      nosep,
+      labelindent=2em,
+      font=\wuhao\rm,
+    }
+    \setlist[idxwordlist,~3]{%
+      nosep,
+      labelindent=4em,
+      font=\wuhao\rm,
+    }
   }
+\bool_if:NTF \g__hit_final_bool
+  { \__hit_back_idxwordlist: }
+  { \AddToHook { begindocument / before } { \__hit_back_idxwordlist: } }
 %    \end{macrocode}
 %
-% \emph{不属于本档的整页，静默不排。} \env{conclusions} 这几个是终稿的整章，
-% 学校的开题与中期报告规范里没有对应的一页。在报告那一档写了，整段吞掉，
-% 不排也不吭声。
-%
-% \emph{这是本类唯一容许的静默失效，写在这里免得日后被「修」掉。} 别处一律相反：
-% 覆盖键落进没人读的桶、选项取值拼错、词条查不到，每一处都专门做了报错，注释里
-% 也写着「静默失效比报错糟」。这里反过来，是因为它\emph{不是错}——在开题报告里
-% 写 \env{conclusions} 不是手滑，是同一份正文通吃三档时必然出现的写法。一份模板
-% 改一行 \option{stage} 就该出任何一档，用户不必把十来行调用注释来注释去。
-% 这条判据照抄 iota-hit 里 \texttt{src/flow/stage.typ} 那一段，理由那边写得比这里细。
-%
-% \emph{参数表照抄终稿那一份，正文用 \texttt{+b} 吞掉。} 不吞的话
-% \LaTeX{} 会把整段正文排出来，接着 \cs{end} 对不上，一路报到
-% \cs{end\{document\}}——改之前就是这个样子，一次 115 条错。
-%
-% \emph{眼下没有「强排」那一档。} iota 的对应物是每页一个三态的
-% \texttt{shown}，写 \texttt{true} 就强制排。这里做不到：这几个环境排出来要
-% 走 \cs{hit@appendix@chapter}，那是终稿的整章命令，报告没有章。真要在报告里
-% 排一页「结论」，缺的是一套版面，不是一个开关。
+% \emph{报告里的章级标题。} 报告没有章，终稿的 \cs{hit@appendix@chapter} 不在。这几页在报告里强排时
+% 照 iota-hit 的 \texttt{term-heading}：标题用章标题那一档，报告里就是目录标题用的那个样式
+% （本部与威海是 \texttt{toc-heading}，深圳本科是“标题 1”，见 \file{hit-report-toc.dtx}），段前一行；
+% 不另起一页，目录里与节同级。正文不照 Word 排的那几份报告（深圳硕博）用 \cs{section*}。
 %    \begin{macrocode}
 \bool_if:NF \g__hit_final_bool
   {
-    \clist_map_inline:nn
-      { conclusions , acknowledgements , correspondingaddr , resume ,
-        doctorpublication , ceindex }
-      { \NewDocumentEnvironment {#1} { +b } { } { } }
-    \NewDocumentEnvironment { publication } { O{} +b } { } { }
-    \NewDocumentEnvironment { pubgroup } { O{auto} m +b } { } { }
+    \NewDocumentCommand \hit@appendix@chapter { s o m o }
+      {
+        \par
+        \phantomsection
+        \addcontentsline { toc } { section }
+          { \texorpdfstring {#3} { \IfValueTF {#2} {#2} {#3} } }
+        \__hit_back_report_heading:n {#3}
+      }
+    \cs_new_protected:Npn \__hit_back_report_heading:n #1
+      {
+        \bool_if:NTF \g__hit_final_body_bool
+          {
+            \exp_args:NV \docxlike_format_par:nnn \g__hit_report_toc_title_style_tl
+              { numbering = none , paragraph = { spacing = { before = 1 ~ line } } } {#1}
+          }
+          { \section* {#1} }
+      }
   }
 %    \end{macrocode}
 %    \begin{macrocode}
