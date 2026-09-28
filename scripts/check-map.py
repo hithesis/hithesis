@@ -57,6 +57,7 @@ DESC = {
     "shared-caption": "题注与双语题注",
     "shared-subfigure": "子图",
     "shared-algorithm": "伪代码：algorithm2e 的外框、关键字、行号预设",
+    "shared-listing": "代码清单：listings 的外框、行号、题注预设",
     "shared-key-engine": "键怎么造、怎么存、旧名怎么兼容",
     "shared-option-engine": "类选项怎么声明、标志位怎么读",
     "shared-bibstyle": "参考文献样式的开关",

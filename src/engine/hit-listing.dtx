@@ -1,0 +1,439 @@
+% \iffalse meta-comment
+%
+% hit-listing.dtx 是各个类共用的代码清单层
+%
+% \fi
+%
+% \section{代码清单}
+%
+% \changes{v3.2a}{2026/09/28}{代码清单改由文档类排：\pkg{listings} 在导言区末尾由类装上，写了题注的
+%   \env{lstlisting} 照 iota-hit 的 \texttt{raw-style} 排外框与行号（\option{style}/\option{listing} 的
+%   \option{frame} 与 \option{line-numbering}），题注照表题排、名字“代码”、按章编号，博士档可写英文题
+%   （\texttt{caption-en}），续排不占新号、行号接着数（\texttt{continued}）；没写题注的是正文里的代码块，
+%   不加框、不编行号。代码用等宽字体、正文字号，行距照正文段的倍数按等宽字体的行高算}
+%
+% 规范里没有代码清单的格式。iota-hit 把进了 figure 的代码块当成一种图，题注、编号、引用与图表
+% 同一套，外框做成与伪代码一样的几档；散在正文里的代码块是段落，没框没行号。这里照它做，
+% 排版器用 \pkg{listings}：写了 \texttt{caption} 的 \env{lstlisting} 是前一种，没写的是后一种。
+% \begin{itemize}
+% \item \option{frame}：\texttt{tabular}（默认）题注在上、居中，下面粗线、代码、粗线；
+%   \texttt{ruled} 粗线、居左的题注、细线、代码、粗线；\texttt{boxed} 一圈细线的框，题注在框下居中；
+%   \texttt{none} 不画线，题注在上。粗细取三线表那两个（\option{style}/\option{table-rules}）。
+% \item \option{line-numbering}：行号的样子，写法与伪代码的同一个键一样（首字定数字的写法，
+%   后面跟着的照印）；\texttt{none} 不编行号。默认 \texttt{1}。
+% \end{itemize}
+%
+% 几何照 iota-hit：代码是等宽字体、正文字号；有框的清单代码从版心左缘让出单元格边距
+% （\cs{tabcolsep}）起排，行号是 0.8 倍字号，右端落在代码左缘往左半个字处，悬在版心外。
+% 行距是正文段的倍数乘等宽字体自己的单倍行高（Consolas 小四 1.25 倍是 17.56\,bp），正文段写的是
+% 固定值就照那个值。线骑在行盒边界上：顶线的下缘贴着头一行的行盒，底线的上缘贴着末一行的。
+% 行盒的高深照 Word：上升部与行距减上升部；\cs{strutbox} 也换成这一根，\pkg{listings} 给行号盒
+% 放的 \cs{strut} 才不会把行撑高（\cs{fontsize} 给的是行距的七成与三成）。
+%
+% \pkg{listings} 的续页不会自己标“（续代码）”，跨页的清单照原样断开；要分成两张的，后一张写
+% \texttt{continued}。文档自己装了 \pkg{minted} 这类别的包，\env{lstlisting} 以外的环境类不管。
+%    \begin{macrocode}
+%<*shared-listing>
+%    \end{macrocode}
+%
+% \subsection{键}
+%
+% 两个键的值各存一份全局 \texttt{tl}，每开一个清单现读。\texttt{auto} 退回默认值。
+%    \begin{macrocode}
+\tl_new:N \g__hit_listing_frame_tl
+\tl_new:N \g__hit_listing_numbering_tl
+\tl_gset:Nn \g__hit_listing_frame_tl { tabular }
+\tl_gset:Nn \g__hit_listing_numbering_tl { 1 }
+\keys_define:nn { hit / style }
+  { listing .code:n = { \hit@keys@set:nn { hit / style / listing } {#1} } }
+\keys_define:nn { hit / style / listing }
+  {
+    frame .choices:nn = { tabular , ruled , boxed , none , auto }
+      {
+        \str_if_eq:VnTF \l_keys_choice_tl { auto }
+          { \tl_gset:Nn \g__hit_listing_frame_tl { tabular } }
+          { \tl_gset_eq:NN \g__hit_listing_frame_tl \l_keys_choice_tl }
+      } ,
+    frame .value_required:n = true ,
+    line-numbering .code:n =
+      {
+        \str_if_eq:nnTF {#1} { auto }
+          { \tl_gset:Nn \g__hit_listing_numbering_tl { 1 } }
+          { \tl_gset:Nn \g__hit_listing_numbering_tl {#1} }
+      } ,
+    line-numbering .value_required:n = true ,
+  }
+%    \end{macrocode}
+%
+% \subsection{装包}
+%
+% 导言区末尾没装 \pkg{listings} 就装上。设定挂在它的装后钩子上，文档自己在导言区装了
+% 再写 \cs{lstset}，写的照样压过这里的。\hologo{pdfLaTeX} 下中文是几个字节的活动字符，
+% \texttt{extendedchars} 会把它们当成单个 8 位字符，报 Improper alphabetic constant，所以关掉，
+% 原样交给 \pkg{CJK} 排；定宽的列也要逐字节取字符码，同样报错，那边改成 \texttt{flexible}（\texttt{fullflexible} 会丢行首缩进）。
+% 字符串里的空格照排空格，不印 \pkg{listings} 默认的“␣”。
+%    \begin{macrocode}
+\AddToHook { begindocument / before }
+  { \@ifpackageloaded { listings } { } { \RequirePackage { listings } } }
+\AddToHook { package / listings / after } { \__hit_listing_package: }
+\cs_new_protected:Npn \__hit_listing_package:
+  {
+    \lstset
+      {
+        basicstyle = \__hit_listing_font: ,
+        keywordstyle = { } ,
+        columns = [l] fixed ,
+        basewidth = { \__hit_listing_basewidth: , 0.45em } ,
+        keepspaces = true ,
+        showstringspaces = false ,
+        breaklines = true ,
+        aboveskip = 0pt ,
+        belowskip = 0pt ,
+        abovecaptionskip = 0pt ,
+        belowcaptionskip = 0pt ,
+        numbers = left ,
+        numberstyle = \__hit_listing_number_font: ,
+        numberfirstline = true ,
+        everydisplay = \__hit_listing_display: ,
+      }
+    \sys_if_engine_pdftex:T { \lstset { extendedchars = false , columns = flexible } }
+    \lst@Key { caption-en } { } { \tl_set:Nn \l__hit_listing_en_tl {##1} }
+    \lst@Key { continued } { false } [ true ]
+      {
+        \str_if_eq:nnTF {##1} { true }
+          { \bool_set_true:N \l__hit_listing_continued_bool }
+          { \bool_set_false:N \l__hit_listing_continued_bool }
+      }
+    \lst@AddToHook { PreSet } { \__hit_listing_preset: }
+    \lst@AddToHook { PreInit } { \__hit_listing_preinit: }
+    \lst@AddToHook { EveryPar } { \__hit_listing_strut: }
+    \lst@AddToHook { DeInit } { \__hit_listing_deinit: }
+    \AddToHook { begindocument / end } { \__hit_listing_counter: }
+  }
+\tl_new:N \l__hit_listing_en_tl
+\bool_new:N \l__hit_listing_continued_bool
+%    \end{macrocode}
+%
+% 编号照图表：学位论文按章（“1-1”），报告不排章，从 1 数下去。\pkg{listings} 在
+% \cs{AtBeginDocument} 里才建计数器，所以挪到 \texttt{begindocument/end}。
+%
+% 题注也在那时接管：\pkg{caption}（由 \pkg{subcaption} 带进来）在 \cs{AtBeginDocument} 里把
+% \pkg{listings} 的 \cs{lst@MakeCaption} 换成自己的一套，题注名取 \cs{lstlistingname}，排法走
+% \cs{@makecaption}。这里换回 \pkg{listings} 原来那个（\pkg{caption} 存着），题注交给本节的
+% \cs{\_\_hit\_listing\_makecaption:nn}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_listing_counter:
+  {
+    \cs_if_exist:NT \caption@ORI@lst@MakeCaption
+      { \cs_set_eq:NN \lst@MakeCaption \caption@ORI@lst@MakeCaption }
+    \cs_set_eq:NN \lst@makecaption \__hit_listing_makecaption:nn
+    \bool_if:NT \g__hit_chapter_bool
+      { \counterwithin* { lstlisting } { chapter } }
+    \cs_set:Npn \thelstlisting
+      {
+        \bool_if:NT \g__hit_chapter_bool { \thechapter - }
+        \int_use:N \c@lstlisting
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{字体与行距}
+%
+% 等宽字体取正文的 \cs{ttfamily}。类给 Consolas 设了 7/8 的缩放（小四正文里的行内代码正好五号），
+% 代码块照 iota-hit 排正文字号，所以字号除回这个比例；字体档没设缩放的，比例是 1。行距照正文段：
+% 倍数乘等宽字体的单倍行高（按字体名由 \pkg{docxlike} 现算），固定值照值。
+%    \begin{macrocode}
+\dim_new:N \l__hit_listing_size_dim
+\dim_new:N \l__hit_listing_lead_dim
+\tl_new:N \l__hit_listing_natural_tl
+\tl_new:N \l__hit_listing_ascent_tl
+\cs_new_protected:Npn \__hit_listing_metrics:
+  {
+    \dim_set_eq:NN \l__hit_listing_size_dim \g_docxlike_body_size_dim
+    \dim_compare:nNnT { \l__hit_listing_size_dim } = { 0pt }
+      { \dim_set:Nn \l__hit_listing_size_dim { \f@size pt } }
+    \docxlike_font_metric:VNNF \g__hit_font_mono_name_tl
+      \l__hit_listing_natural_tl \l__hit_listing_ascent_tl
+      {
+        \tl_set:Nn \l__hit_listing_natural_tl { 1.2 }
+        \tl_set:Nn \l__hit_listing_ascent_tl { 0.9 }
+      }
+    \group_begin:
+      \docxlike_format_compute:n { Normal }
+      \str_if_eq:VnTF \l_docxlike_format_line_unit_tl { exact }
+        { \dim_gset:Nn \g_tmpa_dim { \l_docxlike_format_line_value_tl } }
+        {
+          \dim_gset:Nn \g_tmpa_dim
+            {
+              \fp_to_dim:n
+                {
+                  ( \str_if_eq:VnTF \l_docxlike_format_line_unit_tl { auto }
+                      { \l_docxlike_format_line_value_tl } { 1 } )
+                  * \l__hit_listing_natural_tl * \l__hit_listing_size_dim
+                }
+            }
+        }
+    \group_end:
+    \dim_set_eq:NN \l__hit_listing_lead_dim \g_tmpa_dim
+  }
+\cs_generate_variant:Nn \docxlike_font_metric:nNNF { V }
+%    \end{macrocode}
+%
+% 字宽：等宽字体一格，外加字符网格的半个增量（Word 贴网格的段里西文字形各加半个增量，iota-hit
+% 量得 Consolas 小四一格 6.83\,bp）；没有字符网格就是字体自己的宽。每个字左对齐在格里。
+%    \begin{macrocode}
+\cs_new:Npn \__hit_listing_basewidth:
+  {
+    \tex_dimexpr:D \tex_fontcharwd:D \tex_font:D `0
+      \dim_compare:nNnT { \g_docxlike_page_char_dim } > { 0pt }
+        { + ( \g_docxlike_page_char_dim - \g_docxlike_body_size_dim ) / 2 }
+    \scan_stop:
+  }
+\cs_new_protected:Npn \__hit_listing_font:
+  {
+    \__hit_listing_metrics:
+    \fontsize
+      { \fp_to_dim:n { \l__hit_listing_size_dim / \g__hit_font_mono_scale_fp } }
+      { \l__hit_listing_lead_dim }
+    \ttfamily \selectfont
+    \skip_zero:N \lineskip
+    \dim_zero:N \lineskiplimit
+    \hbox_set:Nn \strutbox { \__hit_listing_strut: }
+  }
+\cs_new_protected:Npn \__hit_listing_number_font:
+  {
+    \fontsize
+      { \fp_to_dim:n { 0.8 * \l__hit_listing_size_dim / \g__hit_font_mono_scale_fp } }
+      { \l__hit_listing_lead_dim }
+    \ttfamily \mdseries \upshape \selectfont
+  }
+%    \end{macrocode}
+%
+% \subsection{每一张}
+%
+% \texttt{PreSet} 在读选项之前：清掉上一张的英文题与续排标志，外框定题注的位置。
+% \texttt{everydisplay} 在读完选项之后、题注之前：写了题注（或 \texttt{continued}）的是清单，
+% 照外框缩进单元格边距、上面排空段；续排的短题注清空，\pkg{listings} 见了就不步进计数器、
+% 不进清单，\cs{label} 拿到的仍是上一张的号，行号接着上一张。代码的每一行在 \pkg{listings} 里都是
+% 一段，\pkg{docxlike} 的段落钩子会给它发正文的撑杆（宋体的行盒比等宽字体的高），所以把那两个钩子
+% 关掉，用的是它给页眉页脚留的开关 \cs{l\_docxlike\_format\_in\_header\_bool}，出清单的组即还原。\texttt{PreInit} 在题注之后、头一行之前：没写题注的是正文代码块，不编行号。
+% \texttt{EveryPar} 每行开头放一根撑杆，行盒的高深就是等宽字体的上升部与行距减上升部，
+% 一行接一行、贴着线排。
+%    \begin{macrocode}
+\bool_new:N \l__hit_listing_captioned_bool
+\dim_new:N \l__hit_listing_width_dim
+\cs_new_protected:Npn \__hit_listing_preset:
+  {
+    \tl_clear:N \l__hit_listing_en_tl
+    \bool_set_false:N \l__hit_listing_continued_bool
+    \str_if_eq:VnTF \g__hit_listing_frame_tl { boxed }
+      { \def \lst@captionpos { b } }
+      { \def \lst@captionpos { t } }
+  }
+\cs_new_protected:Npn \__hit_listing_display:
+  {
+    \dim_set_eq:NN \l__hit_listing_width_dim \linewidth
+    \bool_set_true:N \l_docxlike_format_in_header_bool
+    \__hit_listing_metrics:
+    \bool_if:NT \l__hit_listing_continued_bool
+      {
+        \tl_if_empty:NT \lst@caption { \def \lst@caption { \scan_stop: } }
+        \cs_set_eq:NN \lst@@caption \c_empty_tl
+        \let \lst@firstnumber \c@lstnumber
+      }
+    \bool_set:Nn \l__hit_listing_captioned_bool
+      { ! \tl_if_empty_p:N \lst@caption }
+    \bool_if:NT \l__hit_listing_captioned_bool
+      {
+        \str_if_eq:VnF \g__hit_listing_frame_tl { none }
+          {
+            \edef \lst@xleftmargin { \dim_use:N \tabcolsep }
+            \edef \lst@xrightmargin { \dim_use:N \tabcolsep }
+          }
+        \__hit_float_blank:n { table-above }
+      }
+  }
+\cs_new_protected:Npn \__hit_listing_preinit:
+  {
+    \bool_lazy_and:nnTF
+      { \l__hit_listing_captioned_bool }
+      { ! \str_if_eq_p:Vn \g__hit_listing_numbering_tl { none } }
+      {
+        \edef \lst@numbersep { \dim_eval:n { 0.5 \l__hit_listing_size_dim } }
+        \__hit_listing_number_style:
+      }
+      { \cs_set_eq:NN \lst@PlaceNumber \prg_do_nothing: }
+    \bool_lazy_and:nnT
+      { \l__hit_listing_captioned_bool }
+      { \str_if_eq_p:Vn \g__hit_listing_frame_tl { boxed } }
+      { \__hit_listing_box_begin: }
+  }
+\cs_new_protected:Npn \__hit_listing_strut:
+  {
+    \tex_vrule:D width 0pt
+      height \fp_to_dim:n { \l__hit_listing_ascent_tl * \l__hit_listing_size_dim }
+      depth \fp_to_dim:n
+        { \l__hit_listing_lead_dim - \l__hit_listing_ascent_tl * \l__hit_listing_size_dim }
+      \scan_stop:
+  }
+\cs_new_protected:Npn \__hit_listing_deinit:
+  {
+    \bool_if:NT \l__hit_listing_captioned_bool
+      {
+        \str_case:Vn \g__hit_listing_frame_tl
+          {
+            { tabular } { \__hit_listing_rule:n { \g__hit_table_rule_outer_tl } }
+            { ruled } { \__hit_listing_rule:n { \g__hit_table_rule_outer_tl } }
+            { boxed } { \__hit_listing_box_end: }
+          }
+        \str_if_eq:VnF \g__hit_listing_frame_tl { boxed }
+          { \__hit_float_blank:n { table-below } }
+      }
+  }
+\cs_new_protected:Npn \__hit_listing_rule:n #1
+  {
+    \par \nointerlineskip
+    \tex_hrule:D width \l__hit_listing_width_dim height \dim_eval:n {#1} depth 0pt \scan_stop:
+    \nointerlineskip
+  }
+%    \end{macrocode}
+%
+% 行号：写法照伪代码的 \option{line-numbering}（\cs{\_\_hit\_algorithm\_number:nn}）。
+%    \begin{macrocode}
+\tl_new:N \l__hit_listing_nl_style_tl
+\tl_new:N \l__hit_listing_nl_suffix_tl
+\cs_new_protected:Npn \__hit_listing_number_style:
+  {
+    \tl_set:Nn \l__hit_listing_nl_style_tl { 1 }
+    \tl_set_eq:NN \l__hit_listing_nl_suffix_tl \g__hit_listing_numbering_tl
+    \clist_map_inline:nn { ① , 一 , 1 , i , I , a , A }
+      {
+        \str_if_eq:eeT
+          { \str_range:Nnn \g__hit_listing_numbering_tl { 1 } { \str_count:n {##1} } }
+          { \tl_to_str:n {##1} }
+          {
+            \tl_set:Nn \l__hit_listing_nl_style_tl {##1}
+            \tl_set:Ne \l__hit_listing_nl_suffix_tl
+              { \str_range:Nnn \g__hit_listing_numbering_tl { \str_count:n {##1} + 1 } { -1 } }
+            \clist_map_break:
+          }
+      }
+    \cs_set:Npn \thelstnumber
+      {
+        \__hit_algorithm_number:VV \l__hit_listing_nl_style_tl { \int_use:N \c@lstnumber }
+        \l__hit_listing_nl_suffix_tl
+      }
+  }
+%    \end{macrocode}
+%
+% 框图型：一圈细线。整张装进一个竖盒量高，再画四边；框里上下各让出半个线宽，
+% 左右是单元格边距。
+%    \begin{macrocode}
+\box_new:N \l__hit_listing_box
+\cs_new_protected:Npn \__hit_listing_box_begin:
+  {
+    \par
+    \setbox \l__hit_listing_box \vbox \bgroup
+      \dim_set:Nn \hsize { \l__hit_listing_width_dim - 2 \dim_eval:n { \g__hit_table_rule_inner_tl } }
+  }
+\cs_new_protected:Npn \__hit_listing_box_end:
+  {
+    \par
+    \egroup
+    \dim_set:Nn \l_tmpa_dim { \g__hit_table_rule_inner_tl }
+    \nointerlineskip
+    \vbox:n
+      {
+        \tex_hrule:D height \l_tmpa_dim depth 0pt \scan_stop:
+        \hbox:n
+          {
+            \tex_vrule:D width \l_tmpa_dim \scan_stop:
+            \vbox:n
+              {
+                \skip_vertical:n { \l_tmpa_dim / 2 }
+                \hbox_to_wd:nn { \l__hit_listing_width_dim - 2 \l_tmpa_dim }
+                  { \box_use_drop:N \l__hit_listing_box \tex_hss:D }
+                \skip_vertical:n { \l_tmpa_dim / 2 }
+              }
+            \tex_vrule:D width \l_tmpa_dim \scan_stop:
+          }
+        \tex_hrule:D height \l_tmpa_dim depth 0pt \scan_stop:
+      }
+    \nointerlineskip
+  }
+%    \end{macrocode}
+%
+% \subsection{题注}
+%
+% 题注照表题排（样式 \option{caption-table}），名字“代码”，题号与题名之间的间隔照图表。线条型的
+% 题注照单元格的样式居左，前后是粗线与细线；表格型的题注下面接粗线。博士档写了英文题的，下面
+% 再排一行“Listing 1-1”加英文题。续排的只排“代码1-1（续代码）”，居右，不占新号。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_listing_makecaption:nn #1#2
+  {
+    \def \@captype { lstlisting }
+    \str_if_eq:VnT \g__hit_listing_frame_tl { ruled }
+      { \__hit_listing_rule:n { \g__hit_table_rule_outer_tl } }
+    \__hit_listing_caption_line:nn
+      { \bool_if:NTF \g__hit_en_bool { en } { zh } } {#2}
+    \bool_lazy_or:nnF { \g__hit_en_bool } { \tl_if_empty_p:N \l__hit_listing_en_tl }
+      {
+        \bool_if:NT \g__hit_bilingual_caption_bool
+          {
+            \group_begin:
+              \hit@caption@latin@pick:
+              \__hit_listing_caption_line:nV { en } \l__hit_listing_en_tl
+            \group_end:
+          }
+      }
+    \str_case:Vn \g__hit_listing_frame_tl
+      {
+        { tabular } { \__hit_listing_rule:n { \g__hit_table_rule_outer_tl } }
+        { ruled } { \__hit_listing_rule:n { \g__hit_table_rule_inner_tl } }
+        { boxed } { \__hit_float_blank:n { table-below } }
+      }
+  }
+\tl_new:N \l__hit_listing_caption_tl
+\cs_new_protected:Npn \__hit_listing_caption_line:nn #1#2
+  {
+    \bool_if:NTF \l__hit_listing_continued_bool
+      {
+        \tl_set:Nn \l__hit_listing_caption_tl
+          { { caption-table } { paragraph = { alignment = right } } }
+      }
+      {
+        \str_if_eq:VnTF \g__hit_listing_frame_tl { ruled }
+          {
+            \tl_set:Ne \l__hit_listing_caption_tl
+              {
+                { table-cell }
+                { paragraph = { alignment = left , indentation = { left = \dim_use:N \tabcolsep } } }
+              }
+          }
+          { \tl_set:Nn \l__hit_listing_caption_tl { { caption-table } { } } }
+      }
+    \exp_last_unbraced:NV \docxlike_format_par:nnn \l__hit_listing_caption_tl
+      {
+        \__hit_listing_label:n {#1}
+        \bool_if:NTF \l__hit_listing_continued_bool
+          { \hit@term@caption@listing@continued }
+          { \hit@caption@separator \ignorespaces #2 }
+      }
+    \nointerlineskip
+  }
+\cs_generate_variant:Nn \__hit_listing_caption_line:nn { nV }
+\cs_new:Npn \__hit_listing_label:n #1
+  {
+    \str_if_eq:eeTF {#1} { en }
+      {
+        \bool_if:NTF \g__hit_en_bool
+          { \hit@term@caption@listing@en \nobreakspace }
+          { \hit@term@caption@listing@prefix@en }
+      }
+      { \hit@term@caption@listing@zh }
+    \thelstlisting
+  }
+%</shared-listing>
+%    \end{macrocode}
+%
+% \Finale

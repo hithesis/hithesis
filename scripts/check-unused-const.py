@@ -51,6 +51,8 @@ EN_ONLY = {
     "abstract-keywords-colon",
     # 双语算法题注英文那一行的前缀，同上面图表那一对；中文那行用 caption-algorithm-zh。
     "caption-algorithm-prefix",
+    # 双语代码清单题注英文那一行的前缀，同上；中文那行用 caption-listing-zh。
+    "caption-listing-prefix",
 }
 
 # \use:c 按 \@captype 之类拼出来的，正则查不到，逐条列明
