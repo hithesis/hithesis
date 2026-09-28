@@ -43,10 +43,12 @@
 %   贴着汉字盒子公式的空格占半格，汉字后面是空格或标点的 JFM 胶时 \pkg{luatexja} 丢掉的那份增量，
 %   段末、盒末与可伸的胶前面那个汉字的增量（居中、右对齐按它定位）；先前一点不加，范例英文目录
 %   该折的那一行没折。补过的字形打上属性 \cs{docxlike@grid@attr}，重新装盒不再补}
-% \changes{v3.2a}{2026/09/26}{没有字符网格的文档里，本包照样式设了居中、右对齐的段也由断行层排：格宽
-%   取字号、不按整数格装，行首（居中两头）补 fil；Word 行末的闭号不用挤时照全宽算，TeX 那边 JFM
-%   把它算成半格，居中偏右 3.5\,bp（博士后封皮“哈尔滨工业大学（哈尔滨）”）。只认
-%   \cs{docxlike\_linebreak\_align:} 立的标记，\hologo{LaTeX} 自己的 \cs{centering}、目录行照旧交回 TeX}
+% \changes{v3.2a}{2026/09/26}{没有字符网格的文档里，两端对齐的段与本包照样式设了居中、右对齐的段也由
+%   断行层排：格宽取字号、不按整数格装，行首（居中两头）补 fil；Word 行末的闭号不用挤时照全宽算，TeX 那边
+%   JFM 把它算成半格，居中偏右 3.5\,bp。两端对齐的段先前交回 TeX，与 Windows Word 逐行比
+%   （\file{test/nogrid}，558 行）差 275 行，现在差 23 行（兼容模式 15 是 233 对 62）。只认
+%   \cs{docxlike\_linebreak\_align:} 立的标记，\hologo{LaTeX} 自己的 \cs{centering}、目录行照旧交回 TeX；
+%   左对齐的段仍交回 TeX}
 % \changes{v3.2a}{2026/09/20}{新增断行层：\hologo{LuaLaTeX} 上不用 TeX 的最优断行，照
 %   Word 的贪心算法逐行首次适配、装不下就压标点。模型照 typst-with-msword-linebreaks 的
 %   msword.rs：按“单元”（开号 + 一个字或一段西文 + 闭号链）判装不装；模式 15 的预算分
@@ -2918,13 +2920,17 @@ function M.filter(head, is_display)
   end
   local ok, cell = pcall(tex.getdimen, "g_docxlike_page_char_dim")
   local em = tex.sp("1em")
-  -- 没有字符网格：两端对齐与左对齐的段交回 TeX（空白文档的正文、英文文档，断点先前照 Word
-  -- 核对过）；居中、右对齐的段照样由这里断，格宽取字号、不按整数格装。Word 行末的闭号不用挤
-  -- 时照全宽算，居中就按全宽定位；TeX 那边 JFM 把行末闭号算成半格，居中偏右半格的一半
+  -- 没有字符网格：左对齐的段交回 TeX；两端对齐、居中、右对齐的段照样由这里断，格宽取字号、
+  -- 不按整数格装（test/nogrid：两端对齐的段交回 TeX 时 558 行差 275，这里断差 23）。LaTeX 自己的
+  -- 目录行（\@dottedtocline：边距刚性、\parfillskip 取负把页码顶到右边）也算两端对齐，这里不会排，
+  -- \parfillskip 没有无穷伸量的段照旧交回 TeX。Word 行末的闭号不用挤时照全宽算，居中就按全宽定位；
+  -- TeX 那边 JFM 把行末闭号算成半格，居中偏右半格的一半
   local nogrid = not ok or not cell or cell == 0
   if nogrid then
-    if align == "justify" then return skip("nocell") end
     if align == "left" then return to_tex(head, "nocell") end
+    if align == "justify" and tex.getskip("parfillskip").stretch_order == 0 then
+      return skip("nocell")
+    end
     cell = em
   end
   local cell0 = cell
