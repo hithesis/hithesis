@@ -6,6 +6,10 @@
 %
 % \section{表格}
 %
+% \changes{v3.2a}{2026/09/28}{表格属性“表格→选项→默认单元格边距”（\texttt{table-properties/table/options/default-cell-margins}），
+%   \pkg{tabularray} 的四个边距照它设；\pkg{tabularray} 起表与每页开的那几段不发撑杆（先前在 hithesis 里做）}
+% \changes{v3.2a}{2026/09/28}{\texttt{m} 列在整行的高里上下居中（\hologo{LuaLaTeX}，Word 的 \texttt{vAlign="center"}）；
+%   \cs{multirow} 不写位置时顶端对齐（Word 合并的格）；\pkg{tabularray} 的单根竖线不占宽、骑在分界上（探针 tbl1）}
 % \changes{v3.2a}{2026/09/27}{表格属性“行”的“指定高度”（\texttt{table-properties/row/specify-height}）：
 %   行高最小值，内容高了照内容，多出来的空在行的下面}
 % \changes{v3.2a}{2026/09/26}{新增表格：\pkg{array} 一族（\env{tabular}、\env{tabularx}、
@@ -39,12 +43,13 @@
 % 探针 \file{tbl1} 的全框线表、折行的格、三线表照 \env{tabular} 与 \env{tabularx} 排，框线与
 % 基线差 0.07 以内，格里的字差 0.1 以内（\file{test/table/tbl1.tex}）。
 %
-% \pkg{tabularray} 只做后一条的字宽：它自己量每一格的盒来定行高与竖直居中，竖线的宽也
-% 算进列距，撑杆与格里的段换成 Word 的行盒后，居中的格与别的格基线对不齐。所以它的表
-% 不换撑杆、格里的段照旧交回 \hologo{TeX}（字宽照样补），竖线照它自己的占宽。
+% \pkg{tabularray} 只做后一条的字宽与竖线：它自己量每一格的盒来定行高与竖直居中，撑杆与格里的段
+% 换成 Word 的行盒后，居中的格与别的格基线对不齐。所以它的表不换撑杆、格里的段照旧交回
+% \hologo{TeX}（字宽照样补）；单根竖线改成不占宽（见本节末尾）。
 %
 % \texttt{m} 列在 \pkg{array} 里是对着行的基线居中，跟 Word 的“垂直居中”（对着整行居中）
-% 不一样：同一行里有折成几行的 \texttt{p} 格时，\texttt{m} 格落在第一行上。这一条没有换。
+% 不一样：同一行里有折成几行的 \texttt{p} 格时，\texttt{m} 格落在第一行上。\hologo{LuaLaTeX} 上
+% 一行排完再挪到整行正中（见 \texttt{m} 列那一段），别的引擎照 \pkg{array}。
 % 只在 Word 版面（\cs{g\_docxlike\_word\_layout\_bool}）下做；网格增量与断行只在
 % \hologo{LuaLaTeX} 上有。
 %    \begin{macrocode}
@@ -53,7 +58,7 @@
 \bool_set_true:N \l_docxlike_table_bool
 \bool_new:N \l_docxlike_table_cell_bool
 \dim_set:Nn \tabcolsep { 5.4bp }
-\sys_if_engine_luatex:T { \newattribute \docxlike@cell@attr }
+\sys_if_engine_luatex:T { \newattribute \docxlike@cell@attr \newattribute \docxlike@mcell@attr }
 \box_new:N \l__docxlike_table_strut_box
 \bool_new:N \l__docxlike_table_tblr_bool
 %    \end{macrocode}
@@ -94,6 +99,16 @@
           {
             \docxlike_format_strut_box:N \l__docxlike_table_strut_box
             \box_set_eq:NN \strutbox \l__docxlike_table_strut_box
+            \cs_if_exist:NT \@multirow
+              { \cs_set_protected:Npn \multirow { \peek_meaning:NTF [ { \@multirow } { \@multirow [ t ] } } }
+            \sys_if_engine_luatex:T
+              {
+                \cs_if_exist:NT \ar@align@mcell
+                  {
+                    \cs_set_protected:Npn \ar@align@mcell
+                      { \docxlike@mcell@attr = 1 \scan_stop: \hbox:n { \box_use_drop:N \ar@mcellbox } }
+                  }
+              }
           }
         \sys_if_engine_luatex:T { \docxlike@cell@attr = 1 \scan_stop: }
       }
@@ -123,6 +138,46 @@
   {
     row .code:n =
       { \__docxlike_keys_set:nn { docxlike / table-properties / row } {#1} } ,
+    table .code:n =
+      { \__docxlike_keys_set:nn { docxlike / table-properties / table } {#1} } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+%    \end{macrocode}
+%
+% 表格属性“表格”那一页“选项”里的“默认单元格边距”：\texttt{table-properties=\{table=\{options=\{default-cell-margins=\{}%
+% \texttt{left=\ldots, right=\ldots, top=\ldots, bottom=\ldots\}\}\}\}}。Word 的默认值是左右 5.4\,bp、上下 0
+% （\texttt{Normal Table} 的 \texttt{tblCellMar}）。\pkg{array} 一族只有一个 \cs{tabcolsep}，左右一样，取
+% \option{left}；上下的没有地方放。\pkg{tabularray} 的四个都有：进表时照这四个设它的 \texttt{leftsep}、
+% \texttt{rightsep}、\texttt{abovesep}、\texttt{belowsep}（它默认左右 6\,pt、上下 2\,pt），表里自己写的照写的。
+%    \begin{macrocode}
+\dim_new:N \l_docxlike_table_margin_left_dim
+\dim_new:N \l_docxlike_table_margin_right_dim
+\dim_new:N \l_docxlike_table_margin_top_dim
+\dim_new:N \l_docxlike_table_margin_bottom_dim
+\dim_set:Nn \l_docxlike_table_margin_left_dim { 5.4bp }
+\dim_set:Nn \l_docxlike_table_margin_right_dim { 5.4bp }
+\keys_define:nn { docxlike / table-properties / table }
+  {
+    options .code:n =
+      { \__docxlike_keys_set:nn { docxlike / table-properties / table / options } {#1} } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / table-properties / table / options }
+  {
+    default-cell-margins .code:n =
+      { \__docxlike_keys_set:nn { docxlike / table-properties / table / options / margins } {#1} } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / table-properties / table / options / margins }
+  {
+    left .code:n =
+      {
+        \dim_set:Nn \l_docxlike_table_margin_left_dim { \__docxlike_bp:n {#1} }
+        \dim_set_eq:NN \tabcolsep \l_docxlike_table_margin_left_dim
+      } ,
+    right .code:n = { \dim_set:Nn \l_docxlike_table_margin_right_dim { \__docxlike_bp:n {#1} } } ,
+    top .code:n = { \dim_set:Nn \l_docxlike_table_margin_top_dim { \__docxlike_bp:n {#1} } } ,
+    bottom .code:n = { \dim_set:Nn \l_docxlike_table_margin_bottom_dim { \__docxlike_bp:n {#1} } } ,
     unknown .code:n = { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / table-properties / row }
@@ -141,6 +196,15 @@
   }
 %    \end{macrocode}
 %
+% \emph{\texttt{m} 列对着整行居中。} Word 的“垂直居中”（\texttt{vAlign="center"}）是在整行的高里居中（探针 tbl1 的 T4：
+% “居中”落在同一行“上”“下”两行正中）；\pkg{array} 的 \texttt{m} 列只对着行的基线摆。\hologo{LuaLaTeX} 上
+% 把 \texttt{m} 格的盒子打上 \cs{docxlike@mcell@attr}，一行排完（\texttt{hpack\_filter} 的 \texttt{fin\_row}）
+% 由断行层按这一行各格的最高与最深把它挪到正中，见 \file{docxlike-linebreak.dtx}。别的引擎照 \pkg{array}。
+%
+% \emph{纵向合并的格顶端对齐。} Word 里合并起来的格与别的格一样默认顶端对齐（\texttt{vMerge} 的格没写
+% \texttt{vAlign}，探针 tbl1 的 T4“合并”与同一行的“上”同一条基线），\pkg{multirow} 默认上下居中。
+% 表里没写位置的 \cs{multirow} 改成 \texttt{t}，写了 \oarg{c} 的照写的（Word 的 \texttt{vAlign="center"}）。
+%
 % \pkg{array} 一族都在 \env{tabular} 或 \env{tabular*} 上搭，\pkg{tabularx}、\pkg{tabulary}
 % 的环境先量后排，量的那一遍也要同样的字宽，所以各自的环境都挂。\env{array} 是公式里的，
 % 不挂。\pkg{tabularray} 的表在装包之后挂，连同它 \texttt{booktabs} 库里的三个环境：那三个
@@ -154,9 +218,123 @@
     \clist_map_inline:nn { tblr , longtblr , talltblr , booktabs , longtabs , talltabs }
       {
         \hook_gput_code:nnn { env / #1 / begin } { docxlike-table }
-          { \bool_set_true:N \l__docxlike_table_tblr_bool \docxlike_table_begin: }
+          {
+            \bool_set_true:N \l__docxlike_table_tblr_bool
+            \docxlike_table_begin:
+            \__docxlike_table_tblr_margins:n {#1}
+          }
+      }
+    \__docxlike_table_tblr_vlines:
+    \__docxlike_table_tblr_paras:
+  }
+\cs_new_protected:Npn \__docxlike_table_tblr_margins:n #1
+  {
+    \bool_lazy_and:nnT { \g_docxlike_word_layout_bool } { \l_docxlike_table_bool }
+      {
+        \SetTblrInner [#1]
+          {
+            leftsep = \dim_use:N \l_docxlike_table_margin_left_dim ,
+            rightsep = \dim_use:N \l_docxlike_table_margin_right_dim ,
+            abovesep = \dim_use:N \l_docxlike_table_margin_top_dim ,
+            belowsep = \dim_use:N \l_docxlike_table_margin_bottom_dim ,
+          }
       }
   }
+%    \end{macrocode}
+%
+% \emph{\pkg{tabularray} 自己开的那几段不发撑杆。} 它起表前先 \cs{leavevmode} 开一个空段去刷新
+% \cs{pagetotal}，排每一页又用 \cs{noindent} 开一段装整张表的盒子（长表换页后那两处也各有一个
+% \cs{noindent}，与 \cs{nobreak} 连着）。Word 版面下每一段都由段落钩子发撑杆、走断行层的行盒，
+% 这几段就被撑成一整行：空段成了一行空白，表盒底下多垫一个行深。所以这四处前面各补一句
+% \cs{docxlike\_format\_blank\_para:}，那一段两头都不发撑杆。\cs{nobreak}\cs{noindent} 那一对打两遍：
+% \cs{patchcmd} 只换第一处，换过的那处已经不匹配，第二遍换到的就是另一处。
+%
+% 补丁打在 \pkg{tabularray} 的内部函数上，\cs{patchcmd} 按打补丁那一刻的 catcode 重扫宏体：下划线与冒号
+% 设成字母，空格设回 10（宏体里有 \texttt{\string\hrule height \string~ 0pt}，\pkg{expl3} 语法下重扫会把那个空格
+% 吞掉，比对就过不了），打完还原。打不上就提示一句。
+%    \begin{macrocode}
+\int_new:N \l__docxlike_table_catcode_us_int
+\int_new:N \l__docxlike_table_catcode_colon_int
+\int_new:N \l__docxlike_table_catcode_space_int
+\msg_new:nnn { docxlike } { table-patch-failed }
+  { Could~not~patch~\token_to_str:N #1~of~tabularray;~its~paragraphs~keep~their~struts. }
+\cs_new_protected:Npn \__docxlike_table_patch:Nnn #1#2#3
+  {
+    \int_set:Nn \l__docxlike_table_catcode_us_int    { \char_value_catcode:n { 95 } }
+    \int_set:Nn \l__docxlike_table_catcode_colon_int { \char_value_catcode:n { 58 } }
+    \int_set:Nn \l__docxlike_table_catcode_space_int { \char_value_catcode:n { 32 } }
+    \char_set_catcode_letter:n { 95 }
+    \char_set_catcode_letter:n { 58 }
+    \char_set_catcode_space:n  { 32 }
+    \patchcmd #1 {#2} {#3} { }
+      { \msg_warning:nnn { docxlike } { table-patch-failed } {#1} }
+    \char_set_catcode:nn { 95 } { \l__docxlike_table_catcode_us_int }
+    \char_set_catcode:nn { 58 } { \l__docxlike_table_catcode_colon_int }
+    \char_set_catcode:nn { 32 } { \l__docxlike_table_catcode_space_int }
+  }
+\cs_new_protected:Npn \__docxlike_table_tblr_paras:
+  {
+    \bool_lazy_all:nT
+      {
+        { \cs_if_exist_p:N \patchcmd }
+        { \cs_if_exist_p:N \__tblr_build_long_table:n }
+        { \cs_if_exist_p:N \__tblr_halign_whole:Nn }
+      }
+      {
+        \__docxlike_table_patch:Nnn \__tblr_build_long_table:n
+          { \mode_leave_vertical: }
+          { \docxlike_format_blank_para: \mode_leave_vertical: }
+        \__docxlike_table_patch:Nnn \__tblr_halign_whole:Nn
+          { \noindent }
+          { \docxlike_format_blank_para: \noindent }
+        \__docxlike_table_patch:Nnn \__tblr_build_long_table:n
+          { \nobreak \noindent }
+          { \nobreak \docxlike_format_blank_para: \noindent }
+        \__docxlike_table_patch:Nnn \__tblr_build_long_table:n
+          { \nobreak \noindent }
+          { \nobreak \docxlike_format_blank_para: \noindent }
+      }
+  }
+%    \end{macrocode}
+%
+% \emph{\pkg{tabularray} 的竖线不占宽。} Word 的竖框线画在两格的分界上，不把格推开（探针 tbl1 的 T1：
+% 竖线两侧的字与没有竖线时一样）；\pkg{tabularray} 把竖线的宽算进列与列之间，每道竖线把后面的格往右推一个
+% 线宽。表格照 Word 排时（\cs{l\_docxlike\_table\_cell\_bool}）改两处：量竖线占多宽时单线记作零，画的时候
+% 把线往左让半个线宽，骑在分界上。双线（一处画几道）照旧。这是改 \pkg{tabularray} 的内部函数，
+% 2025C 上核过；函数不在就什么都不做。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_table_tblr_vlines:
+  {
+    \bool_lazy_and:nnT
+      { \cs_if_exist_p:N \__tblr_measure_and_update_vline_size:nn }
+      { \cs_if_exist_p:N \__tblr_build_vline_segment_real:nn }
+      {
+        \cs_gset_eq:NN \__docxlike_table_tblr_vsize:nn \__tblr_measure_and_update_vline_size:nn
+        \cs_gset_eq:NN \__docxlike_table_tblr_vseg:nn \__tblr_build_vline_segment_real:nn
+        \cs_gset_protected:Npn \__tblr_measure_and_update_vline_size:nn ##1##2
+          {
+            \__docxlike_table_tblr_vsize:nn {##1} {##2}
+            \bool_lazy_and:nnT
+              { \l_docxlike_table_cell_bool }
+              { \int_compare_p:nNn { \__tblr_spec_item:ne { vline } { [##2] / @vline-count } } = { 1 } }
+              { \__tblr_spec_gput:nee { vline } { [##2] / @vline-width } { 0pt } }
+          }
+        \cs_gset_protected:Npn \__tblr_build_vline_segment_real:nn ##1##2
+          {
+            \bool_lazy_and:nnTF
+              { \l_docxlike_table_cell_bool }
+              { \int_compare_p:nNn { \__tblr_spec_item:ne { vline } { [##2] / @vline-count } } = { 1 } }
+              {
+                \hbox_set:Nn \l__docxlike_table_vline_box { \__docxlike_table_tblr_vseg:nn {##1} {##2} }
+                \skip_horizontal:n { - 0.5 \box_wd:N \l__docxlike_table_vline_box }
+                \box_use:N \l__docxlike_table_vline_box
+                \skip_horizontal:n { - 0.5 \box_wd:N \l__docxlike_table_vline_box }
+              }
+              { \__docxlike_table_tblr_vseg:nn {##1} {##2} }
+          }
+      }
+  }
+\box_new:N \l__docxlike_table_vline_box
 %</docxlike-table>
 %    \end{macrocode}
 %

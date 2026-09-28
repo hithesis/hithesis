@@ -8,6 +8,9 @@
 %
 % \changes{v3.2a}{2026/09/28}{新增 \cs{docxlike\_format\_measure:Nn}：试排一段内容量高度，排完把段落钩子动过的全局状态
 %   还原，给文档类在几种排法里挑放得下的那一种}
+% \changes{v3.2a}{2026/09/28}{\hologo{XeLaTeX} 那一路的字距向 Lua 看齐：西文加格默认开，本包按样式建的西文字族与空白预设的
+%   正文字体都带上 \option{LetterSpace}（先前要文档类挂重载钩子才加）；字号与正文不同或写了字符间距的样式，西文字距按
+%   “半个增量加字符间距”在当前字体上另加一份（先前按正文字号的百分比折，标题大了就多，字符间距不作用于西文）}
 % \changes{v3.2a}{2026/09/28}{\hologo{pdfLaTeX} 下西文也加网格的半份增量：换字体时换成 \cs{letterspacefont} 加宽的实例
 %   （字偶距照留），量与 Lua 断行层一样，段落不对齐网格时不加；空格加它自己那半份。英文版学位论文与
 %   \hologo{LuaLaTeX} 行末相同的行从 53 到 58}
@@ -188,7 +191,7 @@
 % \begin{itemize}
 % \item \texttt{docxlike/latin-font-reload}：西文字母加半格余量（\cs{g\_docxlike\_latin\_pitch\_bool}）
 %   要重新声明西文字族，\pkg{docxlike} 发完 \cs{defaultfontfeatures} 就用这个钩子让文档类
-%   把自己的西文字体重设一遍。钩子是空的就不做这件事。
+%   把自己的西文字体重设一遍；本包按样式里的字体名建的西文字族由本包自己作废重建。
 % \item \texttt{docxlike/display}：装行间公式那一套钩子时顺带执行，文档类在这里接上自己
 %   对行间公式的处理。
 % \end{itemize}
@@ -2619,6 +2622,16 @@
           }
       }
   }
+\seq_new:N \g__docxlike_font_latin_seq
+\tl_new:N \g__docxlike_font_latin_feat_tl
+\cs_generate_variant:Nn \fontspec_set_family:Nnn { cVn , cen }
+\cs_generate_variant:Nn \seq_gput_right:Nn { NV }
+\cs_new_protected:Npn \__docxlike_font_latin_reset:
+  {
+    \seq_map_inline:Nn \g__docxlike_font_latin_seq
+      { \cs_undefine:c { g__docxlike_font_latin_ ##1 _tl } }
+    \seq_gclear:N \g__docxlike_font_latin_seq
+  }
 \cs_new_protected:Npn \__docxlike_font_latin:n #1
   {
     \cs_if_exist:NT \fontspec_set_family:Nnn
@@ -2626,16 +2639,18 @@
         \tl_if_exist:cF { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
           {
             \tl_new:c { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
+            \seq_gput_right:NV \g__docxlike_font_latin_seq \l__docxlike_font_key_str
             \__docxlike_font_if_exist:nTF {#1}
               {
-                \fontspec_set_family:cnn
-                  { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl } { } {#1}
+                \fontspec_set_family:cVn
+                  { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl } \g__docxlike_font_latin_feat_tl {#1}
                 \cs_if_exist:cF
                   { TU / \tl_use:c { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl } / m / it }
                   {
-                    \fontspec_set_family:cnn
+                    \fontspec_set_family:cen
                       { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
-                      { AutoFakeSlant = \c_docxlike_font_fake_slant_tl , BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl } } {#1}
+                      { AutoFakeSlant = \c_docxlike_font_fake_slant_tl , BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl } ,
+                        \exp_not:V \g__docxlike_font_latin_feat_tl } {#1}
                   }
                 \tl_gset_eq:cc { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
                   { g__docxlike_font_latin_ \l__docxlike_font_key_str _tl }
@@ -3707,6 +3722,15 @@
             \exp_not:N \__docxlike_format_sbcs_set:n
               { \dim_eval:n { \__docxlike_format_sbcs_extra: } }
           }
+        \bool_if:NTF \l_docxlike_format_snap_horizontal_bool
+          { \exp_not:N \docxlike_linebreak_nosnap_off: }
+          { \exp_not:N \docxlike_linebreak_nosnap_on: }
+        \sys_if_engine_xetex:T
+          {
+            \exp_not:N \__docxlike_format_xe_ls:nn
+              { \dim_use:N \l_docxlike_format_char_spacing_dim }
+              { \bool_if:NTF \l_docxlike_format_snap_horizontal_bool { true } { false } }
+          }
         \bool_if:NTF \l__docxlike_format_latin_bool
           { \exp_not:N \docxlike_format_latin_true: }
           { \exp_not:N \docxlike_format_latin_false: }
@@ -4123,16 +4147,33 @@
       }
       { }
     \__docxlike_format_read:nnnN {#1} { rPr/caps } { } \l__docxlike_run_caps_tl
+    \__docxlike_format_read:nnnN {#1} { rPr/snapToGrid } { } \l__docxlike_format_value_tl
+    \str_if_eq:VnT \l__docxlike_format_value_tl { false }
+      { \tl_put_right:Nn \l__docxlike_format_out_tl { \__docxlike_run_nosnap: } }
     \clist_map_inline:nn
       {
         { rPr/spacing } { character-spacing } ,
-        { rPr/kern } { kerning-for-fonts } ,
-        { rPr/snapToGrid } { snap-to-grid-when-document-grid-is-defined }
+        { rPr/kern } { kerning-for-fonts }
       }
       { \__docxlike_run_unsupported:nnn {#1} ##1 }
     \sys_if_engine_luatex:TF
       { \__docxlike_format_effects:n {#1} }
       { \__docxlike_format_effects_read:n {#1} }
+  }
+%    \end{macrocode}
+%
+% 这一截的字体不对齐网格（\option{snap-to-grid-when-document-grid-is-defined}\texttt{=false}）：汉字缝与
+% 中西文间距去掉网格那一份，字上打不贴格的属性，“文字对齐字符网格”的节里断行层照自然宽排这一截
+% （Windows 探针 snap2 的 Kj 段：汉字步进 12、中西文间距照留，占整格数、靠左）。贴格那一边是段落
+% 本来的样子，不用另写。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_run_nosnap:
+  {
+    \docxlike_linebreak_nosnap_on:
+    \dim_set:Nn \l_docxlike_format_size_dim { \f@size pt }
+    \docxlike_format_hglue:nn
+      { \l_docxlike_format_char_spacing_dim }
+      { \__docxlike_format_ecglue_base: + \l_docxlike_format_char_spacing_dim }
   }
 \cs_new_protected:Npn \__docxlike_run_unsupported:nnn #1#2#3
   {
@@ -5218,7 +5259,7 @@
       {
         { \bool_if_p:N \g_docxlike_latin_pitch_bool }
         { ! \dim_compare_p:nNn { \g_docxlike_page_char_dim } = { 0pt } }
-        { ! \hook_if_empty_p:n { docxlike / latin-font-reload } }
+        { ! \sys_if_engine_pdftex_p: }
         {
           ! \bool_lazy_and_p:nn
             { \sys_if_engine_luatex_p: }
@@ -5244,6 +5285,18 @@
               }
           }
         \hook_use:n { docxlike / latin-font-reload }
+        \bool_gset_true:N \g__docxlike_format_xe_ls_bool
+        \tl_gset:Ne \g__docxlike_font_latin_feat_tl
+          {
+            LetterSpace =
+              \fp_eval:n
+                {
+                  50 * \dim_to_fp:n
+                    { \g_docxlike_page_char_dim - \g_docxlike_body_size_dim }
+                  / \dim_to_fp:n { \g_docxlike_body_size_dim }
+                }
+          }
+        \__docxlike_font_latin_reset:
         \normalsize
         \skip_set:Nn \spaceskip
           {
@@ -5258,6 +5311,44 @@
         \frenchspacing
       }
   }
+%    \end{macrocode}
+%
+% \emph{\hologo{XeLaTeX} 下按样式补西文字距。} 上面全文一律的 \option{LetterSpace} 是按正文字号折的百分比，
+% 字号大的样式（标题）折出来就多了：16\,bp 下 0.30，Lua 断行层与 Word 是半个增量 0.227，与字号无关。样式还
+% 可能写了字符间距（\texttt{w:spacing}，“标题”紧缩 0.5 磅），西文每个字要跟着加减，Lua 那一路在断行层里加。
+% 所以排某个样式时，字号与正文不同或写了字符间距，就在当前字体上 \cs{addfontfeatures} 一份
+% \option{LetterSpace}，量是“半个增量（这一段贴网格、开着西文加格时）加字符间距”按当前字号折的百分比。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__docxlike_format_xe_ls:nn #1#2
+  {
+    \bool_lazy_and:nnT
+      { \cs_if_exist_p:N \addfontfeatures }
+      {
+        ! \dim_compare_p:nNn {#1} = { 0pt }
+        || (
+          \bool_if_p:N \g__docxlike_format_xe_ls_bool
+          && ! \dim_compare_p:nNn { \f@size pt } = { \g_docxlike_body_size_dim }
+        )
+      }
+      {
+        \addfontfeatures
+          {
+            LetterSpace =
+              \fp_eval:n
+                {
+                  100 *
+                  (
+                    \bool_lazy_and:nnTF { \g__docxlike_format_xe_ls_bool } { \str_if_eq_p:nn {#2} { true } }
+                      { \dim_to_fp:n { \g_docxlike_page_char_dim - \g_docxlike_body_size_dim } / 2 }
+                      { 0 }
+                    + \dim_to_fp:n {#1}
+                  )
+                  / \dim_to_fp:n { \f@size pt }
+                }
+          }
+      }
+  }
+\bool_new:N \g__docxlike_format_xe_ls_bool
 %    \end{macrocode}
 %
 % \emph{\hologo{pdfLaTeX} 那一路。} 没有 \pkg{fontspec}，也没有 Lua 断行层，西文字体换成 \hologo{pdfTeX}

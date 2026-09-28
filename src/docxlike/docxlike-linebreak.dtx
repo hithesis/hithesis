@@ -6,6 +6,9 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/28}{“文字对齐字符网格”的节里字体不贴格的那一截（\cs{docxrun} 写
+%   \option{snap-to-grid-when-document-grid-is-defined}\texttt{=false}）照自然宽排：汉字不加增量、与西文之间隔四分之一个字，
+%   占整格数、在这几格里居中（snap2 的 Kj 段，与 Windows 件差 0.25 内）；\cs{docxrun} 认这个键}
 % \changes{v3.2a}{2026/09/28}{行末的半角闭标点（, . ; ) 等）超出版心时照 Word 排：行里压得下（标点位各半格、
 %   汉西隙各半个隙，模式 15 另加空格）就压，压不下就把标点整个挂出去，前面的字对齐到右缘；先前一律先压，
 %   压不下的整行照自然宽伸出去一截（探针 hang3、hang4，模式 11 与 15 相同）}
@@ -157,6 +160,7 @@
     \newattribute \docxlike@xkanjiskip@attr
     \newattribute \docxlike@kern@attr
     \newattribute \docxlike@grid@attr
+    \newattribute \docxlike@nosnap@attr
     \AddToHook { begindocument / end }
       {
         \bool_if:NT \g__docxlike_linebreak_word_bool
@@ -196,6 +200,22 @@
     \cs_set_protected:Npn \docxlike_linebreak_kern_off: { \docxlike@kern@attr = 0 \scan_stop: }
     \cs_set_protected:Npn \docxlike_linebreak_kern_on:
       { \docxlike@kern@attr = -"7FFFFFFF \scan_stop: }
+  }
+%    \end{macrocode}
+%    \end{macro}
+%
+% \begin{macro}{\docxlike_linebreak_nosnap_on:,\docxlike_linebreak_nosnap_off:}
+% 字体不贴网格（\texttt{rPr/snapToGrid} 关）的那一截，格式层调 \cs{docxlike\_linebreak\_nosnap\_on:}
+% 在字上打属性 \cs{docxlike@nosnap@attr}，“文字对齐字符网格”的节里断行层见了就照自然宽排这一截
+% （见下面的 \texttt{snap\_units}）。别的节里不看它。\hologo{XeLaTeX} 上都是空操作。
+%    \begin{macrocode}
+\cs_new_protected:Npn \docxlike_linebreak_nosnap_on: { }
+\cs_new_protected:Npn \docxlike_linebreak_nosnap_off: { }
+\sys_if_engine_luatex:T
+  {
+    \cs_set_protected:Npn \docxlike_linebreak_nosnap_on: { \docxlike@nosnap@attr = 1 \scan_stop: }
+    \cs_set_protected:Npn \docxlike_linebreak_nosnap_off:
+      { \docxlike@nosnap@attr = -"7FFFFFFF \scan_stop: }
   }
 %</docxlike-linebreak>
 %    \end{macrocode}
@@ -2562,11 +2582,33 @@ end
 -- 西文只在空格处断，一截装不下就整截挪到下一行（一个词比整行还长就照放）；下一行开头是不能起行
 -- 的字，就把本行最后一个字一起推下去，本行末尾是开号也推下去。两端对齐、居中、右对齐都不生效，
 -- 一律靠左。汉字后面紧跟的空格占半个字（开着“平衡单字节与双字节字符”时），汉字前面的照字体的宽
+-- 字体不贴格的那一截（字上打着 docxlike@nosnap@attr）整截按自然排：汉字照自己的宽、与西文字母数字
+-- 之间隔四分之一个字，占 ceil(宽/格) 格、居中，不在里面断（snap2 的 Kj 段）。弯引号归哪边看东亚提示
+-- （\docxlike_font_hint_default:n 交回西文的就按西文串排；snap2 的 docx 没写提示，Word 排的是西文）
+local function snap_nosnap(it)
+  local a = M.nosnap_attr
+  if not a then return false end
+  local g = it.first
+  while g do
+    if g.id == GLYPH or g.id == GLUE or g.id == HLIST or g.id == MATH then
+      local v = node.get_attribute(g, a)
+      return v ~= nil and v > 0
+    end
+    if g == it.last then break end
+    g = g.next
+  end
+  return false
+end
 local function snap_units(items)
   local units = {}
   local k, n = 1, #items
   while k <= n do
-    if items[k].kind <= 2 then
+    if snap_nosnap(items[k]) then
+      local j = k
+      while j + 1 <= n and snap_nosnap(items[j + 1]) do j = j + 1 end
+      units[#units + 1] = { cjk = false, nosnap = true, from = k, to = j }
+      k = j + 1
+    elseif items[k].kind <= 2 then
       units[#units + 1] = { cjk = true, from = k, to = k }
       k = k + 1
     else
@@ -2599,6 +2641,26 @@ local function snap_latin_w(items, a, b, P)
   local w = 0
   for k = a, b do
     if items[k].kind == 4 then w = w + devtrunc(snap_space_w(items, k, P)) else w = w + snap_item_w(items[k]) end
+  end
+  return w
+end
+-- 不贴格那一截的自然宽：字照自己的宽（汉字不加网格增量），汉字与西文字母数字之间加四分之一个字
+-- （snap2 的 Kj 段“截English”隔 3.0，不带网格增量那一份）
+local function snap_nosnap_gap(items, k)
+  local a, b = items[k - 1], items[k]
+  if not a or not b then return 0 end
+  if (a.kind == 0 and not a.symbol and b.kind == 3 and b.glyphs and is_alnum(b.head))
+    or (a.kind == 3 and a.glyphs and is_alnum(a.tail) and b.kind == 0 and not b.symbol) then
+    return (a.size or 0) / 4
+  end
+  return 0
+end
+local function snap_natural_w(items, a, b)
+  local w = 0
+  for k = a, b do
+    local it = items[k]
+    w = w + ((it.kind == 3) and snap_item_w(it) or (it.w or 0))
+    if k > a then w = w + snap_nosnap_gap(items, k) end
   end
   return w
 end
@@ -2647,6 +2709,11 @@ local function snap_decide(items, P, shape, indent)
         if used + 1 > cap and #parts > 0 then break end
         parts[#parts + 1] = { ui = ui, from = from, to = u.to, cells = 1, cjk = true }
         used = used + 1; ui = ui + 1; ustart = nil
+      elseif u.nosnap then
+        local c = cells_of(snap_natural_w(items, from, u.to))
+        if used + c > cap and #parts > 0 then break end
+        parts[#parts + 1] = { ui = ui, from = from, to = u.to, cells = c, nosnap = true }
+        used = used + c; ui = ui + 1; ustart = nil
       else
         local c = cells_of(snap_latin_w(items, from, u.to, P))
         if used + c <= cap then
@@ -2714,6 +2781,9 @@ local function snap_render(items, line, P, strut_h, strut_d, indent, isfirst, ct
   local nxt = stop.next
   if nxt then stop.next = nil; nxt.prev = nil end
   head.prev = nil
+  for _, pt in ipairs(line.parts) do
+    if pt.nosnap then pt.natural = snap_natural_w(items, pt.from, pt.to) end
+  end
   -- 胶一律定死清零（空格下面另设宽，\hfill 留伸量），西文串的字距恢复成字偶距本身
   for g in traverse(head) do
     if g.id == GLUE then
@@ -2724,7 +2794,27 @@ local function snap_render(items, line, P, strut_h, strut_d, indent, isfirst, ct
   end
   local function kern(w) local kn = node.new(KERN); kn.kern = w; return kn end
   for _, pt in ipairs(line.parts) do
-    if pt.cjk then
+    if pt.nosnap then
+      -- 不贴格的一截按自然排，占 ceil 格、在这几格里居中，与西文串一样（snap2 的 Kj 段：前后各余
+      -- 0.33、0.16，Word 的坐标按 0.12 取整）
+      for k = pt.from, pt.to do
+        local it = items[k]
+        if it.kind == 4 then
+          it.first.width = it.w
+        elseif it.kind == 3 and it.kerns then
+          for _, e in ipairs(it.kerns) do e[1].kern = e[2] end
+          for _, g in ipairs(it.glist or {}) do
+            local d = devtrunc(g.width) - g.width
+            if d ~= 0 then node.insert_after(head, g, kern(d)) end
+          end
+        end
+        local g = (k > pt.from) and snap_nosnap_gap(items, k) or 0
+        if g > 0 then head = node.insert_before(head, it.first, kern(g)) end
+      end
+      local pre = (pt.cells * cell - pt.natural) / 2
+      head = node.insert_before(head, items[pt.from].first, kern(pre))
+      node.insert_after(head, items[pt.to].last, kern(pt.cells * cell - pt.natural - pre))
+    elseif pt.cjk then
       local it = items[pt.from]
       local core = it.first
       while core and core.id ~= GLYPH and core.id ~= HLIST and core ~= it.last do core = core.next end
@@ -3222,6 +3312,31 @@ local function latin_hint(head)
 end
 M.latin_hint = latin_hint
 
+-- 表格一行排完（hpack_filter 的 fin_row）：打着 docxlike@mcell@attr 的格（array 的 m 列）在整行的高里
+-- 上下居中，与 Word 的 vAlign="center" 一样；行高照各格最高、最深，挪了也不越出这一行
+local UNSET = node.id("unset")
+local function mcell_center(head)
+  local a = M.mcell_attr
+  if not a then return end
+  local hit = false
+  local H, D = 0, 0
+  for n in node.traverse_id(UNSET, head) do
+    if n.height > H then H = n.height end
+    if n.depth > D then D = n.depth end
+    for m in node.traverse_id(HLIST, n.head) do
+      if node.get_attribute(m, a) == 1 then hit = true end
+    end
+  end
+  if not hit then return end
+  for n in node.traverse_id(UNSET, head) do
+    for m in node.traverse_id(HLIST, n.head) do
+      if node.get_attribute(m, a) == 1 then
+        m.shift = (D - H) / 2 - (m.depth - m.height) / 2
+      end
+    end
+  end
+end
+
 -- 装回调。attr 是类分的属性号：段首节点上为 0 的段不管（交回 TeX）；
 -- ks、xks 是汉字缝、汉西隙的属性号
 function M.install(attr, ks, xks, kern, code)
@@ -3232,6 +3347,7 @@ function M.install(attr, ks, xks, kern, code)
   M.cell_attr = luatexbase.attributes["docxlike@cell@attr"]
   M.picture_attr = luatexbase.attributes["docxlike@picture@attr"]
   M.done_attr = luatexbase.attributes["docxlike@grid@attr"]
+  M.nosnap_attr = luatexbase.attributes["docxlike@nosnap@attr"]
   luatexbase.add_to_callback("linebreak_filter",
     function(h, d) return M.filter(h, d) end, "docxlike.linebreak")
   luatexbase.add_to_callback("post_linebreak_filter",
@@ -3246,6 +3362,11 @@ function M.install(attr, ks, xks, kern, code)
     luatexbase.add_to_callback("hpack_filter",
       function(h) grid_box(h); return true end, "docxlike.cells")
   end
+  M.mcell_attr = luatexbase.attributes["docxlike@mcell@attr"]
+  if M.mcell_attr then
+    luatexbase.add_to_callback("hpack_filter",
+      function(h, gc) if gc == "fin_row" then mcell_center(h) end; return true end, "docxlike.mcell")
+  end
   luatexbase.add_to_callback("hyphenate", function(h) latin_hint(h) end, "docxlike.hint")
   if luatexbase.declare_callback_rule then
     luatexbase.declare_callback_rule("hyphenate", "docxlike.hint", "before", "ltj.hyphenate")
@@ -3253,7 +3374,7 @@ function M.install(attr, ks, xks, kern, code)
 end
 function M.uninstall()
   for _, cb in ipairs({ { "linebreak_filter", "docxlike.linebreak" }, { "hpack_filter", "docxlike.skips" },
-                        { "hpack_filter", "docxlike.cells" },
+                        { "hpack_filter", "docxlike.cells" }, { "hpack_filter", "docxlike.mcell" },
                         { "pre_linebreak_filter", "docxlike.skips" },
                         { "post_linebreak_filter", "docxlike.exact" },
                         { "hyphenate", "docxlike.hint" } }) do

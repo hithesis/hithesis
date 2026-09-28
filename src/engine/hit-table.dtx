@@ -219,14 +219,10 @@
 % \item \emph{线宽零工作}：它的 \pkg{booktabs} 库
 %   （\cs{UseTblrLibrary}\marg{booktabs}）画三线用的就是
 %   \cs{heavyrulewidth} 这批全局尺寸，上面设过的值直接生效。
-% \item \emph{单元格边距}：它的 \texttt{colsep} 不读 \cs{tabcolsep}（默认
-%   6\,pt），而且每个环境一份 inner 表、互不继承，\pkg{booktabs} 库的那三个
-%   环境在库加载前还不存在。所以挂在各环境自己的 begin 钩子里，进环境时
-%   往它的 inner 表追加 \texttt{colsep=}\cs{tabcolsep}——追加是组内局部的，
-%   出组即还原，不会越积越长。新版面下 \texttt{rowsep} 也追加成零：它默认上下
-%   各 2\,pt，Word 的单元格上下边距是 0，行高就是格里那一段的行盒（见
-%   \cs{hit@table@font:}）；实测 demo 的长表格每行 23.13，去掉这 4\,pt 正是
-%   一个网格行。
+% \item \emph{单元格边距}：照 Word 排的表由 \pkg{docxlike} 照“默认单元格边距”设（左右 5.4\,bp、上下 0，
+%   见 \file{docxlike-table.dtx}）；报告正文不照 Word 排、\pkg{docxlike} 不接表的时候，进环境时往它的 inner 表
+%   追加 \texttt{colsep=}\cs{tabcolsep} 与 \texttt{rowsep=0pt}——它的 \texttt{colsep} 不读 \cs{tabcolsep}（默认
+%   6\,pt），\texttt{rowsep} 默认上下各 2\,pt。追加是组内局部的，出组即还原。
 % \item \emph{表内字号行距}：\env{tblr} 与 \env{booktabs} 走 \env{tabular}
 %   一族的两级钩子（浮动体里才压五号）；\env{longtblr}、\env{talltblr}、
 %   \env{longtabs}、\env{talltabs} 与 \pkg{longtable} 同规矩，无条件压。
@@ -265,25 +261,8 @@
 %   回车），所以套一层组先回 \cs{normalsize}；照五号算是 15.1，表题比浮动表高 2.2。
 %   \pkg{tabularray} 自己的默认是 \texttt{presep}／\texttt{postsep} 各
 %   \texttt{1.5\string\bigskipamount}（17.7\,bp）、\texttt{headsep}／\texttt{footsep}
-%   各 6\,pt，而且它起表前先 \cs{leavevmode} 开一个空段去刷新 \cs{pagetotal}，
-%   排每一页又用 \cs{noindent} 开一段装整张表的盒子（换页后那两处也各有一个
-%   \cs{noindent}，与 \cs{nobreak} 连着）——这几段在本类里会被段落钩子的撑杆
-%   撑起来：空段成了一整行，与 \texttt{presep} 叠成两行空白（实测表题比浮动表
-%   低 17.9），表盒底下多垫一个行深。所以这四处的 \cs{leavevmode} 与
-%   \cs{noindent} 前面各补一句 \cs{docxlike\_format\_blank\_para:}，让那一段两头都不发
-%   撑杆、也不走 Lua 的行盒；前后两个外距照浮动体，上下两个归零。
-%   \cs{nobreak}\cs{noindent} 那一对打两遍：\cs{patchcmd} 只换第一处，换过的
-%   那处已经不匹配，第二遍换到的就是另一处。
-%   补丁用 \cs{patchcmd} 打在 \pkg{tabularray} 的内部函数上。\cs{patchcmd}
-%   按打补丁那一刻的 catcode 重扫整个宏体，\pkg{etoolbox} 只替你把 @ 设成字母
-%   （\texttt{\string\c@rowcount} 靠它），函数名里的下划线与冒号得自己设成字母，
-%   打完再还原，不然换个时机跑（比如用户先装了 \pkg{tabularray}）宏体就断成
-%   \cs{skip} 加一串下标。空格也得设回 10：\cs{patchcmd} 先重扫一遍原宏体、
-%   与原件比对，比不上就判“打不上”，而长表那个函数里有
-%   \texttt{\string\hrule height \string~ 0pt}，那个 \texttt{\string~} 是一个真的
-%   空格记号，\pkg{expl3} 语法下重扫会把它吞掉，比对就过不了（实测就是这样
-%   打不上的）。不能拿 \cs{ExplSyntaxOn}／\cs{ExplSyntaxOff} 包：语法本来就
-%   开着时后者会把它关掉，后面的类代码全炸。
+%   各 6\,pt；前后两个外距照浮动体，上下两个归零。它起表前与每页开的那几段不发撑杆，
+%   由 \pkg{docxlike} 给 \pkg{tabularray} 打的补丁管（见 \file{docxlike-table.dtx}）。
 % \end{itemize}
 % 表题字体那条链在报告没有（\cs{hit@caption@separator} 一族住在终稿
 % 的浮动层），钩子里逐条存在才接，报告装 \pkg{tabularray} 保它默认样式。
@@ -325,22 +304,13 @@
           }
       }
   }
-\int_new:N \l__hit_table_catcode_us_int
-\int_new:N \l__hit_table_catcode_colon_int
-\int_new:N \l__hit_table_catcode_space_int
-\cs_new_protected:Npn \__hit_table_patch:Nnn #1#2#3
+\cs_new_protected:Npn \__hit_table_tblr_margins:n #1
   {
-    \int_set:Nn \l__hit_table_catcode_us_int    { \char_value_catcode:n { 95 } }
-    \int_set:Nn \l__hit_table_catcode_colon_int { \char_value_catcode:n { 58 } }
-    \int_set:Nn \l__hit_table_catcode_space_int { \char_value_catcode:n { 32 } }
-    \char_set_catcode_letter:n { 95 }
-    \char_set_catcode_letter:n { 58 }
-    \char_set_catcode_space:n  { 32 }
-    \patchcmd #1 {#2} {#3} { }
-      { \msg_warning:nnn { hithesis } { table-patch-failed } {#1} }
-    \char_set_catcode:nn { 95 } { \l__hit_table_catcode_us_int }
-    \char_set_catcode:nn { 58 } { \l__hit_table_catcode_colon_int }
-    \char_set_catcode:nn { 32 } { \l__hit_table_catcode_space_int }
+    \bool_if:NF \l_docxlike_table_bool
+      {
+        \SetTblrInner [#1] { colsep = \tabcolsep }
+        \SetTblrInner [#1] { rowsep = 0pt }
+      }
   }
 \cs_new:Npn \__hit_table_long_sep:
   {
@@ -364,8 +334,7 @@
           {
             \AddToHook { env/##1/begin }
               {
-                \SetTblrInner [##1] { colsep = \tabcolsep }
-                \SetTblrInner [##1] { rowsep = 0pt }
+                \__hit_table_tblr_margins:n {##1}
                 \bool_if:NT \l__hit_table_float_bool { \hit@table@font: }
               }
           }
@@ -373,8 +342,7 @@
           {
             \AddToHook { env/##1/begin }
               {
-                \SetTblrInner [##1] { colsep = \tabcolsep }
-                \SetTblrInner [##1] { rowsep = 0pt }
+                \__hit_table_tblr_margins:n {##1}
                 \hit@table@font:
               }
           }
@@ -392,21 +360,6 @@
                   }
               }
             \AddToHook { env/##1/after } { \__hit_float_blank:n { table-below } }
-          }
-        \cs_if_exist:NT \docxlike_format_blank_para:
-          {
-            \__hit_table_patch:Nnn \__tblr_build_long_table:n
-              { \mode_leave_vertical: }
-              { \docxlike_format_blank_para: \mode_leave_vertical: }
-            \__hit_table_patch:Nnn \__tblr_halign_whole:Nn
-              { \noindent }
-              { \docxlike_format_blank_para: \noindent }
-            \__hit_table_patch:Nnn \__tblr_build_long_table:n
-              { \nobreak \noindent }
-              { \nobreak \docxlike_format_blank_para: \noindent }
-            \__hit_table_patch:Nnn \__tblr_build_long_table:n
-              { \nobreak \noindent }
-              { \nobreak \docxlike_format_blank_para: \noindent }
           }
         \cs_if_exist:NT \DeclareTblrTemplate
           {

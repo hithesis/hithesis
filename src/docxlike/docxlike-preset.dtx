@@ -6,6 +6,8 @@
 %
 % \section{预设：Word 的空白文档}
 %
+% \changes{v3.2a}{2026/09/28}{空白文档预设的标题紧缩 0.5 磅、副标题加宽 0.75 磅；文档自己设了字符网格时不再把汉字缝与
+%   中西文胶盖成无网格的那一份（\hologo{XeLaTeX} 下汉字先前没有网格增量）；正文字体挂上西文重载钩子}
 % \changes{v3.2a}{2026/09/26}{空白文档预设加目录 1 至 9 样式（同正文，左缩进逐级多两个字）；
 %   本包自己声明的中文字族与缺斜体字面的西文字族照 Word 斜切}
 % \changes{v0.1.0}{2026/09/23}{加包选项 \option{preset}，默认 \texttt{blank}：
@@ -29,7 +31,8 @@
 %   \file{styles.xml}，数是这样取出来的。
 % \item 标题（Title）28\,bp、副标题（Subtitle）14\,bp，都用标题字体、居中，副标题灰
 %   \texttt{595959}；登记成 \texttt{title} 与 \texttt{subtitle} 两个目标，用
-%   \cs{docxlike\_format\_par:nn} 排。标题的字距 $-0.5$\,磅（\texttt{w:spacing}）眼下没有做。
+%   \cs{docxlike\_format\_par:nn} 排。字符间距标题紧缩 0.5\,磅、副标题加宽 0.75\,磅
+%   （\texttt{w:spacing} 的 $-10$ 与 15）。
 % \item 页眉、页脚两个样式：9\,bp，单倍行距，不贴网格，段后沿用正文的 8\,bp；
 %   页眉居中、页脚左对齐；制表位 4153 缇居中、8306 缇右对齐。没有下框线，这是新版
 %   \file{Normal.dotm} 的样子，旧版中文 Word 页眉底下那条线已经没有了。
@@ -130,12 +133,14 @@
           } ,
         Title =
           {
-            font = { asian-text-font = DengXian, size = 28bp, snap-to-grid-when-document-grid-is-defined = false },
+            font = { asian-text-font = DengXian, size = 28bp, snap-to-grid-when-document-grid-is-defined = false,
+                     character-spacing = { spacing = condensed, by = 0.5bp } },
             paragraph = { alignment = centered, snap-to-grid-when-document-grid-is-defined = true, spacing = { line-spacing = multiple, at = 1, after = 4bp } },
           } ,
         Subtitle =
           {
-            font = { asian-text-font = DengXian, size = 14bp, snap-to-grid-when-document-grid-is-defined = false },
+            font = { asian-text-font = DengXian, size = 14bp, snap-to-grid-when-document-grid-is-defined = false,
+                     character-spacing = { spacing = expanded, by = 0.75bp } },
             paragraph = { alignment = centered, snap-to-grid-when-document-grid-is-defined = true, spacing = { line-spacing = multiple, at = 1.158333, after = 8bp } },
           } ,
         Header =
@@ -204,6 +209,8 @@
           {
             \bool_gset_true:N \g__docxlike_preset_dengxian_bool
             \setmainfont { DengXian } [ AutoFakeSlant = \c_docxlike_font_fake_slant_tl , BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl } ]
+            \hook_gput_code:nnn { docxlike / latin-font-reload } { docxlike }
+              { \setmainfont { DengXian } [ AutoFakeSlant = \c_docxlike_font_fake_slant_tl , BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl } ] }
             \tl_gset:Nn \g_docxlike_format_default_latin_tl { DengXian }
             \sys_if_engine_xetex:TF
               {
@@ -338,7 +345,9 @@
 % 文档类默认 1.3），再乘一次就成了 23.49\,bp（Word 是 18.07）。
 %
 % 汉字与西文紧挨着时中间的胶取 0.225 个字号：没有字符网格，Word 的“自动调整中文与
-% 西文的间距”按字号给，11\,bp 下两侧量得 2.57 与 2.45。源码里汉字与西文之间敲了
+% 西文的间距”按字号给，11\,bp 下两侧量得 2.57 与 2.45。文档自己设了字符网格的不在此列，
+% 汉字缝与中西文胶照 \texttt{Normal} 与网格算（\cs{docxlike\_format\_apply\_body:} 设过的），
+% 先前这里一律盖成零，\hologo{XeLaTeX} 下汉字就没有网格增量。源码里汉字与西文之间敲了
 % 空格的，Word 是空格再加这一截，\pkg{luatexja} 见了空格就不加，这里还差 2.5\,bp
 % 左右，没补。
 %
@@ -360,7 +369,8 @@
     \docxlike_format_word_interline:
     \docxlike_linebreak_rigid_ragged:
     \docxlike_format_apply_body:
-    \docxlike_format_hglue:nn { 0pt } { 0.225 \g_docxlike_body_size_dim }
+    \dim_compare:nNnT { \g_docxlike_page_char_dim } = { 0pt }
+      { \docxlike_format_hglue:nn { 0pt } { 0.225 \g_docxlike_body_size_dim } }
     \cs_gset_eq:NN \ps@plain \ps@docxlike
     \pagestyle { docxlike }
     \cs_if_exist:NTF \chapter
