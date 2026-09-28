@@ -793,20 +793,16 @@
 % 三种用法：给 PDF 就贴那个 PDF，带星号连页码一起排；不给就按
 % \texttt{defense} 族的数据排出来，没数据就是一张空表。
 %
-% 学位这一层的判断挪到了 \option{struct} 的 \option{defense} 键上（\texttt{auto}
-% 只有博士排，\texttt{true} 谁都排），所以这里不再自己查 \option{doctor}。
+% 学位这一层的判断在部件那一层（\cs{defense} 的 \option{shown}，见 \file{src/engine/hit-parts.dtx}），
+% 所以这里不再自己查 \option{doctor}。
 %
-% \textbf{为什么要拆成两个。} \cs{resolution} 是 v3.1e 的写法，v3.2a 起由
-% \option{struct} 的 \option{defense} 键接管，用户再调它要给一句废弃提示。
+% \textbf{为什么要拆成两个。} \cs{resolution} 是 v3.1e 的写法，v3.2a 起叫
+% \cs{defense}，用户再调旧名要给一句改名提示。
 % 但类自己排这一页走的也是同一段代码，提示不能跟着响。所以排版的活留在这个
 % 内部命令里，\cs{resolution} 只负责提示再转发过来。
 %    \begin{macrocode}
 \NewDocumentCommand \hit@resolution@place { s o }
   {
-    % 排过就记一笔：老写法(\resolution/\authorization)与新写法(struct 骨架)
-    % 都汇到这里，记在这一处两条路都算数，文末兜底才不会重排
-    \hit@structure@done:n { defense }
-
     \hit@clear@page
     \IfNoValueTF {#2}
       {
@@ -838,23 +834,28 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \begin{macro}{\resolution}
-% 旧写法，转发到上面那个。提示一份文档只报一次。
+% \begin{macro}{\defense,\resolution}
+% \cs{defense}\oarg{选项} 与 iota-hit 的 \texttt{defense()} 对应：\option{shown}、贴扫描件的 \option{file} 与
+% \option{page-number}。照 iota-hit，终稿里除博士后都排（\texttt{auto}）；原先只有博士排。评阅人、委员与
+% 决议正文仍写在 \cs{hitsetup} 的 \option{defense} 族里。v3.1e 的 \cs{resolution}\oarg{文件}（星号排页码）
+% 照旧能用，转发过来并提示改名。
 %    \begin{macrocode}
+\NewDocumentCommand \defense { O{} }
+  {
+    \hit@part@scanned@opts:n {#1}
+    \hit@part:nVn { defense } \l_hit_part_shown_tl
+      {
+        \hit@matter@back@enter:
+        \hit@part@scanned:N \hit@resolution@place
+      }
+  }
 \NewDocumentCommand \resolution { s o }
   {
-    \hit@warn@renamed@command { resolution }
-      { struct/backmatter/defense }
-    \IfBooleanTF {#1}
+    \hit@warn@renamed@to:nn { resolution } { defense }
+    \use:e
       {
-        \IfNoValueTF {#2}
-          { \hit@resolution@place * }
-          { \hit@resolution@place * [{#2}] }
-      }
-      {
-        \IfNoValueTF {#2}
-          { \hit@resolution@place }
-          { \hit@resolution@place [{#2}] }
+        \exp_not:N \defense
+          [ \IfValueT {#2} { file = { \exp_not:n {#2} } , } \IfBooleanT {#1} { page-number } ]
       }
   }
 %    \end{macrocode}

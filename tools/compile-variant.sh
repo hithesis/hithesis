@@ -136,8 +136,8 @@ fi
 # 这一句可能写在正文的 body/*.tex 里而不是入口文件，所以整棵树扫一遍。
 # 只换行首的那种，注释掉的备选项照原样留着。
 #
-# 用 \hitbackmatter 排后置部分时，\bibliographystyle 是类生成的，源码里根本
-# 没有这一行，样式写在 bib 族 bibtex 子组的 style 键上，所以那个键也要一起换。
+# 源码里没写 \bibliographystyle 时，\bibliography 那一刻由类补一句，样式取 bib 族
+# bibtex 子组的 style 键，所以那个键也要一起换。
 if [ -n "${BIBSTYLE:-}" ]; then
   python3 - "$WORK" "$BIBSTYLE" <<'PYEOF'
 import sys, re, pathlib

@@ -16,6 +16,7 @@
 %
 % \section{终稿的术语与符号表}
 %
+% \changes{v3.2a}{2026/09/28}{符号与缩略语合一页写 \env{nomenclature} 环境（与 iota-hit 的 \texttt{nomenclature()} 对应）}
 % \changes{v3.2a}{2026/09/27}{三个引擎都能自动推拼音：\hologo{LuaLaTeX} 下 \pkg{xpinyin} 会停机，
 %  只读它的数据文件，不读的话每条中文索引都报查不到；\hologo{pdfLaTeX} 下装 \pkg{xpinyin}
 %  （它认 \pkg{CJKutf8}），首字按 UTF-8 解出码位查拼音；中文词条写进 \file{.idx} 前还原成字节：
@@ -769,17 +770,34 @@
 %
 % \begin{macro}{\listofabbreviations}
 % 排缩略语表。带星号是不排章标题，接在符号表那一页下面用，
-% 与 \cs{listoffigures} 一族同名同姓。
+% 与 \cs{listoffigures} 一族同名同姓。本模块报告也装（正文里的 \cs{abbr} 要用），缩略语表只有学位论文排，
+% 报告里的 \cs{listofabbreviations} 见 \file{src/flow/hit-report-matter.dtx}。
 %    \begin{macrocode}
+\bool_if:NT \g__hit_final_bool
+  {
 \NewDocumentCommand \listofabbreviations { s O{} }
   {
+    \IfBooleanTF {#1}
+      { \__hit_list_of_abbreviations:nn { * } {#2} }
+      {
+        \__hit_symbols_opt:n {#2}
+        \hit@part:nVn { list-of-abbreviations } \l_hit_part_shown_tl
+          {
+            \hit@matter@front@enter:
+            \__hit_list_of_abbreviations:nn { } {#2}
+          }
+      }
+  }
+  }
+\cs_new_protected:Npn \__hit_list_of_abbreviations:nn #1#2
+  {
     \__hit_symbols_opt:n {#2}
-    \IfBooleanF {#1}
+    \tl_if_empty:nT {#1}
       {
         \hit@frontlist@open:nn
           { \hit@term@list@of@abbreviations@heading@zh } { \hit@term@list@of@abbreviations@heading@en }
       }
-    \IfBooleanT {#1}
+    \tl_if_empty:nF {#1}
       {
         \tl_if_empty:NF \l__hit_symbols_subheading_tl
           { \hit@frontlist@subheading:V \l__hit_symbols_subheading_tl }
@@ -809,30 +827,49 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \begin{macro}{\hit@structure@merged@symbols:}
-% 合并成一页的那个部件：一个章标题，符号在上、缩略语在下，两段各带小标题。
+% \begin{environment}{nomenclature}
+% 符号与缩略语排在同一页，与 iota-hit 的 \texttt{nomenclature()} 对应：环境体是符号那一段，写法与
+% \env{symbols} 一样，缩略语那一段取 \option{abbr} 族的词条。可选参数收 \option{shown} 与 \env{symbols}
+% 的那几个键。只有学位论文排；报告里的见 \file{src/flow/hit-report-matter.dtx}。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@structure@merged@symbols:
+\bool_if:NT \g__hit_final_bool
   {
-    \hit@structure@part:nn { list-of-symbols-and-abbreviations }
+\NewDocumentEnvironment { nomenclature } { O{} +b }
+  {
+    \__hit_symbols_opt:n {#1}
+    \hit@part:nVn { nomenclature } \l_hit_part_shown_tl
       {
-        \bool_gset_false:N \g__hit_frontlist_open_bool
-        \tl_clear:N \l__hit_symbols_subheading_tl
-        \hit@frontlist@open:nn
-          { \hit@term@list@of@symbols@and@abbreviations@heading@zh }
-          { \hit@term@list@of@symbols@and@abbreviations@heading@en }
+        \hit@matter@front@enter:
+        \hit@nomenclature@page:n { \begin { symbols } [#1] #2 \end { symbols } }
+      }
+  }
+  { }
+  }
+%    \end{macrocode}
+% \end{environment}
+%
+% \begin{macro}{\hit@nomenclature@page:n}
+% 符号与缩略语合成一页：一个章标题，符号在上、缩略语在下，两段各带小标题。参数是符号那一段
+% （一个 \env{symbols} 环境）。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@nomenclature@page:n #1
+  {
+    \bool_gset_false:N \g__hit_frontlist_open_bool
+    \tl_clear:N \l__hit_symbols_subheading_tl
+    \hit@frontlist@open:nn
+      { \hit@term@list@of@symbols@and@abbreviations@heading@zh }
+      { \hit@term@list@of@symbols@and@abbreviations@heading@en }
 %    \end{macrocode}
 %
 % 章标题排过了，把闸门顶上，里头的 \env{symbols} 就不再排自己的那一个。
 % 两段各预置一个小标题：符号那段取符号表的标题，缩略语那段显式给。
 %    \begin{macrocode}
-        \bool_gset_true:N \g__hit_frontlist_open_bool
-        \tl_gset:Nn \g__hit_frontlist_pending_tl
-          { \hit@term@list@of@symbols@heading@zh }
-        \exp_args:Nv \input { g__hit_structure_list-of-symbols-and-abbreviations_tl }
-        \listofabbreviations * [ subheading = \hit@term@list@of@abbreviations@heading@zh ]
-        \bool_gset_false:N \g__hit_frontlist_open_bool
-      }
+    \bool_gset_true:N \g__hit_frontlist_open_bool
+    \tl_gset:Nn \g__hit_frontlist_pending_tl
+      { \hit@term@list@of@symbols@heading@zh }
+    #1
+    \listofabbreviations * [ subheading = \hit@term@list@of@abbreviations@heading@zh ]
+    \bool_gset_false:N \g__hit_frontlist_open_bool
   }
 %    \end{macrocode}
 % \end{macro}

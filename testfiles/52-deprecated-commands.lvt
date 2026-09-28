@@ -1,32 +1,41 @@
-% \resolution 与 \authorization 是 v3.1e 的写法，v3.2a 起由 struct 的
-% defense 与 declarations 两个键接管，用户再调它们要给一句废弃提示。
+% \resolution 与 \authorization 是 v3.1e 的写法，v3.2a 起叫 \defense 与 \declarations，
+% 用户再调旧名要给一句改名提示。
 %
-% 两件事：用户调是要提示的；类自己排这一页走的是内部命令，不能跟着提示。
+% 两件事：旧名要提示，而且只提示一次；新名走的是同一段代码，不能跟着提示。
 %
-% 排版的活拦下来只打印，测试里没有扫描件也没有名单。
+% 排版的活拦下来只打印，测试里没有扫描件也没有名单。答辩页与声明全书只排一次，
+% 每轮开头把“排过”的记录复位，不然第一轮之后全被挡掉。
 \input{regression-test}
 \documentclass[fontset=fandol,degree-level=doctor,campus=harbin]{hithesis}
 \makeatletter
-\RenewDocumentCommand\hit@resolution@place{so}{\typeout{[排] 决议}}
-\RenewDocumentCommand\hit@declarations@place{so}{\typeout{[排] 声明与权限}}
-\renewcommand\include[1]{\typeout{[include] #1}}
-\renewcommand\tableofcontents{\typeout{[类自排] 目录}}
+\RenewDocumentCommand\hit@resolution@place{so}{\typeout{[排] 决议\IfBooleanT{#1}{ 带页码}\IfValueT{#2}{ 贴 #2}}}
+\RenewDocumentCommand\hit@declarations@place{so}{\typeout{[排] 声明与权限\IfBooleanT{#1}{ 带页码}\IfValueT{#2}{ 贴 #2}}}
 \makeatother
+\ExplSyntaxOn
+\cs_new_protected:Npn \RESETPARTS
+  {
+    \clist_map_inline:nn { defense , declarations }
+      { \bool_if_exist:cT { g__hit_part_done_##1_bool } { \bool_gset_false:c { g__hit_part_done_##1_bool } } }
+  }
+\ExplSyntaxOff
 \begin{document}
 \START
 \TEST{用户调旧命令要提示}{
+  \RESETPARTS
   \resolution
   \authorization
 }
 
 \TEST{同一个命令只提示一次}{
+  \RESETPARTS
   \resolution*[figures/x.pdf]
   \authorization*[figures/x.pdf]
 }
 
-\hitsetup{ struct = { backmatter = { defense = auto, declarations = true } } }
-\TEST{类自排不提示}{
-  \hitbackmatter
+\TEST{新名不提示}{
+  \RESETPARTS
+  \defense
+  \declarations
 }
 \END
 \end{document}

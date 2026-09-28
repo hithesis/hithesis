@@ -6,11 +6,10 @@
 %
 % \section{前置、正文与后置的切换}
 %
-% \changes{v3.2a}{2026/09/25}{博士后的后置照模板：致谢挪到成果之前，原创性声明默认不排；
-%   目录第一章之前的空段由 \option{toc}/\option{blank} 管，默认只在博士后排}
-% \changes{v3.2a}{2026/09/13}{学位论文的骨架宏排列顺序照规范写死，\option{struct} 收
-%   摘要、正文各章、符号表、缩略语表、图表公式索引各成部件；文献表调总出口
-%   \cs{hit@bib@print:} 按后端分发；右开页走 \cs{hit@clear@odd@page:}
+% \changes{v3.2a}{2026/09/25}{目录第一章之前的空段由 \option{toc}/\option{blank} 管，默认只在博士后排}
+% \changes{v3.2a}{2026/09/28}{三段命令只切页码、计数器与右开页，并记下当前在哪一段，供部件自动切换
+%   （\file{src/engine/hit-parts.dtx}）}
+% \changes{v3.2a}{2026/09/13}{右开页走 \cs{hit@clear@odd@page:}
 %   （\cs{cleardoublepage} 绑着 \cs{if@twoside}，本硕单面时开关是死的），
 %   \option{openright} 与 \option{library} 转发到 \option{layout}/\option{openright}；
 %   前置部分不再发 \cs{ziju}，字距由字符网格管；
@@ -77,6 +76,7 @@
 %    \begin{macrocode}
 \cs_set:Npn \frontmatter
   {
+    \hit@matter@set:n { front }
     \tl_gset:Nn \g__hit_matter_now_tl { frontmatter }
     \hit@openright:n { frontmatter }
     \@mainmatterfalse
@@ -127,6 +127,7 @@
 % 添加英文版限制
 % \changes{v3.0.0}{2020/05/21}{添加英文版限制}
 %    \begin{macrocode}
+    \hit@matter@set:n { main }
     \tl_gset:Nn \g__hit_matter_now_tl { mainmatter }
     \hit@openright:n { mainmatter }
     \@mainmattertrue
@@ -140,6 +141,7 @@
 %    \begin{macrocode}
 \cs_set:Npn \backmatter
   {
+    \hit@matter@set:n { back }
     \tl_gset:Nn \g__hit_matter_now_tl { backmatter }
     \hit@openright:n { backmatter }
     \@mainmattertrue
@@ -147,108 +149,6 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \begin{macro}{\hitfrontmatter,\hitbackmatter}
-% 规范定死的顺序，各部件由 \option{struct} 族声明，没声明的不排。
-% 键的声明与存取在 \file{src/engine/hit-structure.dtx}。
-%
-% \option{cover} 与 \option{abstract} 两个文件排在最前面读，跟别的部件「读到哪里
-% 排到哪里」不是一回事。这两个文件本身不排任何东西：封面那个只设元信息，摘要那个
-% 里的 \env{abstract-zh} 与 \env{abstract-en} 只把正文收起来。真正排版的是
-% \cs{makecover}，它接着封面一起排摘要，所以两个文件都得赶在它之前读到。
-%    \begin{macrocode}
-\cs_set_protected:Npn \hitfrontmatter
-  {
-    \bool_gset_true:N \g__hit_matter_front_bool
-    \hit@structure@input:n { cover }
-    \hit@structure@input:n { abstract }
-    \frontmatter
-    \makecover
-    \hit@structure@input:n { denotation }
-%    \end{macrocode}
-%
-% 符号表取文件名，内容是手写的排版材料；缩略语表是三值，那一页由类从
-% \option{abbr} 族的词条生成，没有文件可读。第三个部件把两者排在同一页，
-% 标题另取一对常量，两段各带默认小标题。
-%    \begin{macrocode}
-    \hit@structure@input:n { list-of-symbols }
-    \hit@structure@switch:nnn { list-of-abbreviations }
-      { \bool_if_p:N \g__hit_en_bool } { \listofabbreviations }
-    \hit@structure@merged@symbols:
-    % 目录:规范要求都有,auto 即排
-    \hit@structure@switch:nnn { table-of-contents } { \c_true_bool }
-      { \tableofcontents }
-%    \end{macrocode}
-%
-% 三个索引。从前这三样(连同缩略语表)写死在 \cs{tableofcontents} 内部，条件是
-% \option{lang}\texttt{=en}，于是「要目录」等于连带要索引，中文版想要图索引也
-% 要不到。现在各是一个部件，取值 \texttt{auto}(不写即是)时按规范默认走——规范
-% 只对英文版有要求，所以默认条件是「这本是不是英文版」。
-%    \begin{macrocode}
-    \hit@structure@switch:nnn { list-of-tables }
-      { \bool_if_p:N \g__hit_en_bool } { \listoftables }
-    \hit@structure@switch:nnn { list-of-figures }
-      { \bool_if_p:N \g__hit_en_bool } { \listoffigures }
-    \hit@structure@switch:nnn { list-of-equations }
-      { \c_false_bool } { \listofequations }
-    \hit@structure@here:nnn { acknowledgements } { front }
-      { \exp_args:Nv \include { g__hit_structure_acknowledgements_tl } }
-  }
-%    \end{macrocode}
-%
-% \begin{macro}{\hitmainmatter}
-% \cs{hitmainmatter} 起正文，再按 \option{mainmatter} 逐个 \cs{include}。
-% \option{mainmatter} 是唯一取一串文件名的部件，其余都是一个部件一个文件。
-%
-% 不写 \option{mainmatter} 也行，\cs{hitmainmatter} 照样起正文，章节自己 \cs{include}，
-% 跟以前一样。
-%    \begin{macrocode}
-\cs_set_protected:Npn \hitmainmatter
-  {
-    \bool_gset_true:N \g__hit_matter_main_bool
-    \mainmatter
-    \hit@structure@include@list:n { mainmatter }
-  }
-%    \end{macrocode}
-% \end{macro}
-%
-%
-% 博士后的书序照《博士后研究工作报告模板》：参考文献之后先排致谢，再排两份成果（博士生期间、
-% 博士后期间）、个人简历与永久通讯地址，没有原创性声明。v3.1e 示例里博后那一段注释掉的书序
-% 也是这样。两份成果同属 \option{publications} 这一个部件，简历与通讯地址同属
-% \option{resume}，文件里各用 \env{doctorpublication}、\env{correspondingaddr} 起那一页；
-% 这里只挪致谢，原创性声明的 \texttt{auto} 在博士后为假。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_backmatter_acknowledgements:
-  {
-    \hit@structure@here:nnn { acknowledgements } { back }
-      { \exp_args:Nv \include { g__hit_structure_acknowledgements_tl } }
-  }
-\cs_set_protected:Npn \hitbackmatter
-  {
-    \bool_gset_true:N \g__hit_matter_back_bool
-    \backmatter
-    \hit@structure@part:nn { bibliography } { \hit@bib@print: }
-    \hit@structure@part:nn { appendix }
-      {
-        \begin { appendix }
-          \hit@structure@input:n { appendix }
-        \end { appendix }
-      }
-    \bool_if:NT \g__hit_postdoc_bool { \__hit_backmatter_acknowledgements: }
-    \hit@structure@include:n { publications }
-    % 答辩决议:规范只对博士要求,auto 即「是博士才排」。原先这条三态是手写在
-    % 这里的,现在收进 \cs{hit@structure@scanned:nnnn} 统一处理
-    \hit@structure@scanned:nnnn { defense } { hit@resolution@place }
-      { \bool_if_p:N \g__hit_doctor_bool } { \hit@resolution@place }
-    \hit@structure@include:n { index }
-    % 原创性声明与使用权限:规范要求都有,auto 即排;博士后的模板没有
-    \hit@structure@scanned:nnnn { declarations } { hit@declarations@place }
-      { ! \g__hit_postdoc_bool } { \hit@declarations@place }
-    \bool_if:NF \g__hit_postdoc_bool { \__hit_backmatter_acknowledgements: }
-    \hit@structure@include:n { resume }
-  }
-%    \end{macrocode}
-% \end{macro}
 %    \begin{macrocode}
   }
 %</final-mainmatter>

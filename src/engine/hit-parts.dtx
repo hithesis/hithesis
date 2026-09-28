@@ -1,0 +1,287 @@
+% \iffalse meta-comment
+%
+% hit-parts.dtx 是部件的显示判定与前置、正文、后置的切换
+%
+% \fi
+%
+% \section{部件与前后文}
+%
+% \changes{v3.2a}{2026/09/28}{部件与 iota-hit 一一对应：用户写哪个就排哪个，顺序自己定；每个部件按分支自己判断
+%   排不排（可选参数 \option{shown} 取 \texttt{auto}、\texttt{true}、\texttt{false}），同一个部件只排一次；
+%   前置、正文、后置在第一个前置部件、第一个编号的顶层标题、第一个后置部件处自动切换，\cs{frontmatter}、
+%   \cs{mainmatter}、\cs{backmatter} 写了就在写的地方切；新增 \cs{hitif} 按分支挑内容}
+%
+% 学位论文由哪些部件组成、按什么次序排，由用户在主文件里写出来：写了 \cs{cover} 就排封面，
+% 写了 \cs{tableofcontents} 就排目录，与 iota-hit 的 \texttt{\#cover()}、\texttt{\#table-of-contents()}
+% 一样。类只替每个部件回答一个问题：在这一份交付物里它该不该出现。开题报告里写了致谢，
+% 致谢不出现；博士后的报告里写了原创性声明，声明不出现。这样一份主文件可以同时编终稿与报告、
+% 本硕博各档，写法不用跟着分支改。
+%
+% \subsection{排不排}
+%
+% 每个部件收 \option{shown}：
+% \begin{itemize}
+%   \item \texttt{auto}（默认）按下面的表定；
+%   \item \texttt{true} 一定排，报告里也排；
+%   \item \texttt{false} 一定不排。
+% \end{itemize}
+% \texttt{auto} 的规矩照 iota-hit 的 \texttt{final-only-wanted} 与 \texttt{shown-auto}：终稿专有的部件
+% 只在终稿里排，另有几样按学位挡。报告的目录多一条：学校的模板里有目录的那几档才排
+% （\cs{g\_\_hit\_report\_toc\_auto\_bool}，按校区、学位、阶段定）。iota-hit 在报告里写了目录就排，
+% 可那是一份报告一个主文件的写法；这里一份主文件管十八格报告，没有目录的格子交给类挡掉，
+% 用户不必自己写条件。
+%
+% v3.1e 的 \option{toc} 选项（\cs{documentclass} 与 \cs{hitsetup} 里都认 \texttt{toc=true}、
+% \texttt{toc=false}）留着，意思换成目录这个部件的默认值：\option{shown} 取 \texttt{auto} 时照它，
+% 不再照上面的表。老文档靠它关掉报告的目录，照旧有效。这一层由
+% \cs{hit@part@default:nn}\marg{部件}\marg{\texttt{true}\textbar\texttt{false}} 记下。
+%    \begin{macrocode}
+%<*shared-parts>
+\clist_const:Nn \c__hit_part_final_only_clist
+  {
+    titlepage , abstract , list-of-symbols , list-of-abbreviations , nomenclature ,
+    conclusions , achievements , achievements-doctoral , defense , declarations ,
+    index , acknowledgements , resume , permanent-address ,
+  }
+\prop_const_from_keyval:Nn \c__hit_part_degree_off_prop
+  {
+    declarations          = { postdoc } ,
+    defense               = { postdoc } ,
+    achievements-doctoral = { bachelor , master , doctor } ,
+    permanent-address     = { bachelor , master , doctor } ,
+  }
+\bool_new:N \l__hit_part_bool
+\tl_new:N \l__hit_part_tl
+\prop_new:N \g__hit_part_default_prop
+\cs_new_protected:Npn \hit@part@default:nn #1#2
+  { \prop_gput:Nnn \g__hit_part_default_prop {#1} {#2} }
+\cs_new_protected:Npn \__hit_part_decide:nn #1#2
+  {
+    \tl_set:Nn \l__hit_part_tl {#2}
+    \str_if_eq:nnT {#2} { auto }
+      { \prop_get:NnNF \g__hit_part_default_prop {#1} \l__hit_part_tl { } }
+    \str_case:VnF \l__hit_part_tl
+      {
+        { true }  { \bool_set_true:N \l__hit_part_bool }
+        { false } { \bool_set_false:N \l__hit_part_bool }
+      }
+      {
+        \bool_set_true:N \l__hit_part_bool
+        \clist_if_in:NnT \c__hit_part_final_only_clist {#1}
+          { \bool_if:NF \g__hit_final_bool { \bool_set_false:N \l__hit_part_bool } }
+        \prop_get:NnNT \c__hit_part_degree_off_prop {#1} \l__hit_part_tl
+          {
+            \clist_map_inline:Nn \l__hit_part_tl
+              { \bool_if:cT { g__hit_##1_bool } { \bool_set_false:N \l__hit_part_bool } }
+          }
+        \bool_lazy_and:nnT
+          { \str_if_eq_p:nn {#1} { table-of-contents } }
+          { ! \g__hit_final_bool }
+          {
+            \bool_if_exist:NT \g__hit_report_toc_auto_bool
+              {
+                \bool_if:NF \g__hit_report_toc_auto_bool
+                  { \bool_set_false:N \l__hit_part_bool }
+              }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@part@if:nnTF}
+% \cs{hit@part@if:nnTF}\marg{部件}\marg{shown 的取值}\marg{排}\marg{不排}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@part@if:nnTF #1#2#3#4
+  {
+    \__hit_part_decide:nn {#1} {#2}
+    \bool_if:NTF \l__hit_part_bool {#3} {#4}
+  }
+\cs_generate_variant:Nn \hit@part@if:nnTF { nV }
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{只排一次}
+%
+% 封面、目录、答辩页这些全书只有一份。同一个部件写了第二次，第二次不排，给一条警告，
+% 与 iota-hit 的 \texttt{once} 同一个意思；iota-hit 直接报错停下，这里照 \hologo{LaTeX} 的习惯
+% 让编译走完。v3.1e 的 \cs{tableofcontents} 顺带排图表清单，老文档里再写一次 \cs{listoffigures}
+% 也靠这一条不重复。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@part@once:nT #1#2
+  {
+    \bool_if_exist:cF { g__hit_part_done_#1_bool }
+      { \bool_new:c { g__hit_part_done_#1_bool } }
+    \bool_if:cTF { g__hit_part_done_#1_bool }
+      { \msg_warning:nnn { hithesis } { part-twice } {#1} }
+      { \bool_gset_true:c { g__hit_part_done_#1_bool } #2 }
+  }
+\prg_new_conditional:Npnn \hit@part@done:n #1 { p , T , F , TF }
+  {
+    \bool_lazy_and:nnTF
+      { \bool_if_exist_p:c { g__hit_part_done_#1_bool } }
+      { \bool_if_p:c { g__hit_part_done_#1_bool } }
+      { \prg_return_true: }
+      { \prg_return_false: }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@part:nnn}
+% \cs{hit@part:nnn}\marg{部件}\marg{shown 的取值}\marg{排版}：该排、而且没排过，才排。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@part:nnn #1#2#3
+  { \hit@part@if:nnTF {#1} {#2} { \hit@part@once:nT {#1} {#3} } { } }
+\cs_generate_variant:Nn \hit@part:nnn { nV }
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{可选参数}
+%
+% 只收 \option{shown} 的部件用 \cs{hit@part@opts:n} 读可选参数，读完 \cs{l\_hit\_part\_shown\_tl}
+% 就是这一次的取值。还收别的键的部件自己定义键族，\option{shown} 那一个写成
+% \texttt{shown~.code:n~=~\{~\cs{hit@part@set@shown:n}~\{\#1\}~\}}。
+%    \begin{macrocode}
+\tl_new:N \l_hit_part_shown_tl
+\cs_new_protected:Npn \hit@part@set@shown:n #1
+  {
+    \str_case:nnF {#1}
+      {
+        { auto }  { \tl_set:Nn \l_hit_part_shown_tl { auto } }
+        { true }  { \tl_set:Nn \l_hit_part_shown_tl { true } }
+        { false } { \tl_set:Nn \l_hit_part_shown_tl { false } }
+      }
+      { \msg_error:nnn { hithesis } { part-shown-value } {#1} }
+  }
+\keys_define:nn { hit / part }
+  {
+    shown .code:n = { \hit@part@set@shown:n {#1} } ,
+    shown .value_required:n = true ,
+  }
+\cs_new_protected:Npn \hit@part@opts:n #1
+  {
+    \tl_set:Nn \l_hit_part_shown_tl { auto }
+    \hit@keys@set:nn { hit / part } {#1}
+  }
+%    \end{macrocode}
+%
+% 答辩页与声明页还可以贴一份签过字的扫描件：\option{file} 给 PDF，\option{page-number} 决定扫描页上
+% 排不排页码（默认不排）。
+%    \begin{macrocode}
+\tl_new:N \l_hit_part_file_tl
+\bool_new:N \l_hit_part_page_number_bool
+\keys_define:nn { hit / part / scanned }
+  {
+    shown .code:n = { \hit@part@set@shown:n {#1} } ,
+    shown .value_required:n = true ,
+    file .tl_set:N = \l_hit_part_file_tl ,
+    page-number .bool_set:N = \l_hit_part_page_number_bool ,
+    page-number .default:n = true ,
+  }
+\cs_new_protected:Npn \hit@part@scanned@opts:n #1
+  {
+    \tl_set:Nn \l_hit_part_shown_tl { auto }
+    \tl_clear:N \l_hit_part_file_tl
+    \bool_set_false:N \l_hit_part_page_number_bool
+    \hit@keys@set:nn { hit / part / scanned } {#1}
+  }
+\cs_new_protected:Npn \hit@part@scanned:N #1
+  {
+    \tl_if_empty:NTF \l_hit_part_file_tl
+      { #1 }
+      {
+        \bool_if:NTF \l_hit_part_page_number_bool
+          { \exp_args:NNNo #1 * [ \l_hit_part_file_tl ] }
+          { \exp_args:NNo #1 [ \l_hit_part_file_tl ] }
+      }
+  }
+%    \end{macrocode}
+%
+% \subsection{不排的环境}
+%
+% 环境写的部件不排时，环境体整个跳过：只记号化、不执行，标签、索引、目录行都不留，
+% 一直读到同名的 \cs{end}。结束代码里要看同一个布尔，别再收尾一次。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@part@skip:
+  { \exp_args:No \__hit_part_skip:n { \@currenvir } }
+\cs_new_protected:Npn \__hit_part_skip:n #1
+  {
+    \cs_set_protected:Npn \__hit_part_skip_loop:w ##1 \end ##2
+      { \str_if_eq:nnTF {##2} {#1} { \end {#1} } { \__hit_part_skip_loop:w } }
+    \__hit_part_skip_loop:w
+  }
+%    \end{macrocode}
+%
+% \subsection{前置、正文、后置}
+%
+% 这三段只管页码与计数器：前置用罗马数字，正文从 1 起、按学位右开页，后置按学位右开页。
+% 与 iota-hit 的 \texttt{frontmatter}、\texttt{mainmatter}、\texttt{backmatter} 同一个分工，部件排什么、
+% 排在哪都与它们无关。
+%
+% 三段都不必写。第一个前置部件（摘要、符号表、缩略语表、目录、图表清单）进前置，第一个编号的
+% 顶层标题（终稿的 \cs{chapter}，报告正文的第一个标题）进正文，第一个后置部件（参考文献、成果、
+% 答辩页、声明、索引、致谢、简历）进后置。只往后走：已经在正文里的，再遇到前置部件不回头；
+% 英文论文把致谢排在前置，那时还没进正文，致谢不会把文档推进后置。iota-hit 进前置也是这样自动的
+% （\texttt{front-numbering-enter}），进正文与后置它要用户写；这里一并自动。
+%
+% 写了 \cs{frontmatter}、\cs{mainmatter}、\cs{backmatter} 就在写的地方切，后面的自动切换看到
+% 已经在那一段，不再切。正文第一章之前另有不编号的章（前言之类）时，写一句 \cs{mainmatter}。
+%
+% \cs{g\_\_hit\_legacy\_front\_bool} 记文档是不是 v3.1e 的老写法（写的是 \cs{makecover}），几个部件
+% 据此照老规矩多排一点，见各自那一节。
+%    \begin{macrocode}
+\tl_new:N \g__hit_matter_state_tl
+\tl_gset:Nn \g__hit_matter_state_tl { none }
+\bool_new:N \g__hit_legacy_front_bool
+\cs_new_protected:Npn \hit@matter@set:n #1
+  { \tl_gset:Nn \g__hit_matter_state_tl {#1} }
+\cs_new_protected:Npn \hit@matter@front@enter:
+  { \str_if_eq:VnT \g__hit_matter_state_tl { none } { \frontmatter } }
+\cs_new_protected:Npn \hit@matter@main@enter:
+  {
+    \bool_lazy_or:nnT
+      { \str_if_eq_p:Vn \g__hit_matter_state_tl { none } }
+      { \str_if_eq_p:Vn \g__hit_matter_state_tl { front } }
+      { \mainmatter }
+  }
+\cs_new_protected:Npn \hit@matter@back@enter:
+  { \str_if_eq:VnT \g__hit_matter_state_tl { main } { \backmatter } }
+\prg_new_conditional:Npnn \hit@matter@if:n #1 { p , T , F , TF }
+  {
+    \str_if_eq:VnTF \g__hit_matter_state_tl {#1}
+      { \prg_return_true: } { \prg_return_false: }
+  }
+%    \end{macrocode}
+%
+% \subsection{按分支挑内容}
+%
+% \begin{macro}{\hitif}
+% \cs{hitif}\oarg{条件}\marg{成立时}\marg{不成立时}，条件的写法与 \cs{hitsetup} 的可选参数一样：
+% 逗号是“且”，分号是“或”，竖线是同一个键的几个取值，前面加 \texttt{!} 是“非”。报告按校区、
+% 学位挑正文就靠它：
+% \begin{latex}
+% \hitif[campus=shenzhen, degree-level=!bachelor]
+%   {\input{proposal/shenzhen-graduate}}
+%   {\input{proposal/graduate}}
+% \end{latex}
+% iota-hit 这里是 Typst 自己的 \texttt{\#if}。条件空着算成立。
+%    \begin{macrocode}
+\NewDocumentCommand \hitif { O{} +m +m }
+  { \hit@if@condition:nTF {#1} {#2} {#3} }
+%    \end{macrocode}
+% \end{macro}
+%
+% \subsection{删掉的写法}
+%
+% v3.2a 的开发版有过 \option{struct} 族与 \cs{hitfrontmatter}、\cs{hitmainmatter}、\cs{hitbackmatter}
+% 三个骨架宏，由类按规范的次序排部件。正式版没有发布过，直接删；写了报错，说清改成什么。
+%    \begin{macrocode}
+\keys_define:nn { hit }
+  { struct .code:n = { \msg_error:nn { hithesis } { struct-removed } } }
+\clist_map_inline:nn { hitfrontmatter , hitmainmatter , hitbackmatter }
+  {
+    \cs_new_protected:cpn {#1}
+      { \msg_error:nnn { hithesis } { skeleton-removed } {#1} }
+  }
+%</shared-parts>
+%    \end{macrocode}
+%
+% \Finale

@@ -61,7 +61,7 @@ DESC = {
     "shared-key-engine": "键怎么造、怎么存、旧名怎么兼容",
     "shared-option-engine": "类选项怎么声明、标志位怎么读",
     "shared-bibstyle": "参考文献样式的开关",
-    "shared-structure": "struct 族的部件与分段",
+    "shared-parts": "部件排不排、只排一次、前置正文后置的切换、\\hitif",
     "shared-keylist": "有哪些信息字段与常量",
     "shared-options": "文档类选项：声明、默认值、\\ProcessKeyOptions 之后的后处理",
     "shared-cjk": "不经 ctex 的中文层：字号、\\ccwd、LuaTeX 的中文字族",

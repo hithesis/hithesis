@@ -764,15 +764,19 @@
   { \hit@openright:n { cover } }
 %    \end{macrocode}
 %
-% \emph{排过就记一笔。} \file{hit-structure.dtx} 里有个兜底：文末发现没调过
-% \cs{hitfrontmatter} 就补调一次，防的是「用户忘了写骨架、整份文档只有正文」。
-% 可 v3.1e 那种老写法用的是 \cs{frontmatter} 加 \cs{makecover}，不走骨架命令，
-% 标志位没置上，兜底就在文末把封面扉页摘要又排了一遍——拿 v3.1e 的示例实测
-% 多出 8 页，正是这一份。\cs{makecover} 排的就是前置，排完置位，兜底自然不发。
+% \emph{封面与扉页是两个部件。} iota-hit 分成 \texttt{cover} 与 \texttt{titlepage}，这里是 \cs{cover} 与
+% \cs{maketitle}（\cs{titlepage} 是 \hologo{LaTeX} 内核里 \env{titlepage} 环境的开头，占不得）。原先
+% 一个 \cs{makecover} 在同一个 \env{titlepage} 环境里连排三页，拆开以后照原样：页码接着数
+% （环境结束时单面文档把页码归 1，封面排完还回去），扉页各页的页面样式为空。原先要先写 \cs{frontmatter}
+% 再排封面，封面几页因此用罗马页码（正文从阿拉伯数字 1 起，两边的页面目标不重名），现在 \cs{cover} 先进前置，
+% 效果一样。扉页各页照 \env{titlepage} 里的办法不建页面目标（见 \file{hit-hyperlink.dtx}），不然与摘要的
+% 罗马页码重名。扉页只在终稿里排，封面哪一档都排；英文扉页只有硕博。
 %    \begin{macrocode}
-\cs_set_protected:Npn \makecover
+\int_new:N \g__hit_cover_page_int
+\cs_new_protected:Npn \__hit_cover_part:
   {
-    \bool_gset_true:N \g__hit_matter_front_bool
+    \hit@matter@front@enter:
+    \pagestyle { hit@empty }
     \hit@write@pdf@metadata
     \phantomsection
     \pdfbookmark [0] { \hit@info@title@cover@zh } { ctitle }  % ^^A PDF 目标名，保持稳定
@@ -789,6 +793,23 @@
       \dim_set:Nn \hfuzz { 1em }
       \hit@cover
       \__hit_cover_break:
+      \int_gset:Nn \g__hit_cover_page_int { \value { page } }
+    \end { titlepage }
+    \setcounter { page } { \g__hit_cover_page_int }
+    \normalsize
+  }
+\NewDocumentCommand \cover { O{} }
+  {
+    \hit@part@opts:n {#1}
+    \hit@part:nVn { cover } \l_hit_part_shown_tl { \__hit_cover_part: }
+  }
+\cs_new_protected:Npn \__hit_titlepage_part:
+  {
+    \pagestyle { hit@empty }
+    \hit@fontsize@x{xiaosi}{1}
+    \group_begin:
+      \hypersetup { pageanchor = false }
+      \dim_set:Nn \hfuzz { 1em }
       \hit@titlepage
       \__hit_cover_break:
       \bool_lazy_or:nnF
@@ -800,8 +821,27 @@
           \hit@titlepage@en
           \__hit_cover_break:
         }
-    \end { titlepage }
+    \group_end:
+    \legacy_if:nF { @twoside } { \setcounter { page } { 1 } }
     \normalsize
+  }
+\RenewDocumentCommand \maketitle { O{} }
+  {
+    \hit@part@opts:n {#1}
+    \hit@part:nVn { titlepage } \l_hit_part_shown_tl { \__hit_titlepage_part: }
+  }
+%    \end{macrocode}
+%
+% \emph{老写法。} v3.1e 的 \cs{makecover} 一次排封面、扉页与摘要，摘要取自 \env{cabstract}、
+% \env{eabstract} 收起来的正文。照旧能用，提示一次改成三个部件；写了它的文档当作老写法，
+% \cs{tableofcontents} 照 v3.1e 在英文版顺带排表索引与图索引（见 \file{hit-final-toc.dtx}）。
+%    \begin{macrocode}
+\cs_set_protected:Npn \makecover
+  {
+    \hit@warn@renamed@to:nn { makecover } { cover、\iow_char:N \\maketitle~与~abstract~环境 }
+    \bool_gset_true:N \g__hit_legacy_front_bool
+    \cover
+    \maketitle
     \hit@make@abstract
   }
 %    \end{macrocode}

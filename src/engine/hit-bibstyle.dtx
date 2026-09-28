@@ -7,13 +7,14 @@
 % \section{共享参考文献样式}
 %
 % \changes{v3.2a}{2026/09/26}{条目段照 \option{bibliography-item} 样式铺版面，没写的跟正文}
-% \changes{v3.2a}{2026/09/27}{文献表只排一次：正文里写了 \cs{bibliography} 的，后置部分不再排}
+% \changes{v3.2a}{2026/09/28}{\cs{bibliography}\marg{库} 是参考文献这个部件（与 iota-hit 的 \texttt{bibliography()} 对应）：
+%   排之前进后置，样式没写过就按 \option{bib}/\option{bibtex}/\option{style} 补一句 \cs{bibliographystyle}；
+%   \pkg{biblatex} 一线的库在导言区写 \cs{addbibresource}，正文的 \cs{bibliography} 等同 \cs{printbibliography}}
 % \changes{v3.2a}{2026/08/16}{参考文献分 \texttt{bibtex} 与 \texttt{biber} 两条路线，
 %   \option{bib}/\option{backend} 选，各开一个子组（\option{bibtex}/\option{style} 挑
 %   \file{.bst}，\option{biber} 原封透传 \pkg{biblatex} 的装载选项）；biblatex 一线由类
 %   自己装载配置，不 fork 样式文件，运行时补丁把方括号与逗号冒号分号接到
-%   \option{punct} 上；与 natbib 一族的冲突守卫照 thuthesis 用内核钩子写；
-%   \option{struct} 的 \option{bibliography} 换算成 \cs{addbibresource}；键挂到
+%   \option{punct} 上；与 natbib 一族的冲突守卫照 thuthesis 用内核钩子写；键挂到
 %   \cs{hitsetup} 末尾统一下发}
 % \changes{v3.2a}{2026/09/04}{两条线同名同义的键：\option{punct}
 %   （\texttt{half}｜\texttt{full}｜\texttt{by-lang}，默认 \texttt{full} 照学校规范的
@@ -603,9 +604,8 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@bib@print:,\hit@bib@forward@ctl:}
-% 排文献表的总出口，两档的 \cs{hitbackmatter} 流程都走它：\pkg{biblatex}
-% 装了就 \cs{printbibliography}，没装就是原来那两句 \cs{bibliographystyle} 加
-% \cs{bibliography}。判据直接看宏包在不在，不看 \option{backend} 的字面值，
+% 传统一线里 \cs{printbibliography} 的去处：\pkg{biblatex} 装了就是它自己；没装时文献库只能写在
+% \cs{bibliography}\marg{文件} 里，这里报错说清。判据直接看宏包在不在，不看 \option{backend} 的字面值，
 % 免得「用户自己装了 biblatex 而没写键」这一档跟状态记录对不上。
 %
 % \emph{下发前先探键在不在。} 这条通道是官方 \pkg{gbt7714} v3（2026-07）才有的。
@@ -689,13 +689,7 @@
   {
     \@ifpackageloaded { biblatex }
       { \printbibliography }
-      {
-        \bool_if:NF \g__hit_bib_printed_bool
-          {
-            \exp_args:NV \bibliographystyle \g__hit_bib_style_tl
-            \exp_args:Nv \bibliography { g__hit_structure_bibliography_tl }
-          }
-      }
+      { \msg_error:nn { hithesis } { bib-needs-file } }
   }
 %    \end{macrocode}
 %
@@ -716,16 +710,63 @@
 % 挂的时机是 \cs{AtBeginDocument}：\pkg{natbib} 与 \pkg{gbt7714} 都在导言区加载，
 % 太早包会包到还没被它们改过的那一版。\pkg{biblatex} 一线没有 \cs{bibliography}
 % 这条路，所以只在传统一线包。
+%
+% \emph{\cs{bibliography} 是参考文献这个部件}，与 iota-hit 的 \texttt{bibliography()} 对应：排之前进后置。
+% \pkg{biblatex} 一线的文献库照它的规矩在导言区写 \cs{addbibresource}（它在 \cs{begin}\marg{document} 那一刻
+% 就把资源表交出去了），正文里的 \cs{bibliography}\marg{库} 等同于 \cs{printbibliography}，两条线的主文件一样写
+% （\pkg{biblatex} 一线的 \cs{printbibliography} 同样），样式没写过就按 \option{bib}/\option{bibtex}/\option{style}
+% 补发一句 \cs{bibliographystyle}。写没写过靠包一层 \cs{bibliographystyle} 记下来：导言区里写的走的是内核那一版
+% （它把 \cs{bibstyle} 延到 \cs{AtBeginDocument} 才写），类加载时就包；正文里写的走 \pkg{gbt7714} 改过的那一版，
+% 装完再包一次。v3.1e 的文档两句都自己写，不会多出一句 \cs{bibstyle}（\hologo{BibTeX} 见了两句要报错）。
+% \emph{装 \pkg{natbib}、\pkg{gbt7714} 之前先把内核那一版换回去}：它们改写时会把当时的定义存起来再调，
+% 存到的要是导言区那一层包装，装完再包一次就成了两层互相调用。
 %    \begin{macrocode}
+\bool_new:N \g__hit_bib_style_given_bool
+\cs_new_protected:Npn \__hit_bib_style_wrapper:n #1
+  {
+    \bool_gset_true:N \g__hit_bib_style_given_bool
+    \__hit_bib_style_inner:n {#1}
+  }
+\cs_new_protected:Npn \__hit_bib_style_hook:
+  {
+    \cs_if_exist:NT \bibliographystyle
+      {
+        \cs_if_eq:NNF \bibliographystyle \__hit_bib_style_wrapper:n
+          {
+            \cs_gset_eq:NN \__hit_bib_style_inner:n \bibliographystyle
+            \cs_gset_eq:NN \bibliographystyle \__hit_bib_style_wrapper:n
+          }
+      }
+  }
+\__hit_bib_style_hook:
+\cs_gset_eq:NN \__hit_bib_style_kernel:n \__hit_bib_style_inner:n
+\AddToHook { begindocument / before }
+  {
+    \cs_if_eq:NNT \bibliographystyle \__hit_bib_style_wrapper:n
+      { \cs_gset_eq:NN \bibliographystyle \__hit_bib_style_kernel:n }
+  }
 \AtBeginDocument
   {
-    \@ifpackageloaded { biblatex } { }
+    \@ifpackageloaded { biblatex }
       {
+        \cs_if_exist:NT \printbibliography
+          {
+            \cs_set_eq:NN \__hit_bib_print_inner: \printbibliography
+            \cs_set_protected:Npn \printbibliography
+              { \hit@matter@back@enter: \__hit_bib_print_inner: }
+            \cs_set_protected:Npn \bibliography #1 { \printbibliography }
+          }
+      }
+      {
+        \__hit_bib_style_hook:
         \cs_if_exist:NT \bibliography
           {
             \cs_set_eq:NN \hit@bib@inner@bibliography \bibliography
             \cs_set_protected:Npn \bibliography #1
               {
+                \hit@matter@back@enter:
+                \bool_if:NF \g__hit_bib_style_given_bool
+                  { \exp_args:NV \bibliographystyle \g__hit_bib_style_tl }
                 \bool_gset_true:N \g__hit_bib_printed_bool
                 \hit@bib@forward@ctl:
                 \use:e
@@ -1287,39 +1328,6 @@
 \__hit_bib_conflict:nn { natbib } { biblatex }
 \__hit_bib_conflict:nn { gbt7714 } { biblatex }
 \__hit_bib_conflict:nn { cite } { biblatex }
-%    \end{macrocode}
-%
-% \subsection{文献库文件}
-%
-% \option{struct} 里的 \option{bibliography} 写的是给 \cs{bibliography} 的
-% 文件名表（不带后缀）。\pkg{biblatex} 一线改喂 \cs{addbibresource}，一个
-% 文件一句、后缀补上 \file{.bib}（写了后缀的不重复补）。挂导言区末尾做，
-% \option{struct} 与 \option{backend} 谁先谁后都行。开关型取值
-% （\texttt{false}/\texttt{true}/\texttt{auto}）不是文件名，跳过。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_bib_add_resource:n #1
-  {
-    \str_if_eq:eeTF { \str_range:nnn {#1} {-4} {-1} } { .bib }
-      { \addbibresource {#1} }
-      { \addbibresource { #1.bib } }
-  }
-\cs_new_protected:Npn \__hit_bib_resources:n #1
-  {
-    \str_case:nnF {#1}
-      {
-        { }      { \msg_warning:nn { hithesis } { bib-no-resource } }
-        { false } { }
-        { true }  { \msg_warning:nn { hithesis } { bib-no-resource } }
-        { auto }  { \msg_warning:nn { hithesis } { bib-no-resource } }
-      }
-      { \clist_map_inline:nn {#1} { \__hit_bib_add_resource:n {##1} } }
-  }
-\AddToHook { begindocument / before }
-  {
-    \@ifpackageloaded { biblatex }
-      { \exp_args:Nv \__hit_bib_resources:n { g__hit_structure_bibliography_tl } }
-      { }
-  }
 %</shared-bibstyle>
 %    \end{macrocode}
 %

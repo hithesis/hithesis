@@ -6,6 +6,9 @@
 %
 % \section{中英文摘要页}
 %
+% \changes{v3.2a}{2026/09/28}{新增 \env{abstract} 环境：写在哪里就在哪里排一篇摘要（\option{lang}、\option{keywords}、
+%   \option{shown}），与 iota-hit 的 \texttt{abstract()} 对应；v3.1e 的 \env{cabstract}、\env{eabstract} 只给老写法的
+%   \cs{makecover} 收正文}
 % \changes{v3.2a}{2026/09/28}{英文关键词标签只把“Keywords”加粗，后面跟细的全角冒号，照范例与 iota；博士后照模板仍是粗的“Keywords:”}
 % \changes{v3.2a}{2026/09/27}{关键词换行后默认顶格，不再悬挂到标签之后：学校的 Word 模板与范例都是
 %   普通段落；要悬挂把 \option{style}/\option{keywords-hanging} 设成 \texttt{true}。“关键词：”的冒号
@@ -53,11 +56,12 @@
       { paragraph = { spacing = { line-spacing = multiple , at = 1.25 } } }
       {#1}
   }
-\cs_new_protected:Npn \hit@make@abstract
+\bool_new:N \g__hit_abstract_started_bool
+\cs_new_protected:Npn \__hit_abstract_open:
   {
     \hit@clear@page
     \hit@layout@push@part:n { frontmatter }
-    \bool_if:NT \g__hit_en_bool
+    \bool_lazy_and:nnT { ! \g__hit_abstract_started_bool } { \g__hit_en_bool }
       {
         \addtocontents { toc } { \nobreakspace { } \hfill \textbf { \hit@term@table@of@contents@page@en } \par }
         \addtocontents { \ext@table }
@@ -65,16 +69,37 @@
         \addtocontents { \ext@figure }
           { { \noindent \sihao \textbf { \hit@term@table@of@contents@figure@en } \nobreakspace { } \hfill \textbf { \hit@term@table@of@contents@page@en } } \par }
       }
+  }
+\bool_new:N \l__hit_abstract_restyle_bool
+\cs_new_protected:Npn \__hit_abstract_numbering:
+  {
+    \bool_if:NF \g__hit_abstract_started_bool
+      {
+        \bool_gset_true:N \g__hit_abstract_started_bool
+        \bool_set_true:N \l__hit_abstract_restyle_bool
+        \pagestyle { hit@headings }
+        \pagenumbering { Roman }
+      }
+  }
+\cs_new_protected:Npn \__hit_abstract_restyle:
+  { \pagestyle { hit@headings } }
+%    \end{macrocode}
+%
+% 中文摘要排完先送出这一页再还版面：原先两篇摘要在同一次版面切换里排，中间那次换页落在
+% 切换之内；英文摘要末尾不换页，由下一个部件送出，也与原先一样。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_abstract_zh:nn #1#2
+  {
+    \__hit_abstract_open:
     \__hit_abstract_heading:n
       {
         \hit@appendix@chapter * [ \hit@term@abstract@heading@zh ]
           { \hit@spread@by { \hit@term@abstract@heading@spread } { \hit@term@abstract@heading@zh } }
           [ \hit@term@abstract@in@english@toc@zh ]
       }
-    \pagestyle { hit@headings }
-    \pagenumbering { Roman }
+    \__hit_abstract_numbering:
     \tl_gset:Nn \g__hit_part_lang_tl { zh }
-    \hit@abstract@zh
+    #1
     % 正文与关键词之间按范例是一个空段(单独回车一行),\hitenter 模拟之
     % (1-8 页版 p4,36.8 = 19.4 + 17.25)
     \hitenter
@@ -87,12 +112,19 @@
               { 2 \g_docxlike_page_char_dim - \g_docxlike_body_size_dim }
           }
       }
-      { \hit@info@keywords@zh }
+      {#2}
     \hit@clear@page
+    \tl_gclear:N \g__hit_part_lang_tl
     \__hit_abstract_reset:
+    \hit@layout@pop@part:
+  }
+\cs_new_protected:Npn \__hit_abstract_en:nn #1#2
+  {
+    \__hit_abstract_open:
     \tl_gset:Nn \g__hit_part_lang_tl { en }
     \__hit_abstract_heading:n
       { \hit@appendix@chapter * { \hit@term@abstract@heading@en } [ \hit@term@abstract@in@english@toc@en ] }
+    \__hit_abstract_numbering:
     % 英文摘要正文按范例排:Word 的 1.25 倍自动行距按行内字体自然行高算,
     % 纯西文段 TNR 12bp 实测行距 17.25;字符网格的行末余量 \rightskip 只属于
     % 汉字网格行,西文段排满真版心(例右缘 510.4);汉字行撑竿会把行距顶回
@@ -100,7 +132,7 @@
     \group_begin:
       % 按 abstract-en 目标铺版面(行距/版宽/首行基线/断词,见 hit-format)
       \docxlike_format_apply_par:n { abstract-en }
-      \hit@abstract@en
+      #1
       \hitenter
       \hit@put@keywords
         {
@@ -108,7 +140,7 @@
             { \textbf { \hit@term@abstract@keywords@en : \enskip } }
             { \textbf { \hit@term@abstract@keywords@en } \hit@term@abstract@keywords@colon@en }
         }
-        { \hit@info@keywords@en }
+        {#2}
     \group_end:
 %    \end{macrocode}
 %
@@ -120,6 +152,79 @@
     \tl_gclear:N \g__hit_part_lang_tl
     \__hit_abstract_reset:
     \hit@layout@pop@part:
+  }
+%    \end{macrocode}
+%
+% \begin{environment}{abstract}
+% \env{abstract}\oarg{选项} 写在哪里就在哪里排一篇摘要，与 iota-hit 的 \texttt{abstract()} 对应。
+% 选项：\option{lang} 取 \texttt{zh}（默认）或 \texttt{en}；\option{keywords} 是这篇的关键词，逗号隔开，
+% 不写就用元信息里的 \option{keywords-zh}、\option{keywords-en}；\option{shown} 同别的部件（摘要是
+% 终稿专有的）。中英两篇各写一个环境，各自只排一次。环境体是整个抓下来再排的，里面不能放
+% \cs{verb}。
+%    \begin{macrocode}
+\tl_new:N \l__hit_abstract_lang_tl
+\keys_define:nn { hit / abstract }
+  {
+    lang .choices:nn = { zh , en }
+      { \tl_set_eq:NN \l__hit_abstract_lang_tl \l_keys_choice_tl } ,
+    lang .value_required:n = true ,
+    keywords .code:n =
+      { \hitsetup { info = { keywords- \l__hit_abstract_lang_tl = {#1} } } } ,
+    shown .code:n = { \hit@part@set@shown:n {#1} } ,
+  }
+\NewDocumentEnvironment { abstract } { O{} +b }
+  {
+    \tl_set:Nn \l__hit_abstract_lang_tl { zh }
+    \tl_set:Nn \l_hit_part_shown_tl { auto }
+    \__hit_abstract_lang_first:n {#1}
+    \hit@keys@set:nn { hit / abstract } {#1}
+    \hit@part@if:nVTF { abstract } \l_hit_part_shown_tl
+      {
+        \exp_args:Ne \hit@part@once:nT { abstract- \l__hit_abstract_lang_tl }
+          {
+            \hit@matter@front@enter:
+            \str_if_eq:VnTF \l__hit_abstract_lang_tl { en }
+              { \__hit_abstract_en:nn {#2} { \hit@info@keywords@en } }
+              { \__hit_abstract_zh:nn {#2} { \hit@info@keywords@zh } }
+          }
+      }
+      { }
+    \bool_if:NT \l__hit_abstract_restyle_bool
+      { \group_insert_after:N \__hit_abstract_restyle: }
+  }
+  { }
+%    \end{macrocode}
+%
+% \emph{页面样式要留到环境外面。} \cs{pagestyle} 是局部的，第一篇摘要把前置的页面样式换成带页眉页脚的那一份，
+% 写在环境里的话环境一结束就退回去，后面的目录页没了页眉页脚。原先摘要在 \cs{makecover} 里、处在最外层，
+% 没有这个问题；现在环境结束后再设一次。
+%    \begin{macrocode}
+%    \end{macrocode}
+%
+% \option{keywords} 要按这篇的语种设，而键是按写的次序处理的，\texttt{keywords} 写在
+% \texttt{lang} 前面就会设到中文那一格。所以先单独把 \option{lang} 挑出来。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_abstract_lang_first:n #1
+  {
+    \clist_map_inline:nn {#1}
+      {
+        \__hit_abstract_lang_pick:w ##1 = \q_mark = \q_stop
+      }
+  }
+\cs_new_protected:Npn \__hit_abstract_lang_pick:w #1 = #2 = #3 \q_stop
+  {
+    \str_if_eq:eeT { \tl_trim_spaces:n {#1} } { lang }
+      { \tl_set:Ne \l__hit_abstract_lang_tl { \tl_trim_spaces:n {#2} } }
+  }
+%    \end{macrocode}
+% \end{environment}
+%
+% 老写法：\cs{makecover} 排完封面扉页接着排两篇摘要，正文取自 \env{cabstract}、\env{eabstract}。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@make@abstract
+  {
+    \__hit_abstract_zh:nn { \hit@abstract@zh } { \hit@info@keywords@zh }
+    \__hit_abstract_en:nn { \hit@abstract@en } { \hit@info@keywords@en }
   }
 \cs_new_protected:Npn \__hit_abstract_reset:
   {
@@ -171,11 +276,13 @@
   {
     labelwidth .tl_set:N = \l__hit_symbols_width_tl ,
     subheading .tl_set:N = \l__hit_symbols_subheading_tl ,
+    shown .code:n = { \hit@part@set@shown:n {#1} } ,
   }
 \cs_new_protected:Npn \__hit_symbols_opt:n #1
   {
     \tl_set:Nn \l__hit_symbols_width_tl { auto }
     \tl_clear:N \l__hit_symbols_subheading_tl
+    \tl_set:Nn \l_hit_part_shown_tl { auto }
     \tl_if_in:nnTF {#1} { = }
       { \hit@keys@set:nn { hit / symbols / opt } {#1} }
       { \tl_if_blank:nF {#1} { \tl_set:Nn \l__hit_symbols_width_tl {#1} } }
@@ -231,11 +338,21 @@
     \cs_set:Npn \thetable { \arabic { chapter } - \arabic { table } }% 表编号为 7-1
     \setcounter { table } { 0 }
   }
+\cs_new_protected:Npn \__hit_symbols_if:TF #1#2
+  {
+    \bool_if:NTF \g__hit_frontlist_open_bool
+      {#1}
+      {
+        \hit@part@if:nVTF { list-of-symbols } \l_hit_part_shown_tl
+          { \hit@matter@front@enter: #1 } {#2}
+      }
+  }
 \NewDocumentEnvironment { symbols } { O{} +b }
   {
     \__hit_symbols_opt:n {#1}
-    \__hit_symbols_open:
-    \hit@symbols@list:n {#2}
+    \__hit_symbols_if:TF
+      { \__hit_symbols_open: \hit@symbols@list:n {#2} }
+      { }
   }
   { \__hit_symbols_close: }
 %    \end{macrocode}
@@ -365,25 +482,45 @@
 % \end{macro}
 %
 %    \begin{macrocode}
+\bool_new:N \l__hit_symbols_shown_bool
 \NewDocumentEnvironment { symbols* } { O{} }
-  { \__hit_symbols_opt:n {#1} \__hit_symbols_open: }
-  { \__hit_symbols_close: }
+  {
+    \__hit_symbols_opt:n {#1}
+    \__hit_symbols_if:TF
+      { \bool_set_true:N \l__hit_symbols_shown_bool \__hit_symbols_open: }
+      { \bool_set_false:N \l__hit_symbols_shown_bool \hit@part@skip: }
+  }
+  { \bool_if:NT \l__hit_symbols_shown_bool { \__hit_symbols_close: } }
 %    \end{macrocode}
 %
 % v3.1e 的 \env{denotation}：排标题、把表号改成不带章号的形式，正文随用户写。
 %    \begin{macrocode}
+\cs_new_protected:Npn \__hit_denotation_open:
+  {
+    \tl_set:Nn \l_hit_part_shown_tl { auto }
+    \hit@part@if:nVTF { list-of-symbols } \l_hit_part_shown_tl
+      {
+        \bool_set_true:N \l__hit_symbols_shown_bool
+        \hit@matter@front@enter:
+        \hit@clear@page
+        \hit@appendix@chapter *
+          { \hit@term@list@of@symbols@heading@zh } [ \hit@term@list@of@symbols@heading@en ]
+        \setcounter { table } { 0 }
+        \cs_set:Npn \thetable { \arabic { table } }
+      }
+      { \bool_set_false:N \l__hit_symbols_shown_bool \hit@part@skip: }
+  }
+\cs_new_protected:Npn \__hit_denotation_close:
+  {
+    \bool_if:NT \l__hit_symbols_shown_bool
+      {
+        \cs_set:Npn \thetable { \arabic { chapter } - \arabic { table } }
+        \setcounter { table } { 0 }
+      }
+  }
 \NewDocumentEnvironment { denotation } { O{2.5cm} }
-  {
-    \hit@clear@page
-    \hit@appendix@chapter *
-      { \hit@term@list@of@symbols@heading@zh } [ \hit@term@list@of@symbols@heading@en ]
-    \setcounter { table } { 0 }
-    \cs_set:Npn \thetable { \arabic { table } }
-  }
-  {
-    \cs_set:Npn \thetable { \arabic { chapter } - \arabic { table } }
-    \setcounter { table } { 0 }
-  }
+  { \__hit_denotation_open: }
+  { \__hit_denotation_close: }
 %    \end{macrocode}
 %
 % 带星号的不开列表，正文完全交给用户。可选参数收下不用，这样 v3.1e 里

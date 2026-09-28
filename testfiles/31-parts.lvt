@@ -1,0 +1,79 @@
+% 部件：写了才排，每个部件按分支自己判断排不排，同一个部件只排一次；
+% 前置、正文、后置由部件与章自动切换。
+%
+% 类自排的答辩页与声明拦下来只打印，看判断与转发，不看版面。拦的是
+% \hit@resolution@place 与 \hit@declarations@place：\defense、\declarations
+% 与旧写法的 \resolution、\authorization 最后都走这一对。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=doctor,campus=harbin]{hithesis}
+\makeatletter
+\RenewDocumentCommand\hit@resolution@place{so}
+  {\typeout{[排] 答辩页\IfBooleanT{#1}{ 带页码}\IfValueT{#2}{ 贴 #2}}}
+\RenewDocumentCommand\hit@declarations@place{so}
+  {\typeout{[排] 声明\IfBooleanT{#1}{ 带页码}\IfValueT{#2}{ 贴 #2}}}
+\makeatother
+\ExplSyntaxOn
+\cs_new_protected:Npn \SHOWMATTER
+  { \typeout { matter=\g__hit_matter_state_tl } }
+\cs_new_protected:Npn \SHOWPART #1#2
+  {
+    \use:c { hit@part@if:nnTF } {#1} {#2}
+      { \typeout { #1~[shown=#2]~排 } }
+      { \typeout { #1~[shown=#2]~不排 } }
+  }
+\ExplSyntaxOff
+\begin{document}
+\START
+\TEST{auto 照 iota：博士论文排答辩页与声明，博士后才有的两章不排}{
+  \SHOWPART{defense}{auto}
+  \SHOWPART{declarations}{auto}
+  \SHOWPART{achievements-doctoral}{auto}
+  \SHOWPART{permanent-address}{auto}
+  \SHOWPART{table-of-contents}{auto}
+}
+\TEST{shown 写死就不看分支}{
+  \SHOWPART{achievements-doctoral}{true}
+  \SHOWPART{defense}{false}
+}
+\TEST{开头不在任何一段}{
+  \SHOWMATTER
+}
+\TEST{shown=false 不排，也不占掉那一次}{
+  \declarations[shown=false]
+}
+\TEST{贴扫描件：file 给 PDF，page-number 排页码}{
+  \declarations[file=scan.pdf, page-number]
+}
+\TEST{同一个部件第二次不排，警告一次}{
+  \declarations
+}
+\TEST{还没进正文时后置部件不切段}{
+  \defense
+  \SHOWMATTER
+}
+\TEST{旧写法 \resolution 照旧转过去，也算那一次}{
+  \resolution
+}
+\TEST{写了 \mainmatter 就在那里进正文}{
+  \mainmatter
+  \SHOWMATTER
+}
+\TEST{正文里遇到前置部件不回头，遇到后置部件进后置}{
+  \csname hit@matter@front@enter:\endcsname
+  \SHOWMATTER
+  \csname hit@matter@back@enter:\endcsname
+  \SHOWMATTER
+}
+\TEST{\hitif 按分支挑，条件写法与 \hitsetup 一样}{
+  \hitif[degree-level=doctor]{\typeout{博士}}{\typeout{不是博士}}
+  \hitif[degree-level=master;campus=shenzhen]{\typeout{命中}}{\typeout{没命中}}
+  \hitif[campus=harbin|weihai,degree-level=!bachelor]{\typeout{命中}}{\typeout{没命中}}
+}
+\TEST{struct 族已删，报错指路}{
+  \hitsetup{ struct = { frontmatter = { cover = {x} } } }
+}
+\TEST{骨架宏已删，报错指路}{
+  \hitbackmatter
+}
+\END
+\end{document}

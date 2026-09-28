@@ -160,7 +160,7 @@
 %    \end{macrocode}
 %
 % \option{bib}/\option{bibtex}/\option{style} 是 \cs{bibliographystyle} 的参数。
-% 它原先混在 \option{struct} 的部件表里，可部件说的是「排不排这一块」，样式
+% 它不跟着参考文献那个部件走：部件说的是「排不排这一块」，样式
 % 说的是「排成什么样」，不是一回事。后来又从 \option{bib} 的根层挪进
 % \option{bibtex} 子组：挑 \file{.bst} 只在传统一线有意义，biblatex 一线的
 % 样式锁死国标（见 \file{hit-bibstyle.dtx}）。键在共享层声明，默认值在这里给。
@@ -684,27 +684,24 @@
 \hit@define@date@term{date-en}{en}
 %    \end{macrocode}
 %
-% 摘要是「先收着，后面再排」：用户在正文位置写 \env{abstract-zh}，内容存进
-% \cs{hit@abstract@zh}，真正排版在摘要页那边。所以要把整个环境体当参数抓下来。
-% \cs{NewDocumentEnvironment} 的 \texttt{b} 参数类型就是环境体，必须排在最后，
-% 前面的 \texttt{+} 表示允许 \cs{par}。
+% v3.1e 的摘要是「先收着，后面再排」：用户在正文位置写 \env{cabstract}、\env{eabstract}，内容存进
+% \cs{hit@abstract@zh}、\cs{hit@abstract@en}，由老写法的 \cs{makecover} 排。新写法是 \env{abstract}
+% 环境当场排（见 \file{src/pages/hit-final-abstract.dtx}）。
 %
 % 环境体是当 token 抓的，里面不能放 \cs{verb} 或 \env{lstlisting}。
 % 原先的 \cs{Collect@Body} 是一样的限制。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@collect@abstract@zh #1 { \cs_gset:Npn \hit@abstract@zh {#1} }
 \cs_new_protected:Npn \hit@collect@abstract@en #1 { \cs_gset:Npn \hit@abstract@en {#1} }
-\NewDocumentEnvironment { abstract-zh } { +b } { \hit@collect@abstract@zh {#1} } { }
-\NewDocumentEnvironment { abstract-en } { +b } { \hit@collect@abstract@en {#1} } { }
 \NewDocumentEnvironment { cabstract } { +b }
   {
-    \hit@warn@renamed@environment { cabstract } { abstract-zh }
+    \hit@warn@renamed@environment { cabstract } { abstract }
     \hit@collect@abstract@zh {#1}
   }
   { }
 \NewDocumentEnvironment { eabstract } { +b }
   {
-    \hit@warn@renamed@environment { eabstract } { abstract-en }
+    \hit@warn@renamed@environment { eabstract } { abstract~[lang=en] }
     \hit@collect@abstract@en {#1}
   }
   { }
@@ -1428,8 +1425,8 @@
       {
         \str_case:nnF {#1}
           {
-            { true }  { \tl_gset:cn { g__hit_structure_table-of-contents_tl } { true } }
-            { false } { \tl_gset:cn { g__hit_structure_table-of-contents_tl } { false } }
+            { true }  { \hit@part@default:nn { table-of-contents } { true } }
+            { false } { \hit@part@default:nn { table-of-contents } { false } }
           }
           { \hit@keys@set:nn { hit / toc } {#1} }
       } ,
@@ -1443,8 +1440,6 @@
         \hit@keys@set:nn { hit / term } {#1}
       } ,
     math  .code:n = { \hit@keys@set:nn { hit / math } {#1} } ,
-    struct .code:n =
-      { \__hit_structure_reset_written: \hit@keys@set:nn { hit / struct } {#1} } ,
     defense .code:n = { \hit@keys@set:nn { hit / defense } {#1} } ,
     abbr .code:n = { \hit@keys@set:nn { hit / abbr } {#1} } ,
     thm .code:n = { \hit@theorem@style {#1} } ,

@@ -9,10 +9,12 @@
 % \changes{v3.2a}{2026/09/28}{没有参考文献表的文档里成果页照样排得出：控制条目的库还没写时不列进成果页的 \cs{bibdata}}
 % \changes{v3.2a}{2026/09/26}{成果组名写了 \option{publications-group} 样式的排成 \pkg{docxlike} 的段；
 %   博士后的组名照模板不编号、组间不另加空当}
-% \changes{v3.2a}{2026/09/28}{八个整页环境照 iota-hit 收可选参数 \option{shown}（\texttt{auto}、\texttt{true}、\texttt{false}）：默认终稿排、报告里静默
+% \changes{v3.2a}{2026/09/28}{整页部件照 iota-hit 收可选参数 \option{shown}（\texttt{auto}、\texttt{true}、\texttt{false}）：默认终稿排、报告里静默
 %   跳过，\texttt{true} 在报告里也排（不另起页，标题照章标题那一档，目录里与节同级），\texttt{false} 终稿里
-%   也不排；\env{publication} 的库名也可写成 \option{bib} 键}
-% \changes{v3.2a}{2026/09/13}{成果页的条目从 \file{.bib} 里出：\env{publication} 收库名，
+%   也不排；各排一次，排之前进后置；照 iota-hit 改名：成果页 \env{achievements}（\option{bib}、\option{period}，
+%   旧名 \env{publication}、\env{doctorpublication}），永久通讯地址 \env{permanentaddress}（旧名 \env{correspondingaddr}，
+%   只有博士后排），索引页 \cs{printindex}（旧写法 \env{ceindex}）}
+% \changes{v3.2a}{2026/09/13}{成果页的条目从 \file{.bib} 里出：\env{achievements} 收库名，
 %   \env{pubgroup} 分组，组名段照范例（编号、段前段后 5 磅、1.25 倍行盒、宋体伪粗；
 %   人文社科类走节标题那一档），编号版式与参考文献表同源，\pkg{biblatex} 一线也加进
 %   资源；索引页照规范附录 6 的官方示例自定义 \env{theindex}}
@@ -29,7 +31,8 @@
 % \emph{排不排由 \option{shown} 定，照 iota-hit。} 这几页是终稿的整章，学校的开题与中期报告
 % 规范里没有对应的一页，所以默认（\texttt{auto}）终稿排、报告不排。写
 % \oarg{shown=true} 在报告里也排，\oarg{shown=false} 连终稿也不排，与 iota-hit 每一页的
-% \texttt{shown} 同一个三态（\texttt{final-only-wanted}）。
+% \texttt{shown} 同一个三态（\texttt{final-only-wanted}）。判定与“只排一次”在 \file{hit-parts.dtx}；
+% 除结论外，排之前先进后置（英文论文把致谢排在前置时还没进正文，不会被推进后置）。
 %
 % \emph{报告里不排是静默的，这是本类唯一容许的静默失效，写在这里免得日后被「修」掉。}
 % 别处一律相反：覆盖键落进没人读的桶、选项取值拼错、词条查不到，每一处都专门做了报错。
@@ -40,36 +43,20 @@
 % 不排的时候整段跳到 \cs{end}\marg{环境名} 为止，只记号化、不执行，里面的标签、索引、目录行
 % 一样都不留。
 %    \begin{macrocode}
-\tl_new:N \l__hit_back_shown_tl
 \bool_new:N \l__hit_back_shown_bool
-\keys_define:nn { hit / back / page }
+\cs_new_protected:Npn \__hit_back_part:nn #1#2
   {
-    shown .choices:nn = { auto , true , false }
-      { \tl_set_eq:NN \l__hit_back_shown_tl \l_keys_choice_tl } ,
-    shown .value_required:n = true ,
+    \bool_set_false:N \l__hit_back_shown_bool
+    \hit@part@if:nnTF {#1} {#2}
+      { \hit@part@once:nT {#1} { \bool_set_true:N \l__hit_back_shown_bool } }
+      { }
   }
-\cs_new_protected:Npn \__hit_back_resolve:
+\cs_generate_variant:Nn \__hit_back_part:nn { nV }
+\cs_new_protected:Npn \__hit_back_page:nnn #1#2#3
   {
-    \exp_args:NV \str_case:nnF \l__hit_back_shown_tl
-      {
-        { true }  { \bool_set_true:N \l__hit_back_shown_bool }
-        { false } { \bool_set_false:N \l__hit_back_shown_bool }
-      }
-      { \bool_set_eq:NN \l__hit_back_shown_bool \g__hit_final_bool }
-  }
-\cs_new_protected:Npn \__hit_back_shown:n #1
-  {
-    \tl_set:Nn \l__hit_back_shown_tl { auto }
-    \hit@keys@set:nn { hit / back / page } {#1}
-    \__hit_back_resolve:
-  }
-\cs_new_protected:Npn \__hit_back_skip:
-  { \exp_args:No \__hit_back_skip:n { \@currenvir } }
-\cs_new_protected:Npn \__hit_back_skip:n #1
-  {
-    \cs_set_protected:Npn \__hit_back_skip_loop:w ##1 \end ##2
-      { \str_if_eq:nnTF {##2} {#1} { \end {#1} } { \__hit_back_skip_loop:w } }
-    \__hit_back_skip_loop:w
+    \hit@part@opts:n {#2}
+    \__hit_back_part:nV {#1} \l_hit_part_shown_tl
+    \bool_if:NTF \l__hit_back_shown_bool {#3} { \hit@part@skip: }
   }
 %    \end{macrocode}
 %
@@ -85,8 +72,7 @@
 %    \begin{macrocode}
 \NewDocumentEnvironment { conclusions } { O{} }
   {
-    \__hit_back_shown:n {#1}
-    \bool_if:NTF \l__hit_back_shown_bool
+    \__hit_back_page:nnn { conclusions } {#1}
       {
         \__hit_back_clear:
         \hit@if@option@TF { en }
@@ -103,7 +89,6 @@
               [ \hit@term@conclusion@heading@en ]
           }
       }
-      { \__hit_back_skip: }
   }
   { }
 %    \end{macrocode}
@@ -113,9 +98,9 @@
 %    \begin{macrocode}
 \NewDocumentEnvironment { acknowledgements } { O{} }
   {
-    \__hit_back_shown:n {#1}
-    \bool_if:NTF \l__hit_back_shown_bool
+    \__hit_back_page:nnn { acknowledgements } {#1}
       {
+        \hit@matter@back@enter:
         \__hit_back_clear:
         \hit@if@option@TF { en }
           {
@@ -132,24 +117,31 @@
               [ \hit@term@acknowledgements@heading@en ]
           }
       }
-      { \__hit_back_skip: }
   }
   { }
 %    \end{macrocode}
 % \end{environment}
-% \begin{environment}{correspondingaddr}
+% \begin{environment}{permanentaddress,correspondingaddr}
+% 永久通讯地址，与 iota-hit 的 \texttt{permanent-address} 对应，只有博士后的报告有（\texttt{auto}）。
+% v3.1e 叫 \env{correspondingaddr}，照旧能用，提示改名。
 %    \begin{macrocode}
-
-\NewDocumentEnvironment { correspondingaddr } { O{} }
+\cs_new_protected:Npn \__hit_back_address:n #1
   {
-    \__hit_back_shown:n {#1}
-    \bool_if:NTF \l__hit_back_shown_bool
+    \__hit_back_page:nnn { permanent-address } {#1}
       {
+        \hit@matter@back@enter:
         \__hit_back_clear:
         \hit@appendix@chapter * { \hit@term@resume@corresponding@address@zh }
           [ \hit@term@resume@corresponding@address@en ]
       }
-      { \__hit_back_skip: }
+  }
+\NewDocumentEnvironment { permanentaddress } { O{} }
+  { \__hit_back_address:n {#1} }
+  { }
+\NewDocumentEnvironment { correspondingaddr } { O{} }
+  {
+    \hit@warn@renamed@environment { correspondingaddr } { permanentaddress }
+    \__hit_back_address:n {#1}
   }
   { }
 %    \end{macrocode}
@@ -162,23 +154,22 @@
 
 \NewDocumentEnvironment { resume } { O{} }
   {
-    \__hit_back_shown:n {#1}
-    \bool_if:NTF \l__hit_back_shown_bool
+    \__hit_back_page:nnn { resume } {#1}
       {
+        \hit@matter@back@enter:
         \__hit_back_clear:
         \hit@appendix@chapter * { \hit@term@resume@heading@zh } [ \hit@term@resume@heading@en ]
       }
-      { \__hit_back_skip: }
   }
   { }
 %    \end{macrocode}
 %
-% \begin{environment}{publication,pubgroup}
+% \begin{environment}{achievements,pubgroup}
 % \emph{成果条目也从 \file{.bib} 里出。}指南 1.6 说不同形式的成果“可单独分项
 % 分别列出”，先前示例文档里是把著录逐条手敲的，格式与参考文献表各走各的。
 % 现在写法是：
 % \begin{latex}
-% \begin{publication}[pub]        % 成果条目单独一个 pub.bib
+% \begin{achievements}[pub]       % 成果条目单独一个 pub.bib
 %   \begin{pubgroup}{发表的学术论文}
 %     \item{key1}
 %     \item{key2}
@@ -186,7 +177,7 @@
 %   \begin{pubgroup}{申请及已获得的专利}
 %     \item{key3}
 %   \end{pubgroup}
-% \end{publication}
+% \end{achievements}
 % \end{latex}
 % 不给那个库名就是老用法：正文随用户写，\env{publist} 逐条手敲，一行不受影响。
 % 分几组、每组叫什么、哪几条进哪一组，全由用户写；条目正文由 \file{.bib}
@@ -260,7 +251,7 @@
 % \emph{\pkg{biblatex} 一线的库名不能写在这里，必须写在导言区。}
 % \cs{addbibresource} 只能在导言区用——\pkg{biblatex} 在 \cs{begin\{document\}}
 % 那一刻把资源表写进 \file{.bcf} 交给 \pkg{biber}，之后再加就进不了这一轮，而
-% \env{publication} 是正文里的环境，那时早过了。所以这一线的写法是：导言区
+% \env{achievements} 是正文里的环境，那时早过了。所以这一线的写法是：导言区
 % \cs{addbibresource}\marg{成果库}，环境的可选参数不写。写了就发一条提示告诉
 % 用户挪到导言区，不是静默忽略——静默的话每一条成果都排成空白，只在
 % \file{.blg} 里留一句「I didn't find a database entry」，没人会去看。
@@ -316,40 +307,80 @@
     \group_end:
   }
 \tl_new:N \l__hit_pub_bib_tl
+\tl_new:N \l__hit_pub_period_tl
 \keys_define:nn { hit / back / pub }
   {
-    bib   .tl_set:N = \l__hit_pub_bib_tl ,
-    shown .meta:nn  = { hit / back / page } { shown = {#1} } ,
+    bib    .tl_set:N = \l__hit_pub_bib_tl ,
+    period .choices:nn = { auto , doctoral }
+      { \tl_set_eq:NN \l__hit_pub_period_tl \l_keys_choice_tl } ,
+    period .value_required:n = true ,
+    shown  .code:n = { \hit@part@set@shown:n {#1} } ,
   }
 \cs_new_protected:Npn \__hit_pub_options:n #1
   {
     \tl_clear:N \l__hit_pub_bib_tl
-    \tl_set:Nn \l__hit_back_shown_tl { auto }
+    \tl_set:Nn \l__hit_pub_period_tl { auto }
+    \tl_set:Nn \l_hit_part_shown_tl { auto }
     \tl_if_in:nnTF {#1} { = }
       { \hit@keys@set:nn { hit / back / pub } {#1} }
       { \tl_set:Nn \l__hit_pub_bib_tl {#1} }
-    \__hit_back_resolve:
   }
-\NewDocumentEnvironment { publication } { O{} }
+%    \end{macrocode}
+%
+% \env{achievements} 与 iota-hit 的 \texttt{achievements()} 对应，v3.1e 叫 \env{publication}，照旧能用、
+% 提示改名。\option{period}\texttt{=doctoral} 是博士后报告里“博士生期间”那一章（只有博士后排），
+% v3.1e 叫 \env{doctorpublication}；那一章只排标题，条目用户自己写。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_achievements:n #1
   {
     \__hit_pub_options:n {#1}
-    \bool_if:NTF \l__hit_back_shown_bool
+    \str_if_eq:VnTF \l__hit_pub_period_tl { doctoral }
       {
-        \__hit_back_clear:
-        \bool_set_true:N \l__hit_pub_in_bool
-        \hit@appendix@chapter * { \hit@term@publications@heading@zh }
-          [ \hit@term@publications@heading@en ]
-        \int_gzero:N \g__hit_pub_group_int
-        \tl_if_blank:VF \l__hit_pub_bib_tl
+        \__hit_back_part:nV { achievements-doctoral } \l_hit_part_shown_tl
+        \bool_if:NTF \l__hit_back_shown_bool
           {
-            \@ifpackageloaded { biblatex }
-              { \exp_args:NV \__hit_pub_resource:n \l__hit_pub_bib_tl }
-              { \exp_args:NV \__hit_pub_open:n \l__hit_pub_bib_tl }
+            \hit@matter@back@enter:
+            \__hit_back_clear:
+            \hit@appendix@chapter * { \hit@term@publications@doctoral@heading@zh }
+              [ \hit@term@publications@doctoral@heading@en ]
           }
+          { \hit@part@skip: }
       }
-      { \__hit_back_skip: }
+      {
+        \__hit_back_part:nV { achievements } \l_hit_part_shown_tl
+        \bool_if:NTF \l__hit_back_shown_bool
+          {
+            \hit@matter@back@enter:
+            \__hit_back_clear:
+            \bool_set_true:N \l__hit_pub_in_bool
+            \hit@appendix@chapter * { \hit@term@publications@heading@zh }
+              [ \hit@term@publications@heading@en ]
+            \int_gzero:N \g__hit_pub_group_int
+            \tl_if_blank:VF \l__hit_pub_bib_tl
+              {
+                \@ifpackageloaded { biblatex }
+                  { \exp_args:NV \__hit_pub_resource:n \l__hit_pub_bib_tl }
+                  { \exp_args:NV \__hit_pub_open:n \l__hit_pub_bib_tl }
+              }
+          }
+          { \hit@part@skip: }
+      }
   }
-  { \bool_if:NT \l__hit_back_shown_bool { \iow_close:N \g__hit_pub_aux_iow } }
+\cs_new_protected:Npn \__hit_achievements_end:
+  {
+    \bool_lazy_and:nnT { \l__hit_back_shown_bool }
+      { ! \str_if_eq_p:Vn \l__hit_pub_period_tl { doctoral } }
+      { \iow_close:N \g__hit_pub_aux_iow }
+  }
+\NewDocumentEnvironment { achievements } { O{} }
+  { \__hit_achievements:n {#1} }
+  { \__hit_achievements_end: }
+\NewDocumentEnvironment { publication } { O{} }
+  {
+    \hit@warn@renamed@environment { publication } { achievements }
+    \__hit_achievements:n {#1}
+  }
+  { \__hit_achievements_end: }
 %    \end{macrocode}
 %
 % \emph{组名段照范例排。}两份范例（研究生、本科理工）三条组名的段落属性一字
@@ -508,7 +539,7 @@
       }
       {
         \bool_set_false:N \l__hit_back_shown_bool
-        \__hit_back_skip:
+        \hit@part@skip:
       }
   }
   { \bool_if:NT \l__hit_back_shown_bool { \__hit_pub_group_end: } }
@@ -522,16 +553,10 @@
 
 \NewDocumentEnvironment { doctorpublication } { O{} }
   {
-    \__hit_back_shown:n {#1}
-    \bool_if:NTF \l__hit_back_shown_bool
-      {
-        \__hit_back_clear:
-        \hit@appendix@chapter * { \hit@term@publications@doctoral@heading@zh }
-          [ \hit@term@publications@doctoral@heading@en ]
-      }
-      { \__hit_back_skip: }
+    \hit@warn@renamed@environment { doctorpublication } { achievements~[period=doctoral] }
+    \__hit_achievements:n { period = doctoral , #1 }
   }
-  { }
+  { \__hit_achievements_end: }
 %    \end{macrocode}
 %
 % 此处添加博后用到的博士生发表页面
@@ -550,11 +575,10 @@
 % 先前的栏距 4\,em 与两侧各缩 2\,em 都无据，去掉；条目行距 1.35
 % （\texttt{w:line="324" auto}），比正文的 1.25 松。
 %    \begin{macrocode}
-\NewDocumentEnvironment { ceindex } { O{} }
-  {
-    \__hit_back_shown:n {#1}
-    \bool_if:NTF \l__hit_back_shown_bool
+\cs_new_protected:Npn \__hit_index_open:
       {
+        \hit@matter@back@enter:
+        \cs_set_eq:NN \printindex \__hit_splitidx_printindex:
         \__hit_back_clear:
         \hit@if@option@TF { en }
           {
@@ -573,7 +597,37 @@
         \begin { multicols* } { 2 }
         \dim_set:Nn \baselineskip { 21.01 bp }
       }
-      { \__hit_back_skip: }
+%    \end{macrocode}
+%
+% \cs{printindex} 排索引页：标题、两栏，里面是 \pkg{splitidx} 的 \cs{printsubindex*}（中文一段、英文一段）。
+% 与 iota-hit 的 \texttt{index()} 对应（\cs{index} 是登记条目的命令，占不得，照 \hologo{LaTeX} 的习惯叫
+% \cs{printindex}；\pkg{splitidx} 自带的同名命令在这里接管）。v3.1e 的写法是 \env{ceindex} 环境里写
+% \cs{printsubindex*}，照旧能用，提示改名；环境里手写条目的用法手册早说过要去掉。
+% \cs{printsubindex*} 里面逐个调的是 \pkg{splitidx} 自己的 \cs{printindex}，排索引页时在组里换回那一个。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_print_index:n #1
+  {
+    \hit@part@opts:n {#1}
+    \__hit_back_part:nV { index } \l_hit_part_shown_tl
+    \bool_if:NT \l__hit_back_shown_bool
+      {
+        \hit@matter@back@enter:
+        \group_begin:
+          \__hit_index_open:
+          \printsubindex*
+          \end { multicols* }
+        \group_end:
+      }
+  }
+\AtBeginDocument
+  {
+    \cs_gset_eq:NN \__hit_splitidx_printindex: \printindex
+    \DeclareDocumentCommand \printindex { O{} } { \__hit_print_index:n {#1} }
+  }
+\NewDocumentEnvironment { ceindex } { O{} }
+  {
+    \hit@warn@renamed@environment { ceindex } { \iow_char:N \\printindex }
+    \__hit_back_page:nnn { index } {#1} { \__hit_index_open: }
   }
   { \bool_if:NT \l__hit_back_shown_bool { \end { multicols* } } }
 %    \end{macrocode}

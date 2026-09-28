@@ -4,20 +4,20 @@
 %
 % \fi
 %
-% \section{报告的文档骨架}
+% \section{报告的前置、正文与后置}
 %
-% \changes{v3.2a}{2026/09/14}{报告的骨架宏与学位论文同名；文献表调总出口 \cs{hit@bib@print:}；
-%   正文照终稿排的那一档页码制式跟着终稿；顶级另起一页只给深圳本科}
+% \changes{v3.2a}{2026/09/28}{报告也有 \cs{frontmatter}、\cs{mainmatter}、\cs{backmatter}，只切页码与版式，
+%   由第一个前置部件（目录）、正文第一个标题、第一个后置部件（参考文献）自动切换；深圳博士中期的边框
+%   与深圳硕士的页眉在进正文时挂上；学位论文专有的部件在报告里写了也认，判断不排，不再报未定义}
+% \changes{v3.2a}{2026/09/14}{文献表调总出口 \cs{hit@bib@print:}；正文照终稿排的那一档页码制式跟着终稿；
+%   顶级另起一页只给深圳本科}
 %
 % ^^A ======================================================================
-% ^^A Module report-matter: 报告的骨架宏（hit-report）
+% ^^A Module report-matter: 报告的前后文切换（hit-report）
 % ^^A ======================================================================
 %
-% 与学位论文的 \cs{hitfrontmatter}、\cs{hitbackmatter} 同名，这样一个目录里
-% 三份主文件的正文部分长得一样，只有第一行的 \option{stage} 不同。
-%
-% 报告没有前后文之分，\cls{ctexart} 底下 \cs{frontmatter} 根本不存在，所以
-% 骨架宏没法跟学位论文共用一份。报告的前置只有封面，后置只有参考文献。
+% 与学位论文同名的三个命令，写法一样；部件排什么由部件自己管，这三个只切页码与版式。
+% 报告的前置只有封面与目录，后置只有参考文献。
 %
 %    \begin{macrocode}
 %<*report-matter>
@@ -35,7 +35,7 @@
 % 只立 \cs{g\_\_hit\_report\_top\_break\_bool}，由顶级那一支换页。
 % 本部与威海的报告顶级是节，不另起一页，只有深圳本科立这个标志（iota-hit 同）。威海硕士开题
 % 照 \issue[219] 的模板，节套的是终稿的“标题 2”，也不另起一页。
-% 类自己排的前置与后置按原级走，排的时候立 \cs{g\_\_hit\_report\_heading\_raw\_bool}。
+% 类自己排的封面与目录按原级走，排的时候立 \cs{g\_\_hit\_report\_heading\_raw\_bool}。
 %
 % \emph{不能走 \pkg{ctex} 的 \option{break} 键。} 那个键在 \cs{@startsection} 里
 % 挂在 \cs{if@nobreak} 的假支上——标题底下没正文时这个开关还立着（\hologo{LaTeX}
@@ -55,21 +55,37 @@
 % 到零高、放回主列表，本意是只救出页首的 \cs{write} 与 \cs{mark}，那只空盒随整页丢掉。
 % \cs{topskip} 为零时空盒前面那段胶也是零，整串都是零高，空盒跟着被放回来，下一次
 % \cs{clearpage} 就把它排成一页：示例开题报告的末尾因此多一张只有页眉页脚的空白页，原件
-% 没有。\cs{hitbackmatter} 末尾还回去，文末那两次 \cs{clearpage} 就不会再多出一页。
+% 没有。进后置时还回去，文末那两次 \cs{clearpage} 就不会再多出一页；报告没有参考文献、一直在正文里的，
+% 文末还一次。
+%
+% \emph{别的档整篇一个制式，正文从 1 数。} 原先首页与目录在同一个 \env{titlepage} 环境里，单面文档在
+% 环境结束时把页码归 1。首页与目录拆成两个部件以后，归 1 挪到这里；双面的不归，与原先一样。
+%
+% \emph{深圳博士中期的边框与深圳硕士的页眉在进正文时挂上。} 原先在封面那一组的末尾挂，那时目录
+% 已经排完送出，所以目录页没有边框、用的是前置的页眉。封面与目录拆成两个部件以后，封面排完
+% 目录还没排，挂在进正文时才与原先一样。
 %    \begin{macrocode}
 \dim_new:N \g__hit_report_topskip_dim
-\cs_set_protected:Npn \hitfrontmatter
+\cs_set_protected:Npn \frontmatter
   {
-    \bool_gset_true:N \g__hit_matter_front_bool
-    \bool_gset_true:N \g__hit_report_heading_raw_bool
-    \hit@structure@input:n { cover }
-    \makecover
-    \bool_gset_false:N \g__hit_report_heading_raw_bool
-  }
-\cs_set_protected:Npn \hitmainmatter
-  {
-    \bool_gset_true:N \g__hit_matter_main_bool
+    \hit@matter@set:n { front }
     \bool_if:NT \g__hit_final_body_bool
+      {
+        \legacy_if_gset_false:n { @mainmatter }
+        \pagenumbering
+          {
+            \bool_lazy_and:nnTF
+              { \bool_if_p:N \g__hit_shenzhen_bool } { \bool_if_p:N \g__hit_proposal_bool }
+              { arabic } { Roman }
+          }
+        \pagestyle
+          { \bool_if:NTF \g__hit_harbin_report_bool { hit@empty } { hit@headings@front } }
+      }
+  }
+\cs_set_protected:Npn \mainmatter
+  {
+    \hit@matter@set:n { main }
+    \bool_if:NTF \g__hit_final_body_bool
       {
         \clearpage
         \legacy_if_gset_true:n { @mainmatter }
@@ -80,19 +96,82 @@
         \bool_if:NT \g__hit_shenzhen_bool
           { \bool_gset_true:N \g__hit_report_top_break_bool }
       }
-    \hit@structure@input@list:n { mainmatter }
-  }
-\cs_set_protected:Npn \hitbackmatter
-  {
-    \bool_gset_true:N \g__hit_matter_back_bool
-    \bool_gset_true:N \g__hit_report_heading_raw_bool
-    \hit@structure@part:nn { bibliography }
+      { \legacy_if:nF { @twoside } { \setcounter { page } { 1 } } }
+    \hit@if@shenzhen@doctor@interim@TF
       {
-        \hit@bib@print:
+        \AddToHook { shipout / background } { \hit@report@shenzhen@doctor@frame@picture }
+        \pagestyle { hit@shenzhen@doctor@headings@main }
       }
-    \bool_gset_false:N \g__hit_report_heading_raw_bool
+      {
+        \bool_lazy_and:nnT
+          { \bool_if_p:N \g__hit_shenzhen_bool } { \bool_if_p:N \g__hit_master_bool }
+          { \pagestyle { hit@shenzhen@headings@main } }
+      }
+  }
+\cs_new_protected:Npn \__hit_report_topskip_restore:
+  {
     \bool_if:NT \g__hit_final_body_bool
       { \dim_set_eq:NN \topskip \g__hit_report_topskip_dim }
+  }
+\cs_set_protected:Npn \backmatter
+  {
+    \hit@matter@set:n { back }
+    \__hit_report_topskip_restore:
+  }
+\AtEndDocument { \hit@matter@if:nT { main } { \__hit_report_topskip_restore: } }
+%    \end{macrocode}
+%
+% \emph{只在学位论文里有的部分，报告里写了照样认。} iota-hit 的这些部件在报告里自己判断不排，
+% 一份主文件换 \option{stage} 就能编；这边原先报告里压根没定义，写了就报“未定义”。扉页、摘要、
+% 符号表、缩略语表、符号与缩略语合页、答辩页、声明、索引在报告里没有版式，\option{shown=true} 也不排，给一条警告；
+% 其余的键不认也不报，写给学位论文的参数原样留着就行。环境体整个跳过。\cs{maketitle} 是
+% \hologo{LaTeX} 内核的，报告里改成同一个判断；\cs{printindex} 等导言区装完再看，用户自己装了
+% 索引宏包的照它的。结论、成果、致谢、简历、永久通讯地址报告里有版式，见
+% \file{src/pages/hit-final-backmatter.dtx}。
+%    \begin{macrocode}
+\keys_define:nn { hit / part / report }
+  {
+    shown .code:n = { \hit@part@set@shown:n {#1} } ,
+    unknown .code:n = { } ,
+  }
+\cs_new_protected:Npn \__hit_report_final_only:nn #1#2
+  {
+    \tl_set:Nn \l_hit_part_shown_tl { auto }
+    \keys_set:nn { hit / part / report } {#2}
+    \str_if_eq:VnT \l_hit_part_shown_tl { true }
+      { \msg_warning:nnn { hithesis } { part-final-only } {#1} }
+  }
+\RenewDocumentCommand \maketitle { O{} }
+  { \__hit_report_final_only:nn { titlepage } {#1} }
+\NewDocumentCommand \listofabbreviations { s O{} }
+  { \__hit_report_final_only:nn { list-of-abbreviations } {#2} }
+\NewDocumentCommand \defense { O{} }
+  { \__hit_report_final_only:nn { defense } {#1} }
+\NewDocumentCommand \declarations { O{} }
+  { \__hit_report_final_only:nn { declarations } {#1} }
+\cs_new_protected:Npn \__hit_report_final_only_env:nn #1#2
+  {
+    \NewDocumentEnvironment {#1} { O{} }
+      {
+        \__hit_report_final_only:nn {#2} {##1}
+        \hit@part@skip:
+      }
+      { }
+  }
+\clist_map_inline:nn
+  {
+    { abstract } { abstract } , { nomenclature } { nomenclature } ,
+    { symbols } { list-of-symbols } , { symbols* } { list-of-symbols } ,
+    { denotation } { list-of-symbols } , { denotation* } { list-of-symbols }
+  }
+  { \__hit_report_final_only_env:nn #1 }
+\AddToHook { begindocument / end }
+  {
+    \cs_if_exist:NF \printindex
+      {
+        \NewDocumentCommand \printindex { O{} }
+          { \__hit_report_final_only:nn { index } {##1} }
+      }
   }
   }
 %</report-matter>

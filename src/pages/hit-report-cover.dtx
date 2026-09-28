@@ -6,6 +6,8 @@
 %
 % \section{开题报告的封面与扉页}
 %
+% \changes{v3.2a}{2026/09/28}{首页与目录拆成 \cs{cover}、\cs{tableofcontents} 两个部件（与 iota-hit 的 \texttt{cover()}、
+%   \texttt{table-of-contents()} 对应），目录照模板判断排不排；v3.1e 的 \cs{makecover} 是这两件，提示改写}
 % \changes{v3.2a}{2026/09/27}{深圳博士中期正文的边框改用 \cs{vrule} 画，挂内核的 \texttt{shipout/background}；
 %   \pkg{tikz}、\pkg{eso-pic}、\pkg{tikzpagenodes} 原先只为这一个框装，不再装}
 % \changes{v3.2a}{2026/09/27}{研究生报告首页标签的拉开字距按字走，\hologo{pdfLaTeX} 下一个汉字是几个记号；
@@ -15,7 +17,7 @@
 %   \file{hithesisart.cls} 九成代码逐字相同），封面自己加载 \pkg{tikzpagenodes} 那三个包；
 %   首页改用部件变体，基准是研究生那一页；威海本科的开题与中期改用哈尔滨那一套；
 %   本部硕士封面添加「学位论文」或「实践成果」；正文照终稿排的那一档目录页用罗马页码；
-%   字段表格里放宽 \cs{hfuzz}；\cs{makecover} 记下「前置已排」}
+%   字段表格里放宽 \cs{hfuzz}}
 % \changes{v3.2a}{2026/09/26}{填写线与签字线改用 \cs{docxrun} 的下划线：原件的填写线是带下划线
 %   的粗体空格，线照 Times New Roman 粗体的 post 表；先前数学模式的 \cs{underline} 跟着内容的
 %   深度走，各行高低不一}
@@ -326,18 +328,13 @@
 % 深圳博士中期的封面自成一版：一张表格排完全部字段，正文四周画一个边框，
 % 封面之后跟一页填写说明。
 %    \begin{macrocode}
-\cs_set_protected:Npn \hit@report@shenzhen@doctor@makecover
+\cs_set_protected:Npn \hit@report@shenzhen@doctor@cover
   {
-    \hit@write@pdf@metadata
-    \begin { titlepage }
+    \hit@report@title@open:
       \hit@report@shenzhen@doctor@title@page@graduate
       \clearpage
       \hit@term@cover@note@interim@shenzhen@doctor
-      \hit@structure@switch:nnn { table-of-contents }
-        { \bool_if_p:N \g__hit_report_toc_auto_bool } { \clearpage \tableofcontents \clearpage }
-    \end { titlepage }
-    \AddToHook { shipout / background } { \hit@report@shenzhen@doctor@frame@picture }
-    \pagestyle { hit@shenzhen@doctor@headings@main }
+    \hit@report@title@close:
   }
 %    \end{macrocode}
 %
@@ -366,51 +363,83 @@
 %    \begin{macrocode}
 \hit@hook@new:nn { report-cover-page } { \hit@report@title@page@graduate }
 \hit@hook@new:nn { report-cover-page-bachelor } { \hit@report@title@page@bachelor }
-\cs_set_protected:Npn \hit@report@default@makecover
+\cs_set_protected:Npn \hit@report@default@cover
   {
-    \hit@write@pdf@metadata
-    \begin { titlepage }
+    \hit@report@title@open:
       \hit@hook@use:n { report-cover-page }
       \clearpage
       \bool_if:NT \g__hit_print_bool
         { \thispagestyle { empty } \mbox { } \clearpage }
-      \bool_if:NT \g__hit_final_body_bool
-        {
-          \legacy_if_gset_false:n { @mainmatter }
-          \pagenumbering
-            {
-              \bool_lazy_and:nnTF
-                { \bool_if_p:N \g__hit_shenzhen_bool } { \bool_if_p:N \g__hit_proposal_bool }
-                { arabic } { Roman }
-            }
-          \pagestyle
-            { \bool_if:NTF \g__hit_harbin_report_bool { hit@empty } { hit@headings@front } }
-        }
-      \bool_if:NF \g__hit_final_body_bool { \hit@fontsize@x { xiaosi } { 1 } }
-      \hit@structure@switch:nnn { table-of-contents }
-        { \bool_if_p:N \g__hit_report_toc_auto_bool }
-        { \tableofcontents \hit@report@toc@tail: \clearpage }
-    \end { titlepage }
-    \bool_lazy_and:nnT
-      { \bool_if_p:N \g__hit_shenzhen_bool } { \bool_if_p:N \g__hit_master_bool }
-      { \pagestyle { hit@shenzhen@headings@main } }
+    \hit@report@title@close:
   }
 %    \end{macrocode}
 %
-% 排完置位。\file{hit-structure.dtx} 的兜底在文末发现没调过 \cs{hitfrontmatter}
-% 就补调一次，而老写法的文档用的是 \cs{makecover}，不置位就会被补排一遍——
-% 拿 v3.1e 的示例报告实测 3 页变 5 页，多出来的正是封面与目录。
+% \emph{首页与目录拆成两个部件以后照原样排。} 原先首页、目录在同一个 \env{titlepage} 环境里，环境结束时
+% 单面文档把页码归 1，正文因此从 1 起、目录接着首页往下数。现在首页的环境结束后把页码还回去，目录照旧
+% 接着数；归 1 挪到进正文时（\file{hit-report-matter.dtx}）。前置的页码制式也挪到进前置时，由目录触发。
+% 类自己排的首页与目录按原级走，立 \cs{g\_\_hit\_report\_heading\_raw\_bool}。
+% 目录这个部件等 \cs{begin}\marg{document} 全部做完再包：\pkg{tocloft} 在 \cs{AtBeginDocument} 里重定义
+% \cs{tableofcontents}，包早了会被它盖掉。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@report@makecover@mark:n #1
+\int_new:N \g__hit_report_page_int
+\cs_new_protected:Npn \hit@report@title@open:
   {
-    \bool_gset_true:N \g__hit_matter_front_bool
-    \use:c {#1}
+    \bool_gset_true:N \g__hit_report_heading_raw_bool
+    \hit@write@pdf@metadata
+    \begin { titlepage }
   }
-\hit@if@shenzhen@doctor@interim@TF
-  { \cs_set:Npn \makecover
-      { \hit@report@makecover@mark:n { hit@report@shenzhen@doctor@makecover } } }
-  { \cs_set:Npn \makecover
-      { \hit@report@makecover@mark:n { hit@report@default@makecover } } }
+\cs_new_protected:Npn \hit@report@title@close:
+  {
+      \int_gset:Nn \g__hit_report_page_int { \value { page } }
+    \end { titlepage }
+    \setcounter { page } { \g__hit_report_page_int }
+    \bool_gset_false:N \g__hit_report_heading_raw_bool
+  }
+\cs_new_protected:Npn \hit@report@toc:
+  {
+    \bool_gset_true:N \g__hit_report_heading_raw_bool
+    \group_begin:
+      \hypersetup { pageanchor = false }
+      \hit@if@shenzhen@doctor@interim@TF
+        { \clearpage \__hit_report_toc_orig: \clearpage }
+        {
+          \bool_if:NF \g__hit_final_body_bool { \hit@fontsize@x { xiaosi } { 1 } }
+          \__hit_report_toc_orig: \hit@report@toc@tail: \clearpage
+        }
+    \group_end:
+    \bool_gset_false:N \g__hit_report_heading_raw_bool
+  }
+\AddToHook { begindocument / end }
+  {
+    \cs_gset_eq:NN \__hit_report_toc_orig: \tableofcontents
+    \RenewDocumentCommand \tableofcontents { O{} }
+      {
+        \hit@part@opts:n {#1}
+        \hit@part:nVn { table-of-contents } \l_hit_part_shown_tl
+          { \hit@matter@front@enter: \hit@report@toc: }
+      }
+  }
+%    \end{macrocode}
+%
+% \cs{cover} 排首页，与 iota-hit 的 \texttt{cover()} 对应；深圳博士中期那一版连同填写说明页。
+% v3.1e 的 \cs{makecover} 是首页加目录，照旧能用，提示改名。
+%    \begin{macrocode}
+\NewDocumentCommand \cover { O{} }
+  {
+    \hit@part@opts:n {#1}
+    \hit@part:nVn { cover } \l_hit_part_shown_tl
+      {
+        \hit@if@shenzhen@doctor@interim@TF
+          { \hit@report@shenzhen@doctor@cover }
+          { \hit@report@default@cover }
+      }
+  }
+\cs_set_protected:Npn \makecover
+  {
+    \hit@warn@renamed@to:nn { makecover } { cover~与~\iow_char:N \\tableofcontents }
+    \cover
+    \tableofcontents
+  }
 %    \end{macrocode}
 % \end{macro}
 %    \begin{macrocode}

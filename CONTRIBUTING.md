@@ -182,8 +182,8 @@ src/
 | 有哪些信息字段与常量 | `src/engine/hit-keylist.dtx` |
 | 有哪些类选项 | `src/engine/hit-options.dtx` |
 | 键与选项的声明机制 | `src/engine/hit-*-engine.dtx` |
-| 改一句提示文案 | `src/engine/hit-messages.dtx` 一处，24 条全在里面 |
-| 前置后置排哪些部件 | `src/engine/hit-structure.dtx` 声明键，`src/flow/hit-*-matter.dtx` 定顺序 |
+| 改一句提示文案 | `src/engine/hit-messages.dtx` 一处，全在里面 |
+| 部件排不排、前置正文后置怎么切 | `src/engine/hit-parts.dtx` 定判定与切换，`src/flow/hit-*-matter.dtx` 定各段的页码与换页 |
 | 第三方宏包加载与先后 | `src/flow/hit-final-deps.dtx`、`src/flow/hit-report-deps.dtx` |
 | 装哪个基础类 | `src/engine/hit-loadclass.dtx`：`book`（深圳硕博报告与 pdfLaTeX 是 `ctexbook`）加报告那档的四条补偿；不装 ctex 时的中文层在 `src/engine/hit-cjk.dtx` |
 | 各个类共用的小工具 | `src/engine/hit-*.dtx` |
