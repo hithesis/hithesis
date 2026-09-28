@@ -16,7 +16,9 @@
 %
 % \section{终稿的术语与符号表}
 %
-% \changes{v3.2a}{2026/09/28}{符号与缩略语合一页写 \env{nomenclature} 环境（与 iota-hit 的 \texttt{nomenclature()} 对应）}
+% \changes{v3.2a}{2026/09/28}{缩略语词条写进 \option{abbreviations} 族，字段名照 iota-hit（\option{long}、\option{long-en}、
+%   \option{short}、\option{plural}、\option{long-plural}、\option{indexed}）；符号与缩略语合一页是 \cs{printnomenclature}
+%   （与 iota-hit 的 \texttt{nomenclature()} 对应），与单独的两张表都写了就都排、提示一次}
 % \changes{v3.2a}{2026/09/27}{三个引擎都能自动推拼音：\hologo{LuaLaTeX} 下 \pkg{xpinyin} 会停机，
 %  只读它的数据文件，不读的话每条中文索引都报查不到；\hologo{pdfLaTeX} 下装 \pkg{xpinyin}
 %  （它认 \pkg{CJKutf8}），首字按 UTF-8 解出码位查拼音；中文词条写进 \file{.idx} 前还原成字节：
@@ -174,7 +176,11 @@
 %
 % \subsection{缩略语的声明与使用}
 %
-% \option{abbr} 族的每一条经这里落成一个 \pkg{glossaries-extra} 词条。
+% \option{abbreviations} 族的每一条经这里落成一个 \pkg{glossaries-extra} 词条。字段照 iota-hit：
+% \option{long} 中文全称、\option{long-en} 英文全称、\option{short} 排出来的缩写（不写取键名）、
+% \option{plural} 缩写的复数（不写加 \texttt{s}）、\option{long-plural} 英文全称的复数、\option{indexed}
+% 这一条登不登记索引；另有 \option{pinyin} 给中文索引的排序键（iota-hit 不经 \pkg{makeindex}，用不着）。
+% 正文里 \cs{abbr} 引的是键名。
 % 规范要求「文中第一次出现的缩写词应该用括号注明英文原词」，中文全称在前时
 % 括号里依次是英文原词与缩写：
 % \begin{center}
@@ -185,16 +191,16 @@
 %   {colspec={l l l}}
 % \toprule
 % 定义 & 中文里首次 & 英文里首次 \\ \midrule
-% \texttt{zh}+\texttt{en} & X（Y，S） & Y (S) \\
-% 只有 \texttt{zh}       & X（S）    & X (S) \\
-% 只有 \texttt{en}       & S（Y）    & Y (S) \\
+% \texttt{long}+\texttt{long-en} & X（Y，S） & Y (S) \\
+% 只有 \texttt{long}       & X（S）    & X (S) \\
+% 只有 \texttt{long-en}    & S（Y）    & Y (S) \\
 % \bottomrule
 % \end{longtblr}
 %
 % 落实的办法是把整串首次形式拼好存进词条的 \texttt{long} 字段，再配上游现成的
 % \texttt{long-only-short-only} 样式：它首次排 \texttt{long}、之后排 \texttt{short}，正是要的
-% 行为。复数另存 \texttt{longplural}，括号里的缩写取复数而全称不动，中文全称加不上
-% \texttt{s}。中文里还是英文里按用的那一段定，所以每用一次重拼一次，见 \cs{\_\_hit\_abbr\_localize:n}。
+% 行为。复数另存 \texttt{longplural}，括号里的缩写取 \option{plural}，英文全称取 \option{long-plural}
+% （不写加 \texttt{s}），中文全称不动。中文里还是英文里按用的那一段定，所以每用一次重拼一次，见 \cs{\_\_hit\_abbr\_localize:n}。
 %
 % v3.1e 是把括号手写进 \cs{newacronym} 的第三个参数里，单数看着对而复数漏了，
 % 排出来半角括号套全角括号。现在括号由样式生成，两边不会再各走各的。
@@ -206,12 +212,19 @@
 \tl_new:N \l__hit_abbr_long_tl
 \tl_new:N \l__hit_abbr_longpl_tl
 \tl_new:N \l__hit_abbr_pick_tl
+\tl_new:N \l__hit_abbr_plural_tl
+\tl_new:N \l__hit_abbr_enpl_tl
+\tl_new:N \l__hit_abbr_indexed_tl
 \keys_define:nn { hit / abbr / entry }
   {
-    zh     .tl_set:N = \l__hit_abbr_zh_tl ,
-    en     .tl_set:N = \l__hit_abbr_en_tl ,
-    pinyin .tl_set:N = \l__hit_abbr_pinyin_tl ,
-    label  .tl_set:N = \l__hit_abbr_label_tl ,
+    long        .tl_set:N = \l__hit_abbr_zh_tl ,
+    long-en     .tl_set:N = \l__hit_abbr_en_tl ,
+    short       .tl_set:N = \l__hit_abbr_label_tl ,
+    plural      .tl_set:N = \l__hit_abbr_plural_tl ,
+    long-plural .tl_set:N = \l__hit_abbr_enpl_tl ,
+    indexed     .choices:nn = { auto , true , false }
+      { \tl_set_eq:NN \l__hit_abbr_indexed_tl \l_keys_choice_tl } ,
+    pinyin      .tl_set:N = \l__hit_abbr_pinyin_tl ,
   }
 %    \end{macrocode}
 %
@@ -245,14 +258,17 @@
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@abbr@declare:nn}
-% \meta{短形}\marg{取值}。取值不含等号就当裸值，按有没有汉字归 \option{zh}
-% 或 \option{en}。
+% \marg{键名}\marg{取值}。取值不含等号就当裸值，照 iota-hit 按有没有汉字归 \option{long}
+% 或 \option{long-en}。两个全称都没有的报错跳过：首次出现没有东西可排。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@abbr@declare:nn #1#2
   {
     \tl_clear:N \l__hit_abbr_zh_tl
     \tl_clear:N \l__hit_abbr_en_tl
     \tl_clear:N \l__hit_abbr_pinyin_tl
+    \tl_clear:N \l__hit_abbr_plural_tl
+    \tl_clear:N \l__hit_abbr_enpl_tl
+    \tl_set:Nn \l__hit_abbr_indexed_tl { auto }
     \tl_set:Nn \l__hit_abbr_label_tl {#1}
     \tl_if_in:nnTF {#2} { = }
       { \hit@keys@set:nn { hit / abbr / entry } {#2} }
@@ -262,18 +278,31 @@
           { \tl_set:Nn \l__hit_abbr_zh_tl {#2} }
           { \tl_set:Nn \l__hit_abbr_en_tl {#2} }
       }
+    \bool_lazy_and:nnTF
+      { \tl_if_empty_p:N \l__hit_abbr_zh_tl }
+      { \tl_if_empty_p:N \l__hit_abbr_en_tl }
+      { \msg_error:nnn { hithesis } { abbr-no-long } {#1} }
+      { \exp_args:NV \__hit_abbr_declare:nn \l__hit_abbr_label_tl {#1} }
+  }
+\cs_new_protected:Npn \__hit_abbr_declare:nn #1#2
+  {
+    \tl_if_empty:NT \l__hit_abbr_plural_tl
+      { \tl_set:Nn \l__hit_abbr_plural_tl { #1 s } }
     \__hit_abbr_compose:n {#1}
     \use:x
       {
         \exp_not:N \newabbreviation
           [
+            shortplural = { \exp_not:V \l__hit_abbr_plural_tl } ,
             longplural = { \exp_not:V \l__hit_abbr_longpl_tl } ,
             hitzh = { \exp_not:V \l__hit_abbr_zh_tl } ,
             hiten = { \exp_not:V \l__hit_abbr_en_tl } ,
+            hitenpl = { \exp_not:V \l__hit_abbr_enpl_tl } ,
+            hitindexed = { \exp_not:V \l__hit_abbr_indexed_tl } ,
             hitpinyin = { \exp_not:V \l__hit_abbr_pinyin_tl } ,
             description = { \exp_not:V \l__hit_abbr_long_tl } ,
           ]
-          { \exp_not:V \l__hit_abbr_label_tl }
+          { \exp_not:n {#2} }
           { \exp_not:n {#1} }
           { \exp_not:V \l__hit_abbr_long_tl }
       }
@@ -341,9 +370,16 @@
     \__hit_abbr_cjk_set:V \l__hit_abbr_pick_tl
     \tl_set:Nx \l__hit_abbr_longpl_tl
       {
-        \exp_not:V \l__hit_abbr_pick_tl
-        \bool_if:NF \l__hit_abbr_cjk_bool { s }
-        \exp_not:V \l__hit_abbr_lparen_tl #1 s \exp_not:V \l__hit_abbr_rparen_tl
+        \bool_lazy_or:nnTF
+          { \bool_if_p:N \l__hit_abbr_cjk_bool } { \tl_if_empty_p:N \l__hit_abbr_enpl_tl }
+          {
+            \exp_not:V \l__hit_abbr_pick_tl
+            \bool_if:NF \l__hit_abbr_cjk_bool { s }
+          }
+          { \exp_not:V \l__hit_abbr_enpl_tl }
+        \exp_not:V \l__hit_abbr_lparen_tl
+        \exp_not:V \l__hit_abbr_plural_tl
+        \exp_not:V \l__hit_abbr_rparen_tl
       }
   }
 \cs_new_protected:Npn \__hit_abbr_compose_zh:n #1
@@ -357,7 +393,7 @@
           }
         \tl_set:Nx \l__hit_abbr_longpl_tl
           {
-            #1 s \exp_not:V \l__hit_abbr_lparen_tl
+            \exp_not:V \l__hit_abbr_plural_tl \exp_not:V \l__hit_abbr_lparen_tl
             \exp_not:V \l__hit_abbr_en_tl \exp_not:V \l__hit_abbr_rparen_tl
           }
       }
@@ -380,15 +416,16 @@
                 \exp_not:V \l__hit_abbr_en_tl
                 \exp_not:V \l__hit_abbr_comma_tl
               }
-            #1 s \exp_not:V \l__hit_abbr_rparen_tl
+            \exp_not:V \l__hit_abbr_plural_tl \exp_not:V \l__hit_abbr_rparen_tl
           }
       }
   }
 %    \end{macrocode}
 %
 % 声明时按全文的语种拼一份存进 \texttt{long}，给不经 \cs{abbr} 取全称的地方用；
-% 用的时候再按那一段的语种重拼一次，写回这一条的 \texttt{long} 与 \texttt{longplural}
-% 再交给 \cs{gls}，\option{punct} 写在词条后面也照样生效。两个字段都空的是
+% 用的时候再按那一段的语种重拼一次，写回这一条的 \texttt{long} 与 \texttt{longpl}
+% 再交给 \cs{gls}（\pkg{glossaries} 里 \texttt{longplural}、\texttt{shortplural} 两个键存进的字段叫
+% \texttt{longpl}、\texttt{shortpl}，按键名读写是空操作），\option{punct} 写在词条后面也照样生效。两个字段都空的是
 % \cs{newacronym} 立的条目，没有中英两份可拼，原样不动。
 %    \begin{macrocode}
 \tl_new:N \l__hit_abbr_short_tl
@@ -403,9 +440,11 @@
           { \tl_if_empty_p:N \l__hit_abbr_en_tl }
           {
             \glsletentryfield \l__hit_abbr_short_tl {#1} { short }
+            \glsletentryfield \l__hit_abbr_plural_tl {#1} { shortpl }
+            \glsletentryfield \l__hit_abbr_enpl_tl {#1} { hitenpl }
             \exp_args:NV \__hit_abbr_compose:n \l__hit_abbr_short_tl
             \GlsXtrLetField {#1} { long } \l__hit_abbr_long_tl
-            \GlsXtrLetField {#1} { longplural } \l__hit_abbr_longpl_tl
+            \GlsXtrLetField {#1} { longpl } \l__hit_abbr_longpl_tl
           }
       }
       { }
@@ -413,6 +452,8 @@
 \glsaddstoragekey { hitzh } { } { \hitabbrzh }
 \glsaddstoragekey { hiten } { } { \hitabbren }
 \glsaddstoragekey { hitpinyin } { } { \hitabbrpinyin }
+\glsaddstoragekey { hitenpl } { } { \hitabbrenpl }
+\glsaddstoragekey { hitindexed } { auto } { \hitabbrindexed }
 \setabbreviationstyle [ abbreviation ] { long-only-short-only }
 %    \end{macrocode}
 %
@@ -750,13 +791,24 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \cs{abbr} 用一次就登记一次索引，索引形式直接取条目的 \option{zh} 与
-% \option{en}，不另设字段——开了 \option{indexing} 两边本来就该是同一个词。
+% \cs{abbr} 用一次就登记一次索引，索引形式直接取条目的 \option{long} 与
+% \option{long-en}，不另设字段：开了 \option{indexing} 两边本来就该是同一个词。
 % 中文那份的排序键取条目的 \option{pinyin}，没写就查表，与 \cs{hitindex} 一样。
+% 登不登记先看全局的 \option{indexing}，条目写了 \option{indexed} 照条目，这一处写了可选参数照这一处。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_abbr_use:nn #1#2
   {
     \bool_set_eq:NN \l__hit_index_on_bool \g__hit_abbr_indexing_bool
+    \ifglsentryexists {#2}
+      {
+        \tl_set:Nx \l_tmpa_tl { \hitabbrindexed {#2} }
+        \str_case:Vn \l_tmpa_tl
+          {
+            { true }  { \bool_set_true:N \l__hit_index_on_bool }
+            { false } { \bool_set_false:N \l__hit_index_on_bool }
+          }
+      }
+      { }
     \hit@keys@set:nn { hit / abbr / use } {#1}
     \bool_if:NT \l__hit_index_on_bool
       {
@@ -784,6 +836,7 @@
         \hit@part:nVn { list-of-abbreviations } \l_hit_part_shown_tl
           {
             \hit@matter@front@enter:
+            \hit@nomenclature@check:
             \__hit_list_of_abbreviations:nn { } {#2}
           }
       }
@@ -827,30 +880,31 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \begin{environment}{nomenclature}
-% 符号与缩略语排在同一页，与 iota-hit 的 \texttt{nomenclature()} 对应：环境体是符号那一段，写法与
-% \env{symbols} 一样，缩略语那一段取 \option{abbr} 族的词条。可选参数收 \option{shown} 与 \env{symbols}
-% 的那几个键。只有学位论文排；报告里的见 \file{src/flow/hit-report-matter.dtx}。
+% \begin{macro}{\printnomenclature}
+% 符号与缩略语排在同一页，与 iota-hit 的 \texttt{nomenclature()} 对应：符号取 \option{symbols} 族，缩略语取
+% \option{abbreviations} 族。可选参数收 \option{shown} 与 \env{symbols} 的那几个键。名字照 \pkg{nomencl} 的
+% 叫法加了 \texttt{print}：\cs{nomenclature} 是它登记条目的命令，占了会跟装它的文档撞。只有学位论文排；
+% 报告里的见 \file{src/flow/hit-report-matter.dtx}。
 %    \begin{macrocode}
 \bool_if:NT \g__hit_final_bool
   {
-\NewDocumentEnvironment { nomenclature } { O{} +b }
+\NewDocumentCommand \printnomenclature { O{} }
   {
     \__hit_symbols_opt:n {#1}
     \hit@part:nVn { nomenclature } \l_hit_part_shown_tl
       {
         \hit@matter@front@enter:
-        \hit@nomenclature@page:n { \begin { symbols } [#1] #2 \end { symbols } }
+        \hit@nomenclature@check:
+        \hit@nomenclature@page:n
+          { \__hit_symbols_opt:n {#1} \__hit_symbols_open: \hit@symbols@setup: \__hit_symbols_close: }
       }
   }
-  { }
   }
 %    \end{macrocode}
-% \end{environment}
+% \end{macro}
 %
 % \begin{macro}{\hit@nomenclature@page:n}
-% 符号与缩略语合成一页：一个章标题，符号在上、缩略语在下，两段各带小标题。参数是符号那一段
-% （一个 \env{symbols} 环境）。
+% 符号与缩略语合成一页：一个章标题，符号在上、缩略语在下，两段各带小标题。参数是排符号那一段的代码。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@nomenclature@page:n #1
   {

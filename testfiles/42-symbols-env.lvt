@@ -6,31 +6,50 @@
 %
 % denotation 退回 v3.1e 原样：排标题、重置表号、正文随用户写，没有列表机制也没有
 % 星号版。symbols* 接手“自己写表格”那条路。
+%
+% \listofsymbols 从 \hitsetup 的 symbols 族取词条，值里的键不全是 zh、en 的是一组。
+%
+% 符号表全书只排一次，每轮开头把“排过”的记录复位。
 \input{regression-test}
 \documentclass[fontset=fandol,degree-level=doctor,campus=harbin]{hithesis}
+\hitsetup{ symbols = {
+  {$R$} = 实数集,
+  希腊字母 = { {$\alpha$} = {zh=角度, en=Angle} },
+} }
+\ExplSyntaxOn
+\cs_new_protected:Npn \RESET
+  {
+    \bool_if_exist:cT { g__hit_part_done_list-of-symbols_bool }
+      { \bool_gset_false:c { g__hit_part_done_list-of-symbols_bool } }
+  }
+\ExplSyntaxOff
 \begin{document}
 \START
 \makeatletter
 \ExplSyntaxOn
 \TEST{symbols 是列表，默认宽度 2.5cm}{
+  \RESET
   \begin{symbols}
   \item[$R$] 实数集
   \end{symbols}
   \iow_term:x { 宽度 = \tl_use:N \l__hit_symbols_width_tl }
 }
 \TEST{裸值当宽度，v3.1e 的写法照认}{
+  \RESET
   \begin{symbols}[4cm]
   \item[$R$] 实数集
   \end{symbols}
   \iow_term:x { 宽度 = \tl_use:N \l__hit_symbols_width_tl }
 }
 \TEST{键值收 labelwidth 与 subheading}{
+  \RESET
   \begin{symbols}[labelwidth=3cm, subheading=符号]
   \item[$R$] 实数集
   \end{symbols}
   \iow_term:x { 宽度 = \tl_use:N \l__hit_symbols_width_tl }
 }
 \TEST{星号版不开列表，正文自己写表格}{
+  \RESET
   \begin{symbols*}
   \begin{tabular}{cc}
   量的名称 & 单位符号\\
@@ -39,12 +58,24 @@
   \end{symbols*}
 }
 \TEST{denotation 还在，正文随用户写}{
+  \RESET
   \begin{denotation}
   \begin{tabular}{cc}
   量的名称 & 单位符号\\
   频率 & Hz\\
   \end{tabular}
   \end{denotation}
+}
+\TEST{symbols 族的词条按写的顺序存，组的开头另存一项}{
+  \seq_map_inline:Nn \g_hit_symbols_seq { \iow_term:n { #1 } }
+}
+\TEST{listofsymbols 从 symbols 族排}{
+  \RESET
+  \listofsymbols
+  \iow_term:x { 宽度 = \tl_use:N \l__hit_symbols_width_tl }
+}
+\TEST{同一张表第二次不排}{
+  \listofsymbols
 }
 \ExplSyntaxOff
 \makeatother

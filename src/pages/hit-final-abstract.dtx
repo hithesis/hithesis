@@ -344,9 +344,41 @@
       {#1}
       {
         \hit@part@if:nVTF { list-of-symbols } \l_hit_part_shown_tl
-          { \hit@matter@front@enter: #1 } {#2}
+          {
+            \hit@part@done:nTF { list-of-symbols }
+              { \msg_warning:nnn { hithesis } { part-twice } { list-of-symbols } #2 }
+              {
+                \hit@part@once:nT { list-of-symbols } { }
+                \hit@matter@front@enter:
+                \hit@nomenclature@check:
+                #1
+              }
+          }
+          {#2}
       }
   }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@nomenclature@check:}
+% 符号与缩略语既排了单独的表（\cs{listofsymbols}、\env{symbols}、\cs{listofabbreviations}），又排了合页
+% （\cs{printnomenclature}），两边都照排，同一批条目出现两遍，提示一次。iota-hit 这里直接报错停下；
+% 这边照 \hologo{LaTeX} 的习惯让编译走完。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@nomenclature@check:
+  {
+    \bool_lazy_and:nnT
+      { \hit@part@done_p:n { nomenclature } }
+      {
+        \bool_lazy_or_p:nn
+          { \hit@part@done_p:n { list-of-symbols } }
+          { \hit@part@done_p:n { list-of-abbreviations } }
+      }
+      { \__hit_warn_once:nnn { nomenclature-twice } { nomenclature-twice } { } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
 \NewDocumentEnvironment { symbols } { O{} +b }
   {
     \__hit_symbols_opt:n {#1}
@@ -375,6 +407,13 @@
 \cs_new_protected:Npn \hit@symbols@list:n #1
   {
     \tl_set:Nn \l__hit_symbols_body_tl {#1}
+    \__hit_symbols_width_fix:
+    \begin { hit@symbols } [ labelwidth = \l__hit_symbols_width_tl ]
+      \l__hit_symbols_body_tl
+    \end { hit@symbols }
+  }
+\cs_new_protected:Npn \__hit_symbols_width_fix:
+  {
     \str_if_eq:VnT \l__hit_symbols_width_tl { auto }
       {
         \__hit_symbols_auto:
@@ -387,9 +426,6 @@
           }
         \tl_set:Nx \l__hit_symbols_width_tl { \dim_use:N \l__hit_symbols_best_dim }
       }
-    \begin { hit@symbols } [ labelwidth = \l__hit_symbols_width_tl ]
-      \l__hit_symbols_body_tl
-    \end { hit@symbols }
   }
 \cs_new_protected:Npn \__hit_symbols_measure:n #1
   {
@@ -492,6 +528,78 @@
   }
   { \bool_if:NT \l__hit_symbols_shown_bool { \__hit_symbols_close: } }
 %    \end{macrocode}
+%
+% \begin{macro}{\listofsymbols}
+% 按 \option{symbols} 族的词条排符号表，与 iota-hit 的 \texttt{list-of-symbols()} 对应。中文版取词条的
+% \option{zh}，英文版取 \option{en}。有组的先按全部词条定第一列的宽，再一组一段：组名当小标题，
+% 各段第一列一样宽。\cs{hit@symbols@setup:} 也给合页用。
+%    \begin{macrocode}
+\NewDocumentCommand \listofsymbols { O{} }
+  {
+    \__hit_symbols_opt:n {#1}
+    \__hit_symbols_if:TF
+      { \__hit_symbols_open: \hit@symbols@setup: \__hit_symbols_close: }
+      { }
+  }
+\tl_new:N \l__hit_symbols_all_tl
+\tl_new:N \l__hit_symbols_chunk_tl
+\tl_new:N \l__hit_symbols_chunk_name_tl
+\seq_new:N \l__hit_symbols_chunks_seq
+\cs_new_protected:Npn \hit@symbols@setup:
+  {
+    \tl_clear:N \l__hit_symbols_all_tl
+    \tl_clear:N \l__hit_symbols_chunk_tl
+    \tl_clear:N \l__hit_symbols_chunk_name_tl
+    \seq_clear:N \l__hit_symbols_chunks_seq
+    \seq_map_inline:Nn \g_hit_symbols_seq { \__hit_symbols_collect:nnnn ##1 }
+    \__hit_symbols_chunk_flush:
+    \seq_if_empty:NTF \l__hit_symbols_chunks_seq
+      { \msg_warning:nn { hithesis } { symbols-empty } }
+      {
+        \tl_set_eq:NN \l__hit_symbols_body_tl \l__hit_symbols_all_tl
+        \__hit_symbols_width_fix:
+        \seq_map_inline:Nn \l__hit_symbols_chunks_seq { \__hit_symbols_chunk:nn ##1 }
+      }
+  }
+\cs_new_protected:Npn \__hit_symbols_collect:nnnn #1#2#3#4
+  {
+    \tl_if_eq:nnTF {#2} { \q_mark }
+      {
+        \__hit_symbols_chunk_flush:
+        \tl_set:Nn \l__hit_symbols_chunk_name_tl {#1}
+      }
+      {
+        \tl_set:Nx \l_tmpa_tl
+          {
+            \exp_not:N \item [ { \exp_not:n {#2} } ]
+            \bool_if:NTF \g__hit_en_bool { \exp_not:n {#4} } { \exp_not:n {#3} }
+          }
+        \tl_put_right:NV \l__hit_symbols_chunk_tl \l_tmpa_tl
+        \tl_put_right:NV \l__hit_symbols_all_tl \l_tmpa_tl
+      }
+  }
+\cs_new_protected:Npn \__hit_symbols_chunk_flush:
+  {
+    \bool_lazy_and:nnF
+      { \tl_if_empty_p:N \l__hit_symbols_chunk_tl }
+      { \tl_if_empty_p:N \l__hit_symbols_chunk_name_tl }
+      {
+        \seq_put_right:Nx \l__hit_symbols_chunks_seq
+          {
+            { \exp_not:V \l__hit_symbols_chunk_name_tl }
+            { \exp_not:V \l__hit_symbols_chunk_tl }
+          }
+      }
+    \tl_clear:N \l__hit_symbols_chunk_tl
+    \tl_clear:N \l__hit_symbols_chunk_name_tl
+  }
+\cs_new_protected:Npn \__hit_symbols_chunk:nn #1#2
+  {
+    \tl_if_empty:nF {#1} { \hit@frontlist@subheading:n {#1} }
+    \tl_if_empty:nF {#2} { \hit@symbols@list:n {#2} }
+  }
+%    \end{macrocode}
+% \end{macro}
 %
 % v3.1e 的 \env{denotation}：排标题、把表号改成不带章号的形式，正文随用户写。
 %    \begin{macrocode}
