@@ -14,8 +14,8 @@ fork 的二进制默认找 ~/typst-with-msword-linebreaks/target/release/typst�
 
 两边有意不同的几处（都是自己的探针定的，Word 站在这边）：行末闭号先由行内位分担、
 不够时原位压半格（fork 一律画成整个挂出，起点在右缘上，所以行末带闭号的行会报位差）；
-开号带汉字的单元 2003 档至多两个位（fork 三个）。URL 那边有紧急断点与 // 的规矩，
-这里整个下行，也会不同。
+开号带汉字的单元 2003 档至多两个位（fork 三个）；全宽省略号不起行（fork 让它起行，Word 连前一个
+字一起放到下一行，docxlike 的 test/nogrid）。URL 那边有紧急断点与 // 的规矩，这里整个下行，也会不同。
 """
 import argparse, os, re, subprocess, sys
 

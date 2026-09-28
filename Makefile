@@ -121,11 +121,12 @@ docxlike-check:
 
 # 与 typst-with-msword-linebreaks 对拍：同一批段落（tests/typst-corpus.txt）两边各排一遍，
 # 逐行比行末。docxlike.lua 是照那个 fork 抄的，Word 只能量翻转点，两个实现之间
-# 能逐行比。棘轮只数文本差异：两档各 6 处，全是 URL 段（那边有紧急断点）。要本机有
+# 能逐行比。棘轮只数文本差异：两档各 6 处 URL 段（那边有紧急断点），模式 11 另有 2 处是
+# “[1-2]……”（那边让省略号起行，Word 不让）。要本机有
 # 那个 fork 的二进制（TYPST 环境变量或默认路径），不进 CI
 lineends-typst:
 	python3 scripts/typst-compare.py --compat 15 --max-diff 6
-	python3 scripts/typst-compare.py --compat 11 --max-diff 6
+	python3 scripts/typst-compare.py --compat 11 --max-diff 8
 
 # 逐页对拍：博士范例的整本复刻件（tests/sample/doctor）与范例修正版的 Word 导出逐行比基线，
 # 棘轮是配上且 |Δy| ≤ 0.5bp 的行数。靶子来路见 tests/pages-doctor.tsv 头注释

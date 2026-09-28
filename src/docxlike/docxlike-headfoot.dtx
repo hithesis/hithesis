@@ -11,7 +11,8 @@
 % \changes{v3.2a}{2026/09/26}{分节可以写分栏（栏数、间距、分隔线），照 Windows 探针 \file{cols1}：
 %   每栏按自己的宽数整格，连续分节处各栏排平，行盒跨过节界照样直接摞}
 % \changes{v3.2a}{2026/09/28}{新增 \texttt{TOC} 域：每一条一段，样式 \texttt{TOC~1} 到 \texttt{TOC~9}（图表目录
-%   \texttt{Table~of~Figures}），页码停在样式的右制表位上、前导点钉在从纸的左边算起的点距网格上；长条目照 Word 折行（每行排到制表位，
+%   \texttt{Table~of~Figures}），页码停在样式的右制表位上；前导点照 Word 的点距（字宽按 1/600 英寸取整，贴网格时加截过的半个增量）
+%   钉在从纸的左边算起的网格上；全部大写的样式条目文字转大写；长条目照 Word 折行（每行排到制表位，
 %   末行给点线与页码让路），行盒按内容的字体算；认 \texttt{\textbackslash o}、\texttt{\textbackslash t}、
 %   \texttt{\textbackslash f}、\texttt{\textbackslash c}、\texttt{\textbackslash h}；各级可带直接格式，编号的排法与
 %   折行悬挂可由文档类换}
@@ -1523,7 +1524,9 @@
 % \cs{docxlike\_format\_stack\_line:n}。样式的字体在段一开头才换：换字体那一串里带撑杆，
 % 竖排模式里就会先起一段（带着正文的首行缩进）；\cs{fontsize} 还会改 \cs{baselineskip}，
 % 换完照盒贴排算出的值设回去。\cs{l\_docxlike\_toc\_latin\_line\_bool} 关掉就一律按样式写的
-% 那副字算（文档类另有规矩时用）。
+% 那副字算（文档类另有规矩时用）。那一串里还有样式的对齐方式，两端对齐会清零 \cs{leftskip}、
+% \cs{rightskip}、把 \cs{parfillskip} 设回 fil，所以缩进、右制表位与 \cs{parfillskip} 放在它后面设。
+% 样式是全部大写的，条目文字转大写（页码不动）。
 %
 % \emph{编号。} 条目里的 \cs{numberline}\marg{编号} 交给 \cs{docxlike\_toc\_numberline:n}：默认排编号
 % 再空一格（Word 把标题编号连同后面的空格抄进目录）；图表目录在编号前加标签。文档类要别的
@@ -1534,6 +1537,7 @@
 \bool_set_true:N \l_docxlike_toc_latin_line_bool
 \dim_new:N \g_docxlike_toc_hang_dim
 \tl_new:N \l__docxlike_toc_font_tl
+\tl_new:N \l__docxlike_toc_caps_tl
 \tl_new:N \l__docxlike_toc_tabs_tl
 \dim_new:N \l__docxlike_toc_indent_dim
 \dim_new:N \l__docxlike_toc_tab_dim
@@ -1562,17 +1566,20 @@
       \__docxlike_toc_tab:n {#1}
       \bool_if_exist:NT \g_docxlike_format_verb_exit_bool
         { \bool_gset_false:N \g_docxlike_format_verb_exit_bool }
-      \skip_set:Nn \leftskip { \l__docxlike_toc_indent_dim }
-      \skip_set:Nn \rightskip
-        { \dim_eval:n { \linewidth - \l__docxlike_toc_tab_dim } plus 1fil }
-      \skip_zero:N \parfillskip
       \dim_zero:N \parindent
       \int_set:Nn \interlinepenalty { 10000 }
       \dim_gzero:N \g_docxlike_toc_hang_dim
       \leavevmode
       \tl_use:N \l__docxlike_toc_font_tl
+      \skip_set:Nn \leftskip { \l__docxlike_toc_indent_dim }
+      \skip_set:Nn \rightskip
+        { \dim_eval:n { \linewidth - \l__docxlike_toc_tab_dim } plus 1fil }
+      \skip_zero:N \parfillskip
       \dim_set_eq:NN \baselineskip \l__docxlike_toc_baseline_dim
-      { \__docxlike_toc_link:nn {#4} {#2} }
+      \__docxlike_format_read:nnnN {#1} { rPr/caps } { false } \l__docxlike_toc_caps_tl
+      \str_if_eq:VnTF \l__docxlike_toc_caps_tl { true }
+        { { \__docxlike_toc_link:nn {#4} { \MakeUppercase {#2} } } }
+        { { \__docxlike_toc_link:nn {#4} {#2} } }
       \nobreak
       \__docxlike_toc_leaders:
       \nobreak
@@ -1584,40 +1591,14 @@
   }
 %    \end{macrocode}
 %
-% \emph{前导点钉在从纸的左边算起的点距网格上。} \hologo{TeX} 的 \cs{leaders} 也把点排在网格上，原点却是
-% 行盒的左缘，也就是版心左缘；Word 的原点是纸的左边。两者差版心左边距对点宽的余数（左边距 85.05、
-% 点宽 3 时余 1.05），每条点线整体左移这么多、条数也跟着差一个。这里让每个点在自己
-% 那一格里右移一个相位，凑回纸边的网格；点线末尾空出同样的一截，最后一个点不压到页码上。左边距取奇数页的
-% （\cs{oddsidemargin}），两面排版左右不对称的偶数页上仍差一个余数。
+% 点线交给 \cs{\_\_docxlike\_format\_leaders:nnn}（点距与相位照 Word，见制表位那一节）。条目排在
+% 版心里，行盒左缘离纸边 \verb|1in| 加 \cs{hoffset} 加 \cs{oddsidemargin}；两面排版左右不对称的偶数页
+% 上仍差一个余数。点线那段胶自然宽 1\,em、带 fill，见上。
 %    \begin{macrocode}
-\dim_new:N \l__docxlike_toc_dot_dim
-\dim_new:N \l__docxlike_toc_phase_dim
-\box_new:N \l__docxlike_toc_dot_box
 \cs_new_protected:Npn \__docxlike_toc_leaders:
   {
-    \hbox_set:Nn \l__docxlike_toc_dot_box { . }
-    \dim_set:Nn \l__docxlike_toc_dot_dim { \box_wd:N \l__docxlike_toc_dot_box }
-    \dim_compare:nNnTF { \l__docxlike_toc_dot_dim } > { \c_zero_dim }
-      {
-        \dim_set:Nn \l__docxlike_toc_phase_dim
-          {
-            \fp_to_dim:n
-              {
-                \dim_to_fp:n { \l__docxlike_toc_dot_dim }
-                - ( \dim_to_fp:n { 1in + \hoffset + \oddsidemargin }
-                    - trunc ( \dim_to_fp:n { 1in + \hoffset + \oddsidemargin }
-                              / \dim_to_fp:n { \l__docxlike_toc_dot_dim } )
-                      * \dim_to_fp:n { \l__docxlike_toc_dot_dim } )
-              }
-          }
-        \dim_compare:nNnT { \l__docxlike_toc_phase_dim } > { \l__docxlike_toc_dot_dim - 0.001pt }
-          { \dim_zero:N \l__docxlike_toc_phase_dim }
-        \tex_leaders:D \hbox_to_wd:nn { \l__docxlike_toc_dot_dim }
-          { \skip_horizontal:n { \l__docxlike_toc_phase_dim } . \tex_hss:D }
-          \skip_horizontal:n { 1em plus 1fill }
-        \skip_horizontal:n { \l__docxlike_toc_phase_dim }
-      }
-      { \skip_horizontal:n { 1em plus 1fill } }
+    \__docxlike_format_leaders:nnn { . }
+      { 1in + \hoffset + \oddsidemargin } { 1em plus 1fill }
   }
 \cs_new_protected:Npn \docxlike_toc_numberline:n #1
   {

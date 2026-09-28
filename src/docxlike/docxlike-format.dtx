@@ -14,8 +14,11 @@
 % \changes{v3.2a}{2026/09/28}{\hologo{pdfLaTeX} 下西文也加网格的半份增量：换字体时换成 \cs{letterspacefont} 加宽的实例
 %   （字偶距照留），量与 Lua 断行层一样，段落不对齐网格时不加；空格加它自己那半份。英文版学位论文与
 %   \hologo{LuaLaTeX} 行末相同的行从 53 到 58}
-% \changes{v3.2a}{2026/09/28}{\hologo{XeLaTeX} 下按名字建的中文字族，Windows 自带、没有粗体字面的那几副
-%   （宋体、黑体、楷体、仿宋、隶书、华文系列等）开合成粗体，与 Word 一样描边；先前排成常规}
+% \changes{v3.2a}{2026/09/28}{按名字建的中文字族，Windows 自带、没有粗体字面的那几副
+%   （宋体、黑体、楷体、仿宋、隶书、华文系列等）开合成粗体，与 Word 一样描边，正文里直接写的 \cs{textbf}
+%   也粗（先前 \hologo{XeLaTeX} 排成常规，\hologo{LuaLaTeX} 只有样式要的粗体描边）}
+% \changes{v3.2a}{2026/09/28}{\cs{docxtab} 的点线前导符照 Word 的点距与纸边网格排，与目录同一套（探针
+%   \file{test/tocdots}）；全部大写的段里也能用 \cs{docxtab}}
 % \changes{v3.2a}{2026/09/27}{\hologo{XeLaTeX} 下两可字符（弯引号、破折号、省略号、间隔号）在西文场合
 %   排西文字体（\cs{docxlike\_format\_latin\_chars:n}：样式带 \option{latin-line} 或立了西文标志的段、
 %   全西文的标题）；\hologo{LuaLaTeX} 由断行层按整段判}
@@ -2493,9 +2496,10 @@
 \tl_const:Nn \c_docxlike_font_fake_slant_tl { 0.3333 }
 %    \end{macrocode}
 %
-% \hologo{XeLaTeX} 下 \pkg{xeCJK} 用到一个字族才去建它，声明的时候查不到这副字有没有粗体字面。
-% Windows 自带的这几副中文字体都没有，Word 一律描边合成；按名字建族时认得的就开合成粗体
-% （名字照字体键的写法，小写、不计空格）。别的字体照 \pkg{fontspec} 找真粗体，找不到就排常规。
+% 用到一个字族才去建它，声明的时候查不到这副字有没有粗体字面。Windows 自带的这几副中文字体
+% 都没有，Word 一律描边合成；按名字建族时认得的就开合成粗体（名字照字体键的写法，小写、不计空格），
+% 两个引擎都这样，正文里直接写的 \cs{textbf} 才粗得起来（\hologo{LuaLaTeX} 上样式要的粗体另有属性，
+% 描过边的字形不再描）。别的字体照 \pkg{fontspec} 找真粗体，找不到就排常规。
 %    \begin{macrocode}
 \tl_new:N \l__docxlike_font_opts_tl
 \clist_const:Nn \c__docxlike_font_no_bold_clist
@@ -2506,6 +2510,18 @@
     华文中宋 , 华文琥珀 , 华文彩云 , 华文隶书 , 华文行楷
   }
 \tl_const:Nn \c_docxlike_font_fake_bold_tl { 2.85 }
+\cs_new_protected:Npn \__docxlike_font_no_bold_opts:
+  {
+    \clist_map_inline:Nn \c__docxlike_font_no_bold_clist
+      {
+        \str_if_eq:VnT \l__docxlike_font_key_str {##1}
+          {
+            \tl_put_right:Nn \l__docxlike_font_opts_tl
+              { , AutoFakeBold = \c_docxlike_font_fake_bold_tl }
+            \clist_map_break:
+          }
+      }
+  }
 \prop_new:N \g__docxlike_font_select_prop
 \tl_new:N \l__docxlike_font_code_tl
 \tl_new:N \l__docxlike_font_group_tl
@@ -2560,15 +2576,7 @@
                         AutoFakeSlant = \c_docxlike_font_fake_slant_tl ,
                         BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl }
                       }
-                    \clist_map_inline:Nn \c__docxlike_font_no_bold_clist
-                      {
-                        \str_if_eq:VnT \l__docxlike_font_key_str {##1}
-                          {
-                            \tl_put_right:Nn \l__docxlike_font_opts_tl
-                              { , AutoFakeBold = \c_docxlike_font_fake_bold_tl }
-                            \clist_map_break:
-                          }
-                      }
+                    \__docxlike_font_no_bold_opts:
                     \use:e
                       {
                         \exp_not:N \xeCJK_set_family:nnn { docxlike-\l__docxlike_font_key_str }
@@ -2578,8 +2586,17 @@
                       { \exp_not:N \CJKfamily { docxlike-\l__docxlike_font_key_str } }
                   }
                   {
-                    \exp_args:Nc \newjfontfamily { docxlike@jf@ \l__docxlike_font_key_str }
-                      [ JFM = zh_CN/quanjiao , AutoFakeSlant = \c_docxlike_font_fake_slant_tl , BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl } ] {#1}
+                    \tl_set:Nn \l__docxlike_font_opts_tl
+                      {
+                        AutoFakeSlant = \c_docxlike_font_fake_slant_tl ,
+                        BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl }
+                      }
+                    \__docxlike_font_no_bold_opts:
+                    \use:e
+                      {
+                        \exp_not:N \newjfontfamily \exp_not:c { docxlike@jf@ \l__docxlike_font_key_str }
+                          [ JFM = zh_CN/quanjiao , \exp_not:V \l__docxlike_font_opts_tl ] { \exp_not:n {#1} }
+                      }
                     \exp_args:NV \__docxlike_font_bold_ssub:n \l_fontspec_family_tl
                     \cs_gset_eq:cc { docxlike@jf@ \l__docxlike_font_key_str }
                       { docxlike@jf@ \l__docxlike_font_key_str }
@@ -4557,14 +4574,8 @@
       \__docxlike_format_read:nnnN {#1} { rPr/caps } { false }
         \l__docxlike_format_value_tl
       \str_if_eq:VnTF \l__docxlike_format_value_tl { true }
-        {
-          \use:e
-            {
-              \exp_not:N \__docxlike_format_tabbed:nn {#1}
-                { \exp_not:N \MakeUppercase { \exp_not:V \l__docxlike_format_content_tl } }
-            }
-        }
-        { \exp_args:NnV \__docxlike_format_tabbed:nn {#1} \l__docxlike_format_content_tl }
+        { \__docxlike_format_tabbed:nVN {#1} \l__docxlike_format_content_tl \MakeUppercase }
+        { \__docxlike_format_tabbed:nVN {#1} \l__docxlike_format_content_tl \use:n }
       \par
       \__docxlike_format_border_put:nn {#1} { bottom }
       \__docxlike_format_read:nnnN {#1} { pPr/keepNext } { false } \l__docxlike_format_value_tl
@@ -4989,7 +5000,8 @@
 % 只排一行：带制表符的段不断行，Word 的页眉页脚几乎都是这样用的。规则是量的：先按
 % 左对齐排开，居中制表位让那一截以停靠点为中心、右制表位让那一截右端贴停靠点，都不压到
 % 前一截上；整行排好再按段落的对齐方式分剩下的空白。制表位从栏左量，文字从左缩进加首行
-% 缩进处起排（目录第二级起有缩进，页码仍对在栏宽处）。
+% 缩进处起排（目录第二级起有缩进，页码仍对在栏宽处）。样式是全部大写的，先按制表符切开再逐截
+% 转大写：整段包进 \cs{MakeUppercase} 就找不到花括号里的制表符了。
 %    \begin{macrocode}
 \dim_new:N \g_docxlike_default_tab_stop_dim
 \dim_gset:Nn \g_docxlike_default_tab_stop_dim { 21bp }
@@ -5010,26 +5022,27 @@
 \tl_new:N \l__docxlike_format_tab_kind_tl
 \tl_new:N \l__docxlike_format_tab_lead_tl
 \dim_new:N \l__docxlike_format_tab_pos_dim
-\cs_new_protected:Npn \__docxlike_format_tabbed:nn #1#2
+\cs_new_protected:Npn \__docxlike_format_tabbed:nnN #1#2#3
   {
     \tl_if_in:nnTF {#2} { \docxtab }
-      { \__docxlike_format_tab_line:nn {#1} {#2} }
-      {#2}
+      { \__docxlike_format_tab_line:nnN {#1} {#2} #3 }
+      { #3 {#2} }
   }
-\cs_new_protected:Npn \__docxlike_format_tab_line:nn #1#2
+\cs_generate_variant:Nn \__docxlike_format_tabbed:nnN { nV }
+\cs_new_protected:Npn \__docxlike_format_tab_line:nnN #1#2#3
   {
     \__docxlike_format_read:nnnN {#1} { pPr/tabs } { } \l__docxlike_format_tabs_tl
     \seq_set_from_clist:NV \l__docxlike_format_tab_stop_seq \l__docxlike_format_tabs_tl
     \seq_set_split:Nnn \l__docxlike_format_tab_seg_seq { \docxtab } {#2}
     \seq_pop_left:NN \l__docxlike_format_tab_seg_seq \l__docxlike_format_border_tl
-    \hbox_set:Nn \l__docxlike_format_tab_line_box { \l__docxlike_format_border_tl }
+    \hbox_set:Nn \l__docxlike_format_tab_line_box { \exp_args:NV #3 \l__docxlike_format_border_tl }
     \dim_set:Nn \l__docxlike_format_tab_origin_dim
       { \l_docxlike_format_left_dim + \l_docxlike_format_indent_dim }
     \dim_set:Nn \l__docxlike_format_tab_x_dim
       { \l__docxlike_format_tab_origin_dim + \box_wd:N \l__docxlike_format_tab_line_box }
     \seq_map_inline:Nn \l__docxlike_format_tab_seg_seq
       {
-        \hbox_set:Nn \l__docxlike_format_tab_seg_box {##1}
+        \hbox_set:Nn \l__docxlike_format_tab_seg_box { #3 {##1} }
         \__docxlike_format_tab_next:
         \str_case:VnF \l__docxlike_format_tab_kind_tl
           {
@@ -5115,12 +5128,103 @@
   {
     \str_case:VnF \l__docxlike_format_tab_lead_tl
       {
-        { dot } { \tex_leaders:D \hbox:n { . } \skip_horizontal:n {#1} }
+        { dot }
+          {
+            \__docxlike_format_leaders:nnn { . }
+              { 1in + \hoffset + \oddsidemargin + \l__docxlike_format_tab_origin_dim } {#1}
+          }
         { hyphen } { \tex_leaders:D \hbox:n { - } \skip_horizontal:n {#1} }
         { underscore } { \tex_leaders:D \hbox:n { \_ } \skip_horizontal:n {#1} }
         { middleDot } { \tex_leaders:D \hbox:n { · } \skip_horizontal:n {#1} }
       }
       { \skip_horizontal:n {#1} }
+  }
+%    \end{macrocode}
+%
+% \emph{点线照 Word 排。} \cs{\_\_docxlike\_format\_leaders:nnn}\marg{字符}\marg{行盒左缘离纸边多远}\marg{胶}
+% 用一串字符填满那段胶，点距与位置照 Word（探针 \file{test/tocdots}，Windows 版 Word 2019）：
+% \begin{itemize}
+%   \item 点距是那个字符的字宽按 1/600 英寸取整（五号 Times 的句点 2.625 排成 2.64）。这个 run 贴
+%     字符网格时再加半个网格增量，往下截到 1/600 英寸：字距 1861 时加 0.12、2752 时加 0.24，小四
+%     Times 排成 3.12、3.24。段落的 \texttt{snapToGrid} 与 \texttt{adjustRightInd} 都不影响，字号也不影响
+%     加的量。
+%   \item 每个点落在从纸的左边算起的点距网格上，第一个点是文字末尾之后的第一个网格点，最后一个点
+%     的整格要在下一截文字之前排完。
+% \end{itemize}
+% \hologo{TeX} 的 \cs{leaders} 也把盒子排在网格上，原点却是所在盒子的左缘（行盒左缘在版心左缘，
+% 与纸边差左边距对点距的余数，左边距 85.05、点距 3 时余 1.05）。所以每个点在自己那一格里右移一个
+% 相位，凑回纸边的网格；整段点线先左退一个相位、末尾补回，头尾两个点的取舍就和 Word 一样。
+% 字符从不加字距的字体里量：\hologo{XeLaTeX} 的 \option{LetterSpace}、\hologo{pdfLaTeX} 的
+% \cs{letterspacefont} 实例都已按正文的办法加过半个增量，量出来多一截，也没截到 1/600 英寸；排也
+% 排这个量出来的盒子。
+%
+% 普通制表位只有句点这一种前导符这样排；连字符、下划线、中间点没做探针，照旧逐个紧挨着排。
+%    \begin{macrocode}
+\dim_new:N \l__docxlike_format_leader_dim
+\dim_new:N \l__docxlike_format_leader_phase_dim
+\box_new:N \l__docxlike_format_leader_box
+\cs_new_protected:Npn \__docxlike_format_leaders:nnn #1#2#3
+  {
+    \hbox_set:Nn \l__docxlike_format_leader_box { \__docxlike_format_leader_font: #1 }
+    \dim_set:Nn \l__docxlike_format_leader_dim
+      {
+        \fp_to_dim:n
+          { round ( \dim_to_fp:n { \box_wd:N \l__docxlike_format_leader_box } / 0.12bp ) * 0.12bp }
+      }
+    \dim_compare:nNnTF { \l__docxlike_format_leader_dim } > { \c_zero_dim }
+      {
+        \bool_if:NT \l_docxlike_format_snap_horizontal_bool
+          {
+            \dim_add:Nn \l__docxlike_format_leader_dim
+              {
+                \fp_to_dim:n
+                  {
+                    trunc
+                      (
+                        \dim_to_fp:n { \g_docxlike_page_char_dim - \g_docxlike_body_size_dim }
+                        / 2 / 0.12bp
+                      )
+                    * 0.12bp
+                  }
+              }
+          }
+        \dim_set:Nn \l__docxlike_format_leader_phase_dim
+          {
+            \fp_to_dim:n
+              {
+                \dim_to_fp:n { \l__docxlike_format_leader_dim }
+                - ( \dim_to_fp:n {#2}
+                    - trunc ( \dim_to_fp:n {#2} / \dim_to_fp:n { \l__docxlike_format_leader_dim } )
+                      * \dim_to_fp:n { \l__docxlike_format_leader_dim } )
+              }
+          }
+        \dim_compare:nNnT
+          { \l__docxlike_format_leader_phase_dim } > { \l__docxlike_format_leader_dim - 0.001pt }
+          { \dim_zero:N \l__docxlike_format_leader_phase_dim }
+        \skip_horizontal:n { - \l__docxlike_format_leader_phase_dim }
+        \tex_leaders:D \hbox_to_wd:nn { \l__docxlike_format_leader_dim }
+          {
+            \skip_horizontal:n { \l__docxlike_format_leader_phase_dim }
+            \box_use:N \l__docxlike_format_leader_box
+            \tex_hss:D
+          }
+          \skip_horizontal:n {#3}
+        \skip_horizontal:n { \l__docxlike_format_leader_phase_dim }
+      }
+      { \skip_horizontal:n {#3} }
+  }
+\cs_new_protected:Npn \__docxlike_format_leader_font:
+  {
+    \sys_if_engine_xetex:T
+      {
+        \cs_if_exist:NT \addfontfeatures
+          { \addfontfeatures { LetterSpace = 0 } }
+      }
+    \sys_if_engine_pdftex:T
+      {
+        \bool_set_false:N \l_docxlike_format_par_snap_horizontal_bool
+        \selectfont
+      }
   }
 %    \end{macrocode}
 %

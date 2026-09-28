@@ -6,6 +6,12 @@
 %
 % \section{断行层}
 %
+% \changes{v3.2a}{2026/09/28}{兼容模式 15 的压缩预算照无网格的翻转点探针（\file{test/nogrid} 的 bud、budb、spc、spcb）：
+%   裸汉字能超出 12k/(k + g/32)，g 是这个字退下去那一行的字隙数，与版心宽、缩进无关（先前用行宽比版心，
+%   无网格时宽出 0.3 到 0.4\,bp；行里夹着西文串或空格的仍照旧）；照原值比，不再留 0.03\,bp 的余地；没有字符网格的纯西文行每个空格让四分之一，
+%   总共不过 u·N/(N + 2(N−1))（u 是被塞的词连同前面的空格，N 是行里的空格数；先前封顶在 1.85 个空格宽）。
+%   全宽的省略号不起行，Word 把“究……”连前一个字放到下一行。不到 6\,pt 的右缩进在没有字符网格时照留
+%   （先前被当成网格余量扔掉）}
 % \changes{v3.2a}{2026/09/28}{“文字对齐字符网格”的节里字体不贴格的那一截（\cs{docxrun} 写
 %   \option{snap-to-grid-when-document-grid-is-defined}\texttt{!=false}）照自然宽排：汉字不加增量、与西文之间隔四分之一个字，
 %   占整格数、在这几格里居中（snap2 的 Kj 段，与 Windows 件差 0.25 内）；\cs{docxrun} 认这个键}
@@ -48,13 +54,13 @@
 % \changes{v3.2a}{2026/09/26}{没有字符网格的文档里，两端对齐的段与本包照样式设了居中、右对齐的段也由
 %   断行层排：格宽取字号、不按整数格装，行首（居中两头）补 fil；Word 行末的闭号不用挤时照全宽算，TeX 那边
 %   JFM 把它算成半格，居中偏右 3.5\,bp。两端对齐的段先前交回 TeX，与 Windows Word 逐行比
-%   （\file{test/nogrid}，558 行）差 275 行，现在差 23 行（兼容模式 15 是 233 对 62）。只认
+%   （\file{test/nogrid}，558 行）差 275 行，现在差 21 行（兼容模式 15 是 233 对 25）。只认
 %   \cs{docxlike\_linebreak\_align:} 立的标记，\hologo{LaTeX} 自己的 \cs{centering}、目录行照旧交回 TeX；
 %   左对齐的段仍交回 TeX}
 % \changes{v3.2a}{2026/09/20}{新增断行层：\hologo{LuaLaTeX} 上不用 TeX 的最优断行，照
 %   Word 的贪心算法逐行首次适配、装不下就压标点。模型照 typst-with-msword-linebreaks 的
 %   msword.rs：按“单元”（开号 + 一个字或一段西文 + 闭号链）判装不装；模式 15 的预算分
-%   裸汉字、紧贴汉字的西文串、其余三路，分母 k + W/M + Γ(g)；2003 到 2010 档按物理容量加
+%   裸汉字、紧贴汉字的西文串、其余三路，裸汉字的分母 k + g/32 + Γ；2003 到 2010 档按物理容量加
 %   首字形规则；渲染照 Word 的分配（先空格、再标点均摊、再汉西隙；行末闭号自己压半格就够
 %   时行内位不动，2003 挂半格，2007 起原位压半格或整个挂出）；贴着汉字的半格空格不参与
 %   压缩；开号的网格增量在字形后面；？不是压缩位；连续标点缩半格只在字距调整开着时有
@@ -1035,6 +1041,9 @@ local function decide(items, P, shape, indent)
   local compat = P.compat
   local eps = P.eps
   local bp = P.bp
+  -- 模式 15 的预算是连续的式子，Word 照原值比：超出量与预算差 0.006 磅（探针 bud 的 37 字三个逗号）
+  -- 就退下去。只留舍入的余地
+  local tight_eps = 0.002 * bp
   local ex = P.excess
   local auto = auto_at(P, p - ex)
   local scale = auto / (3.09 * bp)
@@ -1166,18 +1175,30 @@ local function decide(items, P, shape, indent)
     local cjk_char = (not latin) and bare and not adjacent
     local glued_latin = latin and bare and j == j0 and tc.gap > 0 and ascii_tail == 0 and k >= 1
 
-    -- 形状一：裸汉字。k/(k+1) 里那个 1 其实是 W/M：行到这个单元为止的自然宽比版心，
-    -- 每个位压的量不超过没有这个单元时行要伸的量；行满时就是 k/(k+1)，短一点的行多给
-    -- （msword.rs 56f9385：两个逗号前 18 到 28 个字 9.55 到 8.55，缩进、版心不影响）
+    -- 形状一：裸汉字。能超出 u·k/(k + g/32)：每个位压的量不超过“这个单元退到下一行时每个字隙
+    -- 要伸的量”的 32 倍，g 是退下去那一行的字隙数（行首到单元前的条目数减一）。与版心宽、缩进
+    -- 无关，只看字数（Windows 探针 test/nogrid/bud、budb：无网格模式 15，首行缩进 0/24/120/240、
+    -- 左缩进 120，逗号 1 到 4 个、靠前靠后，24 组翻转点全在这个式子上；逗号一个时封顶在半格）。
+    -- 先前按 msword.rs 56f9385 用 W/M（行到这个单元的自然宽比版心），一行 34 格的网格里与 g/32
+    -- 差不多，无网格时宽出 0.3 到 0.4。行里夹着西文串或空格时 g 怎么数没有探针（test/nogrid 里
+    -- 两段这样的行，按条目、按宽度、按字符数都是一对一错），这种行照旧用 W/M
     if cjk_char then
       if k == 0 then return pool(n_all, false) end
       local uc = tc.nw
       local own_spaces = 0
       local b = j
       while b > first + 1 and items[b - 1].kind == 4 and items[b - 1].rigid do b = b - 1; own_spaces = own_spaces + items[b].nw end
-      local w_line = width_of(items, text_start(first), m)
+      local ts = text_start(first)
+      local g = math.max(j - ts - 1, 0)
+      local pure = true
+      for q = ts, j - 1 do
+        if items[q].kind == 3 or items[q].kind == 4 then pure = false; break end
+      end
+      local a
+      if pure then a = g / 32
+      else a = math.max(0, math.min(width_of(items, ts, m) / measure, 1.5)) end
       local gamma = G_TAB[math.min(n_all, 8)] * ((k == 1) and 0.4 or (k + 3) / 5)
-      local denom = k + math.max(0, math.min(w_line / measure, 1.5)) + gamma
+      local denom = k + a + gamma
       local base = (uc + own_spaces) * k / denom
       local blocks = 0
       if k >= 2 then
@@ -1200,7 +1221,7 @@ local function decide(items, P, shape, indent)
       end
       local bonus = 0.2 * bp * blocks * scale
       local t = math.min(base, half * k) + bonus
-      trace("  b15 cjk-char j=%d core=%d m=%d k=%d n_all=%d u=%.2f w/m=%.3f t=%.2f", j, core, m, k, n_all, uc / bp, w_line / measure, t / bp)
+      trace("  b15 cjk-char j=%d core=%d m=%d k=%d n_all=%d u=%.2f g=%d pure=%s a=%.3f t=%.2f", j, core, m, k, n_all, uc / bp, g, tostring(pure), a, t / bp)
       return t
     end
 
@@ -1440,6 +1461,22 @@ local function decide(items, P, shape, indent)
   -- 模式 15：两端对齐的行里空格能压四分之一（只算被塞单元前那段西文的空格；有位时不给）
   local function space_shrink(first, j0, j, core, m, k, base)
     if compat ~= 15 or not P.justify or not P.compress then return 0 end
+    -- 没有字符网格、行里到这个词为止没有汉字的西文行（Windows 探针 test/nogrid/spc、spcb）：每个空格
+    -- 最多让四分之一；另外按“这个词退到下一行时每个空格要伸的量”比，每个空格压的量不超过它的一半，
+    -- 即能超出 u·N/(N + 2(N-1))，u 是词连同前面的空格，N 是行里的空格数（15 组有 14 组在式子上，
+    -- 24 个空格塞一个字母那组 Word 多给 0.014）。有网格的仍照下面按 lb 探针拟合的办法：lb5 的 ps
+    -- 13 个空格 Word 只让 6 磅，这个式子给 9.9，两边差在哪里没有探针拆开
+    if P.nogrid and k == 0 and m == core and items[j].kind == 3 and not has_cjk(first, m) then
+      local n_sp, s_w = 0, 0
+      for q = first + 1, j - 1 do
+        local it = items[q]
+        if it.kind == 4 and not it.user then n_sp = n_sp + 1; s_w = s_w + it.nw end
+      end
+      if n_sp > 0 then
+        local u = unit_width(first, j0, m)
+        return math.min(0.25 * s_w, u * n_sp / (3 * n_sp - 2)) - base
+      end
+    end
     local start
     if items[j].kind == 3 then start = run_before(first, j) or j
     else start = run_before(first, j) or (m + 1) end
@@ -1551,6 +1588,9 @@ local function decide(items, P, shape, indent)
     if b.kind == 1 then return false end
     if a.kind == 2 then return false end
     if b.kind == 3 and b.glyphs and no_line_start[b.head] then return false end
+    -- 全宽的省略号（中易宋体里占一格，当普通字排）也不起行：Word 把“究……”“了……”连前一个字
+    -- 一起放到下一行（探针 test/nogrid 两种模式都是这样）
+    if b.kind == 0 and b.c and no_line_start[b.c] then return false end
     if a.kind == 3 and a.glyphs and no_line_end[a.tail] then return false end
     return true
   end
@@ -1632,7 +1672,7 @@ local function decide(items, P, shape, indent)
           for q = j, m do local x = items[q]; txt[#txt + 1] = x.c and utf8.char(x.c) or (x.kind == 4 and "_" or "[]") end
           trace("unit %d..%d kind=%d %s need=%.3f budget=%.3f k=%d autos=%d", j, m, it.kind, table.concat(txt), need / bp, t / bp, spots(first, j), autos_in(first, j))
         end
-        if need <= t + eps then
+        if need <= t + (compat == 15 and tight_eps or eps) then
           last = m
           have = true
           deep = m > core
@@ -2388,11 +2428,12 @@ function M.shape()
   -- 格式层在 XeTeX 那条路上把整数格除不尽的余量放在 rightskip 里（不到一格），这里自己算格，不减它。
   -- 格式层记下了放进去多少、套完样式时 rightskip 有多宽，宽对得上就只减余量，右缩进留着（shd1 左右
   -- 各缩两字的段）；对不上是文档类自己改过，照旧：不到 6pt 或与余量相等的当余量，小页里格数少，
-  -- 余量可以超过 6pt
+  -- 余量可以超过 6pt。没有字符网格时余量是零，宽对得上的 rightskip 整个是右缩进（先前走到后一支，
+  -- 不到 6pt 的右缩进被当成余量扔了）
   local okS, slack = pcall(tex.getdimen, "g_docxlike_page_slack_dim")
   local okR, rsl = pcall(tex.getdimen, "l_docxlike_format_right_slack_dim")
   local okT, rtot = pcall(tex.getdimen, "l_docxlike_format_right_total_dim")
-  if okR and okT and rsl and rtot and rsl > 0 and math.abs(rw - rtot) <= 2 and rw >= rsl then
+  if okR and okT and rsl and rtot and rw > 0 and math.abs(rw - rtot) <= 2 and rw >= rsl then
     rw = rw - rsl
     if rw <= 2 then rw = 0 end
   elseif rw > 0 and (rw <= 6 * 65536 or (okS and slack and math.abs(rw - slack) <= 2)) then

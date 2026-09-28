@@ -6,7 +6,8 @@
 %
 % \section{预设：Word 的空白文档}
 %
-% \changes{v3.2a}{2026/09/28}{空白文档预设的标题紧缩 0.5 磅、副标题加宽 0.75 磅；文档自己设了字符网格时不再把汉字缝与
+% \changes{v3.2a}{2026/09/28}{空白文档预设的正文字体取 \texttt{Normal} 样式写的中西文字体（先前一律等线），
+%   样式写的字体没装就退回等线；标题紧缩 0.5 磅、副标题加宽 0.75 磅；文档自己设了字符网格时不再把汉字缝与
 %   中西文胶盖成无网格的那一份（\hologo{XeLaTeX} 下汉字先前没有网格增量）；正文字体挂上西文重载钩子}
 % \changes{v3.2a}{2026/09/26}{空白文档预设加目录 1 至 9 样式（同正文，左缩进逐级多两个字）；
 %   本包自己声明的中文字族与缺斜体字面的西文字族照 Word 斜切}
@@ -262,6 +263,122 @@
   }
 %    \end{macrocode}
 %
+% \emph{正文字体跟着 \texttt{Normal} 走。} 上面那一段在装包时就把等线设成主字体，那时导言区里的
+% \cs{docxlikesetup} 还没读到。文档在 \option{styles} 里给 \texttt{Normal} 换了字体（比如
+% 宋体与 Times New Roman），行高照新字体算，字形却还是等线。所以在 \texttt{begindocument/before}
+% （导言区的命令还能用）再看一次 \texttt{Normal} 的两栏字体（没写的沿上级找，西文栏最后是
+% 文档默认的西文字体），与等线不同、装了的就换成主字体；名字没装的看同一副字体的别名
+% （“宋体”与 \texttt{SimSun}），都没有就报一次、留着等线。中文字体的选项与按名字建族时一样：
+% 斜切系数，没有粗体字面的开合成粗体（正文里直接写的 \cs{textbf} 也要粗，不只是样式要的粗体）。
+%    \begin{macrocode}
+\tl_new:N \l__docxlike_preset_font_tl
+\tl_new:N \l__docxlike_preset_pick_tl
+\str_new:N \l__docxlike_preset_dengxian_str
+\cs_new_protected:Npn \__docxlike_preset_font_pick:n #1
+  {
+    \tl_clear:N \l__docxlike_preset_pick_tl
+    \__docxlike_font_if_exist:nTF {#1}
+      { \tl_set:Nn \l__docxlike_preset_pick_tl {#1} }
+      {
+        \__docxlike_font_key:n {#1}
+        \prop_get:NVNT \g__docxlike_font_group_prop \l__docxlike_font_key_str \l_tmpa_tl
+          {
+            \clist_map_inline:Nn \l_tmpa_tl
+              {
+                \__docxlike_font_if_exist:nTF {##1}
+                  {
+                    \tl_set:Nn \l__docxlike_preset_pick_tl {##1}
+                    \clist_map_break:
+                  }
+                  { }
+              }
+          }
+      }
+  }
+\prg_new_protected_conditional:Npnn \__docxlike_preset_if_dengxian:n #1 { F }
+  {
+    \__docxlike_font_key:n { DengXian }
+    \str_set_eq:NN \l__docxlike_preset_dengxian_str \l__docxlike_font_key_str
+    \__docxlike_font_key:n {#1}
+    \str_if_eq:NNTF \l__docxlike_font_key_str \l__docxlike_preset_dengxian_str
+      { \prg_return_true: }
+      {
+        \prop_get:NVNTF \g__docxlike_font_group_prop \l__docxlike_font_key_str \l_tmpa_tl
+          {
+            \bool_set_false:N \l_tmpa_bool
+            \clist_map_inline:Nn \l_tmpa_tl
+              {
+                \__docxlike_font_key:n {##1}
+                \str_if_eq:NNT \l__docxlike_font_key_str \l__docxlike_preset_dengxian_str
+                  { \bool_set_true:N \l_tmpa_bool \clist_map_break: }
+              }
+            \bool_if:NTF \l_tmpa_bool { \prg_return_true: } { \prg_return_false: }
+          }
+          { \prg_return_false: }
+      }
+  }
+\cs_generate_variant:Nn \__docxlike_preset_if_dengxian:nF { V }
+\cs_generate_variant:Nn \__docxlike_preset_font_pick:n { V }
+\cs_new_protected:Npn \__docxlike_preset_body_fonts:
+  {
+    \bool_lazy_or:nnT { \sys_if_engine_luatex_p: } { \sys_if_engine_xetex_p: }
+      {
+        \__docxlike_format_font_name:nnVN { Normal } { rPr/rFonts/ascii }
+          \g_docxlike_format_default_latin_tl \l__docxlike_preset_font_tl
+        \__docxlike_preset_if_dengxian:VF \l__docxlike_preset_font_tl
+          {
+            \__docxlike_preset_font_pick:V \l__docxlike_preset_font_tl
+            \tl_if_empty:NTF \l__docxlike_preset_pick_tl
+              { \msg_warning:nnV { docxlike } { font-not-found } \l__docxlike_preset_font_tl }
+              { \exp_args:NV \__docxlike_preset_latin_main:n \l__docxlike_preset_pick_tl }
+          }
+        \__docxlike_format_font_name:nnnN { Normal } { rPr/rFonts/eastAsia } { DengXian }
+          \l__docxlike_preset_font_tl
+        \__docxlike_preset_if_dengxian:VF \l__docxlike_preset_font_tl
+          {
+            \__docxlike_preset_font_pick:V \l__docxlike_preset_font_tl
+            \tl_if_empty:NTF \l__docxlike_preset_pick_tl
+              { \msg_warning:nnV { docxlike } { font-not-found } \l__docxlike_preset_font_tl }
+              { \exp_args:NV \__docxlike_preset_east_asian_main:n \l__docxlike_preset_pick_tl }
+          }
+      }
+  }
+\cs_generate_variant:Nn \msg_warning:nnn { nnV }
+\cs_new_protected:Npn \__docxlike_preset_latin_main:n #1
+  {
+    \setmainfont {#1} [ AutoFakeSlant = \c_docxlike_font_fake_slant_tl , BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl } ]
+    \hook_gremove_code:nn { docxlike / latin-font-reload } { docxlike }
+    \hook_gput_code:nnn { docxlike / latin-font-reload } { docxlike }
+      { \setmainfont {#1} [ AutoFakeSlant = \c_docxlike_font_fake_slant_tl , BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl } ] }
+  }
+\cs_new_protected:Npn \__docxlike_preset_east_asian_main:n #1
+  {
+    \tl_set:Nn \l__docxlike_font_opts_tl
+      {
+        AutoFakeSlant = \c_docxlike_font_fake_slant_tl ,
+        BoldItalicFeatures = { FakeSlant = \c_docxlike_font_fake_slant_tl }
+      }
+    \__docxlike_font_key:n {#1}
+    \__docxlike_font_no_bold_opts:
+    \sys_if_engine_xetex:TF
+      {
+        \use:e
+          { \exp_not:N \setCJKmainfont { \exp_not:n {#1} } [ \exp_not:V \l__docxlike_font_opts_tl ] }
+      }
+      {
+        \cs_if_exist:NT \setmainjfont
+          {
+            \use:e
+              {
+                \exp_not:N \setmainjfont
+                  [ JFM = zh_CN/quanjiao , \exp_not:V \l__docxlike_font_opts_tl ] { \exp_not:n {#1} }
+              }
+            \exp_args:Ne \__docxlike_font_bold_ssub:n { \mcdefault }
+          }
+      }
+  }
+%    \end{macrocode}
+%
 % \emph{颜色。} \LaTeX{} 内置的颜色名改成 Word 调色板上同名或最近的那一格，写
 % \verb|\color{blue}| 排出来就是 Word 里点“蓝色”的颜色。Word 的“标准色”一行十格：
 % 深红 \texttt{C00000}、红色 \texttt{FF0000}、橙色 \texttt{FFC000}、黄色 \texttt{FFFF00}、
@@ -395,6 +512,7 @@
     \__docxlike_preset_fonts:
     \__docxlike_preset_colors:
     \bool_gset_true:N \g_docxlike_heading_marks_bool
+    \hook_gput_code:nnn { begindocument / before } { docxlike } { \__docxlike_preset_body_fonts: }
     \hook_gput_code:nnn { begindocument } { docxlike } { \__docxlike_preset_apply: }
   }
 \ProcessKeyOptions [ docxlike / option ]
