@@ -11,7 +11,7 @@
 % \changes{v3.2a}{2026/09/26}{分节可以写分栏（栏数、间距、分隔线），照 Windows 探针 \file{cols1}：
 %   每栏按自己的宽数整格，连续分节处各栏排平，行盒跨过节界照样直接摞}
 % \changes{v3.2a}{2026/09/28}{新增 \texttt{TOC} 域：每一条一段，样式 \texttt{TOC~1} 到 \texttt{TOC~9}（图表目录
-%   \texttt{Table~of~Figures}），页码停在样式的右制表位上、前导点；长条目照 Word 折行（每行排到制表位，
+%   \texttt{Table~of~Figures}），页码停在样式的右制表位上、前导点钉在从纸的左边算起的点距网格上；长条目照 Word 折行（每行排到制表位，
 %   末行给点线与页码让路），行盒按内容的字体算；认 \texttt{\textbackslash o}、\texttt{\textbackslash t}、
 %   \texttt{\textbackslash f}、\texttt{\textbackslash c}、\texttt{\textbackslash h}；各级可带直接格式，编号的排法与
 %   折行悬挂可由文档类换}
@@ -961,6 +961,11 @@
 % 预排下一页时），比如 \cs{chapter} 已经发出“下一段是标题 1”再换页，页眉里的段就会把
 % 这个记号用掉，章标题反倒不按标题排了。所以排之前把这些存下、清掉，排完放回去。
 % \cs{everypar} 也清掉，\cs{@afterheading} 挂在上面的那段不该在页眉里执行。
+%
+% 页眉页脚里带上边框或下边框的段，行距不是固定值时，Word 让字比没框时低 1/600 英寸（0.12\,bp），
+% 段也跟着高这么多；不看线型、线宽与距正文多远，左右边框、底纹、固定行距都没有这一格，正文里的段
+% 也没有（Windows 探针 \file{test/headfoot/hfbdr}、\file{hfbdr2}）。排页眉页脚时把这一格垫在上边框与
+% 第一行之间。
 %    \begin{macrocode}
 \box_new:N \l__docxlike_headfoot_box
 \seq_new:N \l__docxlike_headfoot_par_seq
@@ -976,6 +981,7 @@
         \tl_set:Ne \l_docxlike_headfoot_target_tl
           { \str_if_eq:nnTF {#1} { header } { Header } { Footer } }
         \bool_set_true:N \l__docxlike_headfoot_in_page_bool
+        \cs_set_eq:NN \__docxlike_format_border_pad:n \__docxlike_headfoot_border_pad:n
         \dim_set_eq:NN \hsize \textwidth
         \dim_set_eq:NN \linewidth \textwidth
         \dim_zero:N \parskip
@@ -989,6 +995,27 @@
         \kern 0pt
       }
     \__docxlike_headfoot_state_restore:
+  }
+\tl_new:N \l__docxlike_headfoot_border_tl
+\bool_new:N \l__docxlike_headfoot_border_bool
+\cs_new_protected:Npn \__docxlike_headfoot_border_pad:n #1
+  {
+    \bool_if:NF \l__docxlike_format_exact_bool
+      {
+        \bool_set_false:N \l__docxlike_headfoot_border_bool
+        \clist_map_inline:nn { top , bottom }
+          {
+            \__docxlike_format_read:nnnN {#1} { pPr/pBdr/##1 } { } \l__docxlike_headfoot_border_tl
+            \tl_if_empty:NF \l__docxlike_headfoot_border_tl
+              {
+                \str_case_e:nnF { \tl_head:N \l__docxlike_headfoot_border_tl }
+                  { { none } { } { nil } { } }
+                  { \bool_set_true:N \l__docxlike_headfoot_border_bool }
+              }
+          }
+        \bool_if:NT \l__docxlike_headfoot_border_bool
+          { \skip_vertical:n { 0.12bp } }
+      }
   }
 \cs_new_protected:Npn \__docxlike_headfoot_state_save:
   {
@@ -1547,13 +1574,50 @@
       \dim_set_eq:NN \baselineskip \l__docxlike_toc_baseline_dim
       { \__docxlike_toc_link:nn {#4} {#2} }
       \nobreak
-      \tex_leaders:D \hbox:n { . } \skip_horizontal:n { 1em plus 1fill }
+      \__docxlike_toc_leaders:
       \nobreak
       \__docxlike_toc_link:nn {#4} {#3}
       \dim_set_eq:NN \hangindent \g_docxlike_toc_hang_dim
       \int_set:Nn \hangafter { 1 }
       \par
     \group_end:
+  }
+%    \end{macrocode}
+%
+% \emph{前导点钉在从纸的左边算起的点距网格上。} \hologo{TeX} 的 \cs{leaders} 也把点排在网格上，原点却是
+% 行盒的左缘，也就是版心左缘；Word 的原点是纸的左边。两者差版心左边距对点宽的余数（左边距 85.05、
+% 点宽 3 时余 1.05），每条点线整体左移这么多、条数也跟着差一个。这里让每个点在自己
+% 那一格里右移一个相位，凑回纸边的网格；点线末尾空出同样的一截，最后一个点不压到页码上。左边距取奇数页的
+% （\cs{oddsidemargin}），两面排版左右不对称的偶数页上仍差一个余数。
+%    \begin{macrocode}
+\dim_new:N \l__docxlike_toc_dot_dim
+\dim_new:N \l__docxlike_toc_phase_dim
+\box_new:N \l__docxlike_toc_dot_box
+\cs_new_protected:Npn \__docxlike_toc_leaders:
+  {
+    \hbox_set:Nn \l__docxlike_toc_dot_box { . }
+    \dim_set:Nn \l__docxlike_toc_dot_dim { \box_wd:N \l__docxlike_toc_dot_box }
+    \dim_compare:nNnTF { \l__docxlike_toc_dot_dim } > { \c_zero_dim }
+      {
+        \dim_set:Nn \l__docxlike_toc_phase_dim
+          {
+            \fp_to_dim:n
+              {
+                \dim_to_fp:n { \l__docxlike_toc_dot_dim }
+                - ( \dim_to_fp:n { 1in + \hoffset + \oddsidemargin }
+                    - trunc ( \dim_to_fp:n { 1in + \hoffset + \oddsidemargin }
+                              / \dim_to_fp:n { \l__docxlike_toc_dot_dim } )
+                      * \dim_to_fp:n { \l__docxlike_toc_dot_dim } )
+              }
+          }
+        \dim_compare:nNnT { \l__docxlike_toc_phase_dim } > { \l__docxlike_toc_dot_dim - 0.001pt }
+          { \dim_zero:N \l__docxlike_toc_phase_dim }
+        \tex_leaders:D \hbox_to_wd:nn { \l__docxlike_toc_dot_dim }
+          { \skip_horizontal:n { \l__docxlike_toc_phase_dim } . \tex_hss:D }
+          \skip_horizontal:n { 1em plus 1fill }
+        \skip_horizontal:n { \l__docxlike_toc_phase_dim }
+      }
+      { \skip_horizontal:n { 1em plus 1fill } }
   }
 \cs_new_protected:Npn \docxlike_toc_numberline:n #1
   {
