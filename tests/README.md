@@ -36,7 +36,7 @@ BIBSTYLE=gbt7714-2025-numeric           # 可选，替换掉整棵树里的 \bib
 （同内容的 `a.tex` 与 `b.tex` 编出来第 2261 字节起就不同），入口一改名逐字节比对
 就全是假差异。
 
-`BIBSTYLE` 改写两处：源码里的 `\bibliographystyle{}` 那一行，以及 `bib` 族 `bibtex` 子组的
+`BIBSTYLE` 改写两处：源码里的 `\bibliographystyle{}` 那一行，以及 `gb7714` 族 `bibtex` 子组的
 `style` 键。源码里没写前者时，`\bibliography` 那一刻由类按后者补一句。
 
 变体 43 是深圳博士中期，由 `stage=interim,degree-level=doctor,campus=shenzhen`
