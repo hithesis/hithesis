@@ -21,6 +21,8 @@
 % \changes{v3.2a}{2026/09/27}{段首的 kern 并进首行缩进：\cs{docxlike\_format\_par:nn} 把首行缩进写成 kern，
 %   先前它挂在第一个字上而不计宽，只有头一个字挪过去；编号盒、表格格里的盒头盒尾全角标点补回整格，
 %   盒里补字距增量时隔着禁则罚分也认得出后面的汉字缝（先前多给一份）}
+% \changes{v3.2a}{2026/09/28}{按汉字排的间隔号（·）照字体的步进占宽（中易宋体是整格，前后各半、字面居中）：
+%   \pkg{luatexja} 的 JFM 把它装成半格宽的盒子，先前断行层按半格算，“万t·km”一行比 Word 多塞一个字}
 % \changes{v3.2a}{2026/09/27}{弯引号、破折号、省略号、间隔号照 Word 的东亚提示挑字体：一段里没有汉字、假名、
 %   全角字而有西文字母时排西文字体（英文目录里“Master’s”的撇号先前是黑体），别的段照旧按汉字排；
 %   行间公式前后照 TeX 的规矩留行距胶（被公式打断的段记下末行的深，公式后的头一行补胶），先前短公式
@@ -618,6 +620,7 @@ local function tokenize(head)
       it.symbol = true
     else it = put(0, n, n, size, c, size) end
     if n.id == GLYPH then it.fb = fake_bold(n) end
+    return it
   end
   local n = head
   local indent = 0
@@ -647,8 +650,17 @@ local function tokenize(head)
       while g and g.id ~= GLYPH do g = g.next end
       local c = g and g.char or 0
       local size = g and fsize(g.font) or lastsize or tex.sp("1em")
-      -- 装成盒的标点：盒宽是半格，另一半在后面的 JFM 胶里；符号按盒宽
-      putja(n, c, n.width, size)
+      -- 装成盒的标点：盒宽是半格，另一半在后面的 JFM 胶里；符号按盒宽。间隔号例外：JFM 把它
+      -- 装成半格宽的盒子、两侧各给四分之一格的胶，Word 照字体的步进排（中易宋体是整格，
+      -- 规范章“万t·km”一行 Word 量得 11.64，这边先前只有 6.23，行里多塞了一个字），
+      -- 字面居中，多出来的前后各一半
+      local it = putja(n, c, n.width, size)
+      if c == 0xB7 and g then
+        local fd = font.getfont(g.font)
+        local ch = fd and fd.characters and fd.characters[c]
+        local real = ch and ch.width or size
+        if real > n.width then it.w = real; it.midpad = n.width end
+      end
     elseif id == GLUE then
       if is_kanjiskip(n) then
         attach(n)
@@ -1980,6 +1992,13 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
       else
         node.insert_after(head, it.core or it.last, kn)
         it.adj = kn
+        if it.midpad then
+          local pre = node.new(KERN); pre.kern = (base_of(k) - it.midpad) / 2
+          node.insert_before(head, it.first, pre)
+          if it.first == head then head = pre end
+          it.pre = pre
+          kn.kern = kn.kern - pre.kern
+        end
       end
     end
   end
@@ -2210,6 +2229,9 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
       if it.kind == 2 then
         it.pre.kern = it.pre.kern + delta[k]
         it.adj.kern = target - it.spanw - it.pre.kern
+      elseif it.midpad then
+        it.pre.kern = (target - it.midpad) / 2
+        it.adj.kern = target - it.spanw - it.pre.kern
       else
         it.adj.kern = target - it.spanw
       end
@@ -2234,9 +2256,9 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
     -- 逐条目核对：节点跨度应等于账本宽加压缩加伸展加隙
     for k = first, last do
       local it = items[k]
-      local startn = (it.kind == 2 and it.pre) or it.first
+      local startn = it.pre or it.first
       if k == first and it.kind ~= 2 then startn = head end
-      local stopn = (k < last) and ((items[k + 1].kind == 2 and items[k + 1].pre) or items[k + 1].first) or nil
+      local stopn = (k < last) and (items[k + 1].pre or items[k + 1].first) or nil
       -- 隙 kern 放在前一条目 core 后，属于本条目
       local span = node.dimensions(startn, stopn)
       local expect = ((it.paired and k == last) and it.full or it.nw) + delta[k] + after[k] + ((k < last) and items[k + 1].gap or 0)

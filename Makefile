@@ -61,12 +61,16 @@ cls: $(TARGETS)
 #
 # 同日示例照博士范例改写，规范章与原先的摘要挪到 tests/lineends/ 单独编，
 # 段落与断行不变，行差仍是 24。
+#
+# 2026/09/28 降到 6：规范章“2\,000”改成范例原件的普通空格“2 000”（Word 那边是一个空格 run），
+# 按汉字排的间隔号照中易宋体的整格排（先前按 JFM 的半格，“万t·km”那一行多塞一个字）。
+# 剩下三行是上面说的 ×，三处位差是英文摘要三段的末行，行尾比 Word 长 2 到 3.5。
 lineends:
 	cd tests/lineends && TEXINPUTS="$(CURDIR):" BSTINPUTS="$(CURDIR):" latexmk -lualatex -g \
 	  -interaction=nonstopmode \
 	  -usepretex='\PassOptionsToClass{fontset=windows}{hithesis}\AddToHook{class/hithesis/after}{\hitsetup{layout={compatibility-mode=word-2013}}}' main.tex \
 	  > /dev/null
-	python3 scripts/check-line-ends.py --pdf tests/lineends/main.pdf --max-diff 24
+	python3 scripts/check-line-ends.py --pdf tests/lineends/main.pdf --max-diff 6
 
 # 三个目标都带 -g 强制重编：latexmk 不知道 -usepretex 变了，lineends（钉 15）与
 # lineends-self（默认 11）接连跑时，第二个会拿第一个的 PDF 去比，满屏假差异。
