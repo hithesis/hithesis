@@ -10,7 +10,7 @@ PACKAGE=hithesis
 
 REPORTCONTENTS=$(REPORTMAIN).tex front/*.tex body/*.tex $(FIGURES)
 # NOTE: update this to reflect your local file types.
-FIGURES=$(wildcard figures/*.eps figures/*.pdf)
+FIGURES=$(wildcard figures/*.eps figures/*.pdf szbachelor-*.eps)
 BIBFILE=*.bib
 CLSFILES=$(PACKAGE)art.cls *.bst
 
@@ -32,7 +32,7 @@ report: $(REPORTMAIN).pdf
 
 ifeq ($(METHOD),latexmk)
 
-$(REPORTMAIN).pdf: $(CLSFILES)
+$(REPORTMAIN).pdf: $(CLSFILES) $(REPORTCONTENTS) $(BIBFILE)
 	$(METHOD) $(LATEXMKOPTS) $(REPORTMAIN)
 
 else ifeq ($(METHOD),xelatex)

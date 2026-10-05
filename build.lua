@@ -55,6 +55,8 @@ local BOOKFILES = {
 local ARTFILES = {
   "hithesisart.cls", "hithesis.bst", "hitszthesis.bst",
   "hitlogo.eps", "bthesistitle.eps", "zfb.eps",
+  "szbachelor-school.eps", "szbachelor-opening.eps",
+  "szbachelor-midterm.eps", "szbachelor-checked.eps",
 }
 
 -- 生成物可能在两个地方：make cls（跑 latex hithesis.ins）写在根目录，

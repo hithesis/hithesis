@@ -48,7 +48,9 @@ BOOKFILES = $(PACKAGE)book.cls $(PACKAGE).bst hitszthesis.bst \
             hitlogo.eps bthesistitle.eps shenzhenbthesistitle.eps zfb.eps \
             hrb-bachelor-bottommark.eps
 ARTFILES  = $(PACKAGE)art.cls $(PACKAGE).bst hitszthesis.bst \
-            hitlogo.eps bthesistitle.eps zfb.eps
+            hitlogo.eps bthesistitle.eps zfb.eps \
+            szbachelor-school.eps szbachelor-opening.eps \
+            szbachelor-midterm.eps szbachelor-checked.eps
 
 distribute:
 	@for d in examples/hitbook/chinese examples/hitbook/english; do \
