@@ -22,6 +22,8 @@
 % ^^A ======================================================================
 %
 % \changes{v3.0.0}{2020/05/20}{更改原cls文件名为hithesisbook}
+% \changes{v3.2a}{0000/00/00}{兼容 urldate 访问日期并保留 citedate 的优先级，避免通用文献管理器导出的日期丢失。}
+% \changes{v3.2a}{0000/00/00}{支持 misc 通用条目，未知类型警告后按 misc 输出，避免参考文献被静默丢弃。}
 % 生成 \texttt{hithesis.bst}，并按照 \hitszthesis{} 生成深圳校区的参考文献样式 \texttt{hitszthesis.bst}。
 %    \begin{macrocode}
 %<*bst|shenzhenbst>
@@ -40,6 +42,7 @@ ENTRY                                             % class Entry {
   date                                            %   String date;
   modifydate                                      %   String modifydate;
   citedate                                        %   String citedate;
+  urldate                                         %   String urldate;
   url                                             %   String url;
   doi                                             %   String doi;
   language                                        %   String language;
@@ -1258,10 +1261,12 @@ FUNCTION {output.modifydate} {                    % void Entry::output_modifydat
                                                   %
 FUNCTION {output.citedate} {                      % void Entry::output_citedate(int required) {
   'required :=                                    %   this.required = required;
-  citedate empty$ not {                           %   if (! empty(this.citedate)) {
+  citedate empty$ { urldate } { citedate } if$
+  duplicate$ empty$ not {                         %   if (! empty(effective_citedate)) {
     cap.space write$                              %     write(cap_space);
-    citedate format.citedate write$               %     write(format_citedate(this.citedate));
+    format.citedate write$                         %     write(format_citedate(effective_citedate));
   } {                                             %   } else {
+    pop$
     required is.online or {                       %     if ((required == 1) || (is_online())) {
       "Require citedate: " cite$ * warning$       %       warning("Require citedate: " + this.cite);
     } 'skip$ if$                                  %     }
@@ -1963,8 +1968,27 @@ FUNCTION {news} {                                 % void Entry::news() {
                                                   %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                                                   %
+FUNCTION {misc} {
+  "Z" set.mark
+  start.bibitem
+  false output.author
+  true output.title
+  true output.mark
+  cap.period write$
+  howpublished empty$ not {
+    howpublished write$
+    cap.period write$
+  } 'skip$ if$
+  false output.year
+  false output.version
+  false output.citedate
+  false output.url.or.doi
+  end.bibitem
+}
+
 FUNCTION {default.type} {                         % void Entry::default_type() {
-  "Unsupported entry type for " cite$ * warning$  %   warning("Unsupported entry type for " + this.cite);
+  "Unsupported entry type for " cite$ * "; using misc" * warning$
+  misc
 }                                                 % }
                                                   %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
