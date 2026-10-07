@@ -1,5 +1,15 @@
 # hithesis 排版测试
 
+深圳本科报告还需检查封面文字可提取，避免标题被转成轮廓后只能显示、无法识别。
+生成相应 PDF 后运行（需要 Poppler 的 `pdftotext`，不使用 OCR）：
+
+```sh
+python3 scripts/check-report-text.py --stage opening path/to/opening.pdf
+python3 scripts/check-report-text.py --stage midterm path/to/midterm.pdf
+```
+
+此检查只验证第一页的校名和报告名称；字体、版式仍需另行检查。
+
 `tests/` 和 [`tools/`](../tools) 放排版测试用的东西，测两件事：42 种 `\documentclass`
 选项组合（校区 × 学位 × 中英文 × book/art）还能不能编出 PDF，以及改完 `hithesis.dtx`
 之后版面有没有跟着变。
