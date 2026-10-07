@@ -1149,7 +1149,12 @@
 
 % \changes{v3.1c}{2023/04/16}{增加用于打印的选项 \meta{print}.\issue[138]}
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{新增可选提交字体，默认仍使用原字体配置，避免要求其他报告安装微软字体。}
+%    \begin{macrocode}
 \DeclareBoolOption[false]{print}
+\DeclareBoolOption[false]{shenzhenfonts}
 
 
 \DeclareStringOption{fontset}
@@ -1157,6 +1162,9 @@
 \PassOptionsToPackage{no-math}{fontspec}
 
 \ProcessKeyvalOptions*
+
+\newif\ifhit@szbachelor
+\hit@ifand{shenzhen}{bachelor}{\hit@szbachelortrue}{}
 
 %    \end{macrocode}
 %
@@ -1299,9 +1307,19 @@
   Extension = .otf ,
 ]
 
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{按深圳本科报告设置固定正文行距，并在字号命令外判断校区以保持条件闭合。}
+%    \begin{macrocode}
+\hit@ifT{szbachelor}{%
+  \newlength\hitreportbaselineskip
+  \setlength\hitreportbaselineskip{19.45bp}%
+}
 %% 添加字号、行距等设置
 \renewcommand\normalsize{%
-  \@setfontsize\normalsize{12bp}{20.50398bp}%
+  \hit@if{szbachelor}
+    {\@setfontsize\normalsize{12bp}{\hitreportbaselineskip}}%
+    {\@setfontsize\normalsize{12bp}{20.50398bp}}%
   \abovedisplayskip=8pt
   \abovedisplayshortskip=8pt
   \belowdisplayskip=\abovedisplayskip
@@ -1331,6 +1349,15 @@
 \hit@def@fontsize{xiaoliu}{6.5bp}
 \hit@def@fontsize{qihao}{5.5bp}
 \hit@def@fontsize{bahao}{5bp}
+
+\ifhit@szbachelor
+  \AtBeginDocument{\linespread{1}\normalsize\songti\setlength\parskip{0pt}%
+    \xeCJKsetup{PunctStyle=plain}}
+  % 固定行框，避免标题/段落的起始位置随首行汉字的字面高度变化
+  \AddToHook{para/begin}{\ifinner\else\strut\fi}
+  % 陈列公式之后可能是空的水平列表，不能用 strut 凭空制造新行
+  \AddToHook{para/end}{\ifinner\else\ifnum\lastnodetype>-1 \strut\fi\fi}
+\fi
 %</art-fonts>
 %<*art-deps-a>
 %    \end{macrocode}
@@ -1448,12 +1475,22 @@
   { \RequirePackage [ showframe ] { geometry } }
   { \RequirePackage { geometry } }
 % 根据 PlutoThesis 原版定义而来。a4paper 即 210 * 297mm。
-\geometry
+\legacy_if:nTF { hit@szbachelor }
+  {
+    \geometry
+      {
+        paperwidth=595.35bp , paperheight=842bp , ignoreall ,
+        left=85.05bp , right=85.05bp , top=107.7bp , bottom=85.05bp ,
+        headheight=5mm , headsep=15.84bp , footskip=17.89bp
+      }
+  }
+  {\geometry
   {
     a4paper , hcentering , ignoreall , nomarginpar , centering ,
     text = { 150true~mm , 236true~mm } ,
     left = 30true~mm , head = 5true~mm , headsep = 2true~mm ,
     footskip = 0true~mm , foot = 5.2true~mm
+  }
   }
 \bool_lazy_and:nnT
   { \legacy_if_p:n { hit@shenzhen } }
@@ -1507,6 +1544,12 @@
 % \changes{v3.2a}{0000/00/00}{art-floats 改用 expl3，两处 \cs{ifboolexpr} 换成
 %   \cs{bool\_lazy\_and:nnT}，本模块不再依赖 etoolbox}
 \ExplSyntaxOn
+% 深圳本科沿用已校准的图表标题；ccaption 必须先于 caption 加载。
+\legacy_if:nT { hit@szbachelor }
+  {
+    \RequirePackage { subfigure }
+    \RequirePackage [ subfigure ] { ccaption }
+  }
 %    \end{macrocode}
 %
 % 深圳硕士中期把图注排成「图 1-1 标题」的格式。
@@ -1527,12 +1570,16 @@
 %
 % \changes{v3.2a}{0000/00/00}{schrb: 将哈尔滨校区本科开题报告图表公式编号实现为“图 X-X”、“表 X-X”、“公式 (X-X)”的格式}
 %    \begin{macrocode}
-\bool_lazy_and:nnT
-  { \legacy_if_p:n { hit@harbin } }
+\bool_lazy_or:nnT
+  { \legacy_if_p:n { hit@szbachelor } }
   {
     \bool_lazy_and_p:nn
-      { \legacy_if_p:n { hit@bachelor } }
-      { \legacy_if_p:n { hit@opening } }
+      { \legacy_if_p:n { hit@harbin } }
+      {
+        \bool_lazy_and_p:nn
+          { \legacy_if_p:n { hit@bachelor } }
+          { \legacy_if_p:n { hit@opening } }
+      }
   }
   {
     \RequirePackage { caption }
@@ -1544,6 +1591,11 @@
     \@addtoreset { figure }   { section }
     \@addtoreset { table }    { section }
     \@addtoreset { equation } { section }
+  }
+\legacy_if:nT { hit@szbachelor }
+  {
+    \setlength \intextsep { 0pt }
+    \captionsetup [ table ] { skip=1.5bp }
   }
 \ExplSyntaxOff
 %</art-floats>
@@ -1669,6 +1721,41 @@
   { \legacy_if_p:n { hit@master } }
   { \hit@art@shenzhenmaster@sectionset }
 \ExplSyntaxOff
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{适配深圳本科开题、中期的三级标题，保持空章另起页与学校报告的间距。}
+%    \begin{macrocode}
+\ifhit@szbachelor
+  % CTeX 在前一标题之后会跳过 break，本章即使为空也须另起一页
+  \AddToHook{cmd/section/before}{\@nobreakfalse}
+  \ctexset{
+    section={
+      format={\centering\heiti\fontsize{18bp}{29.175bp}\selectfont\strut},
+      aftertitle=\strut,
+      beforeskip=0bp,
+      afterskip=10.11bp,
+      aftername=\quad,
+      break={\clearpage\ifnum\value{section}>0
+        \vspace*{\dimexpr9.6bp-\topskip\relax}\fi}
+    },
+    subsection={
+      format={\heiti\fontsize{15bp}{24.3125bp}\selectfont\strut},
+      aftertitle=\strut,
+      aftername=\quad,
+      beforeskip=6bp,
+      afterskip=6.17bp
+    },
+    subsubsection={
+      format={\heiti\fontsize{14bp}{22.6917bp}\selectfont\strut},
+      aftertitle=\strut,
+      aftername={\ifhit@opening\hspace{3.5bp}\else\quad\fi},
+      beforeskip=6bp,
+      afterskip=6.17bp
+    },
+    paragraph={format={\heiti\xiaosi[1.25]},beforeskip=0pt,afterskip=0pt},
+    subparagraph={format={\heiti\xiaosi[1.25]},beforeskip=0pt,afterskip=0pt}
+  }
+\fi
 %</art-chapter>
 %    \end{macrocode}
 % ^^A ======================================================================
@@ -1737,6 +1824,35 @@
   { \legacy_if_p:n { hit@master } }
   { \hit@art@shenzhenmaster@pagestyle }
 \ExplSyntaxOff
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{深圳本科报告增加前言与正文页式，分别使用罗马页码和阿拉伯页码。}
+%    \begin{macrocode}
+\ifhit@szbachelor
+  \newcommand\hit@szbachelor@reportname{%
+    毕业论文（设计）\ifhit@opening 开题\else 中期\fi 报告}
+  \newcommand\hit@szbachelor@pagestyle{%
+    \fancyhf{}
+    \fancyhead[C]{\songti\xiaowu[1]%
+      % 两条线以页眉文字作为定位基线
+      \makebox[0pt][c]{\setlength\unitlength{1bp}\begin{picture}(0,0)
+        \put(-214.035,-9.60){\rule{428.07bp}{3bp}}
+        \put(-214.035,-11.04){\rule{428.07bp}{.72bp}}
+      \end{picture}}%
+      \makebox[0pt][c]{哈尔滨工业大学深圳校区\hit@szbachelor@reportname}}
+    \renewcommand\headrulewidth{0pt}
+    \renewcommand\headrule{}
+    \renewcommand\footrulewidth{0pt}
+  }
+  \fancypagestyle{hit@szbachelor@front}{%
+    \hit@szbachelor@pagestyle
+    \fancyfoot[C]{\xiaowu[1]\thepage}
+  }
+  \fancypagestyle{hit@szbachelor@main}{%
+    \hit@szbachelor@pagestyle
+    \fancyfoot[C]{\xiaowu[1]-\hspace{4.5bp}\thepage\hspace{4.5bp}-}
+  }
+\fi
 %</art-pagestyle>
 %<*art-deps-c>
 \ExplSyntaxOn
@@ -1840,12 +1956,24 @@
     caffil , cauthor , cclassid , cdate , cenrolldate , cstudentid , csubject
     , csupervisor , ctitlecover , ctitleone , ctitletwo , ctype
   }
+\cs_new:Npn \hit@reporttype { none }
 \prop_new:N \g__hit_info_prop
 \clist_map_inline:Nn \l__hit_info_clist
   {
     \keys_define:nn { hit / info } { #1 .code:n = { \use:c { #1 } {##1} } }
     \prop_gput:Nnn \g__hit_info_prop {#1} { }
   }
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{封面类型加入 info 子族并兼容扁平键，默认留空以免擅自选择论文或设计。}
+%    \begin{macrocode}
+\keys_define:nn { hit / info }
+  {
+    reporttype .choices:nn = { none , thesis , design }
+      { \cs_gset:Npx \hit@reporttype { \l_keys_choice_tl } }
+  }
+\prop_gput:Nnn \g__hit_info_prop { reporttype } { }
+\define@key{hit}{reporttype}{\keys_set:nn { hit / info } { reporttype = {#1} }}
 \str_new:N \l__hit_const_name_str
 \cs_new_protected:Npn \__hit_const_set:n #1
   {
@@ -2145,6 +2273,115 @@
 % 深圳校区硕士中期目录也有标题。
 % 用 \pkg{tocloft} 宏包实现深圳校区硕士开题和中期的目录，逐步进行迁移。
 %    \begin{macrocode}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{增加深圳本科报告封面，并使多行信息栏整体分页。}
+% \changes{v3.2a}{0000/00/00}{固定标题改为可提取的文字，提交字体模式要求华文新魏，避免校验时丢失校名和报告名称。}
+%    \begin{macrocode}
+\ifhit@szbachelor
+  \newcommand\hit@szbachelor@titlefont{\heiti}
+  % 保留校准的 36 bp 字号、90% 字宽和 34.43 bp 字符起点间距。
+  % 每个字仍由字体排出。
+  \newcommand\hit@szbachelor@covertitle[1]{%
+    \begingroup
+    \hit@szbachelor@titlefont\fontsize{36bp}{36bp}\selectfont
+    \@tfor\hit@titlechar:=#1\do{%
+      \makebox[34.43bp][l]{\scalebox{.9}[1]{\hit@titlechar}}}%
+    \endgroup
+  }
+  \newsavebox\hit@szbachelor@topicbox
+  \newsavebox\hit@szbachelor@fieldbox
+  \newsavebox\hit@szbachelor@infobox
+  \newlength\hit@szbachelor@topicgap
+  % 长学号也可换行
+  \newcommand\hit@szbachelor@breakid[1]{%
+    \@tfor\hit@idchar:=#1\do{\hit@idchar\allowbreak}%
+  }
+  \newcommand\hit@szbachelor@checkbox[1]{%
+    \ifdefstring{\hit@reporttype}{#1}
+      {\includegraphics{szbachelor-checked.eps}}%
+      {\begingroup\fboxsep=0pt\fboxrule=.48bp
+       \raisebox{.48bp}{\fbox{\rule{0pt}{7.74bp}\rule{7.74bp}{0pt}}}%
+       \endgroup}%
+  }
+  \newcommand\hit@szbachelor@coverfield[3]{%
+    \sbox\hit@szbachelor@fieldbox{\parbox[t]{166.32bp}{%
+      \songti\fontsize{15bp}{29.16bp}\selectfont\raggedright\strut #3\strut}}%
+    \@tempcnta=1 \@tempdima=29.16bp
+    \@tempdimb=\dimexpr\ht\hit@szbachelor@fieldbox+\dp\hit@szbachelor@fieldbox-.1bp\relax
+    \loop\ifdim\@tempdima<\@tempdimb
+      \advance\@tempcnta by1 \advance\@tempdima by29.16bp
+    \repeat
+    \edef\hit@szbachelor@fieldlines{\the\@tempcnta}%
+    \vskip#1bp\relax\nointerlineskip
+    \hbox{\raisebox{-2bp}{\begin{picture}(415.35,17)(0,-2)
+      \put(64.56,0){\heiti\xiaosan\makebox[97.44bp][s]{#2}}%
+      \put(184.44,0){\usebox\hit@szbachelor@fieldbox}%
+      \put(\hit@szbachelor@fieldleft,0){%
+        \begin{picture}(0,0)
+          \multiput(0,-1.32)(0,-29.16){\hit@szbachelor@fieldlines}{%
+            \rule{\hit@szbachelor@fieldwidth}{.72bp}}%
+        \end{picture}}%
+    \end{picture}}}%
+    \vskip\dimexpr\ht\hit@szbachelor@fieldbox+\dp\hit@szbachelor@fieldbox-29.16bp\relax
+  }
+  \newcommand\hit@szbachelor@cover{%
+    \begingroup
+    \setlength\unitlength{1bp}
+    \sbox\hit@szbachelor@topicbox{\parbox[t]{166.32bp}{%
+      \heiti\fontsize{18bp}{34.98bp}\selectfont\raggedright\strut\hit@ctitlecover\strut}}%
+    \@tempdima=\dimexpr\ht\hit@szbachelor@topicbox+\dp\hit@szbachelor@topicbox+9.06bp\relax
+    \ifdim\@tempdima<109.44bp
+      \@tempdima=109.44bp
+    \fi
+    \setlength\hit@szbachelor@topicgap{\dimexpr\@tempdima-\dp\hit@szbachelor@topicbox-15bp\relax}%
+    \@tempcnta=2 \@tempdima=69.96bp
+    \@tempdimb=\dimexpr\ht\hit@szbachelor@topicbox+\dp\hit@szbachelor@topicbox-.1bp\relax
+    \loop\ifdim\@tempdima<\@tempdimb
+      \advance\@tempcnta by1 \advance\@tempdima by34.98bp
+    \repeat
+    \edef\hit@szbachelor@topiclines{\the\@tempcnta}
+    \ifhit@opening
+      \def\hit@szbachelor@fieldleft{177}\def\hit@szbachelor@fieldwidth{173.76bp}%
+    \else
+      \def\hit@szbachelor@fieldleft{174.84}\def\hit@szbachelor@fieldwidth{175.92bp}%
+    \fi
+    % 题目至日期作为一个整体；本页余量不足时整个信息栏移至下一页。
+    \setbox\hit@szbachelor@infobox=\vbox{%
+      \hbox{\rlap{\begin{picture}(0,0)
+        \put(64.56,0){\heiti\xiaoer\makebox[106.44bp][s]{题\hfill 目：}}%
+        \end{picture}}%
+        \rlap{\hskip\hit@szbachelor@fieldleft bp
+          \begin{picture}(0,0)
+          \multiput(0,-1.44)(0,-34.98){\hit@szbachelor@topiclines}{%
+            \rule{\hit@szbachelor@fieldwidth}{.84bp}}%
+        \end{picture}}%
+        \hskip184.44bp
+        \usebox\hit@szbachelor@topicbox}%
+      \vskip\hit@szbachelor@topicgap
+      \hit@szbachelor@coverfield{0}{姓\hfill 名：}{\hit@cauthor}
+      \hit@szbachelor@coverfield{24.16}{学\hfill 号：}{%
+        \expandafter\hit@szbachelor@breakid\expandafter{\hit@cstudentid}}
+      \hit@szbachelor@coverfield{24.16}{学\hfill 院：}{\hit@caffil}
+      \hit@szbachelor@coverfield{24.28}{专\hfill 业：}{\hit@csubject}
+      \hit@szbachelor@coverfield{24.16}{指\hfill 导\hfill 教\hfill 师：}{\hit@csupervisor}
+      \hit@szbachelor@coverfield{24.16}{日\hfill 期：}{\hit@cdate}
+    }%
+    \nointerlineskip\hbox{\begin{picture}(415.35,268.92)(0,-268.92)
+      \put(1,-27.12){\hit@szbachelor@checkbox{thesis}}
+      \put(10.68,-27.12){\songti\xiaosi 毕业论文}
+      \put(71.68,-27.12){\hit@szbachelor@checkbox{design}}
+      \put(81.36,-27.12){\songti\xiaosi 毕业设计}
+      \put(18.25,-108.25){\hit@szbachelor@covertitle{哈尔滨工业大学深圳校区}}
+      \put(.95,-165.35){%
+        \ifhit@opening\hit@szbachelor@covertitle{毕业论文（设计）开题报告}%
+        \else\hit@szbachelor@covertitle{毕业论文（设计）中期报告}\fi}
+    \end{picture}}%
+    \vskip-\ht\hit@szbachelor@topicbox\nointerlineskip
+    \box\hit@szbachelor@infobox
+    \endgroup
+  }
+\fi
 %</art-frontmatter>
 %<*art-toc>
 \ExplSyntaxOn
@@ -2212,6 +2449,50 @@
   %     \normalsize\@starttoc{toc}
   %   }
 %}
+%    \end{macrocode}
+%
+% \changes{v3.2a}{0000/00/00}{目录按实际页码宽度留白，并在段落开始前测量以避免在标题中插入测量操作。}
+%    \begin{macrocode}
+\ifhit@szbachelor
+  \tocloftpagestyle{hit@szbachelor@front}
+  \setcounter{tocdepth}{3}
+  \renewcommand\cftsecfont{\heiti\normalsize}
+  \renewcommand\cftsecpagefont{\normalfont\normalsize}
+  \renewcommand\cftsubsecfont{\songti\normalsize}
+  \renewcommand\cftsubsubsecfont{\songti\normalsize}
+  \renewcommand\cftdotsep{0}
+  \newcommand\hit@szbachelor@tocpnum[2]{%
+    \settowidth\@tempdima{#1#2}%
+    \edef\@pnumwidth{\the\dimexpr\@tempdima+1.5bp\relax}%
+  }
+  \pretocmd{\l@section}{\hit@szbachelor@tocpnum{\cftsecpagefont}{#2}}{}{}
+  \pretocmd{\l@subsection}{\hit@szbachelor@tocpnum{\cftsubsecpagefont}{#2}}{}{}
+  \pretocmd{\l@subsubsection}{\hit@szbachelor@tocpnum{\cftsubsubsecpagefont}{#2}}{}{}
+  \renewcommand\cftsecafterpnum{\kern.42bp}
+  \renewcommand\cftsubsecafterpnum{\kern.42bp}
+  \renewcommand\cftsubsubsecafterpnum{\kern.42bp}
+  \setlength\cftbeforesecskip{0pt}
+  \setlength\cftbeforesubsecskip{0pt}
+  \setlength\cftbeforesubsubsecskip{0pt}
+  \setlength\cftsecnumwidth{18bp}
+  \setlength\cftsubsecindent{11.91bp}
+  \setlength\cftsubsecnumwidth{24.6bp}
+  \setlength\cftsubsubsecindent{24.15bp}
+  \ifhit@opening
+    \setlength\cftsubsubsecnumwidth{27bp}
+  \else
+    \setlength\cftsubsubsecnumwidth{36bp}
+  \fi
+  \renewcommand\@cftmaketoctitle{%
+    \vspace*{\dimexpr9.6bp-\topskip\relax}%
+    \@cftpagestyle
+    \nointerlineskip
+    {\centering\heiti\fontsize{18bp}{29.175bp}\selectfont
+      \strut\contentsname\par}%
+    \cftmarktoc
+    \nobreak\vskip10.5bp\nointerlineskip\@afterheading
+  }
+\fi
 %</art-toc>
 %<*art-frontmatter>
 %    \end{macrocode}
@@ -2250,6 +2531,28 @@
   \clearpage
   \hit@report@backpage@bachelor
 }
+\ifhit@szbachelor
+  \renewcommand\makecover{%
+    \hypersetup{pageanchor=false}% 封面不与正文的 page.1 锚点重名。
+    \begin{titlepage}
+      \newgeometry{ignoreall,top=72bp,bottom=72bp,left=90bp,right=90bp,
+        headheight=0pt,headsep=0pt}
+      \pagestyle{empty}
+      \hit@szbachelor@cover
+    \end{titlepage}
+    \restoregeometry
+    \ifhit@print \thispagestyle{empty}\null\clearpage \fi
+    \hypersetup{pageanchor=true}
+    \ifhit@toc
+      \pagenumbering{Roman}
+      \pagestyle{hit@szbachelor@front}
+      \tableofcontents
+      \clearpage
+    \fi
+    \pagenumbering{arabic}
+    \pagestyle{hit@szbachelor@main}
+  }
+\fi
 %</art-frontmatter>
 %<*art-deps-c>
 %    \end{macrocode}
@@ -2287,13 +2590,20 @@
   \section*{参考文献}%
   \addcontentsline{toc}{section}{参考文献}%
 }
+\hit@ifT{szbachelor}{%
+  \renewcommand\@biblabel[1]{\mbox{\songti［#1］}}%
+}
 \ExplSyntaxOn
 \renewenvironment{thebibliography}[1]{%
-  \bool_lazy_all:nT
+  \bool_lazy_or:nnT
+    { \legacy_if_p:n { hit@szbachelor } }
     {
-      { \legacy_if_p:n { hit@shenzhen } }
-      { \legacy_if_p:n { hit@master } }
-      { \legacy_if_p:n { hit@opening } }
+      \bool_lazy_all_p:n
+        {
+          { \legacy_if_p:n { hit@shenzhen } }
+          { \legacy_if_p:n { hit@master } }
+          { \legacy_if_p:n { hit@opening } }
+        }
     }
     { \hit@art@bibhead }
   \list{\@biblabel{\@arabic\c@enumiv}}{%
@@ -2305,6 +2615,8 @@
     \setlength{\itemindent}{0pt}
     \setlength{\leftmargin}{\labelsep+\labelwidth}
     \addtolength{\itemsep}{-0.8em}
+    \legacy_if:nT { hit@szbachelor }
+      { \setlength{\itemsep}{0pt} \setlength{\parsep}{0pt} }
     \usecounter{enumiv}%
     \let\p@enumiv\@empty
   \renewcommand\theenumiv{\@arabic\c@enumiv}}%
@@ -2353,6 +2665,27 @@
 % \changes{v3.2a}{0000/00/00}{misc-art 模块合并为 artcls 内联钩子}
 %    \begin{macrocode}
 \AtEndOfClass{\sloppy}
+\ifhit@szbachelor
+  \ifhit@shenzhenfonts
+    % 覆盖默认字体，使用深圳校区模板的字体要求。
+    \AtEndOfClass{%
+      \IfFontExistsTF{STXinwei}{%
+        \setCJKfamilyfont{hitreporttitle}{STXinwei}[FakeBold=1]%
+        \renewcommand\hit@szbachelor@titlefont{\CJKfamily{hitreporttitle}}%
+      }{%
+        \ClassError{hithesisart}{STXinwei is required for shenzhenfonts=true}%
+          {Install the STXinwei font and refresh the font cache.\MessageBreak
+           Use shenzhenfonts=false for a portable preview.}%
+      }%
+      \setmainfont{Times New Roman}
+      \setsansfont{Times New Roman}
+      \setCJKmainfont{SimSun}[BoldFont=SimHei,ItalicFont=SimSun]
+      \setCJKsansfont{SimHei}
+      \setCJKfamilyfont{zhsong}{SimSun}
+      \setCJKfamilyfont{zhhei}{SimHei}
+    }
+  \fi
+\fi
 %</artcls-tail>
 %    \end{macrocode}
 %
