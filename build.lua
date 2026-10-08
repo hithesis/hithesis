@@ -46,6 +46,22 @@ binaryfiles = {"*.eps"}
 -- Also ship a ready-made TDS archive (hithesis.tds.zip) inside the CTAN archive
 packtdszip = true
 
+-- Only these graphics are used by the document classes at runtime; the rest
+-- are documentation/demo figures that belong in the doc tree.
+tdslocations = {
+  "doc/latex/hithesis/hithesis-golfer.eps",
+  "doc/latex/hithesis/hithesis-zfb.eps",
+}
+
+-- Ship the example templates inside the TDS doc tree, so the tds.zip is
+-- self-contained and the installer never has to run hithesis.ins (which writes
+-- into examples/... subdirectories that LaTeX cannot create on the fly).
+-- `l3build ctan` therefore expects `make cls` to have populated examples/ with
+-- the generated class files first (the CI workflow does this).
+tdsdirs = {
+  ["examples"] = "doc/latex/hithesis/examples",
+}
+
 -- ---------------------------------------------------------------------------
 -- Documentation typesetting
 --
@@ -53,8 +69,6 @@ packtdszip = true
 --   \lstinputlisting{examples/hitbook/.../thesis.tex}
 -- so the example tree must be present in the typeset directory. l3build's own
 -- file copy flattens subdirectories, hence this hook copies the tree verbatim.
--- This is documentation-only: the examples are NOT installed into the TDS
--- (they are distributed separately via the GitHub release archives).
 -- ---------------------------------------------------------------------------
 function docinit_hook()
   return cp("examples", sourcefiledir, typesetdir)
