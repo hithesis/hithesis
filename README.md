@@ -328,6 +328,54 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 
          make doc
 
+### 开发与发布（l3build / CTAN）
+
+模板使用 [l3build](https://ctan.org/pkg/l3build) 作为标准构建与发布工具，配置文件为 `build.lua`。
+
+常用命令：
+
+```bash
+l3build unpack            # 运行 hithesis.ins，把生成的文件放到 build/unpacked
+l3build doc               # 用 XeLaTeX 编译 hithesis.pdf
+l3build install           # 安装运行时文件到 TEXMFHOME（加 --full 一并安装文档与源码）
+l3build ctan              # 生成 CTAN 归档 hithesis-ctan.zip
+l3build clean             # 清理 build 目录
+l3build tag v3.2.1        # 更新 hithesis.dtx 中的版本号与日期
+```
+
+也可以使用 Makefile 的等价目标：`make l3unpack`、`make l3doc`、`make l3install`、
+`make ctan`、`make l3tag`、`make l3clean`。
+
+#### 发布到 CTAN
+
+1. 更新版本号与日期（日期默认为当天，可用 `--date` 覆盖）：
+
+   ```bash
+   l3build tag v3.2.1 --date 2026-10-08
+   ```
+
+2. 生成 CTAN 归档（先自动跑测试与文档编译）：
+
+   ```bash
+   l3build ctan
+   ```
+
+   产物为 `hithesis-ctan.zip`，其中已包含可直接安装的 `hithesis.tds.zip`。
+
+3. 校验并上传（上传者、邮箱、许可证等元数据已写在 `build.lua` 的 `uploadconfig` 中）：
+
+   ```bash
+   l3build upload --dry-run      # 仅校验，不真正上传
+   l3build upload v3.2.1         # 校验后交互确认上传
+   ```
+
+   发布公告默认取自 `RELEASE_NOTES.md`（由 `make changes` 生成），也可用
+   `--message "..."`、`--file <file>` 或 `--email <email>` 覆盖。
+
+   > 注意：`build.lua` 中的 `ctanPath` 需与 CTAN 上的实际位置一致。hithesis
+   > 历史上位于 `/macros/xetex/latex/hithesis`；如需迁移到
+   > `/macros/latex/contrib/hithesis`，请先与 CTAN 团队协调。
+
 ### 打印版、电子版
 
 注意，一般情况下，博士论文的打印版要求双面打印，本硕单面。
