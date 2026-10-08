@@ -126,6 +126,9 @@ $(RELEASE_NOTES): $(CHANGE_RAW)
 	@latest=$$(cut -d'|' -f1 $< | sort -V | uniq | tail -n1); \
 	echo "## v$$latest" > $@; \
 	echo >> $@; \
+	echo "This release of hithesis (the Harbin Institute of Technology thesis" >> $@; \
+	echo "template for all three campuses) includes the following changes:" >> $@; \
+	echo >> $@; \
 	awk -F'|' -v v="$$latest" '$$1 == v { \
 	  printf "- %s (%s)\n", $$3, $$2 \
 	}' $< | sort -k2 | uniq >> $@
