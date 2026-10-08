@@ -147,3 +147,21 @@ jobs:
           dist/MD5SUMS
           hithesis-ctan.zip
           hithesis.tds.zip
+
+    # ---------------------------
+    # Upload the CTAN archive (hithesis-ctan.zip) to CTAN
+    # Runs only when a new version is tagged, mirroring the release above.
+    # CTAN_UPLOAD=true makes l3build upload without an interactive prompt;
+    # CTAN still sends a confirmation email to the uploader in build.lua.
+    # ---------------------------
+    - name: Upload to CTAN
+      if: github.event_name == 'push' && steps.tagcheck.outputs.exists == 'false'
+      run: |
+        version="${{ steps.changes.outputs.version }}"
+        version="${version#v}"
+        docker run --rm -i \
+          -e CTAN_UPLOAD=true \
+          -v "$(pwd):/hithesis" \
+          -w /hithesis \
+          texlive/texlive:latest \
+          l3build upload "${version}"
