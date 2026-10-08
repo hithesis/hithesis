@@ -21,6 +21,7 @@ else
 endif
 
 .PHONY: all cls doc viewdoc dist auxclean clean distclean changes version-changes
+.PHONY: ctan upload l3unpack l3doc l3install l3tag l3clean
 
 all: doc
 
@@ -64,9 +65,37 @@ clean: auxclean
 	-$(RM) *.bst *.ist *.cls *.cfg *.sty
 	-$(RM) $(PACKAGE).pdf
 	-$(RM) $(CHANGE_RAW) $(RELEASE_NOTES)
+	-$(RM) $(PACKAGE)-ctan.zip $(PACKAGE).tds.zip
 
 distclean: clean
 	-$(RM) $(PACKAGE)-$(VERSION).zip
+	-l3build clean
+
+# -------------------------------
+# l3build integration
+# See build.lua and the README for the full workflow.
+# -------------------------------
+
+l3unpack:
+	l3build unpack
+
+l3doc:
+	l3build doc
+
+l3install:
+	l3build install --full
+
+ctan:
+	l3build ctan
+
+upload:
+	l3build upload
+
+l3tag:
+	l3build tag
+
+l3clean:
+	l3build clean
 
 # -------------------------------
 # Extract \changes{} from .dtx
