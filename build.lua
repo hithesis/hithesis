@@ -46,12 +46,9 @@ binaryfiles = {"*.eps"}
 -- Also ship a ready-made TDS archive (hithesis.tds.zip) inside the CTAN archive
 packtdszip = true
 
--- Only these graphics are used by the document classes at runtime; the rest
--- are documentation/demo figures that belong in the doc tree.
-tdslocations = {
-  "doc/latex/hithesis/hithesis-golfer.eps",
-  "doc/latex/hithesis/hithesis-zfb.eps",
-}
+-- All *.eps (including the demo figure hithesis-golfer.eps and the donation
+-- QR hithesis-zfb.eps) are installed to tex/latex/hithesis/ so that the
+-- example templates can \includegraphics them directly.
 
 -- Ship the example templates' source in the TDS doc tree. hithesis.ins now
 -- only generates the runtime files into the current directory (not into
