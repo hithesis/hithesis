@@ -53,10 +53,11 @@ tdslocations = {
   "doc/latex/hithesis/hithesis-zfb.eps",
 }
 
--- Ship the example templates in the TDS doc tree, but source-only: the
--- docinit_hook below copies examples/ into a clean staging tree and strips
--- .gitkeep and everything that hithesis.ins regenerates (.cls/.cfg/.sty/
--- .bst/.ist/.eps), which otherwise trips pkgcheck (E0005/E0007/E0019).
+-- Ship the example templates' source in the TDS doc tree. hithesis.ins now
+-- only generates the runtime files into the current directory (not into
+-- examples/), so the examples/ tree in the repo is already source-only; the
+-- docinit_hook below still strips .gitkeep/Makefile/latexmkrc and any stale
+-- generated files to satisfy pkgcheck (E0005/E0007/E0019).
 tdsdirs = {
   ["build/examples"] = "doc/latex/hithesis/examples",
 }
