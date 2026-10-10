@@ -251,31 +251,47 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
 
 ### 模板的编译方法
 
-1. 生成论文格式文件(第一步要生成 *.cls，*.cfg，*.ist，然后再生成论文)
+hithesis 有两种使用方式，请根据你的安装来源选择其一。
 
-   - 如果是Linux/Mac执行
+#### 方式一：通过 TeX Live / CTAN 安装（推荐）
 
-         latex hithesis.ins
+TeX Live 已内置 hithesis，安装后 `.cls`、`.cfg`、`.sty`、`.bst`、`.ist` 以及
+`.eps` 图片都已装进 TeX 目录，**无需再运行 `latex hithesis.ins` 或
+`make examples`**。直接新建 `.tex` 文件：
 
-   - 如果是Windows执行（作者没测试过，如遇问题同上）
+```latex
+\documentclass[type=doctor]{hithesisbook}      % 毕业论文
+% \documentclass[type=doctor]{hithesisart}     % 开题 / 中期报告
+% \documentclass[type=doctor]{hithesisartplus} % 深圳校区博士中期报告
+\usepackage{hithesis}
+```
 
-         lualatex hithesis.ins
+然后按下方「生成论文」小节给出的命令编译即可。
 
-   - 如果喜欢玩 make
+#### 方式二：通过 GitHub 下载完整模板
 
-         make examples
+从 GitHub 仓库（或 Release 压缩包）下载的完整模板包含 `examples/` 示例、
+`Makefile`、`latexmkrc` 等文件。此时需要先生成运行时文件并复制进示例：
 
-2. 生成好格式后，下一步进入到示例文件夹中
+```bash
+latex hithesis.ins    # 生成 .cls/.cfg/.sty/.bst/.ist/.eps 到当前目录
+make examples         # 把运行时文件复制进 examples/
+```
 
-       examples
-       ├── hitart
-       │   ├── reportplus  %深圳校区博士中期报告
-       │   └── reports     %除去深圳校区博士中期报告的一校三区本硕博开题、中期报告
-       └── hitbook
-           ├── chinese     %一校三区本硕博毕业论文以及博后出站报告
-           └── english     %一校三区本硕博英文版毕业论文
+> 说明：`make`、`latexmk` 依赖 `Makefile` / `latexmkrc`，这些脚本只在
+> GitHub 仓库里提供，CTAN 压缩包不包含它们，因此 CTAN 用户无法使用这些命令。
 
-3. 生成论文方式
+生成好格式后，进入示例文件夹：
+
+      examples
+      ├── hitart
+      │   ├── reportplus  %深圳校区博士中期报告
+      │   └── reports     %除去深圳校区博士中期报告的一校三区本硕博开题、中期报告
+      └── hitbook
+          ├── chinese     %一校三区本硕博毕业论文以及博后出站报告
+          └── english     %一校三区本硕博英文版毕业论文
+
+#### 生成论文
 
    - 手动狙击（源文件更改后每次编译逐行命令输入一轮）
 
@@ -302,15 +318,15 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
            xelatex -shell-escape report.tex
            xelatex -shell-escape report.tex
 
-   - 半自动精确射击（源文件更改后每次编译敲一次）
+   - 半自动精确射击（源文件更改后每次编译敲一次，仅 GitHub 仓库）
 
          make thesis
 
-   - 全自动火力覆盖（只需要输入一次命令，源文件更改后自动识别更改自动编译）
+   - 全自动火力覆盖（只需要输入一次命令，源文件更改后自动识别更改自动编译，仅 GitHub 仓库）
 
          latexmk
 
-4. 生成文档（没什么用，因为有文档也基本没人看）
+#### 生成文档
 
    - 手动狙击（逐行命令输入一轮）
 
@@ -320,9 +336,14 @@ CTAN的版本一般会比较落后，但在每年年底会同步为最新版本�
          xelatex hithesis.dtx
          xelatex hithesis.dtx
 
-   - 半自动精确射击（编译敲一次）
+   - 半自动精确射击（编译敲一次，仅 GitHub 仓库）
 
          make doc
+
+   > 提示：用户手册中的示例代码通过 `\lstinputlisting` 引用仓库里的
+   > `examples/hitbook/...` 等路径，因此手册应在 GitHub 仓库根目录编译；若从
+   > CTAN 源码目录（`source/latex/hithesis/`）重新编译，需先把
+   > `doc/latex/hithesis/examples/` 下的示例放回 `examples/`。
 
 ### 开发与发布（l3build / CTAN）
 
