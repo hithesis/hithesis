@@ -53,14 +53,11 @@ tdslocations = {
   "doc/latex/hithesis/hithesis-zfb.eps",
 }
 
--- Ship the example templates inside the TDS doc tree, so the tds.zip is
--- self-contained and the installer never has to run hithesis.ins (which writes
--- into examples/... subdirectories that LaTeX cannot create on the fly).
--- `l3build ctan` therefore expects `make cls` to have populated examples/ with
--- the generated class files first (the CI workflow does this).
-tdsdirs = {
-  ["examples"] = "doc/latex/hithesis/examples",
-}
+-- The example templates are NOT shipped in the CTAN archive: they are
+-- distributed separately via the GitHub release archives (make_release_pkg.sh).
+-- Shipping them (with the class files generated into them by hithesis.ins)
+-- trips CTAN's pkgcheck (E0019 generated files, E0005/E0007 .gitkeep) and
+-- creates a large number of duplicate files.
 
 -- ---------------------------------------------------------------------------
 -- Documentation typesetting
