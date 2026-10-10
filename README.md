@@ -20,8 +20,6 @@ Files/Codes in hithesis may be distributed and/or modified under the conditions 
 
 and version 1.3a or later is part of all distributions of LaTeX version 2004/10/01 or later.
 
-Files/Codes in hithesis also under the protection of license of [Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)](http://creativecommons.org/licenses/by-nc/4.0/).
-
 ## hithesis是什么？
 
 一个简单易用的哈尔滨工业大学学位论文LaTeX模板，现包括一校三区本科、硕士、博士开题、中期和毕业论文，包括博后出站报告和英文毕业论文格式。
