@@ -1,0 +1,132 @@
+name: Test development branches
+
+on:
+  push:
+    branches-ignore: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: branch-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  branch-tests:
+    name: TeX Live latest branch tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TEXLIVE_IMAGE: texlive/texlive:latest
+      TEXMFLOCAL: /hithesis/build/dependencies/texmf
+    steps:
+      # On pull requests, checkout tests the proposed merge with master.
+      - name: Checkout branch and baseline tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pull TeX Live (latest)
+        run: docker pull "$TEXLIVE_IMAGE"
+
+      - name: Build runtime and run branch regression checks
+        run: |
+          docker run --rm -i -e DEBIAN_FRONTEND=noninteractive -e TEXMFLOCAL \
+            -v "$PWD:/hithesis" -w /hithesis "$TEXLIVE_IMAGE" \
+            bash -c 'set -euo pipefail
+              for tool in latex xelatex latexmk l3build; do command -v "$tool"; done
+              apt-get update
+              apt-get install -y --no-install-recommends python3-venv
+              python3 -m venv build/ci-tools
+              if [ -f tests/requirements.txt ]; then
+                build/ci-tools/bin/pip install -r tests/requirements.txt
+              fi
+              if [ -f scripts/dependencies.py ]; then
+                python3 scripts/dependencies.py install
+              fi
+              make cls
+              # The existing dev branch maintains its own l3build fixtures.
+              if compgen -G "testfiles/*.lvt" > /dev/null; then
+                l3build check
+              fi
+              # Master-based maintenance branches carry the equivalence suite.
+              if [ -f hithesis.dtx ] && [ -f tests/compatibility.py ]; then
+                python3 scripts/release.py baseline --destination build/baseline
+                python3 scripts/release.py baseline --ref b241065a8eb609e16c7004509facc9dda57901ef --destination build/master-baseline
+                python3 tests/native-runtime.py
+                python3 tests/public-interface.py --baseline build/baseline
+                python3 tests/change-history.py
+                python3 tests/error-cases.py --baseline build/baseline --work build/error-cases
+                build/ci-tools/bin/python tests/compatibility.py --baseline build/baseline --work build/compatibility
+                build/ci-tools/bin/python tests/wiseref.py --work build/wiseref
+              fi'
+
+      - name: Build documentation and CTAN/TDS archives
+        run: |
+          docker run --rm -i -e TEXMFLOCAL -v "$PWD:/hithesis" -w /hithesis "$TEXLIVE_IMAGE" \
+            l3build ctan
+
+      - name: Compile branch examples
+        run: |
+          docker run --rm -i -e TEXMFLOCAL -v "$PWD:/hithesis" -w /hithesis "$TEXLIVE_IMAGE" \
+            bash -c 'set -euo pipefail
+              if [ -f hithesis.dtx ] && [ -f tests/compatibility.py ]; then
+                make compile-examples
+              elif [ -f examples/demo/final.tex ]; then
+                # Modular dev uses one bilingual final and one report entry.
+                make distribute
+                make -B -C examples/demo METHOD=latexmk LATEXMKOPTS="-g -lualatex -interaction=nonstopmode -halt-on-error" final report
+              else
+                # Use the distribution target provided by the checked-out branch.
+                if make -n examples > /dev/null 2>&1; then
+                  make examples
+                else
+                  make distribute
+                fi
+                make -B -C examples/hitbook/chinese METHOD=latexmk LATEXMKOPTS="-g -xelatex -interaction=nonstopmode -halt-on-error" thesis
+                make -B -C examples/hitbook/english METHOD=latexmk LATEXMKOPTS="-g -xelatex -interaction=nonstopmode -halt-on-error" thesis
+                make -B -C examples/hitart/reports METHOD=latexmk LATEXMKOPTS="-g -xelatex -interaction=nonstopmode -halt-on-error" report
+                make -B -C examples/hitart/reportplus METHOD=latexmk LATEXMKOPTS="-g -xelatex -interaction=nonstopmode -halt-on-error" report
+              fi'
+
+      - name: Compare and package maintenance example archives
+        run: |
+          docker run --rm -i -e DEBIAN_FRONTEND=noninteractive -e TEXMFLOCAL \
+            -v "$PWD:/hithesis" -w /hithesis "$TEXLIVE_IMAGE" \
+            bash -c 'set -euo pipefail
+              if [ -f hithesis.dtx ] && [ -f tests/compatibility.py ]; then
+                build/ci-tools/bin/python tests/compare-examples.py --baseline build/master-baseline
+                apt-get update
+                apt-get install -y --no-install-recommends zip
+                make changes
+                bash make_release_pkg.sh "$(python3 scripts/release.py version)"
+                python3 scripts/release.py verify
+              fi'
+
+      - name: Keep build artifacts and test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hithesis-branch-tests
+          if-no-files-found: warn
+          path: |
+            hithesis.pdf
+            hithesis-ctan.zip
+            hithesis.tds.zip
+            dist/*.zip
+            dist/SHA256SUMS
+            RELEASE_NOTES.md
+            build/compatibility/results.json
+            build/compatibility/**/*.log
+            build/error-cases/results.json
+            build/error-cases/**/*.log
+            build/wiseref/results.json
+            build/wiseref/**/*.log
+            build/example-regression.json
+            build/test/*.diff
+            build/test/*.log
+            build/doc/*.log
+            examples/**/*.log

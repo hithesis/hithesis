@@ -16,10 +16,15 @@
 
 -- Package identity
 module = "hithesis"
+sourcefiledir = "build/release-source"
+docfiledir = sourcefiledir
+textfiledir = sourcefiledir
+local status = os.execute("python3 scripts/release.py stage")
+assert(status == true or status == 0, "Could not prepare the release source tree")
 
 -- The documentation loads CJK fonts, so it must be typeset with XeLaTeX
 typesetexe  = "xelatex"
-typesetopts = "-interaction=nonstopmode"
+typesetopts = "-interaction=nonstopmode -halt-on-error"
 
 -- Runtime files extracted by hithesis.ins and installed into tex/latex/hithesis/
 -- (.sty covers dtx-style.sty, which is only needed while typesetting the docs)
@@ -68,7 +73,9 @@ tdsdirs = {
 -- file copy flattens subdirectories, hence this hook copies the tree verbatim.
 -- ---------------------------------------------------------------------------
 function docinit_hook()
-  local errorlevel = cp("examples", sourcefiledir, typesetdir)
+  local errorlevel = cp("dtx-style.sty", unpackdir, typesetdir)
+  if errorlevel ~= 0 then return errorlevel end
+  errorlevel = cp("examples", sourcefiledir, typesetdir)
   if errorlevel ~= 0 then
     return errorlevel
   end
@@ -94,9 +101,7 @@ end
 --
 --   l3build tag v3.2.1 --date 2026-10-08
 --
--- updates the two \Provides... lines in hithesis.dtx. The version is stored
--- once without the leading "v" (the .dtx driver line) and once with it (the
--- shared guard line used by the generated .cls/.cfg files).
+-- Updates the driver and all six expl3 runtime version declarations.
 -- ---------------------------------------------------------------------------
 function update_tag(file, content, tagname, tagdate)
   if file ~= "hithesis.dtx" then
@@ -116,10 +121,10 @@ function update_tag(file, content, tagname, tagdate)
     end
   )
 
-  -- %<...>[0000/00/00 v3.1e Harbin Institute of Technology Thesis Template]
+  -- \ProvidesExplClass/File/Package{name}{date}{version}{description}
   content = content:gsub(
-    "(%[)[^%]]* v[^ ]+ (Harbin Institute of Technology Thesis Template%])",
-    "%1" .. date .. " v" .. version .. " %2"
+    "(\\ProvidesExpl%a+{[^}]+}){[^}]+}{[^}]+}",
+    "%1{" .. date .. "}{v" .. version .. "}"
   )
   return content
 end
@@ -163,8 +168,8 @@ uploadconfig = {
   -- Mandatory fields
   pkg        = "hithesis",
   author     = "Chu Yanshuo",
-  uploader   = "Chu Yanshuo",
-  email      = "yanshuoc@gmail.com",
+  uploader   = "Junhao Wu",
+  email      = "andrew.junhao.wu@gmail.com",
   summary    = "Harbin Institute of Technology Thesis Template",
   license    = "lppl1.3a",
   version    = dtx_version(),
@@ -172,7 +177,7 @@ uploadconfig = {
   -- published under /macros/xetex/latex/hithesis; CTAN keeps the existing
   -- location for updates, so changing to /macros/latex/contrib/hithesis has
   -- to be arranged with the CTAN team.
-  ctanPath   = "/macros/latex/contrib/hithesis",
+  ctanPath   = "/macros/xetex/latex/hithesis",
 
   -- Optional fields
   description = [[
