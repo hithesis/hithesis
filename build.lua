@@ -82,7 +82,8 @@ checkengines = {"xetex"}
 --
 -- 跳过的只是逐字节比对；这些版本上的编译能力由同一轮 CI 的 make cls、
 -- make manual、示例与变体矩阵覆盖。想在旧版本上也跑，把环境变量清掉即可。
-if os.getenv("HITHESIS_TL_LEGACY") then
+local legacy_tests = os.getenv("HITHESIS_TL_LEGACY")
+if legacy_tests and legacy_tests ~= "" then
   excludetests = {
     "42-symbols-env", "43-equation-paren", "52-deprecated-commands",
     "53-date-iso", "56-format-keys", "57-format-compute",
