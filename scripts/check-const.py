@@ -146,10 +146,13 @@ def valued(*files: pathlib.Path, stages: set[str] | None = None) -> set[str]:
             continue
         if stages is not None and not scope_holds(scope, stages):
             continue
-        cm = re.search(r"\bterm\s*=\s*\{", body)
+        cm = re.search(r"\b(?:term|overrides)\s*=\s*\{", body)
         if not cm:
             continue
         inner, _ = braced(body, cm.end())
+        if body[cm.start():].startswith("overrides"):
+            out.update(grouped_values(inner))
+            continue
         depth, buf = 0, ""
         for ch in inner:
             if ch == "{":
@@ -166,6 +169,51 @@ def valued(*files: pathlib.Path, stages: set[str] | None = None) -> set[str]:
                     buf = ""
                 else:
                     buf += ch
+    return out
+
+
+def grouped_values(text: str, prefix: str = "") -> set[str]:
+    """Read nested overrides and bilingual values using the template's alias table."""
+    engine = (ROOT / "src/engine/hit-key-engine.dtx").read_text()
+    alias_start = re.search(r"\\c__hit_term_key_alias_prop\s*\{", engine)
+    alias_body, _ = braced(engine, alias_start.end())
+    aliases = dict(re.findall(r"([a-z0-9-]+)\s*=\s*([a-z0-9-]+)", alias_body))
+    bucket_start = re.search(r"\\c__hit_bucket_clist\s*\{", engine)
+    bucket_body, _ = braced(engine, bucket_start.end())
+    buckets = set(bucket_body.replace(" ", "").replace("\n", "").split(","))
+    buckets |= {"references", "achievements", "defense"}
+    out = set()
+    position = 0
+    key_pattern = re.compile(r"\s*,?\s*([a-z0-9*!-]+)\s*=\s*")
+    while position < len(text):
+        match = key_pattern.match(text, position)
+        if not match:
+            break
+        key, position = match[1], match.end()
+        public = prefix + key
+        if position < len(text) and text[position] == "{":
+            value, position = braced(text, position + 1)
+            if not prefix and key in buckets:
+                out.update(grouped_values(value, key + "-"))
+        else:
+            end = text.find(",", position)
+            position = len(text) if end < 0 else end
+        full = aliases.get(public, public)
+        for public_bucket, internal in (("references", "bibliography"),
+                ("achievements", "publications"), ("defense", "resolution")):
+            if full.startswith(public_bucket + "-"):
+                full = internal + full[len(public_bucket):]
+        out.add(full)
+        if not full.endswith(("-zh", "-en")):
+            out.update((full + "-zh", full + "-en"))
+        while position < len(text) and text[position].isspace():
+            position += 1
+        if position < len(text) and text[position] == "[":
+            depth = 1
+            position += 1
+            while position < len(text) and depth:
+                depth += (text[position] == "[") - (text[position] == "]")
+                position += 1
     return out
 
 
