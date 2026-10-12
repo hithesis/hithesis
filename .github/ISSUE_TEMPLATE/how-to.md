@@ -1,25 +1,23 @@
 ---
-name: '如何实现...?'
-about: 在使用 hithesis 的过程中有不会实现的需求 
+name: '此招如何使得？'
+about: 使用 hiThesis 时心法未通，不知从何下手
 title: ''
-labels: 'help wanted'
-assignees: [syvshc]
-
+labels: 问津
+assignees: [syvshc, SchrodingerBlume]
 ---
 
-## 基本信息
+## 报上门户
 
-- 校区（哈尔滨/威海/深圳？）：
+- 所居道场（冰城总舵 / 威海分舵 / 深圳分舵）：
+- 修为（后生·本科 / 头领·硕士 / 刀客·博士 / 上仙·博后）：
+- 文书（辞山·论文 / 立誓·开题 / 验功·中期 / English Version）：
+- 所使兵器（TeXLive 20xx / MiKTeX / TinyTeX，**本门不认 CTeX 套装**）：
+- 谱系（`hithesis***.cls` 中 `\ProvidesClass` 一行的 `3.x.x` 或 `3.xx` 即是）：
 
-- 学位（本/硕/博？）：
+## 欲练何功
 
-- 论文类型（毕业论文/开题/中期/博后/English Version？）：
+<!-- 详述你想使出的是什么效果，说得越明白，旁人越好指路，切忌语焉不详 -->
+<!-- 若能用图片工具画出想要的模样并截图贴上，胜过千言 -->
 
-- LaTeX 发行版（TeXLive 20xx/MikTeX/**本模板不支持CTeX套装**）：
-
-- 模板版本（在 `hithesis***.cls` 中的 `\ProvidesClass` 命令中的 `3.x.xx` 或 `3.xx` 即为版本号）：
-
-## 想实现的效果
-
-<!-- 在下面详细描述出你想实现的效果, 尽可能的考虑到是否有歧义,  -->
-<!-- 如果条件允许可以使用图片编辑工具处理出想要的效果并截图粘贴上来 -->
+<!-- 动手之前，请先翻一翻案上的秘笈（README 与 hithesis.dtx 文档），
+     十有八九此招谱上已载 -->

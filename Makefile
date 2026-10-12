@@ -33,7 +33,10 @@ all: manual
 
 
 
-cls: $(TARGETS)
+dependencies:
+	python3 scripts/dependencies.py install
+
+cls: $(TARGETS) dependencies
 	$(MAKE) --no-print-directory distribute
 
 # 行末回归：对拍件 tests/lineends（摘要与撰写规范章）与书写范例逐行比对
@@ -189,6 +192,7 @@ FIGFILES  = $(shell python3 scripts/products.py --figures)
 distribute: figures
 	@cp $(DISTFILES) examples/demo/
 	@mkdir -p examples/demo/figures && cp $(FIGFILES) examples/demo/figures/
+	python3 scripts/dependencies.py examples
 
 manual: $(PACKAGE).pdf
 

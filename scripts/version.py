@@ -37,10 +37,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 MAIN = ROOT / "src" / "hithesis.dtx"
 EXAMPLES = [
-    ROOT / "examples" / "hitbook" / "chinese" / "thesis.tex",
-    ROOT / "examples" / "hitbook" / "english" / "thesis.tex",
-    ROOT / "examples" / "hitart" / "reports" / "report.tex",
-    ROOT / "examples" / "hitart" / "reportplus" / "report.tex",
+    ROOT / "examples" / "demo" / "final.tex",
+    ROOT / "examples" / "demo" / "report.tex",
 ]
 
 # \ProvidesFile{hithesis.dtx}[0000/00/00 3.2a Harbin ...]
@@ -59,7 +57,7 @@ RE_BANNER_VER = re.compile(r"v[0-9]+\.[0-9]+[0-9A-Za-z.]*")
 
 def banner_span(lines: list[str]) -> tuple[int, int] | None:
     """返回横幅在 lines 里的区间（含首尾框线），找不到返回 None。"""
-    idx = [k for k, l in enumerate(lines) if l == FRAME]
+    idx = [k for k, l in enumerate(lines) if re.fullmatch(r"%{70,}", l)]
     if len(idx) < 2:
         return None
     return idx[0], idx[1]
@@ -168,6 +166,8 @@ def main() -> int:
     ap.add_argument("--set", metavar="VER", help="把所有地方改成这个版本号，如 3.2b")
     ap.add_argument("--date", metavar="YYYY/MM/DD",
                     help="同时写发布日期，不给就保持原样")
+    ap.add_argument("--move-draft-from", metavar="VER",
+                    help="将尚未发布的模板 changes 条目移到新开发版本；不修改 docxlike")
     ap.add_argument("--check", action="store_true", help="只检查一致性，不打印明细")
     args = ap.parse_args()
 
@@ -178,6 +178,18 @@ def main() -> int:
         if args.date and not re.fullmatch(r"\d{4}/\d{2}/\d{2}", args.date):
             print(f"日期格式应为 YYYY/MM/DD：{args.date}", file=sys.stderr)
             return 2
+        if args.move_draft_from:
+            current = RE_PROVIDESFILE.search(MAIN.read_text())
+            if not current or current.group(2) != "0000/00/00" or current.group(4) != args.move_draft_from:
+                raise SystemExit("只能迁移当前未发布版本的 changes，版本或占位日期不匹配。")
+            old = rf"\changes{{v{args.move_draft_from}}}"
+            new = rf"\changes{{v{args.set}}}"
+            for path in sorted((ROOT / "src").rglob("*.dtx")):
+                if "docxlike" in path.parts:
+                    continue
+                text = path.read_text()
+                if old in text:
+                    path.write_text(text.replace(old, new))
         print(f"版本号统一为 {args.set}" + (f"，日期 {args.date}" if args.date else ""))
         n = set_version(args.set, args.date)
         print(f"共改动 {n} 处。手册里的展示由 \\lstinputlisting 引自示例，跑 make manual 即可跟上。")

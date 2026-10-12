@@ -55,7 +55,8 @@ v3.2a 移除之后那一格没了意义，已删。
 走 `\topskip`（12pt），而 mac 仿宋的字面高是 10.13pt，余量只有 1.87pt——再高一点
 每页第一行就会跟着字体往下掉。这两个变体钉的就是那点余量。
 
-三个旧类名（`hithesisbook`、`hithesisart`、`hithesisartplus`）在 v3.2a 移除。
+三个旧类名（`hithesisbook`、`hithesisart`、`hithesisartplus`）计划在 v4 移除，预计约 2027 年初。
+稳定版 v3.2a 保留原有类名；以下行为属于当前 v4 开发版。
 它们各留一份只报错的类文件，写了旧名会得到一条说清改法的错误，而不是 LaTeX
 自己那句看不出该改成什么的“File not found”。`testfiles/23`、`24`、`72` 各钉
 一个名字，钉的是“报了错”，不钉文案。

@@ -3,8 +3,9 @@ name: Test
 on:
   push:
     # Andrew's-test 是推上来看 CI 全绿不绿的临时分支，验完删掉这一项
-    branches: [master, dev, "Andrew's-test"]
+    branches: [docxlike]
   pull_request:
+    branches: [docxlike]
   workflow_dispatch:
   schedule:
     # 每天 02:00（UTC+8）跑全量变体和全量回归
@@ -18,6 +19,7 @@ env:
   # 封面日期取 \today，不钉死的话每天编出来的 PDF 都不一样，没法比
   SOURCE_DATE_EPOCH: "1700000000"
   FORCE_SOURCE_DATE: "1"
+  TEXMFLOCAL: ${{ github.workspace }}/build/dependencies/texmf
 
 jobs:
   # ============================================================
@@ -63,7 +65,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tl-version: [2022, 2023, 2024, 2025, 2026]
+        tl-version: [2023, 2024, 2025, 2026]
 
     env:
       # 2022-2025 从 historic 归档装。action 默认用 ftp.math.utah.edu，该站点
@@ -278,7 +280,8 @@ jobs:
         run: |
           # setup 漏装 l3build 时给一条明确提示，避免只看到 command not found
           command -v l3build || { echo "setup 没装上 l3build"; exit 1; }
-          l3build unpack
+           python3 scripts/dependencies.py install
+           l3build unpack
           l3build distribute
 
       # 这一步只问“模板在这个平台上编不编得出来”，所以直接跑 xelatex：
@@ -461,7 +464,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tl-version: [2022, 2023, 2024, 2025, 2026]
+        tl-version: [2023, 2024, 2025, 2026]
     env:
       TL_REPO: ${{ matrix.tl-version == 2026
         && 'https://mirror.ctan.org/systems/texlive/tlnet'

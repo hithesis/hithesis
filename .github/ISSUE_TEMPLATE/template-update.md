@@ -1,36 +1,37 @@
 ---
-name: 'hithesis与Word模板/规范不符'
-about: hithesis中"哪个校区哪个学位具体哪一个模板"与"Word模板/规范"不符 
+name: '模板与门规不符'
+about: hiThesis 某校区某学位的某本模板，与窝工规范或 Word 范例对不上
 title: ''
-labels: '规范更新'
-assignees: [syvshc, xiF616]
-
+labels: 报上出处
+assignees: [SchrodingerBlume, xiF616]
 ---
-**请不要主动关闭 issue，如果问题已经解决并推送到 [dev](https://github.com/hithesis/hithesis/tree/dev) 分支，该 issue 会被打上 `fixed in dev` 的标签，并在合并到 [master](https://github.com/hithesis/hithesis/tree/master) 分支后关闭。** 
-## 基本信息
 
-- 校区（哈尔滨/威海/深圳？）：
+**请勿自行关闭此帖。** 破绽若已封住并推送到 [dev](https://github.com/hithesis/hithesis/tree/dev) 分支，此帖会被贴上 `新谱已弥`，待并入 [master](https://github.com/hithesis/hithesis/tree/master) 后自会关闭。
 
-- 学位（本/硕/博？）：
+## 报上门户
 
-- 论文类型（毕业论文/开题/中期/博后/English Version？）：
+- 所居道场（冰城总舵 / 威海分舵 / 深圳分舵）：
+- 修为（后生·本科 / 头领·硕士 / 刀客·博士 / 上仙·博后）：
+- 文书（辞山·论文 / 立誓·开题 / 验功·中期 / English Version）：
+- 所使兵器（TeXLive 20xx / MiKTeX / TinyTeX，**本门不认 CTeX 套装**）：
+- 谱系（`hithesis***.cls` 中 `\ProvidesClass` 一行的 `3.x.x` 或 `3.xx` 即是）：
 
-- 证据（与规范不符/与word模板不符？）：
+## 报上出处
 
-- 证据所在网页（窝工规范或者word模板所在窝工官方网页）：
+- 依据何在（门规原文 / Word 排版范例）：
+- 出处链接（窝工官方网页，教务处或研究生院所颁）：
 
-- LaTeX 发行版（TeXLive 20xx/MikTeX/**本模板不支持CTeX套装**）：
+> 空口无凭。凡无出处者，本门无从查证，恕不受理。
+> 评审临时起意、导师个人偏好、别校要求，皆非门规，请勿以此相求。
 
-- 模板版本（在 `hithesis***.cls` 中的 `\ProvidesClass` 命令中的 `3.x.xx` 或 `3.xx` 即为版本号）：
+## 两相对照
 
-## 描述模板不符合的具体信息
-
-窝工在（规范/word模板中）第（xxx）行规定格式为：
-
-如图：
-
-hithesis的格式为
+门规（或 Word 范例）第（xxx）条规定：
 
 如图：
 
-如码：
+hiThesis 实际排出：
+
+如图：
+
+代码：

@@ -1,5 +1,8 @@
 # hithesis：哈尔滨工业大学 LaTeX 论文模板
 
+本分支为基于 docxlike 的 v4 开发版。稳定版 v3.2a 保留原有三个类名；
+旧类名计划在 v4 移除，预计约 2027 年初发布。常规维护开发在 `dev`，Word 排版开发在 `docxlike`。
+
 [![Test](https://github.com/hithesis/hithesis/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/hithesis/hithesis/actions/workflows/test.yml)
 [![GitHub release](https://img.shields.io/github/v/release/hithesis/hithesis)](https://github.com/hithesis/hithesis/releases)
 [![CTAN](https://img.shields.io/ctan/v/hithesis)](https://ctan.org/pkg/hithesis)
@@ -9,7 +12,7 @@ hithesis 用于排版哈尔滨工业大学一校三区的本科、硕士和博�
 `hithesis`，论文或报告类型由 `stage=final|proposal|interim` 选择，学位默认是博士。
 
 模板已收录于 [CTAN](https://ctan.org/pkg/hithesis)。发行版适合直接使用；`dev`
-分支包含尚未发布的改动，升级前应先用自己的论文完整编译一次。完整说明见项目生成的
+分支用于常规维护；`docxlike` 包含尚未发布的 Word 排版改动。完整说明见项目生成的
 `hithesis.pdf`。
 
 English summary: hithesis is a LaTeX class for HIT theses, dissertations,

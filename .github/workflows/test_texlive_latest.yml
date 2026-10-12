@@ -1,0 +1,146 @@
+name: texlive-latest
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maintenance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      TEXLIVE_IMAGE: texlive/texlive:latest
+      TEXMFLOCAL: /hithesis/build/dependencies/texmf
+    steps:
+      - name: Checkout repository and baseline tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pull TeX Live (latest)
+        run: docker pull "$TEXLIVE_IMAGE"
+
+      - name: Compare v3.1e interfaces, defaults, labels and PDF layout
+        run: |
+          docker run --rm -i -e DEBIAN_FRONTEND=noninteractive -e TEXMFLOCAL \
+            -v "$PWD:/hithesis" -w /hithesis "$TEXLIVE_IMAGE" \
+            bash -c 'set -euo pipefail
+              # A login shell can reset the TeX Live PATH supplied by the image.
+              for tool in latex xelatex latexmk l3build; do command -v "$tool"; done
+              apt-get update
+              apt-get install -y python3-venv
+              python3 -m venv build/ci-tools
+              build/ci-tools/bin/pip install -r tests/requirements.txt
+              make dependencies
+              make cls
+              python3 scripts/release.py baseline --destination build/baseline
+              python3 scripts/release.py baseline --ref b241065a8eb609e16c7004509facc9dda57901ef --destination build/master-baseline
+              python3 tests/public-interface.py --baseline build/baseline
+              python3 tests/change-history.py
+              python3 tests/native-runtime.py
+              python3 tests/error-cases.py --baseline build/baseline --work build/error-cases
+              build/ci-tools/bin/python tests/compatibility.py \
+                --baseline build/baseline --work build/compatibility
+              build/ci-tools/bin/python tests/wiseref.py --work build/wiseref'
+
+      - name: Build documentation and verified CTAN/TDS archives
+        run: |
+          docker run --rm -i -e TEXMFLOCAL -v "$PWD:/hithesis" -w /hithesis "$TEXLIVE_IMAGE" make ctan
+
+      - name: Compile all four original example families
+        run: |
+          docker run --rm -i -e TEXMFLOCAL -v "$PWD:/hithesis" -w /hithesis "$TEXLIVE_IMAGE" make compile-examples
+
+      - name: Compare complete example PDFs with the unmodified master baseline
+        run: |
+          docker run --rm -i -e TEXMFLOCAL -v "$PWD:/hithesis" -w /hithesis "$TEXLIVE_IMAGE" \
+            build/ci-tools/bin/python tests/compare-examples.py --baseline build/master-baseline
+
+      - name: Package standalone example variants and release notes
+        run: |
+          docker run --rm -i -e DEBIAN_FRONTEND=noninteractive -e TEXMFLOCAL \
+            -v "$PWD:/hithesis" -w /hithesis "$TEXLIVE_IMAGE" \
+            bash -c 'set -euo pipefail
+              apt-get update
+              apt-get install -y --no-install-recommends zip
+              command -v zip
+              make changes
+              bash make_release_pkg.sh "$(python3 scripts/release.py version)"
+              python3 scripts/release.py verify'
+
+      - name: Keep build artifacts and regression logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hithesis-3.2a-build-and-tests
+          if-no-files-found: warn
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS
+            RELEASE_NOTES.md
+            build/compatibility/results.json
+            build/example-regression.json
+            build/error-cases/results.json
+            build/error-cases/**/*.log
+            build/compatibility/**/*.log
+            build/wiseref/results.json
+            build/wiseref/**/*.log
+            build/doc/*.log
+            examples/**/*.log
+
+      # Mirrors master: a new package version is released only after all checks.
+      - name: Read release version and check for an existing tag
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        id: release
+        run: |
+          version=$(python3 scripts/release.py version)
+          [[ "$version" =~ ^v[0-9]+\.[0-9]+[a-z]?$ ]]
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+          if git show-ref --verify --quiet "refs/tags/$version"; then
+            printf 'new=false\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'new=true\n' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate CTAN upload metadata and archive
+        if: steps.release.outputs.new == 'true'
+        run: |
+          docker run --rm -i -e TEXMFLOCAL -v "$PWD:/hithesis" -w /hithesis "$TEXLIVE_IMAGE" \
+            l3build upload --dry-run
+
+      - name: Create and push version tag
+        if: steps.release.outputs.new == 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          git tag "$RELEASE_VERSION"
+          git push origin "refs/tags/$RELEASE_VERSION"
+
+      - name: Create GitHub Release
+        if: steps.release.outputs.new == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.zip
+            dist/SHA256SUMS
+            dist/*.md5
+            dist/MD5SUMS
+
+      - name: Upload maintenance release to CTAN
+        if: steps.release.outputs.new == 'true'
+        run: |
+          docker run --rm -i -e CTAN_UPLOAD=true -e TEXMFLOCAL \
+            -v "$PWD:/hithesis" -w /hithesis "$TEXLIVE_IMAGE" l3build upload
+          printf 'CTAN upload completed; confirmation email is sent to andrew.junhao.wu@gmail.com.\n'
