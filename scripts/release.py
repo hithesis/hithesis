@@ -66,6 +66,13 @@ def baseline(destination, ref):
         ['git', '-c', f'safe.directory={ROOT}', 'archive', ref], cwd=ROOT)
     with tarfile.open(fileobj=io.BytesIO(archive)) as package:
         package.extractall(destination, filter='data')
+    # Historical dev used generated module subdirectories and shell mkdir.
+    # Prepare those known directories without enabling shell escape.
+    if 'modules/' in (destination / 'hithesis.ins').read_text():
+        for relative in ('modules', 'examples/hitbook/chinese/modules',
+                'examples/hitbook/english/modules', 'examples/hitart/reports/modules',
+                'examples/hitart/reportplus/modules'):
+            (destination / relative).mkdir(parents=True, exist_ok=True)
     subprocess.run(['xetex', '-interaction=batchmode', '-halt-on-error', 'hithesis.ins'],
         cwd=destination, check=True)
     if ref != 'v3.1e':

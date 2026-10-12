@@ -1,5 +1,31 @@
 # 3.2a maintenance branch
 
+## Current maintenance development
+
+The current `dev` branch starts from released master (`512612d`) and prepares
+v3.2b. The v3.2a tag remains unchanged. The modular Word implementation lives on
+`docxlike`; see BRANCHES.md.
+
+Historical maintenance updates restored here:
+
+- PR #282 (`e4c8096`, `3d51387`): undergraduate design selection and checkbox
+  drawing, Shenzhen undergraduate use of Harbin layout, and Weihai chapter spacing.
+  This PR originally targeted the old dev, not master.
+- `c10c70f`: remove unconditional uppercasing from hitszthesis.bst so the class's
+  bibliography controls take effect.
+- `f17735d`, `022f6dc`: the Harbin master's interim-report example and cover fields.
+
+`tests/BASELINE_REF` pins `c10c70f`, the original pre-modular implementation with
+the official campus updates and bibliography correction. All 63 configurations
+match its public values, PDF text/positions and links, including three actual
+undergraduate design covers. The Harbin interim-report cover uses the original
+`022f6dc` condition/wording changes. All 346 published v3.2a change records remain
+in order; two v3.2b records describe these backports.
+
+The original four default complete-example PDFs still match master baseline
+`b241065`; eight wiseref configurations and native/public/history checks pass.
+The older sections below record v3.2a preparation, not docxlike's v4 feature work.
+
 Git base: upstream/master `b241065a8eb609e16c7004509facc9dda57901ef`.
 Document-interface baseline: tag `v3.1e`, commit `366e37f5b3c621242229a8dc20fb41a47699b9a8`.
 

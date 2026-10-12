@@ -14,6 +14,8 @@ import pypdfium2 as pdfium
 from pypdf import PdfReader
 
 ROOT = Path(__file__).resolve().parents[1]
+VERSION = re.search(r'\\ProvidesFile\{hithesis\.dtx\}\[[^ ]+ ([^ ]+)',
+    (ROOT / 'hithesis.dtx').read_text())[1]
 PDF_LOCK = threading.Lock()
 
 
@@ -33,6 +35,9 @@ def cases():
                     cls='hithesisart', options=f'type={degree},campus={campus},stage={stage}'))
     result.append(dict(name='artplus-doctor-shenzhen-midterm', cls='hithesisartplus',
         options='type=doctor,campus=shenzhen,stage=midterm'))
+    for campus in ('harbin', 'shenzhen', 'weihai'):
+        result.append(dict(name=f'book-bachelor-{campus}-design-cover', cls='hithesisbook',
+            options=f'type=bachelor,campus={campus},language=chinese,design=true', cover=True))
     for lang in ('chinese', 'english'):
         template = next(c for c in result if c['name'] == f'book-master-harbin-{lang}')
         for variant, extra in (
@@ -88,6 +93,8 @@ def compile_case(source, work, case, phase):
     for suffix in ('*.cls', '*.cfg', '*.sty', '*.bst', '*.ist', '*.eps'):
         for path in source.glob(suffix):
             shutil.copy2(path, folder / path.name)
+    if (source / 'modules').is_dir():
+        shutil.copytree(source / 'modules', folder / 'modules')
     if case.get('style') and not (folder / 'hithesis.sty').exists():
         shutil.copy2(source / 'examples/hitbook/chinese/hithesis.sty', folder / 'hithesis.sty')
     shutil.copy2(ROOT / 'tests/compatibility.tex', folder / 'fixture.tex')
@@ -105,6 +112,8 @@ def compile_case(source, work, case, phase):
             lines.extend((r'\makeatletter', r'\let\HitOriginalEqucaption\equcaption',
                 r'\renewcommand\equcaption[1]{\begingroup\let\Hy@make@anchor\@empty\HitOriginalEqucaption{#1}\endgroup}',
                 r'\makeatother'))
+    if case.get('cover'):
+        lines.append(r'\def\HitCover{1}')
     lines.append(r'\input{fixture.tex}')
     (folder / 'main.tex').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     env = os.environ | dict(TEXINPUTS='.:', TEXMFHOME=str(work / 'empty-texmf'))
@@ -119,7 +128,9 @@ def compile_case(source, work, case, phase):
                 break
     assert not rerun, 'References did not converge'
     assert 'Missing character:' not in log, 'Missing glyphs'
-    assert ('v3.1e' if phase == 'baseline' else 'v3.2a') in log
+    source_version = re.search(r'\\ProvidesFile\{hithesis\.dtx\}\[[^ ]+ ([^ ]+)',
+        (source / 'hithesis.dtx').read_text())[1] if phase == 'baseline' else VERSION
+    assert 'v' + source_version in log
     assert 'docxlike.sty' not in (folder / 'main.fls').read_text()
     return folder, dict(re.findall(r'HIT-PROBE:([^=\n]+)=([^\n]*)', log))
 
@@ -158,7 +169,7 @@ def main():
         selected = [c for c in selected if c['name'] in args.cases]
     args.work.mkdir(parents=True, exist_ok=False)
     (args.work / 'empty-texmf').mkdir()
-    report = dict(baseline='v3.1e', candidate='v3.2a',
+    report = dict(baseline=str(args.baseline), candidate='v' + VERSION,
         baseline_sha256=hashlib.sha256((args.baseline / 'hithesis.dtx').read_bytes()).hexdigest(),
         candidate_sha256=hashlib.sha256((ROOT / 'hithesis.dtx').read_bytes()).hexdigest(), results=[])
     with ThreadPoolExecutor(max_workers=3) as pool:

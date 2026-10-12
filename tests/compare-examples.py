@@ -1,14 +1,50 @@
-"""Compile the unmodified master examples and compare complete maintenance PDFs."""
+"""Compare complete example PDFs and reject new or more frequent diagnostics."""
 import argparse
+from collections import Counter
 import importlib.util
 import json
 from pathlib import Path
+import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('compatibility', ROOT / 'tests/compatibility.py')
 compatibility = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(compatibility)
+
+
+DIAGNOSTIC = re.compile(r'^(?:LaTeX(?: Font)? Warning:|(?:Package|Class) \S+ Warning:|'
+    r'Missing character:|(?:Over|Under)full \\[hv]box)')
+
+
+def warning_counts(path):
+    """Keep message contents/counts; normalize only wrapping and source line numbers."""
+    lines = path.read_text(errors='replace').splitlines()
+    result = Counter()
+    position = 0
+    while position < len(lines):
+        line = lines[position]
+        position += 1
+        if not DIAGNOSTIC.match(line):
+            continue
+        message = [line.strip()]
+        if line.startswith('Missing character:'):
+            while not message[-1].endswith('!') and position < len(lines):
+                if not lines[position].strip() or DIAGNOSTIC.match(lines[position]):
+                    break
+                message.append(lines[position].strip())
+                position += 1
+        elif not line.startswith(('Overfull ', 'Underfull ')):
+            while position < len(lines) and lines[position].strip():
+                if DIAGNOSTIC.match(lines[position]):
+                    break
+                message.append(lines[position].strip())
+                position += 1
+        text = ' '.join(message)
+        text = re.sub(r'\b((?:input )?line) \d+\b', r'\1 <line>', text)
+        text = re.sub(r'\blines \d+--\d+\b', 'lines <range>', text)
+        result[text] += 1
+    return result
 
 
 def main():
@@ -24,11 +60,17 @@ def main():
         new = ROOT / 'examples' / family
         try:
             with (old / 'regression-build.log').open('w') as output:
-                subprocess.run(['latexmk', '-xelatex', '-interaction=nonstopmode',
+                subprocess.run(['latexmk', '-g', '-xelatex', '-interaction=nonstopmode',
                     '-halt-on-error', job + '.tex'], cwd=old, stdout=output,
                     stderr=subprocess.STDOUT, check=True, timeout=180)
             phase = 'candidate'
             assert (new / (job + '.pdf')).exists(), 'Run make compile-examples first'
+            old_warnings = warning_counts(old / (job + '.log'))
+            new_warnings = warning_counts(new / (job + '.log'))
+            introduced = new_warnings - old_warnings
+            result.update(baseline_warnings=dict(old_warnings),
+                candidate_warnings=dict(new_warnings), new_warnings=dict(introduced))
+            assert not introduced, ('New or more frequent diagnostics', dict(introduced))
             before = compatibility.signature(old / (job + '.pdf'), require_targets=False)
             after = compatibility.signature(new / (job + '.pdf'), require_targets=False)
             assert len(before[0]) == len(after[0]), ('Page count changed', len(before[0]), len(after[0]))
@@ -48,7 +90,8 @@ def main():
             result.update(status='BLOCKED_BASELINE' if phase == 'baseline' else 'FAIL',
                 phase=phase, error=str(error))
         results.append(result)
-        print(result, flush=True)
+        print({key: value for key, value in result.items()
+            if key not in ('baseline_warnings', 'candidate_warnings')}, flush=True)
     destination = ROOT / 'build/example-regression.json'
     destination.parent.mkdir(exist_ok=True)
     destination.write_text(json.dumps(results, ensure_ascii=False, indent=2) + '\n')
