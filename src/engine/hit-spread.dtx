@@ -14,43 +14,9 @@
 %   分散对齐到固定宽度，底层统一走 \env{CJKfilltwosides}；两个参数都 \texttt{f} 展开
 %   （桶到 \texttt{base} 的回落是一层转指，只展开一次拿到的还是个宏）}
 %
-% 规范里「结论」「致谢」「目录」这类两字标题要撑开排。原先撑开是直接写进常量取值的：
-% \begin{latex}
-% conclusions-heading-zh = {结\hspace{\ccwd}论}
-% \end{latex}
-% 这样一个值供三处用，只有标题那处想要这个空隙。目录条目与 PDF 书签拿到的也是带空隙
-% 的版本，书签里读出来是「结 论」。
-%
-% \cs{hit@spread@by:nn}\marg{字间距}\marg{文本} 在文本的每两个字之间插一段
-% \cs{hspace}，与手写的写法逐个记号相同。常量里只留内容，撑开由排标题的地方做：
-% \begin{latex}
-% \hit@spread@by:nn { \ccwd } { \hit@term@conclusions@heading@zh }
-% \end{latex}
-%
-% 参数二可以是文本，也可以是存着文本的宏。取内容用 \texttt{f} 展开：把打头那个记号
-% 一路展到不能再展为止，后面的原样留着。
-%
-% 不用 \texttt{o}：页桶取不到的词条指向 \texttt{base} 里那一条，
-% \cs{hit@term@titlepage@university@zh} 展开一次得到的是
-% \cs{hit@term@base@university@zh}，还是个宏，整串会被当成一个「字」排，
-% 字与字之间那段 \cs{hspace} 一个都插不进去。
-%
-% 也不用 \texttt{x}：取值里若有 \cs{kaishu} 这类字体命令，全展开会出事。
-% \texttt{f} 只碰打头那一个，正好够把转指的链子拆开。
-%
-% 参数一展开后是空的就原样输出，一个记号都不插。判空同样走 \texttt{f} 展开：
-% 博士后那一档 \option{heading-spread} 取空值，而各页桶是转指到 \texttt{base}，
-% 只展开一次拿到的是个宏、判成非空，接着就去插一段宽度为空的 \cs{hspace}，
-% 报 Missing number。撑开多少是按变体定的
-% （\option{heading-spread}），博士后那一档三个标题都不撑开，取的就是空值。
-%
-% 参数一以控制空格 \verb|\ | 打头时，插的是参数一本身，不是 \cs{hspace}：两字之间敲的就是
-% 那几个空格。\option{heading-spread} 的默认值是两个控制空格，照范例原件：「摘\ \ 要」
-% 「结\ \ 论」「目\ \ 录」两字之间敲的是两个半角空格。原件开着“平衡单字节与双字节字符”，
-% 贴着汉字的空格各占半格（半个字加半个网格增量，再加两份字距），这时每个空格换成
-% \pkg{docxlike} 的 \cs{docxlike\_format\_sbcs\_space:}，与它排段落里的空格同一条规矩。
-% 先前默认 \texttt{1em}：没有网格增量，标题 1 那 $-0.2$\,磅字距也没减，与 Windows Word
-% 导出件比，「摘\ \ 要」首字偏左 0.19，「目\ \ 录」偏右 0.13。写长度的照旧插 \cs{hspace}。
+% 在排版时添加字间距，词条本身保留原文以供书签使用。
+% 参数须用 f 展开解析多层引用；单次展开无法取得内容，完全展开又会执行排版命令。
+% 间距为空时原样输出；控制空格按半角空格规则处理，长度值使用 hspace。
 %
 %    \begin{macrocode}
 %<*shared-spread>
@@ -110,33 +76,7 @@
   }
 %    \end{macrocode}
 %
-% \cs{hit@spread@to:nn}\marg{宽度}\marg{文本} 把文本分散对齐到固定宽度。封面上
-% 成组的字段标签要对齐到同一列宽，规范给的是那个列宽，不是字间距：
-% \begin{latex}
-% supervisor-field-label = {\hit@spread@to:nn{6em}{导师}}
-% \end{latex}
-% 原先写的是算完之后的字间距，四个字的那几个还要写成 \texttt{0.6666666} 倍，
-% 改一次列宽得把同组的每一条重算一遍。
-%
-% \textbf{列宽用 \texttt{em} 不用 \cs{ccwd}。} 一个汉字的宽度是 \texttt{em}；
-% \cs{ccwd} 是「字宽加字距」，开了 \option{zijv} 就比字宽大一截（本模板的
-% \cs{frontmatter} 里有 \cs{ziju}\marg{0.05580808}，那之后 \cs{ccwd} 是字宽的
-% 1.0558 倍）。标签里的字之间隔着别的东西，不走字距，所以按字宽算。
-%
-% 混用这两个单位正是原先那批取值出错的地方：\texttt{博\dots 姓名} 写成
-% 「5 个字 + 4 段 0.5\cs{ccwd}」，\texttt{合作导师} 写成「4 个字 + 3 段 \cs{ccwd}」，
-% 字算的是字宽、间距算的是 \cs{ccwd}，两条式子把同一个差额放大成不同的量，
-% 一个 99.94bp、一个 100.72bp，值那一列对不齐。
-%
-% \textbf{底层是 \env{CJKfilltwosides}。} 原先这里自己写了一遍：\cs{hbox\_to\_wd:nn}
-% 套 \cs{tl\_map\_inline:Nn}，每两个记号之间塞一个 \cs{hfill}。那个写法在纯汉字上
-% 与现在等价（45 变体逐字节相同），碰上标点就不对：\texttt{学院（部} 会被排成
-% 「学\ 院\ （\ 部」，左括号后面多出一格。\env{CJKfilltwosides} 撑开的是 xeCJK 的
-% \cs{CJKglue}，标点前后本来就没有这段胶，所以不会。
-%
-% 同一个道理，封面上原先还有第三套写法 \cs{makebox}\oarg{宽度}\oarg{s}，也并到
-% 这里了。它撑开的同样是 \cs{CJKglue}，结果一致，只是内容撑不满时会报
-% underfull box。
+% 按指定宽度分散对齐，只伸展汉字间胶，不在标点边界额外插入间距。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@spread@to:nn #1#2
   { \hit@engine@spread@to:nn {#1} {#2} }

@@ -6,15 +6,13 @@
 %
 % \section{代码清单}
 %
-% \changes{v3.2a}{2026/09/28}{代码清单改由文档类排：\pkg{listings} 在导言区末尾由类装上，写了题注的
-%   \env{lstlisting} 照 iota-hit 的 \texttt{raw-style} 排外框与行号（\option{raw-style} 的
-%   \option{frame} 与 \option{line-numbering}），题注照表题排、名字“代码”、按章编号，博士档可写英文题
-%   （\texttt{caption-en}），续排不占新号、行号接着数（\texttt{continued}）；没写题注的是正文里的代码块，
+% \changes{v3.2a}{2026/10/06}{代码清单改由文档类排：\pkg{listings} 在导言区末尾由类装上，写了题注的
+%   lstlisting 按 raw-style 设置外框与行号（\option{raw-style} 的
+%   \option{frame} 与 \option{line-numbering}），题注照表题排、名字“代码”，caption 接受主副语言内容，
+%   续排不占新号、行号接着数（\texttt{continued}）；没写题注的是正文里的代码块，
 %   不加框、不编行号。代码用等宽字体、正文字号，行距照正文段的倍数按等宽字体的行高算}
 %
-% 规范里没有代码清单的格式。iota-hit 把进了 figure 的代码块当成一种图，题注、编号、引用与图表
-% 同一套，外框做成与伪代码一样的几档；散在正文里的代码块是段落，没框没行号。这里照它做，
-% 排版器用 \pkg{listings}：写了 \texttt{caption} 的 \env{lstlisting} 是前一种，没写的是后一种。
+% 有题注的 lstlisting 按代码清单排版，无题注时作为普通代码块。
 % \begin{itemize}
 % \item \option{frame}：\texttt{tabular}（默认）题注在上、居中，下面粗线、代码、粗线；
 %   \texttt{ruled} 粗线、居左的题注、细线、代码、粗线；\texttt{boxed} 一圈细线的框，题注在框下居中；
@@ -23,12 +21,7 @@
 %   后面跟着的照印）；\texttt{none} 不编行号。默认 \texttt{1}。
 % \end{itemize}
 %
-% 几何照 iota-hit：代码是等宽字体、正文字号；有框的清单代码从版心左缘让出单元格边距
-% （\cs{tabcolsep}）起排，行号是 0.8 倍字号，右端落在代码左缘往左半个字处，悬在版心外。
-% 行距是正文段的倍数乘等宽字体自己的单倍行高（Consolas 小四 1.25 倍是 17.56\,bp），正文段写的是
-% 固定值就照那个值。线骑在行盒边界上：顶线的下缘贴着头一行的行盒，底线的上缘贴着末一行的。
-% 行盒的高深照 Word：上升部与行距减上升部；\cs{strutbox} 也换成这一根，\pkg{listings} 给行号盒
-% 放的 \cs{strut} 才不会把行撑高（\cs{fontsize} 给的是行距的七成与三成）。
+% 代码使用等宽字体和正文字号；行号撑杆须与代码行盒一致，避免额外撑高。
 %
 % \pkg{listings} 的续页不会自己标“（续代码）”，跨页的清单照原样断开；要分成两张的，后一张写
 % \texttt{continued}。文档自己装了 \pkg{minted} 这类别的包，\env{lstlisting} 以外的环境类不管。
@@ -97,7 +90,7 @@
         everydisplay = \__hit_listing_display: ,
       }
     \sys_if_engine_pdftex:T { \lstset { extendedchars = false , columns = flexible } }
-    \lst@Key { caption-en } { } { \tl_set:Nn \l__hit_listing_en_tl {##1} }
+    \lst@Key { caption } \relax { \hit@bilingual@listing@caption:n {##1} }
     \lst@Key { continued } { false } [ true ]
       {
         \str_if_eq:nnTF {##1} { true }
@@ -134,34 +127,35 @@
         \bool_if:NT \g__hit_chapter_bool { \thechapter - }
         \int_use:N \c@lstlisting
       }
+    \hit@numbering@counter@init:n { lstlisting }
   }
 %    \end{macrocode}
 %
 % \subsection{字体与行距}
 %
-% 等宽字体取正文的 \cs{ttfamily}。类给 Consolas 设了 7/8 的缩放（小四正文里的行内代码正好五号），
-% 代码块照 iota-hit 排正文字号，所以字号除回这个比例；字体档没设缩放的，比例是 1。行距照正文段：
-% 倍数乘等宽字体的单倍行高（按字体名由 \pkg{docxlike} 现算），固定值照值。
+% 代码块沿用等宽字宽校正，行盒按目标字体在正文字号上的度量计算。
 %    \begin{macrocode}
 \dim_new:N \l__hit_listing_size_dim
 \dim_new:N \l__hit_listing_lead_dim
 \tl_new:N \l__hit_listing_natural_tl
 \tl_new:N \l__hit_listing_ascent_tl
+\dim_new:N \l__hit_listing_ascent_dim
 \cs_new_protected:Npn \__hit_listing_metrics:
   {
     \dim_set_eq:NN \l__hit_listing_size_dim \g_docxlike_body_size_dim
     \dim_compare:nNnT { \l__hit_listing_size_dim } = { 0pt }
       { \dim_set:Nn \l__hit_listing_size_dim { \f@size pt } }
-    \docxlike_font_metric:VNNF \g__hit_font_mono_name_tl
-      \l__hit_listing_natural_tl \l__hit_listing_ascent_tl
-      {
-        \tl_set:Nn \l__hit_listing_natural_tl { 1.2 }
-        \tl_set:Nn \l__hit_listing_ascent_tl { 0.9 }
-      }
+    \tl_set_eq:NN \l__hit_listing_natural_tl \g_docxlike_mono_single_tl
+    \tl_set_eq:NN \l__hit_listing_ascent_tl \g_docxlike_mono_ascent_tl
+    \dim_set:Nn \l__hit_listing_ascent_dim
+      { \l__hit_listing_ascent_tl \l__hit_listing_size_dim + \g_docxlike_mono_ascent_offset_dim }
     \group_begin:
       \docxlike_format_compute:n { Normal }
       \str_if_eq:VnTF \l_docxlike_format_line_unit_tl { exact }
-        { \dim_gset:Nn \g_tmpa_dim { \l_docxlike_format_line_value_tl } }
+        {
+          \dim_gset:Nn \g_tmpa_dim { \l_docxlike_format_line_value_tl }
+          \dim_gset:Nn \g_tmpb_dim { .8 \g_tmpa_dim }
+        }
         {
           \dim_gset:Nn \g_tmpa_dim
             {
@@ -172,15 +166,16 @@
                   * \l__hit_listing_natural_tl * \l__hit_listing_size_dim
                 }
             }
+          \dim_gset_eq:NN \g_tmpb_dim \l__hit_listing_ascent_dim
         }
     \group_end:
     \dim_set_eq:NN \l__hit_listing_lead_dim \g_tmpa_dim
+    \dim_set_eq:NN \l__hit_listing_ascent_dim \g_tmpb_dim
   }
 \cs_generate_variant:Nn \docxlike_font_metric:nNNF { V }
 %    \end{macrocode}
 %
-% 字宽：等宽字体一格，外加字符网格的半个增量（Word 贴网格的段里西文字形各加半个增量，iota-hit
-% 量得 Consolas 小四一格 6.83\,bp）；没有字符网格就是字体自己的宽。每个字左对齐在格里。
+% 字宽为等宽字体步进加半份字符网格增量，每个字符在格内左对齐。
 %    \begin{macrocode}
 \cs_new:Npn \__hit_listing_basewidth:
   {
@@ -193,7 +188,7 @@
   {
     \__hit_listing_metrics:
     \fontsize
-      { \fp_to_dim:n { \l__hit_listing_size_dim / \g__hit_font_mono_scale_fp } }
+      { \l__hit_listing_size_dim }
       { \l__hit_listing_lead_dim }
     \ttfamily \selectfont
     \skip_zero:N \lineskip
@@ -203,7 +198,7 @@
 \cs_new_protected:Npn \__hit_listing_number_font:
   {
     \fontsize
-      { \fp_to_dim:n { 0.8 * \l__hit_listing_size_dim / \g__hit_font_mono_scale_fp } }
+      { \fp_to_dim:n { 0.8 * \l__hit_listing_size_dim } }
       { \l__hit_listing_lead_dim }
     \ttfamily \mdseries \upshape \selectfont
   }
@@ -271,9 +266,9 @@
 \cs_new_protected:Npn \__hit_listing_strut:
   {
     \tex_vrule:D width 0pt
-      height \fp_to_dim:n { \l__hit_listing_ascent_tl * \l__hit_listing_size_dim }
+      height \l__hit_listing_ascent_dim
       depth \fp_to_dim:n
-        { \l__hit_listing_lead_dim - \l__hit_listing_ascent_tl * \l__hit_listing_size_dim }
+        { \l__hit_listing_lead_dim - \l__hit_listing_ascent_dim }
       \scan_stop:
   }
 \cs_new_protected:Npn \__hit_listing_deinit:
@@ -376,13 +371,14 @@
       { \__hit_listing_rule:n { \g__hit_table_rule_outer_tl } }
     \__hit_listing_caption_line:nn
       { \bool_if:NTF \g__hit_en_bool { en } { zh } } {#2}
-    \bool_lazy_or:nnF { \g__hit_en_bool } { \tl_if_empty_p:N \l__hit_listing_en_tl }
+    \tl_if_empty:NF \l__hit_listing_en_tl
       {
         \bool_if:NT \g__hit_bilingual_caption_bool
           {
             \group_begin:
-              \hit@caption@latin@pick:
-              \__hit_listing_caption_line:nV { en } \l__hit_listing_en_tl
+              \bool_if:NF \g__hit_en_bool {\hit@caption@latin@pick:}
+              \exp_args:Ne \__hit_listing_caption_line:nV
+                {\bool_if:NTF\g__hit_en_bool{zh}{en}} \l__hit_listing_en_tl
             \group_end:
           }
       }

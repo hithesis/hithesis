@@ -89,10 +89,6 @@ if [ "$CLS_ROOT" != "$SRC_ROOT" ]; then
     [ "$f" = "hithesis.sty" ] && continue
     [ -f "$CLS_ROOT/$f" ] && cp "$CLS_ROOT/$f" "$WORK"/
   done
-  # v3.1e 的示例按 figures/golfer 引图，新树里这份资源挪了位置，补一份进去
-  if [ -f "$CLS_ROOT/assets/golfer.pdf" ] && [ -d "$WORK/figures" ]; then
-    cp "$CLS_ROOT/assets/golfer.pdf" "$WORK/figures/"
-  fi
 fi
 
 # Rewrite the first \documentclass line in $ENTRY

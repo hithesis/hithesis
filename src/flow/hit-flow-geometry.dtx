@@ -18,17 +18,9 @@
 %<*flow-geometry>
 %    \end{macrocode}
 %
-% \emph{两档只共用纸张与四个全局开关。} 终稿的版心由 \option{layout} 族的取值算，这里
-% 不设；报告的版心在本文件末尾，报告还没有按 Word 页面设置算的那一套。
+% 终稿与报告的版心均由 layout 配置计算，这里只设初始纸张、偏移和调试框。
 %
-% \emph{版心参数自己设，不经 \pkg{geometry}。} 那样的包一改版本，版面就可能跟着变。
-% 终稿由 \pkg{docxlike} 设（\cs{docxlike\_page\_setup:n}），这里只管纸张与报告那几组尺寸。原先写的是 \pkg{geometry} 的
-% \texttt{a4paper, hcentering, ignoreall, nomarginpar}：纸张 A4，页眉页脚不算进版心，
-% 不留边注栏。下面的 \cs{\_\_hit\_page\_legacy:nnnnnn} 照 \pkg{geometry} 在这种设置下的
-% 算法写：版心宽高、左边距（双面时偶数页镜像，右边距算出来）、页眉盒高、页眉到版心的
-% 距离、页脚基线到版心底的距离给定，版心上下居中（平分用 \cs{divide}，截断到 sp，
-% 与 \pkg{geometry} 一样；\cs{dimexpr} 的除法是四舍五入，会差 1\,sp）。二十几组选项的页面参数与原先
-% \pkg{geometry} 算的逐 sp 核对过。
+% 初始纸张为 A4，实际尺寸由配置回放覆盖。
 %    \begin{macrocode}
 \dim_set:Nn \paperwidth { 210truemm }
 \dim_set:Nn \paperheight { 297truemm }
@@ -42,37 +34,9 @@
 \dim_zero:N \marginparsep
 \dim_zero:N \hoffset
 \dim_zero:N \voffset
-\dim_new:N \l__hit_page_top_dim
-\cs_new_protected:Npn \__hit_page_top_set:
-  {
-    \dim_set:Nn \topmargin
-      { \l__hit_page_top_dim - 1in - \headheight - \headsep }
-  }
-\cs_new_protected:Npn \__hit_page_legacy:nnnnnn #1#2#3#4#5#6
-  {
-    \dim_set:Nn \textwidth {#1}
-    \dim_set:Nn \textheight {#2}
-    \dim_set:Nn \headheight {#4}
-    \dim_set:Nn \headsep {#5}
-    \dim_set:Nn \footskip {#6}
-    \dim_set:Nn \oddsidemargin { #3 - 1in }
-    \legacy_if:nTF { @twoside }
-      { \dim_set:Nn \evensidemargin { \paperwidth - \textwidth - (#3) - 1in } }
-      { \dim_set_eq:NN \evensidemargin \oddsidemargin }
-    \dim_set:Nn \l__hit_page_top_dim { \paperheight - \textheight }
-    \tex_divide:D \l__hit_page_top_dim 2 \scan_stop:
-    \__hit_page_top_set:
-  }
 %    \end{macrocode}
 %
-% \emph{照原先 \pkg{geometry} 按页换版面时的副作用。} 封面、内封按页换版面
-% （\cs{docxlike\_page\_setup\_push:n}）原先经 \cs{newgeometry} 与 \cs{restoregeometry}，
-% 它们除了设版心还会把 \cs{baselineskip}、\cs{topskip}、\cs{columnsep} 设回
-% \cs{begin}\marg{document} 时存下的值（实测两者都是这一份：\cs{newgeometry} 前
-% 12.045\,pt，之后 20.581\,pt，正是正文的行距）。内封量版心余高之前正是靠这一下把
-% \cs{baselineskip} 从封面的 12\,bp 拉回正文的行距。
-% 所以在原先 \pkg{geometry} 挂 \cs{AtBeginDocument} 的同一个位置存一份，换入与还原时
-% 照样设回。
+% 换入及恢复页面布局时，同时恢复文档开始时的 baselineskip、topskip 和 columnsep。
 %    \begin{macrocode}
 \clist_const:Nn \c__hit_page_restore_skip_clist { baselineskip , topskip }
 \clist_map_inline:Nn \c__hit_page_restore_skip_clist
@@ -96,8 +60,7 @@
   { \docxlike_page_pop_default: \__hit_page_restore: }
 %    \end{macrocode}
 %
-% \emph{调试模式画框。} 原先是 \pkg{geometry} 的 \option{showframe}：版心四边、页眉盒与
-% 页脚基线各画一道细线。这里在每页的前景上画同样几道线。
+% 调试模式在页前景绘出版心、页眉和页脚参考线。
 %    \begin{macrocode}
 \bool_if:NT \g__hit_debug_bool
   {
@@ -139,23 +102,10 @@
 %
 % \subsection{开题与中期报告的版心}
 %
-% 尺寸照 PlutoThesis 原版定义而来。\texttt{a4paper} 即 210\,$\times$\,297\,mm。
+% 报告同样使用 hit-layout.dtx 的页面设置。
 %
-% 深圳硕士的页眉位置另有两档，开题与中期各一个。
+% 深圳开题、中期的页眉距边界分别在对应预设中设置。
 %    \begin{macrocode}
-\bool_if:NF \g__hit_final_bool
-  {
-    \__hit_page_legacy:nnnnnn { 150truemm } { 236truemm } { 30truemm }
-      { 5truemm } { 2truemm } { 5.2truemm }
-    \bool_lazy_and:nnT
-      { \bool_if_p:N \g__hit_shenzhen_bool }
-      { \bool_if_p:N \g__hit_master_bool }
-      {
-        \dim_set:Nn \headsep
-          { \bool_if:NTF \g__hit_proposal_bool { 25pt } { 17pt } }
-        \__hit_page_top_set:
-      }
-  }
 %</flow-geometry>
 %    \end{macrocode}
 %

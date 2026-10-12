@@ -44,6 +44,12 @@ BIBSTYLE=gbt7714-2025-numeric           # 可选，替换掉整棵树里的 \bib
 留了个转发空壳，42 号变体比的就是“空壳与三个选项输出逐字节相同”；空壳在
 v3.2a 移除之后那一格没了意义，已删。
 
+深圳研究生中英文报告现统一使用自有排版层，博士暂沿用硕士版式。
+八组排版小样与 Word 坐标检查见 [`output/shenzhen/README.md`](output/shenzhen/README.md)。
+分节命令和标题分页的跨引擎检查见 [`sectionbreak.md`](sectionbreak.md)。
+独立引用包 wiseref 的标准文档测试与待实现接口的验收用例见
+[`wiseref/README.md`](wiseref/README.md)。这些测试不加载 hithesis 或 docxlike。
+
 变体 44 与 45 走 `fontset=mac`，其余全部钉死 `fontset=fandol`。行距与字体无关是
 靠绝对值实现的：字号和行距都写成 bp，不用 `em` 也不用 `\linespread`。但每页第一行
 走 `\topskip`（12pt），而 mac 仿宋的字面高是 10.13pt，余量只有 1.87pt——再高一点

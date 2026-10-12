@@ -28,14 +28,12 @@
   {
 %    \end{macrocode}
 %
-% \cs{hit@title@font} 是标题字体，\cs{hit@chapter@entry@font} 是目录里章标题的字体
-% （注意别跟 \file{book-toc} 里的 \cs{hit@chapter@entry@font} 弄混，那个只在
-% \option{toc/sans-font} 打开时才定义）。两个都可展开。
+% \cs{hit@title@font} 和 \cs{hit@chapter@entry@font} 分别选择正文标题与章目录条目的字体。
+% 两者都根据标题西文无衬线开关选择字体声明；章目录条目同时保留中文黑体。
 %
 % \begin{macro}{\hit@if@same@TF}
-% \cs{hit@if@same@TF}\marg{甲}\marg{乙}\marg{真}\marg{假} 把两边先展开再比字符串。
-% 下面判断某个章标题是不是摘要标题时用，两边都是宏，直接 \cs{tl\_if\_eq:nn} 比的是
-% 记号不是文字。
+% \cs{hit@if@same@TF}\marg{甲}\marg{乙}\marg{真}\marg{假} 先对两边做受保护展开，再比较记号列表。
+% 用于判断章标题是否为摘要标题；直接比较未展开的参数会比较宏名，而非标题内容。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@if@same@TF #1#2#3#4
   {
@@ -56,8 +54,7 @@
   { \bool_if:NTF \g__hit_heading_latin_sans_bool { \sffamily \heiti } { \heiti } }
 %    \end{macrocode}
 %
-% v3.1e 的章节标题由 \pkg{ctex} 排，格式写在英文版、博士后、其余三段 \cs{ctexset} 里。现在标题
-% 交给 \pkg{docxlike} 排（见本节末），那几段随旧版面删掉，下面是它们的修改记录。
+% 章节标题由 \pkg{docxlike} 排版，见本节末。以下保留原 \pkg{ctex} 标题实现的历史修改记录。
 % \changes{v3.0.0}{2020/05/21}{添加英文版目录chapter title控制}
 % \changes{v3.0.0}{2020/05/21}{添加博后标题格式}
 % \changes{v3.0.01}{2020/06/06}{添加本科生章标题加粗选项}
@@ -137,12 +134,7 @@
 \tl_new:N \l__hit_chapter_entry_tl
 %    \end{macrocode}
 %
-% 页眉与目录条目收 \meta{排印的标题}，书签收 \oarg{条目用的标题}。这两件事
-% 原先是一个参数管的，于是「摘要」「结论」这类两字标题把撑开的字间距一并丢在
-% 页眉里。规范要求这几个标题撑开排，页眉照排印的样子来；Word 的目录域抄的是标题
-% 段落的文字，两个半角空格也在，范例两份目录都是「摘␣␣要」；书签取原文，读出来
-% 带空隙不像话。撑开写 \cs{hit@spread@by}（不带参数签名的那个名字），它要原样
-% 写进 \file{.toc} 再读回来。
+% 页眉和目录使用排印标题，PDF 书签使用未添加字间距的原文。
 %
 % 不给 \oarg{条目用的标题} 时两处同源，行为不变；\cs{hit@list@of} 那处两个
 % 参数本来就传同一个值，也不受影响。
@@ -240,19 +232,7 @@
 %    \begin{macrocode}
 %    \end{macrocode}
 %
-% \emph{没给英文名不再整条消失。}先前四级章节都是“给了 \oarg{英文名} 才写
-% 英文目录条目”，没给就没有这一条。两个后果：中文版的双语目录里漏写一处英文名
-% 就悄悄少一条，作者看不出来；英文版（\option{lang}\texttt{=en}）的章标题本来
-% 就是英文、写在必选参数里，没人再给一遍 \oarg{英文名}，于是英文版的目录里
-% 一条章节都没有。
-%
-% 现在没给英文名就退回排印用的标题。英文版那就是英文，照排；中文版退回的是
-% 中文，条目后面缀一句红字 \texttt{(Error! English heading not defined.)}，句式
-% 照 Word 自己的“错误！未定义书签。”，只提示不拦编译——论文还得交，拦住不如让
-% 作者一眼看见，补上英文名提示自然消失。这一手照 iota-hit。字样是词条
-% \texttt{table-of-contents-undefined-en}，\option{const} 改得动。
-%
-% 日志里同时给一条警告，页面上的红字与终端各说一遍，作者不翻目录也看得见。
+% 缺少英文标题时保留目录条目；中文文档另输出警告和红字提示。
 %
 % 提示宏用 \texttt{@} 名，因为它要写进 \file{.toe} 再读回来，
 % \cs{@starttoc} 读文件时只开 \cs{makeatletter}。受保护，
@@ -316,7 +296,6 @@
 \RenewDocumentCommand \chapter { s o m o }
   {
     \IfBooleanF {#1} { \hit@matter@main@enter: }
-    \hit@clear@page \phantomsection
     \IfBooleanTF {#1}
       {% \chapter*
         \IfNoValueTF {#2}
@@ -336,11 +315,7 @@
 % \changes{v1.0.13}{2018/04/05}{添加\cs{texorpdfstring}命令去除书签中带有格式时的警告}
 % \changes{v3.1d}{2025/03/03}{根据 \issue[182] 修改英文目录没有对齐的问题}
 % \changes{v3.1d}{2025/03/03}{根据 \issue[209] 修改英文目录有序号的章/附录前有空格的问题}
-% 章条目原先把编号平写进条目（\texttt{Chapter 1\cs{hspace}\{0.5em\}标题}），
-% 编号后只空半个字、折行也顶回左缘。改走 \cs{numberline}，编号后间距与
-% 中文目录同一个来源（一个字宽，两份目录的编号列才对得齐——照 iota-hit
-% 对范例的口径，这一档读文档语言不读目录语言），条目组里量宽导悬挂的
-% 机制也一并接上。附录条目同改。
+% 章及附录目录条目通过 numberline 处理编号宽度和悬挂缩进。
 %    \begin{macrocode}
         \__hit_toe_chapter_entry:nnn
           { \hit@english@toc@chapter@name \hit@toe@chapter@number: } {#4} {#3}
@@ -411,13 +386,7 @@
 %
 % \subsubsection{标题交给 \pkg{docxlike} 排}
 %
-% 终稿（新版面）的标题由 \pkg{docxlike} 排，共用的那一层在 \file{hit-docxlike.dtx}。与 \pkg{ctex}
-% 那条路逐页比过，剩下的差别都照 iota 取舍：编号后的空白是一格连同字距（原先是 1\,em，节标题的
-% 题名右移 0.45\,bp，居中的章题左移 0.05\,bp）；目录里“附录A”的“录”与“A”之间与“第1章”一样空；
-% 四级标题后面紧接标题时，段前与四级标题的段后取大（原先段前丢了）；两行的章题第二行照整行
-% 居中，不按编号悬挂。英文版的章号“CHAPTER 1”与题名之间是标题里的换行，两行的距离是 1.25 倍
-% 行距（原先是两段，中间夹着 \env{center} 的上下空白）；节号后原先是半个字，现在与中文版一样
-% 一个字。
+% 终稿标题由 docxlike 排版，章节命令负责换页、目录和引用。
 %
 % 外壳 \cs{chapter}、\cs{section}……管清页、书签锚点、英文目录，排标题的是里面的
 % \cs{hit@chapter} 到 \cs{hit@subsubsection}。v3.1e 借的是 \pkg{ctex} 的章节命令，它们除了排标题
@@ -519,7 +488,10 @@
     \docxlike_heading_new:Nnn \__hit_dl_chapter:w { Heading~1 } { chapter }
     \NewDocumentCommand \hit@chapter { s o m }
       {
-        \legacy_if:nTF { @openright } { \cleardoublepage } { \clearpage }
+        \bool_set_false:N\l__hit_heading_page_started_bool
+        \str_if_eq:VnF\g__hit_top_heading_pagebreak_tl{false}
+          {\__hit_heading_start_section:n{chapter}}
+        \par\phantomsection
         \thispagestyle { hit@headings }
         \int_gzero:N \@topnum
         \IfBooleanF {##1}
@@ -527,7 +499,6 @@
             \addtocontents { lof } { \protect \addvspace { 10 \p@ } }
             \addtocontents { lot } { \protect \addvspace { 10 \p@ } }
           }
-        \bool_gset_true:N \g_docxlike_section_start_bool
         \tl_clear:N \l__hit_heading_local_tl
         \bool_lazy_and:nnT { \g__hit_chapterbold_bool } { ! \g__hit_en_bool }
           {

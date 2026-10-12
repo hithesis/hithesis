@@ -15,10 +15,7 @@
 %   首行位置与字距，直接设进 \hologo{LaTeX} 的页面参数，不调用 \pkg{geometry}；
 %   \cs{headheight} 默认零，文档类自己排页眉时由接入点给；设版面与按页换版面可以由文档类换掉}
 %
-% 格式规范里写的常是 Word 的话：“页边距上 3.8 厘米”“文档网格
-% 每页 33 行、间距 19.55 磅”。这些量与 \hologo{LaTeX} 的 \cs{textheight}、\cs{baselineskip}、
-% \cs{topskip} 不是一一对应的，中间隔着 Word 自己的几条规则。把换算结果硬写进
-% \cs{geometry} 的话，一套页面设置一组数，改一个值要连带手算三四个。
+% 将页边距、纸张尺寸和文档网格转换为 LaTeX 页面参数。
 %
 % \cs{docxlike\_page\_setup:n}\marg{键值表} 收 Word 那边的原话，算出 LaTeX 这边的参数：
 % \begin{latex}
@@ -33,9 +30,6 @@
 %
 % \subsection{Word 的几条规则}
 %
-% 下面每一条都是从一份实际的 Word 文档（下称样本文档）与专门造的对照文档里量出来的，
-% 不是从文档里读来的。量法是拿 \texttt{mutool} 读 PDF 内容流里的 \texttt{Tm}，
-% 取到的是 Word 自己写下的基线坐标。
 %
 % 先把“磅”这个字定死。Word 界面上的磅是一英寸的七十二分之一，
 % 也就是 \hologo{LaTeX} 的 \texttt{bp}；\hologo{LaTeX} 自己的 \texttt{pt} 是一英寸的
@@ -573,9 +567,7 @@
   { page-setup .code:n = { \__docxlike_page_setup_more:n {#1} } }
 %    \end{macrocode}
 %
-% 按页换一套版面。Word 的分节符能让一节有自己的页面设置，封面那一节就与正文
-% 不同——\texttt{docGrid} 的 \texttt{linePitch} 是 395 缇，正文是 383。要用的
-% 模块把\emph{自己那一节}的取值写出来，连同当前这一套一起传进来，排完再还原。
+% 局部页面设置入栈保存，使用后恢复，支持嵌套。
 %
 % 算完发现页面几何与当前这一套一模一样，就\emph{不动}页面参数——封面与正文常常只差
 % 一个行跨度，页边距是一样的，而换版面要另起一页。
@@ -583,11 +575,7 @@
 % 真要换的时候，换入先 \cs{clearpage}，存下当时的页面参数，再设新的；还原也先
 % \cs{clearpage}，再把存下的设回去。纸张尺寸不换，一篇文档里不该变。
 %
-% 可以套嵌：每压一层，把当时的版面取值（行跨度、字距、格数、纸张、页边距、页眉页脚距、网格
-% 开关、版面指纹）写成一段恢复代码压进栈，出栈时执行。换入时存的页面参数另压一个栈。文档类
-% 用 \cs{docxlike\_page\_set\_save:n} 登记的代码在压栈时执行，往
-% \cs{l\_docxlike\_page\_restore\_tl} 里追加它自己那几个全局量的赋值，出栈时一起执行。
-% 先前只存一层，出栈也只还原行跨度那几样，版面指纹停在上一层，下一次压栈拿过期的指纹比。
+% 恢复代码须包含页面指纹及文档类附加状态，避免嵌套换页后使用过期尺寸。
 %    \begin{macrocode}
 \clist_const:Nn \c__docxlike_page_param_clist
   {

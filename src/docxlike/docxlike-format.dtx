@@ -99,13 +99,10 @@
 %   段落走（Word 里回车出的空段继承上一段的属性，贴格的单倍空段占一整格，实测），
 %   \option{snap-to-grid-when-document-grid-is-defined} 键可改；星号版的空盒之间补零罚分，页底装得下几行装几行；
 %   浮动体的后距照留，空段另算}
-% \changes{v3.2a}{2026/09/21}{\cs{verb} 照 Word 里能一字一字映射的写法排：Consolas 五号，
-%   空格印成 U+02FD 加零罚分（\option{style}/\option{verb-space}\texttt{!=cell} 换成
-%   不断行空格），长串在 \texttt{/ . -} 前可断（Lua 层），不贴字符网格；原先空格是
-%   带伸缩的 \cs{nobreakspace}，不可断，两端对齐时被拉到 28.9\,bp}
+% \changes{v3.2a}{2026/09/21}{行内代码使用独立字形标记，等宽字号可按目标字宽校正；
+%   可见空格使用 U+02FD 加零罚分，开启代码增强后补充软断点并支持整段优化}
 %
-% 规范里说的是 Word 的话：“章标题小二黑体居中，段前段后各一行，多倍行距 1.5”。
-% 手算的话，这些话要折成 \texttt{28.34646bp} 这样的数散在好几处，改一处要连带重算三四个数。这里收 Word 对话框上的原话，换算交给代码：
+% 将字体和段落样式转换为排版尺寸。
 % \begin{latex}
 % \docxlikesetup
 %   {
@@ -230,26 +227,7 @@
 \docxlike_size_new:nn { bahao }   { 5bp }
 %    \end{macrocode}
 %
-% \cs{\_\_docxlike\_format\_parend\_guard:} 排在 \texttt{para/end} 钩子里、段末撑杆
-% \cs{docxlike\_format\_strut:} 之前，把撑杆焊在段落最后一个字上。\hologo{XeLaTeX} 下
-% 是空操作——那边本来就是焊死的。
-%
-% \textbf{病灶。} 段末的水平列表是「\dots 。\meta{撑杆}\cs{penalty}~10000
-% \cs{parfillskip}」。\pkg{xeCJK} 在句号与撑杆之间什么都不放，撑杆离不开末行。
-% \pkg{luatexja} 会在和文字符与后续节点之间插一段 JFM 边界胶——句号（JFM 里是
-% 半宽字形）后面是“\cs{glue}~6.02\,pt~minus~6.02\,pt”，这段胶是合法断点。
-% 于是当段落末行恰好排满时，TeX 有两个选择：把“边界胶＋撑杆＋\cs{parfillskip}”
-% 压上末行，或在边界胶处断行——断出来的新行只有撑杆和 \cs{parfillskip}，
-% badness 为零，总是胜出。结果是段与段之间凭空多出一行空白，高度正好一个
-% \cs{baselineskip}（撑杆的高深）。末行差一点排满时是另一副面孔：那段
-% minus 胶被压光，句号收成半宽、整行两端撑满，而 \hologo{XeLaTeX} 是自然宽度加
-% \cs{parfillskip} 补白。
-%
-% \textbf{封条是 \cs{ltjfakeboxbdd}。} 它告诉 \pkg{luatexja}「此处按盒子边界
-% 处理」：盒末的尾随边界胶本来就不插（\cs{hbox} 实测如此），于是句号与撑杆之间
-% 不再有断点，两种病症一起消失。段落以普通汉字收尾时 JFM 本来就不在字与撑杆之间
-% 插胶，没病也不受影响；只有以标点收尾的段落走到这条上。
-% 没装 \pkg{luatexja} 时什么也不做。
+% 在段末撑杆前插入 ltjfakeboxbdd，阻止 luatexja 的边界胶将撑杆单独换到空行。
 %    \begin{macrocode}
 \sys_if_engine_luatex:TF
   {
@@ -295,18 +273,7 @@
 %
 % \cs{\_\_docxlike\_format\_put:nn}\marg{键}\marg{值} 写进当前目标的存储。
 %
-% 值当场展开再存。解析器交过来的是 \cs{dim\_eval:n} 与 \cs{fp\_to\_decimal:n} 这种
-% 还没算的式子，里面读着 \cs{l\_\_docxlike\_format\_head\_tl} 这些临时变量；原样存下去，
-% 等到取用时才算，那几个临时变量早被下一条键覆盖了。
-% 存一项。取值写 \texttt{auto} 时不存，反而把已有的条目删掉——读取那一头
-% \cs{\_\_docxlike\_format\_read:nnnN} 每一项都带着内建默认，条目不在表里就用那个默认，
-% 而那个默认正是包自己的规矩。所以\texttt{auto} 与“没写这一项”等价，
-% 这也正是它该有的含义。
-%
-% 举一个：\option{snap-to-grid-when-document-grid-is-defined} 的内建默认是 \texttt{true} 且要求文档网格已经
-% 立起来，所以写 \texttt{auto} 就是“有网格就贴，没有就不贴”，跟着当前选项走。
-%
-% 数值类的键照样收 \texttt{auto}，含义一样，只是那些键本来就不太用得上。
+% 存储前立即展开尺寸表达式，避免保留即将被覆盖的临时变量；auto 删除显式值以恢复继承。
 %
 % \emph{限定词。} 同一个样式在某种条件下可以要一套完全不同的取值（比如某个文档类按版心底
 % 两种排法各要一套）。文档类用 \cs{docxlike\_format\_qualifiers:nn}\marg{限定词表}\marg{当前}
@@ -3920,6 +3887,23 @@
 \prop_new:N \g__docxlike_run_color_prop
 \int_new:N \g__docxlike_run_color_int
 \tl_new:N \l__docxlike_run_color_tl
+% 中文字形的视觉基线独立于行盒；调用方提供角色及归一化参考中心。
+\tl_new:N \g_docxlike_baseline_id_tl
+\cs_new_protected:Npn \docxlike_font_baseline_probe:nn #1#2
+  {
+    \tl_gset:Nn\g_docxlike_baseline_id_tl{0}
+    \sys_if_engine_luatex:T
+      {\lua_now:e{token.set_macro("g_docxlike_baseline_id_tl",
+        tostring(docxlike.run.baseline_register(\fontid\font,
+          "\lua_escape:n{#1}",\fp_eval:n{#2})),"global")}}
+  }
+\cs_new_protected:Npn \docxlike_font_baseline_enable:n #1
+  {
+    \sys_if_engine_luatex:T
+      {\str_if_eq:nnTF{#1}{true}
+        {\docxlike@baseline@attr=1\scan_stop:}
+        {\unsetattribute\docxlike@baseline@attr}}
+  }
 \sys_if_engine_luatex:TF
   {
     \newattribute \docxlike@ul@attr
@@ -3931,6 +3915,8 @@
     \newattribute \docxlike@fill@attr
     \newattribute \docxlike@pfill@attr
     \newattribute \docxlike@exact@attr
+    \newattribute \docxlike@baseline@attr
+    \newattribute \docxlike@baseline@done@attr
     \cs_new_protected:Npn \__docxlike_run_color_index:nN #1#2
       {
         \prop_get:NnNF \g__docxlike_run_color_prop {#1} #2
@@ -6189,41 +6175,35 @@
 %
 % \subsection{行内代码}
 %
-% \cs{verb} 里的一串要能一字一字映射到一份 Word 文档里：Consolas 五号的 run（没装
-% Consolas 就是 Courier New），空格是 U+02FD 加 U+200B，长串的分隔符前是 U+200B。
-% 这三样都是 Word 原生的字符与属性，Word 排出来什么样，这里就排成什么样；断点也照
-% Word 的正文规则走（连字符后只有模式 15 可断、不认 \texttt{/}、超长串起行按字形硬断）。
-% 用 Mac Word 16.89 试过三轮才定下来，探针在 \file{lb/code/}：
-%
-% \emph{空格。} 内核把 \cs{verb} 的空格做成 \cs{nobreakspace}，不可断却带字体的伸缩量，
-% 两端对齐时一行里被拉到 28.9\,bp，\verb|a  b| 数不出是几个。Word 里做得到「一格、
-% 刚性、可断」的写法是不断行空格 U+00A0 后跟零宽可断 U+200B：Word 不拉伸 NBSP，
-% 在 U+200B 处断，行尾剩一个 NBSP 无害。要看得见就把 U+00A0 换成 U+02FD（modifier
-% letter shelf）：Consolas 与 Courier New 都自带这个字，一格宽，形状是贴着基线的
-% 小开口方框，正是 \cs{verb*} 那种记号；真正的 U+2423 这两副字都没有，Word 会换字体。
-% 这里 U+200B 不发字符，发一个零罚分：Word 导出的 PDF 文本层里也没有它。
-%
-% \emph{长串。} 超过 16 个字符的串在 \texttt{/}、\texttt{.}、\texttt{-} 前面可断
-% （Chicago 14.18 排 URL 的规矩：分隔符落到下一行行首，读者看得出它是串的一部分），
-% 头尾四个字符内不断，扩展名（点后不超过五个字符）前不断，连续分隔符与 \texttt{://}
-% 之间不断，\texttt{\_} 不断。Word 里就是在这些位置敲 U+200B。这一步在
-% \hologo{LuaLaTeX} 的断行层做（串已经切成节点了，规则要看整串），
-% \hologo{XeLaTeX} 下没有。
-%
-% \emph{字号与网格。} run 五号（等宽字体按 7/8 缩放，小四正文里正好五号）、
-% 不贴字符网格：Word 里非正文字号的西文本来就不加
-% 半格增量，rPr 上再写 \texttt{snapToGrid=0} 是保险；这边 Lua 见了代码属性也不加。
-%
-% 连字符后压不住：U+2060 与 U+FEFF 放在连字符后 Word 都不理，非断行连字符 U+2011
-% 两副字都没字形。所以模式 15 的文档里 \verb|make -C| 照样会断成“make -”加“C”，
-% Word 也是；默认的模式 11 不会。
+% \cs{verb}、\cs{texttt} 和局部 \cs{ttfamily} 文本均标记为代码；切回普通字体时清除标记，
+% 分组结束后恢复外层状态。代码不添加西文字符网格增量。
+% \cs{verb} 的可见空格使用 U+02FD 加零罚分，隐藏空格使用字体空格宽度的刚性胶。
+% 代码识别与增强开关独立：默认只使用原生断点，开启 \option{code-overhang} 才增加代码专用断点。
+% 附加断点优先选逗号、单个赋值等号，再选长串中的连字符或路径分隔符；引号内不自动添加。
+% 这些附加位置与整段优化仅在 \hologo{LuaLaTeX} 的 Word 断行层处理。
+% 空格保存其创建时的西文字体，NFSS 重插空格时保留该信息，避免从前一个字形误取空格宽度。
 %
 % \env{verbatim} 环境（竖排模式进来）不动。
 %
 % \hologo{pdfTeX} 的字体只有 256 个位，U+02FD 排不出来，看得见的空格印 \cs{textvisiblespace}，
 % 等宽字体里同样是一格。
 %    \begin{macrocode}
-\sys_if_engine_luatex:T { \newattribute \docxlike@code@attr }
+\sys_if_engine_luatex:T
+  {
+    \newattribute \docxlike@code@attr
+    \newattribute \docxlike@spacefont@attr
+    \docxlike@spacefont@attr = \fontid\font \scan_stop:
+    \AddToHook { selectfont } [docxlike-space-font]
+      { \docxlike@spacefont@attr = \fontid\font \scan_stop: }
+    \AddToHook { cmd / ttfamily / after }
+      { \docxlike@code@attr = 1 \scan_stop: }
+    \clist_map_inline:nn { rmfamily , sffamily , normalfont }
+      { \AddToHook { cmd / #1 / after } { \docxlike@code@attr = 0 \scan_stop: } }
+    \AddToHook { cmd / sw@slant / before }
+      { \lua_now:n { if~docxlike~and~docxlike.linebreak~then~docxlike.linebreak.save_font_space()~end } }
+    \AddToHook { cmd / sw@slant / after }
+      { \lua_now:n { if~docxlike~and~docxlike.linebreak~then~docxlike.linebreak.restore_font_space()~end } }
+  }
 \sys_if_engine_pdftex:TF
   {
     \cs_new_protected:Npn \docxlike_format_verb_space_visible:
@@ -7546,6 +7526,67 @@ local function walk(box)
   end
 end
 
+-- Baseline correction uses glyph ink bounds, never hhea/OS2 line metrics.
+-- Regular-face registrations are shared by bold/italic instances via a font feature.
+M.baseline_records = {}
+local baseline_cache = {}
+function M.baseline_register(fid, role, reference)
+  local f = font.getfont(fid)
+  local raw = f and f.shared and f.shared.rawdata
+  local desc = raw and raw.descriptions
+  local anchor = 0x56FD
+  local d = desc and desc[anchor]
+  if not d then anchor = 0x570B; d = desc and desc[anchor] end
+  local b = d and d.boundingbox
+  local units = raw and raw.metadata and raw.metadata.units
+  if not b or not units or units <= 0 then
+    texio.write_nl('term and log', 'docxlike baseline: skipped '..role
+      ..' ('..tostring(f and f.fullname)..'): anchor bounds unavailable')
+    return 0
+  end
+  local center = (b[2] + b[4]) / (2 * units)
+  local delta = reference - center
+  if math.abs(delta) < 0.001 then delta = 0 end
+  local key = tostring(raw)..':'..role..':'..tostring(reference)
+  if baseline_cache[key] then return baseline_cache[key] end
+  local i = #M.baseline_records + 1
+  M.baseline_records[i] = {role=role, center=center, reference=reference,
+    delta=delta, anchor=anchor, filename=f.filename, font=f.fullname}
+  baseline_cache[key] = i
+  texio.write_nl('log', string.format('docxlike baseline: %s font=%s anchor=U+%04X center=%.9f target=%.9f shift=%.9fem',
+    role, tostring(f.fullname), anchor, center, reference, delta))
+  return i
+end
+local function baseline_feature(tfmdata, value)
+  -- luaotfload may share the original properties table between feature instances.
+  local properties = {}
+  for k, v in pairs(tfmdata.properties or {}) do properties[k] = v end
+  -- String-valued IDs avoid luaotfload's zero-based numeric feature conversion.
+  properties.docxlike_baseline = tonumber(tostring(value):match('^ref(%d+)$'))
+  tfmdata.properties = properties
+end
+fonts.handlers.otf.features.register {
+  name='docxbaseline', description='docxlike CJK ink baseline',
+  initializers={base=baseline_feature, node=baseline_feature, plug=baseline_feature},
+}
+function M.baseline_shift(box)
+  local enabled = luatexbase.attributes['docxlike@baseline@attr']
+  local done = luatexbase.attributes['docxlike@baseline@done@attr']
+  for n in traverse(box.head) do
+    if n.id == GLYPH and enabled and has_attr(n, enabled) == 1 then
+      local f = font.getfont(n.font)
+      local record = f and f.properties and M.baseline_records[f.properties.docxlike_baseline]
+      if record then
+        local delta = math.floor(record.delta * f.size + 0.5)
+        n.yoffset = n.yoffset + delta - (has_attr(n, done) or 0)
+        node.set_attribute(n, done, delta)
+      end
+    elseif n.id == HLIST or n.id == VLIST then
+      M.baseline_shift(n)
+    end
+  end
+end
+
 local function shift(box)
   local jf = jfonts()
   for n in traverse(box.head) do
@@ -7617,6 +7658,7 @@ function M.install(ul, ulc, ulfont, va, vaja, bold, fill, exact)
   ul_attr, ulc_attr, ulfont_attr, va_attr, vaja_attr, bold_attr = ul, ulc, ulfont, va, vaja, bold
   fill_attr, exact_attr = fill, exact
   luatexbase.add_to_callback("pre_shipout_filter", function(h)
+    M.baseline_shift(h)
     if M.used then
       shift(h)
       walk(h)

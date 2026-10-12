@@ -4,42 +4,137 @@
 %
 % \fi
 %
-% \section{接到 \pkg{docxlike} 上}
+% \section{docxlike 适配}
+% \changes{v3.2a}{2026/10/08}{新增 sectionbreak 简写分节接口；顶层标题分页先清浮动体并连续分节，统一页首段前处理}
+% \changes{v3.2a}{2026/10/06}{终稿及部分报告的标题使用 docxlike 段落样式，支持顶层标题段前换页设置；
+%   保留 LaTeX 编号、交叉引用和目录接口，将学校专有格式与通用排版引擎分离；
+%   提供代码页边扩展与自适应安全距离，开启后沿用 Word 度量，为代码补充软断点并进行整段优化；
+%   默认采用贪心断行及代码增强断点，代码不越出版心}
 %
-% \changes{v3.2a}{2026/09/28}{只粗西文的那一档（\option{latin-bold}）汉字的粗体面指回常规面（\texttt{BoldFont!=*}），
-%   不再每编一次报 Font shape undefined；排出来一样}
-% \changes{v3.2a}{2026/09/27}{引用文字剥末尾全角空格在 \hologo{pdfLaTeX} 下认 \pkg{ctex} 展开后的写法}
-% \changes{v3.2a}{2026/09/25}{章节标题交给 \pkg{docxlike} 排的共用一层（终稿与照 Word 排正文的报告）；
-%   图与表里不吃正文的固定值行距；
-%   给 \pkg{ctex} 的标题发样式的那一层删去；中文学位论文的章号照范例敲进题名（列表编号里
-%   不加中西文间距，范例的“第1章”是手敲的），博士后照模板仍用列表编号}
-% \changes{v3.2a}{2026/09/23}{类专有的几件事从 \pkg{docxlike} 里挪出来，经它的钩子与登记
-%   接回去：题序后间距、四级标题西文无衬线、旧选项与格式键的兼容桥、全局开关的同步}
-%
-% \pkg{docxlike} 只管照 Word 排版，不知道哪一种学位、哪一档报告。类在它上面挂自己的规矩：
-% 章节标题交给它排时本类要的那几件事（编号后敲的空白、“编号：无”、设置编号值、\cs{label}）、
-% 哪几级标题的西文走无衬线（\cs{docxlike\_format\_add\_font:nn}）、格式键设完之后回写旧选项的
-% 标志位（\cs{docxlike\_format\_set\_after\_target:n}）；类自己的开关变了，同步到 \pkg{docxlike}
-% 的全局开关上。
+% 本模块连接学校样式与 docxlike：处理标题编号和引用、页眉页脚尺寸、旧选项映射及全局设置同步。
+% 排版算法由 docxlike 提供，学校和学位相关的默认值由 hithesis 配置。
 %
 % ^^A ======================================================================
 % ^^A Module shared-docxlike: 类接到 docxlike 上的那一层（各档共用）
 % ^^A ======================================================================
 %    \begin{macrocode}
 %<*shared-docxlike>
+% 分节入口使用简短类型名，其余属性交给 docxlike 的节设置。
+\tl_new:N\l__hit_sectionbreak_type_tl
+\tl_new:N\l__hit_sectionbreak_settings_tl
+\bool_new:N\l__hit_sectionbreak_given_bool
+\bool_new:N\l__hit_sectionbreak_valid_bool
+\msg_new:nnn{hithesis}{sectionbreak-types}
+  {Choose~only~one~section~break:~continuous,~next,~odd~or~even.}
+\msg_new:nnn{hithesis}{sectionbreak-key}
+  {Unknown~sectionbreak~option~'#1'.}
+\cs_new_protected:Npn\__hit_sectionbreak_type:n #1
+  {
+    \bool_if:NTF\l__hit_sectionbreak_given_bool
+      {\tl_if_eq:NnF\l__hit_sectionbreak_type_tl{#1}
+        {\bool_set_false:N\l__hit_sectionbreak_valid_bool\msg_error:nn{hithesis}{sectionbreak-types}}}
+      {\tl_set:Nn\l__hit_sectionbreak_type_tl{#1}\bool_set_true:N\l__hit_sectionbreak_given_bool}
+  }
+\cs_new_protected:Npn\__hit_sectionbreak_setting:nn #1#2
+  {\str_if_eq:nnF{#2}{auto}{\tl_put_right:Nn\l__hit_sectionbreak_settings_tl{#1={#2},}}}
+\keys_define:nn{hit/sectionbreak}
+  {
+    continuous .code:n = {\__hit_sectionbreak_type:n{continuous}},
+    continuous .value_forbidden:n = true,
+    next .code:n = {\__hit_sectionbreak_type:n{next-page}},
+    next .value_forbidden:n = true,
+    odd .code:n = {\__hit_sectionbreak_type:n{odd-page}},
+    odd .value_forbidden:n = true,
+    even .code:n = {\__hit_sectionbreak_type:n{even-page}},
+    even .value_forbidden:n = true,
+    auto .meta:n = {next},
+    auto .value_forbidden:n = true,
+    columns .code:n = {\__hit_sectionbreak_setting:nn{columns}{#1}},
+    columns .value_required:n = true,
+    page-setup .code:n = {\__hit_sectionbreak_setting:nn{page-setup}{#1}},
+    page-setup .value_required:n = true,
+    page-number-format .code:n = {\__hit_sectionbreak_setting:nn{page-number-format}{#1}},
+    page-number-format .value_required:n = true,
+    unknown .code:n = {\bool_set_false:N\l__hit_sectionbreak_valid_bool
+      \msg_error:nnx{hithesis}{sectionbreak-key}{\l_keys_key_str}},
+  }
+\NewDocumentCommand\sectionbreak{O{}}
+  {
+    \tl_set:Nn\l__hit_sectionbreak_type_tl{next-page}
+    \tl_clear:N\l__hit_sectionbreak_settings_tl
+    \bool_set_false:N\l__hit_sectionbreak_given_bool
+    \bool_set_true:N\l__hit_sectionbreak_valid_bool
+    \keys_set:nn{hit/sectionbreak}{#1}
+    \bool_if:NT\l__hit_sectionbreak_valid_bool
+      {\par\exp_args:NVV\docxlike_section_new:nn\l__hit_sectionbreak_type_tl\l__hit_sectionbreak_settings_tl}
+  }
+% 标题分页先清浮动体；真实连续分节负责首段与按节设置，不再只立间距标志。
+% 保存正文段后，避免清页时页眉页脚段落改写前段的段距状态。
+\bool_new:N\l__hit_heading_page_started_bool
+\dim_new:N\g__hit_heading_previous_after_dim
+\dim_new:N\g__hit_heading_pending_after_dim
+\bool_new:N\g__hit_heading_after_placed_bool
+\cs_new_protected:Npn\__hit_heading_start_section:n #1
+  {
+    \par
+    \dim_gset_eq:NN\g__hit_heading_previous_after_dim\g__docxlike_format_prev_after_dim
+    \dim_gset_eq:NN\g__hit_heading_pending_after_dim\g__docxlike_format_pending_after_dim
+    \bool_gset_eq:NN\g__hit_heading_after_placed_bool\g__docxlike_format_after_placed_bool
+    \str_if_eq:nnTF{#1}{chapter}{\hit@clear@page}{\clearpage}
+    \sectionbreak[continuous]
+    \dim_gset_eq:NN\g__docxlike_format_prev_after_dim\g__hit_heading_previous_after_dim
+    \dim_gset_eq:NN\g__docxlike_format_pending_after_dim\g__hit_heading_pending_after_dim
+    \bool_gset_eq:NN\g__docxlike_format_after_placed_bool\g__hit_heading_after_placed_bool
+    \bool_set_true:N\l__hit_heading_page_started_bool
+  }
+\cs_new_protected:Npn \__hit_mono_cjk_scale:NNN #1#2#3
+  {
+    \group_begin:
+      \tl_set:Nx \l_tmpa_tl { \CJKttdefault }
+      \prop_get:NVNT #1 \l_tmpa_tl \l__hit_font_name_tl
+        {
+          \prop_get:NVN #2 \l_tmpa_tl \l__hit_font_options_clist
+          \clist_remove_all:Nn \l__hit_font_options_clist { Script=CJK }
+          \clist_put_right:Nx \l__hit_font_options_clist { Scale=\fp_use:N \g_docxlike_mono_scale_fp }
+          \use:e { \exp_not:N #3 {\exp_not:V\l_tmpa_tl}
+            {\exp_not:V\l__hit_font_options_clist}{\exp_not:V\l__hit_font_name_tl} }
+        }
+    \group_end:
+  }
+\AddToHook{begindocument/end}[hit-mono-size]
+  {
+    \bool_lazy_and:nnT
+      { ! \sys_if_engine_pdftex_p: }
+      { ! \str_if_eq_p:Vn \l__hit_font_en_str { none } }
+      {
+        \docxlike_mono_calibrate:n
+          { \dim_compare:nNnTF {\g_docxlike_body_size_dim} > {0pt} {\g_docxlike_body_size_dim} {12bp} }
+        \fp_gset_eq:NN \g__hit_font_mono_scale_fp \g_docxlike_mono_scale_fp
+        \fp_compare:nF { \g_docxlike_mono_scale_fp = 1 }
+          {
+            \sys_if_engine_luatex:T
+              {
+                \__hit_mono_cjk_scale:NNN\g__hit_cjk_family_font_name_prop
+                  \g__hit_cjk_family_font_options_prop\__hit_cjk_set_family:nnn
+              }
+            \sys_if_engine_xetex:T
+              {
+                \group_begin:
+                  \msg_redirect_name:nnn {xeCJK}{CJKfamily-redef}{none}
+                  \__hit_mono_cjk_scale:NNN \g__xeCJK_family_font_name_prop
+                    \g__xeCJK_family_font_options_prop \xeCJK_set_family:nnn
+                \group_end:
+              }
+          }
+      }
+  }
 %    \end{macrocode}
 %
 % \subsection{页眉槽}
 %
-% \changes{v3.2a}{2026/09/24}{页眉槽的高、页眉线、页眉页脚的挪动与显隐从 \pkg{docxlike} 挪到类里，
-%   \pkg{docxlike} 只照 Word 的模型排自己的页眉页脚；数一个没改}
-%
-% 本类的页眉页脚不走 \pkg{docxlike} 自己那一套（Word 模型的页眉页脚），而是在
-% \hologo{LaTeX} 的页眉槽里排一整块“文字加双线”，所以要自己的 \cs{headheight}：页眉那一行的
-% 行盒高加离字距离、粗线、0.75\,bp 的间隙与 0.75\,bp 的细线（范例的页眉段落下框线是
-% \texttt{thinThickSmallGap}，线型的构成见 \pkg{docxlike} 的段落边框）。这几件借
-% \pkg{docxlike} 页面设置的接入点接上：键加在 \texttt{docxlike / page-setup} 族里，与版面的其余键
-% 写在同一串；算版面时给出 \cs{headheight} 与页脚基线的修正；按页换版面时存取下面这几个全局量。
+% hithesis 用 LaTeX 页面样式选择页眉页脚内容，再由 docxlike 排版和定位。
+% \cs{headheight} 包含文本行盒、文字到横线的距离和双线高度。
+% 页面切换时须同步保存这些尺寸及显隐状态，避免部件的设置影响后续页面。
 %
 % 键与 \option{layout} 的对应在 \file{hit-keylist.dtx}：\option{header}/\option{rule} 的
 % \option{width} 与 \option{from-text}，\option{header}、\option{footer} 的 \option{shift}
@@ -80,12 +175,7 @@
 \dim_new:N \g__hit_header_latin_dp_dim
 %    \end{macrocode}
 %
-% \emph{页眉那一行的行盒按目标算。} Word 的页眉框顶钉在“页眉距边界”上，框里那一段
-% 的行盒由它自己的字体与行距定：行距 0（范例的页眉段是这么写的）就是自然行高，倍数
-% 就是倍数乘自然行高，基线在盒顶下一个上升部。\option{styles}/\option{Header} 目标给了
-% 取值就照它算；目标空着就退回小五的四个常数（v3.1e 页眉的字号），预设里总写着这个目标，
-% 只在用户把它清空时才用得上。
-% 纯西文那一档同字号按 Times 的两个常数算。
+% 页眉行盒按 Header 样式计算，样式为空时回退到小五的默认度量。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_page_header_line_xiaowu:
   {
@@ -204,6 +294,9 @@
     { report-grad-blank-head } { } , { report-grad-university } { } , { report-grad-name } { } ,
     { report-grad-blank } { } , { report-grad-title } { } , { report-grad-type } { } ,
     { report-grad-field } { } , { report-grad-blank-foot } { } , { report-grad-mark } { } ,
+    { report-sz-blank-head } { } , { report-sz-university } { } , { report-sz-name } { } ,
+    { report-sz-blank-university } { } , { report-sz-blank } { } , { report-sz-title } { } ,
+    { report-sz-blank-field } { } , { report-sz-field } { } , { report-sz-blank-foot } { } , { report-sz-mark } { } ,
     { report-bach-blank-small } { } , { report-bach-blank-head } { } , { report-bach-name } { } ,
     { report-bach-blank } { } , { report-bach-title } { } , { report-bach-blank-wide } { } ,
     { report-bach-field } { } , { report-bach-mark } { }
@@ -275,6 +368,8 @@
 \docxlike_font_select_new:nn { SimSun } { \songti }
 \docxlike_font_select_new:nn { SimHei } { \heiti }
 \docxlike_font_select_new:nn { KaiTi } { \kaishu }
+\docxlike_font_select_new:nn { KaiTi_GB2312 }
+  {\hit@font@kaishu@gb:}
 \docxlike_font_select_new:nn { FangSong } { \fangsong }
 \docxlike_font_select_new:nn { LiSu } { \lishu }
 \docxlike_font_select_new:nn { STXinwei } { \xinwei }
@@ -380,12 +475,7 @@
   }
 %    \end{macrocode}
 %
-% \emph{图与表里不吃正文的固定值行距。} 正文是固定值行距时（研究生报告 21 磅、人文社科类
-% 终稿 23 磅），\pkg{docxlike} 照 Word 把固定值的行盒钉死，盒子、公式高了也不撑。
-% 浮动体里那一段装的是 \env{tabular} 或 \cs{includegraphics}，在 Word 与 iota-hit 里
-% 是表格或图片那一块，不是固定值段里的一个字；照正文钉死的话，表格整个挤进表题底下
-% （研究生报告里第一行比 iota-hit 高 11.4）。所以浮动体一开头把固定值那一支关掉，
-% 行距仍是正文的，只是行盒由内容撑。
+% 浮动体内关闭固定行高，否则大于正文行盒的图片或表格会与题注重叠。
 %    \begin{macrocode}
 \clist_map_inline:nn { figure , table , figure* , table* }
   { \AddToHook { env / #1 / begin } { \docxlike_format_exact_false: } }
@@ -527,10 +617,6 @@
 % 本身：\cs{bfseries} 在西文那一槽照样取粗体面，汉字那一槽取到的还是常规面。先前写成空的，
 % 效果一样，可 NFSS 找不到粗体那一形，每次都报一条 Font shape undefined 再退回常规面。
 %
-% \emph{另外两条路走不通，记在这里省得再试。} 一是把 \cs{CJK@family} 换成一个
-% “粗体面指回常规面”的孪生族：选字时 \pkg{xeCJK} 会从族名重新解析，换了白换。
-% 二是在 \cs{setCJKfamilyfont} 外面包一层顺手造孪生族：\option{fontset} 常用的
-% 那几档根本不走类自己那个分支，字体族是 \pkg{ctex} 声明的，包不到。
 % 没有 \cs{addCJKfontfeature}（没装中文宏包）时只发 \cs{bfseries}。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_docxlike_latin_bold:
@@ -589,18 +675,7 @@
 % 题名前敲编号后的空白，目录与页眉拿不带空白的题名；\cs{label} 记计数器（\cs{ref} 出“1”，作者写
 % “第\cs{ref}\{…\}章”）；节以下标题前加 \cs{@secpenalty}，前面是标题时不加。
 %
-% 编号后的空白照原件在题名前敲两个半角空格：原件的兼容选项开着“平衡单字节与双字节字符”
-% （\pkg{docxlike} 的 \option{balance-sbcs-characters-and-dbcs-characters}，在本文件打开），两个空格
-% 各占半格，合起来一个字；空格是西文字形，不抬行高，全是西文的题名仍按西文行盒。Windows Word
-% 实测，编号格式里的半角空格不受这个选项管，只有半个字，全角空格又会把西文题名的上升部抬成
-% 黑体的。英文版量出来也是一个字（iota-hit 量 2026 年 9 月版深圳本科英文版那两份表单，号末到
-% 名首：章 18.35／18，节 15.23／15.12，条 14.05／13.92），原件敲的同样是两个半角。英文学位论文的
-% 章号独占一行，题名前敲的是换行（Word 的 Shift+Enter），这一行照样居中。人文社科类的节与条题序
-% 自带顿号或括号（“一、”“（一）”），范例里题序贴着标题排，不敲；本部与威海本科中期的节号“一、”
-% 同理（教务处原件）。博士后研究报告的模板里
-% 编号格式自己后跟空格（lvl 的 \texttt{suff} 是 \texttt{space}），也不敲。空白取
-% \option{after-}\meta{级}\option{-number} 词条，没设就是上面这些。人文社科那根轴只有终稿有，
-% 先问标志位在不在。
+% 默认编号间隔使用两个半角空格，避免全角空格抬高纯西文标题的行盒；自带标点或空格后缀的编号不重复添加。
 %    \begin{macrocode}
 \tl_new:N \l__hit_heading_local_tl
 \tl_new:N \l__hit_heading_body_tl
@@ -735,6 +810,16 @@
   }
 \cs_new_protected:Npn \__hit_heading_emit:Nnnnnn #1#2#3#4#5#6
   {
+    \str_if_eq:nnT {#3} { Heading1 }
+      {
+        \bool_lazy_or:nnT
+          {\bool_if_p:N\l__hit_heading_page_started_bool}
+          {\str_if_eq_p:Vn\g__hit_top_heading_pagebreak_tl{false}}
+          {
+            \tl_put_right:Nn \l__hit_heading_local_tl
+              { paragraph = { pagination = { page-break-before = false } } , }
+          }
+      }
     \tl_set:Nn \l__hit_heading_toc_tl {#6}
     \IfNoValueTF {#5}
       { \tl_put_left:Nn \l__hit_heading_local_tl { toc = {#6} , } }
@@ -849,20 +934,8 @@
 %
 % \pkg{docxlike} 设字符网格的字距时（\cs{docxlike\_format\_hglue:nn}）只管 \pkg{xeCJK} 与
 % \pkg{luatexja}，设完发钩子 \texttt{docxlike/hglue}。不装 \pkg{ctex} 的文档在这里重算一次 \cs{ccwd}
-% （\file{hit-cjk.dtx}），别的不用管。装着 \pkg{ctex} 的（深圳硕博的报告、\hologo{pdfLaTeX}）它有自己一份：
-% \pkg{ctex} 的 \cs{CJKglue} 读 \cs{l\_\_ctex\_ccglue\_skip}，字号变化时由
-% \cs{\_\_ctex\_update\_stretch\_auxi:} 重设，重设前先问 \cs{ctex\_if\_ccglue\_touched:}（比的是
-% \cs{CJKglue} 与 \cs{\_\_ctex\_ccglue:} 的 meaning）。\TeX~Live 2026 的 \cs{ctex\_update\_ccglue:}
-% 会把 \cs{\_\_ctex\_ccglue:} 同步过去，判断准；2025 的不同步，设的字距会在 \cs{begin\{document\}}
-% 里被盖回 \pkg{ctex} 自己那份（实测 2025 下整篇字距都是裸字号）。所以寄存器一起设，谁赢都是
-% 同一个值。
-%
-% \cs{ccwd} 是“\cs{CJKglue} 的宽 $+$ 字号”，由 \cs{ctex\_update\_ccwd:} 算。\pkg{ctex} 换字号时走
-% \cs{ctex\_update\_stretch:}，先把 \cs{ccwd} 设成纯字号，再按分支决定要不要重算；TL2025 及以前
-% 默认走的 \cs{\_\_ctex\_update\_stretch\_auxii:} 没有“动过 \cs{CJKglue} 没有”的判断，\cs{ccwd} 停在
-% 纯字号上，少 0.456\,pt。TL2026 给它补上了同一条判断；旧版没有就在这里补，判据照 \pkg{ctex}
-% 自己那一段，原来的函数体留作兜底，第一次设字距时补一次（\pkg{ctex} 在导言区之后还会重定义它，
-% 加载时补会被盖掉）。补了之后 \cs{ccwd} 在 2024 到 2026 上取值一致。
+% （\file{hit-cjk.dtx}）。Unicode 引擎通知共享中文层重算 \cs{ccwd}；pdfTeX 同步
+% ctex 的字距寄存器。旧版 ctex 换字号时可能重设字距，下面保留相应的兼容处理。
 %    \begin{macrocode}
 \bool_new:N \g__hit_ctex_ccwd_patched_bool
 \hook_gput_code:nnn { docxlike / hglue } { hithesis }
@@ -890,13 +963,9 @@
   }
 %    \end{macrocode}
 %
-% 这几步只在 \texttt{Normal} 样式写过时做（深圳硕博的报告不写，正文照 \pkg{ctex} 排）。
-% 正文交给 \pkg{docxlike} 之前先关掉 \option{autoindent}（\pkg{ctex} 的，或 \file{hit-cjk.dtx} 照它做的那一份：“首行缩进跟着字号走，恒为
-% 两个汉字宽”，每次换字号都重设 \cs{parindent}；Word 的首行缩进存盘时就折成了绝对长度）。排完正文、
-% 有字符网格时（网格步进是排正文时才算出来的）再停掉 \pkg{ctex} 挂在字号变化上的 \cs{ctex\_update\_ccglue:}：TL2025 下它判不出我们动过
-% \cs{CJKglue}，换字号就把字距冲回裸字号；停成空操作两版都稳，实测汉字步进都是 12.5040，没有网格的
-% 文档里 \cs{ziju} 还要靠它。排完把 \cs{ccwd} 设成网格步进：\pkg{docxlike} 是先换字号再改字距的，
-% 那一次重算读到的还是 \pkg{ctex} 自己的字距。
+% 这几步只在 \texttt{Normal} 样式写过时执行。
+% 正文交给 \pkg{docxlike} 之前关闭共享中文层的自动缩进，让样式决定首行缩进。
+% 应用正文样式后，若有字符网格，再将 \cs{ccwd} 设为实际网格步进。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@docxlike@apply@body:
   {
@@ -1033,7 +1102,15 @@
 % 标题编号后敲的两个半角空格因此各占半格，合起来一个字。
 %    \begin{macrocode}
 \keys_set:nn { docxlike }
-  { compatibility-mode = word-2003 , balance-sbcs-characters-and-dbcs-characters }
+  {
+    compatibility-mode = word-2003 , balance-sbcs-characters-and-dbcs-characters ,
+    code-overhang = true , code-overhang-page-inset = 100~percent
+  }
+\AddToHook { begindocument/end } [hit-code-linebreak]
+  {
+    \sys_if_engine_luatex:T
+      { \lua_now:n { if~docxlike~and~docxlike.linebreak~then~docxlike.linebreak.code_optimal=false~end } }
+  }
 %    \end{macrocode}
 %
 % \subsection{全局开关的同步}

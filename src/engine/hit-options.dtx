@@ -16,46 +16,12 @@
 %
 % \section{文档类选项}
 %
-% \changes{v3.2a}{2026/09/13}{两份选项模块合成一份，终稿与报告的差别由 \option{stage}
-%   分岔：\option{stage} 是一个选择项，默认 \texttt{final}，取值 \texttt{proposal}
-%   与 \texttt{interim}（v3.1e 的 \texttt{opening}、\texttt{midterm} 走废弃期），
-%   \cs{g\_\_hit\_final\_bool} 与「排不排章」都由它推出来；条件里可写
-%   \texttt{stage!=final}；引擎检查挪进 \file{src/engine/hit-engine.dtx}}
-% \changes{v3.2a}{2026/09/13}{学位与类别：\option{type} 改名 \option{degree-level}
-%   （旧名走废弃期），论文还是实践成果照 iota-hit 写 \option{form}（\option{design} 与 \option{ctype} 废弃）；
-%   加 \option{degree-type} 分学术与专业学位、\option{category} 分理工类与人文社科类
-%   （\texttt{hss} 收作 \texttt{hass} 的别名）；\option{degree-level}\texttt{!=postdoc}
-%   定死 \option{stage}\texttt{!=final}，原先写了别的 \option{stage} 会一路炸到丢掉
-%   \cs{begin\{document\}}}
-% \changes{v3.2a}{2026/09/13}{深圳本科：终稿重定向到本部本科模板；开题与中期是深圳
-%   自己发的表单，不翻成本部，正文照终稿排；本部与威海的报告正文也照 Word 排（威海硕士
-%   开题除外），只剩深圳硕博的报告由 \pkg{ctex} 排}
-% \changes{v3.2a}{2026/08/15}{字体选项：\option{fontset-en}、\option{fontset-zh}、
-%   \option{fontset-math} 收「哪一套」的名字，与顶层 \option{fontset} 同词根（中途的
-%   \option{font}／\option{cjk-font}／\option{font-en}／\option{font-zh} 都还认）；
-%   数学引擎换成 \pkg{unicode-math}，\option{newtxmath} 降级为 \option{math-font}
-%   的一档，加 \option{math-style}；加 \option{windows-font-dir}；siyuan fontset 去掉；
-%   伪粗体系数由 2 改 2.85，按 Word 实测}
-% \changes{v3.2a}{2026/08/25}{改名与三态：旧版面移除，\option{newgeometry} 与 \option{zijv}
-%   废弃，\option{arialtitle} 改名
-%   \option{styles}/\option{heading} 的西文字体，\option{tocfour} 改名
-%   \cs{tableofcontents}\oarg{depth}，\option{language} 补上兼容路径；
-%   \option{subtitle} 改三态；右开页收成「一个三态总闸 + 四个跳页点 + 一张按学位的
-%   默认表」走 \cs{hit@openright:n}；\option{bsfrontpagenumberline} 的条件默认值原先
-%   写在 \cs{ProcessKeyOptions} 之前恒为真，改由三态取值承载；加 \option{cover-script}；
-%   \option{split-entry} 默认改 \texttt{true}}
-% \changes{v3.2a}{2026/08/28}{类内部不再用 \cs{ifthenelse}（加 \cs{hit@if@same@TF}）；
-%   \option{style/glue} 的伸缩量抽成 \cs{hit@glue@skip}；只挑取值的三个组合判断删掉，
-%   取值已进词条表}
+% \changes{v3.2a}{2026/10/06}{终稿和报告共用文档类，以 stage 选择 final、proposal 或 interim；
+%   学位层次改用 degree-level，默认博士；新增 degree-type、category 和 form，博士后固定使用 final}
+% \changes{v3.2a}{2026/10/06}{字体选项分为 fontset-en、fontset-zh 和 fontset-math；
+%   支持 math-style、windows-font-dir 和 cover-script，移除旧版面选择，旧选项按对应功能给迁移提示}
 %
-% \cs{documentclass} 上接受的选项：声明、默认值，以及 \cs{ProcessKeyOptions}
-% 之后按材料、校区与学位补齐的那批后处理。
-%
-% \emph{终稿与报告合用这一份。} 原先是 \file{hit-final-options.dtx} 与
-% \file{hit-report-options.dtx} 两份，各自声明同一批选项。同一批选项声明两遍在一个
-% 类里过不去：\cs{hit@define@choice@option} 里的 \cs{bool\_new:c} 撞名就报错。
-% 所以每个选项在这里只声明一次，取值取两边的并集，差别放到
-% \cs{ProcessKeyOptions} 之后按 \option{stage} 分岔。
+% 本模块声明类选项及默认值，并在 \cs{ProcessKeyOptions} 后根据阶段、校区和学位确定排版分支。
 %
 % ^^A ======================================================================
 % ^^A Module shared-options: 文档类选项的声明与后处理（stage/campus/fontset 等）
@@ -64,37 +30,24 @@
 %<*shared-options>
 %    \end{macrocode}
 %
-% 引擎检查在 \file{src/engine/hit-engine.dtx}，那个文件比这里更早。理由不变——
-% 它是先决条件，引擎不对就不必再往下走。
+% 引擎检查由此前加载的 \file{src/engine/hit-engine.dtx} 完成。
 %
 % 此处添加book控制项，用于cfg中定理等控制
 % \changes{v3.0.0}{2020/05/21}{此处添加book控制项，用于cfg中定理等控制}
 %
-% 键名带连字符时（如 \option{cjk-font}）不能直接拿来拼控制序列，另给一个把键名与
-% 变量名分开的版本。
-%
-% \option{degree-level} 是学位层次，不叫 \option{type}：与 \option{stage} 并列时
-% 两个名字都读作「种类」，谁也说不清哪个管学位哪个管交付物。
-%
-% 旧名 \option{type} 照旧生效，转发到 \option{degree-level}，并提示一次。取值判断看的是
-% \cs{g\_\_hit\_}\meta{取值}\cs{\_bool}，跟键名无关，所以内部代码一处不用改。
+% 学位选择记录在各学位布尔量中。旧选项 \option{type} 转发到 \option{degree-level}。
 %    \begin{macrocode}
 
 \clist_const:Nn \c__hit_degree_clist { bachelor , master , doctor , postdoc }
 \clist_map_inline:Nn \c__hit_degree_clist { \bool_new:c { g__hit_#1_bool } }
 %    \end{macrocode}
 %
-% \option{form}：交上去的是写出来的论文，还是做出来的成果，照 iota-hit 取 \texttt{dissertation}（默认）或
-% \texttt{practice}；\texttt{thesis} 与 \texttt{design} 是它们的别名（iota-hit 同）。本科封面上「毕业论文」「毕业设计」
-% 那一对勾选框、研究生报告首页的「（学位论文）」「（实践成果）」都按它排。标志位是
-% \cs{g\_\_hit\_dissertation\_bool} 与 \cs{g\_\_hit\_practice\_bool}，条件里写 \texttt{[form=practice]}。
-%
-% v3.2a 的开发版把毕业设计写成 \texttt{degree-level=bachelor*}，这一写法撤了，写了报错指到 \option{form}。
+% \option{form} 区分学位论文和实践成果；本科对应毕业论文和毕业设计。
+% dissertation/thesis 为论文，practice/design 为成果。带星号的学位值不再接受。
 %    \begin{macrocode}
 \bool_new:N \g__hit_practice_bool
 \bool_new:N \g__hit_dissertation_bool
 \bool_gset_true:N \g__hit_dissertation_bool
-\bool_new:N \g__hit_degree_given_bool
 \cs_new_protected:Npn \__hit_form_set:n #1
   {
     \bool_gset:Nn \g__hit_practice_bool {#1}
@@ -102,7 +55,6 @@
   }
 \cs_new_protected:Npn \__hit_degree_level:n #1
   {
-    \bool_gset_true:N \g__hit_degree_given_bool
     \clist_map_inline:Nn \c__hit_degree_clist
       { \bool_gset_false:c { g__hit_##1_bool } }
     \tl_if_in:nnTF {#1} { * }
@@ -150,34 +102,15 @@
 \hit@define@choice@option{degree-type}{}{academic,professional}{academic}
 %    \end{macrocode}
 %
-% \option{category} 分理工类与人文社科类，默认 \texttt{stem}。学校的写作指南
-% 与书写范例各有两份（\texttt{g-stem}／\texttt{g-hss}、\texttt{d-stem}／
-% \texttt{s-hss}），两份指南的打印要求逐条一样，差在正文层次的编号
-% （人文：第一章／一、／（一）／1.）；两份范例又各自多出几处实现上的差别
-% （人文：目录固定值 23 磅、文献表半角标号、成果组名走节标题那一档）。人文范例的正文也是固定值 23，
-% 指南写的是 1.25 倍，这里照指南与 iota-hit，正文不分门类。
-% 取值造出 \cs{g\_\_hit\_stem\_bool} 与 \cs{g\_\_hit\_hass\_bool}，
-% \cs{hitsetup}\oarg{category=hass} 这样的条件也能写。名字取 hass
-% （humanities, arts and social sciences），与 iota-hit 同名。
-%
-% \emph{\texttt{hss} 是它的别名。} 学校那两份指南的文件名是 \file{g-stem.docx}
-% 与 \file{g-hss.docx}，用户照文件名写 \texttt{category=hss} 也该认。正名取
-% \texttt{hass} 是为了把艺术学兜进来——学校那句适用范围只点了哲学、法学、文学
-% 三个门类，艺术学两边都没提，而哈工大有艺术类专业。别名与 \option{stage} 的
-% \texttt{opening}／\texttt{midterm} 同一套办法：声明进取值表，解析完折成正名。
+% \option{category} 选择理工类 stem 或人文社科类 hass，hss 是 hass 的别名。
+% 人文范例的正文行距为固定 23 磅，但写作指南要求 1.25 倍；正文默认按指南处理，不按门类分开。
 %    \begin{macrocode}
 \hit@define@choice@option{category}{}{stem,hass,hss}{stem}
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{模板默认是 \option{bachelor}，为页脚做准备}
 %    \begin{macrocode}
-\bool_lazy_any:nF
-  {
-    { \bool_if_p:N \g__hit_master_bool }
-    { \bool_if_p:N \g__hit_doctor_bool }
-    { \bool_if_p:N \g__hit_postdoc_bool }
-  }
-  { \bool_gset_true:N \g__hit_bachelor_bool }
+\bool_gset_true:N \g__hit_doctor_bool
 %    \end{macrocode}
 %
 % \changes{v2.0.0}{2018/06/14}{此处添加geometry选项}
@@ -188,25 +121,17 @@
 % 三个正名加两个废弃名，再加 \texttt{mid-term} 那个更早的写法。废弃名也得声明，
 % 不然写了旧名的条件会掉进另一条提示；归一化排在 \cs{ProcessKeyOptions} 之后。
 %
-% 终稿那一档的标志位叫 \cs{g\_\_hit\_final\_bool}：词条查表是按档位值反查
-% \cs{g\_\_hit\_}\meta{取值}\cs{\_bool} 的（见 \file{hit-key-engine.dtx} 的
-% \cs{\_\_hit\_axis\_context\_try:n}），轴表把这一档叫 \texttt{final}。没有「类身份」
-% 标志位：类合成一份之后它只是 \option{stage} 推出来的影子。要分的那件事是
-% \emph{正文照哪一档排}，见下面的 \cs{g\_\_hit\_final\_body\_bool} 与
-% \cs{g\_\_hit\_report\_body\_bool}。\cs{g\_\_hit\_chapter\_bool} 留着：排不排章
-% 跟着材料走，终稿排、报告不排。
+% stage 决定材料阶段；各阶段正文统一使用 docxlike，报告按校区覆盖样式。
 %    \begin{macrocode}
 \hit@define@choice@option{stage}{}{final,proposal,interim,mid-term,opening,midterm}{final}
 \bool_new:N \g__hit_chapter_bool
 %    \end{macrocode}
 %
-% 校区没写就是哈尔滨。两个具名条件与「这份材料叫什么」那个宏只有报告用，定义在
+% 校区没写就是哈尔滨。具名条件与「这份材料叫什么」的宏在
 % 这里对终稿无害：终稿那边一处也不调，条件本身也不成立。
 %    \begin{macrocode}
 \hit@define@choice@option{campus}{}{shenzhen,weihai,harbin}{}
 \hit@define@condition{not@shenzhen}{ ! \g__hit_shenzhen_bool }
-\hit@define@condition{shenzhen@doctor@interim}
-  { \g__hit_shenzhen_bool && \g__hit_doctor_bool && \g__hit_interim_bool }
 \cs_new:Npn \hit@stage@name
   {
     \bool_if:NTF \g__hit_proposal_bool
@@ -222,7 +147,7 @@
 % 「哈尔滨工业大学教务处制」（隶书）与深圳本科报告首页的校名与文种（华文新魏）。
 % \texttt{auto}（默认）有字体就排字体、没有就照轮廓画，\texttt{font} 与 \texttt{outline}
 % 各自钉死。两条路排出来一样，见 \file{src/engine/hit-fonts.dtx} 与
-% \file{src/engine/hit-outline.dtx}。
+% \file{src/engine/hit-calligraphy.dtx}。
 %    \begin{macrocode}
 \keys_define:nn { hit / class }
   {
@@ -245,17 +170,7 @@
 \exp_args:NnnV \hit@define@choice@option {lang} {} \c__hit_lang_clist {}
 %    \end{macrocode}
 %
-% \emph{\option{language} 的兼容要转发值，不能只提示。} 旧名对照表
-% \cs{g\_\_hit\_renamed\_load\_option\_prop} 只发一句「已改名」，那对
-% \option{type} 够用——\texttt{type=doctor} 的取值在 \option{degree-level} 下
-% 原样可用，另有一条 \texttt{.code:n} 把它转过去。\option{language} 不行：
-% 取值也换了词（\texttt{chinese}/\texttt{english} 对 \texttt{zh}/\texttt{en}），
-% 得译一道。
-%
-% 漏了这一条的后果是静默走错：老文档写 \option{language}\texttt{=english}，
-% 当前类既不认也不提示，整份按中文排（拿 v3.1e 的英文示例实测，致谢、目录、
-% 章标题全是中文，参照那边是 \texttt{ACKNOWLEDGEMENTS}、\texttt{Contents}、
-% \texttt{CHAPTER 1}）。
+% 兼容 language 时须同时将 chinese/english 转为 zh/en，仅转发键名不足以保留语种。
 %    \begin{macrocode}
 \keys_define:nn { hit / class }
   {
@@ -276,9 +191,7 @@
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@lang@if@en:TF}
-% 部件语种。英文版里的中文摘要、中文版里的英文摘要是另一种语言写的一段，缩写的首次形式
-% 跟这一段的语种走，与 iota-hit 的 \texttt{part-lang} 同一个意思。\cs{g\_\_hit\_part\_lang\_tl}
-% 由排这一段的部件设成 \texttt{zh} 或 \texttt{en}，排完清空；空的时候跟全文。
+% 部件语言优先于文档语言，供摘要内的缩略语展开等操作使用。
 %    \begin{macrocode}
 \tl_new:N \g__hit_part_lang_tl
 \prg_new_conditional:Npnn \hit@lang@if@en: { p , T , F , TF }
@@ -317,12 +230,9 @@
 \hit@define@boolean@option@as{arialtitle}{heading_latin_sans}{false}
 %    \end{macrocode}
 %
-% 章标题是否加粗，默认否。标志位跟着标题 1 样式的粗细走（\file{hit-docxlike.dtx} 写回），
-% 管的是本科目录的章条目、中文版里英文摘要的标题与本科声明页的目录条目。本科范例与
-% iota 这几处都是细的，章标题本身也不加粗，默认开着就与标题 1 的样式对不上。
+% 章标题字重标志由 Heading 1 样式同步，供目录条目和摘要标题使用。
 % \changes{v3.0.01}{2020/06/06}{中文本科模板中章标题是否加粗，默认是}
-% \changes{v3.2a}{2026/09/28}{\option{chapterbold} 默认改为否，与标题 1 样式一致；本科目录章条目与
-%   英文摘要标题照范例与 iota 排细的}
+% \changes{v3.2a}{2026/09/28}{chapterbold 默认关闭，与 Heading 1 样式一致}
 %    \begin{macrocode}
 \hit@define@boolean@option{chapterbold}{false}
 %    \end{macrocode}
@@ -350,12 +260,13 @@
 \hit@define@boolean@option{etitleauto}{false}
 %    \end{macrocode}
 %
-% 要不要排副标题。默认 \texttt{auto}，即 \option{title} 的取值里带了 \oarg{副标题}
-% 就排。写死 \texttt{true} 或 \texttt{false} 可以强制。
+% 副题目显隐默认为 auto，根据独立的 subtitle 内容是否为空决定。
 %    \begin{macrocode}
 \tl_new:N \g__hit_subtitle_tl  \tl_gset:Nn \g__hit_subtitle_tl { auto }
 \keys_define:nn { hit / class }
-  { subtitle .code:n = { \__hit_tristate_set:Nn \g__hit_subtitle_tl {#1} } ,
+  { subtitle .code:n = {
+      \__hit_warn_once:nnn { subtitle } { renamed-option } { show-subtitle=#1 }
+      \__hit_tristate_set:Nn \g__hit_subtitle_tl {#1} } ,
     subtitle .default:n = { true } , }
 \hit@define@boolean@option{debug}{false}
 \hit@define@boolean@option{print}{false}
@@ -375,32 +286,9 @@
 %
 % \subsection{右开页}
 %
-% 全篇一共四个地方要决定跳不跳到右手页：内封那一串、前置、正文入口、后置。
-% 从前这四处各判各的——前置、后置与 \cs{hit@clear@page} 看 \option{openright}，
-% 内封那一串只看 \option{library}，正文入口看「博士且非图书馆版」，学位耦合还
-% 藏在 \option{oneside}/\option{twoside} 里（本硕单面，于是 \cs{cleardoublepage}
-% 自动退化成 \cs{clearpage}）。同一件事四种写法，加起来才看得出默认形态。
-%
-% 现在收成三层，取值层层可覆盖，每层都收 \texttt{auto} 表示「我不表态，交给
-% 上一层」：
-% \begin{itemize}
-% \item 单点：\option{layout} 各部件的 \option{openright} 收
-%       \texttt{\{titlepage=…,frontmatter=…,mainmatter=…,backmatter=…\}}
-% \item 总闸：顶层的 \option{openright} 直接给 \texttt{true} 或
-%       \texttt{false}，四个点一起定
-% \item 默认表：总闸是 \texttt{auto} 时按学位查 \cs{c\_\_hit\_openright\_auto\_prop}
-% \end{itemize}
-%
-% \option{library} 不再是独立的一路判断，它就是把总闸压成 \texttt{false}——
-% 图书馆版要的「不跳、不留空白、页码连续」正是四个点全不跳。
-%
-% 默认表与 iota 的同名表一致：内封那一串只有博士跳，其余三个点各学位都不跳。
-%
-% 本硕那一格取 \texttt{false} 而不是 \texttt{true}，是因为跳页不再经过
-% \cs{cleardoublepage}。从前它绑着 \cs{if@twoside}，本硕单面时写 \texttt{true}
-% 与 \texttt{false} 输出一样；现在 \cs{hit@clear@odd@page:} 不看单双面，写
-% \texttt{true} 就真会补空白页，取值必须是想要的那个。指南 3.8 写死本科「单面
-% 复印或胶印」，单面没有右手页可言，所以是 \texttt{false}。
+% 右开页设置按“部件覆盖、全文设置、变体默认值”的顺序取第一个非 auto 值。
+% library 旧选项将全文设置为 false。默认值由配置文件按部件和学位提供。
+% 显式开启时，即使文档为单面也会补齐奇数页；关闭时只清页，不补空白页。
 %    \begin{macrocode}
 %    \end{macrocode}
 %
@@ -475,11 +363,9 @@
 \hit@define@string@option@as{math-style}{mathstyle}
 %    \end{macrocode}
 %
-% 此处应广大刀客要求添加一参考文献分割开关
+% 参考文献条目的跨页开关。
 % \changes{v2.0.03}{2018/10/08}{添加参考文献分割开关}
-% \option{gb7714}/\option{split-entry} 决定一条参考文献能不能跨页断开。默认 \texttt{true}，
-% 也就是允许断：关着的时候一条长文献宁可整条推到下一页，页底就留一大块白。
-% 各学位各校区一个值，不分家。
+% split-entry 默认允许跨页，关闭时提高条目内部的分页惩罚。
 %    \begin{macrocode}
 \hit@define@boolean@option{splitbibitem}{true}
 %    \end{macrocode}
@@ -489,6 +375,8 @@
 %    \begin{macrocode}
 \hit@define@boolean@option{engtoc}{false}
 \hit@define@string@option{fontset}
+\hit@define@string@option@as{font-baseline-correction}{font@baseline}
+\tl_gset:cn{hit@font@baseline}{auto}
 %    \end{macrocode}
 %
 % 西文字体。原来一律用 TeX Gyre Termes（Times 的克隆），但学校要求的是
@@ -498,8 +386,7 @@
 \hit@define@string@option@as{fontset-en}{font@en}
 %    \end{macrocode}
 %
-% 中文字体，默认 \texttt{auto}，由模板按 \option{fontset} 或平台选一档设置。底类是 \cls{ctexbook} 的
-% 那两处（见下面“底类装哪个”）写了 \option{fontset} 而没写这个键时，字体交给 \pkg{ctex} 的同名字体集。
+% 中文字体默认 auto，继承模板字体预设的中文角色，和底类是否使用 ctex 无关。
 %    \begin{macrocode}
 \hit@define@string@option@as{fontset-zh}{font@zh}
 \tl_gset:cn { hit@font@zh } { auto }
@@ -618,13 +505,7 @@
   }
 %    \end{macrocode}
 %
-% \emph{\option{stage} 取值不认识时兜底成 \texttt{final}。} 选择项那一头已经报过
-% 「不接受这个取值」，但它把三个标志位全置假就收手了，落到这里三档一个都不成立。
-% 不兜底的话 \cs{g\_\_hit\_final\_bool} 为假，整份文档会按报告排——用户只是把
-% \texttt{interim} 拼错，拿到的却是另一种交付物。
-%
-% 不能改成硬失败：这里已经在类文件里，报错之后后面整份文档都没有类可用，
-% 几百条错一条都指不到病根。
+% 无效 stage 已由选项解析器报错；继续编译时回退到 final，保证后续分支有有效状态。
 %    \begin{macrocode}
 \bool_lazy_any:nF
   {
@@ -660,10 +541,7 @@
   }
 %    \end{macrocode}
 %
-% 别名折成正名。得排在 \cs{ProcessKeyOptions} 之后：声明处那一刻取值还没解析，
-% 标志位全是假的。与 \option{stage} 那两个旧取值同一套办法，见
-% 上面 \cs{\_\_hit\_stage\_migrate:nn} 那一段。这里不发
-% 提示——\texttt{hss} 是正式别名不是废弃名，学校的文件名就叫 \file{g-hss.docx}。
+% 选项解析后将 hss 归一化为 hass；正式别名不发迁移提示。
 %    \begin{macrocode}
 \bool_if:NT \g__hit_hss_bool
   {
@@ -673,13 +551,7 @@
   }
 %    \end{macrocode}
 %
-% \emph{深圳校区本科的\emph{终稿}按本部排。} 学校没有单独的深圳本科毕业论文模板，
-% 所以这一档翻成哈尔滨，旧深圳本科模板代码暂时保留。
-%
-% \emph{开题与中期不翻。} 深圳校区自己发了《本科毕业论文（设计）开题报告》与
-% 《本科毕业论文（设计）中期报告》两份表单，与本部那两份不是一回事。翻成本部
-% 就等于把这两份表单整个丢掉——v3.2a 之前正是这样，深圳本科的开题与中期排出来
-% 与哈尔滨那两份逐字符相同。
+% 深圳本科终稿使用本部版式。开题和中期有独立表单，保留深圳校区标志。
 %    \begin{macrocode}
 \bool_lazy_all:nT
   {
@@ -693,41 +565,21 @@
   }
 %    \end{macrocode}
 %
-% \emph{深圳本科那两份报告的\emph{正文}照终稿排。} 学校发的两份原件里，首页是
-% 表单，正文那一节的页面设置与终稿一字不差：版心、行距、跳页、页码、图表编号
-% 都是论文那一套，只有首页、页眉、页脚是表单自己的。这一条照 iota-hit 的
-% \texttt{src/flow/stage.typ} 里那个判据，它是拆开三份 \file{.docx} 的
-% \texttt{w:sectPr} 与 \texttt{w:docGrid} 逐个数比出来的。
-%
-% \emph{本部与威海的报告也走这一条。} 正文由 \pkg{docxlike} 照 Word 排。取值分两套：
-% 本部与威海的开题、中期照研究生院、教务处的原件与 iota-hit 的报告那一套，顶级是节、
-% 不另起一页、没有页眉，标志位 \cs{g\_\_hit\_harbin\_report\_bool}，条件写
-% \texttt{body=harbin-report}；威海硕士开题照 \issue[219] 附的威海 2023 版模板，那一份
-% 本来就是终稿的版面，正文照终稿排，只有首页与页眉的几个词条照它。只剩深圳硕博的报告还由
-% \pkg{ctex} 排：那几份连 iota-hit 也还没对上原件，没有可照的。
-%
-% 标志位另起一个名字，不借 \cs{g\_\_hit\_final\_bool}：那一个问的是「这份是不是
-% 终稿」，这一个问的是「正文照不照终稿排」，两件事。条件写
-% \texttt{body=final-body}——条件求值只看取值不看轴名，所以轴名写什么都行，
-% 写 \texttt{body} 是为了读的人知道它管的是正文那一层。
-%
-% \emph{标志位的名字里是下划线，条件里写连字符。} 条件求值查标志位时会把取值里的
-% 连字符折成下划线（见 \file{src/engine/hit-presetup.dtx}），所以
-% \texttt{final-body} 查的是 \cs{g\_\_hit\_final\_body\_bool}。名字里带连字符的话
-% 查不到，条件恒假，而它只发一条「不认识的条件」的提示——整段版面配置会安静地
-% 不生效，踩过一次。
+% final-body 为各类材料共用的 Word 样式配置；报告再按 harbin-report 或 shenzhen-report 覆盖。
+% 威海硕士开题仍采用 \issue[219] 的页面设置。
+% 条件值的连字符转为布尔变量名中的下划线，例如 final-body 对应 final_body。
 %    \begin{macrocode}
 \bool_new:N \g__hit_final_body_bool
-\bool_new:N \g__hit_report_body_bool
+\bool_new:N \g__hit_shenzhen_report_bool
 \bool_new:N \g__hit_harbin_report_bool
-\bool_lazy_any:nTF
+\bool_gset_true:N \g__hit_final_body_bool
+\bool_lazy_all:nT
   {
-    { \bool_if_p:N \g__hit_final_bool }
-    { \bool_if_p:N \g__hit_bachelor_bool }
-    { ! \bool_if_p:N \g__hit_shenzhen_bool }
+    { ! \bool_if_p:N \g__hit_final_bool }
+    { ! \bool_if_p:N \g__hit_bachelor_bool }
+    { \bool_if_p:N \g__hit_shenzhen_bool }
   }
-  { \bool_gset_true:N \g__hit_final_body_bool }
-  { \bool_gset_true:N \g__hit_report_body_bool }
+  { \bool_gset_true:N \g__hit_shenzhen_report_bool }
 \bool_lazy_all:nT
   {
     { ! \bool_if_p:N \g__hit_final_bool }
@@ -744,89 +596,49 @@
   { \bool_gset_true:N \g__hit_harbin_report_bool }
 %    \end{macrocode}
 %
-% \emph{底类装哪个。} 正文照 Word 排的那几档（\cs{g\_\_hit\_final\_body\_bool}）在 \hologo{LuaLaTeX}
-% 与 \hologo{XeLaTeX} 下装 \cls{book}，中文层见 \file{src/engine/hit-cjk.dtx}；深圳硕博的开题与中期
-% 整篇还是 \pkg{ctex} 排的，\hologo{pdfLaTeX} 的中文靠 \pkg{ctex} 的 \pkg{CJK} 那一层，这两处装
-% \cls{ctexbook}。
-%    \begin{macrocode}
-\bool_new:N \g__hit_ctex_base_bool
-\bool_lazy_or:nnT
-  { \sys_if_engine_pdftex_p: }
-  { \bool_if_p:N \g__hit_report_body_bool }
-  { \bool_gset_true:N \g__hit_ctex_base_bool }
-%    \end{macrocode}
-%
 % 校区与学位这时才定下来，\option{bsfrontpagenumberline} 的默认值在此补齐。
 % 用户显式设过就不动。
 %    \begin{macrocode}
 
 %    \end{macrocode}
 %
-% 用户至少要提供一个选项，指定学位。
+% 仅 pdfTeX 使用 ctex 的 CJK 初始化；Unicode 引擎使用 book。
+%    \begin{macrocode}
+\bool_new:N \g__hit_ctex_base_bool
+\sys_if_engine_pdftex:T { \bool_gset_true:N \g__hit_ctex_base_bool }
+\bool_if:NT \g__hit_ctex_base_bool { \PassOptionsToClass { fontset=none } { ctexbook } }
+%    \end{macrocode}
+%
+% 检查学位选项的解析结果。
 % \changes{v3.0.0}{2020/05/20}{此处添加博后选项}
 %
-% \emph{终稿这一档触发不到。} 选项解析之前有一段兜底，在 \option{master}、
-% \option{doctor}、\option{postdoc} 都未置位时把 \option{bachelor} 置真，
-% 而那段兜底在 \cs{ProcessKeyOptions} 之前执行，所以到这里
-% \option{bachelor} 一定为真，四个条件不可能同时落空。实测
-% \cs{documentclass}\oarg{campus=harbin} 不给 \option{type} 时不报错，
-% 直接按本科排版。改动会让不写 \option{type} 的文档从「默认本科」变成报错，
-% 属用户可见变更，此处只记录。
-%
-% \emph{报告那两档照旧要写。} 那边原先靠「取值表里没有 postdoc」来报错，
-% 现在取值表是两档的并集，postdoc 也认了，所以改成看用户写没写
-% （\cs{g\_\_hit\_degree\_given\_bool}）与写的是不是 \texttt{postdoc}。
-% 材料本身也要写：\option{stage} 现在有默认值 \texttt{final}，落到报告这一支
-% 就说明用户写了 \texttt{proposal} 或 \texttt{interim}，不必再查。
+% 未指定学位时使用博士，终稿和报告一致；博士后已在阶段检查中强制改为终稿。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@error@degree@level
   {
     \ClassError { hithesis }
       {
-        \MessageBreak Please~specify~thesis~type~in~option:~
-        \MessageBreak type=[bachelor~|~master~|~doctor~|~postdoc]
+        \MessageBreak Please~specify~a~valid~degree~level:~
+        \MessageBreak degree-level=[bachelor~|~master~|~doctor~|~postdoc]
       }
       { }
   }
-\cs_new_protected:Npn \hit@error@degree@level@report
+\bool_lazy_any:nF
   {
-    \ClassError { hithesis }
-      {
-        \MessageBreak Please~specify~thesis~type~in~option:~
-        \MessageBreak type=[bachelor~|~master~|~doctor]~
-      }
+    { \bool_if_p:N \g__hit_bachelor_bool }
+    { \bool_if_p:N \g__hit_master_bool }
+    { \bool_if_p:N \g__hit_doctor_bool }
+    { \bool_if_p:N \g__hit_postdoc_bool }
   }
-\bool_if:NTF \g__hit_final_bool
-  {
-    \bool_lazy_any:nF
-      {
-        { \bool_if_p:N \g__hit_bachelor_bool }
-        { \bool_if_p:N \g__hit_master_bool }
-        { \bool_if_p:N \g__hit_doctor_bool }
-        { \bool_if_p:N \g__hit_postdoc_bool }
-      }
-      { \hit@error@degree@level }
-  }
-  {
-    \bool_lazy_or:nnT
-      { ! \bool_if_p:N \g__hit_degree_given_bool }
-      { \bool_if_p:N \g__hit_postdoc_bool }
-      { \hit@error@degree@level@report }
-  }
+  { \hit@error@degree@level }
 %    \end{macrocode}
 %
-% 深圳博士中期不自动排目录，页底也不留活动余量（用户显式写过就不动）。
+% 各类报告默认显示目录，用户可通过部件开关关闭。
 %    \begin{macrocode}
 \bool_if:NF \g__hit_final_bool
   {
     \bool_new:N \g__hit_report_toc_auto_bool
     \bool_gset_true:N \g__hit_report_toc_auto_bool
-    \hit@if@shenzhen@doctor@interim
-      {
-        \bool_gset_false:N \g__hit_report_toc_auto_bool
-        \bool_if:NF \g__hit_raggedbottom_given_bool
-          { \bool_gset_false:N \g__hit_raggedbottom_bool }
-      }
   }
 %    \end{macrocode}
 %
@@ -860,44 +672,14 @@
 % 模板早年为此提供过一个 \texttt{siyuan} fontset，现在 \pkg{ctex} 的
 % \texttt{ubuntu} 用的 Noto CJK 就是同一套思源，这一档已经去掉。
 %
-% \pkg{ifthen} 模板自己已经不用了（三处 \cs{ifthenelse} 换成了 \cs{hit@if@same@TF}），
-% 留着是怕旧论文里直接写了 \cs{ifthenelse} 而没自己加载。
+% 保留 ifthen 加载，以兼容依赖旧模板预加载该包的文档。
 %    \begin{macrocode}
 \RequirePackage{ifthen}
 %    \end{macrocode}
 %
-% \emph{\option{fontset} 在两种底类下意思不同。} 装 \cls{ctexbook} 时，写了 \option{fontset}
-% 而 \option{font-zh} 还是 \texttt{auto}，中文字体交给 \pkg{ctex} 的同名字体集；装 \cls{book} 时
-% 没有 \pkg{ctex}，\option{fontset} 只是替 \option{font-zh} 选一档（\file{src/engine/hit-fonts.dtx}
-% 按它的取值挑），字体一律由模板设，\option{font-zh} 写空也按 \texttt{auto}（没有 \pkg{ctex} 可交）。
+% 字体预设统一由模板解析；保留 ctex 底类的变体也不再加载 ctex 字体预设。
 %    \begin{macrocode}
-\bool_lazy_all:nT
-  {
-    { \bool_if_p:N \g__hit_ctex_base_bool }
-    { \str_if_eq_p:Vn \hit@font@zh { auto } }
-    { ! \tl_if_empty_p:N \hit@fontset }
-  }
-  { \tl_gclear:N \hit@font@zh }
-\bool_lazy_and:nnT
-  { ! \bool_if_p:N \g__hit_ctex_base_bool }
-  { \tl_if_empty_p:N \hit@font@zh }
-  { \tl_gset:Nn \hit@font@zh { auto } }
-\tl_if_empty:NTF \hit@font@zh
-  {
-%    \end{macrocode}
-%
-% 2.85 的来历与量法记在 \file{src/engine/hit-fonts.dtx} 的
-% \cs{c\_\_hit\_font\_fakebold\_tl} 那一段。这里不能引那个常量：选项在类
-% 选项处理期就要传给 \pkg{xeCJK}，那时字体模块还没载入。
-%    \begin{macrocode}
-    \PassOptionsToPackage { AutoFakeBold=2.85 } { xeCJK }
-    \tl_if_empty:NF \hit@fontset
-      { \PassOptionsToClass { fontset=\hit@fontset } { ctexbook } }
-  }
-  {
-    \bool_if:NT \g__hit_ctex_base_bool
-      { \PassOptionsToClass { fontset=none } { ctexbook } }
-  }
+\tl_if_empty:NT\hit@font@zh{\tl_gset:Nn\hit@font@zh{auto}}
 %    \end{macrocode}
 %
 % \changes{v3.0.13}{2020/11/10}{设置字距默认选项}
@@ -916,11 +698,7 @@
 % 所以替换时要把它一起吃掉。
 
 %
-% \cs{hit@if@same@TF}\marg{甲}\marg{乙}\marg{真}\marg{假} 比两段文字是否相同。不能用
-% \cs{str\_if\_eq:eeTF}，那是完全展开后比较，遇上 \cs{hspace} 这类不可展开的命令
-% 会留下悬空的 \cs{fi}；被比的正是章标题，\cs{cabstractcname} 在非本科档就是
-% 「摘\cs{hspace}\marg{\cs{ccwd}}要」。这里照 \cs{ifthenelse}\marg{\cs{equal}…}
-% 的做法先各自 \cs{protected@edef} 一遍，把 robust 命令挡住，再比记号表。
+% 标题可能含排版命令，比较前使用受保护展开，不能完全展开。
 %    \begin{macrocode}
 \tl_new:N \l__hit_compare_first_tl
 \tl_new:N \l__hit_compare_second_tl

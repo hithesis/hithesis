@@ -51,7 +51,7 @@ def comment_lines(path: Path):
 
 # 手册渲染驱动整段包在 \iffalse 里，不按 macrocode 规矩走，跳过。
 # bst 与 eps 是逐字照抄的外部文件，同理；轮廓数据是脚本生成的，不进手册。
-STRUCT_SKIP = {"hithesis.dtx", "hit-bst.dtx", "hit-eps.dtx", "hit-outline-data.dtx"}
+STRUCT_SKIP = {"hithesis.dtx", "hit-bst.dtx", "hit-example-figures.dtx", "hit-calligraphy-data.dtx"}
 
 BEGIN_CODE = "%    \\begin{macrocode}"
 END_CODE = "%    \\end{macrocode}"

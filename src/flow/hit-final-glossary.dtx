@@ -16,19 +16,10 @@
 %
 % \section{终稿的术语与符号表}
 %
-% \changes{v3.2a}{2026/09/28}{缩略语词条写进 \option{abbreviations} 族，字段名照 iota-hit（\option{long}、\option{long-en}、
-%   \option{short}、\option{plural}、\option{long-plural}、\option{indexed}）；符号与缩略语合一页是 \cs{printnomenclature}
-%   （与 iota-hit 的 \texttt{nomenclature()} 对应），与单独的两张表都写了就都排、提示一次}
-% \changes{v3.2a}{2026/09/27}{三个引擎都能自动推拼音：\hologo{LuaLaTeX} 下 \pkg{xpinyin} 会停机，
-%  只读它的数据文件，不读的话每条中文索引都报查不到；\hologo{pdfLaTeX} 下装 \pkg{xpinyin}
-%  （它认 \pkg{CJKutf8}），首字按 UTF-8 解出码位查拼音；中文词条写进 \file{.idx} 前还原成字节：
-%  展开过的写法里带 \texttt{@}，\pkg{makeindex} 当成实际符整条拒收；缩写每用一次就查一次，
-%  查不到与多音字的提示按字只报一次}
-% \changes{v3.2a}{2026/09/13}{中英两线统一到 \pkg{glossaries-extra}，后端
-%   \cs{makenoidxglossaries}；缩略语表改成两列悬挂与符号表同款，加 \cs{abbr} 一族与
-%   索引挂钩 \cs{hitindex}，都照 iota-hit：缩写的首次形式跟所在一段的语种走（英文版里的
-%   中文摘要排中文那套），\cs{hitindex} 写什么排什么、按有没有汉字归中英文索引；中文索引的
-%   拼音排序键查 \pkg{xpinyin} 的表自动推，排序键用实际符；缩写的组尾边界跨版本对齐}
+% \changes{v3.2a}{2026/10/06}{缩略语统一用 glossaries-extra：词条在 abbreviations 中声明，
+%   新增 abbr/abbrs、语种切换、复数、索引及链接开关；缩略语表采用两列布局，可与符号表合排}
+% \changes{v3.2a}{2026/10/06}{新增 hitindex，按文字选择中英文索引；中文排序键支持自动拼音和显式指定，
+%   可用于 LuaLaTeX、XeLaTeX 和 pdfLaTeX}
 %
 % ^^A ======================================================================
 % ^^A Module final-glossary: 术语与符号表（glossaries 配置 + 示例条目）（hit-thesis）
@@ -39,26 +30,13 @@
 %
 % \changes{v3.1d}{2025/03/03}{将 \cs{glossarystyle} 替换为 \cs{setglossarystyle}。\issue[200]}
 % 在 \pkg{glossaries} 中表示 \cs{glossarystle} 这个命令 Deprecated in v3.08a. Removed in v4.50.
-% 两条语言线原先各装各的包：英文装 \pkg{glossaries-extra} 用
-% \cs{setabbreviationstyle}，中文装 \pkg{glossaries} 用 \cs{setacronymstyle}，
-% 后者是上一代接口，\pkg{glossaries-extra} 里已经改成报错。要把缩略语表并成
-% 一个部件，先得统一到 extra。
-%
-% 后端两侧都用 \cs{makenoidxglossaries}，纯 \hologo{TeX} 排序，不调外部程序。
-% 中文侧原先调 \cs{makeglossaries} 却从没有任何东西 \cs{printglossary}，
-% 每次编译写出一个没人读的 \file{.glo} 再吃一条警告，一并撤掉。
+% 中英文共用 glossaries-extra 和 \cs{makenoidxglossaries}，缩略语排序不需要外部程序。
 %    \begin{macrocode}
 \RequirePackage [ xindy , order=letter ] { glossaries-extra }
 %    \end{macrocode}
 %
-% \pkg{xpinyin} 只为中文索引的拼音排序键而装，见下文。它随包带一张四万七千行
-% 的汉字拼音表，纯 \hologo{TeX} 查表，不调外部程序，加载实测四十毫秒。
-%
-% \hologo{XeLaTeX} 与 \hologo{pdfLaTeX}（\pkg{CJKutf8}）装得了它，\pkg{xpinyin} 见到
-% \hologo{LuaLaTeX} 直接报 Critical Error 停机。可要的只是那张表：\file{xpinyin-database.def}
-% 通篇是 \cs{XPYU} 与 \cs{XPYUM} 两种行，\pkg{xpinyin} 自己读它时也只是临时把这两个
-% 命令指到两个存表的宏上。\hologo{LuaLaTeX} 下照样指好再读，存成同名的表项，
-% 查表宏就不必分引擎。不读的话主线引擎下每条中文索引都报一次查不到。
+% xpinyin 不支持 LuaLaTeX，但其数据库可独立读取。Lua 下只加载数据，
+% 使用与 xpinyin 相同的表项名，供后续查表函数调用。
 %    \begin{macrocode}
 \sys_if_engine_luatex:TF
   {
@@ -78,31 +56,10 @@
 %    \begin{macrocode}
 %    \end{macrocode}
 %
-% 三列的宽度从 \cs{glsdescwidth} 分，不另写死数值：\pkg{glossaries} 按版心算出
-% 这个长度，两列的 \texttt{engstyle} 用的就是它，照它切开总宽才不会超版心。
-% 写死过一版 \texttt{2.5cm+6cm+\cs{glsdescwidth}}，中文变体每本都多一条
-% Overfull（\cs{make} \texttt{logcheck} 当场拦下）。
-%
-% 首列前置 \cs{leavevmode}。首列的内容以 \cs{glstarget} 开头，它经 \pkg{hyperref}
-% 的 \cs{Hy@raisedlink} 在竖直模式下先放一个零高盒，于是 \texttt{p} 列的
-% \cs{vtop} 首项不是正文行而是那个盒（或它带出的胶），\cs{vtop} 的高按首项算，
-% 行高就跟着变。\TeX~Live 2024 与 2025 的内核在这里处理不同，同一张表两版差
-% 1.1\,pt，整行错开 3 个像素。先 \cs{leavevmode} 起段，锚点落进水平表，首项恒为
-% 正文行，三版一致。
 %    \begin{macrocode}
 %    \end{macrocode}
 %
-% \emph{缩略语表与符号表同一套版式。}CTAN 上有这类页的中文模板五家里四家
-% 是两列 description 列表（thu 的 denotation、bit 的 symbols、nju 与 fdu 的
-% notation），说明一列排到右边距、折行悬挂；中英全称合成一格“体细胞拷贝数
-% 变异（Somatic copy number alteration）”。先前那张三列长表（中文全称单占
-% 一列）右边必然空一截，且与符号表两个长相，合并成一页时列也对不齐。改走
-% \env{hit@symbols} 同一只列表（labelsep 0.5\,cm，第一列按内容定宽，见
-% \cs{hit@symbols@list:n}），合并页两段取同一个宽，说明列对齐；\option{labelwidth} 键两段都认。
-% 词条由 \pkg{glossaries} 攒成一串交给 \env{theglossary}，环境整段收下来（\texttt{+b}）
-% 再交给那个宏，它要试排好几遍。
-% 英文版说明只排英文全称（没有就中文），括号档位跟正文首次展开同一套
-% （中文版全角）。
+% 缩略语表与符号表共用两列布局，合排时统一标签列宽。
 %    \begin{macrocode}
 \cs_new:Npn \__hit_abbr_desc:n #1
   {
@@ -128,6 +85,7 @@
   \renewcommand*{\glsgroupheading}[1]{}%
   \renewcommand*{\glsgroupskip}{}%
   \renewcommand*{\glossentry}[2]{%
+    \prop_gput:Nnn \g__hit_abbreviation_targets_prop {##1} { }%
     \item[\glsentryitem{##1}\glstarget{##1}{\glossentryname{##1}}]%
     \__hit_abbr_desc:n {##1}%
   }%
@@ -141,6 +99,7 @@
   \renewcommand*{\glsgroupheading}[1]{}%
   \renewcommand*{\glsgroupskip}{}%
   \renewcommand*{\glossentry}[2]{%
+    \prop_gput:Nnn \g__hit_abbreviation_targets_prop {##1} { }%
     \item[\glsentryitem{##1}\glstarget{##1}{\glossentryname{##1}}]%
     \__hit_abbr_desc_en:n {##1}%
   }%
@@ -176,11 +135,7 @@
 %
 % \subsection{缩略语的声明与使用}
 %
-% \option{abbreviations} 族的每一条经这里落成一个 \pkg{glossaries-extra} 词条。字段照 iota-hit：
-% \option{long} 中文全称、\option{long-en} 英文全称、\option{short} 排出来的缩写（不写取键名）、
-% \option{plural} 缩写的复数（不写加 \texttt{s}）、\option{long-plural} 英文全称的复数、\option{indexed}
-% 这一条登不登记索引；另有 \option{pinyin} 给中文索引的排序键（iota-hit 不经 \pkg{makeindex}，用不着）。
-% 正文里 \cs{abbr} 引的是键名。
+% 将统一双语入口解析后的全称、简称及复数存入 glossaries-extra 词条。
 % 规范要求「文中第一次出现的缩写词应该用括号注明英文原词」，中文全称在前时
 % 括号里依次是英文原词与缩写：
 % \begin{center}
@@ -191,9 +146,9 @@
 %   {colspec={l l l}}
 % \toprule
 % 定义 & 中文里首次 & 英文里首次 \\ \midrule
-% \texttt{long}+\texttt{long-en} & X（Y，S） & Y (S) \\
-% 只有 \texttt{long}       & X（S）    & X (S) \\
-% 只有 \texttt{long-en}    & S（Y）    & Y (S) \\
+% 中英文全称 & X（Y，S） & Y (S) \\
+% 只有中文全称 & X（S） & X (S) \\
+% 只有英文全称 & S（Y） & Y (S) \\
 % \bottomrule
 % \end{longtblr}
 %
@@ -228,9 +183,7 @@
   }
 %    \end{macrocode}
 %
-% 判断一串记号里有没有汉字。逐记号取字符码，超过 \texttt{U+2E7F} 就算——
-% 那一段之前是拉丁、希腊、标点，之后是部首与汉字。控制序列跳过，取不到字符码。
-% 实测二十万次两秒半，单次十几微秒，而且只在声明时做一次，不进正文热路径。
+% 检测文本中的 CJK 字符，跳过控制序列。
 %    \begin{macrocode}
 \bool_new:N \l__hit_abbr_cjk_bool
 \cs_new_protected:Npn \__hit_abbr_cjk_scan:n #1
@@ -258,8 +211,7 @@
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@abbr@declare:nn}
-% \marg{键名}\marg{取值}。取值不含等号就当裸值，照 iota-hit 按有没有汉字归 \option{long}
-% 或 \option{long-en}。两个全称都没有的报错跳过：首次出现没有东西可排。
+% 旧式词条构造器；统一双语入口在 hit-bilingual.dtx 中安装。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@abbr@declare:nn #1#2
   {
@@ -370,13 +322,16 @@
     \__hit_abbr_cjk_set:V \l__hit_abbr_pick_tl
     \tl_set:Nx \l__hit_abbr_longpl_tl
       {
-        \bool_lazy_or:nnTF
-          { \bool_if_p:N \l__hit_abbr_cjk_bool } { \tl_if_empty_p:N \l__hit_abbr_enpl_tl }
+        \tl_if_empty:NTF \l__hit_abbr_en_tl
           {
-            \exp_not:V \l__hit_abbr_pick_tl
-            \bool_if:NF \l__hit_abbr_cjk_bool { s }
+            \str_if_eq:VnTF \l__hit_abbr_zhpl_tl {\scan_stop:}
+              {\exp_not:V \l__hit_abbr_pick_tl}{\exp_not:V \l__hit_abbr_zhpl_tl}
           }
-          { \exp_not:V \l__hit_abbr_enpl_tl }
+          {
+            \str_if_eq:VnTF \l__hit_abbr_enpl_tl {\scan_stop:}
+              {\exp_not:V \l__hit_abbr_pick_tl \bool_if:NF \l__hit_abbr_cjk_bool {s}}
+              {\exp_not:V \l__hit_abbr_enpl_tl}
+          }
         \exp_not:V \l__hit_abbr_lparen_tl
         \exp_not:V \l__hit_abbr_plural_tl
         \exp_not:V \l__hit_abbr_rparen_tl
@@ -394,7 +349,9 @@
         \tl_set:Nx \l__hit_abbr_longpl_tl
           {
             \exp_not:V \l__hit_abbr_plural_tl \exp_not:V \l__hit_abbr_lparen_tl
-            \exp_not:V \l__hit_abbr_en_tl \exp_not:V \l__hit_abbr_rparen_tl
+            \str_if_eq:VnTF \l__hit_abbr_enpl_tl {\scan_stop:}
+              {\exp_not:V \l__hit_abbr_en_tl s}{\exp_not:V \l__hit_abbr_enpl_tl}
+            \exp_not:V \l__hit_abbr_rparen_tl
           }
       }
       {
@@ -410,10 +367,13 @@
           }
         \tl_set:Nx \l__hit_abbr_longpl_tl
           {
-            \exp_not:V \l__hit_abbr_zh_tl \exp_not:V \l__hit_abbr_lparen_tl
+            \str_if_eq:VnTF \l__hit_abbr_zhpl_tl {\scan_stop:}
+              {\exp_not:V \l__hit_abbr_zh_tl}{\exp_not:V \l__hit_abbr_zhpl_tl}
+            \exp_not:V \l__hit_abbr_lparen_tl
             \tl_if_empty:NF \l__hit_abbr_en_tl
               {
-                \exp_not:V \l__hit_abbr_en_tl
+                \str_if_eq:VnTF \l__hit_abbr_enpl_tl {\scan_stop:}
+                  {\exp_not:V \l__hit_abbr_en_tl s}{\exp_not:V \l__hit_abbr_enpl_tl}
                 \exp_not:V \l__hit_abbr_comma_tl
               }
             \exp_not:V \l__hit_abbr_plural_tl \exp_not:V \l__hit_abbr_rparen_tl
@@ -442,6 +402,7 @@
             \glsletentryfield \l__hit_abbr_short_tl {#1} { short }
             \glsletentryfield \l__hit_abbr_plural_tl {#1} { shortpl }
             \glsletentryfield \l__hit_abbr_enpl_tl {#1} { hitenpl }
+            \glsletentryfield \l__hit_abbr_zhpl_tl {#1} { hitzhpl }
             \exp_args:NV \__hit_abbr_compose:n \l__hit_abbr_short_tl
             \GlsXtrLetField {#1} { long } \l__hit_abbr_long_tl
             \GlsXtrLetField {#1} { longpl } \l__hit_abbr_longpl_tl
@@ -647,21 +608,10 @@
 % \begin{macro}{\abbr,\abbrs}
 % 正文里用缩写。\cs{abbr} 首次排全称、之后排缩写；\cs{abbrs} 是复数；
 % 带星号是强制全写，不改「用过」状态，新一章想再展开一次时用。首次的排法跟这一段的
-% 语种走，英文版里的中文摘要排中文的那一套，与 iota-hit 一样。
+% 语种走，英文文档的中文摘要仍按中文展开。
 %
-% 缩写排出来的东西裹在 \pkg{glossaries} 的组里，组尾边界两版 xeCJK
-% 各走各的：首次形态收在闭括号上，按“闭号接汉字摘胶”该贴排，2026 的
-% 边界体系却隔着组把胶发了出来——尾后垫一只零宽盒把类对断掉，两版都
-% 归到贴排；之后的形态收在西文字母上，接汉字要一道中西文胶，2026 隔组
-% 发得出来、老版发不出来——置上“刚出组”标记，交给 hit-format 的
-% 消费点补。分支跟 \pkg{glossaries-extra} 排版用的同一根轴走：排完
-% 问 \cs{glsxtrifwasfirstuse}，刚才排的是首次（收在闭括号上）就垫盒
-% 贴排，是缩写（收在字母上）就置标记补胶。全角标点哨兵在这儿靠不
-% 住——链接收尾的 whatsit 会把它盖掉。
-%
-% 这一垫合的是 Word 的账：书写范例版式里“……，TSSBP）是”的括号到
-% 汉字步进恰好一个字格（12.45\,bp，Word 实排实测），闭括号剪切贴排；
-% 隔着链接组界两版 xeCJK 都发不出剪切，只有断掉类对才回到一格。
+% 首次展开后的闭括号抑制边界胶，简称后的西文字母保留中西文间距。
+% 分支须使用 glossaries 的首次使用状态；链接末尾的 whatsit 会覆盖标点哨兵。
 %
 % 模板不暴露 \cs{gls}：概念表里没有 glossary 这一项，只有缩写、符号与索引。
 %    \begin{macrocode}
@@ -676,29 +626,37 @@
       }
       { \cs_if_exist_use:N \docxlike_format_group_exit: }
   }
+\prop_new:N \g__hit_abbreviation_targets_prop
+\prg_new_conditional:Npnn \__hit_abbr_links:n #1 { T , F , TF }
+  {
+    \bool_lazy_and:nnTF
+      { \prop_if_in_p:Nn \g__hit_abbreviation_targets_prop {#1} }
+      { ! \str_if_eq_p:Vn \g__hit_abbreviation_links_tl { false } }
+      { \prg_return_true: } { \prg_return_false: }
+  }
 \NewDocumentCommand \abbr { s O{} m }
   {
     \__hit_abbr_use:nn {#2} {#3}
     \__hit_abbr_localize:n {#3}
     \IfBooleanTF {#1} { \glsentrylong {#3} }
-      { \__hit_abbr_edge:nn {#3} { \gls {#3} } }
+      { \__hit_abbr_edge:nn {#3}
+          { \__hit_abbr_links:nTF {#3} { \gls {#3} } { \gls [ hyper = false ] {#3} } } }
   }
 \NewDocumentCommand \abbrs { s O{} m }
   {
     \__hit_abbr_use:nn {#2} {#3}
     \__hit_abbr_localize:n {#3}
     \IfBooleanTF {#1} { \glsentrylongpl {#3} }
-      { \__hit_abbr_edge:nn {#3} { \glspl {#3} } }
+      { \__hit_abbr_edge:nn {#3}
+          { \__hit_abbr_links:nTF {#3} { \glspl {#3} } { \glspl [ hyper = false ] {#3} } } }
   }
 %    \end{macrocode}
 % \end{macro}
 %
 % \begin{macro}{\hitindex}
-% 索引与缩略语是两件事：索引回答「这个词在哪几页」，缩略语回答「这个缩写是什么」。
-% 但要索引的词与要缩写的词重合度很高，所以缩写条目顺带登记索引，开关是
-% \option{abbreviation-indexed}，单处可用可选参数压过。
+% abbreviation-indexed 控制缩略语是否同时登记索引，单次调用可覆盖。
 %
-% \cs{hitindex}\oarg{键值}\marg{文字} 给不缩写的词，照 iota-hit 的 \texttt{idx}：写什么排什么，
+% \cs{hitindex}\oarg{键值}\marg{文字} 输出文字并登记索引，
 % 同一个词按有没有汉字登记进中文或英文索引，不分语种、不配对。\option{entry} 给另一个词条，
 % 正文写的是「乔帮主」而索引条目要「乔峰」时用；带星号只登记不排。
 %
@@ -881,7 +839,7 @@
 % \end{macro}
 %
 % \begin{macro}{\printnomenclature}
-% 符号与缩略语排在同一页，与 iota-hit 的 \texttt{nomenclature()} 对应：符号取 \option{symbols} 族，缩略语取
+% 符号与缩略语合排：符号取 symbols，缩略语取
 % \option{abbreviations} 族。可选参数收 \option{shown} 与 \env{symbols} 的那几个键。名字照 \pkg{nomencl} 的
 % 叫法加了 \texttt{print}：\cs{nomenclature} 是它登记条目的命令，占了会跟装它的文档撞。只有学位论文排；
 % 报告里的见 \file{src/flow/hit-report-matter.dtx}。

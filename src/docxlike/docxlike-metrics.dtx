@@ -11,10 +11,7 @@
 % \changes{v0.1.0}{2026/09/24}{行高与上升部按字体名照 Windows Word 的规则现算并缓存：原始度量
 %   来自文档里填的、随包的预设表、\hologo{LuaLaTeX} 下现读字体文件}
 %
-% Word 的自然行高与上升部由字体文件里的几个表算出来，不同平台读的表不同（Windows 读
-% OS/2 的 usWin，Mac 大多读 hhea），规则本身相同。所以这里只\emph{读}，不算：读出来的
-% 原始值交给包里的规则去算，规则只有一份，“读哪张表”是那边的开关。实测与规则见
-% \file{test/font-metrics/README.md}。
+% 读取字体原始度量，行高计算由 TeX 层统一完成。
 %
 % 读的是这几样：
 % \begin{itemize}
@@ -188,12 +185,7 @@ function M.entry(k, f, comment)
 end
 %    \end{macrocode}
 %
-% \emph{预设表收哪些字体。} 常用的基本字体：Word 与 Windows 的常用字体、\pkg{ctex} 各
-% 字体集用到的、各 \hologo{TeX} 引擎自带的。每族只收一副，落在字重最接近 400、非粗
-% 非斜的那副上：\texttt{Aptos Black} 的子族名也叫 \texttt{Regular}，Fandol 的粗体字重
-% 写的是 400、只在 \texttt{fsSelection} 里标粗，所以三样一起比。给的来源按先后排优先级，
-% 同名的先到先得（Windows 自带的放最前：\texttt{Times New Roman} 与华文宋体在 Windows 与
-% Mac 上是两个版本）。
+% 每个字族优先选正常字重、非粗非斜的字面；须同时检查名称、字重和 fsSelection，不能仅凭 Regular 名称判断。
 %    \begin{macrocode}
 M.families = [[
 SimSun; NSimSun; SimHei; KaiTi; FangSong; LiSu; YouYuan; KaiTi_GB2312; FangSong_GB2312;
@@ -410,6 +402,57 @@ return M
   }
 \cs_generate_variant:Nn \prop_gput:Nnn { NVn , NVV }
 \cs_generate_variant:Nn \prop_gremove:Nn { NV }
+%    \end{macrocode}
+%
+% 等宽字体按目标字宽校正，在正文字号上取最近的半磅；其他字号沿用同一比例。
+% 字形缩放与目标行盒分开保存，替代字体不会改变代码清单的行距。
+%    \begin{macrocode}
+\tl_new:N \g_docxlike_mono_advance_tl
+\tl_new:N \g_docxlike_mono_single_tl
+\tl_new:N \g_docxlike_mono_ascent_tl
+\dim_new:N \g_docxlike_mono_ascent_offset_dim
+\fp_new:N \g_docxlike_mono_scale_fp
+\bool_new:N \g_docxlike_mono_calibrated_bool
+\fp_gset:Nn \g_docxlike_mono_scale_fp { 1 }
+\fp_new:N \g__docxlike_mono_probe_fp
+\cs_new_protected:Npn \docxlike_mono_target:nnnn #1#2#3#4
+  {
+    \tl_gset:Nn \g_docxlike_mono_advance_tl {#1}
+    \tl_gset:Nn \g_docxlike_mono_single_tl {#2}
+    \tl_gset:Nn \g_docxlike_mono_ascent_tl {#3}
+    \dim_gset:Nn \g_docxlike_mono_ascent_offset_dim {#4}
+  }
+\docxlike_mono_target:nnnn { 1126/2048 } { 1.1709 } { .9136 } { .082bp }
+\cs_new_protected:Npn \docxlike_mono_scale:nN #1#2
+  {
+    \group_begin:
+      \addfontfeatures{LetterSpace=0}
+      \fontsize{100bp}{100bp}\selectfont
+      \fp_gset:Nn \g__docxlike_mono_probe_fp
+        { \dim_to_fp:n { \tex_fontcharwd:D \tex_font:D `0 } / \dim_to_fp:n { \tex_fontdimen:D 6 \tex_font:D } }
+    \group_end:
+    \fp_set:Nn #2
+      {
+        floor ( 2 * \dim_to_fp:n {#1} / \dim_to_fp:n {1bp}
+          * ( \tl_if_empty:NTF \g_docxlike_mono_advance_tl {1}
+              { \g_docxlike_mono_advance_tl / \g__docxlike_mono_probe_fp } ) + .5 + .000001 )
+        / 2 * \dim_to_fp:n {1bp} / \dim_to_fp:n {#1}
+      }
+  }
+\cs_new_protected:Npn \docxlike_mono_calibrate:n #1
+  {
+    \group_begin:
+      \normalfont\ttfamily
+      \docxlike_mono_scale:nN {#1} \l_tmpa_fp
+      \fp_gset_eq:NN \g_docxlike_mono_scale_fp \l_tmpa_fp
+      \use:e { \exp_not:N \addfontfeatures { Scale = \fp_use:N \g_docxlike_mono_scale_fp , LetterSpace = 0 } }
+      \cs_gset:Npx \ttdefault { \f@family }
+    \group_end:
+    \bool_gset_true:N \g_docxlike_mono_calibrated_bool
+  }
+%    \end{macrocode}
+%
+%    \begin{macrocode}
 \cs_new:Npn \__docxlike_font_item:n #1 { \seq_item:Nn \l__docxlike_font_raw_seq {#1} }
 \cs_new_protected:Npn \__docxlike_font_rule:n #1
   {

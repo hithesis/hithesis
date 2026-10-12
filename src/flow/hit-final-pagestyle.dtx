@@ -32,37 +32,10 @@
 %<*final-pagestyle>
 %    \end{macrocode}
 %
-% \subsection{页眉页脚的盒子}
+% \subsection{页面样式的内容槽}
 %
-% 正文照 Word 排的文档不用这一节的盒子，页眉页脚是 \pkg{docxlike} 排的段落，见下面“照 Word 排页眉页脚”；
-% 这只盒只剩深圳硕博的开题与中期在用（整篇还是 \pkg{ctex} 排的，页眉页脚照旧）。页面样式那一层
-% （每页放哪一份内容）两边共用。
-%
-% \emph{不再装 \pkg{fancyhdr}。} 它的页眉盒在 v4 与 v5 之间重构过一次，跨版本渲染
-% 页眉文字差 3.56\,bp、横线差 7.78\,bp，别人的包一更新，这边的版面就跟着动。这里把
-% hithesis 用到的那部分搬过来自己维护，盒子怎么搭照 v5（TL2024 起）原样，所以换下来
-% 逐页不变。以后要改页眉的排法，就在这里改，改了要量。
-%
-% 搬过来的只有这几样：每个页面样式的奇偶两份页眉与页脚，每份只有中间一栏（左右两栏
-% hithesis 从来不用，照原样留着空盒，版面上不占东西）；页眉线 \cs{headrule} 与两个线宽
-% \cs{headrulewidth}、\cs{footrulewidth}；页眉宽 \cs{headwidth}。这几个名字原先由
-% \pkg{fancyhdr} 给，文档里可能有人改过，名字与用法都照旧。
-%
-% \emph{一份页眉怎么搭。} 中间那一栏是一个 \cs{parbox}，宽 \cs{headwidth}，里面一段居中
-% 的文字，末尾补一根 \cs{strut}；页眉底对齐（\texttt{[b]}），页脚顶对齐（\texttt{[t]}）。
-% 页眉把这一行、\cs{headrule} 依次装进竖盒，盒高超过 \cs{headheight} 就压回
-% \cs{headheight}（盒底不动，只是不报 Overfull）；页脚先放一条 \cs{footrulewidth} 粗的线，
-% 隔 0.3 倍 \cs{normalbaselineskip}，再放那一行，盒高超过 \cs{footskip} 同样压回去。
-% 线的粗细是零时线与那一截都不放：压回去管不住页码的位置，页脚距边界小的那几档
-% （本部报告的 \cs{footskip} 只有十一二）会被这一截空白顶低，正文固定值 21 磅时低 4.1。
-% 正文还由 \pkg{ctex} 排的那几档照旧放：那几档的页码位置一直是连这一截一起定的。
-% 这只竖盒左对齐放进一个 \cs{headwidth} 宽的横盒，交给 \hologo{LaTeX} 的页眉页脚槽。
-%
-% 排之前先把环境理干净，也照 \pkg{fancyhdr}：\cs{baselinestretch} 设回 1、重选
-% \cs{normalsize}，\cs{hsize} 设成 \cs{headwidth}，\cs{centering} 这几个对齐命令换回
-% 本类装载时的原样。段落钩子不清，改立 \pkg{docxlike} 的“在页眉里”标志：钩子里
-% 只有 \pkg{docxlike} 的两段，见了这个标志什么也不做，效果与清空一样，又不必去碰
-% \hologo{LaTeX} 钩子机制的内部。
+% 每个页面样式保存奇偶页的页眉、页脚内容，统一交给 docxlike 定位和排版。
+% 保留 headrule、线宽及 headwidth 名称供既有页面样式使用，不再构造传统报告的固定高度盒。
 %    \begin{macrocode}
 \dim_new:N \headwidth
 \dim_gset:Nn \headwidth { -123456789sp }
@@ -70,16 +43,11 @@
 \cs_new:Npn \footrulewidth { 0pt }
 \cs_new_protected:Npn \headrule
   { { \hrule \@height \headrulewidth \@width \headwidth \vskip -\headrulewidth } }
-\cs_new_protected:Npn \__hit_hf_footrule:
-  { { \hrule \@width \headwidth \@height \footrulewidth } }
 \cs_new_eq:NN \__hit_hf_ps_empty: \ps@empty
-\cs_new_eq:NN \__hit_hf_centering: \centering
-\cs_new_eq:NN \__hit_hf_raggedleft: \raggedleft
-\cs_new_eq:NN \__hit_hf_raggedright: \raggedright
 %    \end{macrocode}
 %
 % 四份内容：奇偶页各一份页眉、一份页脚。写的时候给定 \texttt{o}、\texttt{e} 或
-% \texttt{oe}，内容非空就在末尾补 \cs{strut}。赋值是局部的：页面样式每次换进来都
+% \texttt{oe}。赋值是局部的：页面样式每次换进来都
 % 从头设一遍，与 \pkg{fancyhdr} 的 \cs{fancypagestyle} 一样。
 %    \begin{macrocode}
 \tl_new:N \l__hit_hf_oh_tl
@@ -98,9 +66,7 @@
     \tl_if_empty:nTF {#3}
       { \tl_clear:c { l__hit_hf_ #1 #2 _tl } }
       {
-        \bool_if:NTF \g__hit_final_body_bool
-          { \tl_set:cn { l__hit_hf_ #1 #2 _tl } {#3} }
-          { \tl_set:cn { l__hit_hf_ #1 #2 _tl } { #3 \strut } }
+        \tl_set:cn { l__hit_hf_ #1 #2 _tl } {#3}
       }
   }
 \cs_new_protected:Npn \__hit_hf_set:nnn #1#2#3
@@ -136,91 +102,14 @@
       }
     \__hit_hf_ps_empty:
     \cs_set:Npn \@mkboth { \protect \markboth }
-    \bool_if:NTF \g__hit_final_body_bool
-      {
-        \cs_set:Npn \@oddhead { \__hit_hf_word:NN \l__hit_hf_oh_tl \l__hit_hf_of_tl \hfil }
-        \cs_set:Npn \@evenhead { \__hit_hf_word:NN \l__hit_hf_eh_tl \l__hit_hf_ef_tl \hfil }
-      }
-      {
-        \cs_set:Npn \@oddhead { \__hit_hf_head:N \l__hit_hf_oh_tl }
-        \cs_set:Npn \@evenhead { \__hit_hf_head:N \l__hit_hf_eh_tl }
-        \cs_set:Npn \@oddfoot { \__hit_hf_foot:N \l__hit_hf_of_tl }
-        \cs_set:Npn \@evenfoot { \__hit_hf_foot:N \l__hit_hf_ef_tl }
-      }
+    \cs_set:Npn \@oddhead { \__hit_hf_word:NN \l__hit_hf_oh_tl \l__hit_hf_of_tl \hfil }
+    \cs_set:Npn \@evenhead { \__hit_hf_word:NN \l__hit_hf_eh_tl \l__hit_hf_ef_tl \hfil }
   }
 %    \end{macrocode}
 %
 % 排页眉页脚前的准备。终稿另有一段要在这里做（见下文 \cs{hit@hf@init:}），默认是空的。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@hf@init: { }
-\cs_new_protected:Npn \__hit_hf_reset:
-  {
-    \everypar { }
-    \bool_set_true:N \l_docxlike_format_in_header_bool
-    \cs_set_eq:NN \\ \@normalcr
-    \cs_set_eq:NN \raggedleft \__hit_hf_raggedleft:
-    \cs_set_eq:NN \raggedright \__hit_hf_raggedright:
-    \cs_set_eq:NN \centering \__hit_hf_centering:
-    \cs_set:Npn \baselinestretch { 1 }
-    \dim_set_eq:NN \hsize \headwidth
-    \normalsize
-    \hit@hf@init:
-  }
-\box_new:N \l__hit_hf_box
-\cs_new_protected:Npn \__hit_hf_vbox:nn #1#2
-  {
-    \vbox_set:Nn \l__hit_hf_box {#2}
-    \dim_compare:nNnT { \box_ht:N \l__hit_hf_box } > {#1}
-      { \box_set_ht:Nn \l__hit_hf_box {#1} }
-    \box_use_drop:N \l__hit_hf_box
-  }
-\cs_new_protected:Npn \__hit_hf_parbox:nnn #1#2#3
-  { \parbox [#1] { \headwidth } { #2 \leavevmode \ignorespaces #3 } }
-\cs_new_protected:Npn \__hit_hf_row:Nn #1#2
-  {
-    \hbox_to_wd:nn { \headwidth }
-      {
-        \rlap { \__hit_hf_parbox:nnn {#2} { \raggedright } { } }
-        \hfill
-        \__hit_hf_parbox:nnn {#2} { \centering } {#1}
-        \hfill
-        \llap { \__hit_hf_parbox:nnn {#2} { \raggedleft } { } }
-      }
-  }
-\cs_new_protected:Npn \__hit_hf_head:N #1
-  {
-    \__hit_hf_reset:
-    \hbox_to_wd:nn { \headwidth }
-      {
-        \__hit_hf_vbox:nn { \headheight }
-          {
-            \__hit_hf_row:Nn #1 { b }
-            \vskip 0pt \scan_stop:
-            \headrule
-          }
-      }
-    \tex_hss:D
-  }
-\cs_new_protected:Npn \__hit_hf_foot:N #1
-  {
-    \__hit_hf_reset:
-    \hbox_to_wd:nn { \headwidth }
-      {
-        \__hit_hf_vbox:nn { \footskip }
-          {
-            \bool_lazy_or:nnT
-              { ! \bool_if_p:N \g__hit_final_body_bool }
-              { \dim_compare_p:nNn { \footrulewidth } > { \c_zero_dim } }
-              {
-                \vbox_set:Nn \l__hit_hf_box { \__hit_hf_footrule: }
-                \vbox_unpack_drop:N \l__hit_hf_box
-                \vskip 0.3 \normalbaselineskip
-              }
-            \__hit_hf_row:Nn #1 { t }
-          }
-      }
-    \tex_hss:D
-  }
 %    \end{macrocode}
 %
 %    \begin{macrocode}
@@ -254,13 +143,7 @@
 %
 % \subsection{照 Word 排页眉页脚}
 %
-% \emph{页眉页脚是 \pkg{docxlike} 排的 Word 段落。} 每页放什么由页面样式定（上面那四份内容），
-% 排与放交给 \cs{docxlike\_headfoot\_put:nn}：内容排成“页眉”“页脚”样式的段落，页眉框的顶落在
-% 页眉距边界处、页脚框的底落在页脚距边界处，段落的行盒、对齐、字距都照样式，与 Word 同一个模型
-% （\pkg{docxlike} 那边量过的规则见 \file{docxlike-headfoot.dtx}）。先前这里自己搭一只盒：文字行的
-% 高深钉成常量、纯西文的行另换一组、双线按量出来的读数画、两头各外伸 1.56\,bp，这些现在都是段落
-% 自己的事：行盒按行里的字算，双线是段落的下边框（\texttt{thinThickSmallGap}，粗线贴字、隔 0.75、
-% 细线 0.75，左右各伸出 1.5），与范例 docx 里页眉段写的一样。
+% 页面样式选择内容，docxlike 按 Header、Footer 样式排版并定位。
 %
 % 双线排不排是一个布尔（\option{layout}/\option{header-rule} 的三态，页面样式里定），排的时候给这一段
 % 加下边框，粗细与离字的距离取 \option{layout}/\option{header}/\option{rule}。页眉页脚的
@@ -441,14 +324,7 @@
 %    \begin{macrocode}
 %    \end{macrocode}
 %
-% \emph{正文页眉按轴分档，基准是博士加哈尔滨。} 原先是四层嵌套的
-% \cs{bool\_if}：博士、硕士、本科各一支，每支里再分「哈尔滨或威海」与深圳，
-% 形状一样只差那一串词条。改成部件变体之后，不写档位值的那一条就是基准，
-% 别的档各写各的那一小坨，挑哪一档由查表定，规则见
-% \file{src/engine/hit-key-engine.dtx} 的 \cs{hit@hook@new:nn}。
-%
-% \emph{「哈尔滨或威海」这个「或」没了。} 基准覆盖一切没被明写盖掉的档，
-% 威海不写就是走基准，不必再把两个校区并起来判一次。
+% 按学位和校区选择页眉实现，未指定变体时使用默认实现。
 %
 % \emph{语种不进部件名。} 英文那一份不是中文那一份的变体，是另一套版面——
 % 不分学位不分校区，一句 \cs{leftmark} 到底。所以语种仍是外面那一层
@@ -458,7 +334,7 @@
 % \emph{深圳硕博不另分档。} 先前深圳博士偶数页、深圳硕士正文印“哈尔滨工业大学
 % 工学博士（硕士）学位论文”，深圳硕士前置印 \cs{leftmark}：依据是深圳 2021 版的书写
 % 范例（\issue[222]、\issue[97]）与 2020 年那条新规定。现行的研究生学位论文写作指南
-% 全校一份，iota-hit 也不分校区，所以两档都走基准与硕士那一份。
+% 全校统一，两档分别使用默认实现与硕士实现。
 %    \begin{macrocode}
 \hit@hook@new:nn { headings-body }
   {
@@ -507,18 +383,6 @@
 % \emph{页码取不带装饰的那一支}，不走 \cs{hit@page@number@front}。Word 那边前置
 % 印的就是裸数字，这是事实不是选项。
 %
-% \emph{记一条差额。} 原件里这一行的基线比正文那一行的高 0.68：Word 的行盒
-% 由内容的字体定，正文那一行「\texttt{- 1 -}」里的短横与空格带着
-% \texttt{w:hint="eastAsia"} 走宋体，行盒是汉字那一档，前置这一行光一个数字只有
-% 西文参与，两者差一个上升部（小五 9\,bp 下正是 0.68）。这边两行同高：
-% \hologo{LaTeX} 的页脚是拿 \cs{baselineskip} 等于 \cs{footskip} 接上去的，
-% 基线离正文末行的距离写死，与页脚盒自己多高无关。换成按内容定的话要重做页脚
-% 的落位模型（Word 是「离纸边多远」加上升部），牵动所有变体，不在这一批里。
-%
-% \emph{顺带记一条账。} \option{layout} 里按部件写的 \option{page-number-line}
-% 眼下写不进去：\option{frontmatter} 在部件表里、键也定义着，可
-% \cs{hit@presetup} 那条路上写的 \texttt{false} 到排版时又是 \texttt{auto}。
-% 这是部件级 \option{layout} 键的管线问题，与这一页无关，另记。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@header:nn #1#2
   { \hit@hf@head:nn {#1} {#2} }
@@ -536,6 +400,11 @@
         \hit@hook@use:n { headings-body }
         \hit@final@footer
         \hit@final@header@rule@setup
+      }
+    \bool_if:NT\g__hit_shenzhen_report_bool
+      {
+        \hit@header:nn{oe}{\hit@term@header@report}
+        \hit@hf@foot:nn{oe}{\hit@page@number@main}
       }
     \cs_set:Npn \headrulewidth { 0pt }
     \cs_set:Npn \footrulewidth { 0pt }

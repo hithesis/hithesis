@@ -93,6 +93,7 @@
 \tl_gput_right:Nn \appendix { \cs_set_nopar:Npn \thefigure { \thechapter - \arabic {figure} } }
 \tl_gput_right:Nn \appendix { \cs_set_nopar:Npn \thetable { \thechapter - \arabic {table} } }
 \tl_gput_right:Nn \appendix { \cs_set_nopar:Npn \theequation { \thechapter - \arabic {equation} } }
+\tl_gput_right:Nn \appendix { \hit@numbering@appendix: }
 \cs_set:Npn \textfraction      { 0.15 }
 \cs_set:Npn \topfraction       { 0.85 }
 \cs_set:Npn \bottomfraction    { 0.65 }
@@ -131,20 +132,22 @@
 %
 %    \end{macro}
 %    \begin{macro}{\LT@makecaption}
-% 长表格的题注。\pkg{longtable} 把题注排成一行跨满各列的格子，格子里一个 \cs{LTcapwidth} 宽的
-% \cs{parbox}；里面排的与浮动体一样是 \texttt{caption-table} 的段，字体、行距、对齐都照样式。
-% 先前这里自己量宽：一行装得下就居中，装不下时 \option{capcenterlast} 开着就把末行单独取出来
-% 居中（前面还垫 6.3\,bp），跟样式无关。
-%
-% 双语的英文那一行排在同一个格子里，紧接着中文那一段，用同一个号、不进表清单（同 Word 的
-% \texttt{SEQ~\textbackslash c}）。先前是另起一行题注，中英之间与表题到表顶之间各拿一个写死的量
-% （$-0.5$\,em、3.15\,bp）去凑，还借了 \pkg{ccaption} 换掉写清单的那一步。英文题目由下面
-% \cs{LT@caption} 的外层放进 \cs{g\_\_hit\_lt\_caption\_en\_tl}（在它的 \cs{noalign} 组里放：出了组就是
-% 表格行首，赋值会当场开一个单元格），这里取出来就清掉。
+% 长表的双语题注共用一个跨列表格单元格，副语言不重复编号或写入清单。
+% 题注暂存赋值须在 noalign 内完成，否则会意外开始新单元格。
 %    \begin{macrocode}
+  }
 \tl_new:N \g__hit_lt_caption_en_tl
+\bool_new:N \g__hit_lt_caption_star_bool
 \tl_new:N \l__hit_lt_caption_en_tl
+\cs_new_eq:NN \hit@original@LT@makecaption \LT@makecaption
 \cs_set:Npn \LT@makecaption #1#2#3
+  {
+    \bool_lazy_or:nnTF
+      {\g__hit_final_bool}{!\tl_if_empty_p:N\g__hit_lt_caption_en_tl}
+      {\hit@LT@makecaption{#1}{#2}{#3}}
+      {\hit@original@LT@makecaption{#1}{#2}{#3}}
+  }
+\cs_new:Npn \hit@LT@makecaption #1#2#3
   {
     \LT@mcol \LT@cols c
       {
@@ -159,11 +162,12 @@
                   {
                     \group_begin:
                       \hit@caption@latin@pick:
-                      \cs_set_eq:NN \tablename \hit@term@caption@table@prefix@en
+                      \cs_set:Npn \tablename {\hit@caption@secondary@name:n{table}}
                       \tl_set_eq:NN \l__hit_lt_caption_en_tl \g__hit_lt_caption_en_tl
                       \tl_gclear:N \g__hit_lt_caption_en_tl
                       \docxlike_format_par:nn { caption-table }
-                        { \fnum@table \hit@caption@separator \l__hit_lt_caption_en_tl }
+                        { \bool_if:NF\g__hit_lt_caption_star_bool{\fnum@table \hit@caption@separator}
+                          \l__hit_lt_caption_en_tl }
                     \group_end:
                   }
               }
@@ -175,11 +179,7 @@
 %
 %    \end{macro}
 %    \begin{macro}{\longbionenumcaption}
-% 长表格的双语标题是一个坑. 因为第一不能用浮动格式，只能用longtable包中的tabular
-% ，这样表题只能使用表格中前两行来写。这样出现了一个问题是，中英表题的间距，标题
-% 和表第一行间距，表格内部间距等多个变量的协调问题。这个问题只要使用tabular的形
-% 式，就是无解的。唯一的方法就是把这些参数都给用户列出来。以下，第2，5参数为中英
-% 双语标题内容，1，4为标题参数。6为中英标题间距，7为表题和表格间距。
+% 兼容旧的七参数长表题注命令。
 %    \begin{macrocode}
 \cs_set_nopar:Npn \longbionenumcaption #1 #2 #3 #4 #5 #6 #7
   {
@@ -188,9 +188,7 @@
   }
 %    \end{macrocode}
 %
-% \pkg{ccaption} 的 \cs{@cont@LT@nonumintoc} 会把英文题注也写一条进 \file{lot}，
-% 而且编号是空的，排出来是“表\quad Overview of\ldots”这么一行。规范要求一表
-% 一行，中文那条已经带着编号进去了，英文这条不该再进。所以换一个只排不写的。
+% 禁止 ccaption 为副语言题注重复写入表格清单。
 %    \begin{macrocode}
 \cs_new:Npn \hit@lt@caption@notoc #1 [#2] #3
   { \LT@makecaption #1 \fnum@table {#3} }
@@ -212,20 +210,9 @@
 %    \end{macro}
 %
 %    \begin{macro}{\LT@caption}
-% 浮动体里 \cs{caption}\marg{中文}\oarg{英文} 排双语，长表格里却只能写
-% \cs{longbionenumcaption} 那七个参数。原因是 \env{longtable} 在 \cs{begin} 时把
-% \cs{caption} 换成了自己的 \cs{LT@caption}，只认 \oarg{短标题}\marg{正文}，尾随的
-% \oarg{英文} 会当成正文印出来。
+% 包装 longtable 自行替换的 caption，使其支持尾随副语言题注。
 %
-% 这里给 \cs{LT@caption} 加一层：先自己接下 \texttt{*}、\oarg{短标题}、\marg{正文}，
-% 再探一眼后面有没有 \oarg{英文}。没有就把接到的参数原样交回原命令——星号形式与
-% \pkg{caption} 宏包那条路都不碰，行为一个字不变；有就把英文题目记下，再交回原命令，
-% \cs{LT@makecaption} 排完中文那一段接着排它。双语开关关着（硕士、本科）就不记，
-% 英文题目丢掉，与浮动体的 \cs{caption} 一样；先前这里不看开关，硕士的长表格照排英文那一行。
-%
-% 接参数与探看都在 \cs{noalign}\cs{bgroup} 里做，跟原命令一样：那个位置只做展开，
-% \cs{futurelet} 这类赋值会当场开一个单元格，题注的 \cs{noalign} 就错位了。分叉之后
-% 先 \cs{egroup} 退出来，再调原命令，它自己会重新进 \cs{noalign}。
+% 参数探测须在 noalign 内完成，调用原命令前再退出该组，避免表格对齐错位。
 %
 % 旧写法 \cs{longbionenumcaption} 内部还要调 \cs{caption}，那时没有尾随可选参数，走的是
 % 交回原命令那条，不会绕回来。
@@ -234,12 +221,26 @@
 \cs_set:Npn \LT@caption
   {
     \noalign \bgroup
+      \bool_gset_false:N\g__hit_lt_caption_star_bool
+      \tl_gclear:N\g__hit_lt_caption_en_tl
       \@ifstar
         { \hit@lt@caption@star }
         { \@ifnextchar [ { \hit@lt@caption@short } { \hit@lt@caption@plain } }
   }
 \cs_set:Npn \hit@lt@caption@star #1
-  { \egroup \hit@original@LT@caption * {#1} }
+  {
+    \bool_gset_true:N\g__hit_lt_caption_star_bool
+    \@ifnextchar[ {\hit@lt@caption@star@bilingual{#1}}
+      {\egroup\hit@original@LT@caption*{#1}}
+  }
+\cs_set:Npn \hit@lt@caption@star@bilingual #1[#2]
+  {
+    \hit@bilingual@command:nnNN{#1}{#2}\l__hit_bilingual_heading_main_tl\l__hit_bilingual_heading_other_tl
+    \bool_if:NT\g__hit_bilingual_caption_bool
+      {\tl_gset:NV\g__hit_lt_caption_en_tl\l__hit_bilingual_heading_other_tl}
+    \use:e{\exp_not:N\egroup\exp_not:N\hit@original@LT@caption*
+      {\exp_not:V\l__hit_bilingual_heading_main_tl}}
+  }
 \cs_set:Npn \hit@lt@caption@short [#1] #2
   { \hit@lt@caption@peek { [#1] } {#1} {#2} }
 \cs_set:Npn \hit@lt@caption@plain #1
@@ -252,12 +253,13 @@
   }
 \cs_set:Npn \hit@lt@caption@bilingual #1#2 [#3]
   {
+    \hit@bilingual@command:nnNN {#2}{#3}\l__hit_bilingual_heading_main_tl\l__hit_bilingual_heading_other_tl
     \bool_if:NT \g__hit_bilingual_caption_bool
-      { \tl_gset:Nn \g__hit_lt_caption_en_tl {#3} }
-    \egroup
-    \tl_if_empty:nTF {#1}
-      { \hit@original@LT@caption {#2} }
-      { \hit@original@LT@caption [#1] {#2} }
+      { \tl_gset:NV \g__hit_lt_caption_en_tl \l__hit_bilingual_heading_other_tl }
+    \use:e
+      {\exp_not:N\egroup \exp_not:N\hit@original@LT@caption
+       \tl_if_empty:nF{#1}{[\exp_not:n{#1}]}
+       {\exp_not:V\l__hit_bilingual_heading_main_tl}}
   }
 %    \end{macrocode}
 %    \end{macro}
@@ -266,6 +268,8 @@
 % 我们采用 \pkg{longtable} 来处理跨页的表格。默认字号压到五号，机制见
 % \file{src/engine/hit-table.dtx}。
 %    \begin{macrocode}
+\bool_if:NT \g__hit_final_bool
+  {
 \hit@setup@table
 %    \end{macrocode}
 %

@@ -16,25 +16,16 @@
 %
 % \section{词条}
 %
-% \changes{v3.2a}{2026/09/13}{固定词汇改成 \option{overrides} 族的常量键，从
-%   \file{hit-defaults.dtx} 按关切拆出来：原先一半走 \cs{ctexset}、一半靠
-%   \cs{cs\_new:Npn} 直接定义命令，值里还嵌着 \cs{hit@if@option@TF}；现在按变体的
-%   差别一律写成默认值加覆盖表，两条路都由 \file{hit-key-engine.dtx} 提供，配置只出取值}
-% \changes{v3.2a}{2026/09/13}{取值照范例与新规范：校区名只留校区两个字；成果章一律叫
-%   「攻读□士学位期间取得创新性成果」；本科原创性声明三个校区统一到本部这一份并按
-%   新规范加 AI 工具那一句；终稿独有的元信息字段给范例占位形的回落值；报告页眉整句、
-%   报告封面按变体分岔的取值、内封的学位说明、答辩决议那一页的表头文案（\issue[247]）
-%   都成词条；深圳本科报告首页的词条中英各一套；研究生内封的学位两行与英文答辩日期
-%   不分校区，英文内封的标签后是全角冒号（范例原件如此，与 iota 一致）}
-% \changes{v3.2a}{2026/08/29}{日期：排法迁到 \file{src/engine/hit-date.dtx}，默认值改成
-%   东八区今天的年月，精度跟着值走（规范四处落点都是年月；时区原先跟编译机器走，国外
-%   编译会差一天），深圳本科按 \issue{220} 单独给到日}
-% \changes{v3.2a}{2026/08/27}{学生类别的两条文本成常量 \option{degree-type-academic}
-%   与 \option{degree-type-professional}，名字照 iota；参考文献与索引的标题、英文图表名
-%   收进 \option{overrides} 族}
+% \changes{v3.2a}{2026/10/08}{图表名称、章节名称和清单标题统一提供部件分组入口；
+%   正文引用的“式”与公式清单的“公式”分别配置，标准名称与旧键共用取值。}
+% \changes{v3.2a}{2026/10/08}{封面完整文种统一为 cover/document-type，题目标签统一为
+%   cover/title；终稿与报告共用入口，移除旧报告标题及题目标签专用键。}
+% \changes{v3.2a}{2026/10/06}{固定词条按阶段、校区和学位配置：统一本科原创性声明并加入 AI 工具说明，
+%   更新成果章标题、研究生内封标签及深圳本科报告的中英文文字；实践成果类别行使用用户填写的类型}
 %
-% 固定词汇的取值，三段：两档共用一段，终稿一段，开题与中期一段。
-% 段条件挂在各段段首，末尾撤销。
+% 固定词条按共用、终稿、报告三组提供。每组通过 presetup 条件限制适用范围。
+% 词条按部件组织：title 表示部件标题，清单中的 image、table、equation 表示条目类型名，
+% imprint 表示封面落款。info 是用户填写的信息，styles 和 layout 是版式参数。
 %
 %    \begin{macrocode}
 %<*hithesis-cfg>
@@ -45,11 +36,17 @@
 % 不是这个值的事。三个类共用一份。
 %    \begin{macrocode}
 \ExplSyntaxOff
-\hit@presetup[campus=harbin]{ overrides = { base-campus = {哈尔滨} } }
-\hit@presetup[campus=weihai]{ overrides = { base-campus = {威海} } }
-\hit@presetup[campus=shenzhen]{ overrides = { base-campus = {深圳} } }
-\hit@presetup{ overrides = { base-campus-full = {<base-campus>校区} } }
-\hit@presetup{ overrides = { cover-bottommark = {哈尔滨工业大学教务处制} } }
+\hit@presetup[campus=harbin]{ overrides = { base = { campus = {哈尔滨} } } }
+\hit@presetup[campus=weihai]{ overrides = { base = { campus = {威海} } } }
+\hit@presetup[campus=shenzhen]{ overrides = { base = { campus = {深圳} } } }
+\hit@presetup{ overrides = { base = { campus-full = {<base-campus>校区} } } }
+\hit@presetup{ overrides = { cover = { imprint = {哈尔滨工业大学教务处制} } } }
+% 正文引用的“式”与公式清单的“公式”分别设置。
+\hit@presetup{ overrides = { caption = { equation = {式}[Equation] } } }
+\hit@presetup{ overrides = {
+  list-of-figures = { image = {<caption-figure>}[<caption-figure>] },
+  list-of-tables = { table = {<caption-table>}[<caption-table>] },
+} }
 \ExplSyntaxOn
 %    \end{macrocode}
 %
@@ -60,10 +57,9 @@
 %    \begin{macrocode}
 \ExplSyntaxOff
 \hit@presetup[category=hass]{ overrides = {
-  abstract-in-english-toc-zh  = {Abstract(In Chinese)},
-  abstract-in-english-toc-en  = {Abstract(In English)},
-  acknowledgements-heading-en = {Acknowledgments},
-  declarations-heading-en     = {Statement of copyright and letter of authorization},
+  abstract = { in-english-toc = {Abstract(In Chinese)}[Abstract(In English)] },
+  acknowledgements = { title = {\keepvalue}[Acknowledgments] },
+  declarations = { title = {\keepvalue}[Statement of copyright and letter of authorization] },
 } }
 \ExplSyntaxOn
 %    \end{macrocode}
@@ -72,19 +68,16 @@
 \ExplSyntaxOff
 %    \end{macrocode}
 %
-% 中英文的固定词汇。\option{chapter-name} 到 \option{indexname} 那几个归 \pkg{ctex} 管，
-% 设值时转给 \cs{ctexset}；其余几个是对外可见的命令名，设值时直接写进同名命令。
-% 两类都在 \file{hit-key-engine.dtx} 里声明，这里只给值。
+% 标题和题注名称统一按部件设置；标准 LaTeX 名称命令由词条接口更新。
 %    \begin{macrocode}
 \hit@presetup[lang=en]{ overrides = {
-  chapter-name      = {Chapter\enskip,},
-  appendixname      = {Appendix},
-  contentsname      = {Contents},
-  listfigurename    = {List of Figures},
-  listtablename     = {List of Tables},
-  figurename        = {Figure},
-  tablename         = {Table},
-  equationname      = {Equation},
+  mainmatter = { chapter-name = {Chapter\enskip,} },
+  appendix = { title = {Appendix} },
+  table-of-contents = { title = {Contents} },
+  list-of-figures = { title = {List of Figures} },
+  list-of-tables = { title = {List of Tables} },
+  list-of-equations = { equation = {Equation} },
+  caption = { figure = {Figure}, table = {Table} },
 } }
 %    \end{macrocode}
 %
@@ -92,68 +85,54 @@
 % 「答辩委员会成员」与「委员」在纸质表上是竖排，逐字一行。
 %    \begin{macrocode}
 \hit@presetup[lang=en]{ overrides = {
-  resolution-reviewer    = {Reviewers},
-  resolution-name        = {Name},
-  resolution-title       = {Title\\(Doctoral\\Supervisor?)},
-  resolution-affiliation = {Affiliation},
-  resolution-discipline  = {Discipline},
-  resolution-role        = {Role},
-  resolution-committee   = {\rotatebox{90}{Defense Committee}},
-  resolution-chair       = {Chair},
-  resolution-member      = {\rotatebox{90}{Member}},
-  resolution-secretary   = {Secretary},
-  resolution-text  = {Resolution of the defense committee (comments on the dissertation and whether the doctoral degree is recommended):},
+  defense = {
+    reviewer = {Reviewers},
+    name = {Name},
+    column-title = {Title\\(Doctoral\\Supervisor?)},
+    affiliation = {Affiliation},
+    discipline = {Discipline},
+    role = {Role},
+    committee = {\rotatebox{90}{Defense Committee}},
+    chair = {Chair},
+    member = {\rotatebox{90}{Member}},
+    secretary = {Secretary},
+    text = {Resolution of the defense committee (comments on the dissertation and whether the doctoral degree is recommended):},
+  },
 } }
 %    \end{macrocode}
 %    \begin{macrocode}
 \hit@presetup[lang=zh]{ overrides = {
-  chapter-name      = {第,章},
-  appendixname      = {附录},
-  contentsname      = {目录},
-  listfigurename    = {图清单},
-  listtablename     = {表清单},
-  figurename        = {图},
-  tablename         = {表},
-  equationname      = {公式},
+  mainmatter = { chapter-name = {第,章} },
+  appendix = { title = {附录} },
+  table-of-contents = { title = {目录} },
+  list-of-figures = { title = {图清单} },
+  list-of-tables = { title = {表清单} },
+  list-of-equations = { equation = {公式} },
+  caption = { figure = {图}, table = {表} },
 } }
 %    \end{macrocode}
 %
-% 参考文献与索引各有两处要用：排出来的那条章标题跟文档语言走，英文目录里的条目
-% 永远是英文。两半都写成成对的常量，\pkg{ctex} 的 \option{bibname} 与
-% \option{indexname} 由它们接出来，不借 \pkg{ctex} 的键存中文那半。
+% 参考文献与索引的标题保留中英文两份，词条接口同时更新标准名称命令。
+% 正文标题按文档语言选择，英文目录使用英文词条。
 %    \begin{macrocode}
 \hit@presetup{ overrides = {
-  bibliography-heading-zh = {参考文献},
-  bibliography-heading-en = {References},
-  index-heading-zh        = {索引},
-  index-heading-en        = {Index},
-} }
-\hit@presetup[lang=zh]{ overrides = {
-  bibname   = {<bibliography-heading-zh>},
-  indexname = {<index-heading-zh>},
-} }
-\hit@presetup[lang=en]{ overrides = {
-  bibname   = {<bibliography-heading-en>},
-  indexname = {<index-heading-en>},
+  references = { title = {参考文献}[References] },
+  index = { title = {索引}[Index] },
 } }
 \hit@presetup{ overrides = {
-  list-of-figures-in-english-toc   = {List of figures},
-  list-of-tables-in-english-toc    = {List of tables},
-  list-of-equations-in-english-toc = {List of equations},
-  listequationname  = {公式清单},
-  abstract-heading-zh    = {摘要},
-  abstract-in-english-toc-zh    = {Abstract (In Chinese)},
-  abstract-heading-en    = {Abstract},
-  abstract-in-english-toc-en    = {Abstract (In English)},
+  list-of-figures = { in-english-toc = {List of figures} },
+  list-of-tables = { in-english-toc = {List of tables} },
+  list-of-equations = { title = {公式清单}, in-english-toc = {List of equations} },
+  abstract = {
+    title = {摘要}[Abstract],
+    in-english-toc = {Abstract (In Chinese)}[Abstract (In English)],
+  },
 } }
 \hit@presetup{ overrides = {
-  abstract-keywords-zh = {关键词：},
-  abstract-keywords-en = {Keywords},
-  abstract-keywords-colon-en = {：},
+  abstract = { keywords = {关键词：}[Keywords], keywords-colon = {\keepvalue}[：] },
 } }
 \hit@presetup{ overrides = {
-  abstract-keywords-separator-zh = {；},
-  abstract-keywords-separator-en = {,\space},
+  abstract = { keywords-separator = {；}[{,\space}] },
 } }
 \ExplSyntaxOn
 
@@ -166,8 +145,10 @@
 
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  caption-figure-prefix-en = {Fig.},
-  caption-table-prefix-en  = {Table},
+  caption = {
+    figure-prefix = {\keepvalue}[Fig.],
+    table-prefix = {\keepvalue}[Table],
+  },
 } }
 \ExplSyntaxOn
 \hit@preconfig{ \hit@setup@date }
@@ -206,15 +187,14 @@
 % 还是被默认值填过，用户写了 \option{degree-type}\texttt{=professional} 会看不出变化。
 %    \begin{macrocode}
 \hit@presetup{ overrides = {
-  degree-type-academic-zh     = {学术学位论文},
-  degree-type-academic-en     = {Academic Degree},
-  degree-type-professional-zh = {专业学位论文},
-  degree-type-professional-en = {Professional Degree},
+  degree-type = {
+    academic = {学术学位论文}[Academic Degree],
+    professional = {\hit@if@option@TF{practice}{专业学位\hit@cover@practice@type}{专业学位论文}}[Professional Degree],
+  },
 } }
 \hit@presetup[degree-level=postdoc]{ overrides = {
-  base-degree-level-zh           = {博士},
-  base-degree-level-en           = {Doctor},
-  titlepage-degree-attribute = {Doctoral},
+  base = { degree-level = {博士}[Doctor] },
+  titlepage = { degree-attribute = {Doctoral} },
 } }
 \ExplSyntaxOn
 %    \end{macrocode}
@@ -225,9 +205,11 @@
 %    \begin{macrocode}
 \ExplSyntaxOff
 \hit@presetup[degree-level=postdoc]{ overrides = {
-  header-report = {博士后研究报告},
-  caption-figure-prefix-en = {Fig.~},
-  caption-table-prefix-en  = {Table~},
+  header = { report = {博士后研究报告} },
+  caption = {
+    figure-prefix = {\keepvalue}[Fig.~],
+    table-prefix = {\keepvalue}[Table~],
+  },
 } }
 \ExplSyntaxOn
 
@@ -240,14 +222,12 @@
 
 \ExplSyntaxOff
 \hit@presetup[degree-level=doctor]{ overrides = {
-  base-degree-level-zh           = {博士},
-  base-degree-level-en           = {Doctor},
-  titlepage-degree-attribute = {Doctoral},
+  base = { degree-level = {博士}[Doctor] },
+  titlepage = { degree-attribute = {Doctoral} },
 } }
 \hit@presetup[degree-level=master]{ overrides = {
-  base-degree-level-zh           = {硕士},
-  base-degree-level-en           = {Master},
-  titlepage-degree-attribute = {Master's},
+  base = { degree-level = {硕士}[Master] },
+  titlepage = { degree-attribute = {Master's} },
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
@@ -257,9 +237,7 @@
 % 内封上这两处印在纸上的字归词条表而不写进排版代码；\cs{hitsetup} 里写显式值
 % 就能覆盖。只有研究生内封用这两条。
 %
-% 不分校区。先前深圳博士印“工学博士学位论文”“\ldots{} Degree in Engineering”、
-% 深圳硕士印“Master Degree”；现行的研究生学位论文写作指南全校一份，iota-hit
-% 也不分，一律照本部。
+% 研究生内封的学位名称不按校区区分。
 %
 % 两条名字都不带语言后缀。内封的中文半页与英文半页各排各的，
 % \option{titlepage-degree-line} 只有中文、\option{titlepage-degree-sentence}
@@ -268,41 +246,47 @@
 %    \begin{macrocode}
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  titlepage-degree-sentence = {Dissertation for the <titlepage-degree-attribute> Degree},
-  titlepage-degree-line     = {<base-degree-level-zh>},
+  titlepage = {
+    degree-sentence = {Dissertation for the <titlepage-degree-attribute> Degree},
+    degree-line = {<base-degree-level-zh>},
+  },
 } }
 \hit@presetup{ overrides = {
-  base-degree-of-discipline-zh               = {<discipline-zh><base-degree-level-zh>},
-  base-degree-of-discipline-en               = {<base-degree-level-en> of <discipline-en>},
-  titlepage-author-zh                        = {<base-degree-level-zh>研究生},
-  cover-classified-index-postdoc      = {分类号},
-  base-secrecy-postdoc          = {密级},
-  cover-udc-postdoc                      = {\hit@spread@by{0.4\ccwd}{UDC}},
-  base-stage-proposal                                = {开题},
-  base-stage-interim                                = {中期},
-  base-stage-document-type                          = {报告},
-  cover-number-postdoc                = {编号},
-  base-report-postdoc                            = {博士后研究工作报告},
-  cover-work-finish-date-postdoc      = {工作完成日期},
-  cover-report-submit-date-postdoc    = {报告提交日期},
-  titlepage-author-postdoc-zh                = {\hit@spread@to{7em}{博士后姓名}},
-  titlepage-co-supervisor-postdoc-zh         = {\hit@spread@to{7em}{合作导师}},
-  titlepage-station-postdoc               = {\hit@spread@to{7em}{流动站名称}},
-  titlepage-major-postdoc-zh             = {\hit@spread@to{7em}{专业名称}},
-  titlepage-research-start-date-postdoc   = {研究工作起始时间},
-  titlepage-research-end-date-postdoc     = {研究工作期满时间},
-  titlepage-separator-postdoc                            = {：},
-  base-document-type-level-bachelor                     = {本科},
-  base-document-type-bachelor                    = {毕业论文（设计）},
-  titlepage-affiliation-bachelor-zh          = {学院 },
-  titlepage-student-id-bachelor           = {学号},
-  titlepage-major-bachelor-zh                = {专业},
-  titlepage-supervisor-bachelor-zh           = {指导教师},
-  cover-title-label-bachelor               = {题目},
+  base = {
+    degree-of-discipline = {<discipline-zh><base-degree-level-zh>}[<base-degree-level-en> of <discipline-en>],
+    secrecy-postdoc = {密级},
+    stage-proposal = {开题},
+    stage-interim = {中期},
+    stage-document-type = {报告},
+    report-postdoc = {博士后研究工作报告},
+    document-type-level-bachelor = {本科},
+    document-type-bachelor = {毕业论文（设计）},
+  },
+  cover = {
+    classified-index-postdoc = {分类号},
+    udc-postdoc = {\hit@spread@by{0.4\ccwd}{UDC}},
+    number-postdoc = {编号},
+    work-finish-date-postdoc = {工作完成日期},
+    report-submit-date-postdoc = {报告提交日期},
+  },
+  titlepage = {
+    author = {<base-degree-level-zh>研究生},
+    author-postdoc = {\hit@spread@to{7em}{博士后姓名}},
+    co-supervisor-postdoc = {\hit@spread@to{7em}{合作导师}},
+    station-postdoc = {\hit@spread@to{7em}{流动站名称}},
+    major-postdoc = {\hit@spread@to{7em}{专业名称}},
+    research-start-date-postdoc = {研究工作起始时间},
+    research-end-date-postdoc = {研究工作期满时间},
+    separator-postdoc = {：},
+    affiliation-bachelor = {学院 },
+    student-id-bachelor = {学号},
+    major-bachelor = {专业},
+    supervisor-bachelor = {指导教师},
+  },
 } }
 \hit@presetup[degree-level=bachelor]{ overrides = {
-  base-degree-level-zh                     = {学士 },
-  titlepage-author-zh               = {本科生},
+  base = { degree-level = {学士 } },
+  titlepage = { author = {本科生} },
 } }
 \ExplSyntaxOn
 %    \end{macrocode}
@@ -326,36 +310,31 @@
 %    \begin{macrocode}
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  titlepage-student-bachelor = {学生},
-  base-document-type                = {学位论文},
-  titlepage-date-bachelor-zh    = {\hit@spread@to{4em}{日期}},
+  base = { document-type = {学位论文} },
+  titlepage = { student-bachelor = {学生}, date-bachelor = {\hit@spread@to{4em}{日期}} },
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  cover-title-prefix                    = {\hit@spread@to{3em}{题目}},
-  titlepage-affiliation       = {院\hspace{3\ccwd}（系）},
-  titlepage-major             = {学\hspace{4\ccwd}科},
-  titlepage-supervisor        = {\hit@spread@to{6em}{导师}},
-  titlepage-student           = {\hit@spread@to{6em}{研究生}},
-  titlepage-student-id        = {\hit@spread@to{6em}{学号}},
-  titlepage-date              = {\hit@if@option@TF{proposal}{<base-stage-proposal>}%
-{\hit@if@option@T{interim}{<base-stage-interim>}}<base-stage-document-type>日期},
-  cover-enroll-date       = {\hit@spread@to{6em}{入学时间}},
-  cover-title-label            = {\hit@spread@to{6em}{论文题目}},
-  titlepage-affiliation-major = {\hit@spread@to{6em}{学科专业}},
-  base-university-zh                                 = {哈尔滨工业大学},
-  titlepage-institution-zh                     = {授予学位单位},
-  titlepage-date-zh                       = {答辩日期},
-  titlepage-affiliation-zh                = {所在单位},
+  cover = {
+    enroll-date = {\hit@spread@to{6em}{入学时间}},
+  },
+  base = { university = {哈尔滨工业大学} },
+  titlepage = {
+    major = {学\hspace{4\ccwd}科},
+    supervisor = {\hit@spread@to{6em}{导师}},
+    student = {\hit@spread@to{6em}{研究生}},
+    student-id = {\hit@spread@to{6em}{学号}},
+    affiliation-major = {\hit@spread@to{6em}{学科专业}},
+    institution = {授予学位单位},
+    date = {答辩日期},
+    affiliation = {所在单位},
+  },
 } }
 \ExplSyntaxOn
 %    \end{macrocode}
 %
-% \cs{hit@stage@proposal} 这条留在值里判断，不能提到覆盖表。\option{stage} 是报告
-% 的选项，\file{hit-thesis.cls} 里没有 \cs{g\_\_hit\_interim\_bool}，提到外面
-% 加载期就会报 \texttt{Missing number}。留在值里则只有真的排到这一项时才求值，
-% 而 book 从不用它。
+% 终稿内封采用答辩日期标签；报告日期在报告词条中按阶段设置。
 %
 % 添加哈尔滨校区选项
 % \changes{v3.0.0}{2020/05/21}{添加哈尔滨校区选项}
@@ -364,31 +343,27 @@
 %    \begin{macrocode}
 \ExplSyntaxOff
 \hit@presetup[degree-level=bachelor]{ overrides = {
-  titlepage-institution-zh = {学校},
+  titlepage = { institution = {学校} },
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  titlepage-major-zh            = {学科},
-  titlepage-degree-applied-zh               = {申请学位},
-  titlepage-supervisor-zh           = {导师},
-  titlepage-associate-supervisor-zh = {副导师},
-  titlepage-co-supervisor-zh        = {合作导师},
-  base-title-separator-zh                  = {：},
-  titlepage-author-en               = {Candidate},
-  titlepage-supervisor-en           = {Supervisor},
-  titlepage-associate-supervisor-en = {Associate Supervisor},
-  titlepage-co-supervisor-en        = {Co-Supervisor off Campus},
-  titlepage-degree-applied-en               = {Academic Degree Applied for},
-  titlepage-major-en            = {Specialty},
-  titlepage-affiliation-en          = {Affiliation},
+  base = { title-separator = {：} },
+  titlepage = {
+    major = {学科}[Specialty],
+    degree-applied = {申请学位}[Academic Degree Applied for],
+    supervisor = {导师}[Supervisor],
+    associate-supervisor = {副导师}[Associate Supervisor],
+    industry-supervisor = {行业导师}[Industry Supervisor],
+    author = {\keepvalue}[Candidate],
+    affiliation = {\keepvalue}[Affiliation],
+  },
 } }
 \ExplSyntaxOn
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{本部研究生第二封面按照书写指南进行修改}
-% 本部研究生第二封面按照书写指南进行修改。学科”改为“学科或类别”。
-% 虽然只是深圳的要求，但是懒得写判断了，我估计用到的人不多，还有我怕明年深圳再改一波又白写了。
+% 哈尔滨硕士内封的学科标签使用“学科或类别”。
 % \changes{v3.1c}{2023/04/16}{根据 \issue[97] 修改合作导师的名称}
 %
 % \changes{v3.1c}{2023/04/16}{根据 \issue[97] 修改合作导师的英文}
@@ -396,37 +371,40 @@
 %    \begin{macrocode}
 \ExplSyntaxOff
 \hit@presetup[campus=harbin,degree-level=master]{ overrides = {
-  titlepage-major-zh = {学科或类别},
+  titlepage = { major = {学科或类别} },
 } }
 \ExplSyntaxOn
 
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{修改深圳硕士英文封面的 Defence 为 Defense.\issue[97]}
-% \issue[97] 那时深圳硕士的英文封面印 Defense；现行的写作指南全校一份，一律
-% Defence，iota-hit 同。
+% 英文日期标签统一使用 Defence。
 %
 % 英文内封标签后面的冒号是全角的：范例原件是“Candidate：”，冒号那个 run 黑体加粗。
-% 英文题名与副题名之间 iota-hit 也用全角冒号，同一个词条。
+% 英文题名与副题名之间同样使用全角冒号。
 %    \begin{macrocode}
 
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  titlepage-date-en                           = {Date of Defence},
-  titlepage-institution-en                         = {Degree-Conferring-Institution},
-  base-university-en                                     = {Harbin Institute of Technology},
-  base-title-separator-en                            = {：},
-  titlepage-classified-index-national-zh      = {国内图书分类号},
-  titlepage-classified-index-international-zh = {国际图书分类号},
-  titlepage-classified-index-national-en      = {Classified Index},
-  titlepage-classified-index-international-en = {U.D.C},
-  table-of-contents-page-en                           = {Page},
-  table-of-contents-table-en                          = {Table},
-  table-of-contents-figure-en                         = {Figure},
-  table-of-contents-undefined-en                      = {(Error! English heading not defined.)},
-  base-secrecy                   = {密级},
-  titlepage-school-code                      = {学校代码},
-  base-school-code                                     = {10213},
+  titlepage = {
+    date = {\keepvalue}[Date of Defence],
+    institution = {\keepvalue}[Degree-Conferring-Institution],
+    classified-index-national = {国内图书分类号}[Classified Index],
+    classified-index-international = {国际图书分类号}[U.D.C],
+    school-code = {学校代码},
+  },
+  base = {
+    university = {\keepvalue}[Harbin Institute of Technology],
+    title-separator = {\keepvalue}[：],
+    secrecy = {密级},
+    school-code = {10213},
+  },
+  table-of-contents = {
+    page = {\keepvalue}[Page],
+    table = {\keepvalue}[Table],
+    figure = {\keepvalue}[Figure],
+    undefined = {\keepvalue}[(Error! English heading not defined.)],
+  },
 } }
 \ExplSyntaxOn
 %    \end{macrocode}
@@ -440,13 +418,12 @@
 %    \begin{macrocode}
 \ExplSyntaxOff
 \hit@presetup{ info = {
-  title-en = {RESEARCH ON KEY TECHNOLOGIES OF PARTIAL POROUS EXTERNALLY PRESSURIZED GAS BEARING},
-  author-en     = {□□□},
-  supervisor-en = {Prof.□□□},
-  affiliation-en = {School of Mechatronics Engineering},
-  speciality-en      = {Mechanical Manufacturing and Automation},
-  discipline-zh = {□□},
-  discipline-en = {□□□□},
+  title = {\keepvalue}[RESEARCH ON KEY TECHNOLOGIES OF PARTIAL POROUS EXTERNALLY PRESSURIZED GAS BEARING],
+  author = {\keepvalue}[□□□],
+  supervisor = {\keepvalue}[Prof.□□□],
+  affiliation = {\keepvalue}[School of Mechatronics Engineering],
+  speciality = {\keepvalue}[Mechanical Manufacturing and Automation],
+  discipline = {□□}[□□□□],
   secrecy  = {公开},
   classified-index      = {××××},
   udc = {××××},
@@ -459,12 +436,10 @@
 
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  base-heading-spread             = {\ \ },
-  conclusions-heading-zh      = {结论},
-  conclusions-heading-en      = {Conclusions},
-  acknowledgements-heading-zh = {致谢},
-  acknowledgements-heading-en = {Acknowledgements},
-  resume-heading-zh          = {个人简历},
+  base = { heading-spread = {\ \ } },
+  conclusions = { title = {结论}[Conclusions] },
+  acknowledgements = { title = {致谢}[Acknowledgements] },
+  resume = { title = {个人简历} },
 } }
 \ExplSyntaxOn
 
@@ -476,31 +451,32 @@
 
 \ExplSyntaxOff
 \hit@presetup[degree-level=postdoc]{ overrides = {
-  base-heading-spread    = {},
-  resume-heading-zh = {博士后个人简历},
-  abstract-keywords-zh = {关键词},
+  base = { heading-spread = {} },
+  resume = { title = {博士后个人简历} },
+  abstract = { keywords = {关键词} },
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  resume-corresponding-address-zh = {永久通讯地址},
-  resume-corresponding-address-en = {Corresponding Address},
-  resume-heading-en                = {Resume},
-  declarations-heading-zh          = {哈尔滨工业大学学位论文原创性声明和使用权限},
-  declarations-heading-en          = {Statement of copyright and Letter of authorization},
-  resolution-heading-zh            = {学位论文评阅人、答辩委员会名单及答辩决议},
-  resolution-heading-en            = {List of Dissertation Reviewers and Defense Committee and Defense Resolution},
-  resolution-reviewer        = {评阅人\\（根据实际\\人数填写）},
-  resolution-name            = {姓名},
-  resolution-title           = {职称（是否博导）},
-  resolution-affiliation     = {工作单位},
-  resolution-discipline      = {所在学科},
-  resolution-role            = {职务},
-  resolution-committee       = {答\\辩\\委\\员\\会\\成\\员},
-  resolution-chair           = {主席},
-  resolution-member          = {委\\员},
-  resolution-secretary       = {秘书},
-  resolution-text      = {答辩委员会决议（对论文的评语及是否建议授予博士学位等）：},
+  resume = {
+    corresponding-address = {永久通讯地址}[Corresponding Address],
+    title = {\keepvalue}[Resume],
+  },
+  declarations = { title = {哈尔滨工业大学学位论文原创性声明和使用权限}[Statement of copyright and Letter of authorization] },
+  defense = {
+    title = {学位论文评阅人、答辩委员会名单及答辩决议}[List of Dissertation Reviewers and Defense Committee and Defense Resolution],
+    reviewer = {评阅人\\（根据实际\\人数填写）},
+    name = {姓名},
+    column-title = {职称（是否博导）},
+    affiliation = {工作单位},
+    discipline = {所在学科},
+    role = {职务},
+    committee = {答\\辩\\委\\员\\会\\成\\员},
+    chair = {主席},
+    member = {委\\员},
+    secretary = {秘书},
+    text = {答辩委员会决议（对论文的评语及是否建议授予博士学位等）：},
+  },
 } }
 \ExplSyntaxOn
 %    \end{macrocode}
@@ -515,35 +491,35 @@
 %    \begin{macrocode}
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  declarations-author-signature = {作者签名：},
+  declarations = { author-signature = {作者签名：} },
 } }
 \hit@presetup{ overrides = {
-  declarations-supervisor-signature = {导师签名：},
+  declarations = { supervisor-signature = {导师签名：} },
 } }
 \hit@presetup{ overrides = {
-  declarations-date = {日期：},
+  declarations = { date = {日期：} },
 } }
 \hit@presetup{ overrides = {
-  list-of-symbols-heading-zh = {物理量名称及符号表},
-  list-of-abbreviations-heading-zh = {缩略语表},
-  list-of-symbols-and-abbreviations-heading-zh = {符号及缩略语},
+  list-of-symbols = { title = {物理量名称及符号表} },
+  list-of-abbreviations = { title = {缩略语表} },
+  list-of-symbols-and-abbreviations = { title = {符号及缩略语} },
 } }
 \hit@presetup{ overrides = {
-  list-of-symbols-heading-en = {List of physical quantities and symbols},
-  list-of-abbreviations-heading-en = {List of abbreviations},
-  list-of-symbols-and-abbreviations-heading-en = {List of symbols and abbreviations},
+  list-of-symbols = { title = {\keepvalue}[List of physical quantities and symbols] },
+  list-of-abbreviations = { title = {\keepvalue}[List of abbreviations] },
+  list-of-symbols-and-abbreviations = { title = {\keepvalue}[List of symbols and abbreviations] },
 } }
 \hit@presetup{ overrides = {
-  mainmatter-eqdenote-label-zh = {式中},
+  mainmatter = { eqdenote-label = {式中} },
 } }
 \hit@presetup{ overrides = {
-  mainmatter-eqdenote-label-en = {where},
+  mainmatter = { eqdenote-label = {\keepvalue}[where] },
 } }
 \hit@presetup{ overrides = {
-  mainmatter-eqdenote-dash = {——},
+  mainmatter = { eqdenote-dash = {——} },
 } }
 \hit@presetup{ overrides = {
-  declarations-authorization = {学位论文使用权限},
+  declarations = { authorization = {学位论文使用权限} },
 } }
 %    \end{macrocode}
 %
@@ -552,22 +528,24 @@
 % 都在下面，唯独深圳这个不排，2022 年按 \issue[126] 去掉的，别再补回来。
 %    \begin{macrocode}
 \hit@presetup{ overrides = {
-  cover-school-bottom-mark-harbin-master = { 
-   \begin{center} 
-     \songti\sanhao\textbf{研究生院制} 
-   \end{center} 
-   \begin{center} 
-     \songti\sanhao\textbf{二〇一四年九月} 
-   \end{center} 
-},
-  cover-school-bottom-mark-harbin-doctor = { 
-   \begin{center} 
-     \songti\sanhao\textbf{研究生院制} 
-   \end{center} 
-   \begin{center} 
-     \songti\sanhao\textbf{二〇一四年九月} 
-   \end{center} 
-},
+  cover = {
+    imprint-harbin-master = {
+      \begin{center}
+        \songti\sanhao\textbf{研究生院制}
+      \end{center}
+      \begin{center}
+        \songti\sanhao\textbf{二〇一四年九月}
+      \end{center}
+    },
+    imprint-harbin-doctor = {
+      \begin{center}
+        \songti\sanhao\textbf{研究生院制}
+      \end{center}
+      \begin{center}
+        \songti\sanhao\textbf{二〇一四年九月}
+      \end{center}
+    },
+  },
 } }
 \ExplSyntaxOn
 
@@ -577,22 +555,6 @@
 %    \begin{macrocode}
 
 \ExplSyntaxOff
-\hit@presetup{ overrides = {
-  cover-note-interim-shenzhen-doctor = {
-\thispagestyle{empty}
-{\begin{center}
-\songti\sanhao\textbf{\hit@spread@to{6em}{说明}}
-\end{center}
-}
-\vspace{1cm}\songti\hit@fontsize@x{sihao}{2}
-\begin{enumerate}[itemsep=-4bp]
-\item 博士研究生学位论文中期报告一般在入学后的第五学期末完成。
-\item 此报告由学生本人填写，请导师签字后提交一份给检查小组。答辩结束后由检查组长签署意见。
-\item 报告经中期报告检查组长签字同意后，由学科部保存，以备论文答辩时参考。研究生院学生培养处将对研究生的学位论文中期报告进行抽查。
-\item 报告统一用A4纸打印。
-\end{enumerate}
-},
-} }
 \ExplSyntaxOn
 
 %    \end{macrocode}
@@ -603,14 +565,14 @@
 
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  declarations-authorization-text = {%
+  declarations = { authorization-text = {%
 学位论文是研究生在哈尔滨工业大学攻读学位期间完成的成果，知识产权归属哈尔滨工业大学。学位论文的使用权限如下： 
 \par
 （1）学校可以采用影印、缩印或其他复制手段保存研究生上交的学位论文，并向国家图书馆报送学位论文；（2）学校可以将学位论文部分或全部内容编入有关数据库进行检索和提供相应阅览服务；（3）研究生毕业后发表与此学位论文研究成果相关的学术论文和其他成果时，应征得导师同意，且第一署名单位为哈尔滨工业大学。 
 \par
 保密论文在保密期内遵守有关保密规定，解密后适用于此使用权限规定。 
 \par
-本人知悉学位论文的使用权限，并将遵守有关规定。},
+本人知悉学位论文的使用权限，并将遵守有关规定。} },
 } }
 \ExplSyntaxOn
 
@@ -629,12 +591,14 @@
 
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  declarations-heading-line-one-bachelor = {哈尔滨工业大学本科毕业论文（设计）},
-  declarations-heading-line-two-bachelor = {原创性声明和使用权限},
-  declarations-heading-bachelor-zh = {<declarations-heading-line-one-bachelor><declarations-heading-line-two-bachelor> },
-  declarations-heading-short-bachelor = {原创性声明},
-  declarations-statement-bachelor = {本科毕业论文（设计）原创性声明},
-  declarations-authorization-bachelor = {本科毕业论文（设计）使用权限},
+  declarations = {
+    title-line-one-bachelor = {哈尔滨工业大学本科毕业论文（设计）},
+    title-line-two-bachelor = {原创性声明和使用权限},
+    title-bachelor = {<declarations-title-line-one-bachelor><declarations-title-line-two-bachelor> },
+    title-short-bachelor = {原创性声明},
+    statement-bachelor = {本科毕业论文（设计）原创性声明},
+    authorization-bachelor = {本科毕业论文（设计）使用权限},
+  },
 } }
 \ExplSyntaxOn
 %    \end{macrocode}
@@ -646,9 +610,9 @@
 %    \begin{macrocode}
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  declarations-statement-text-bachelor = {%
+  declarations = { statement-text-bachelor = {%
     本人郑重声明：此处所提交的本科毕业论文（设计）《<title-flat-zh>》，是本人在导师指导下，在哈尔滨工业大学攻读学士学位期间独立进行研究工作所取得的成果，且毕业论文（设计）中除已标注引用文献的部分外不包含他人完成或已发表的研究成果。对本毕业论文（设计）的研究工作做出重要贡献的个人和集体，均已在文中以明确方式注明。本毕业论文（设计）对使用AI工具的情况进行了明确标注。
-  },
+  } },
 } }
 \ExplSyntaxOn
 
@@ -660,7 +624,7 @@
 
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  declarations-authorization-text-bachelor = {%
+  declarations = { authorization-text-bachelor = {%
   本科毕业论文（设计）是本科生在哈尔滨工业大学攻读学士学位期间完成的成果，知识产权归属哈尔滨工业大学。本科毕业论文（设计）的使用权限如下： 
 \par
   （1）学校可以采用影印、缩印或其他复制手段保存本科生上交的毕业论文（设计），并向有关部门报送本科毕业论文（设计）；（2）根据需要，学校可以将本科毕业论文（设计）部分或全部内容编入有关数据库进行检索和提供相应阅览服务；（3）本科生毕业后发表与此毕业论文（设计）研究成果相关的学术论文和其他成果时，应征得导师同意，且第一署名单位为哈尔滨工业大学。 
@@ -668,7 +632,7 @@
   保密论文在保密期内遵守有关保密规定，解密后适用于此使用权限规定。 
 \par
   本人知悉本科毕业论文（设计）的使用权限，并将遵守有关规定。 
-},
+} },
 } }
 \ExplSyntaxOn
 
@@ -679,7 +643,7 @@
 
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  declarations-statement = {学位论文原创性声明},
+  declarations = { statement = {学位论文原创性声明} },
 } }
 \ExplSyntaxOn
 
@@ -690,8 +654,8 @@
 
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  declarations-statement-text = {%
-本人郑重声明：此处所提交的学位论文《<title-flat-zh>》，是本人在导师指导下，在哈尔滨工业大学攻读学位期间独立进行研究工作所取得的成果，且学位论文中除已标注引用文献的部分外不包含他人完成或已发表的研究成果。对本学位论文的研究工作做出重要贡献的个人和集体，均已在文中以明确方式注明。},
+  declarations = { statement-text = {%
+本人郑重声明：此处所提交的学位论文《<title-flat-zh>》，是本人在导师指导下，在哈尔滨工业大学攻读学位期间独立进行研究工作所取得的成果，且学位论文中除已标注引用文献的部分外不包含他人完成或已发表的研究成果。对本学位论文的研究工作做出重要贡献的个人和集体，均已在文中以明确方式注明。} },
 } }
 \ExplSyntaxOn
 
@@ -708,17 +672,16 @@
 
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  publications-heading-zh = {攻读<base-degree-level-zh>学位期间取得创新性成果},
+  achievements = { title = {攻读<base-degree-level-zh>学位期间取得创新性成果} },
 } }
 \hit@presetup[degree-level=postdoc]{ overrides = {
-  publications-heading-zh = {博士后期间的研究成果},
+  achievements = { title = {博士后期间的研究成果} },
 } }
 \hit@presetup[lang=en]{ overrides = {
-  publications-heading-zh = {Author's Publications},
+  achievements = { title = {Author's Publications} },
 } }
 \hit@presetup{ overrides = {
-  publications-doctoral-heading-zh = {博士生期间的研究成果},
-  publications-doctoral-heading-en = {Publications During Doctoral Study},
+  achievements = { doctoral-title = {博士生期间的研究成果}[Publications During Doctoral Study] },
 } }
 \ExplSyntaxOn
 
@@ -730,7 +693,7 @@
 
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  declarations-date-blank = {\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 年\hit@sp\hit@sp\hit@sp 月\hit@sp\hit@sp\hit@sp 日},
+  declarations = { date-blank = {\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 年\hit@sp\hit@sp\hit@sp 月\hit@sp\hit@sp\hit@sp 日} },
 } }
 \ExplSyntaxOn
 
@@ -741,21 +704,17 @@
 
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  publications-heading-en = {Innovative achievements for Ph.D},
+  achievements = { title = {\keepvalue}[Innovative achievements for Ph.D] },
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
 \hit@presetup[degree-level=master]{ overrides = {
-  publications-heading-en = {Innovative achievements for Master},
+  achievements = { title = {\keepvalue}[Innovative achievements for Master] },
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  base-hi               = {嗨！thesis},
-  base-brace-left-zh    = {（},
-  base-brace-right-zh   = {）},
-  base-brace-left-en    = {(},
-  base-brace-right-en   = {)},
+  base = { hi = {嗨！thesis}, brace-left = {（}[(], brace-right = {）}[)] },
 } }
 \ExplSyntaxOn
 %    \end{macrocode}
@@ -764,10 +723,7 @@
 \hit@presetup@scope{stage=!final}
 %    \end{macrocode}
 %
-% \emph{深圳本科开题与中期首页的字。} 取自 iota-hit 的
-% \texttt{src/config/terms.typ}，那边是逐字量 2026 年 9 月版两份原件
-% （\file{深圳本科毕业论文（设计）开题报告.doc} 与同版中期）得来的。本仓库没有
-% 原件，照抄不复核。
+% 深圳本科报告首页的校名、文种及字段标签。
 %
 % \emph{校名印的是第三个字面。} 首页与页眉都印「哈尔滨工业大学深圳校区」，
 % 而研究生的页眉印「哈尔滨工业大学（深圳）」，两回事。
@@ -780,32 +736,15 @@
 %    \begin{macrocode}
 \ExplSyntaxOff
 \hit@presetup[campus=shenzhen,degree-level=bachelor]{ overrides = {
-  cover-university-shenzhen-bachelor-zh      = {哈尔滨工业大学深圳校区},
-  cover-university-shenzhen-bachelor-en      = {Harbin Institute of Technology, Shenzhen},
-  cover-form-line-shenzhen-bachelor-zh       = {毕业论文（设计）},
-  cover-form-line-shenzhen-bachelor-en       = {Undergraduate Thesis (Design)},
-  cover-title-label-shenzhen-bachelor-zh     = {题目：},
-  cover-title-label-shenzhen-bachelor-en     = {题目/ Title:},
-  cover-author-label-shenzhen-bachelor-zh    = {姓名：},
-  cover-author-label-shenzhen-bachelor-en    = {姓名/ Name：},
-  cover-student-id-label-shenzhen-bachelor-zh = {学号：},
-  cover-student-id-label-shenzhen-bachelor-en = {学号/ Student~ID：},
-  cover-affiliation-label-shenzhen-bachelor-zh = {学院：},
-  cover-affiliation-label-shenzhen-bachelor-en = {学院/ School：},
-  cover-speciality-label-shenzhen-bachelor-zh = {专业：},
-  cover-speciality-label-shenzhen-bachelor-en = {专业/ Major：},
-  cover-supervisor-label-shenzhen-bachelor-zh = {指导教师：},
-  cover-supervisor-label-shenzhen-bachelor-en = {指导教师/ Supervisor：},
-  cover-date-label-shenzhen-bachelor-zh      = {日期：},
-  cover-date-label-shenzhen-bachelor-en      = {日期/ Date：},
-} }
-\hit@presetup[campus=shenzhen,degree-level=bachelor,stage=proposal]{ overrides = {
-  cover-stage-line-shenzhen-bachelor-zh = {开题报告},
-  cover-stage-line-shenzhen-bachelor-en = {Proposal~Report},
-} }
-\hit@presetup[campus=shenzhen,degree-level=bachelor,stage=interim]{ overrides = {
-  cover-stage-line-shenzhen-bachelor-zh = {中期报告},
-  cover-stage-line-shenzhen-bachelor-en = {Interim~Report},
+  cover = {
+    university-shenzhen-bachelor = {哈尔滨工业大学深圳校区}[{Harbin Institute of Technology, Shenzhen}],
+    author-label-shenzhen-bachelor = {姓名：}[姓名/ Name：],
+    student-id-label-shenzhen-bachelor = {学号：}[学号/ Student~ID：],
+    affiliation-label-shenzhen-bachelor = {学院：}[学院/ School：],
+    speciality-label-shenzhen-bachelor = {专业：}[专业/ Major：],
+    supervisor-label-shenzhen-bachelor = {指导教师：}[指导教师/ Supervisor：],
+    date-label-shenzhen-bachelor = {日期：}[日期/ Date：],
+  },
 } }
 \ExplSyntaxOn
 %    \end{macrocode}
@@ -816,85 +755,71 @@
 %
 % 报告的页眉整句也是常量，取值按变体给，与学位论文那边同一种做法，用户改得了。
 %
-% 深圳硕士的前置页面与正文页眉不一样，所以有两个键。其余变体只用
-% \option{report-header}。
+% 正文页眉使用 header/report，前置页的独立文字使用 header/report-front。
 %    \begin{macrocode}
 \hit@presetup[campus=weihai,degree-level=master]{ overrides = {
-  header-report = {<base-university-zh>(<base-campus>)<base-degree-level-zh>学位论文开题报告},
+  header = { report = {<base-university-zh>(<base-campus>)<base-degree-level-zh>学位论文开题报告} },
 } }
 \hit@presetup[campus=shenzhen,degree-level=master,stage=proposal]{ overrides = {
-  header-report = {<base-university-zh>（<base-campus>）<base-degree-level-zh>学位论文开题报告},
+  header = { report = {<base-university-zh>（<base-campus>）<base-degree-level-zh>学位论文开题报告} },
 } }
 \hit@presetup[campus=shenzhen,degree-level=master,stage=interim]{ overrides = {
-  header-report = {<base-university-zh>（<base-campus>）<base-stage-interim>报告},
+  header = { report = {<base-university-zh>（<base-campus>）<base-stage-interim>报告} },
 } }
 \hit@presetup[campus=shenzhen,degree-level=master]{ overrides = {
-  header-report-front = {<base-university-zh>（<base-campus>）<base-degree-level-zh>学位论文开题报告},
+  header = { report-front = {<base-university-zh>（<base-campus>）<base-degree-level-zh>学位论文开题报告} },
 } }
 %% 深圳本科那两份的页眉与首页文种那一行同字：校名加表单名。校名是第三个字面
 %% （「哈尔滨工业大学深圳校区」），与研究生页眉的「哈尔滨工业大学（深圳）」不是
 %% 一回事，所以从首页那三个词条拼，不从 base 拼。
 \hit@presetup[campus=shenzhen,degree-level=bachelor,stage=proposal]{ overrides = {
-  header-report = {<cover-university-shenzhen-bachelor-zh><cover-form-line-shenzhen-bachelor-zh><cover-stage-line-shenzhen-bachelor-zh>},
+  header = { report = {<cover-university-shenzhen-bachelor-zh><cover-document-type-zh>} },
 } }
 \hit@presetup[campus=shenzhen,degree-level=bachelor,stage=interim]{ overrides = {
-  header-report = {<cover-university-shenzhen-bachelor-zh><cover-form-line-shenzhen-bachelor-zh><cover-stage-line-shenzhen-bachelor-zh>},
+  header = { report = {<cover-university-shenzhen-bachelor-zh><cover-document-type-zh>} },
 } }
-%% 英文版那两份的页眉只有表单名，没有校名——逐字量 iota-hit 对原件的复刻件
-%% （英文版开题、中期的第二页起）：印的就是「Undergraduate Thesis (Design)
-%% Proposal Report」，居中，小五，一个校名都没有。研究生那两份英文版才是
-%% 「表单名 ＋ 校名」，那一档这里还没有原件。
+%% 深圳本科英文报告的页眉只显示表单名。
 \hit@presetup[campus=shenzhen,degree-level=bachelor,stage=proposal,lang=en]{ overrides = {
-  header-report = {<cover-form-line-shenzhen-bachelor-en>~<cover-stage-line-shenzhen-bachelor-en>},
+  header = { report = {<cover-document-type-en>} },
 } }
 \hit@presetup[campus=shenzhen,degree-level=bachelor,stage=interim,lang=en]{ overrides = {
-  header-report = {<cover-form-line-shenzhen-bachelor-en>~<cover-stage-line-shenzhen-bachelor-en>},
+  header = { report = {<cover-document-type-en>} },
 } }
 %% 英文版那两份的参考文献标题印「References」，只给中文那一条英文报告会报
 %% 「词条没取值」。
 \hit@presetup{ overrides = {
-  bibliography-heading-zh = {参考文献},
-  bibliography-heading-en = {References},
+  references = { title = {参考文献}[References] },
 } }
 %% 终稿专有的那几页在报告里写 [shown=true] 也能排（见 hit-final-backmatter.dtx），标题要的词条
 %% 照终稿那一份抄一遍，终稿段的取值改了这里跟着改。
 \hit@presetup{ overrides = {
-  base-heading-spread              = {\ \ },
-  conclusions-heading-zh            = {结论},
-  conclusions-heading-en            = {Conclusions},
-  acknowledgements-heading-zh      = {致谢},
-  acknowledgements-heading-en      = {Acknowledgements},
-  resume-heading-zh                = {个人简历},
-  resume-heading-en                = {Resume},
-  resume-corresponding-address-zh  = {永久通讯地址},
-  resume-corresponding-address-en  = {Corresponding Address},
-  publications-heading-zh          = {攻读<base-degree-level-zh>学位期间取得创新性成果},
-  publications-heading-en          = {Innovative achievements for Ph.D},
-  publications-doctoral-heading-zh = {博士生期间的研究成果},
-  publications-doctoral-heading-en = {Publications During Doctoral Study},
-  index-heading-zh                 = {索引},
-  index-heading-en                 = {Index},
+  base = { heading-spread = {\ \ } },
+  conclusions = { title = {结论}[Conclusions] },
+  acknowledgements = { title = {致谢}[Acknowledgements] },
+  resume = { title = {个人简历}[Resume], corresponding-address = {永久通讯地址}[Corresponding Address] },
+  achievements = {
+    title = {攻读<base-degree-level-zh>学位期间取得创新性成果}[Innovative achievements for Ph.D],
+    doctoral-title = {博士生期间的研究成果}[Publications During Doctoral Study],
+  },
+  index = { title = {索引}[Index] },
 } }
 \hit@presetup[degree-level=master]{ overrides = {
-  publications-heading-en = {Innovative achievements for Master},
+  achievements = { title = {\keepvalue}[Innovative achievements for Master] },
 } }
 \hit@presetup[lang=en]{ overrides = {
-  publications-heading-zh = {Author's Publications},
+  achievements = { title = {Author's Publications} },
 } }
 \hit@presetup[category=hass]{ overrides = {
-  acknowledgements-heading-en = {Acknowledgments},
+  acknowledgements = { title = {\keepvalue}[Acknowledgments] },
 } }
-%% 报告这一档三个名字也按语种分开，英文版印 Contents／Figure／Table（iota-hit
-%% 对原件的复刻件里题注是「Figure 1-1」「Table 1-1」）。
+%% 报告的目录及图表名称按文档语言设置。
 \hit@presetup[lang=zh]{ overrides = {
-  contentsname = {\hit@spread@by{1em}{目录}},
-  figurename   = {图},
-  tablename    = {表},
+  table-of-contents = { title = {\hit@spread@by{1em}{目录}} },
+  caption = { figure = {图}, table = {表} },
 } }
 \hit@presetup[lang=en]{ overrides = {
-  contentsname = {Contents},
-  figurename   = {Figure},
-  tablename    = {Table},
+  table-of-contents = { title = {Contents} },
+  caption = { figure = {Figure}, table = {Table} },
 } }
 \ExplSyntaxOn
 \hit@preconfig{ \hit@setup@date }
@@ -922,7 +847,7 @@
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{删了一些没用的定义，更改哈尔滨本科的论文名。\issue[172]}
-% 咱也不知道谁想的，其他校区的本科毕设叫“毕业设计（论文）”，哈尔滨的叫“毕业论文（设计）”
+% 本科报告的文种在下方按校区覆盖，深圳首页另有对应词条。
 %
 % \changes{v3.1d}{2025/03/03}{之前一口气删多了，恢复一下}
 %
@@ -932,101 +857,92 @@
 %    \begin{macrocode}
 \ExplSyntaxOff
 \hit@presetup[degree-level=doctor]{ overrides = {
-  base-degree-level-zh                = {博士},
-  base-degree-of-discipline-zh = {<discipline-zh><base-degree-level-zh>},
-  titlepage-author-zh          = {<base-degree-level-zh>研究生},
+  base = { degree-level = {博士}, degree-of-discipline = {<discipline-zh><base-degree-level-zh>} },
+  titlepage = { author = {<base-degree-level-zh>研究生} },
 } }
 \hit@presetup[degree-level=master]{ overrides = {
-  base-degree-level-zh                = {硕士},
-  base-degree-of-discipline-zh = {<discipline-zh><base-degree-level-zh>},
-  titlepage-author-zh          = {<base-degree-level-zh>研究生},
+  base = { degree-level = {硕士}, degree-of-discipline = {<discipline-zh><base-degree-level-zh>} },
+  titlepage = { author = {<base-degree-level-zh>研究生} },
 } }
 \hit@presetup[degree-level=bachelor]{ overrides = {
-  base-degree-level-zh = {学士},
+  base = { degree-level = {学士} },
 } }
 \hit@presetup{ overrides = {
-  caption-figure-prefix-en                              = {Fig.},
-  caption-table-prefix-en                               = {Table},
-  base-stage-proposal                                 = {开题},
-  base-stage-interim                                 = {中期},
-  base-stage-document-type                           = {报告},
-  base-document-type-level-bachelor                      = {本科},
-  base-document-type-bachelor                     = {毕业设计（论文）},
-  cover-class-bachelor                 = {班号},
-  cover-major-bachelor                 = {\hit@spread@to{4em}{专业}},
-  cover-student-bachelor               = {\hit@spread@to{4em}{学生}},
-  cover-student-id-bachelor            = {\hit@spread@to{4em}{学号}},
-  cover-supervisor-bachelor            = {指导教师},
-  cover-report-date-bachelor                  = {\hit@spread@to{4em}{日期}},
-  cover-title-prefix                        = {\hit@spread@to{3em}{题目}},
-  cover-affiliation           = {\hit@spread@to{6\ccwd}{院（系}）},
-  cover-major                 = {\hit@spread@to{6em}{学科}},
-  cover-supervisor            = {\hit@spread@to{6em}{导师}},
-  cover-student               = {\hit@spread@to{6em}{研究生}},
-  cover-student-id            = {\hit@spread@to{6em}{学号}},
-  cover-report-date                  = {\hit@term@base@stage@proposal\hit@term@base@stage@document@type 日期},
-  cover-enroll-date           = {\hit@spread@to{6em}{入学时间}},
-  cover-title-label                = {\hit@spread@to{6em}{论文题目}},
-  cover-affiliation-major     = {\hit@spread@to{6em}{学科专业}},
-  base-university-zh                                     = {哈尔滨工业大学},
-  base-document-type                              = {学位论文},
-  cover-check-report-title                         = {\hit@spread@to{13.375em}{博士学位论文中期检查报告}},
-  titlepage-institution-zh                         = {授予学位单位},
-  titlepage-degree-applied-zh                         = {申请学位},
-  titlepage-associate-supervisor-zh           = {副导师},
-  titlepage-co-supervisor-zh                  = {联合导师},
-  base-title-separator-zh                            = {：},
-  titlepage-classified-index-national-zh      = {国内图书分类号},
-  titlepage-classified-index-international-zh = {国际图书分类号},
-  base-secrecy                   = {密级},
-  titlepage-school-code                      = {学校代码},
-  base-school-code                                     = {10213},
+  caption = {
+    figure-prefix = {\keepvalue}[Fig.],
+    table-prefix = {\keepvalue}[Table],
+  },
+  base = {
+    stage-proposal = {开题}, stage-interim = {中期}, stage-document-type = {报告},
+    document-type-level-bachelor = {本科}, document-type-bachelor = {毕业设计（论文）},
+    university = {哈尔滨工业大学}, document-type = {学位论文},
+    title-separator = {：}, secrecy = {密级}, school-code = {10213},
+  },
+  cover = {
+    class-bachelor = {班号},
+    major-bachelor = {\hit@spread@to{4em}{专业}},
+    student-bachelor = {\hit@spread@to{4em}{学生}},
+    student-id-bachelor = {\hit@spread@to{4em}{学号}},
+    supervisor-bachelor = {指导教师},
+    report-date-bachelor = {\hit@spread@to{4em}{日期}},
+    affiliation = {\hit@spread@to{6\ccwd}{院（系}）},
+    major = {\hit@spread@to{6em}{学科}},
+    supervisor = {\hit@spread@to{6em}{导师}},
+    student = {\hit@spread@to{6em}{研究生}},
+    student-id = {\hit@spread@to{6em}{学号}},
+    report-date = {\hit@term@base@stage@proposal\hit@term@base@stage@document@type 日期},
+    enroll-date = {\hit@spread@to{6em}{入学时间}},
+    affiliation-major = {\hit@spread@to{6em}{学科专业}},
+  },
+  titlepage = {
+    institution = {授予学位单位}, degree-applied = {申请学位},
+    associate-supervisor = {副导师}, industry-supervisor = {行业导师},
+    classified-index-national = {国内图书分类号},
+    classified-index-international = {国际图书分类号},
+    school-code = {学校代码},
+  },
 } }
 %    \end{macrocode}
 %
 %    \begin{macrocode}
 \hit@presetup[campus=harbin|weihai]{ overrides = {
-  base-document-type-bachelor = {毕业论文（设计）},
+  base = { document-type-bachelor = {毕业论文（设计）} },
 } }
 \hit@presetup[campus=harbin,degree-level=bachelor]{ overrides = {
-  titlepage-institution-zh = {学校},
+  titlepage = { institution = {学校} },
 } }
 \hit@presetup[stage=interim]{ overrides = {
-  cover-report-date = {\hit@term@base@stage@interim\hit@term@base@stage@document@type 日期},
+  cover = { report-date = {\hit@term@base@stage@interim\hit@term@base@stage@document@type 日期} },
 } }
 \ExplSyntaxOn
 \ExplSyntaxOff
 %% 研究生的报告封面照研究生院现行的模板（《博士学位开题报告》《硕士学位中期报告》首页，
-%% 四份同一套，只差学位与阶段），深圳博士中期是另一份表单，不在内。标签照抄原件里敲的
+%% 四份同一套，只差学位与阶段），深圳研究生报告另按深圳原件设置。标签照原件里敲的
 %% 字与半角空格（\hit@sp），不按字宽撑开：“学科/专业学位类别”九个字一个空格没有，
 %% 别的几个空格数各不一样，下划线的起点跟着参差。
-\hit@presetup[degree-level=master ; degree-level=doctor,campus=!shenzhen ; degree-level=doctor,stage=proposal]{ overrides = {
-  base-document-type = {学位},
-  cover-title-prefix = {题\hit@sp 目},
-  cover-affiliation  = {学\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 院（部）},
-  cover-major        = {学科/专业学位类别},
-  cover-supervisor   = {导\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 师},
-  cover-student      = {研\hit@sp\hit@sp\hit@sp 究\hit@sp\hit@sp\hit@sp 生},
-  cover-student-id   = {学\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 号},
-  cover-report-type-dissertation = {学位论文},
-  cover-report-type-practice     = {实践成果},
-  cover-bottom-mark-graduate     = {研究生院制},
+\hit@presetup[degree-level=master,campus=!shenzhen ; degree-level=doctor,campus=!shenzhen]{ overrides = {
+  base = { document-type = {学位} },
+  cover = {
+    affiliation = {学\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 院（部）},
+    major = {学科/专业学位类别},
+    supervisor = {导\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 师},
+    student = {研\hit@sp\hit@sp\hit@sp 究\hit@sp\hit@sp\hit@sp 生},
+    student-id = {学\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 号},
+    report-type-dissertation = {学位论文}, report-type-practice = {实践成果},
+    imprint-graduate = {研究生院制},
+  },
 } }
 %% 威海硕士开题照 \issue[219] 附的威海 2023 版模板改这几条：文种“硕士学位论文开题报告”，
 %% 没有“（学位论文／实践成果）”那一行与落款，标签“院（系）”“学科”，“学”“号”之间八个半角空格；
 %% 页眉那一句的括号是半角的。版面照终稿。
 \hit@presetup[campus=weihai,degree-level=master,stage=proposal]{ overrides = {
-  base-document-type = {学位论文},
-  cover-affiliation  = {院\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp（系）},
-  cover-major        = {学\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 科},
-  cover-student-id   = {学\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 号},
-  cover-report-type-dissertation = {},
-  cover-report-type-practice     = {},
-  cover-bottom-mark-graduate     = {},
-} }
-%% 哈尔滨、威海本科报告的首页（教务处原件）：“题 目：”两字之间也是一个敲的半角空格。
-\hit@presetup[degree-level=bachelor,campus=harbin ; degree-level=bachelor,campus=weihai]{ overrides = {
-  cover-title-prefix = {题\hit@sp 目},
+  base = { document-type = {学位论文} },
+  cover = {
+    affiliation = {院\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp（系）},
+    major = {学\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 科},
+    student-id = {学\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 号},
+    report-type-dissertation = {}, report-type-practice = {}, imprint-graduate = {},
+  },
 } }
 \ExplSyntaxOn
 %    \end{macrocode}
@@ -1037,47 +953,31 @@
 \ExplSyntaxOn
 \ExplSyntaxOff
 \hit@presetup{ overrides = {
-  mainmatter-eqdenote-label-zh = {式中},
+  mainmatter = { eqdenote-label = {式中} },
 } }
 \hit@presetup{ overrides = {
-  mainmatter-eqdenote-label-en = {where},
+  mainmatter = { eqdenote-label = {\keepvalue}[where] },
 } }
 \hit@presetup{ overrides = {
-  mainmatter-eqdenote-dash = {——},
+  mainmatter = { eqdenote-dash = {——} },
 } }
 \hit@presetup{ overrides = {
-  declarations-author-signature = {作者签名：},
+  declarations = { author-signature = {作者签名：} },
 } }
 \hit@presetup{ overrides = {
-  declarations-supervisor-signature = {导师签名：},
+  declarations = { supervisor-signature = {导师签名：} },
 } }
 \hit@presetup{ overrides = {
-  declarations-date = {日期：},
+  declarations = { date = {日期：} },
 } }
 \hit@presetup{ overrides = {
-  declarations-authorization = {学位论文使用权限},
+  declarations = { authorization = {学位论文使用权限} },
 } }
 \hit@presetup{ overrides = {
-  cover-note-interim-shenzhen-doctor = { 
-\thispagestyle{empty} 
-{\begin{center} 
-\songti\sanhao\textbf{\hit@spread@to{6em}{说明}} 
-\end{center} 
-} 
-\vspace{1cm}\songti\hit@fontsize@x{sihao}{2} 
-\begin{enumerate}[itemsep=-4bp] 
-\item 博士研究生学位论文中期报告一般在入学后的第五学期末完成。 
-\item 此报告由学生本人填写，请导师签字后提交一份给检查小组。答辩结束后由检查组长签署意见。 
-\item 报告经中期报告检查组长签字同意后，由学科部保存，以备论文答辩时参考。研究生院学生培养处将对研究生的学位论文中期报告进行抽查。 
-\item 报告统一用A4纸打印。 
-\end{enumerate} 
-},
+  declarations = { date-blank = {\hspace{2.5em}年\hspace{1.5em}月\hspace{1.5em}日} },
 } }
 \hit@presetup{ overrides = {
-  declarations-date-blank = {\hspace{2.5em}年\hspace{1.5em}月\hspace{1.5em}日},
-} }
-\hit@presetup{ overrides = {
-  base-hi = {嗨！thesis},
+  base = { hi = {嗨！thesis} },
 } }
 \ExplSyntaxOn
 %    \end{macrocode}
@@ -1106,6 +1006,116 @@
 %
 %    \begin{macrocode}
 \hit@presetup@scope{}
+\ExplSyntaxOff
+\hit@presetup[body=shenzhen-report]{ overrides = {
+  number-separator = {
+    section = {\hskip0.5em\relax}[{\hskip0.25em\relax}],
+    subsection = {\hskip0.5em\relax}[{\hskip0.25em\relax}],
+    subsubsection = {\hskip0.5em\relax}[{\hskip0.25em\relax}],
+  },
+  cover = {
+    report-university-shenzhen = {哈尔滨工业大学}[Harbin Institute of Technology],
+    report-affiliation-shenzhen = {院\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp（系）}[School:],
+    report-major-shenzhen = {学\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 科}[Major:],
+    report-supervisor-shenzhen = {导\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 师}[Supervisor:],
+    report-student-shenzhen = {研\hit@sp\hit@sp\hit@sp 究\hit@sp\hit@sp\hit@sp 生}[Graduate Student:],
+    report-student-id-shenzhen = {学\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp\hit@sp 号}[Student ID:],
+  },
+} }
+\hit@presetup[body=shenzhen-report,stage=proposal]{ overrides = {
+  number-separator = {
+    section = {\quad}[{\hskip0.5em\relax}],
+    subsection = {\hskip0.25em\relax}[{\hskip0.25em\relax}],
+    subsubsection = {\hskip0.25em\relax}[{\hskip0.25em\relax}],
+  },
+  cover = {
+    report-date-shenzhen = {开题报告日期}[Date:],
+    report-imprint-shenzhen = {深圳校区教务部 制}[Shenzhen Department of Academic Affairs],
+  },
+  header = { report-text-shenzhen = {哈尔滨工业大学（深圳）<base-degree-level-zh>学位论文开题报告}[{Master's Thesis Proposal\quad Harbin Institute of Technology, Shenzhen}] },
+} }
+\hit@presetup[body=shenzhen-report,stage=interim]{ overrides = {
+  cover = {
+    report-date-shenzhen = {中期报告日期}[Date:],
+    report-imprint-shenzhen = {}[],
+  },
+  header = { report-text-shenzhen = {哈尔滨工业大学（深圳）中期报告}[{Mid-term Report for Master's Thesis\quad Harbin Institute of Technology, Shenzhen}] },
+} }
+\hit@presetup[body=shenzhen-report,degree-level=doctor,stage=proposal]{ overrides = {
+  header = { report-text-shenzhen = {\keepvalue}[{Doctoral Thesis Proposal\quad Harbin Institute of Technology, Shenzhen}] },
+} }
+\hit@presetup[body=shenzhen-report,degree-level=doctor,stage=interim]{ overrides = {
+  header = { report-text-shenzhen = {\keepvalue}[{Mid-term Report for Doctoral Thesis\quad Harbin Institute of Technology, Shenzhen}] },
+} }
+\hit@presetup[body=shenzhen-report,lang=zh]{ overrides = { header = { report = {<header-report-text-shenzhen-zh>} } } }
+\hit@presetup[body=shenzhen-report,lang=en]{ overrides = { header = { report = {<header-report-text-shenzhen-en>} } } }
+\ExplSyntaxOn
+\use:x
+  {
+    \exp_not:N\hit@presetup[body=shenzhen-report]
+      {info={
+        date-zh={\int_use:N\g__hit_engine_today_year_int-\int_use:N\g__hit_engine_today_month_int},
+        date-en={\int_use:N\g__hit_engine_today_year_int-\int_use:N\g__hit_engine_today_month_int}}}
+  }
+%    \end{macrocode}
+%
+% 封面文种统一保存完整文字，排版代码只取值，不再追加学位、阶段等片段。
+% 题目字段标签使用 cover/title，用户填写的研究题目仍为 info/title。
+%    \begin{macrocode}
+\ExplSyntaxOff
+\hit@presetup[stage=final]{ overrides = {
+  cover = { document-type = {<base-degree-level-zh><base-document-type>} },
+} }
+\hit@presetup[stage=final,degree-level=bachelor]{ overrides = {
+  cover = { document-type = {<base-document-type-level-bachelor><base-document-type>}[Undergraduate Thesis (Design)] },
+} }
+\hit@presetup[stage=final,degree-level=master]{ overrides = {
+  cover = { document-type = {\keepvalue}[Master's Thesis] },
+} }
+\hit@presetup[stage=final,degree-level=doctor]{ overrides = {
+  cover = { document-type = {\keepvalue}[Doctoral Dissertation] },
+} }
+\hit@presetup[degree-level=postdoc]{ overrides = {
+  cover = { document-type = {<base-report-postdoc>}[Postdoctoral Research Report] },
+} }
+\hit@presetup[stage=!final]{ overrides = {
+  cover = { document-type = {<base-degree-level-zh><base-document-type>\hit@stage@name<base-stage-document-type>} },
+} }
+\hit@presetup[stage=!final,degree-level=bachelor]{ overrides = {
+  cover = { document-type = {<base-document-type-level-bachelor><base-document-type>\hit@stage@name<base-stage-document-type>} },
+} }
+\hit@presetup[stage=!final,degree-level=bachelor,campus=shenzhen]{ overrides = {
+  cover = { document-type = {毕业论文（设计）\hit@stage@name<base-stage-document-type>} },
+} }
+\hit@presetup[stage=proposal,degree-level=bachelor]{ overrides = {
+  cover = { document-type = {\keepvalue}[Undergraduate Thesis (Design)\space Proposal~Report] },
+} }
+\hit@presetup[stage=interim,degree-level=bachelor]{ overrides = {
+  cover = { document-type = {\keepvalue}[Undergraduate Thesis (Design)\space Interim~Report] },
+} }
+\hit@presetup[stage=proposal,degree-level=master]{ overrides = {
+  cover = { document-type = {\keepvalue}[Master's Thesis Proposal] },
+} }
+\hit@presetup[stage=interim,degree-level=master]{ overrides = {
+  cover = { document-type = {\keepvalue}[Mid-term Report for Master's Thesis] },
+} }
+\hit@presetup[stage=proposal,degree-level=doctor]{ overrides = {
+  cover = { document-type = {\keepvalue}[Doctoral Thesis Proposal] },
+} }
+\hit@presetup[stage=interim,degree-level=doctor]{ overrides = {
+  cover = { document-type = {\keepvalue}[Mid-term Report for Doctoral Thesis] },
+} }
+\hit@presetup{ overrides = { cover = { title = {题目：}[Title:] } } }
+\hit@presetup[stage=!final]{ overrides = {
+  cover = { title = {题\hit@sp 目<base-title-separator-zh>}[Title:] },
+} }
+\hit@presetup[body=shenzhen-report]{ overrides = {
+  cover = { title = {题\hit@sp 目：}[Title: ] },
+} }
+\hit@presetup[stage=!final,campus=shenzhen,degree-level=bachelor]{ overrides = {
+  cover = { title = {题目：}[题目/ Title:] },
+} }
+\ExplSyntaxOn
 %    \end{macrocode}
 %
 % \emph{勾选的那一对标签两处在用}：本科内封头一行与深圳本科报告首页那一行，
@@ -1114,59 +1124,55 @@
 % 覆盖要写在后面：带条件的配置与不带条件的一样按先后回放，后写的赢。
 %    \begin{macrocode}
 \hit@presetup{ overrides = {
-  titlepage-mark-dissertation = {毕业论文},
-  titlepage-mark-practice     = {毕业设计},
+  titlepage = { mark-dissertation = {毕业论文}, mark-practice = {毕业设计} },
 } }
 \hit@presetup[campus=shenzhen,degree-level=bachelor,stage=!final,lang=en]{ overrides = {
-  titlepage-mark-dissertation = {毕业论文Thesis},
-  titlepage-mark-practice     = {毕业设计Design},
+  titlepage = { mark-dissertation = {毕业论文Thesis}, mark-practice = {毕业设计Design} },
 } }
 %    \end{macrocode}
 %
-% 伪代码与代码清单的词条终稿与报告都要，写在这一段。代码清单照 iota-hit 叫“代码”“Listing”，
-% 英文名是全词，名字后面空一格。算法名照 iota-hit：英文本部“Algo.”、深圳“Algorithm”；
+% 算法与代码清单名称由终稿和报告共用：代码使用“代码”“Listing”，
+% 算法英文名按校区选择 Algo. 或 Algorithm；
 % 中文文档双语题注的英文那条与图表一样名字后面不空格（深圳是全词，空一格）。关键字一个词一条，
 % 合成的关键字（“else if”“end for”“for each”）由这些词拼成，见 \file{src/engine/hit-algorithm.dtx}；
 % 中英文文档一样是英文词，写成中文就排中文。
 %    \begin{macrocode}
 \ExplSyntaxOff
 \hit@presetup[lang=zh]{ overrides = {
-  caption-algorithm-zh        = {算法},
-  caption-algorithm-continued = {（续算法）},
+  caption = { algorithm-continued = {（续算法）} },
+} }
+\hit@presetup{ overrides = {
+  caption = { algorithm = {算法}[Algo.], listing = {代码}[Listing] },
 } }
 \hit@presetup[lang=en]{ overrides = {
-  caption-algorithm-en        = {Algo.},
-  caption-algorithm-continued = {~(Continued)},
+  caption = { algorithm-continued = {~(Continued)} },
 } }
 \hit@presetup[lang=en,campus=shenzhen]{ overrides = {
-  caption-algorithm-en = {Algorithm},
+  caption = { algorithm = {\keepvalue}[Algorithm] },
 } }
 \hit@presetup{ overrides = {
-  caption-algorithm-prefix-en = {Algo.},
+  caption = { algorithm-prefix = {\keepvalue}[Algo.] },
 } }
 \hit@presetup[campus=shenzhen]{ overrides = {
-  caption-algorithm-prefix-en = {Algorithm~},
+  caption = { algorithm-prefix = {\keepvalue}[Algorithm~] },
 } }
 \hit@presetup[lang=zh]{ overrides = {
-  caption-listing-zh        = {代码},
-  caption-listing-continued = {（续代码）},
+  caption = { listing-continued = {（续代码）} },
 } }
 \hit@presetup[lang=en]{ overrides = {
-  caption-listing-en        = {Listing},
-  caption-listing-continued = {~(Continued)},
+  caption = { listing-continued = {~(Continued)} },
 } }
 \hit@presetup{ overrides = {
-  caption-listing-prefix-en = {Listing~},
+  caption = { listing-prefix = {\keepvalue}[Listing~] },
 } }
 \hit@presetup{ overrides = {
-  algorithm-input = {input}, algorithm-output = {output}, algorithm-data = {data},
-  algorithm-result = {result}, algorithm-if = {if}, algorithm-then = {then},
-  algorithm-else = {else}, algorithm-for = {for}, algorithm-each = {each},
-  algorithm-all = {all}, algorithm-to = {to}, algorithm-do = {do},
-  algorithm-while = {while}, algorithm-repeat = {repeat}, algorithm-until = {until},
-  algorithm-return = {return}, algorithm-end = {end}, algorithm-function = {function},
-  algorithm-procedure = {procedure}, algorithm-switch = {switch}, algorithm-case = {case},
-  algorithm-otherwise = {otherwise},
+  algorithm = {
+    input = {input}, output = {output}, data = {data}, result = {result},
+    if = {if}, then = {then}, else = {else}, for = {for}, each = {each},
+    all = {all}, to = {to}, do = {do}, while = {while}, repeat = {repeat},
+    until = {until}, return = {return}, end = {end}, function = {function},
+    procedure = {procedure}, switch = {switch}, case = {case}, otherwise = {otherwise},
+  },
 } }
 \ExplSyntaxOn
 %    \end{macrocode}

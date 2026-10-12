@@ -6,16 +6,13 @@
 %
 % \section{开题报告的目录}
 %
-% \changes{v3.2a}{2026/09/28}{正文照终稿排的那一档，目录条目改由 \pkg{docxlike} 的目录条目排，编号的排法与终稿共用；
-%   不再裹 \pkg{tocloft} 的条目体、改写 \CTeX\ 的 \cs{CTEX@toc@width@n}}
-% \changes{v3.2a}{2026/09/14}{报告的目录认 \option{toc}/\option{depth} 与
-%   \cs{tableofcontents}\oarg{latin-sans}；底类换 \cls{ctexbook} 后 \pkg{tocloft} 的三个量设回
-%   节模式；正文照终稿排的那一档目录也照 Word 排（标题走章标题那一套、条目步进由盒贴排
-%   模型算、每行排到制表位、折行缩进至题名首字、目录页带页眉、目录之后照原件补一个空段）；
-%   本部与威海的报告目录标题另用 \texttt{toc-heading}，目录页不印页码}
+% \changes{v3.2a}{2026/09/28}{报告目录支持 \cs{tableofcontents} 的 \option{depth} 与
+%   \option{latin-sans} 参数；采用终稿正文版式的报告改用 \pkg{docxlike} 排目录，
+%   共用终稿编号格式，折行悬挂至题名首字，目录页保留页眉；其余报告保持节级目录布局。
+%   本部与威海报告的目录标题使用 \texttt{toc-heading} 样式，目录页不印页码}
 %
-% \option{depth} 数的是级数。报告是 \cls{ctexart}，最高一级是节，
-% \cs{tocdepth} 恰好等于级数；学位论文有章，那边要减一。
+% \option{depth} 按标题级数计数。报告虽然使用书籍底类，标题映射后的
+% 最高一级仍是节，因此 \cs{tocdepth} 等于级数；终稿以章为最高一级，需要减一。
 %
 % 跟终稿一样放在 \cs{AtBeginDocument}：类文件执行时导言区的
 % \cs{hitsetup} 还没跑，写在那里的 \option{depth} 会被漏掉。
@@ -25,81 +22,19 @@
   {
 \AtBeginDocument
   { \setcounter { tocdepth } { \g__hit_toc_depth_int } }
-%\ifboolexpr{ {bool {hit@shenzhen} or bool {hit@weihai}} and bool {hit@master} }{
-  % renew \CTEX@toc@width@n,
-  % add width of a space to numwidth (stored in \@tempdima)
-  \cs_set_protected:Npn \CTEX@toc@width@n #1
-  {
-    % 用自家的临时盒,不借 \cs{l\_\_ctex\_tmp\_box}:宏体是我们自己写的,
-    % 借私有盒白担一份跨版本风险
-    \hbox_set:Nn \l_tmpa_box {#1\,}
-    \dim_set:Nn \@tempdima
-      {
-        \dim_max:nn { \@tempdima }
-          { \box_wd:N \l_tmpa_box }
-      }
-  }
 \RequirePackage[subfigure]{tocloft}
 %    \end{macrocode}
 %
-% \emph{\pkg{tocloft} 按「有没有 \cs{chapter}」分叉的那几处。} 它在加载时用
-% \cs{@cftifundefined}\{chapter\} 定一个开关，之后四处按它取不同的值。底类
-% 从 \cls{ctexart} 换成 \cls{ctexbook} 之后 \cs{chapter} 就存在了，这个开关翻
-% 真，四处跟着变：
-%
-% \begin{itemize}
-% \item \cs{cftsecindent} 由 0\,em 变 1.5\,em——整张目录右移一截。报告显式设过
-%   \cs{cftsubsecindent} 与 \cs{cftsubsubsecindent}，恰恰没设这一个。
-% \item \cs{cftbeforetoctitleskip} 由 3.5\,ex 变 50\,pt。
-% \item \cs{cfttitlecommand} 由 \cs{cftsection} 换成 \cs{cftchapter}，前者用
-%   \cs{vspace}、后者用 \cs{vspace*}；目录标题永远在页首，不带星的那份会被丢弃，
-%   带星的会真排出来。所以这一条不是把长度压回去就完事。
-% \item \cs{cfttoctitlefont}——这一个报告本来就在下面覆盖，不用管。
-% \end{itemize}
-%
-% \emph{按值设回去，不去动那个开关。} 另一条路是加载前后把 \cs{chapter} 藏起来
-% 再还原，让 \pkg{tocloft} 以为没有章。那样做 \cs{l@chapter} 与整套
-% \cs{cftchap*} 就都不会定义，而报告现在是可以排章的（写了 \cs{chapter} 就有），
-% 目录里那一级就没有格式可用。所以让它照常进有章模式，只把这三个量设回来。
+% \pkg{tocloft} 因底类存在 \cs{chapter} 而采用书籍默认值。报告目录以节为最高一级，
+% 因此显式恢复节条目的左缩进、目录标题前间距及标题命令。
+% 使用 \cs{cftsection} 也恢复其页首可丢弃的垂直间距；仅修改长度不足以达到同样效果。
+% 保留 \pkg{tocloft} 的有章模式，使章级格式定义仍然可用。
 %    \begin{macrocode}
 \dim_set:Nn \cftsecindent { 0em }
-\dim_set:Nn \cftbeforetoctitleskip { 3.5ex \@plus 1ex \@minus .2ex }
-\cs_set:Npn \cfttitlecommand #1 { \cftsection {#1} }
 %    \end{macrocode}
 %
-% \emph{还有一处不是取值而是写法。} \cs{l@section} 的段前，节模式下是
-% \cs{addpenalty}\cs{@secpenalty} 加 \cs{addvspace}，章模式下换成裸的
-% \cs{vskip}。两者不等价：\cs{addvspace} 与前一条目留下的胶\emph{合并}取大者，
-% \cs{vskip} 是直接叠上去，所以章模式下每个节条目前面都会多出一段。实测目录页
-% 整体下移 9\,bp。照节模式那份重写一遍。
-%
-% 这是 \pkg{tocloft} 四处分叉里唯一一处「设个值压不回来」的，其余三处上面都
-% 按值设回去了。
+% 节条目使用 addvspace 合并相邻间距，不能沿用书籍模式的直接 vskip。
 %    \begin{macrocode}
-\cs_set:Npn \l@section #1#2
-  {
-    \int_compare:nNnT { \c@tocdepth } > { 0 }
-      {
-        \addpenalty \@secpenalty
-        \addvspace { \cftbeforesecskip }
-        \group_begin:
-          \skip_set_eq:NN \leftskip \cftsecindent
-          \skip_set_eq:NN \rightskip \@tocrmarg
-          \skip_set:Nn \parfillskip { - \rightskip }
-          \dim_set_eq:NN \parindent \cftsecindent
-          \@afterindenttrue
-          \int_set:Nn \interlinepenalty { \@M }
-          \leavevmode
-          \dim_set:Nn \@tempdima { \cftsecnumwidth }
-          \skip_set:Nn \skip@ { \parfillskip }
-          \skip_zero:N \parfillskip
-          { \cftsecfont #1 }
-          \nobreak
-          \skip_set_eq:NN \parfillskip \skip@
-          \cftsecfillnum {#2}
-        \group_end:
-      }
-  }
 \cs_set:Npn \cfttoctitlefont  { \hfill \xiaoer \heiti }
 \cs_set:Npn \cftaftertoctitle { \hfill \mbox { } }
 \cs_set:Npn \cftsecfont       { \hit@toc@font \heiti }
@@ -109,10 +44,6 @@
 \cs_set:Npn \cftsecdotsep     { \cftdotsep }
 \cs_set:Npn \cftsecleader     { \cftdotfill { \cftsecdotsep } }
 \cs_set:Npn \cftdotsep        { 1 }
-\dim_set:Nn \cftaftertoctitleskip {40pt}
-\dim_set:Nn \cftbeforesecskip {1.2ex}
-\dim_set:Nn \cftbeforesubsecskip {1.2ex}
-\dim_set:Nn \cftbeforesubsubsecskip {1.2ex}
 \dim_set:Nn \cftsubsecindent {1em}% 目录中subsection的缩进
 \dim_set:Nn \cftsubsubsecindent {2em}% 目录中subsubsection的缩进
 %  \setlength{\cftsecnumwidth}{1.5em}
@@ -145,11 +76,6 @@
 % Times 句点贴排。编号的排法与终稿共用（\cs{\_\_hit\_toc\_numberline:n}）。条目仍从
 % \pkg{tocloft} 的 \cs{tableofcontents} 进来，只把 \cs{l@section} 这三个换成调它。
 %
-% \emph{点网格的原点还差一格宽的余数。} Word 把点钉在以\emph{页左缘}为原点、
-% 按点距排的一张网格上（iota-hit 对范例逐条量过首点，对点距取余一律
-% 0.05\,--\,0.15，也就是 Word 自身 0.24 的落笔量化）；\hologo{TeX} 的
-% \cs{leaders} 也钉网格，可原点是\emph{行盒左缘}，也就是版心左缘 85.05。
-% 两者差 85.05 对 3 取余的 1.05，于是每条点线整体左移 1.05。这一格先记下来。
 %
 % \emph{英文版的章条目整行加粗。} 两份英文原件的“目录 1”样式都写着 \texttt{w:b}，
 % Windows Word 导出件里题名、点线、页码都是 Times 粗体；中文版那一份没写，不加。
@@ -166,13 +92,10 @@
 % 零高的 \cs{hrule} 把这一页垫成非空，\cs{topskip} 一并归零。标题这一段照“标题 1”
 % 排，段上写“编号：无”：正文的“标题 1”链接着编号列表，目录标题不编号。本部与威海的
 % 报告正文的“标题 1”是节，目录标题另用 \texttt{toc-heading}（Word 的“TOC 标题”），
-% 取值照章标题那一档，与 iota-hit 的 \texttt{term-heading} 同（威海硕士开题取终稿的章标题）；
+% 使用章标题的格式（威海硕士开题取终稿章标题格式）；
 % 目录之后那个空段也只有深圳本科那两份原件有。
 %
-% \cs{topskip} 只在\emph{目录那一组}里归零，不发到组外。\pkg{tocloft} 的
-% \cs{tableofcontents} 把标题与条目整个裹在一对 \cs{begingroup} 里，目录这几页
-% 的头一个盒子都在组内落下，够用；发到组外的话，后面 \cs{clearpage} 与
-% \env{titlepage} 收尾那两下会各排出一张空白页（实测多两张，页码 II 与 -1-）。
+% topskip 只在目录分组内清零，泄漏到外层会使后续 clearpage 产生空白页。
 %
 % \emph{英文版的章条目整行加粗。} 两份英文原件的“目录 1”样式都写着 \texttt{w:b}，
 % Windows Word 导出件里题名、点线、页码都是 Times 粗体；中文版那一份没写，不加。
@@ -188,7 +111,8 @@
           \__hit_tristate_if:NnTF \g__hit_toc_latin_natural_tl { \c_true_bool }
             { } { \bool_set_false:N \l_docxlike_toc_latin_line_bool }
           \cs_set_protected:Npn \numberline { \__hit_toc_numberline:n }
-          \bool_lazy_and:nnTF { \g__hit_en_bool } { \int_compare_p:nNn {#1} = { 1 } }
+          \bool_lazy_all:nTF
+            {{\bool_if_p:N\g__hit_en_bool}{\int_compare_p:nNn{#1}={1}}{!\bool_if_p:N\g__hit_shenzhen_report_bool}}
             { \docxlike_toc_entry:nnnnn { TOC #1 } { font = { font-style = bold } } {#2} {#3} { } }
             { \docxlike_toc_entry:nnnnn { TOC #1 } { } {#2} {#3} { } }
         \group_end:
@@ -198,6 +122,7 @@
 \tl_new:N \g__hit_report_toc_title_style_tl
 \tl_gset:Nx \g__hit_report_toc_title_style_tl
   { \bool_if:NTF \g__hit_shenzhen_bool { Heading1 } { toc-heading } }
+\bool_if:NT\g__hit_shenzhen_report_bool{\tl_gset:Nn\g__hit_report_toc_title_style_tl{toc-heading}}
 \bool_if:NT \g__hit_final_body_bool
   {
     \dim_zero:N \cftbeforetoctitleskip
@@ -221,7 +146,7 @@
     \cs_set:Npn \l@section #1#2 { \__hit_report_toc_entry:nnn { 1 } {#1} {#2} }
     \cs_set:Npn \l@subsection #1#2 { \__hit_report_toc_entry:nnn { 2 } {#1} {#2} }
     \cs_set:Npn \l@subsubsection #1#2 { \__hit_report_toc_entry:nnn { 3 } {#1} {#2} }
-    \bool_if:NT \g__hit_shenzhen_bool
+    \bool_lazy_and:nnT{\bool_if_p:N\g__hit_shenzhen_bool}{\bool_if_p:N\g__hit_bachelor_bool}
       {
         \cs_set_protected:Npn \hit@report@toc@tail:
           {
@@ -244,23 +169,10 @@
 %    \fi
 %  \fi
 %  \ifboolexpr{ bool {hit@weihai} or bool {hit@interim}}{\tocloftpagestyle{empty}}{\tocloftpagestyle{hit@shenzhen@headings@front}}
-\bool_if:NTF \g__hit_final_body_bool
-  {
-    \bool_if:NTF \g__hit_harbin_report_bool
-      { \tocloftpagestyle { hit@empty } }
-      { \tocloftpagestyle { hit@headings@front } }
-  }
-  {
-    \bool_lazy_and:nnTF
-      { \bool_if_p:N \g__hit_shenzhen_bool }
-      {
-        \bool_lazy_and_p:nn
-          { \bool_if_p:N \g__hit_master_bool }
-          { \bool_if_p:N \g__hit_proposal_bool }
-      }
-      { \tocloftpagestyle { hit@shenzhen@headings@front } }
-      { \tocloftpagestyle { empty } }
-  }
+\bool_if:NTF\g__hit_shenzhen_report_bool
+  {\tocloftpagestyle{hit@shenzhen@toc}}
+  {\bool_if:NTF\g__hit_harbin_report_bool
+    {\tocloftpagestyle{hit@empty}}{\tocloftpagestyle{hit@headings@front}}}
 %    \end{macrocode}
 %
 % \emph{深圳本科那两份的目录页带页眉。} 原件逐页量过：正文有页眉的那几份里，
@@ -268,7 +180,7 @@
 % 页眉」），别的都带。本部三份整篇没有页眉，与这条无关。
 %
 % 正文照终稿排的那一档，目录页就用正文那一个页面样式，不另做一个。本部与威海的报告
-% 目录页不印页码，正文从 \texttt{-1-} 起（iota-hit 同）。
+% 目录页不印页码，正文从 \texttt{-1-} 起。
 %    \begin{macrocode}
 %}{
   % \renewcommand\tableofcontents{%

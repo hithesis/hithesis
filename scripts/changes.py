@@ -215,6 +215,7 @@ def version_key(v: str) -> list:
 def main() -> int:
     parser = argparse.ArgumentParser(description="从 dtx 的 \\changes 生成 release notes")
     parser.add_argument("--version", action="store_true", help="只打印最新版本号")
+    parser.add_argument("--latex", action="store_true", help="生成手册使用的 changes 调用文件")
     parser.add_argument("--stamp", action="store_true",
                         help="把占位日期 0000/00/00 就地填成发布日期")
     parser.add_argument("--date", metavar="YYYY/MM/DD",
@@ -237,6 +238,18 @@ def main() -> int:
         return 1
 
     latest = max({v for v, _, _ in items}, key=version_key)
+
+    if args.latex:
+        # 从源码提取记录，不必把实现正文也排进用户手册。
+        entries = sorted(set(items), key=lambda x: (version_key(x[0]), x[1], x[2]))
+        output = ROOT / "hithesis-changes.tex"
+        output.write_text(
+            "% Generated from src/*.dtx and src/*/*.dtx; do not edit.\n"
+            + "".join(f"\\changes{{v{v}}}{{{date}}}{{{body}}}\n" for v, date, body in entries),
+            encoding="utf-8",
+        )
+        print(f"手册更新记录：{len(entries)} 条，写入 {output.name}")
+        return 0
 
     if args.version:
         print(f"v{latest}")

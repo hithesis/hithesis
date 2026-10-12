@@ -6,28 +6,65 @@
 %
 % \section{共享列表环境}
 %
-% \changes{v3.2a}{2026/09/28}{列表照 \pkg{docxlike} 的多级列表排：编号格式、位置、编号之后跟什么都照 Word 的定义，
-%   \pkg{enumitem} 的参数由它算}
-% \changes{v3.2a}{2026/08/10}{\pkg{enumitem} 的加载、列表间距与 \env{publist} 抽出来共用，
-%   \env{publist} 改用 \cs{newlist} 实现，报告也能写}
+% \changes{v3.2a}{2026/10/06}{列表参数从 docxlike 多级列表定义换算为 enumitem 设置，
+%   新增 enumerate-hanging 和 itemize-hanging 控制续行对齐；publist 也可用于报告}
 %
-% 列表相关的东西都收在这里：\pkg{enumitem} 的加载、默认列表环境的全局间距、
-% 以及 \env{publist}。
+% 配置 enumitem 列表及成果列表。
 %
 % \begin{macro}{\hit@setup@list@packages,\hit@setup@list@spacing}
-% 分成两个函数是因为时机不同：宏包要早加载（\pkg{tocloft} 之类会跟它抢 \cs{cft*}
-% 长度，顺序动不得），间距设置要晚一步。各个类在原来那两段代码所在的位置分别调用。
-%
-% 间距的取值不写死在这里，三个变量由各个类自己赋值：不赋就是 \hologo{LaTeX} 的默认间距，
-% 赋了就按赋的来。这样三个类走同一条代码路径，「这个类要不要调整列表间距」是一次
-% 显式的赋值，而不是靠某个类少调了一个函数来体现。
+% 宏包加载与布局设置分开执行：先加载 enumitem，等变体配置确定后再应用间距。
+% 未指定设置时保留 LaTeX 默认值。
 %    \begin{macrocode}
 %<*shared-list>
 \bool_new:N \g__hit_list_nosep_bool
 \clist_new:N \g__hit_list_itemize_clist
 \clist_new:N \g__hit_list_enumerate_clist
+\tl_new:N \g__hit_enumerate_hanging_tl
+\tl_new:N \g__hit_itemize_hanging_tl
+\tl_gset:Nn \g__hit_enumerate_hanging_tl { auto }
+\tl_gset:Nn \g__hit_itemize_hanging_tl { auto }
+\cs_new_protected:Npn \hit@list@hanging@set:nn #1#2
+  {
+    \str_case:nnF {#2}
+      {
+        { auto } { \tl_gset:cn { g__hit_#1_hanging_tl } { auto } }
+        { true } { \tl_gset:cn { g__hit_#1_hanging_tl } { true } }
+        { false } { \tl_gset:cn { g__hit_#1_hanging_tl } { false } }
+      }
+      { \msg_error:nnnn { hithesis } { tristate-value } { #1-hanging } {#2} }
+  }
+% 环境开始时追加到当前级的默认参数；enumitem 随后读取用户可选参数，显式尺寸仍优先。
+% 设置留在环境组里，嵌套列表与下一份列表不会继承临时的尺寸。
+\cs_new_protected:Npn \__hit_list_hanging:nn #1#2
+  {
+    \str_case_e:nn { \tl_use:c { g__hit_#1_hanging_tl } }
+      {
+        { true }
+          {
+            \use:e
+              {
+                \exp_not:N \setlist * [ #1 , \int_eval:n { #2 + 1 } ]
+                  { labelindent = \exp_not:N \parindent , itemindent = 0pt , leftmargin = * }
+              }
+          }
+        { false }
+          {
+            \use:e
+              {
+                \exp_not:N \setlist * [ #1 , \int_eval:n { #2 + 1 } ]
+                  { labelindent = \exp_not:N \parindent , leftmargin = 0pt , itemindent = * }
+              }
+          }
+      }
+  }
 \cs_new_protected:Npn \hit@setup@list@packages
-  { \RequirePackage{enumitem} }
+  {
+    \RequirePackage{enumitem}
+    \AddToHook { env / enumerate / begin }
+      { \__hit_list_hanging:nn { enumerate } { \@enumdepth } }
+    \AddToHook { env / itemize / begin }
+      { \__hit_list_hanging:nn { itemize } { \@itemdepth } }
+  }
 \cs_new_protected:Npn \hit@setup@list@spacing
   {
     \bool_if:NT \g__hit_list_nosep_bool { \setlist { nosep } }
@@ -219,9 +256,7 @@
 %
 % \DescribeEnv{publist} 发表文章、专利、科研项目的编号列表，用法是
 % \cs{begin}\marg{publist} 里逐条 \cs{item}。
-% 参数照搬原来那个 \env{list} 的设置。计数器由 \pkg{enumitem} 内部管，模板这边
-% 就不必再造一个 LaTeX 计数器了。\cs{labelwidth} 原来没显式设过，靠的是
-% \cs{leftmargin}\texttt{-}\cs{itemindent}\texttt{-}\cs{labelsep}，这里写明。
+% publist 使用独立计数器，并显式设置标签宽度。
 %
 % \begin{macro}{\hit@setup@publist}
 % 标号的排法照搬内核 \env{list} 的 \cs{@mklab}：装进一个 \cs{labelwidth} 宽的盒子、

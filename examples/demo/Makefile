@@ -78,7 +78,7 @@ $(error Unknown METHOD: $(METHOD))
 
 endif
 
-# 换 kind 编别的交付物时可以自己指定 jobname，这里把常见的几个一并清掉。
+# 编译其他类型的论文或报告时可指定 jobname，这里清理常见文件名。
 JOBS = $(FINALMAIN) thesis-en opening midterm
 
 # 按扩展名通配删，不按 jobname 逐个删。原先 JOBS 只列了四个 jobname
@@ -114,14 +114,14 @@ clean:
 # 它们不是这个目录的内容，是别处的产物，按名删不通配。
 GENERATED = hithesis.cls hithesis.cfg hithesis.sty hithesis.ist hithesis.bst \
             hithesisbook.cls hithesisart.cls hithesisartplus.cls \
-            docxlike.sty docxlike.lua hithesis-outline.def \
-            figures/aerostatic.png figures/aerodynamic.png figures/hybrid.png figures/squeeze-film.png \
-            figures/volute-section.png
+            docxlike.sty docxlike.lua hithesis-calligraphy.def \
+            figures/aerostatic.pdf figures/aerodynamic.pdf figures/hybrid.pdf figures/squeeze-film.pdf \
+            figures/volute-section.tex
 
 # 已经不再生成、但旧版本拷进来过的那几份。留在这张表里，从旧版升上来的目录
 # 才扫得干净；生成物那边删掉一个名字就往这里补一个。
 LEGACY = hit-thesis.cfg hit-report.cfg hit-thesis.cls hit-report.cls banshi.sty banshi.lua zhwordlike.sty zhwordlike.lua hit-linebreak.lua \
-         hit-logo.pdf hit-bachelor-report-bottommark.pdf zfb.pdf figures/golfer.pdf
+         hit-logo.pdf hit-bachelor-report-bottommark.pdf figures/volute-section.pdf hithesis-outline.def
 
 clean-generated:
 	-@$(RM) $(GENERATED) $(LEGACY)

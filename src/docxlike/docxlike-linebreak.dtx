@@ -79,23 +79,22 @@
 %   串（\cs{verb}）不加半格增量，超过 16 个字符的在 \texttt{/ . -} 前可断（Word 文档里
 %   敲的 U+200B 按同一条规则从串里算出来）}
 %
-% Word 排一段是逐行贪心：这一行能装几个装几个，下一个字装不下，先看能不能把
-% 行内的标点压一压塞进来，塞不进就换行；行首不能是闭号，行尾不能是开号，碰上了
-% 先压标点再悬挂。TeX 是全段最优，两边永远对不上。\hologo{LuaLaTeX} 的
-% \texttt{linebreak\_filter} 回调把整段的节点表交给 Lua，Lua 自己切行、自己定
-% 每处胶与 kern 的宽、自己装盒，TeX 只管把行盒往下摞。
-%
-% 规则不是猜的：模型照 typst-with-msword-linebreaks（\file{msword.rs}，
-% \file{tools/msword-probe/MODEL.md} 是总表）抄，那边拿 \texttt{python-docx} 自造几百个
-% 探针段落让 Word 排、读导出的 PDF 逐字量出来的；这里只换成 LuaTeX 的节点表，再拿自己的
-% 探针（lb2 到 lb8，两档兼容模式）与样本文档逐行校对。全部规则写在 Lua 文件头的
-% 注释里。
+% 在 LuaTeX 的 \texttt{linebreak\_filter} 中执行逐行贪心断行，并处理标点压缩、悬挂和行盒尺寸。
 %
 % \subsection{开关}
 %
 % \option{linebreak} 取 \texttt{word}（默认）或 \texttt{tex}。
 % \texttt{word} 只在 \hologo{LuaLaTeX} 且走 Word 版面时生效，
 % \hologo{XeLaTeX} 上没有这条路，写了也当 \texttt{tex}。
+%
+% \option{code-overhang} 默认 \texttt{false}，只接受布尔值；开启后，Word 断行器允许
+% 行尾代码借用右页边空白；只有实际伸出版心的行尾代码使用自然间距，其他行保持原有对齐。
+% \option{code-overhang-page-inset} 是距纸张右边缘的安全距离，默认 \texttt{50 percent}，
+% 即保留右页边空白的一半；也可写非负长度。百分比限于 0 到 100。
+% 两项均为局部赋值，不接受 \texttt{auto}。双面文档按两种页边距中较严格的一种计算；
+% 列表、分栏和盒子内沿用容器宽度。严格字符网格模式仍按网格断行。
+% 开启扩展且段落含代码时，在 Word 合法断点上对整段做动态规划；其他段落仍采用贪心断行。
+% 先最小化紧急拆词次数，再比较间距伸缩、页边扩展、断点和短末行的总代价。
 %
 % \option{compatibility-mode} 是 Word 文件的兼容模式，Word 在标题栏上写“兼容模式”，
 % 取值照版本名：\texttt{word-2003}、\texttt{word-2007}、\texttt{word-2010}、\texttt{word-2013}
@@ -119,10 +118,57 @@
 \int_new:N \g__docxlike_linebreak_compat_int
 \int_gset:Nn \g__docxlike_linebreak_compat_int { 15 }
 \bool_new:N \g__docxlike_linebreak_rigid_bool
+\bool_new:N \l__docxlike_code_overhang_bool
+\dim_new:N \l__docxlike_code_overhang_page_inset_dim
+\bool_new:N \l__docxlike_code_overhang_relative_bool
+\bool_set_true:N \l__docxlike_code_overhang_relative_bool
+\tl_new:N \l__docxlike_code_overhang_ratio_tl
+\tl_set:Nn \l__docxlike_code_overhang_ratio_tl { 0.5 }
+\seq_new:N \l__docxlike_code_overhang_match_seq
+\msg_new:nnn { docxlike } { negative-code-inset }
+  { code-overhang-page-inset~must~be~nonnegative. }
+\msg_new:nnn { docxlike } { auto-code-inset }
+  { code-overhang-page-inset~requires~a~length,~not~auto. }
+\msg_new:nnn { docxlike } { code-inset-percent }
+  { code-overhang-page-inset~percentage~must~be~between~0~and~100. }
+\cs_new_protected:Npn \__docxlike_code_inset:n #1
+  {
+    \regex_extract_once:nnNTF
+      { \A \s* ( [\+\-]? (?: \d+ (?: \. \d* )? | \. \d+ ) ) \s* percent \s* \Z }
+      {#1} \l__docxlike_code_overhang_match_seq
+      {
+        \fp_set:Nn \l_tmpa_fp { \seq_item:Nn \l__docxlike_code_overhang_match_seq {2} / 100 }
+        \bool_lazy_or:nnTF
+          { \fp_compare_p:n { \l_tmpa_fp < 0 } }
+          { \fp_compare_p:n { \l_tmpa_fp > 1 } }
+          { \msg_error:nn { docxlike } { code-inset-percent } }
+          {
+            \tl_set:Nx \l__docxlike_code_overhang_ratio_tl { \fp_to_decimal:N \l_tmpa_fp }
+            \bool_set_true:N \l__docxlike_code_overhang_relative_bool
+          }
+      }
+      {
+        \dim_set:Nn \l_tmpa_dim { \__docxlike_bp:n {#1} }
+        \dim_compare:nNnTF { \l_tmpa_dim } < { 0pt }
+          { \msg_error:nn { docxlike } { negative-code-inset } }
+          {
+            \dim_set_eq:NN \l__docxlike_code_overhang_page_inset_dim \l_tmpa_dim
+            \bool_set_false:N \l__docxlike_code_overhang_relative_bool
+          }
+      }
+  }
 \cs_new_protected:Npn \docxlike_linebreak_rigid_ragged:
   { \bool_gset_true:N \g__docxlike_linebreak_rigid_bool }
 \keys_define:nn { docxlike }
   {
+    code-overhang .bool_set:N = \l__docxlike_code_overhang_bool ,
+    code-overhang-page-inset .code:n =
+      {
+        \str_if_eq:nnTF {#1} { auto }
+          { \msg_error:nn { docxlike } { auto-code-inset } }
+          { \__docxlike_code_inset:n {#1} }
+      } ,
+    code-overhang-page-inset .value_required:n = true ,
     linebreak .choice: ,
     linebreak / word .code:n = { \bool_gset_true:N  \g__docxlike_linebreak_word_bool } ,
     linebreak / tex  .code:n = { \bool_gset_false:N \g__docxlike_linebreak_word_bool } ,
@@ -140,12 +186,7 @@
   }
 %    \end{macrocode}
 %
-% \emph{页眉页脚的字距要绕过 luatexja 的参数栈。} \pkg{luatexja} 的 \texttt{kanjiskip}
-% 是按组层级记的栈参数，页眉盒在输出例程里装，那时候 \cs{ltjsetparameter}
-% 写下的值到装盒时取不到，用的是正文的。所以 \cs{docxlike\_format\_hglue:nn} 设参数的同时把两个
-% 量写进属性 \cs{docxlike@kanjiskip@attr} 与 \cs{docxlike@xkanjiskip@attr}（单位 sp），
-% Lua 在 \texttt{hpack\_filter} 与 \texttt{pre\_linebreak\_filter} 里把每段汉字缝、汉西隙
-% 的宽改成前一个字身上记的属性值。属性跟着节点走，输出例程里也不例外。
+% 字距同时保存在节点属性中，避免输出例程装页眉时无法读取 luatexja 参数栈中的局部值。
 %
 % \subsection{装回调}
 %
@@ -302,6 +343,7 @@ local connectors = set_of("—–―…‖～")
 
 M.trace = false
 M.compat = 11   -- Word 兼容模式：11（2003）、12/14（2007/2010）、15（2013 起）
+M.code_optimal = true
 M.snap = false  -- 段落贴行网格（Word 的 snapToGrid）
 M.cell = false  -- 段落在表格单元格里：闭号只压半格不挂出，老模式不按整格
 -- Word 排字的位置按 1/6000 英寸（0.012 磅）记（Windows 探针 sz3、sz4 的坐标都是它的整数倍）。按整数格
@@ -582,7 +624,7 @@ end
 -- LetterSpace 加的那些）不计宽，渲染时清零重设。core 是条目最后一个实体节点，断行
 -- 合法性从它往后查。东亚符号：交给 jfont 排、却不是汉字的字（℃、×、希腊字母…）——Word
 -- 在 eastAsia 提示下也是这么分的：一格一个、旁边不加汉西隙；不能起行的那些当闭号挂
-local function tokenize(head)
+local function tokenize(head, split_code)
   local items = {}
   local run = nil
   local lastsize, lastfont = nil, nil
@@ -601,6 +643,7 @@ local function tokenize(head)
     return M.code_attr and (node.get_attribute(g, M.code_attr) or 0) ~= 0
   end
   local function addglyph(n, c, w)
+    if split_code and run and (not not run.code) ~= (not not is_code(n)) then flush_run() end
     local size = fsize(n.font)
     lastsize = size; lastfont = n.font
     if not run then
@@ -682,9 +725,11 @@ local function tokenize(head)
         end
       elseif n.subtype == 13 or n.subtype == 14 then
         -- 词间空格：宽按字体自己的空格，不按 spaceskip（见 fspace）
-        local w = lastfont and fspace(lastfont) or 0
+        local sf = M.spacefont_attr and node.get_attribute(n, M.spacefont_attr)
+        if not sf or sf <= 0 then sf = lastfont end
+        local w = sf and fspace(sf) or 0
         if w <= 0 then w = n.width end
-        put(4, n, n, w, nil).sfont = lastfont
+        put(4, n, n, w, nil, sf and fsize(sf)).sfont = sf
       elseif n.subtype == 0 and n.width > 0 then
         -- 手写的 \hskip、\hspace：可断的位置，宽照它自己的（ulem 的负胶、leaders 不算）
         local it = put(4, n, n, n.width, nil)
@@ -983,34 +1028,63 @@ local function split_run(items, k, g, P)
   table.insert(items, k + 1, b)
 end
 
--- 代码串（\verb，字形带 docxlike@code@attr）里的软断点：超过 16 个字符的串在 / . - 前可断，
--- 头尾四个字符内不断，扩展名（点后不超过五个字符）前不断，连续分隔符与 :// 之间不断。
--- Word 文档里这些位置是敲进去的 U+200B，这里按同一条规则从串里算出来，切成几个条目，
--- 条目之间以 soft 记号相连：可断、断处什么也不丢
+-- 原生路径保留显式 U+200B 和模式 15 的连字符后断点；代码增强另加带优先级的软断点。
 local soft_sep = set_of("/.-")
+local assignment_operator = set_of("=!<>:+-*/%&|^")
 local function soft_split(items, P)
-  local k = 1
+  local k, quote, escaped = 1, nil, false
   while k <= #items do
     local it = items[k]
-    if it.kind == 3 and it.code and it.glyphs and it.gn >= 2 and #it.glist == it.gn then
+    local marked = it.code or (M.code_attr and (node.get_attribute(it.core or it.first, M.code_attr) or 0) > 0)
+    if not marked then quote, escaped = nil, false end
+    if it.kind == 3 and it.glyphs and it.gn >= 1 and #it.glist == it.gn then
       local n = it.gn
       local cuts = {}
-      for i = 2, n - 1 do
+      for i = 1, n do
         local c = it.glist[i].char
-        local pc = it.glist[i - 1].char
-        local before = n > 16 and i >= 5 and i <= n - 4 and soft_sep[c] and not soft_sep[pc] and pc ~= 58
-          and not (c == 46 and n - i <= 5)
-        -- Word 2013 起在连字符后也断（后面是数字不断），这条不分长短
-        local after = P.compat == 15 and pc == 45 and not is_digit(c) and c ~= 45
-        if before or after then cuts[#cuts + 1] = i - 1 end
+        local pc = i > 1 and it.glist[i - 1].char
+        local ppc = i > 2 and it.glist[i - 2].char
+        local cost, kind
+        if pc == 0x200B then cost, kind = 0, "explicit"
+        elseif it.code and P.compat == 15 and pc == 45 and c ~= 45 then
+          cost, kind = 20, "native-hyphen"
+        end
+        if it.code and P.code_overhang and i > 1 and not quote and kind ~= "explicit" then
+          if pc == 44 then cost, kind = 0, "comma"
+          elseif pc == 61 and c ~= 61 and c ~= 62 and not assignment_operator[ppc] then
+            cost, kind = 10, "assignment"
+          elseif n > 16 and i >= 5 and i <= n - 4 then
+            if pc == 45 and c ~= 45 and ppc ~= 45 then
+              cost, kind = 20, kind or "hyphen"
+            elseif soft_sep[c] and not soft_sep[pc] and pc ~= 58
+                and not (c == 46 and n - i <= 5) then
+              cost, kind = 30, "path"
+            end
+          end
+        end
+        if cost then
+          local g = it.glist[i - 1].next
+          while g and g ~= it.glist[i] do
+            if g.id == PENALTY and g.penalty >= 10000 then cost = nil; break end
+            g = g.next
+          end
+        end
+        if cost then cuts[#cuts + 1] = { offset = i - 1, cost = cost, kind = kind } end
+        if marked then
+          if escaped then escaped = false
+          elseif quote and c == 92 then escaped = true
+          elseif quote then if c == quote then quote = nil end
+          elseif c == 34 or c == 39 then quote = c end
+        end
       end
       local base = 0
       for _, cut in ipairs(cuts) do
-        split_run(items, k, cut - base, P)
+        split_run(items, k, cut.offset - base, P)
         items[k].emergency = nil
         items[k].soft = true
-        items[k].code = true; items[k + 1].code = true
-        base = cut
+        items[k].break_cost = cut.cost
+        items[k].break_kind = cut.kind
+        base = cut.offset
         k = k + 1
       end
     end
@@ -1595,11 +1669,16 @@ local function decide(items, P, shape, indent)
     return true
   end
 
-  local lines = {}
-  local i = 1
-  while i <= n do
-    local isfirst = (#lines == 0)
-    local li = #lines + 1
+  local function bad_end(k)
+    local t = items[k]
+    return (t.kind == 4 and not t.user) or t.kind == 2
+      or (t.kind == 3 and t.glyphs and (ascii_open[t.tail] or no_line_end[t.tail]))
+  end
+
+  -- 同一个扫描器同时给出 Word 贪心结果及它经过的合法行尾。
+  local function scan_line(i, li, collect)
+    local candidates = collect and {} or nil
+    local isfirst = li == 1
     local sh = shape(li)
     measure = sh.width
     -- 兼容模式低于 15、段落开着“如果定义了文档网格，则自动调整右缩进”时按整数个格装（Windows 探针
@@ -1614,6 +1693,10 @@ local function decide(items, P, shape, indent)
     end
     local snaps = P.grid and compat ~= 15 and P.ari and not P.table_cell
     local capacity = snaps and cellcap or measure
+    local code_limit = capacity
+    if P.code_right and sh.shift + measure >= tex.hsize - eps then
+      code_limit = math.max(0, P.code_right - sh.shift)
+    end
     local first = i
     local last = i
     local j = i
@@ -1621,6 +1704,26 @@ local function decide(items, P, shape, indent)
     local forced_end = false
     local have = false
     local first_unit = nil
+
+    local function make_line(k, line_deep, line_end, line_forced)
+      local w = width_of(items, first, k) + (isfirst and indent or 0)
+      local over = w - capacity
+      local tail = k
+      while tail > first and items[tail].kind == 4 do tail = tail - 1 end
+      local extended = P.code_overhang and items[tail].code and over > eps or false
+      return { first = first, last = k, width = w, over = over,
+        deep = line_deep and items[k].kind == 1, forced = line_forced or false,
+        ragged = line_end or k >= n or extended, code_overhang = extended,
+        bp = (k < n) and ((items[k].emergency or items[k].soft)
+          and items[k + 1].first or breakpoint_after(k)) or nil,
+        measure = measure, capacity = capacity, cellcap = cellcap, shift = sh.shift,
+        code_limit = code_limit, isfirst = isfirst, forced_end = line_end or false }
+    end
+    local function offer(k, line_deep, line_end)
+      if candidates and (line_end or (not bad_end(k) and legal_after(k))) then
+        candidates[#candidates + 1] = make_line(k, line_deep, line_end)
+      end
+    end
 
     while j <= n do
       local it = items[j]
@@ -1644,12 +1747,20 @@ local function decide(items, P, shape, indent)
       local w = width_of(items, first, m) + (isfirst and indent or 0)
       local spacing = it.kind == 4
       if not spacing and first_unit == nil then first_unit = m end
-      if w <= capacity + eps then
+      local code_unit = P.code_overhang and items[m].code
+      local limit = code_unit and code_limit or capacity
+      if P.code_overhang and w > code_limit + eps and code_unit then
+        break
+      elseif w <= limit + eps then
         last = m
         have = have or not spacing
+        offer(m, deep, mandatory_after(m))
         if mandatory_after(m) then forced_end = true; break end
         j = m + 1
       else
+        -- 已伸出版心的代码后不能再接普通文字。
+        if P.code_overhang and not code_unit and have
+            and width_of(items, first, last) + (isfirst and indent or 0) > capacity + eps then break end
         local need = w - (snaps and math.min(cellcap, capacity) or capacity)
         if it.kind == 1 then break end
         if it.kind == 3 and it.glyphs and ascii_close[it.head]
@@ -1676,6 +1787,7 @@ local function decide(items, P, shape, indent)
           last = m
           have = true
           deep = m > core
+          offer(m, deep, mandatory_after(m))
           if mandatory_after(m) then forced_end = true; break end
           j = m + 1
         else
@@ -1688,16 +1800,19 @@ local function decide(items, P, shape, indent)
       -- 起行的西文串整个装不下：Word 在装不下的那个字形处断（超过半个版心的串才有紧急断点）
       local ts = text_start(first)
       local it = items[ts]
-      if last == ts and it.kind == 3 and it.glyphs and it.gn >= 2 and it.nw > measure / 2 then
+      if (last == ts or (P.code_overhang and it.code)) and it.kind == 3
+          and it.glyphs and it.gn >= 2 and it.nw > measure / 2 then
         local w0 = (isfirst and indent or 0)
         for k = first, ts - 1 do local x = items[k]; if not (x.kind == 4 and not x.user and first > 1) then w0 = w0 + x.nw end end
         local g = 0
         local acc = w0
         for i, gn in ipairs(it.glist) do
           local add = gn.width + (it.code and 0 or P.latin_add) + (it.fb or 0)
-          if acc + add <= capacity + eps then acc = acc + add; g = i else break end
+          local limit = P.code_overhang and it.code and code_limit or capacity
+          if acc + add <= limit + eps then acc = acc + add; g = i else break end
         end
         -- 按实际的字形表判断：gn 与字形表长度可以不等，拆在最后一个字形后会拆出空的后半段
+        if P.code_overhang and it.code and last > ts and g == #it.glist then g = g - 1 end
         if g >= 1 and g < #it.glist then
           split_run(items, ts, g, P)
           n = #items
@@ -1707,11 +1822,6 @@ local function decide(items, P, shape, indent)
     end
 
     -- 行尾不能是空格、开号、西文的左括号，也不能是断不开的地方
-    local function bad_end(k)
-      local t = items[k]
-      return (t.kind == 4 and not t.user) or t.kind == 2
-        or (t.kind == 3 and t.glyphs and (ascii_open[t.tail] or no_line_end[t.tail]))
-    end
     if not forced_end then
       while last > first and (bad_end(last) or not legal_after(last)) do last = last - 1 end
     end
@@ -1726,15 +1836,10 @@ local function decide(items, P, shape, indent)
       while k <= n and items[k].kind == 4 do k = k + 1 end
       if k > n then last = n end
     end
-    if items[last].paired then items[last].endfull = true end
     local w = width_of(items, first, last) + (isfirst and indent or 0)
     local over = w - capacity
-    lines[#lines + 1] = { first = first, last = last, width = w, over = over,
-                          deep = deep and items[last].kind == 1, forced = forced,
-                          ragged = forced_end or last >= n,
-                          bp = (last < n) and ((items[last].emergency or items[last].soft) and items[last + 1].first or breakpoint_after(last)) or nil,
-                          measure = measure, capacity = capacity, cellcap = cellcap, shift = sh.shift,
-                          isfirst = isfirst }
+    local line = make_line(last, deep, forced_end, forced)
+    if candidates then candidates[#candidates + 1] = line end
     if M.trace then
       local txt = {}
       for k = first, last do local it = items[k]; txt[#txt+1] = it.c and utf8.char(it.c) or (it.kind == 4 and "_" or "[" .. (it.head and utf8.char(it.head) or "?") .. "]") end
@@ -1747,7 +1852,131 @@ local function decide(items, P, shape, indent)
         end
       end
     end
-    i = last + 1
+    return line, candidates
+  end
+
+  local function greedy()
+    local lines, i = {}, 1
+    while i <= n do
+      local line = scan_line(i, #lines + 1)
+      lines[#lines + 1] = line
+      i = line.last + 1
+    end
+    return lines
+  end
+
+  local lines
+  if P.code_overhang and M.code_optimal then
+    -- 行形稳定后合并同一断点的状态；此前保留行号，以处理首行、悬挂缩进与 parshape。
+    local ps = tex.parshape
+    local stable = 2
+    if type(ps) == "table" and #ps > 0 then stable = math.max(stable, #ps)
+    elseif tex.hangindent ~= 0 then stable = math.max(stable, math.abs(tex.hangafter) + 1) end
+    local function score(line)
+      if line.code_overhang then
+        if line.width > line.code_limit + eps then return math.huge end
+        for k = line.first, line.last do
+          if items[k].kind ~= 4 and not items[k].code
+              and width_of(items, line.first, k) + (line.isfirst and indent or 0) > line.capacity + eps then
+            return math.huge
+          end
+        end
+      end
+      local cost = 10
+      if line.code_overhang then
+        local room = math.max(P.em, line.code_limit - line.capacity)
+        cost = cost + 20 + 100 * (line.over / room)^2
+      elseif line.last < n and not line.forced_end then
+        local elasticity = 0
+        for k = line.first, line.last do
+          local it = items[k]
+          if it.kind == 4 and not it.user then elasticity = elasticity + it.nw end
+          if k > line.first then
+            if it.gap > 0 then elasticity = elasticity + it.gap end
+            if it.kind <= 2 and items[k - 1].kind <= 2 then elasticity = elasticity + P.em / 10 end
+          end
+          if it.spot then elasticity = elasticity + P.em / 4 end
+        end
+        local ratio = math.abs(line.over) / math.max(P.em / 4, elasticity)
+        cost = cost + 100 * ratio^2
+      elseif line.last == n and not line.isfirst then
+        local fraction = line.width / math.max(P.em, line.capacity)
+        cost = cost + 200 * (math.max(0, .2 - fraction) / .2)^2
+      end
+      if line.last < n and items[line.last].soft then cost = cost + (items[line.last].break_cost or 5) end
+      if line.forced then cost = cost + 100000 end
+      return cost
+    end
+    local function emergency(line)
+      return line.last < n and items[line.last].emergency and 1 or 0
+    end
+    local function better(a, b)
+      return not b or a.emergency < b.emergency
+        or (a.emergency == b.emergency and a.cost < b.cost)
+    end
+    local function total(path)
+      local state = { cost = 0, emergency = 0 }
+      for _, line in ipairs(path) do
+        state.cost = state.cost + score(line)
+        state.emergency = state.emergency + emergency(line)
+      end
+      return state
+    end
+    local changed, best, baseline, audit
+    repeat
+      changed = false
+      lines = greedy()
+      baseline = total(lines)
+      best = nil
+      audit = M.check_optimal and n <= 14 and {} or nil
+      local states = { [1] = { [1] = { cost = 0, emergency = 0, li = 1 } } }
+      for first = 1, n do
+        for _, state in pairs(states[first] or {}) do
+          local before = n
+          local _, candidates = scan_line(first, state.li, true)
+          if n ~= before then changed = true; break end
+          local edges
+          if audit then
+            audit[first] = audit[first] or {}
+            edges = {}
+            audit[first][math.min(state.li, stable)] = edges
+          end
+          for _, line in ipairs(candidates) do
+            local line_cost, line_emergency = score(line), emergency(line)
+            if edges then edges[#edges + 1] = { last = line.last, cost = line_cost, emergency = line_emergency } end
+            local candidate = { cost = state.cost + line_cost,
+              emergency = state.emergency + line_emergency, li = state.li + 1,
+              previous = state, line = line }
+            if candidate.cost < math.huge then
+              if line.last == n then
+                if better(candidate, best) then best = candidate end
+              else
+                local nextfirst = line.last + 1
+                local phase = math.min(candidate.li, stable)
+                states[nextfirst] = states[nextfirst] or {}
+                if better(candidate, states[nextfirst][phase]) then states[nextfirst][phase] = candidate end
+              end
+            end
+          end
+        end
+        if changed then break end
+      end
+      -- 紧急拆词会增加条目；丢弃旧索引，再在固定的条目表上求最优路径。
+    until not changed
+    if best then
+      lines = {}
+      local state = best
+      while state.line do table.insert(lines, 1, state.line); state = state.previous end
+      trace("OPTIMAL lines=%d cost=%.3f greedy=%.3f emergency=%d/%d", #lines,
+        best.cost, baseline.cost, best.emergency, baseline.emergency)
+      if M.check_optimal then
+        M.check_optimal({ cost = best.cost, emergency = best.emergency,
+          greedy_cost = baseline.cost, greedy_emergency = baseline.emergency, lines = lines,
+          graph = audit, stable = stable, count = n })
+      end
+    end
+  else
+    lines = greedy()
   end
   if #lines > 0 then lines[#lines].islast = true end
   return lines
@@ -1826,7 +2055,9 @@ local function linebox(box, ctx, strut_h, strut_d)
     local sz = f and f.size or 0
     if sz == 0 then return end
     local h, a
-    if is_jfont(g.font) then
+    if ctx.mono and M.code_attr and (node.get_attribute(g, M.code_attr) or 0) > 0 then
+      h, a = ctx.natpara, ctx.asc_para
+    elseif is_jfont(g.font) then
       h = ctx.nat_cjk * sz; a = ctx.asc_cjk * sz
     else
       h = ctx.nat_latin * sz; a = ctx.asc_latin * sz
@@ -1979,9 +2210,10 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
     if it.kind == 4 and it.user then
       -- 手写的胶：原样，行首也不归零（\hspace 就是要占位）
     elseif it.kind == 4 then
-      it.first.width = ((k == first and first > 1) or k == last) and 0 or it.nw
+      -- first 可能包含段首罚分或链接节点；空格本身由 core 指向。
+      it.core.width = ((k == first and first > 1) or k == last) and 0 or it.nw
       -- 空格后面挂着的胶清零
-      local g = it.first.next
+      local g = it.core.next
       while g and g ~= it.last.next do if g.id == GLUE and g.subtype < 100 then g.width = 0 end; g = g.next end
     elseif it.rigid then
       -- 盒子、公式自己的宽不动，后面挂着的胶（汉西隙）清零，隙由 gap 另放；leaders 不动
@@ -2064,6 +2296,8 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
     target = math.min(target, math.floor(full / P.cell0 + 1e-6) * P.cell0 - (full - measure))
   end
   local over = line.over + line.capacity - target
+  -- 扩展只影响文字，不改变行盒、底纹或边框的版心宽度。
+  if line.code_overhang then over = math.min(over, 0) end
 
   -- 行末的半角闭标点（逗号、句点、分号、右括号等）超出版心：行里压得下（标点位各半格、汉西隙
   -- 各半个隙）就压，压不下就把标点整个挂出去，起点在右缘上，前面的字两端对齐到右缘，挂了还超的
@@ -2288,7 +2522,7 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
           node.insert_after(head, it.last, kn)
         end
       elseif not ((k == first and first > 1) or k == last) then
-        it.first.width = it.nw + delta[k] + extra
+        it.core.width = it.nw + delta[k] + extra
       end
     end
   end
@@ -2358,6 +2592,13 @@ local function render(items, line, P, strut_h, strut_d, indent, isfirst, ctx, he
       node.insert_after(head, node.tail(head), kn)
     end
   end
+  if line.code_overhang then
+    local dw = node.dimensions(head)
+    if dw > measure then
+      local kn = node.new(KERN); kn.kern = measure - dw
+      node.insert_after(head, node.tail(head), kn)
+    end
+  end
   local box = node.hpack(head, measure, "exactly")
   box.shift = line.shift
   if M.trace then
@@ -2416,6 +2657,7 @@ function M.linectx(strut_h, strut_d)
   local k = bls / natpara
   if k < 1 then k = 1 end
   return { exact = exact, snap = snap, latin = latin, natpara = natpara, asc_para = asc_para,
+           mono = getbool("g_docxlike_mono_calibrated_bool") == true,
            nat_cjk = nat_cjk, nat_latin = nat_latin, asc_cjk = asc_cjk, asc_latin = asc_latin,
            pitch = pitch, bls = bls, k = k }
 end
@@ -2454,6 +2696,27 @@ function M.shape()
     end
     return { width = wd - lw - rw, shift = ind + lw }
   end
+end
+
+-- 断段时尚不知道分页结果；双面文档取两种左边距中较大的，保证跨页后仍在纸内。
+local function code_right_limit()
+  local width = tex.hsize
+  trace("CODE context nest=%d hsize=%.2f textwidth=%.2f list=%d", tex.nest.ptr,
+    width / 65781.76, tex.getdimen("textwidth") / 65781.76, tex.getcount("@listdepth"))
+  if tex.nest.ptr ~= 0 or M.cell or tex.getcount("@listdepth") > 0
+      or math.abs(width - tex.getdimen("textwidth")) > 2 then return nil end
+  local left = tex.getdimen("oddsidemargin")
+  if token.create("if@twoside").mode == token.create("iftrue").mode then
+    left = math.max(left, tex.getdimen("evensidemargin"))
+  end
+  left = left + tex.getdimen("hoffset") + tex.sp("1in")
+  local available = tex.getdimen("paperwidth") - left
+  local inset = tex.getdimen("l__docxlike_code_overhang_page_inset_dim")
+  if getbool("l__docxlike_code_overhang_relative_bool") then
+    inset = math.max(0, available - tex.getdimen("textwidth"))
+      * getfactor("l__docxlike_code_overhang_ratio_tl")
+  end
+  return math.max(0, available - inset)
 end
 
 -- 可伸的边距说明段落不是两端对齐：两边都可伸是居中，只有左边可伸是右对齐，只有右边
@@ -2583,13 +2846,17 @@ local function grid_latin(head, only_attr)
             local ref = (cjkg and cjkg.font) or (nx and nx.id == GLYPH and nx.font) or font.current()
             n.width = half(ref)
           elseif not (widep or wide_next) then
-            local w = lastg and fspace(lastg.font) or 0
+            local sf = M.spacefont_attr and node.get_attribute(n, M.spacefont_attr)
+            if not sf or sf <= 0 then sf = lastg and lastg.font end
+            local w = sf and fspace(sf) or 0
             if w > 0 then
               n.width = w
-              if kern_enabled(lastg) then
-                n.width = n.width + pair_kern(lastg.font, lastg.char, 32)
-                if nx and nx.id == GLYPH and nx.font == lastg.font then
-                  n.width = n.width + pair_kern(lastg.font, 32, nx.char)
+              if kern_enabled(n) then
+                if lastg and lastg.font == sf then
+                  n.width = n.width + pair_kern(sf, lastg.char, 32)
+                end
+                if nx and nx.id == GLYPH and nx.font == sf then
+                  n.width = n.width + pair_kern(sf, 32, nx.char)
                 end
               end
             end
@@ -2865,7 +3132,7 @@ local function snap_render(items, line, P, strut_h, strut_d, indent, isfirst, ct
       for k = pt.from, pt.to do
         local it = items[k]
         if it.kind == 4 then
-          it.first.width = it.w
+          it.core.width = it.w
         elseif it.kind == 3 and it.kerns then
           for _, e in ipairs(it.kerns) do e[1].kern = e[2] end
           for _, g in ipairs(it.glist or {}) do
@@ -2896,7 +3163,7 @@ local function snap_render(items, line, P, strut_h, strut_d, indent, isfirst, ct
       for k = pt.from, pt.to do
         local it = items[k]
         if it.kind == 4 then
-          it.first.width = (k <= wto) and devtrunc(snap_space_w(items, k, P)) or 0
+          it.core.width = (k <= wto) and devtrunc(snap_space_w(items, k, P)) or 0
         elseif it.kind == 3 and it.kerns then
           for _, e in ipairs(it.kerns) do e[1].kern = e[2] end
           for _, g in ipairs(it.glist or {}) do
@@ -2975,10 +3242,17 @@ function M.filter(head, is_display)
   M.grid_on = getbool("g_docxlike_grid_bool") ~= false
   local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
   local align = align_of(ls, rs)
+  local code_active = false
+  if getbool("l__docxlike_code_overhang_bool") and M.code_attr then
+    for g in node.traverse_id(GLYPH, head) do
+      if (node.get_attribute(g, M.code_attr) or 0) > 0 then code_active = true; break end
+    end
+  end
   if M.attr and (node.get_attribute(head, M.attr) or 0) == 0 then return skip("attr") end
   -- 不两端对齐的段只接本包照样式设了对齐的（\docxlike_linebreak_align: 立的标记）；LaTeX 自己的
   -- \centering、目录行（右边距可伸、\parfillskip 取负把页码顶到右边）这些照旧交回 TeX
-  if align ~= "justify" and not getbool("l_docxlike_linebreak_align_bool") then
+  if align ~= "justify" and not getbool("l_docxlike_linebreak_align_bool")
+      and not (code_active and align == "left") then
     return to_tex(head, "skips")
   end
   local ok, cell = pcall(tex.getdimen, "g_docxlike_page_char_dim")
@@ -2990,7 +3264,7 @@ function M.filter(head, is_display)
   -- TeX 那边 JFM 把行末闭号算成半格，居中偏右半格的一半
   local nogrid = not ok or not cell or cell == 0
   if nogrid then
-    if align == "left" then return to_tex(head, "nocell") end
+    if align == "left" and not code_active then return to_tex(head, "nocell") end
     if align == "justify" and tex.getskip("parfillskip").stretch_order == 0 then
       return skip("nocell")
     end
@@ -3010,7 +3284,7 @@ function M.filter(head, is_display)
   if M.done_attr then
     for g in node.traverse_id(GLYPH, head) do mark_done(g) end
   end
-  local items, indent, strut_h, strut_d = tokenize(head)
+  local items, indent, strut_h, strut_d = tokenize(head, code_active)
   if #items == 0 then return true end
   local bp = 65781.76
   -- 西文字形各加半个余量（lb5 探针 pn：64 个数字的行在 N=0 翻转，数字宽正是 p/2）。先前按断行
@@ -3043,7 +3317,9 @@ function M.filter(head, is_display)
               balance = balance,
               autospace_de = getbool("l_docxlike_format_autospace_de_bool") ~= false,
               autospace_dn = getbool("l_docxlike_format_autospace_dn_bool") ~= false,
-              eps = 0.03 * bp }
+               eps = 0.03 * bp }
+  P.code_overhang = code_active and (align == "justify" or align == "left")
+  if P.code_overhang then P.code_right = code_right_limit() end
   trace("STEP cell=%.4f latin_add=%.4f half_space=%.4f", P.cell / bp, P.latin_add / bp, P.half_space / bp)
   trace("STEP snap=%s spacing=%.4f balance=%s", tostring(hsnap), spacing / bp, tostring(balance))
   soft_split(items, P)
@@ -3406,6 +3682,40 @@ local function mcell_center(head)
   end
 end
 
+-- NFSS 的斜体修正会撤下空格再用 hskip 放回；保留原类别，避免误判为手写刚性胶。
+local font_spaces = {}
+function M.save_font_space()
+  local g = tex.nest.top.tail
+  font_spaces[#font_spaces + 1] = g and g.id == GLUE
+    and (g.subtype == 13 or g.subtype == 14)
+    and { subtype = g.subtype, font = M.spacefont_attr and node.get_attribute(g, M.spacefont_attr) } or false
+end
+function M.restore_font_space()
+  local saved = table.remove(font_spaces)
+  local g = tex.nest.top.tail
+  if saved and g and g.id == GLUE and g.subtype == 0 then
+    g.subtype = saved.subtype
+    if saved.font then node.set_attribute(g, M.spacefont_attr, saved.font) end
+  end
+end
+
+-- 在字体整形前把显式零宽空格换成断点，避免字体将它替换为普通空格。
+local function explicit_breaks(head)
+  local g = head
+  while g do
+    local nxt = g.next
+    if g.id == GLYPH and g.char == 0x200B and M.attr
+        and (node.get_attribute(g, M.attr) or 0) ~= 0 then
+      local p = node.new(PENALTY); p.penalty = 0; p.attr = g.attr
+      head = node.insert_before(head, g, p)
+      head = node.remove(head, g)
+      node.free(g)
+    end
+    g = nxt
+  end
+  return head
+end
+
 -- 装回调。attr 是类分的属性号：段首节点上为 0 的段不管（交回 TeX）；
 -- ks、xks 是汉字缝、汉西隙的属性号
 function M.install(attr, ks, xks, kern, code)
@@ -3413,10 +3723,12 @@ function M.install(attr, ks, xks, kern, code)
   M.kern_attr = kern
   M.ks_attr, M.xks_attr = ks, xks
   M.code_attr = code
+  M.spacefont_attr = luatexbase.attributes["docxlike@spacefont@attr"]
   M.cell_attr = luatexbase.attributes["docxlike@cell@attr"]
   M.picture_attr = luatexbase.attributes["docxlike@picture@attr"]
   M.done_attr = luatexbase.attributes["docxlike@grid@attr"]
   M.nosnap_attr = luatexbase.attributes["docxlike@nosnap@attr"]
+  luatexbase.add_to_callback("pre_shaping_filter", explicit_breaks, "docxlike.explicit-breaks")
   luatexbase.add_to_callback("linebreak_filter",
     function(h, d) return M.filter(h, d) end, "docxlike.linebreak")
   luatexbase.add_to_callback("post_linebreak_filter",
@@ -3443,6 +3755,7 @@ function M.install(attr, ks, xks, kern, code)
 end
 function M.uninstall()
   for _, cb in ipairs({ { "linebreak_filter", "docxlike.linebreak" }, { "hpack_filter", "docxlike.skips" },
+                        { "pre_shaping_filter", "docxlike.explicit-breaks" },
                         { "hpack_filter", "docxlike.cells" }, { "hpack_filter", "docxlike.mcell" },
                         { "pre_linebreak_filter", "docxlike.skips" },
                         { "post_linebreak_filter", "docxlike.exact" },

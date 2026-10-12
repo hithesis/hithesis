@@ -9,9 +9,9 @@
 % \changes{v3.2a}{2026/09/28}{没有参考文献表的文档里成果页照样排得出：控制条目的库还没写时不列进成果页的 \cs{bibdata}}
 % \changes{v3.2a}{2026/09/26}{成果组名写了 \option{publications-group} 样式的排成 \pkg{docxlike} 的段；
 %   博士后的组名照模板不编号、组间不另加空当}
-% \changes{v3.2a}{2026/09/28}{整页部件照 iota-hit 收可选参数 \option{shown}（\texttt{auto}、\texttt{true}、\texttt{false}）：默认终稿排、报告里静默
+% \changes{v3.2a}{2026/09/28}{整页部件支持 shown 三态：默认终稿排、报告里静默
 %   跳过，\texttt{true} 在报告里也排（不另起页，标题照章标题那一档，目录里与节同级），\texttt{false} 终稿里
-%   也不排；各排一次，排之前进后置；照 iota-hit 改名：成果页 \env{achievements}（\option{gb7714}、\option{period}，
+%   也不排；各排一次，排之前进后置；成果页改为 \env{achievements}（\option{gb7714}、\option{period}，
 %   旧名 \env{publication}、\env{doctorpublication}），永久通讯地址 \env{permanentaddress}（旧名 \env{correspondingaddr}，
 %   只有博士后排），索引页 \cs{printindex}（旧写法 \env{ceindex}）}
 % \changes{v3.2a}{2026/09/13}{成果页的条目从 \file{.bib} 里出：\env{achievements} 收库名，
@@ -28,20 +28,12 @@
 % 索引那一页要比正文更宽的左右边距（\env{adjustwidth}）和双栏（\env{multicols*}），
 % 这两个包只服务于它。
 %
-% \emph{排不排由 \option{shown} 定，照 iota-hit。} 这几页是终稿的整章，学校的开题与中期报告
-% 规范里没有对应的一页，所以默认（\texttt{auto}）终稿排、报告不排。写
-% \oarg{shown=true} 在报告里也排，\oarg{shown=false} 连终稿也不排，与 iota-hit 每一页的
-% \texttt{shown} 同一个三态（\texttt{final-only-wanted}）。判定与“只排一次”在 \file{hit-parts.dtx}；
-% 除结论外，排之前先进后置（英文论文把致谢排在前置时还没进正文，不会被推进后置）。
+% \option{shown=auto} 时，这些部件在终稿中排出，在报告中跳过；\texttt{true} 强制排出，
+% \texttt{false} 隐藏。显示判定与重复调用检查由 \file{hit-parts.dtx} 处理。
+% 除结论外，排版前进入后置部分；英文论文在前置部分调用致谢时保持前置状态。
 %
-% \emph{报告里不排是静默的，这是本类唯一容许的静默失效，写在这里免得日后被「修」掉。}
-% 别处一律相反：覆盖键落进没人读的桶、选项取值拼错、词条查不到，每一处都专门做了报错。
-% 这里反过来，是因为它不是错：同一份正文通吃三档时，开题报告里出现 \env{conclusions} 是必然的，
-% 改一行 \option{stage} 就该出任何一档，用户不必把十来行调用注释来注释去。判据照抄 iota-hit
-% 的 \texttt{src/flow/stage.typ}。
-%
-% 不排的时候整段跳到 \cs{end}\marg{环境名} 为止，只记号化、不执行，里面的标签、索引、目录行
-% 一样都不留。
+% 报告默认跳过这些部件时不发警告，便于不同阶段共用正文。
+% 隐藏环境的正文只读取为记号，不执行，因此不会留下标签、索引或目录条目。
 %    \begin{macrocode}
 \bool_new:N \l__hit_back_shown_bool
 \cs_new_protected:Npn \__hit_back_part:nn #1#2
@@ -60,7 +52,7 @@
   }
 %    \end{macrocode}
 %
-% 终稿里每一页另起一页；报告没有章，这几页接着排，照 iota-hit。标题那一步报告另有一份
+% 终稿中的部件另起一页，报告中的部件连续排版；报告标题使用独立的
 % \cs{hit@appendix@chapter}，见本节末尾。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_back_clear:
@@ -122,7 +114,7 @@
 %    \end{macrocode}
 % \end{environment}
 % \begin{environment}{permanentaddress,correspondingaddr}
-% 永久通讯地址，与 iota-hit 的 \texttt{permanent-address} 对应，只有博士后的报告有（\texttt{auto}）。
+% 永久通讯地址默认仅在博士后报告显示。
 % v3.1e 叫 \env{correspondingaddr}，照旧能用，提示改名。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_back_address:n #1
@@ -165,9 +157,7 @@
 %    \end{macrocode}
 %
 % \begin{environment}{achievements,pubgroup}
-% \emph{成果条目也从 \file{.bib} 里出。}指南 1.6 说不同形式的成果“可单独分项
-% 分别列出”，先前示例文档里是把著录逐条手敲的，格式与参考文献表各走各的。
-% 现在写法是：
+% 成果按用户指定的分组和引用键从文献库读取。
 % \begin{latex}
 % \begin{achievements}[pub]       % 成果条目单独一个 pub.bib
 %   \begin{pubgroup}{发表的学术论文}
@@ -184,19 +174,9 @@
 % 那条链生成，所以标点、句首大写、姓氏大写、作者数上限这些 \option{gb7714} 族的
 % 设置成果页自动跟着，不用另设一份。
 %
-% \emph{成果条目走自己的一次 \pkg{bibtex}，与参考文献表彻底分开。}一份文档
-% 只能有一个 \cs{bibdata}，所以成果库不能再发一次；而 \pkg{bibentry} 的
-% \cs{bibentry} 内部会 \cs{nocite}，条目一旦进主 \file{.bbl}，参考文献表就
-% 会把它们一起印出来。两条都不行，于是模板自己写一份辅助文件：
-% \texttt{\meta{jobname}-pub.aux} 里放 \cs{bibstyle}、\cs{bibdata} 与用户点名的
-% 那些 \cs{citation}，跑一次 \texttt{bibtex \meta{jobname}-pub} 得到
-% \texttt{\meta{jobname}-pub.bbl}，模板把它读进来只存宏、不排任何东西。主
-% \file{.bbl} 里从头到尾没有成果条目，参考文献表干净。
+% 成果使用独立的 pub.aux 和 pub.bbl，避免重复 bibdata 或将成果混入主参考文献表。
 %
-% 读法借 \pkg{bibentry}：它的 \cs{nobibliography} 会把 \env{thebibliography}
-% 换成一个只收不排的壳，每条存进 \cs{BR@r@\meta{键}}。我们只借这个壳，把它那句
-% \cs{bibliography}（会写 \cs{bibdata}）临时换成读我们自己的 \file{.bbl}。
-% 取用也不走 \cs{bibentry}，那条会 \cs{nocite}，直接取宏。
+% 借用 nobibliography 保存条目，读取和输出时均避免向主辅助文件写入引用。
 %
 % \emph{编译要多跑一次 \pkg{bibtex}}，与索引那边多跑一次 \texttt{splitindex}
 % 同理，\file{Makefile} 与 \file{latexmkrc} 里各有一条规则。
@@ -221,13 +201,9 @@
   }
 %    \end{macrocode}
 %
-% 一条条目。传统一线走 \pkg{bibentry} 的 \cs{bibentry}，它把 \file{.bbl} 里
-% 那一条的著录文字原样展开；\pkg{biblatex} 一线走 \cs{fullcite}。两边都会顺手
-% 把这一条登记进文献库，用户不必另写 \cs{nocite}。
-%
-% \emph{末尾那个句点要补回来。}\pkg{bibentry} 存条目时会把末尾的句点剥掉
-% （它的设计意图是让整条能嵌进句子，标点由调用处补），而这里是整条独立成项。
-% GB/T 7714 的条目一律以句点收尾，补一个是安全的。
+% BibTeX 后端把引用键写入独立的成果辅助文件，并直接展开 \pkg{bibentry} 保存的条目宏。
+% 不调用 \cs{bibentry}，以免其内部的 \cs{nocite} 把成果条目加入主参考文献表。
+% 保存时去掉的末尾句点在此补回。\pkg{biblatex} 后端使用 \cs{fullcite}。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_pub_entry:n #1
   {
@@ -241,24 +217,9 @@
   }
 %    \end{macrocode}
 %
-% 那一章本身。给了库名就把库读进来。
-%
-% \emph{\pkg{biblatex} 一线也得先加资源。} \cs{fullcite} 只从已登记的资源里取，
-% 成果库不 \cs{addbibresource} 进去，每一条都会排成空白并在 \file{.blg} 里留下
-% 一句「I didn't find a database entry」。这一条先前漏了——传统线那半边验过，
-% \pkg{biblatex} 那半边只写了没验。
-%
-% \emph{\pkg{biblatex} 一线的库名不能写在这里，必须写在导言区。}
-% \cs{addbibresource} 只能在导言区用——\pkg{biblatex} 在 \cs{begin\{document\}}
-% 那一刻把资源表写进 \file{.bcf} 交给 \pkg{biber}，之后再加就进不了这一轮，而
-% \env{achievements} 是正文里的环境，那时早过了。所以这一线的写法是：导言区
-% \cs{addbibresource}\marg{成果库}，环境的可选参数不写。写了就发一条提示告诉
-% 用户挪到导言区，不是静默忽略——静默的话每一条成果都排成空白，只在
-% \file{.blg} 里留一句「I didn't find a database entry」，没人会去看。
-%
-% 两条线因此不完全对称：传统线的库名写在环境上（它自己写 \file{.aux}、自己
-% 跑那一次 \pkg{bibtex}，时机由我们定），\pkg{biblatex} 线写在导言区。手册
-% 两处都写清。
+% BibTeX 后端从 \env{achievements} 的参数读取成果库，生成独立的辅助文件。
+% \pkg{biblatex} 后端须在导言区用 \cs{addbibresource} 登记资源，因为正文中的
+% \env{achievements} 不能再调用该命令。此时若仍在环境参数中填写库名，发出迁移提示。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_pub_resource:n #1
   { \msg_warning:nnn { hithesis } { pub-resource-biblatex } {#1} }
@@ -327,7 +288,7 @@
   }
 %    \end{macrocode}
 %
-% \env{achievements} 与 iota-hit 的 \texttt{achievements()} 对应，v3.1e 叫 \env{publication}，照旧能用、
+% achievements 为成果页入口，v3.1e 的 publication 继续兼容，
 % 提示改名。\option{period}\texttt{=doctoral} 是博士后报告里“博士生期间”那一章（只有博士后排），
 % v3.1e 叫 \env{doctorpublication}；那一章只排标题，条目用户自己写。
 %    \begin{macrocode}
@@ -400,7 +361,7 @@
 % \cs{addvspace} 看不见那段胶就再加一份。
 %
 % \emph{组名带编号。}研究生范例“（一）发表的学术论文”，本科范例“一、发表的
-% 学术论文”，英文版照 iota-hit 取硕士开题英文版第六节的“(1) ”。可选参数
+% 学术论文”，英文版使用“(1) ”。可选参数
 % \texttt{auto}（默认）按学位与语言取，写空就不编号，写别的就是字面的编号。
 %
 % \emph{条目与参考文献表差两个数。}标号后是两个宋体空格（本科范例 Word 导出
@@ -570,7 +531,7 @@
 % “结\ 论”“致\ 谢”，间距取 \option{base-heading-spread}，博后档为空），
 % 只有索引从前直接排 \cs{indexname}，印出来是挤在一起的“索引”。改走与
 % 结论、致谢同一套写法：中文档用词条加字距，英文档排英文名。
-% 官方示例（规范附录 6，iota-hit 逐条量过）：两栏是一张假分栏的表格，
+% 规范附录 6 的示例使用两栏表格，
 % 两列各 4230 缇、整表占满版心，栏间只有两个格的默认边距共 10.8\,bp——
 % 先前的栏距 4\,em 与两侧各缩 2\,em 都无据，去掉；条目行距 1.35
 % （\texttt{w:line="324" auto}），比正文的 1.25 松。
@@ -600,7 +561,7 @@
 %    \end{macrocode}
 %
 % \cs{printindex} 排索引页：标题、两栏，里面是 \pkg{splitidx} 的 \cs{printsubindex*}（中文一段、英文一段）。
-% 与 iota-hit 的 \texttt{index()} 对应（\cs{index} 是登记条目的命令，占不得，照 \hologo{LaTeX} 的习惯叫
+% 输出索引页（index 已用于登记条目，输出命令使用
 % \cs{printindex}；\pkg{splitidx} 自带的同名命令在这里接管）。v3.1e 的写法是 \env{ceindex} 环境里写
 % \cs{printsubindex*}，照旧能用，提示改名；环境里手写条目的用法手册早说过要去掉。
 % \cs{printsubindex*} 里面逐个调的是 \pkg{splitidx} 自己的 \cs{printindex}，排索引页时在组里换回那一个。
@@ -685,7 +646,7 @@
 %    \end{macrocode}
 %
 % \emph{报告里的章级标题。} 报告没有章，终稿的 \cs{hit@appendix@chapter} 不在。这几页在报告里强排时
-% 照 iota-hit 的 \texttt{term-heading}：标题用章标题那一档，报告里就是目录标题用的那个样式
+% 部件标题使用章级样式，报告中使用目录标题样式
 % （本部与威海是 \texttt{toc-heading}，深圳本科是“标题 1”，见 \file{hit-report-toc.dtx}），段前一行；
 % 不另起一页，目录里与节同级。正文不照 Word 排的那几份报告（深圳硕博）用 \cs{section*}。
 %    \begin{macrocode}

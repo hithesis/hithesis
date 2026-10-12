@@ -59,7 +59,7 @@ OPT=subcapcenterlast bash tools/compile-subfigure.sh   # 走最后一行居中�
 
 ## 边界情形
 
-42 变体查不出标签问题——示例里的 `golfer4x` 标签没人引用。下面这几种写法要单独试，
+变体编译未必能查出标签问题，需要在正文实际引用标签。下面这几种写法要单独试，
 每种都应当 0 错误、0 `multiply defined`、`\ref` 全部解析：
 
 1. 旧写法 `\subfigure{\label{键}}` + `\addtocounter{subfigure}{-2}`，并且真的 `\ref` 它

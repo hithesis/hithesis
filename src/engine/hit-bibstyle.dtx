@@ -6,45 +6,13 @@
 %
 % \section{共享参考文献样式}
 %
-% \changes{v3.2a}{2026/09/26}{条目段照 \option{bibliography-item} 样式铺版面，没写的跟正文}
-% \changes{v3.2a}{2026/09/28}{\cs{bibliography}\marg{库} 是参考文献这个部件（与 iota-hit 的 \texttt{bibliography()} 对应）：
-%   排之前进后置，样式没写过就按 \option{gb7714}/\option{bibtex}/\option{style} 补一句 \cs{bibliographystyle}；
-%   \pkg{biblatex} 一线的库在导言区写 \cs{addbibresource}，正文的 \cs{bibliography} 等同 \cs{printbibliography}}
-% \changes{v3.2a}{2026/08/16}{参考文献分 \texttt{bibtex} 与 \texttt{biber} 两条路线，
-%   \option{gb7714}/\option{backend} 选，各开一个子组（\option{bibtex}/\option{style} 挑
-%   \file{.bst}，\option{biber} 原封透传 \pkg{biblatex} 的装载选项）；biblatex 一线由类
-%   自己装载配置，不 fork 样式文件，运行时补丁把方括号与逗号冒号分号接到
-%   \option{punct} 上；与 natbib 一族的冲突守卫照 thuthesis 用内核钩子写；键挂到
-%   \cs{hitsetup} 末尾统一下发}
-% \changes{v3.2a}{2026/09/04}{两条线同名同义的键：\option{punct}
-%   （\texttt{half}｜\texttt{full}｜\texttt{by-lang}，默认 \texttt{full} 照学校规范的
-%   示例）、\option{sentence-case}、\option{show-sl-sn}（默认补「不详」）、
-%   \option{show-note}、六个显示开关、\option{comma-in-cite} 与
-%   \option{brackets-in-cite}（\cs{bibpunct} 收转接宏，键随设随生效）、
-%   \option{correct-punct}（默认关）、\option{uppercase-family}（西文姓氏默认全大写，
-%   跟官方底座）、\option{numbering-align}、\option{max-bib-names}}
-% \changes{v3.2a}{2026/08/16}{传统一线的键走官方 \pkg{gbt7714} 的控制通道下发，下发前
-%   先探键在不在（TeX Live 2025 带的 v2.1.8 没有这条通道），挂到 \cs{bibliography}
-%   自己身上}
-% \changes{v3.2a}{2026/09/13}{著录列表：两个类相同的那几段抽出来共用，标号与正文的
-%   间距抽成 \cs{hit@bib@labelsep:}；条目之间不再留空（范例的著录步进一律 19.5）；三参数版
-%   \cs{hit@bib@list:nnn} 给成果页改悬挂与段距}
+% \changes{v3.2a}{2026/10/06}{新增 Biber/biblatex 后端，与 BibTeX 共用 gb7714 配置入口；
+%   支持著录标点、题名大小写、缺失出版信息、显示字段和引用标点控制，保留已发布的作者及标号选项}
+% \changes{v3.2a}{2026/10/06}{文献表按 bibliography-item 样式排版，条目间不额外加距；
+%   bibliography 可自动补默认 BibTeX 样式，在 Biber 后端转为 printbibliography}
 %
-% 两档底下的文献宏包不是一个：终稿走 \pkg{gbt7714}，报告走 \pkg{natbib}。
-% 但三个选项、引用样式、\cs{inlinecite}、著录列表的排版参数这几件事两边写的是
-% 同一份代码，原先各抄一遍。
-%
-% 本文件排在共享层，也就是类骨架之前。\pkg{docstrip} 逼的：它给同一个输出里
-% 重复出现的输入文件改名（原名后面添空格），并要求每个输出的输入文件表是全局表的
-% 子序列。一个输出一旦用上自己独有的文件，扫描位置就落到全局表尾部，再回头引用
-% 排在前面的共享文件就找不到了。所以共享文件只能全部排在类骨架第一次出现之前，
-% 这也是页面模块必须按类分文件的原因。
-%
-% 排得早就带来两条限制，都体现在留在各个类里的那几行上：
-% \cs{citestyle} 要等文献宏包加载完才能调用，所以那一行留在各个类的文献模块里；
-% \cs{bibauthor} 与 \cs{g\_bib\_author\_cs:n} 用 \cs{exp\_args:NNe} 在定义时就把
-% \option{bibauthorupper} 的取值展开定死，得排在 \cs{ProcessKeyOptions} 之后，
-% 比这里晚，所以两档各留一份。
+% 本模块处理后端配置、引用格式和列表参数；终稿与报告的文献标题由各自页面模块处理。
+% BibTeX 路径中，终稿加载 gbt7714，报告加载 natbib。宏包加载和引用样式设置须在选项解析后执行。
 %
 % \subsection{选项}
 %
@@ -142,42 +110,17 @@
 %
 % \begin{macro}{\hit@bib@list:nn}
 % \cs{hit@bib@list:nn}\marg{最宽的标号}\marg{标号与正文的间距} 开一个著录列表。
-% 两档的 \env{thebibliography} 前后差得多，标题怎么排、分页惩罚怎么给都不一样，
-% 中间这段 \cs{list} 的参数是一样的，只有间距要各传各的。
-%
-% 条目之间不留空。三份范例的文献表逐行量，条目内、条目间的基线步进一律
-% 19.5（1.25 倍多行距的行盒），先前 \cs{itemsep} 从字号默认里减 0.8\,em
-% 剩下的那 0.35 与 \cs{parsep} 都是多出来的，两条后端线一并清零。
-%
-% 三参数版多收一段列表参数，排在公共参数之后执行，调用方要改哪一个就覆盖
-% 哪一个。成果页的列表与参考文献表机制同源、有两个数不同（悬挂宽与段前
-% 段后，范例如此，见 \file{hit-final-backmatter.dtx}），就从这儿进。
-%
-% \emph{那个间距抽出来。}它先前写死在四个调用点上（两档各有传统与
-% \pkg{biblatex} 两条线），终稿还带着一句“深圳校区取 0”的判断，抄了两遍。
-% 成果页也要按同一套排编号，再抄一遍就是第五处。改成一个取值宏
-% \cs{hit@bib@labelsep:}，值存在 \cs{g\_\_hit\_bib\_labelsep\_tl} 里，
-% 默认半个字宽；标号排全角方括号的那几档由终稿在选项处理完之后改写
-% 成零（范例如此，见 \file{hit-final-bib.dtx}），报告不分校区所以照旧。
-%
-% \emph{存的是式子不是长度。}\texttt{0.5em} 里的 em 跟着当时的字体走，
-% 存进长度寄存器就等于在类加载那一刻定死（那时还是十点的默认字号，
-% 折出来 5\,pt，而著录列表里是小四的 6\,pt）。所以存在 token 列表里，
-% 到 \cs{labelsep} 那一句才求值。
+% itemsep 和 parsep 为零，使条目间距与条目内的行距一致。
+% 三参数版本在公共设置后追加列表参数，成果页用它调整悬挂缩进和段距。
+% 标号与正文间距保存为表达式，在实际字号下求值；不能在类加载时将 em 换算成固定长度。
 %    \begin{macrocode}
 \tl_new:N \g__hit_bib_labelsep_tl
 \tl_gset:Nn \g__hit_bib_labelsep_tl { 0.5em }
 \cs_new:Npn \hit@bib@labelsep: { \g__hit_bib_labelsep_tl }
 %    \end{macrocode}
 %
-% \emph{列表参数之外还有几项。}断行放松、句点后不加英文的句末空格、
-% 分页惩罚——这三样先前写在 \env{thebibliography} 的正文里，成果页那一族
-% 抄不到，于是同一批著录在两处的字距不一样：句点接西文时成果页多出一段
-% 句末空格，跨 \TeX~Live 版本还各多一点（实测「\texttt{.S}」两版差
-% 2.37\,bp）。抽成一句，两处共用。
-%
-% \option{split-entry} 决定条目能不能跨页断开：开着就把孤行寡行的惩罚放到
-% 最松，关着则一律 4000 顶住。
+% 文献表与成果列表共用断行、句末空格和分页设置。
+% split-entry 关闭时使用 4000 的分页惩罚，降低条目跨页的优先级，并非绝对禁止跨页。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@bib@list@rules:
   {
@@ -231,20 +174,10 @@
 % \subsection{后端}
 %
 % \DescribeMacro{backend}
-% \option{gb7714}/\option{backend} 选参考文献走哪条路线，取值按「要跑哪个程序」起名：
-% \texttt{bibtex} 是传统一线（\pkg{gbt7714}/\pkg{natbib} 加 \file{.bst}，默认），
-% \texttt{biber} 是 \pkg{biblatex} 一线（样式走 \pkg{biblatex-gb7714-2015}）；
-% \texttt{biblatex} 当 \texttt{biber} 的别名也认。默认 \texttt{auto}——没写就走
-% 传统一线，但用户要是自己在导言区装了 \pkg{biblatex}，模板会侦测到并且不再装
-% \pkg{gbt7714}/\pkg{natbib}（侦测在导言区末尾，见各类的 bib 模块），效果等同
-% \texttt{biber}。这一招照抄 thuthesis。
+% backend 选择 BibTeX 或 Biber；auto 默认用 BibTeX，但尊重用户已加载的 biblatex。
 %
-% \pkg{biblatex} 的装载不能拖到导言区末尾（它自己就在装载时挂
-% \texttt{begindocument} 一族的钩子，晚了赶不上趟），所以在 \option{backend}
-% 所在的那组 \option{gb7714}\texttt{=\{...\}} 处理完的当口就装。这样
-% \option{style}、\option{author-case} 这些「装载时就得定死」的键只要跟
-% \option{backend} 写在同一组里，先后随意；分开写则必须先键后 \option{backend}，
-% 写反了有中文提示（见 \file{hit-messages.dtx} 的 bib-key-locked 一族）。
+% biblatex 必须在文档开始前加载，因此在包含 backend 的 hitsetup 调用结束时加载。
+% 加载期选项应与 backend 同组设置，或先于它设置；加载后的修改由 bib-key-locked 检查。
 %    \begin{macrocode}
 %    \end{macrocode}
 %
@@ -278,15 +211,7 @@
 % \texttt{auto} 退回规范默认，就是上面那一行的取值——题名与析出文献题名转，
 % 期刊名不转（期刊名的缩写形式本来就带自己的大小写，转了会毁掉）。
 %
-% 名字取自两条后端线共有的说法：\file{.bst} 那边的控制字段叫
-% \texttt{CTL\_sentence\_case\_title}，\pkg{biblatex} 那边的命令叫
-% \cs{MakeSentenceCase}。不叫 \texttt{title-case}——那在西文排版里指
-% 「每个实词首字母大写」，跟这里要的正好相反。
-%
-% 两线各自落实。\file{.bst} 一线走控制通道下发三个字段，见
-% \cs{hit@bib@forward@ctl:}；biblatex 一线改写
-% \pkg{biblatex-gb7714-2015} 留的 \cs{mktitlecase} 三个钩子，钩子里读标志位，
-% 所以也是随设随生效。
+% BibTeX 通过控制字段传值，biblatex 通过题名处理钩子在排版时读取配置。
 %    \begin{macrocode}
 \bool_new:N \g__hit_bib_sentence_title_bool
 \bool_new:N \g__hit_bib_sentence_booktitle_bool
@@ -377,16 +302,7 @@
 % \begin{macro}{\hit@bib@backend@apply:}
 % 每处理完一次 \cs{hitsetup} 就照 \option{backend} 的现值行动一次。
 %
-% \emph{挂在 \cs{hitsetup} 末尾，不能挂在根族的 \option{gb7714} 路由上。} l3keys 认
-% \option{gb7714}/\option{backend} 这种写路径的形式，它直接送进 \texttt{hit\,/\,gb7714}
-% 族，根族那一层的 \option{gb7714} 键根本不经过，挂在那里的动作也就不执行。用户
-% 在导言区写 \cs{hitsetup}\{bib/backend=biber\} 会照编不误，然后收到一句
-% 「设晚了」——因为装载动作被推到了别处触发，那时导言期已经过了。
-%
-% 也不能挪进 \option{backend} 那个键自己的键码：整组 \option{gb7714}\texttt{=\{...\}}
-% 里 \option{biber}\texttt{=\{...\}} 那些子选项要等读完才齐，在 \option{backend}
-% 当场装载会漏掉它们。挂在 \cs{hitsetup} 末尾两头都顾上：整组读完了，
-% 而且不管用哪种写法进来都会经过。重复调用幂等。
+% 必须在 hitsetup 结束后加载：路径形式会绕过根键路由，backend 键执行时同组的加载选项又可能尚未读取。
 %
 % 行动是：\texttt{biber} 而 \pkg{biblatex} 未装就装；
 % \texttt{bibtex} 而 \pkg{biblatex} 已装是矛盾，报错；\texttt{auto} 不动。
@@ -410,16 +326,7 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@bib@load@biblatex:}
-% 装载 \pkg{biblatex}。样式锁死 \pkg{biblatex-gb7714-2015} 的
-% \texttt{gb7714-2015}：规范就是国标，biblatex 一线不开挑样式的口子——
-% \file{.bst} 一线让挑（\option{bibtex}/\option{style}）是因为 \hologo{BibTeX}
-% 能力有限，得靠换 \file{.bst} 微调；biblatex 自己的选项够用，细调走
-% \option{biber}\texttt{=\{...\}} 透传。
-%
-% 有一道时机护栏：demo 的主文件把 \cs{hitsetup} 全写在
-% \cs{begin}\marg{document} 之后，元信息那样设没问题，可 \pkg{biblatex}
-% 过了导言区就装不进去了。设晚了给一条说清怎么挪的警告然后照旧走传统一线，
-% 不让内核那句 Can~be~used~only~in~preamble 把用户晾在原地。
+% 在导言区加载 biblatex；正文中切换后端时提示并保留当前后端。
 %    \begin{macrocode}
 \bool_new:N \g__hit_bib_preamble_bool
 \bool_gset_true:N \g__hit_bib_preamble_bool
@@ -445,9 +352,7 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@bib@key@guard:n}
-% 「设晚了」的守卫。\option{uppercase-family} 这些键在 \pkg{biblatex} 装载时换算成
-% 它的选项，装载之后再设不生效，键码前面搭一句守卫提示。
-% 传统一线不受影响——那边的取值到排版时才读。
+% 拒绝修改已生效的 biblatex 加载期选项；BibTeX 的运行期配置不受限制。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@bib@key@guard:n #1
   {
@@ -555,11 +460,7 @@
 \__hit_bib_show_key:nN { show-eprint } \g__hit_bib_showeprint_bool
 %    \end{macrocode}
 %
-% \option{show-note} 管 \file{.bib} 里的 \texttt{note} 字段排不排在条目末尾。
-% 默认关，与 \file{.bst} 的出厂档一致：参考文献表照国标著录，不添自己的话。
-% 成果页那边常要在条目后缀一句“SCI 收录，IDS 号为……”“EI 收录号：……”，
-% 那种就写进 \texttt{note} 再把这个键打开。\file{.bst} 侧的开关是
-% \texttt{CTL\_note}，本来就有，先前没接出来。
+% show-note 控制条目末尾的 note 字段，默认关闭。
 %    \begin{macrocode}
 \__hit_bib_show_key:nN { show-note }   \g__hit_bib_shownote_bool
 %    \end{macrocode}
@@ -604,16 +505,10 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@bib@print:,\hit@bib@forward@ctl:}
-% 传统一线里 \cs{printbibliography} 的去处：\pkg{biblatex} 装了就是它自己；没装时文献库只能写在
-% \cs{bibliography}\marg{文件} 里，这里报错说清。判据直接看宏包在不在，不看 \option{backend} 的字面值，
-% 免得「用户自己装了 biblatex 而没写键」这一档跟状态记录对不上。
+% 根据 biblatex 是否已加载分派文献表命令，不能只判断 backend 的配置值。
 %
-% \emph{下发前先探键在不在。} 这条通道是官方 \pkg{gbt7714} v3（2026-07）才有的。
-% TeX Live 2025 带的是 v2.1.8，\cs{@ifpackageloaded} 照样为真，但族里没有这些键，
-% 12 个键会各报一次「Can be used only in preamble」，键名还被原样排进文档
-% （v2 那边同名的是 \pkg{natbib} 的 \cs{bibpunct} 一族，都是导言区专用命令，
-% 禁用之后参数没人吃，落进正文）。所以改成探 \option{bibpunct} 在不在：
-% 在就下发，不在就整段跳过，键不生效但文档照排。
+% gbt7714 v3 才提供控制键。先检测 bibpunct 键是否存在；旧版只有同名的 natbib 命令，
+% 不能仅用宏包已加载作为判据。缺少控制键时跳过转发，使用 bst 默认值。
 %
 % 传统一线排之前先把键下发给官方通道：\pkg{gbt7714.sty} 把这些选项写成一个
 % \texttt{-BSTcontrol} 控制文件、挂进 \cs{bibliography} 的库表，官方底座的
@@ -693,33 +588,12 @@
   }
 %    \end{macrocode}
 %
-% \emph{下发要挂在 \cs{bibliography} 上，不能只挂在 \cs{hit@bib@print:} 里。}
-% v3.1 时代的文档在正文里直接写 \cs{bibliographystyle}\marg{hithesis} 加
-% \cs{bibliography}\marg{reference}，走不到 \cs{hit@bib@print:}。下发只写在那里的话，
-% 这类文档编得过、但 \option{gb7714} 底下的键一个都不落地，用户也收不到任何提示——
-% 实测老文档里 \option{max-bib-names}\texttt{=1} 无效，同一个键在新范例上是好的。
+% BibTeX 控制参数在 bibliography 执行前转发，保证直接调用该命令的旧文档也使用配置值。
+% 文献表只排一次，防止 aux 中重复写入 bibdata。Biber 后端则把正文中的 bibliography
+% 转为 printbibliography，文献库仍须在导言区登记。
 %
-% 所以改成包住 \cs{bibliography}：谁调都先下发一次。\cs{hit@bib@print:} 里那一句
-% 因此撤掉，两条路合成一条。下发本身是 \cs{keys\_set:nn}，重复调用无害。
-%
-% \emph{文献表只排一次。} 正文里已经写了 \cs{bibliography} 的（示例的报告正文与 v3.1 时代的
-% 文档都是），后置部分那一次就不排：包装里立一个标志，\cs{hit@bib@print:} 见了就跳过。
-% 不跳的话 \file{.aux} 里有两条 \cs{bibdata}，\hologo{BibTeX} 报错；正文照终稿排的那一档
-% 参考文献另起一页，还会多出一张只有页眉页脚的空白页。
-%
-% 挂的时机是 \cs{AtBeginDocument}：\pkg{natbib} 与 \pkg{gbt7714} 都在导言区加载，
-% 太早包会包到还没被它们改过的那一版。\pkg{biblatex} 一线没有 \cs{bibliography}
-% 这条路，所以只在传统一线包。
-%
-% \emph{\cs{bibliography} 是参考文献这个部件}，与 iota-hit 的 \texttt{bibliography()} 对应：排之前进后置。
-% \pkg{biblatex} 一线的文献库照它的规矩在导言区写 \cs{addbibresource}（它在 \cs{begin}\marg{document} 那一刻
-% 就把资源表交出去了），正文里的 \cs{bibliography}\marg{库} 等同于 \cs{printbibliography}，两条线的主文件一样写
-% （\pkg{biblatex} 一线的 \cs{printbibliography} 同样），样式没写过就按 \option{gb7714}/\option{bibtex}/\option{style}
-% 补发一句 \cs{bibliographystyle}。写没写过靠包一层 \cs{bibliographystyle} 记下来：导言区里写的走的是内核那一版
-% （它把 \cs{bibstyle} 延到 \cs{AtBeginDocument} 才写），类加载时就包；正文里写的走 \pkg{gbt7714} 改过的那一版，
-% 装完再包一次。v3.1e 的文档两句都自己写，不会多出一句 \cs{bibstyle}（\hologo{BibTeX} 见了两句要报错）。
-% \emph{装 \pkg{natbib}、\pkg{gbt7714} 之前先把内核那一版换回去}：它们改写时会把当时的定义存起来再调，
-% 存到的要是导言区那一层包装，装完再包一次就成了两层互相调用。
+% bibliographystyle 的包装记录用户是否已指定样式，未指定时才补默认值。
+% natbib/gbt7714 加载前恢复原命令，加载后再包装其新定义，避免两层包装互相递归调用。
 %    \begin{macrocode}
 \bool_new:N \g__hit_bib_style_given_bool
 \cs_new_protected:Npn \__hit_bib_style_wrapper:n #1
@@ -782,9 +656,7 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@bib@biblatex@common:}
-% \pkg{biblatex} 装载完立刻要做的、两档相同的那部分（挂在下面那个
-% \texttt{package/biblatex/after} 钩子上，类专属的排版配置由各类的
-% \cs{hit@bib@biblatex@setup:} 接着做）。
+% biblatex 加载后应用共享选项，再由文档类型配置文献表版式。
 %
 % 三个选项键换算成 \pkg{biblatex} 的选项：\option{author-case} 对
 % \texttt{gbnamefmt}（\texttt{full} 是全大写，即国标默认；不设则保持
@@ -802,23 +674,10 @@
 % 排版时逐条重放，导言区后半再 \cs{ExecuteBibliographyOptions} 会被
 % 重放盖掉（实测）。所以对应的键设晚了只能提示，见上面的守卫。
 %
-% \cs{inlinecite} 的接法：gb7714-2015 的 cbx 自己用 \cs{newcommand} 定义一个
-% \cs{inlinecite}（就是 \cs{parencite}），类里先定义的那份会让它装载报错，
-% 所以装载前先把类的定义撤掉、让 cbx 的进来；点名的样式没带
-% \cs{inlinecite} 的（比如 apa），装完再把 robust 外壳补回去，里面换成
-% \cs{parencite}。\cs{onlinecite} 重新对齐到成品上。\cs{supercite} 也归一：
-% \pkg{biblatex} 核心那份是裸上标数字不带括号，改指 gb 系 cbx 的 \cs{cite}
-% （上标带方括号），与传统一线补的别名同义。
-% \cs{bibliographystyle} 降级成一条提示，老文档里残留这一句不至于炸。
+% 加载 cbx 前须撤销 inlinecite，避免其 newcommand 重名；加载后补齐引用别名。
+% Biber 后端忽略 bibliographystyle 并提示迁移，避免旧文档因该命令中断编译。
 %
-% 正文里的老写法也要接住：报告的示例正文就是两句
-% \cs{bibliographystyle} 加 \cs{bibliography}。\pkg{biblatex} 一线把正文的
-% \cs{bibliography} 映射成 \cs{printbibliography}（文献库那时早该注册完了，
-% 参数吞掉不用），\cs{bibliographystyle} 无论导言区还是正文都降级成提示。
-% 映射挂 \texttt{begindocument/end}：\pkg{biblatex} 把这两个名字登进内核的
-% \cs{@onlypreamble} 表，内核在 \cs{document} 收尾处统一禁用
-% （\cs{@preamblecmds}，晚于 \texttt{begindocument} 钩子），要排在那之后
-% 才盖得回来。
+% 兼容命令须在 begindocument/end 安装，晚于内核禁用 onlypreamble 命令的步骤。
 %
 % \begin{macro}{\hit@bib@patch@brackets:}
 % biblatex 一线的方括号补丁。gb7714-2015 的 bbx 把著录里所有方括号（类型标、
@@ -913,19 +772,8 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@bib@patch@punct:}
-% 逗号冒号分号的补丁，把 2025 代 \texttt{gbpunctwidth} 的能力补到 2015 代上。
-% \pkg{biblatex} 的标点缓冲（重复合并、句点让位那套语义）最终从
-% \cs{abx@puncthook}\marg{字符} 这一个口打出字形，补丁在这里按
-% \option{punct} 换成全角，缓冲语义原封不动；句点问号叹号照旧半角。
-% 全角标点后原样式还会发一个 \cs{addspace}（写在几十处调用点里），全角后
-% 不该再空，打全角时立一个旗子，\cs{addspace}/\cs{addthinspace} 先照原样
-% 冲刷缓冲（冲刷才会打出标点、立起旗子），再见旗吞空格、用后即清；旗子
-% 每次进钩子先清一遍，不会窜到别的空格上。姓名之间的分隔符默认写的是裸
-% \cs{space}（不走 \cs{addspace}，吞不到），把
-% \texttt{multinamedelim}/\texttt{finalnamedelim} 重声明、
-% \cs{pubdatadelim}/\cs{locnopubdelim} 重定义、期刊宏里那处内联的
-% 卷号分隔用 \cs{patchcmd} 点补，全部换成走 \cs{addspace} 的写法，
-% 半角档下排出来与原样一致。
+% 在标点输出钩子中转换全角字符，并抑制紧随其后的空格。
+% 必须先输出标点缓冲再判断空格；使用裸 space 的分隔符需改为 addspace 才能受控。
 %
 % 标点缓冲在正文引用里也会走这条钩子（比如页码注的冒号），那边的全半角归
 % \option{cite-punct} 管，所以钩子带 \cs{ifbibliography} 判据，只在文献表里
@@ -1280,11 +1128,7 @@
 %
 % \subsection{\hologo{pdfTeX} 下没有年份的条目}
 %
-% \pkg{natbib} 读 \cs{bibitem} 的可选标签时把年份拆成年与区分字母（\texttt{1998a}），
-% 办法是看前四个记号哪个的 \cs{catcode} 是 11。样式给没有年份的条目写的是“无日期”，
-% \hologo{pdfTeX} 下汉字已经展开成 \cs{CTEX@char@nnn} 加三个字节，拿控制序列取字符码，
-% 一条条目连报三条错（成果页里项目、奖励那几类常没有年份）。首个记号是控制序列时
-% 整串当年份，不拆。顺序编码制用不到年份，排出来的东西不受影响。
+% pdfTeX 下中文年份标签会展开为控制序列；此时跳过 natbib 的逐字符年份拆分，避免字符码错误。
 %    \begin{macrocode}
 \sys_if_engine_pdftex:T
   {
@@ -1306,10 +1150,7 @@
 %
 % \subsection{包冲突守卫}
 %
-% 「先装了 A 再装 B」才报错，所以一对包要两个方向各登记一条。用内核的
-% \texttt{package/.../before} 与 \texttt{.../after} 钩子，不引 \pkg{filehook}。
-% 类自己的装载不会撞上守卫：传统一线的装载在导言区末尾，且探过
-% \pkg{biblatex} 不在才装。
+% 对互斥宏包的两种加载顺序分别检查冲突。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_bib_conflict:nn #1#2
   {

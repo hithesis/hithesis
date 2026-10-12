@@ -6,7 +6,7 @@
 
 hithesis 用于排版哈尔滨工业大学一校三区的本科、硕士和博士毕业论文（设计），
 也支持开题报告、中期报告、英文论文和博士后出站报告。现行接口只有一个文档类
-`hithesis`，交付物由 `stage=final|proposal|interim` 选择。
+`hithesis`，论文或报告类型由 `stage=final|proposal|interim` 选择，学位默认是博士。
 
 模板已收录于 [CTAN](https://ctan.org/pkg/hithesis)。发行版适合直接使用；`dev`
 分支包含尚未发布的改动，升级前应先用自己的论文完整编译一次。完整说明见项目生成的
@@ -54,7 +54,17 @@ LuaLaTeX 下启用。一份即将提交的稿件不要中途换引擎。
 另支持博士后出站报告和英文学位论文。不同校区、学位和材料的封面与正文规则由类选项
 分流，不需要换文档类。
 
+深圳硕士开题、中期均提供中英文版，按深圳教务部 2018 版 Word 模板设置封面与正文。
+深圳博士报告暂时继承同阶段、同语种的硕士版式，文种改为博士；不再使用旧博士中期的边框表单。
+LuaLaTeX、XeLaTeX 使用 `book`，中文支持分别由 `luatexja`、`xeCJK` 提供；
+pdfLaTeX 保留 `ctexbook` 的 CJK 后端。具体版式由模板与 docxlike 设置。
+验证方法见 [中文后端测试](tests/chinese-backends.md)。
+
 ## 版式能力
+
+智能交叉引用可选用独立的 wiseref。安装后在导言区写 `\usepackage{wiseref}`，即可用
+`\wref[前缀]{标签}[后缀]`；模板会根据 cfg 配置名称及公式括号。wiseref 不随模板自动加载，
+用户可在加载后用 `\wiserefsetup` 修改设置。集成测试见 [tests/wiseref](tests/wiseref/README.md)。
 
 - 封面、内封、中英文摘要、目录、声明页、答辩决议和博士后封面按校区与学位选择。
 - 支持双语题注、图表清单、符号表、缩略语表、中英文索引和成果页。

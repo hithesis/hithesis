@@ -1,0 +1,59 @@
+\input{regression-test}
+\documentclass[fontset=fandol]{hithesis}
+\begin{document}
+\START
+\ExplSyntaxOn
+\msg_redirect_name:nnn{hithesis}{font-role-fallback}{none}
+\TEST{TeX~Live~fallback~fonts~are~available}{
+  \prop_map_inline:Nn\c__hit_font_tex_files_prop{
+    \__hit_font_family_available:nTF{#1}
+      {\TYPE{available=#1}}{\TYPE{MISSING=#1}}
+  }
+}
+\clist_new:N\l__hit_test_available_clist
+\cs_set_protected:Npn\__hit_font_family_available:nTF #1#2#3
+  {\clist_if_in:NnTF\l__hit_test_available_clist{#1}{#2}{#3}}
+\cs_new_protected:Npn\__hit_test_roles:
+  {\clist_map_inline:nn{songti,heiti,kaishu,fangsong,serif,sans,mono,math}
+    {\TYPE{##1=\prop_item:Nn\g__hit_font_roles_prop{##1}}}}
+\TEST{Partial~Windows~fonts~on~macOS}{
+  \bool_gset_true:N\g__hit_font_macos_bool
+  \clist_set:Nn\l__hit_test_available_clist{SimSun,KaiTi,Arial,Songti~SC,Heiti~SC,Kaiti~SC,STFangsong,Menlo,TeX~Gyre~Termes~Math}
+  \tl_set:cn{hit@fontset}{auto}
+  \__hit_font_preset_resolve:
+  \__hit_test_roles:
+}
+\TEST{Partial~Windows~fonts~on~other~platforms}{
+  \bool_gset_false:N\g__hit_font_macos_bool
+  \clist_set:Nn\l__hit_test_available_clist{SimSun,KaiTi,Arial,Songti~SC,Heiti~SC,Kaiti~SC,STFangsong,Menlo,TeX~Gyre~Termes~Math}
+  \tl_set:cn{hit@fontset}{auto}
+  \__hit_font_preset_resolve:
+  \__hit_test_roles:
+}
+\TEST{Missing~preset~fonts~use~only~TeX~Live~fallbacks}{
+  \clist_clear:N\l__hit_test_available_clist
+  \clist_map_inline:nn{windows,macos,founder,noto,fandol}{
+    \tl_set:cn{hit@fontset}{#1}
+    \__hit_font_preset_resolve:
+    \TYPE{preset=#1}
+    \__hit_test_roles:
+  }
+}
+\TEST{Explicit~section~does~not~use~macOS~auto~candidates}{
+  \bool_gset_true:N\g__hit_font_macos_bool
+  \clist_set:Nn\l__hit_test_available_clist{Heiti~SC,Menlo}
+  \tl_set:cn{hit@fontset}{auto}
+  \__hit_font_preset_resolve:
+  \__hit_font_preset_section:nn{windows}{heiti,mono}
+  \TYPE{heiti=\prop_item:Nn\g__hit_font_roles_prop{heiti}}
+  \TYPE{mono=\prop_item:Nn\g__hit_font_roles_prop{mono}}
+}
+\TEST{Explicit~roles~survive~fallback}{
+  \tl_set:cn{hit@fontset}{preset=noto,fangsong=Explicit~Fangsong,math=Explicit~Math}
+  \__hit_font_preset_resolve:
+  \TYPE{fangsong=\prop_item:Nn\g__hit_font_roles_prop{fangsong}}
+  \TYPE{math=\g__hit_font_math_name_tl}
+}
+\ExplSyntaxOff
+\END
+\end{document}

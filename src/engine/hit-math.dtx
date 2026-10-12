@@ -8,23 +8,18 @@
 %
 % \changes{v3.2a}{2026/09/27}{\hologo{pdfLaTeX} 下数学字体固定 \pkg{newtxmath}（\pkg{unicode-math} 只认 OpenType）}
 % \changes{v3.2a}{2026/08/15}{数学部分从各个类抽出合并：\option{fontset-math} 的 \texttt{auto}
-%   默认 \texttt{termes}，\option{math-style} 默认 \texttt{auto}（显式写了又走 \texttt{newtx}
+%   默认使用 Termes，允许显式 math 角色覆盖；\option{math-style} 默认 \texttt{auto}（显式写了又走 \texttt{newtx}
 %   时提示，那一档补上 \cs{symbf} 一组的等价写法）；\pkg{unicode-math} 路径上加 \pkg{bm}
 %   的补救钩子（v3.1e 的 \file{hithesis.sty} 无条件装它，升级后照旧优先加载）；定理环境
 %   换 \pkg{thmtools}，样式与声明收进 \cs{hit@theorem@style} 与 \cs{hit@theorem@list}，
 %   \pkg{ntheorem} 专有命令加兼容层，补回 \pkg{aliasctr} 丢掉的 \cs{theH}（\issue[183]）}
-% \changes{v3.2a}{2026/09/28}{新增 \env{eqdenote}：照写作指南用表格对齐，照 iota-hit 排成四列（引导词、
+% \changes{v3.2a}{2026/09/28}{新增 eqdenote：使用四列表格对齐（引导词、
 %   符号、破折号、说明），底下是 \pkg{tabularray} 的长表，可转页、不印续表、不占表号；不写引导词时符号列
 %   沿用上一张的宽；段前补长表漏掉的行距胶；关段时停掉段末撑竿钩子（空续段曾撑成幽灵行）；收尾按段落
 %   撑竿深度。行间公式段前胶归零、单行公式那一段装进按 Word 模型算的行盒，断口的撑竿
 %   只插在已有字的段里（两条公式紧挨着时曾多出一行）}
 %
-% \pkg{amsmath} 一路到数学字体选择这一段，原来每个类一字不差地各写了一遍。
-% 这里合成一份。
-%
-% 位置与 \file{hit-fonts.dtx} 一样，排在类文件头和 \file{hit-fonts.dtx} 之后、类
-% 自己的 dtx 之前。这个位置在 \cs{LoadClass} 之前，宏包还不能加载，所以只留声明，
-% 其余放进 \cs{hit@setup@math}，由各个类在原来的位置调用。
+% 定义数学字体、定理环境和公式说明表，初始化在基础类加载后执行。
 %
 %    \begin{macrocode}
 %<*shared-math>
@@ -212,13 +207,7 @@
 % 单独使用 \pkg{newtxmath} 宏包改变数学字体时，会使 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令使用 CM 字体，根据 \href{https://github.com/sjtug/SJTUThesis/blob/b164d0f5b3087ed86c1038b5a85014b47a92c6f2/texmf/tex/latex/sjtuthesis/fd/sjtu-math-font-termes.def#L52-L65}{SJTUThesis 的字体设置} 进行调整
 % \changes{v3.0.19}{2022/05/05}{对 \pkg{newtxmath} 宏包打补丁，修复 \texttt{operators}，\cs{mathrm}，\cs{mathit}，\cs{mathbf} 命令的字体问题}
 %    \begin{macrocode}
-% \texttt{auto} 走 \texttt{termes}（TeX Gyre Termes Math）而不是 \texttt{xits}：
-% 学校要的正文西文是 Times，Termes 是 Times 的克隆，数学与正文同一血统；
-% XITS 源自 STIX，空心体那批字形是几何化的圆头，跟 Times 摆在一起不像一家。
-% 代价是覆盖面窄一些——Termes 1112 个码位、XITS 2423 个，缺口在冷门运算符、
-% 箭头与杂项技术符号（2300 段 51 对 90）。常用符号两边都全。
-% 要覆盖面就写 \option{fontset-math}\texttt{=stix}，STIX~Two 有 3607 个码位，
-% 比 XITS 还多。
+% auto 使用预设的 math 角色；显式数学字体及旧 newtxmath 开关优先。
 %
 % \option{math-style} 默认 \texttt{auto}，行为与从前的 \texttt{GB} 一致。
 % 改成 \texttt{auto} 是为了能分辨「用户显式写过」——那组选项只对
@@ -232,7 +221,7 @@
       { \bool_if_p:N \g__hit_newtxmath_bool }
       { \sys_if_engine_pdftex_p: }
       { \str_set:Nn \l__hit_math_font_str { newtx } }
-      { \str_set:Nn \l__hit_math_font_str { termes } }
+      { \str_set:Nn \l__hit_math_font_str { preset } }
   }
 %    \end{macrocode}
 %
@@ -334,6 +323,19 @@
   { \__hit_set_math_font:nn { NewCMMath-Regular.otf } { NewCMMath-Bold.otf } }
 \cs_new_protected:Npn \__hit_set_math_latinmodern:
   { \__hit_set_math_font:nn { latinmodern-math.otf } { latinmodern-math.otf } }
+\cs_new_protected:Npn \__hit_set_math_cambria:
+  { \__hit_set_math_font:nn { Cambria~Math } { Cambria~Math } }
+\cs_new_protected:Npn \__hit_set_math_preset:
+  {
+    \str_case:VnF \g__hit_font_math_name_tl
+      {
+        {TeX~Gyre~Termes~Math}{\__hit_set_math_termes:}
+        {STIX~Two~Math}{\__hit_set_math_stix:}
+        {New~Computer~Modern~Math}{\__hit_set_math_newcm:}
+        {Cambria~Math}{\__hit_set_math_cambria:}
+      }
+      {\exp_args:NVV\__hit_set_math_font:nn\g__hit_font_math_name_tl\g__hit_font_math_name_tl}
+  }
 %    \end{macrocode}
 %
 % \changes{v3.1b}{2022/06/06}{直接修改编码，而不引入新的宏包}
@@ -417,16 +419,10 @@
   }
 %    \end{macrocode}
 %
-% \env{eqdenote} 排公式下面那张「式中……」注释表。规范要求注释的转行与破折号后第一个字对齐，
-% 写作指南推荐用表格对齐，所以排成一张不带线的表，照 iota-hit 的 \texttt{eqdenote}：四列，依次是
-% 引导词、符号、破折号、说明。引导词那一列至少两个字宽（引导词更宽就取它的宽），后面空一个字；
-% 符号右对齐，列宽取这一张里最宽的符号；破折号居中，列宽取它自己的宽；说明占满余下的宽，转行
-% 回到这一列的左缘。行与行之间不另加空，每一行就是说明那一段的行盒，与正文逐行一样。
+% eqdenote 将引导词、符号、破折号和说明排成四列表格，说明续行对齐本列左缘。
 %
 % 用户只写后两列（\cs{item} 符号 \texttt{\&} 说明），引导词只在第一行，破折号每行补。可选参数换
-% 引导词，传空则不排引导词；这时符号列沿用上一张的宽（照 iota-hit），引导词那一列也沿用上一张的宽，
-% 一组注释拆成两段接排时破折号上下对齐。iota-hit 那一列不沿用、取两个字宽，英文的 where 比两个字宽，
-% 续排那一段的破折号就错开 5.3，这里多沿用一样。
+% 引导词，传空时隐藏引导词并沿用上一表的符号列和引导词列宽，以保持续排对齐。
 %
 % 底下是 \pkg{tabularray} 的长表（\texttt{long}），能转页接排；另起一个环境名，不经类给 \env{longtblr}
 % 挂的那几样（表格字号、表前表后的空段、表题）。页头页尾的模板都是空的，转页处不印“续表”。
@@ -497,10 +493,7 @@
 % \cs{prevdepth} 还是上一段的；比 \cs{lineskiplimit} 小时改用 \cs{lineskip}，与 \hologo{TeX} 自己的规则一致；
 % \cs{prevdepth} 是 \texttt{-1000pt}（页首、紧跟标题）时本来就不该有胶，置零。
 %
-% \emph{关段要避开撑竿钩子。} \cs{end}\marg{equation} 之后段落还开着（行间公式属于所在段落），紧跟
-% \env{eqdenote} 时这个续段是空的。\hologo{TeX} 对空续段的 \cs{par} 本不产生任何行，但段落撑竿会把它
-% 撑成一行只有零宽 rule 的幽灵行：公式到「式中」多出一个行距，表被推到新页时幽灵行抢走 \cs{topskip}
-% 基线。关段那一下把 \cs{docxlike\_format\_strut:} 临时置空，空续段不再成行。
+% 关闭公式后的空续段时暂时禁用撑杆，避免生成多余空行。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_eqdenote_pre_skip:
   {
@@ -665,43 +658,16 @@
 % \env{split} 换成 \env{aligned} 排——这正是 \texttt{fleqn} 盒里的机关，
 % 照它把 \cs{split@warning} 也置成 \cs{relax}。
 %
-% \textbf{\cs{@currentlabel} 要从盒里带出来。} \pkg{amsmath} 的 \env{equation}
-% 是
-% \begin{latex}
-% \mathdisplay{equation}%
-% \incr@eqnum\mathopen{}%
-% \end{latex}
-% \cs{incr@eqnum}（也就是 \cs{refstepcounter}）排在 \cs{mathdisplay} 之后，
-% 而 \texttt{\$\$} 在 \cs{mathdisplay} 里头——开了盒，计数器就是在\emph{盒组里}
-% 步进的，\cs{protected@edef} 出来的 \cs{@currentlabel} 是局部量，收盒即失。
-% 真正写 aux 的 \cs{ltx@label} 在 \cs{endmathdisplay@a} 里、收盒之后，那时
-% \cs{@currentlabel} 已经回到上一次章节的值，交叉引用全指错（实测「式(2-1)」
-% 写成了「式(2.8.3.2)」）。所以收盒前把它全局带出来，收盒后在显示组里放回去。
-% 不装盒时没有这个坑：计数器步进落在 \texttt{\$\$} 的显示组里，写 aux 时那个组
-% 还开着。
+% 公式计数器在盒内递增，currentlabel 须跨盒保存，否则收盒后的 aux 写入会引用到旧章节号。
 %
-% \textbf{断口那一行要补撑杆。} 撑杆挂在 \texttt{para/begin} 与 \texttt{para/end}
-% 两个钩子上，段落中间的行两头都不挨。公式把段落打断时，断口上那一行正是中间行，
-% 深只有墨迹的 2.4\,bp，不是撑杆的 7.3\,bp——上方的基线距跟着塌下去（实测同一
-% 条分式，前面空一行 24.7、不空行只有 19.5）。环境的 \texttt{begin} 钩子在
-% \texttt{\$\$} 之前、还在横排模式里，在那儿把撑杆插进断口，断口行就与别的行
-% 一样深。竖排模式（公式独占段）不插：上一段的段末撑杆本来就在。
-% 横排模式里一个字都还没有的也不插：两条公式紧挨着写时，前一条收尾后段落
-% 接着开，第二条进场那一刻横排列表是空的，插了撑杆就凭空多出一行，两条之间
-% 比 iota 宽 15.9。判空看 \cs{lastnodetype}，空列表是 $-1$。
+% 公式打断已有正文时补充撑杆；水平列表为空时不能插入，否则连续公式之间会多出空行。
 %
 % 公式\emph{之后}的断口没有对称的一手：接排的第一行同样是中间行，比模型紧
 % 2\,bp 上下。不补它——\texttt{after} 钩子那一刻看不出接下来是正文还是空行，
 % 空行时插了撑杆就是一行幽灵行，正是 \texttt{para/end} 那头刚堵住的坑。墨迹
 % 不会相撞（盒深是真的），只是比 Word 紧一点，记着待改。
 %
-% \textbf{与下一行的接缝差一个 \cs{lineskip}。} \hologo{TeX} 按基线距堆叠：行距
-% 减上一行深再减下一行高，不够 \cs{lineskiplimit} 就改插 \cs{lineskip}。正文行
-% 有撑杆，这个差恰好是零；公式行盒高深都大，两头都落到 \cs{lineskip}，各多
-% 1\,pt。不动 \cs{lineskip} 本身——它是全局兜底量，别处行盒撑不住也靠它，
-% 设成零会把那些地方一并收紧（实测 46 变体里 40 个受牵连）。改成把这 1\,pt 从
-% 盒的高与深里各扣掉，盒边加上 \cs{lineskip} 正好落在模型的位置，一处只影响
-% 一处。
+% 从公式盒的高深扣除额外 lineskip，不修改全局 lineskip，以免影响其他内容的行间距。
 %
 % \textbf{短公式不动。} 公式高不过正文上升部、深不过正文行深的，盒照原样，
 % \hologo{TeX} 的基线距堆叠给出的正是正文行距——与模型「自然行高取两者较大」

@@ -6,18 +6,7 @@
 %
 % 生成 \file{dtx-style.sty}，只在排这本手册时用，不随模板发布给用户。
 %
-% \emph{手册是类自己排的。} 驱动（\file{hithesis.dtx} 的 driver 块）写的是
-% \cs{documentclass}\oarg{stage=final, degree-level=doctor}\marg{hithesis}，手册就是
-% 一本博士学位论文：封面、摘要、目录、章节、附录、索引、致谢全走类的那一套，
-% 版心、字体、页眉、行距与断行也是类的。这个包只补 \pkg{doc} 那一层——
-% \cs{DescribeMacro} 那种挂在页边的 API 记号、\env{macrocode} 的代码、
-% \cs{changes} 的修改记录与索引——再加代码块的高亮与几个排记号的小宏。
-% 于是模板的每一处改动，先在这本手册上照出来。
-%
-% \emph{要用类的东西就别在这里重设。} 原先这个包自己装 \pkg{ctex}、设字体、
-% 定版心、装 \pkg{fancyhdr}，那些现在都是类的活，这里再设一遍只会把类的版面
-% 顶掉。装的包只剩类没装而手册要用的：\pkg{hypdoc}（连带 \pkg{doc}）、
-% \pkg{listings}、\pkg{hologo}、\pkg{ninecolors}、\pkg{multicol}。
+% 手册由 \hithesis\ 排版，本包补充 API 标记、代码高亮、更新记录和索引样式。
 %
 % \section{\textsc{DocStrip} 的样式文件}
 % \changes{v3.2a}{2026/09/20}{手册样式单独成文件，手册改由 \cls{hithesis} 自己排（博士学位
@@ -56,8 +45,11 @@
 \let\theglossary\@undefined
 \let\endtheglossary\@undefined
 \NewCommandCopy\hit@dtx@maketitle\maketitle
+\NewCommandCopy\hit@dtx@tableofcontents\tableofcontents
 \RequirePackage{hypdoc}
+\RequirePackage{needspace}
 \RenewCommandCopy\maketitle\hit@dtx@maketitle
+\AddToHook{begindocument/end}{\RenewCommandCopy\tableofcontents\hit@dtx@tableofcontents}
 %    \end{macrocode}
 %
 % \pkg{hypdoc} 给每条索引项套自己的封装（\texttt{hdclindex}），\pkg{hyperref} 的
@@ -82,6 +74,74 @@
 }{}
 %    \end{macrocode}
 %
+% 字体预览复用类的角色与加载选项，独立字族不改变手册正文的字体配置。
+% 缺少预设字体时显示实际回退名称，避免将回退字样误标成原字体。
+%    \begin{macrocode}
+\ExplSyntaxOn
+\prop_new:N \g__hit_doc_font_fallback_prop
+\tl_new:N \l__hit_doc_font_id_tl
+\tl_new:N \l__hit_doc_font_requested_tl
+\tl_new:N \l__hit_doc_font_actual_tl
+\prop_new:N \l__hit_doc_font_fandol_prop
+\cs_new_protected:Npn \__hit_doc_font_prepare:nn #1#2
+  {
+    \tl_set:Nn\l__hit_doc_font_id_tl{#1-#2}
+    \prop_get:NnN\g__hit_font_roles_prop{#2}\l__hit_doc_font_requested_tl
+    \tl_set_eq:NN\l__hit_doc_font_actual_tl\l__hit_doc_font_requested_tl
+    \exp_args:NV\__hit_font_family_available:nTF\l__hit_doc_font_requested_tl{}
+      {
+        \prop_get:NnN\l__hit_doc_font_fandol_prop{#2}\l__hit_doc_font_actual_tl
+        \prop_put:NnV\g__hit_font_roles_prop{#2}\l__hit_doc_font_actual_tl
+        \prop_gput:NVV\g__hit_doc_font_fallback_prop\l__hit_doc_font_id_tl\l__hit_doc_font_actual_tl
+      }
+    \clist_if_in:nnTF{songti,heiti,kaishu,fangsong}{#2}
+      {
+        \__hit_font_cjk_role:n{#2}
+        \use:e{\exp_not:N\setCJKfamilyfont{hitdoc-\l__hit_doc_font_id_tl}
+          {\exp_not:V\l__hit_font_role_name_tl}[\exp_not:V\l__hit_font_role_options_tl]}
+        \cs_gset_protected:cpx{hit@doc@font@\l__hit_doc_font_id_tl}
+          {\exp_not:N\CJKfamily{hitdoc-\l__hit_doc_font_id_tl}}
+      }
+      {
+        \exp_args:NNV\__hit_font_latin_set:Nn\fontspec\l__hit_doc_font_actual_tl
+        \cs_gset_protected:cpx{hit@doc@font@\l__hit_doc_font_id_tl}
+          {\exp_not:N\fontfamily{\f@family}\exp_not:N\selectfont}
+      }
+    \iow_log:x{hithesis~font~sample~\l__hit_doc_font_id_tl~=~\l__hit_doc_font_actual_tl}
+  }
+\group_begin:
+  \prop_get:NnN\g__hit_font_presets_prop{fandol}\l_tmpa_tl
+  \prop_set_from_keyval:NV\l__hit_doc_font_fandol_prop\l_tmpa_tl
+  \clist_map_inline:nn{windows,macos,founder,noto,fandol}
+    {
+      \prop_get:NnN\g__hit_font_presets_prop{#1}\l_tmpa_tl
+      \prop_set_from_keyval:NV\g__hit_font_roles_prop\l_tmpa_tl
+      \clist_map_inline:nn{songti,heiti,kaishu,fangsong,serif,sans,mono}
+        {\__hit_doc_font_prepare:nn{#1}{##1}}
+    }
+\group_end:
+\NewDocumentCommand\hitFontSample{mmm}
+  {
+    \group_begin:
+      \normalfont\raggedright
+      {\fontsize{8bp}{10bp}\selectfont #3\par}
+      \prop_get:NnNT\g__hit_doc_font_fallback_prop{#1-#2}\l_tmpa_tl
+        {{\fontsize{8bp}{10bp}\selectfont 回退：\l_tmpa_tl\par}}
+      {\use:c{hit@doc@font@#1-#2}\fontsize{10.5bp}{14bp}\selectfont
+        \clist_if_in:nnTF{songti,heiti,kaishu,fangsong}{#2}{中文字体示例}{AaBb~0123}\par}
+    \group_end:
+  }
+\NewDocumentCommand\hitBaselineSample{mmm}
+  {
+    \group_begin:
+      \__hit_font_baseline_enable:n{#3}
+      \normalfont\use:c{hit@doc@font@#1-#2}\fontsize{12bp}{16bp}\selectfont
+      \leavevmode\rlap{\color{gray}\rule{48bp}{0.2bp}}国永哈中
+    \group_end:
+  }
+\ExplSyntaxOff
+%    \end{macrocode}
+%
 % 原先手册用 \cls{ltxdoc}，它在 \pkg{doc} 之上给的几样东西这里照抄：代码按行编号，
 % \textbar\ 当短抄录，\cs{marg}、\cs{oarg}、\cs{parg} 排参数，\cs{cmd} 排一个宏名。
 % \cs{StandardModuleDepth} 设 1，守卫块里第一层模块名不排进代码。
@@ -99,16 +159,13 @@
 \def\cmd@to@cs#1#2{\char\number`#2\relax}
 %    \end{macrocode}
 %
-% 页边的 API 记号。类在 \pkg{geometry} 里写的是 \texttt{nomarginpar}，
-% \cs{marginparwidth} 与 \cs{marginparsep} 都是零，\cs{DescribeMacro} 挂上去
-% 就是一个零宽的盒子。左页边是 30\,mm，留 3\,mm 的隙、记号宽 24\,mm，
-% 长一点的宏名从记号的左边溢出去，不进版心。\pkg{doc} 自己已经把记号翻到
-% 左边（\cs{reversemarginpar}）。等 \pkg{geometry} 算完再设，所以放在
-% \texttt{begindocument}。
+% API 标记固定放在左页边，条目间预留空间以容纳多行键名。
 %    \begin{macrocode}
 \AtBeginDocument{%
   \setlength{\marginparwidth}{24mm}%
   \setlength{\marginparsep}{3mm}%
+  \setlength{\marginparpush}{1bp}%
+  \@mparswitchfalse
   \reversemarginpar}
 %    \end{macrocode}
 %
@@ -272,17 +329,50 @@
 %
 %    \begin{macrocode}
 \patchcmd{\PrintMacroName}{\MacroFont}{\MacroFont\bfseries\color{hit@macro}}{}{}
-\patchcmd{\PrintDescribeMacro}{\MacroFont}{\MacroFont\bfseries\color{hit@macro}}{}{}
-\patchcmd{\PrintDescribeEnv}{\MacroFont}{\MacroFont\bfseries\color{hit@env}}{}{}
 \patchcmd{\PrintEnvName}{\MacroFont}{\MacroFont\bfseries\color{hit@env}}{}{}
 
+\newcommand\hit@doc@entry{%
+  \par\addvspace{10bp}%
+  \needspace{3\baselineskip}%
+  \noindent}
+\NewCommandCopy\hit@doc@DescribeMacro\DescribeMacro
+\NewCommandCopy\hit@doc@DescribeEnv\DescribeEnv
+\renewcommand\DescribeMacro{\hit@doc@entry\hit@doc@DescribeMacro}
+\renewcommand\DescribeEnv{\hit@doc@entry\hit@doc@DescribeEnv}
+\ExplSyntaxOn
+\box_new:N \l__hit_doc_label_box
+\cs_new_protected:Npn \hit@doc@label #1
+  {
+    \group_begin:
+      \bool_set_true:N \l_docxlike_format_in_header_bool
+      \cs_if_exist:NT \docxlike@linebreak@attr
+        { \docxlike@linebreak@attr = 0 \scan_stop: }
+      \MacroFont \fontsize{8bp}{9bp}\selectfont
+      \raggedleft \parindent=0pt \parskip=0pt
+      #1\par
+    \group_end:
+  }
+\cs_new_protected:Npn \hit@doc@fitlabel #1
+  {
+    \hbox_set:Nn \l__hit_doc_label_box {#1}
+    \dim_compare:nNnTF {\box_wd:N\l__hit_doc_label_box} > {\marginparwidth}
+      {\resizebox{\marginparwidth}{!}{\box_use:N\l__hit_doc_label_box}}
+      {\box_use:N\l__hit_doc_label_box}
+  }
+\ExplSyntaxOff
+\renewcommand\PrintDescribeMacro[1]{%
+  \hit@doc@label{\bfseries\color{hit@macro}\hit@doc@fitlabel{\string#1}}}
+\renewcommand\PrintDescribeEnv[1]{%
+  \hit@doc@label{\bfseries\color{hit@env}\hit@doc@fitlabel{#1}\par\normalfont\scriptsize(env.)}}
 \def\DescribeOption{%
+  \hit@doc@entry
   \leavevmode\@bsphack\begingroup\MakePrivateLetters%
   \Describe@Option}
 \def\Describe@Option#1{\endgroup
   \marginpar{\raggedleft\PrintDescribeOption{#1}}%
   \hit@special@index{option}{#1}\@esphack\ignorespaces}
-\def\PrintDescribeOption#1{\strut \MacroFont\bfseries\sffamily\color{hit@option} #1\ }
+\def\PrintDescribeOption#1{%
+  \hit@doc@label{\strut\bfseries\sffamily\color{hit@option}#1}}
 \def\hit@special@index#1#2{\@bsphack
   \begingroup
     \HD@target
@@ -392,7 +482,7 @@
 
 \setlist{nosep}
 
-\DeclareDocumentCommand{\option}{}{\meta}
+\DeclareDocumentCommand{\option}{m}{\texttt{#1}}
 \DeclareDocumentCommand{\env}{m}{\textbf{\texttt{#1}}}
 \DeclareDocumentCommand{\pkg}{s m}{%
   \textsf{#2}\IfBooleanF#1{\hit@special@index{package}{#2}}}

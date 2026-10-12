@@ -37,20 +37,18 @@ STY_SECTION = "示例宏包"
 # \cs_set 与 \Renew… 不会，两类都要认：重定义上游命令同样落在公开面上。
 DEFINE = re.compile(
     r"\\(?:cs_new(?:_protected)?(?:_nopar)?:(?:Npn|cpn)"
-    r"|cs_set(?:_protected)?(?:_nopar)?:(?:Npn|cpn)"
+    r"|cs_(?:g)?set(?:_protected)?(?:_nopar)?:(?:Npn|cpn)"
     r"|New(?:Expandable)?DocumentCommand|RenewDocumentCommand|DeclareRobustCommand|NewCommandCopy"
     r"|newcommand\*?|renewcommand\*?|providecommand\*?|def|gdef"
     r"|NewDocumentEnvironment|RenewDocumentEnvironment|newenvironment\*?|renewenvironment\*?"
-    r"|newfloatlist|newfixedcaption)\s*\\?\{?\\([a-zA-Z]+)(?![a-zA-Z_:])"
+    r"|newfloatlist|newfixedcaption)\s*\\?\{?\\([a-zA-Z]+)(?![a-zA-Z_:@])"
 )
 
 # 正则在 @ 处截断留下的残片，不是真名字
 JUNK = {"CJK", "CTEX", "LT", "NAT", "ext", "make", "p", "tagform", "def", "bibstyle", "fnum", "pp", "algocf", "lst"}
 
-# 名字后面跟 _ 或 : 的由上面那个前瞻挡掉：那是 expl3 的内部名，用户打不出来。
-# 挡的是 \xeCJK_space_or_xecglue: 这种。截到 \xeCJK 就成了“类里定义了 \xeCJK”，
-# 而 xeCJK 那个名字是宏包的 logo 命令，根本不在这里定义。@ 那一头不能照办：
-# \hit@… 截出来的 hit 与真有其人的 \hit 同名，只能靠 JUNK 逐个列。
+# 使用前瞻排除私有名称后缀，避免将内部命令截断成公开名称。
+# 真正的 \hit 仍可匹配，\hit@... 不会匹配为 hit。
 
 
 def scan(name):

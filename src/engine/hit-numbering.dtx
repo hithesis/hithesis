@@ -1,0 +1,137 @@
+% \iffalse meta-comment
+%
+% hit-numbering.dtx 是图表、算法、代码清单与公式的编号切换
+%
+% \fi
+%
+% \section{图表与公式编号}
+%
+% \changes{v3.2a}{2026/09/30}{编号开关照 iota-hit 按顶层标题或全文连续编号，
+%   \texttt{auto} 恢复各变体原有的格式与重置关系，附录不覆盖用户显式选择}
+%
+% 报告各变体的默认编号并不相同；保存格式与计数器的父级，才能在 \texttt{auto} 时恢复。
+% 算法和清单的计数器由宏包延后创建，各自的装配处也调用初始化，避免依赖钩子次序。
+%    \begin{macrocode}
+%<*shared-numbering>
+\prop_new:N \g__hit_numbering_parents_prop
+\tl_new:N \l__hit_numbering_parents_tl
+\bool_new:N \l__hit_numbering_parent_bool
+\cs_new_protected:Npn \__hit_numbering_parent:nn #1#2
+  {
+    \group_begin:
+      \bool_set_false:N \l__hit_numbering_parent_bool
+      \cs_set:Npn \@elt ##1
+        { \str_if_eq:nnT {##1} {#1} { \bool_set_true:N \l__hit_numbering_parent_bool } }
+      \use:c { cl@#2 }
+      \bool_if:NTF \l__hit_numbering_parent_bool
+        { \group_end: \tl_put_right:Nn \l__hit_numbering_parents_tl { #2 , } }
+        { \group_end: }
+  }
+\cs_new_protected:Npn \hit@numbering@counter@init:n #1
+  {
+    \cs_if_exist:cT { c@#1 }
+      {
+        \prop_if_in:NnF \g__hit_numbering_parents_prop {#1}
+          {
+            \cs_gset_eq:cc { hit@numbering@default@the#1 } { the#1 }
+            \cs_if_exist:cT { theH#1 }
+              { \cs_gset_eq:cc { hit@numbering@default@theH#1 } { theH#1 } }
+            \tl_clear:N \l__hit_numbering_parents_tl
+            \clist_map_inline:nn { chapter , section }
+              { \__hit_numbering_parent:nn {#1} {##1} }
+            \prop_gput:NnV \g__hit_numbering_parents_prop {#1} \l__hit_numbering_parents_tl
+            \str_if_eq:eeF { \hit@numbering@mode:n {#1} } { auto }
+              { \hit@numbering@counter@apply:n {#1} }
+          }
+      }
+  }
+\cs_new:Npn \hit@numbering@mode:n #1
+  {
+    \str_if_eq:nnTF {#1} { equation }
+      { \tl_use:N \g__hit_equation_numbering_tl }
+      { \tl_use:N \g__hit_caption_numbering_tl }
+  }
+\cs_new_protected:Npn \hit@numbering@counter@apply:n #1
+  {
+    \prop_get:NnNT \g__hit_numbering_parents_prop {#1} \l__hit_numbering_parents_tl
+      {
+        \@removefromreset {#1} { chapter }
+        \@removefromreset {#1} { section }
+        \str_case_e:nn { \hit@numbering@mode:n {#1} }
+          {
+            { auto }
+              {
+                \exp_args:NV \clist_map_inline:nn \l__hit_numbering_parents_tl
+                  { \@addtoreset {#1} {##1} }
+                \cs_gset_eq:cc { the#1 } { hit@numbering@default@the#1 }
+                \cs_if_exist:cTF { hit@numbering@default@theH#1 }
+                  { \cs_gset_eq:cc { theH#1 } { hit@numbering@default@theH#1 } }
+                  { \cs_undefine:c { theH#1 } }
+              }
+            { true }
+              {
+                \bool_if:NTF \g__hit_final_bool
+                  {
+                    \@addtoreset {#1} { chapter }
+                    \cs_gset:cpn { the#1 } { \thechapter - \arabic {#1} }
+                    \cs_gset:cpn { theH#1 } { \theHchapter . \arabic {#1} }
+                  }
+                  {
+                    \@addtoreset {#1} { section }
+                    \cs_gset:cpn { the#1 } { \thesection - \arabic {#1} }
+                    \cs_gset:cpn { theH#1 } { \theHsection . \arabic {#1} }
+                  }
+              }
+            { false }
+              {
+                \cs_gset:cpn { the#1 } { \arabic {#1} }
+                \cs_gset:cpn { theH#1 } { \arabic {#1} }
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \hit@numbering@set:nn #1#2
+  {
+    \str_case:nnF {#2}
+      {
+        { auto }  { \tl_gset:cn { g__hit_#1_numbering_tl } {#2} }
+        { true }  { \tl_gset:cn { g__hit_#1_numbering_tl } {#2} }
+        { false } { \tl_gset:cn { g__hit_#1_numbering_tl } {#2} }
+      }
+      { \msg_error:nnnn { hithesis } { tristate-value } { #1-numbering-by-top-level-heading } {#2} }
+    \str_if_eq:nnTF {#1} { equation }
+      { \hit@numbering@counter@apply:n { equation } }
+      {
+        \clist_map_inline:nn { figure , table , algocf , lstlisting }
+          { \hit@numbering@counter@apply:n {##1} }
+      }
+  }
+%    \end{macrocode}
+%
+% 原来的附录入口先把三个格式换成附录章号；在这个时机保存附录的默认格式，再应用显式
+% 开关。连续编号不会被附录入口改回按章，切回 \texttt{auto} 也能得到附录字母。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@numbering@appendix:
+  {
+    \clist_map_inline:nn { figure , table , equation }
+      {
+        \prop_if_in:NnT \g__hit_numbering_parents_prop {##1}
+          {
+            \cs_gset_eq:cc { hit@numbering@default@the##1 } { the##1 }
+            \str_if_eq:eeF { \hit@numbering@mode:n {##1} } { auto }
+              { \hit@numbering@counter@apply:n {##1} }
+          }
+      }
+  }
+\cs_new_protected:Npn \hit@setup@numbering
+  {
+    \AddToHook { begindocument / end }
+      {
+        \clist_map_inline:nn { figure , table , equation }
+          { \hit@numbering@counter@init:n {##1} }
+      }
+  }
+%</shared-numbering>
+%    \end{macrocode}
+%
+% \Finale

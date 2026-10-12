@@ -25,7 +25,7 @@ endif
 
 NPROC ?= 8
 
-.PHONY: all cls docxlike-sync docxlike-check lineends lineends-self lineends-verb lineends-hang lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist eps2pdf logcheck logcheck-update version-changes \
+.PHONY: all cls docxlike-sync docxlike-check lineends lineends-self lineends-verb lineends-hang lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
         baseline smoke feature regression-test tl-packages testclean version version-check version-set
 
@@ -34,6 +34,7 @@ all: manual
 
 
 cls: $(TARGETS)
+	$(MAKE) --no-print-directory distribute
 
 # 行末回归：对拍件 tests/lineends（摘要与撰写规范章）与书写范例逐行比对
 # 行末距离：断行交给 TeX，与 Word 不会归零；--max-diff 是棘轮上限，
@@ -156,11 +157,11 @@ lineends-self-baseline:
 	  > /dev/null
 	{ echo '# 行末基线，由 scripts/check-line-ends.py --gen 生成'; \
 	  echo '# 来源：examples/demo/final.pdf，lualatex，fontset=windows，兼容模式默认（Word 2003）'; \
-	  echo '# 用途：自比对，钉住 Lua 断行层的现状；改断行规则后确认差异都是有意的，再用 make lineends-self-baseline 重制'; \
+	  echo '# 说明：断行回归基线；确认版面变化后用 make lineends-self-baseline 更新'; \
 	  python3 scripts/check-line-ends.py --gen examples/demo/final.pdf | tail -n +3; } > tests/lineends-demo.tsv
 	{ echo '# 行末基线，由 scripts/check-line-ends.py --gen 生成'; \
 	  echo '# 来源：tests/lineends/main.pdf（摘要与撰写规范章），lualatex，fontset=windows，兼容模式默认（Word 2003）'; \
-	  echo '# 用途：自比对，钉住 Lua 断行层的现状；改断行规则后确认差异都是有意的，再用 make lineends-self-baseline 重制'; \
+	  echo '# 说明：断行回归基线；确认版面变化后用 make lineends-self-baseline 更新'; \
 	  python3 scripts/check-line-ends.py --gen tests/lineends/main.pdf | tail -n +3; } > tests/lineends-self-regu.tsv
 
 # 解压走自解压的 dtx，不走 .ins：解压规则写在 src/hithesis.dtx 的 install 守卫里，
@@ -175,7 +176,6 @@ lineends-self-baseline:
 # make（在根目录跑）和 l3build（把源码拍平到 build/unpacked）都能找到。
 $(TARGETS): $(SOURCES)
 	TEXINPUTS=src:src/engine:src/docxlike:src/config:src/flow:src/pages:src/assets:src/manual: xetex -interaction=nonstopmode src/$(PACKAGE).dtx
-	$(MAKE) --no-print-directory distribute
 
 # .ins 只生成到根目录，示例目录里的那份由这里分发。
 # 这样 docstrip 的输出不依赖调用时的当前目录，l3build 的 unpack 才能直接用。
@@ -186,7 +186,7 @@ $(TARGETS): $(SOURCES)
 DISTFILES = $(shell python3 scripts/products.py --dist)
 FIGFILES  = $(shell python3 scripts/products.py --figures)
 
-distribute:
+distribute: figures
 	@cp $(DISTFILES) examples/demo/
 	@mkdir -p examples/demo/figures && cp $(FIGFILES) examples/demo/figures/
 
@@ -210,7 +210,7 @@ viewdoc:
 
 ifeq ($(METHOD),latexmk)
 
-$(PACKAGE).pdf: $(TARGETS)
+$(PACKAGE).pdf: $(TARGETS) hithesis-changes.tex
 	TEXINPUTS=src:src/engine:src/docxlike:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) $(LATEXMKOPTS) src/$(PACKAGE).dtx
 
 else ifneq ($(filter $(METHOD),xelatex lualatex),)
@@ -227,17 +227,20 @@ else ifneq ($(filter $(METHOD),xelatex lualatex),)
 # makeindex 排在后面，于是上一轮的陈旧内容会进这一轮的第一遍。改了 \changes
 # 条目之后这一点会直接炸——旧 .gls 里那条记录还带着改之前的花括号，报
 # “Extra }”，而源码本身是好的。踩过两次。
-$(PACKAGE).pdf: $(TARGETS)
+$(PACKAGE).pdf: $(TARGETS) hithesis-changes.tex
 	-$(RM) $(PACKAGE).gls $(PACKAGE).glo $(PACKAGE).ind $(PACKAGE).idx
 	TEXINPUTS=src:src/engine:src/docxlike:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
-	upmendex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx
-	makeindex -s gglo.ist -o $(PACKAGE).gls $(PACKAGE).glo
+	@if test -s $(PACKAGE).idx; then upmendex -s gind.ist -o $(PACKAGE).ind $(PACKAGE).idx; fi
+	@if test -s $(PACKAGE).glo; then makeindex -s gglo.ist -o $(PACKAGE).gls $(PACKAGE).glo; fi
 	TEXINPUTS=src:src/engine:src/docxlike:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 	TEXINPUTS=src:src/engine:src/docxlike:src/config:src/flow:src/pages:src/assets:src/manual: $(METHOD) -interaction=nonstopmode src/$(PACKAGE).dtx
 
 else
 $(error Unknown METHOD: $(METHOD))
 endif
+
+hithesis-changes.tex: $(SOURCES) scripts/changes.py
+	python3 scripts/changes.py --latex
 
 dist: all
 	-$(RM) $(PACKAGE)-$(VERSION).zip
@@ -287,6 +290,10 @@ doc-check:
 testclean:
 	-rm -rf tests/work tests/current tests/diff tests/doc-current tests/doc-diff
 
+.PHONY: tidy
+tidy:
+	python3 scripts/clean-workspace.py --apply
+
 auxclean:
 	latexmk -c src/$(PACKAGE).dtx
 	-$(RM) *.glo *.gls *.hd
@@ -331,26 +338,10 @@ inscheck:
 	  || { echo "hithesis.ins 与 src/hithesis.dtx 的 install 守卫不同步，把上面的改动提交进去"; exit 1; }
 	@echo "hithesis.ins 与源同步"
 
-# 示例用的两份图像转成 PDF 提交进仓库。XeLaTeX 不认 EPS，是把文件丢给 xdvipdfmx
-# 调 ghostscript 转，也就是每个用户都得装 gs 才编得出来。事先转好随包发，
-# gs 就只有维护者跑这条时要。
-#
-# EPS 留在 hit-eps.dtx 里当可读、可 diff 的源；改图动那边，再跑一次这个。
-# 哈希记进 tools/eps.sha256，make productcheck 靠它发现“改了 EPS 忘了重转”。
-EPSSOURCES = $(shell python3 scripts/products.py --eps)
-
-# 三个 gs 选项是为了可复现：不加的话 ghostscript 会把当前时间写进 PDF 的
-# XMP 元数据、再塞一个随机 /ID，每跑一次都产出新字节，assets/ 平白多一堆 diff。
-# SOURCE_DATE_EPOCH 在这条路上不管用，epstopdf 只是转调 gs，那个环境变量到不了。
-eps2pdf: cls
-	@mkdir -p assets
-	@for f in $(EPSSOURCES); do \
-	  epstopdf --gsopt=-dOmitInfoDate=true --gsopt=-dOmitID=true \
-	           --gsopt=-dOmitXMP=true \
-	           --outfile=assets/$${f%.eps}.pdf $$f || exit 1; \
-	done
-	@shasum -a 256 $(EPSSOURCES) > tools/eps.sha256
-	@echo "assets/ 里 $(words $(EPSSOURCES)) 份 PDF 已更新，哈希记进 tools/eps.sha256"
+# 图源由 docstrip 提取；仅在源码或 PDF 哈希变化时重绘。
+.PHONY: figures
+figures: $(TARGETS)
+	@python3 scripts/example-figures.py
 
 # 两个类骨架开头的装配表与 install 守卫比对。装配表是给开发者用的路标：
 # 想知道“章节标题在哪处理”，看 src/hithesis.dtx 开头那张装配表就够。

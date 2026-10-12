@@ -6,16 +6,17 @@
 %
 % \section{共享脚注层}
 %
+% \changes{v3.2a}{2026/10/08}{画圈的几何照 Typst \pkg{quan} 0.3.0 的 \texttt{digit-fit} 重写：圈径与圈线粗细取自宋体
+%   角色字体的 \texttt{⑩}，圈里数字按分组缩放、偏移；内建宋体查表，用户指定的字体现场量；
+%   数字一律用宋体角色字体（\hologo{LuaLaTeX} 下也是）；不再依赖 \pkg{circledsteps}，改用 \pkg{pict2e}}
 % \changes{v3.2a}{2026/09/27}{带圈脚注号按码位排中文字走引擎层：\hologo{pdfLaTeX} 下 \cs{char} 排不了 255 以上的码位}
 % \changes{v3.2a}{2026/08/15}{脚注层抽出来共用，报告的脚注由此也是带圈编号、小五宋体；
-%   \cs{quan} 先取当前宋体的带圈字符，超出才用 \pkg{circledsteps} 画（几何按字体自带的
+%   \cs{quan} 先取当前宋体的带圈字符，超出才自己画（几何按字体自带的
 %   \texttt{U+2460} 定）；\cs{@makefntext} 改成包一层（\cs{pretocmd} 在 expl3 里会吃掉
 %   字面空格，脚注整块上移 4.2bp）；\option{layout}/\option{bottom} 的两支各发
 %   \cs{raggedbottom} 或 \cs{flushbottom}，推迟到 \texttt{begindocument}}
 %
-% 我工规范对脚注的要求各个类是一样的：编号带圈、按页重编、宋体小五、悬挂 1.5 字符。
-% 原来这套只写在终稿里，报告用的还是 \hologo{LaTeX} 默认的
-% 上标阿拉伯数字。
+% 提供带圈数字及报告脚注样式，终稿脚注由 docxlike 处理。
 %
 % 分成两截。\cs{hit@setup@footnote@packages} 只管加载 \pkg{footmisc}，位置要留在依赖模块
 % 里不能动；\cs{hit@setup@footnote} 管余下的样式，得排在 \pkg{footmisc} 与字号都就位
@@ -54,132 +55,656 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% \begin{macro}{\hit@setup@footnote}
+% \section{带圈数字}
+% \begin{macro}{\quan}
+%
+% \cs{quan} 先取当前宋体里现成的带圈字符，字体没有才自己画。画出来的圈要与字体自带的
+% \texttt{①}--\texttt{⑩} 对得上，口径与 Typst 的 \pkg{quan} 0.3.0（\texttt{digit-fit}）一致：
+% 圈径、圈线粗细取自参照字形，圈里数字的高、宽、偏移按数字分组定。
+%
+% 圈里的数字与参照字形一律取宋体角色（\texttt{songti}）的字体，不跟当前的中文字体走：
+% \hologo{LuaLaTeX} 下 ASCII 数字被 \pkg{luatexja} 留在西文字符范围，切不到和文字体，所以
+% 用 \pkg{fontspec} 按宋体角色单独声明一个字族，两个引擎行为一致。字族在第一次画圈时才声明，
+% 那时字体角色表已经定稿。
+%
+% 数据分两级。
+% \begin{itemize}
+%   \item 内建字体（预设里的宋体：SimSun、Songti~SC、FZShuSong、FandolSong、Noto~Serif~CJK~SC）
+%     直接查表，表是 \pkg{quan} 0.3.0 离线标定的，只收「圈码字体 = 数字字体」的那一列。
+%   \item 用户自己指定的字体表里没有，现场量：圈径、数字的墨迹高宽都从实际字形取，
+%     数字高宽比例用 \pkg{quan} 的通用近似（\texttt{\_FIT-APPROX}，各圈码来源等权汇总），
+%     圈线粗细取 \texttt{0.0315em}（粗体乘 1.45）。圈线粗细读不到字形轮廓
+%     （\pkg{luaotfload} 不保留轮廓），只能退到这个常数。
+% \end{itemize}
+%
+% 表项为 \texttt{字体/字重/分组}，值依次是水平缩放、数字高占圈高的比例、水平偏移、垂直偏移
+% （后两项以圈高为单位，垂直向下为正）、小字号（10bp 及以下）与大字号（24bp 及以上）的宽度系数。
+% 分组是：单个 1、其余单个数字、11、含 1 的两位数、其余两位数。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@setup@footnote
+\prop_const_from_keyval:Nn \c__hit_quan_fit_prop
   {
+    fandolsong/regular/single-1 = {1.0000,0.6400,0.0000,0.0200,1.000,1.000},
+    fandolsong/regular/single = {1.0000,0.6600,0.0000,0.0300,1.000,1.000},
+    fandolsong/regular/all-ones = {0.7485,0.6600,0.0175,0.0300,0.688,0.872},
+    fandolsong/regular/two-with-1 = {0.7485,0.6600,0.0175,0.0300,0.611,0.780},
+    fandolsong/regular/two = {0.7485,0.6600,0.0175,0.0300,0.611,0.780},
+    fandolsong/bold/single-1 = {1.0000,0.6300,0.0000,-0.0350,1.000,1.000},
+    fandolsong/bold/single = {1.0000,0.6400,0.0000,-0.0300,1.000,1.000},
+    fandolsong/bold/all-ones = {0.7485,0.6600,0.0175,0.0300,0.587,0.796},
+    fandolsong/bold/two-with-1 = {0.7485,0.6600,0.0175,0.0300,0.546,0.712},
+    fandolsong/bold/two = {0.7485,0.6600,0.0175,0.0300,0.546,0.712},
+    fzshusong-z01s/regular/single-1 = {1.1636,0.6923,0.0000,0.0055,1.000,1.000},
+    fzshusong-z01s/regular/single = {1.0430,0.7060,0.0000,0.0069,0.878,1.000},
+    fzshusong-z01s/bold/single-1 = {1.1636,0.6923,0.0000,0.0055,1.000,1.000},
+    fzshusong-z01s/bold/single = {1.0430,0.7060,0.0000,0.0069,0.747,1.000},
+    noto-serif-cjk-sc/regular/single-1 = {0.8986,0.5674,-0.0056,-0.0140,1.000,1.000},
+    noto-serif-cjk-sc/regular/single = {0.8104,0.5730,0.0028,-0.0084,1.000,1.000},
+    noto-serif-cjk-sc/regular/all-ones = {0.6101,0.5674,-0.0028,-0.0140,1.000,1.000},
+    noto-serif-cjk-sc/regular/two-with-1 = {0.6086,0.5758,0.0084,-0.0098,1.000,1.000},
+    noto-serif-cjk-sc/regular/two = {0.6406,0.5787,-0.0042,-0.0084,0.911,0.974},
+    noto-serif-cjk-sc/bold/single-1 = {0.8889,0.5611,-0.0056,-0.0139,1.000,1.000},
+    noto-serif-cjk-sc/bold/single = {0.7905,0.5722,0.0000,-0.0056,1.000,1.000},
+    noto-serif-cjk-sc/bold/all-ones = {0.6358,0.5611,-0.0028,-0.0139,1.000,1.000},
+    noto-serif-cjk-sc/bold/two-with-1 = {0.6027,0.5722,0.0069,-0.0083,0.945,1.000},
+    noto-serif-cjk-sc/bold/two = {0.6097,0.5722,-0.0042,-0.0083,0.819,0.924},
+    simsun/regular/single-1 = {0.9455,0.5989,0.0000,0.0028,1.000,1.000},
+    simsun/regular/single = {1.0998,0.6130,-0.0056,0.0000,1.000,1.000},
+    simsun/regular/all-ones = {0.6125,0.6045,0.0141,-0.0056,1.000,1.000},
+    simsun/regular/two-with-1 = {0.6125,0.6045,0.0141,-0.0056,1.000,1.000},
+    simsun/regular/two = {0.6125,0.6045,0.0141,-0.0056,1.000,1.000},
+    simsun/bold/single-1 = {0.9455,0.5989,0.0000,0.0028,1.000,1.000},
+    simsun/bold/single = {1.0998,0.6130,-0.0056,0.0000,1.000,1.000},
+    simsun/bold/all-ones = {0.6125,0.6045,0.0141,-0.0056,1.000,1.000},
+    simsun/bold/two-with-1 = {0.6125,0.6045,0.0141,-0.0056,0.945,1.000},
+    simsun/bold/two = {0.6125,0.6045,0.0141,-0.0056,0.945,1.000},
+    songti-sc/regular/single-1 = {1.2909,0.7039,0.0028,-0.0307,1.000,1.000},
+    songti-sc/regular/single = {1.0000,0.7039,0.0000,-0.0140,1.000,1.000},
+    songti-sc/regular/all-ones = {0.7862,0.7062,0.0000,-0.0282,0.882,1.000},
+    songti-sc/regular/two-with-1 = {0.7143,0.7401,0.0056,-0.0169,0.646,0.748},
+    songti-sc/regular/two = {0.7143,0.7401,0.0056,-0.0169,0.550,0.681},
+    songti-sc/bold/single-1 = {0.9167,0.7017,-0.0166,-0.0166,1.000,1.000},
+    songti-sc/bold/single = {1.0310,0.7348,-0.0083,0.0000,0.867,1.000},
+    songti-sc/bold/all-ones = {0.6400,0.6906,-0.0028,-0.0166,0.942,1.000},
+    songti-sc/bold/two-with-1 = {0.6605,0.7072,0.0221,-0.0069,0.571,0.783},
+    songti-sc/bold/two = {0.6824,0.7017,0.0193,-0.0166,0.459,0.682},
+  }
 %    \end{macrocode}
 %
-% 带圈脚注号原来用 \cs{textcircled}，它是拿字体里的组合用圈套上数字，圈偏、数字
-% 也不居中。改用 \pkg{circledsteps} 的 \cs{Circled}，圈是 Ti\emph{k}Z 画的，位置
-% 正、两位数还会自动加宽。
+% 原生 \texttt{①}--\texttt{⑩} 的圈线厚度与外径之比，依次为常规与粗体。别名把地区变体
+% 并到同一副字体上（只标定过 SC 版，其余沿用），\texttt{FZShuSong-Z01} 与标定表里的
+% \texttt{fzshusong-z01s} 是同一副。键是字体名小写、空格换成连字符。
 %    \begin{macrocode}
-\RequirePackage{circledsteps}
+\prop_const_from_keyval:Nn \c__hit_quan_stroke_prop
+  {
+    simsun = {0.03530,0.03530},
+    libertinus-serif = {0.05589,0.06587},
+    noto-serif-cjk-sc = {0.03123,0.03553},
+    noto-sans-cjk-sc = {0.03412,0.03910},
+    songti-sc = {0.03421,0.06352},
+    fzshusong-z01s = {0.02877,0.02877},
+    fandolsong = {0.03827,0.03829},
+    heiti-sc = {0.06343,0.06343},
+    pingfang-sc = {0.03815,0.04839},
+    microsoft-yahei = {0.06483,0.06483},
+    simhei = {0.04881,0.04881},
+    kaiti = {0.04881,0.04881},
+    fangsong = {0.03513,0.03513},
+    hiragino-sans-gb = {0.03450,0.04383},
+    stsong = {0.02805,0.02805},
+  }
+\prop_const_from_keyval:Nn \c__hit_quan_alias_prop
+  {
+    nsimsun = simsun,
+    fzshusong-z01 = fzshusong-z01s,
+    noto-serif-cjk-tc = noto-serif-cjk-sc,
+    noto-serif-cjk-jp = noto-serif-cjk-sc,
+    noto-serif-cjk-kr = noto-serif-cjk-sc,
+    source-han-serif-sc = noto-serif-cjk-sc,
+    source-han-serif = noto-serif-cjk-sc,
+    noto-sans-cjk-tc = noto-sans-cjk-sc,
+    noto-sans-cjk-jp = noto-sans-cjk-sc,
+    noto-sans-cjk-kr = noto-sans-cjk-sc,
+    source-han-sans-sc = noto-sans-cjk-sc,
+    source-han-sans = noto-sans-cjk-sc,
+  }
 %    \end{macrocode}
 %
-% \cs{Circled} 里字数一多圈就拉成椭圆。量一下内容比一位数宽多少，按这个比例横向
-% 压回去，圈就始终是正圆。原来那个模板用的是固定的 \texttt{0.45}，那是因为它的
-% 西文数字取自 SimSun、是全宽的；这里西文是比例宽度，固定常数不适用，改成算出来。
-%
-% \cs{quan} 一到两位、\cs{Quan} 任意位数、\cs{quansplit} 按位数分派——三个都保留，
-% 但压缩比例自动算，所以实际走的是同一条路。
+% 表里没有的字体用的通用近似：各圈码来源等权汇总的（水平缩放，数字高占内圈的比例）。
 %    \begin{macrocode}
-\box_new:N \l__hit_quan_content_box
-\box_new:N \l__hit_quan_mark_box
+\prop_const_from_keyval:Nn \c__hit_quan_approx_prop
+  {
+    regular/single-1 = {0.9803,0.6338},
+    regular/single = {0.9178,0.6471},
+    regular/all-ones = {0.6018,0.6063},
+    regular/two-with-1 = {0.6325,0.6341},
+    regular/two = {0.6440,0.5798},
+    bold/single-1 = {0.9047,0.6202},
+    bold/single = {0.9158,0.6354},
+    bold/all-ones = {0.5754,0.5782},
+    bold/two-with-1 = {0.6078,0.6057},
+    bold/two = {0.6383,0.5909},
+  }
+%    \end{macrocode}
+%
+% 变量。参照字形的墨迹高、深写在全局变量里，因为是在装圈号字体的组里量的。
+%    \begin{macrocode}
+\box_new:N \l__hit_quan_digits_box
+\box_new:N \l__hit_quan_ring_box
+\dim_new:N \g__hit_quan_ref_ht_dim
+\dim_new:N \g__hit_quan_ref_dp_dim
+\int_new:N \l__hit_quan_value_int
 \int_new:N \l__hit_quan_slot_int
-\dim_new:N \l__hit_quan_diameter_dim
-\fp_new:N \l__hit_quan_scale_fp
-\fp_new:N \l__hit_quan_squeeze_fp
-%    \end{macrocode}
-%
-% 圈里数字的横向压缩比例，与圈线的粗细（相对 em）。两个常数都是拿
-% \option{fontset}\texttt{=windows}（SimSun）的自带带圈字符量出来的：数字压到
-% 0.45 倍看着与字形版一致；字形的圈线粗细约为 0.034 em，而
-% \cs{linethickness} 的默认值是绝对长度，字号一放大就明显偏细，所以改成跟着 em 走。
-%    \begin{macrocode}
-\fp_const:Nn \c__hit_quan_fill_fp { 0.5 }
-\dim_const:Nn \c__hit_quan_rule_dim { 0.045em }
-%    \end{macrocode}
-%
-% 把当前 CJK 字体设成当前字体。\cs{songti} 只是选 CJK 家族，西文数字仍走西文字体；
-% 圈号里的数字要跟正文宋体一致，得真的切过去。
-%    \begin{macrocode}
-\cs_new_protected:Npn \__hit_use_cjk_font:
-  { \hit@engine@use@cjk@font: }
+\bool_new:N \l__hit_quan_bold_bool
+\bool_new:N \l__hit_quan_cal_bool
+\bool_new:N \l__hit_quan_fitted_bool
+\bool_new:N \l__hit_quan_first_bool
+\bool_new:N \g__hit_quan_font_tried_bool
+\tl_new:N \g__hit_quan_fontfam_tl
+\tl_new:N \g__hit_quan_family_tl
+\tl_new:N \l__hit_quan_fontfam_tl
+\tl_new:N \l__hit_quan_tmpx_tl
+\tl_new:N \l__hit_quan_tmpy_tl
+\tl_new:N \l__hit_quan_tmpd_tl
+\tl_new:N \l__hit_quan_entry_tl
+\tl_new:N \l__hit_quan_group_tl
+\tl_new:N \l__hit_quan_key_tl
+\str_new:N \l__hit_quan_digits_str
+\fp_new:N \l__hit_quan_fs_fp
+\fp_new:N \l__hit_quan_h_fp
+\fp_new:N \l__hit_quan_leg_fp
+\fp_new:N \l__hit_quan_t_fp
+\fp_new:N \l__hit_quan_w_fp
+\fp_new:N \l__hit_quan_inner_fp
+\fp_new:N \l__hit_quan_avail_fp
+\fp_new:N \l__hit_quan_clear_fp
+\fp_new:N \l__hit_quan_wd_fp
+\fp_new:N \l__hit_quan_hd_fp
+\fp_new:N \l__hit_quan_sx_fp
+\fp_new:N \l__hit_quan_sy_fp
+\fp_new:N \l__hit_quan_dx_fp
+\fp_new:N \l__hit_quan_dy_fp
+\fp_new:N \l__hit_quan_tmp_fp
 %    \end{macrocode}
 %
 % \texttt{n} 对应的带圈数字码位：1--20 在 \texttt{U+2460}，21--35 在
 % \texttt{U+3251}，36--50 在 \texttt{U+32B1}，超出范围返回 0。
 %    \begin{macrocode}
-\cs_new:Npn \__hit_quan_slot:n ##1
+\cs_new:Npn \__hit_quan_slot:n #1
   {
-    \int_compare:nNnTF {##1} < { 1 } { 0 }
+    \int_compare:nNnTF {#1} < { 1 } { 0 }
       {
-        \int_compare:nNnTF {##1} < { 21 } { \int_eval:n { ##1 - 1 + "2460 } }
+        \int_compare:nNnTF {#1} < { 21 } { \int_eval:n { #1 - 1 + "2460 } }
           {
-            \int_compare:nNnTF {##1} < { 36 } { \int_eval:n { ##1 - 21 + "3251 } }
+            \int_compare:nNnTF {#1} < { 36 } { \int_eval:n { #1 - 21 + "3251 } }
               {
-                \int_compare:nNnTF {##1} < { 51 }
-                  { \int_eval:n { ##1 - 36 + "32B1 } } { 0 }
+                \int_compare:nNnTF {#1} < { 51 }
+                  { \int_eval:n { #1 - 36 + "32B1 } } { 0 }
               }
           }
       }
   }
 %    \end{macrocode}
 %
-% 当前宋体有现成的带圈字符就直接用，字形比画出来的规整；没有才画。
+% 把当前字体设成宋体角色的圈号字族。不能在 \pkg{pdfLaTeX} 下用（那边中文字体不走 \pkg{fontspec}），
+% 字族没声明出来时什么也不做，数字就跟当前字体。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_quan_digit_font:
+  {
+    \tl_if_empty:NF \g__hit_quan_fontfam_tl
+      { \fontfamily { \g__hit_quan_fontfam_tl } \fontshape { n } \selectfont }
+  }
+%    \end{macrocode}
 %
-% 画的几何按字体自带的 \texttt{U+2460} 定：量出它的直径，数字缩到直径的一半（字形
-% 版里数字大致就占这个比例），剩下的补成 \pkg{circledsteps} 的内边距，圈就与字形版
-% 一样大、数字也一样大。位数多了只在横向压，圈保持正圆。圈线粗细跟 em 走——圈线粗细
-% 取 0.045~em，是拿 SimSun 的字形量出来的；\cs{linethickness} 的默认值是绝对长度，
-% 字号一放大就偏细，所以跟着 em 走。
+% 第一次画圈时按宋体角色声明圈号字族，同时定下查表用的字体键。选项取与中文宋体相同的那一份，
+% 去掉文字基线校正（那是给汉字字面用的，数字与圈是各自对齐的，不能让数字单独上下挪）。
+% 再关掉 \texttt{locl}：思源宋体（Noto Serif CJK）在拉丁文字（\texttt{latn}）下用 \texttt{locl}
+% 把阿拉伯数字换成另一套字形，“1”的宽从 0.471\,em 变成 0.550\,em，与 Typst 排出来的
+% 默认数字不同，校准表就对不上了。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_quan_font_ensure:
+  {
+    \bool_if:NF \g__hit_quan_font_tried_bool
+      {
+        \bool_gset_true:N \g__hit_quan_font_tried_bool
+        \sys_if_engine_pdftex:F
+          {
+            \cs_if_exist:NT \__hit_font_cjk_role:n
+              {
+                \group_begin:
+                  \__hit_font_cjk_role:n { songti }
+                  \regex_replace_once:nnN
+                    { ,? RawFeature = \{ [^\}]* \} } { } \l__hit_font_role_options_tl
+                  \tl_if_blank:VF \l__hit_font_role_options_tl
+                    { \tl_put_right:Nn \l__hit_font_role_options_tl { , } }
+                  \tl_put_right:Nn \l__hit_font_role_options_tl { RawFeature = { -locl } }
+                  \use:e
+                    {
+                      \exp_not:N \fontspec_set_family:Nnn \exp_not:N \l__hit_quan_fontfam_tl
+                        { \exp_not:V \l__hit_font_role_options_tl }
+                        { \exp_not:V \l__hit_font_role_name_tl }
+                    }
+                  \tl_gset_eq:NN \g__hit_quan_fontfam_tl \l__hit_quan_fontfam_tl
+                  \str_set:Nx \l_tmpa_str { \str_foldcase:V \l__hit_font_role_name_tl }
+                  \str_replace_all:Nnn \l_tmpa_str { ~ } { - }
+                  \prop_get:NVNF \c__hit_quan_alias_prop \l_tmpa_str \l_tmpb_str
+                    { \str_set_eq:NN \l_tmpb_str \l_tmpa_str }
+                  \tl_gset_eq:NN \g__hit_quan_family_tl \l_tmpb_str
+                \group_end:
+              }
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 量参照字形（\texttt{⑩}，没有就用 \texttt{①}）的墨迹高与深。\hologo{LuaLaTeX} 从当前字体的字符表取，
+% 因为盒子的高深在和文字体那边是字面框的值，不是墨迹；\hologo{XeLaTeX} 与 \hologo{pdfLaTeX} 直接量盒子。
+% 调用时当前字体必须已经是圈号字体。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  {
+    \cs_new_protected:Npn \__hit_quan_ink_set:w #1 , #2 \q_stop
+      {
+        \dim_gset:Nn \g__hit_quan_ref_ht_dim { #1 sp }
+        \dim_gset:Nn \g__hit_quan_ref_dp_dim { #2 sp }
+      }
+    \cs_new_protected:Npn \__hit_quan_ink:n #1
+      {
+        \use:e
+          {
+            \exp_not:N \__hit_quan_ink_set:w
+            \tex_directlua:D
+              {
+                local~f~=~font.getfont(font.current())~
+                local~c~=~f~and~f.characters~and~f.characters[\int_eval:n {#1}]~
+                if~c~and~c.height~then~
+                  tex.print(math.floor(c.height)..','..math.floor(math.max(c.depth~or~0,0)))
+                ~else~
+                  tex.print('0,0')
+                ~end
+              }
+            \exp_not:N \q_stop
+          }
+      }
+  }
+  {
+    \cs_new_protected:Npn \__hit_quan_ink:n #1
+      {
+        \hbox_set:Nn \l__hit_quan_ring_box { \hit@engine@char:n {#1} }
+        \dim_gset:Nn \g__hit_quan_ref_ht_dim { \box_ht:N \l__hit_quan_ring_box }
+        \dim_gset:Nn \g__hit_quan_ref_dp_dim { \box_dp:N \l__hit_quan_ring_box }
+      }
+  }
+\cs_new_protected:Npn \__hit_quan_measure_ref:
+  {
+    \group_begin:
+      \__hit_quan_digit_font:
+      \__hit_quan_ink:n { "2469 }
+      \dim_compare:nNnT { \g__hit_quan_ref_ht_dim + \g__hit_quan_ref_dp_dim } < { 0.1pt }
+        { \__hit_quan_ink:n { "2460 } }
+    \group_end:
+    \dim_compare:nNnT { \g__hit_quan_ref_ht_dim + \g__hit_quan_ref_dp_dim } < { 0.1pt }
+      {
+        \dim_gset:Nn \g__hit_quan_ref_ht_dim { \fp_to_dim:n { 0.824 * \dim_to_fp:n { \f@size pt } } }
+        \dim_gset:Nn \g__hit_quan_ref_dp_dim { \fp_to_dim:n { 0.113 * \dim_to_fp:n { \f@size pt } } }
+      }
+  }
+%    \end{macrocode}
+%
+% 数字分组，与 \pkg{quan} 的校准脚本一致。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_quan_group:
+  {
+    \int_compare:nNnTF { \l__hit_quan_value_int } < { 10 }
+      {
+        \int_compare:nNnTF { \l__hit_quan_value_int } = { 1 }
+          { \tl_set:Nn \l__hit_quan_group_tl { single-1 } }
+          { \tl_set:Nn \l__hit_quan_group_tl { single } }
+      }
+      {
+        \int_compare:nNnTF { \l__hit_quan_value_int } = { 11 }
+          { \tl_set:Nn \l__hit_quan_group_tl { all-ones } }
+          {
+            \str_if_in:NnTF \l__hit_quan_digits_str { 1 }
+              { \tl_set:Nn \l__hit_quan_group_tl { two-with-1 } }
+              { \tl_set:Nn \l__hit_quan_group_tl { two } }
+          }
+      }
+  }
+\cs_new:Npn \__hit_quan_entry:n #1
+  { \clist_item:Nn \l__hit_quan_entry_tl {#1} }
+%    \end{macrocode}
+%
+% 通用近似：数字之间加 \texttt{0.04em} 字距，高度按内圈的比例定，宽度不超出内圈的弦；
+% 三位及以上的数不分高宽，等比缩到放进内圈对角线。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_quan_fit_approx:
+  {
+    \hbox_set:Nn \l__hit_quan_digits_box
+      {
+        \__hit_quan_digit_font:
+        \bool_set_true:N \l__hit_quan_first_bool
+        \str_map_inline:Nn \l__hit_quan_digits_str
+          {
+            \bool_if:NTF \l__hit_quan_first_bool
+              { \bool_set_false:N \l__hit_quan_first_bool }
+              { \tex_kern:D 0.04em \scan_stop: }
+            ##1
+          }
+      }
+    \fp_set:Nn \l__hit_quan_wd_fp { \dim_to_fp:n { \box_wd:N \l__hit_quan_digits_box } }
+    \fp_set:Nn \l__hit_quan_hd_fp
+      { \dim_to_fp:n { \box_ht:N \l__hit_quan_digits_box + \box_dp:N \l__hit_quan_digits_box } }
+    \fp_set:Nn \l__hit_quan_inner_fp { max ( 0.01 , \l__hit_quan_inner_fp ) }
+    \int_compare:nNnTF { \l__hit_quan_value_int } < { 100 }
+      { }
+      { \tl_set:Nn \l__hit_quan_group_tl { two } }
+    \tl_set:Nx \l__hit_quan_key_tl
+      { \bool_if:NTF \l__hit_quan_bold_bool { bold } { regular } / \l__hit_quan_group_tl }
+    \prop_get:NVNT \c__hit_quan_approx_prop \l__hit_quan_key_tl \l__hit_quan_entry_tl
+      {
+        \fp_set:Nn \l__hit_quan_tmp_fp
+          { min ( \__hit_quan_entry:n { 2 } * \l__hit_quan_h_fp , 0.8 * \l__hit_quan_inner_fp ) }
+        \fp_set:Nn \l__hit_quan_sy_fp { \l__hit_quan_tmp_fp / \l__hit_quan_hd_fp }
+        \int_compare:nNnTF { \l__hit_quan_value_int } < { 100 }
+          {
+            \fp_set:Nn \l__hit_quan_sx_fp
+              {
+                min
+                  (
+                    \__hit_quan_entry:n { 1 } ,
+                    sqrt ( max ( 0 , \l__hit_quan_inner_fp ^ 2 - \l__hit_quan_tmp_fp ^ 2 ) )
+                      / \l__hit_quan_wd_fp
+                  )
+              }
+          }
+          {
+            \fp_set:Nn \l__hit_quan_sx_fp
+              {
+                min
+                  (
+                    \l__hit_quan_sy_fp ,
+                    \l__hit_quan_inner_fp
+                      / sqrt ( \l__hit_quan_wd_fp ^ 2 + \l__hit_quan_hd_fp ^ 2 )
+                  )
+              }
+            \fp_set_eq:NN \l__hit_quan_sy_fp \l__hit_quan_sx_fp
+          }
+        \fp_zero:N \l__hit_quan_dx_fp
+        \fp_zero:N \l__hit_quan_dy_fp
+      }
+  }
+%    \end{macrocode}
+%
+% 查表。有整组数据（一位、11、两位）就按表项放；组缺了、或者数在 0--99 以外，退到同位数的
+% 那一组只取数字高，等比缩放；连那一组也没有才走通用近似。宽度系数按字号在 10bp 与 24bp
+% 之间线性插值，圈线比原先粗时再乘一个余量系数。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_quan_fit:
+  {
+    \bool_set_false:N \l__hit_quan_fitted_bool
+    \hbox_set:Nn \l__hit_quan_digits_box
+      { \__hit_quan_digit_font: \str_use:N \l__hit_quan_digits_str }
+    \fp_set:Nn \l__hit_quan_wd_fp { \dim_to_fp:n { \box_wd:N \l__hit_quan_digits_box } }
+    \fp_set:Nn \l__hit_quan_hd_fp
+      { \dim_to_fp:n { \box_ht:N \l__hit_quan_digits_box + \box_dp:N \l__hit_quan_digits_box } }
+    \__hit_quan_group:
+    \int_compare:nNnT { \l__hit_quan_value_int } < { 100 }
+      {
+        \tl_set:Nx \l__hit_quan_key_tl
+          {
+            \g__hit_quan_family_tl /
+            \bool_if:NTF \l__hit_quan_bold_bool { bold } { regular } /
+            \l__hit_quan_group_tl
+          }
+        \prop_get:NVNT \c__hit_quan_fit_prop \l__hit_quan_key_tl \l__hit_quan_entry_tl
+          {
+            \bool_set_true:N \l__hit_quan_fitted_bool
+            \fp_set:Nn \l__hit_quan_tmp_fp
+              {
+                min ( 1 , max ( 0 , ( \l__hit_quan_fs_fp * 72 / 72.27 - 10 ) / 14 ) )
+              }
+            \fp_set:Nn \l__hit_quan_sx_fp
+              {
+                \__hit_quan_entry:n { 1 } *
+                ( \__hit_quan_entry:n { 5 }
+                  + ( \__hit_quan_entry:n { 6 } - \__hit_quan_entry:n { 5 } )
+                    * \l__hit_quan_tmp_fp )
+                * \l__hit_quan_clear_fp
+              }
+            \fp_set:Nn \l__hit_quan_sy_fp
+              { \__hit_quan_entry:n { 2 } * \l__hit_quan_h_fp / \l__hit_quan_hd_fp }
+            \fp_set:Nn \l__hit_quan_dx_fp { \__hit_quan_entry:n { 3 } * \l__hit_quan_h_fp }
+            \fp_set:Nn \l__hit_quan_dy_fp { \__hit_quan_entry:n { 4 } * \l__hit_quan_h_fp }
+          }
+      }
+    \bool_if:NF \l__hit_quan_fitted_bool
+      {
+        \tl_set:Nx \l__hit_quan_key_tl
+          {
+            \g__hit_quan_family_tl /
+            \bool_if:NTF \l__hit_quan_bold_bool { bold } { regular } /
+            \int_compare:nNnTF { \l__hit_quan_value_int } < { 10 } { single } { two }
+          }
+        \prop_get:NVNT \c__hit_quan_fit_prop \l__hit_quan_key_tl \l__hit_quan_entry_tl
+          {
+            \bool_set_true:N \l__hit_quan_fitted_bool
+            \fp_set:Nn \l__hit_quan_tmp_fp
+              { \__hit_quan_entry:n { 2 } * \l__hit_quan_h_fp / \l__hit_quan_hd_fp }
+            \fp_set:Nn \l__hit_quan_sx_fp
+              {
+                \l__hit_quan_tmp_fp
+                * min
+                    (
+                      1 ,
+                      \l__hit_quan_avail_fp
+                        / ( \l__hit_quan_tmp_fp
+                            * sqrt ( \l__hit_quan_wd_fp ^ 2 + \l__hit_quan_hd_fp ^ 2 ) )
+                    )
+              }
+            \fp_set_eq:NN \l__hit_quan_sy_fp \l__hit_quan_sx_fp
+            \fp_zero:N \l__hit_quan_dx_fp
+            \fp_zero:N \l__hit_quan_dy_fp
+          }
+      }
+    \bool_if:NF \l__hit_quan_fitted_bool { \__hit_quan_fit_approx: }
+  }
+%    \end{macrocode}
+%
+% 几何。圈径、圈线粗细、内圈大小与可用宽度都以参照字形的墨迹高 $H$ 为基准：圈外缘与参照字形等大，
+% 圈线中心线的直径是 $H$ 减圈线粗细；版面宽度是 $H$ 减常数圈线粗细（与圈线实际粗细无关，
+% 换字体时前后字符的间距不变），两侧各留 \texttt{0.05em} 与前后字符隔开。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_quan_geometry:
+  {
+    \fp_set:Nn \l__hit_quan_fs_fp { \dim_to_fp:n { \f@size pt } }
+    \fp_set:Nn \l__hit_quan_h_fp
+      { \dim_to_fp:n { \g__hit_quan_ref_ht_dim + \g__hit_quan_ref_dp_dim } }
+    \fp_set:Nn \l__hit_quan_leg_fp
+      {
+        0.0315 * \l__hit_quan_fs_fp * \bool_if:NTF \l__hit_quan_bold_bool { 1.45 } { 1 }
+      }
+    \bool_set_false:N \l__hit_quan_cal_bool
+    \prop_get:NVNT \c__hit_quan_stroke_prop \g__hit_quan_family_tl \l__hit_quan_entry_tl
+      {
+        \bool_set_true:N \l__hit_quan_cal_bool
+        \fp_set:Nn \l__hit_quan_t_fp
+          {
+            \l__hit_quan_h_fp
+            * \__hit_quan_entry:n { \bool_if:NTF \l__hit_quan_bold_bool { 2 } { 1 } }
+          }
+      }
+    \bool_if:NF \l__hit_quan_cal_bool { \fp_set_eq:NN \l__hit_quan_t_fp \l__hit_quan_leg_fp }
+    \fp_set:Nn \l__hit_quan_w_fp { max ( 1 , \l__hit_quan_h_fp - \l__hit_quan_leg_fp ) }
+    \fp_set:Nn \l__hit_quan_inner_fp
+      {
+        \l__hit_quan_h_fp - 2 * \l__hit_quan_t_fp
+        - 2 * max ( 0.02 * \l__hit_quan_h_fp , 0.12 )
+      }
+    \bool_if:NTF \l__hit_quan_cal_bool
+      {
+        \fp_set:Nn \l__hit_quan_avail_fp
+          {
+            max
+              (
+                1 ,
+                min
+                  (
+                    \l__hit_quan_w_fp - 0.1 * \l__hit_quan_fs_fp - \l__hit_quan_leg_fp ,
+                    \l__hit_quan_inner_fp
+                  )
+              )
+          }
+      }
+      {
+        \fp_set:Nn \l__hit_quan_avail_fp
+          {
+            max
+              (
+                1 ,
+                max ( 1 , \l__hit_quan_h_fp - \l__hit_quan_t_fp )
+                  - 0.1 * \l__hit_quan_fs_fp - \l__hit_quan_t_fp
+              )
+          }
+      }
+    \fp_set:Nn \l__hit_quan_clear_fp { 1 }
+    \bool_lazy_and:nnT
+      { \l__hit_quan_cal_bool }
+      { \fp_compare_p:nNn { \l__hit_quan_t_fp } > { \l__hit_quan_leg_fp } }
+      {
+        \fp_set:Nn \l__hit_quan_clear_fp
+          {
+            min
+              (
+                1 ,
+                max
+                  (
+                    0 ,
+                    \l__hit_quan_h_fp - 2 * \l__hit_quan_t_fp
+                    - 2 * max ( 0.005 * \l__hit_quan_h_fp , 0.12 )
+                  )
+                  / max ( 0.01 , \l__hit_quan_h_fp - 2 * \l__hit_quan_leg_fp )
+              )
+          }
+      }
+  }
+%    \end{macrocode}
+%
+% 排版：圈用 \pkg{pict2e} 画在宽度 $w$ 的盒子里，圆心在盒子水平中点、垂直落在参照字形的墨迹中点；
+% 数字缩放后让墨迹中心落在圆心加偏移（垂直偏移向下为正）。盒子的高深取参照字形的，
+% 不让圈把行撑高。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_quan_typeset:
+  {
+    \box_scale:Nnn \l__hit_quan_digits_box { \l__hit_quan_sx_fp } { \l__hit_quan_sy_fp }
+    \tl_set:Nx \l__hit_quan_tmpx_tl { \fp_to_decimal:n { \l__hit_quan_w_fp / 2 } }
+    \tl_set:Nx \l__hit_quan_tmpy_tl
+      { \fp_to_decimal:n { \dim_to_fp:n { \g__hit_quan_ref_ht_dim - \g__hit_quan_ref_dp_dim } / 2 } }
+    \tl_set:Nx \l__hit_quan_tmpd_tl
+      { \fp_to_decimal:n { max ( 1 , \l__hit_quan_h_fp - \l__hit_quan_t_fp ) } }
+    \hbox_set:Nn \l__hit_quan_ring_box
+      {
+        \unitlength = 1pt
+        \linethickness { \fp_to_dim:n { \l__hit_quan_t_fp } }
+        \begin{picture} (0,0)
+          \put ( \l__hit_quan_tmpx_tl , \l__hit_quan_tmpy_tl )
+            { \circle { \l__hit_quan_tmpd_tl } }
+        \end{picture}
+      }
+    \tex_kern:D \fp_to_dim:n { 0.05 * \l__hit_quan_fs_fp } \scan_stop:
+    \hbox_to_wd:nn { \fp_to_dim:n { \l__hit_quan_w_fp } }
+      {
+        \tex_vrule:D width 0pt height \g__hit_quan_ref_ht_dim depth \g__hit_quan_ref_dp_dim \scan_stop:
+        \box_use:N \l__hit_quan_ring_box
+        \tex_kern:D
+          \fp_to_dim:n
+            {
+              \l__hit_quan_w_fp / 2 + \l__hit_quan_dx_fp
+              - \dim_to_fp:n { \box_wd:N \l__hit_quan_digits_box } / 2
+            }
+        \scan_stop:
+        \box_move_up:nn
+          {
+            \fp_to_dim:n
+              {
+                \dim_to_fp:n { \g__hit_quan_ref_ht_dim - \g__hit_quan_ref_dp_dim } / 2
+                - \l__hit_quan_dy_fp
+                - \dim_to_fp:n { \box_ht:N \l__hit_quan_digits_box - \box_dp:N \l__hit_quan_digits_box } / 2
+              }
+          }
+          { \box_use:N \l__hit_quan_digits_box }
+        \hss
+      }
+    \tex_kern:D \fp_to_dim:n { 0.05 * \l__hit_quan_fs_fp } \scan_stop:
+  }
+%    \end{macrocode}
+%
+% 当前宋体有现成的带圈字符就直接用，字形比画出来的规整；没有才画。
 %    \begin{macrocode}
 \NewDocumentCommand \quan { m }
   {
     \group_begin:
-      \__hit_use_cjk_font:
-      \int_set:Nn \l__hit_quan_slot_int { \__hit_quan_slot:n {##1} }
+      \hit@engine@use@cjk@font:
+      \int_set:Nn \l__hit_quan_slot_int { \__hit_quan_slot:n {#1} }
       \bool_lazy_and:nnTF
         { \int_compare_p:nNn \l__hit_quan_slot_int > { 0 } }
         { \hit@engine@if@cjk@glyph_p:n { \l__hit_quan_slot_int } }
         { \hit@engine@char:n { \l__hit_quan_slot_int } }
-        { \__hit_quan_draw:n {##1} }
+        { \__hit_quan_draw:n {#1} }
     \group_end:
   }
-\cs_new_protected:Npn \__hit_quan_draw:n ##1
-  {
-    \hbox_set:Nn \l__hit_quan_mark_box { \hit@engine@char:n { "2460 } }
-    \hbox_set:Nn \l__hit_quan_content_box { ##1 }
-    \dim_set:Nn \l__hit_quan_diameter_dim
-      { \box_ht:N \l__hit_quan_mark_box + \box_dp:N \l__hit_quan_mark_box }
-    \dim_compare:nNnT { \l__hit_quan_diameter_dim } = { 0pt }
-      { \dim_set:Nn \l__hit_quan_diameter_dim { 1em } }
 %    \end{macrocode}
 %
-% 数字缩到直径的一半；横向如果还塞不进内圈，再按比例压窄。
+% 画出来的圈由盒子和线条组成，\pkg{docxlike} 在 LuaTeX 下抬高上标靠的是字形节点的属性，
+% 只抬字形、不抬线条，脚注号里的数字会和圈错开。所以把抬高量先取走、清掉属性，
+% 整个圈连数字一起按盒子抬。
 %    \begin{macrocode}
-    \fp_set:Nn \l__hit_quan_scale_fp
+\int_new:N \l__hit_quan_raise_int
+\box_new:N \l__hit_quan_out_box
+\cs_new_protected:Npn \__hit_quan_raise_take:
+  {
+    \int_zero:N \l__hit_quan_raise_int
+    \sys_if_engine_luatex:T
       {
-        \c__hit_quan_fill_fp * \dim_to_fp:n { \l__hit_quan_diameter_dim }
-        / \dim_to_fp:n { \box_ht:N \l__hit_quan_content_box + \box_dp:N \l__hit_quan_content_box }
-      }
-    \fp_set:Nn \l__hit_quan_squeeze_fp
-      {
-        \fp_min:nn { 1 }
+        \cs_if_exist:NT \docxlike@va@attr
           {
-            \c__hit_quan_fill_fp * \dim_to_fp:n { \l__hit_quan_diameter_dim }
-            / ( \l__hit_quan_scale_fp * \dim_to_fp:n { \box_wd:N \l__hit_quan_content_box } )
+            \int_set:Nn \l__hit_quan_raise_int { \docxlike@va@attr }
+            \int_compare:nNnT { \l__hit_quan_raise_int } < { -1073741824 }
+              { \int_zero:N \l__hit_quan_raise_int }
+            \unsetattribute \docxlike@va@attr
+            \unsetattribute \docxlike@vaja@attr
           }
       }
-    \group_begin:
-      \linethickness { \c__hit_quan_rule_dim }
-      \pgfkeys
-        {
-          /csteps/inner~ysep =
-            \fp_to_dim:n
-              { \dim_to_fp:n { \l__hit_quan_diameter_dim } * ( 1 - \c__hit_quan_fill_fp ) } ,
-          /csteps/inner~xsep =
-            \fp_to_dim:n
-              { \dim_to_fp:n { \l__hit_quan_diameter_dim } * ( 1 - \c__hit_quan_fill_fp ) } ,
-        }
-      \Circled
-        {
-          \scalebox { \fp_eval:n { \l__hit_quan_scale_fp * \l__hit_quan_squeeze_fp } }
-            [ \fp_use:N \l__hit_quan_scale_fp ] { \box_use:N \l__hit_quan_content_box }
-        }
-    \group_end:
   }
+\cs_new_protected:Npn \__hit_quan_draw:n #1
+  {
+    \__hit_quan_raise_take:
+    \int_set:Nn \l__hit_quan_value_int { \int_abs:n {#1} }
+    \str_set:Nx \l__hit_quan_digits_str { \int_use:N \l__hit_quan_value_int }
+    \__hit_quan_font_ensure:
+    \bool_set:Nn \l__hit_quan_bold_bool { \tl_if_head_eq_charcode_p:fN { \f@series } b }
+    \__hit_quan_measure_ref:
+    \__hit_quan_geometry:
+    \__hit_quan_fit:
+    \hbox_set:Nn \l__hit_quan_out_box { \__hit_quan_typeset: }
+    \box_move_up:nn { \l__hit_quan_raise_int sp } { \box_use:N \l__hit_quan_out_box }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+
+% \begin{macro}{\hit@setup@footnote}
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@setup@footnote
+  {
+%    \end{macrocode}
+%
+% 字体缺少带圈数字时用 \pkg{pict2e} 画圈，画法见上面的 \cs{quan}。
+%    \begin{macrocode}
+\RequirePackage{pict2e}
+%    \end{macrocode}
+%
+% 脚注编号与脚注样式。
+%    \begin{macrocode}
 \cs_new_protected:Npn \hit@text@circled ##1 { \quan { \arabic {##1} } }
 \cs_set:Npn \thefootnote   { \hit@text@circled { footnote } }
 \cs_set:Npn \thempfootnote { \hit@text@circled { mpfootnote } }
@@ -190,9 +715,7 @@
 \cs_if_exist:NT \footnotemargin { \footnotemargin1.5em\relax }
 %    \end{macrocode}
 %
-% \cs{@makefnmark} 默认是上标样式，而在脚注部分要求为正文大小。
-% 原来是往 \cs{@makefntext} 的宏体前后各插一句 \cs{let}，效果等于在原宏体跑之前
-% 换掉 \cs{@makefnmark}、跑完再换回来。包一层做的是同一件事，位置也一样。
+% 脚注正文中的标号按正文大小排版，不使用上标。
 %    \begin{macrocode}
 \cs_set_eq:NN \hit@original@make@footnote@mark \@makefnmark
 \cs_new:Npn \hit@footnote@mark { \hbox { { \normalfont \@thefnmark } } }

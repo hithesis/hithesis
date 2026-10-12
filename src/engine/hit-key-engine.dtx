@@ -6,30 +6,13 @@
 %
 % \section{键机制（engine）}
 %
-% \changes{v3.2a}{2026/08/13}{\cs{hitsetup} 的底层机制抽出来给各个类共用：元信息字段改成
-%   英文 kebab 名（旧名走废弃期，改名映射按排版选项与加载期选项分两张表，另有废弃表）；
-%   \texttt{info} 与 \texttt{term} 两族的 \texttt{zh}／\texttt{en} 子族与斜杠路径；
-%   \cs{hit@define@term@alias}、\cs{hit@define@date@term}（存原值，取值时排）、
-%   \cs{hit@define@legacy@constant}；\cs{hit@keys@set:nn} 把键之间的空行剥掉再喂给
-%   \cs{keys\_set:nn}；\cs{\_\_hit\_tristate\_gset:Nn}}
-% \changes{v3.2a}{2026/09/13}{常量：取值里可以用 \texttt{<键名!>} 引用别的常量（替换走
-%   \cs{regex\_replace\_all:nnN}，花括号里头的引用也认），可以直接驱动既有命令名或转发
-%   给 \pkg{ctex}，配置只出取值；\cs{hit@after@number:nnn} 让编号之后的间距取空值时退回
-%   原有取值；\texttt{cxueweishort} 删掉}
-% \changes{v3.2a}{2026/09/13}{词条按页分桶、按轴分档：键名是「桶 + 词条名 + 各轴取值按
-%   轴序排列」，桶名取部件名，取不到回落到 \texttt{base}；
-%   轴名与类选项名统一（\texttt{stage}、\texttt{degree-level}、\texttt{category}），
-%   这个类不收的档位也造假的标志位，档位值前加 \texttt{!!} 取反，写错顺序当场报错；
-%   查表按当前上下文把最具体的变体绑到裸词条名上，语种分区不当轴，只有真取到值的
-%   词条才参与，一档都没取到的宏定义成一句报错；部件变体只写不一样的那一小坨}
+% \changes{v3.2a}{2026/10/09}{条件后缀支持乱序输入和规范化，增加同轴重复、未知条件及
+%   同组规范键冲突检查；支持为已有词条添加变体，保留正负条件的匹配权重。}
+% \changes{v3.2a}{2026/10/06}{配置解析支持统一双语值、斜杠路径、条件覆盖和旧名提示；
+%   词条按部件及文档类型选择，支持跨词条引用，缺失取值时报告错误}
 %
-% 各个类的元信息字段名单各不相同，但生成字段、拆关键词、分族路由、旧名兼容这套
-% 机制是一样的，原先每个类各写一遍，改一处容易漏掉别处。这里只放机制，字段名单
-% 与各族的键仍旧写在各个类里。
-%
-% 这个文件里全是定义，不执行任何依赖类状态的东西，所以排在类自己的模块之前也没
-% 关系。唯一要各个类自己发动的是 \cs{\_\_hit\_check\_class\_options:}，它要读
-% \cs{@classoptionslist}，得等旧名映射表填好之后再调用。
+% 本模块定义配置解析和存储函数；公开字段在 \file{hit-keylist.dtx} 注册。
+% 类选项检查需要完整的旧名映射表，由注册完成后的调用者执行。
 %
 %    \begin{macrocode}
 %<*shared-key-engine>
@@ -38,15 +21,35 @@
 % \begin{macro}{\hit@declare@class@key,\hit@define@term}
 % \cs{hit@declare@class@key}\marg{名} 把一个键注册进 \texttt{hit/class} 族，处理器直接
 % 调用同名命令。\cs{hit@define@term}\marg{名} 在此之上再造出那个同名命令：
-% \cs{title-zh}\marg{值} 存进 \cs{hit@ctitle}，并且先置一次空值。
+% 设值器写入模板自己的 token-list 变量，并导出原有读取宏；字段声明时先置空值。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@declare@class@key #1
   { \keys_define:nn { hit / class } { #1 .code:n = { \use:c {#1} {##1} } } }
-\cs_new_protected:Npn \__hit_define_term:nn #1#2
+% Same storage implementation as l3refactor; only the exported-name prefix differs.
+\tl_const:Nn \c__hit_info_prefix_tl {hit@info@}
+\prop_new:N \g__hit_info_exports_prop
+\cs_new_protected:Npn \__hit_info_export:n #1
   {
-    \cs_gset_nopar:cpn {#1} ##1 { \cs_gset_nopar:cpn { hit@info@#2 } {##1} }
-    \use:c {#1} { }
+    \cs_gset_nopar:cpe {\c__hit_info_prefix_tl #1}
+      {\exp_not:v {g__hit_info_#1_tl}}
+    \exp_args:NNe \prop_gput:Nnn \g__hit_info_exports_prop
+      {\c__hit_info_prefix_tl #1} {g__hit_info_#1_tl}
   }
+\cs_new_protected:Npn \__hit_info_set:nn #1#2
+  {
+    \tl_if_exist:cF {g__hit_info_#1_tl}
+      {\tl_new:c {g__hit_info_#1_tl}}
+    \tl_gset:cn {g__hit_info_#1_tl} {#2}
+    \__hit_info_export:n {#1}
+  }
+\cs_new_protected:Npn \__hit_info_define:nn #1#2
+  {
+    \cs_gset_nopar:cpn {#1} ##1
+      {\__hit_info_set:nn {#2} {##1}}
+    \use:c {#1} {}
+  }
+\cs_new_protected:Npn \__hit_define_term:nn #1#2
+  {\__hit_info_define:nn {#1} {#2}}
 \cs_new_protected:Npn \hit@define@term #1
   {
     \hit@declare@class@key {#1}
@@ -106,20 +109,15 @@
 %
 % \begin{macro}{\hit@define@date@term}
 % \cs{hit@define@date@term}\marg{键名}\marg{样式} 与 \cs{hit@define@term}
-% 并列，区别在取值那一头：原值存进 \cs{hit@}\meta{名}\cs{@raw}，
-% \cs{hit@}\meta{名} 展开时才按样式排，排到哪一级由值自己定。这样各处的排版
-% 代码一个字都不用改，照旧写 \cs{hit@date@zh}。
-%
-% 取值先经 \cs{exp\_args:NNv} 落进一个变量再传。直接把 \cs{use:c}\marg{名} 当参数
-% 递过去，格式化那头拿到的是这几个记号本身，一看就不是 ISO，原样吐回来。
+% 并列，区别在取值那一头：原值使用同一个 token-list 存储器，导出带 \texttt{@raw}
+% 后缀的兼容宏；排版时从原值变量取内容，再按样式和输入精度格式化。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_define_date_term:nnn #1#2#3
   {
-    \cs_gset_nopar:cpn {#1} ##1 { \cs_gset_nopar:cpn { hit@info@#2@raw } {##1} }
-    \use:c {#1} { }
+    \__hit_info_define:nn {#1} {#2@raw}
     \cs_gset_protected_nopar:cpn { hit@info@#2 }
       {
-        \exp_args:NNv \tl_set:Nn \l__hit_date_raw_tl { hit@info@#2@raw }
+        \tl_set_eq:Nc \l__hit_date_raw_tl {g__hit_info_#2@raw_tl}
         \hit@date@use:nnV {#1} {#3} \l__hit_date_raw_tl
       }
   }
@@ -136,41 +134,45 @@
 %
 % \begin{macro}{\hit@parse@keywords}
 % \cs{hit@parse@keywords}\marg{字段名}\marg{分隔符宏名} 造出 \cs{keywords-zh}\marg{甲,乙,丙}，
-% 把逗号表拼成 \cs{hit@ckeywords}，词与词之间插一个分隔符。分隔符是以 \cs{use:c} 的
-% 形式存进去的，取值在排版时才解析，用户后改分隔符照样生效。分隔符的名字显式传进来，
-% 不从字段名拼——两者的命名规律不一样。
+% 把逗号表拼成关键词内容，词与词之间插一个分隔符。排版版保存当时的分隔符内容，
+% 避免额外的宏打断 xeCJK 标点字符对；PDF 属性版保留 \cs{use:c} 引用。
+% 分隔符的名字显式传进来，不从字段名拼——两者的命名规律不一样。
 %
 % 同时另存一份 \cs{hit@}\meta{字段}\cs{@plain}：每项去掉首尾空格，词之间只有分隔符，
 % 没有 \cs{ignorespaces}。这一份给 PDF 属性用——那条路上 \cs{ignorespaces} 不能执行，
 % 屏蔽掉之后示例里 \texttt{\{\string\hologo{TeX}, \string\hologo{LaTeX}\}} 逗号后的空格就会漏进
-% 元数据，排出来的版面却是没有空格的，两处对不上。拆分用 \cs{seq\_set\_split\_keep\_spaces:Nnn} 而不
-% 是 \cs{clist\_map\_inline:nn}，因为后者会把每项前后的空格吃掉，而封面示例里写的是
-% \texttt{\{\string\hologo{TeX}, \string\hologo{LaTeX}, CJK\}} 这种逗号后带空格的形式，吃掉就
-% 与原先的 \cs{@for} 不一致了。
+% 元数据，排出来的版面却是没有空格的，两处对不上。两版共用保留空项及分组的序列拼接器，
+% 由调用方指定修剪条目两端空格；维护版传入不同策略，保留 v3.1e 的原记号和分隔符写法。
 %    \begin{macrocode}
 \seq_new:N \l__hit_keywords_seq
-\tl_new:N \l__hit_keywords_item_tl
+\cs_new_protected:Npn \__hit_keywords_join:NNnnn #1#2#3#4#5
+  {
+    \seq_set_split_keep_spaces:Nnn #1 {,} {#4}
+    \seq_map_inline:Nn #1
+      {
+        \tl_if_empty:NF #2 {\tl_gput_right:Nn #2 {#3}}
+        \bool_if:nTF {#5}
+          {\tl_gput_right:Ne #2 {\tl_trim_spaces:n {##1}}}
+          {\tl_gput_right:Nn #2 {##1}}
+      }
+  }
+\cs_generate_variant:Nn \__hit_keywords_join:NNnnn {Nc, NcnV, NcV}
+\tl_new:N \l__hit_keywords_separator_tl
 \cs_new_protected:Npn \__hit_parse_keywords:nnn #1#2#3
   {
     \cs_gset_nopar:cpn { hit@info@#3 } { }
     \cs_gset_nopar:cpn { hit@info@#3@plain } { }
     \cs_gset_protected_nopar:cpn {#1} ##1
       {
-        \seq_set_split_keep_spaces:Nnn \l__hit_keywords_seq { , } {##1}
-        \seq_map_inline:Nn \l__hit_keywords_seq
-          {
-            % 排版版的相邻项间不能夹宏(\ignorespaces 会把 xeCJK 的字符对
-            % 拆成边界对,「！；」闭闭压缩失效——关键词行实测),改成存储时
-            % 修剪条目两端空格,分隔符裸拼
-            \tl_set:Nn \l__hit_keywords_item_tl {####1}
-            \tl_trim_spaces:N \l__hit_keywords_item_tl
-            \tl_if_empty:cF { hit@info@#3 }
-              { \tl_gput_right:cx { hit@info@#3 } { \exp_not:v { hit@term@#2 } } }
-            \tl_gput_right:cV { hit@info@#3 } \l__hit_keywords_item_tl
-            \tl_if_empty:cF { hit@info@#3@plain }
-              { \tl_gput_right:cn { hit@info@#3@plain } { \use:c { hit@term@#2 } } }
-            \tl_gput_right:cx { hit@info@#3@plain } { \tl_trim_spaces:n {####1} }
-          }
+        % Word/xeCJK output keeps the literal separator and trims item edges;
+        % PDF metadata retains a dynamic separator reference.
+        \tl_set:Nv \l__hit_keywords_separator_tl {hit@term@#2}
+        \__hit_keywords_join:NcVnn
+          \l__hit_keywords_seq {hit@info@#3}
+          \l__hit_keywords_separator_tl {##1} {\c_true_bool}
+        \__hit_keywords_join:Ncnnn
+          \l__hit_keywords_seq {hit@info@#3@plain}
+          {\use:c {hit@term@#2}} {##1} {\c_true_bool}
       }
   }
 \cs_new_protected:Npn \hit@parse@keywords #1#2
@@ -190,17 +192,8 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@keys@set:nn}
-% \textbf{键之间夹了空行也得认。} 名单一条条写下来，中间空一行分组是很自然的写法，
-% 但空行在键值表里是一个 \cs{par}，下一个键的名字就成了 \verb|\par secretary|，
-% 对不上任何键。轻则丢一条记录只在日志里留行警告，重则被当成老写法去查。
-%
-% 所以喂给 \cs{keys\_set:nn} 之前先把顶层的 \cs{par} 剥掉。
-% \cs{tl\_replace\_all:Nnn} 不进花括号，所以剥的只是键与键之间那些，
-% 值里面的分段留得住——决议正文的空行是内容，不能动。
-%
-% 每一层都要剥。\cs{hitsetup} 那一层剥了，\texttt{defense~=~\{~\ldots~\}} 里面
-% 是一个花括号组，没被碰到，所以子族转发时得再剥一次。凡是接用户写的键值表的
-% 地方一律走这个函数，各层就都通了。
+% 在每层键值表中删除键之间的 \cs{par}，避免空行成为键名的一部分。
+% \cs{tl\_replace\_all:Nnn} 不进入花括号，因而保留值内的段落。子组也须通过本函数解析。
 %    \begin{macrocode}
 \tl_new:N \l__hit_keys_list_tl
 \cs_new_protected:Npn \hit@keys@set:nn #1#2
@@ -212,8 +205,7 @@
 %    \end{macrocode}
 % \end{macro}
 %
-% 子族的兜底。键名先自己展开，靠 \cs{keys\_set:nn} 去展开 \cs{l\_keys\_key\_str} 不
-% 可靠：载入的宏包集合一变就可能失效，换定理实现时踩过。
+% 未识别的键转给旧接口。转发前展开键名，值保持原记号。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_legacy_key:n #1
   {
@@ -221,31 +213,11 @@
     \use:x
       { \exp_not:N \keys_set:nn { hit / class } { \l_keys_key_str = { \exp_not:n {#1} } } }
   }
-\clist_map_inline:nn { info , style , toc , gb7714 , overrides }
+\clist_map_inline:nn { info-internal , style , toc , gb7714 , overrides-internal }
   { \keys_define:nn { hit / #1 } { unknown .code:n = { \__hit_legacy_key:n {##1} } } }
 %    \end{macrocode}
 %
-% 中英文成对的键占了一小半，一个个写后缀有点啰嗦。\texttt{zh} 与 \texttt{en} 两个
-% 分组把后缀提出来：
-% \begin{latex}
-% \hitsetup{ info = {
-%   zh = { title = {中文题目}, author = {张三} },
-%   en = { title = {English Title}, author = {Zhang San} },
-%   student-id = {1180800000},
-% } }
-% \end{latex}
-% 分组只是把里面每个键名接上后缀再转发，\texttt{zh~=~\{~title~=~\ldots~\}} 与
-% \texttt{title-zh~=~\ldots} 完全等价。正式名仍然是带后缀的那个，报错与改名提示
-% 里出现的都是它。没有配对的键（\texttt{student-id}、\texttt{secrecy} 这些）
-% 照旧写在分组外面。
-%
-% \texttt{zh} 与 \texttt{en} 是真的子族 \texttt{hit/info/zh}，接后缀这件事挂在子族的
-% \texttt{unknown} 上，分组键自己只是一句 \cs{keys\_set:nn}。子族存在还带来一个用法：
-% l3keys 按最后一个斜杠切键名，左边当族名右边当键名，所以斜杠路径也认。
-% \begin{latex}
-% \hitsetup{ info/zh/title = {中文题目}, info/title-en = {English Title} }
-% \end{latex}
-% 三种写法落到同一个键上，键名写错时报的也是同一条提示。
+% 双语内容先由统一解析器分语言，再写入内部存储。
 %
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@warn@renamed@environment #1#2
@@ -254,68 +226,31 @@
   { \__hit_warn_once:nnn {#1} { renamed-command } {#2} }
 \cs_new_protected:Npn \hit@warn@renamed@to:nn #1#2
   { \__hit_warn_once:nnn {#1} { renamed-to-command } {#2} }
-\cs_new_protected:Npn \__hit_language_key:nnnn #1#2#3#4
-  {
-    \keys_if_exist:nnTF { hit / #1 } { #3-#2 }
-      { \keys_set:nn { hit / #1 } { #3-#2 = {#4} } }
-      { \msg_warning:nnnn { hithesis } { key-not-in-language-group } {#3} {#2} }
-  }
-\cs_new_protected:Npn \__hit_language_unknown:nnn #1#2#3
-  {
-    \use:x
-      {
-        \exp_not:N \__hit_language_key:nnnn
-          {#1} {#2} { \l_keys_key_str } { \exp_not:n {#3} }
-      }
-  }
-\cs_new_protected:Npn \__hit_declare_language_group:nn #1#2
-  {
-    \keys_define:nn { hit / #1 / #2 }
-      { unknown .code:n = { \__hit_language_unknown:nnn {#1} {#2} {##1} } }
-    \keys_define:nn { hit / #1 }
-      { #2 .code:n = { \hit@keys@set:nn { hit / #1 / #2 } {##1} } }
-  }
-\clist_map_inline:nn { info , overrides }
-  {
-    \clist_map_inline:Nn \c__hit_lang_clist
-      { \__hit_declare_language_group:nn {#1} {##1} }
-  }
 %    \end{macrocode}
 %
-% \emph{页桶。} 同一个字段身份在不同的页上是不同的东西：报告封面的「院（系）」与
-% 内封的「所在单位」都叫 \option{affiliation}，挤在一层里只能靠前缀区分，越加越长，
-% 而且看不出哪一条只有某一页用得上。所以键名前面带一段桶名，一页一个桶，
-% 跨页共用的进 \texttt{base}。
+% 词条按部件分组。各页可以分别设置同一字段的标签，跨页共用的文字放在 \texttt{base}。
 %
 % \begin{latex}
 % \hitsetup{ overrides = {
-%   zh = { titlepage = { supervisor = {导师} } },
+%   titlepage = { supervisor = {导师}[Supervisor] },
 %   base = { university = {哈尔滨工业大学} },
 % } }
 % \end{latex}
 %
-% 桶与语言两层都只是改写键名再转发：上面两句分别落到
-% \texttt{titlepage-supervisor-zh} 与 \texttt{base-university}。正式名仍然是拼好的
-% 那个，报错与改名提示里出现的都是它。
+% 部件前缀与语言由解析器补齐，调用方只填写字段名和双语内容。
 %
-% \emph{桶名就是部件名。} 用的是部件的全称：
-% \texttt{publications} 而不是 \texttt{publication}，
-% \texttt{table-of-contents} 而不是 \texttt{toc}。同一件东西叫两个名字，
-% 用户得记两遍。只有一个例外：答辩页那个部件叫 \texttt{defense}，
-% 而 \texttt{defense} 已经是 \cs{hitsetup} 的一个族（答辩委员名单），
-% 所以桶名取它排出来那一页的名字，叫 \texttt{resolution}。
+% 公开分组 \texttt{achievements}、\texttt{references}、\texttt{defense} 分别映射到内部
+% 前缀 publications、bibliography、resolution。分组转发和完整键名共用同一份词条存储。
 %
 % 另外四个不在部件表里：\texttt{base} 是跨页共用的那一档，
 % \texttt{header}、\texttt{caption} 是页眉与图表题，\texttt{titlepage} 是内封——
 % 内封与封面原先合成一个 \texttt{cover} 部件，词条得分开。
 %
-% \emph{桶名不能与词条名撞车。} 语言分组下面先认桶名再认词条，一个叫
-% \texttt{titlepage} 的词条会被当成桶。词条名不该跟部件同名——真要指某个部件自己的
-% 什么，词条名里得说清是它的哪一样。
+% 部件分组名优先匹配，词条名不能与其重名。
 %    \begin{macrocode}
 \clist_const:Nn \c__hit_bucket_clist
   {
-    base , header , caption , titlepage ,
+    base , header , caption , titlepage , algorithm , degree-type , number-separator ,
     cover , abstract , denotation ,
     list-of-symbols , list-of-abbreviations ,
     list-of-symbols-and-abbreviations , table-of-contents ,
@@ -325,15 +260,101 @@
     acknowledgements , resume ,
   }
 \tl_new:N \l__hit_bucket_name_tl
+% 标准 LaTeX 名称在 overrides 中也使用部件名；别名只转发设值，不另存一份。
+\prop_const_from_keyval:Nn \c__hit_named_term_prop
+  {
+    caption-figure = figurename,
+    caption-table = tablename,
+    mainmatter-chapter-name = chapter-name,
+    appendix-heading = appendixname,
+    table-of-contents-heading = contentsname,
+    list-of-figures-heading = listfigurename,
+    list-of-tables-heading = listtablename,
+    list-of-equations-heading = listequationname,
+    list-of-equations-entry-name = equationname,
+  }
+\prop_const_from_keyval:Nn \c__hit_term_key_alias_prop
+  {
+    abstract-title = abstract-heading,
+    appendix-title = appendix-heading,
+    table-of-contents-title = table-of-contents-heading,
+    list-of-figures-title = list-of-figures-heading,
+    list-of-tables-title = list-of-tables-heading,
+    list-of-equations-title = list-of-equations-heading,
+    list-of-equations-equation = list-of-equations-entry-name,
+    list-of-symbols-title = list-of-symbols-heading,
+    list-of-abbreviations-title = list-of-abbreviations-heading,
+    list-of-symbols-and-abbreviations-title = list-of-symbols-and-abbreviations-heading,
+    references-title = bibliography-heading,
+    bibliography-title = bibliography-heading,
+    index-title = index-heading,
+    conclusions-title = conclusions-heading,
+    acknowledgements-title = acknowledgements-heading,
+    resume-title = resume-heading,
+    achievements-title = publications-heading,
+    achievements-doctoral-title = publications-doctoral-heading,
+    publications-title = publications-heading,
+    publications-doctoral-title = publications-doctoral-heading,
+    defense-title = resolution-heading,
+    defense-column-title = resolution-title,
+    declarations-title = declarations-heading,
+    declarations-title-line-one-bachelor = declarations-heading-line-one-bachelor,
+    declarations-title-line-two-bachelor = declarations-heading-line-two-bachelor,
+    declarations-title-bachelor = declarations-heading-bachelor,
+    declarations-title-short-bachelor = declarations-heading-short-bachelor,
+    cover-imprint = cover-bottommark,
+    cover-imprint-graduate = cover-bottom-mark-graduate,
+    cover-imprint-harbin-master = cover-school-bottom-mark-harbin-master,
+    cover-imprint-harbin-doctor = cover-school-bottom-mark-harbin-doctor,
+    cover-report-imprint-shenzhen = cover-report-bottommark-shenzhen,
+    number-separator-chapter = after-chapter-number,
+    number-separator-section = after-section-number,
+    number-separator-subsection = after-subsection-number,
+    number-separator-subsubsection = after-subsubsection-number,
+    number-separator-figure-caption = after-figure-caption-number,
+    number-separator-table-caption = after-table-caption-number,
+    header-sz = header-report-text-shenzhen,
+    cover-sz-university = cover-report-university-shenzhen,
+    cover-sz-affiliation = cover-report-affiliation-shenzhen,
+    cover-sz-major = cover-report-major-shenzhen,
+    cover-sz-supervisor = cover-report-supervisor-shenzhen,
+    cover-sz-student = cover-report-student-shenzhen,
+    cover-sz-id = cover-report-student-id-shenzhen,
+    cover-sz-date = cover-report-date-shenzhen,
+    cover-sz-mark = cover-report-bottommark-shenzhen,
+  }
+\cs_new:Npn \__hit_bucket_internal:n #1
+  {
+    \str_case:nnF {#1}
+      { {references}{bibliography} {achievements}{publications} {defense}{resolution} }
+      {#1}
+  }
+\tl_new:N \l__hit_term_alias_target_tl
+\tl_new:N \l__hit_term_alias_base_tl
+\seq_new:N \l__hit_term_alias_seq
+\cs_generate_variant:Nn \regex_extract_once:nnNT { nV }
+\cs_new_protected:Npn \__hit_term_key_resolve:N #1
+  {
+    \prop_get:NVNTF \c__hit_term_key_alias_prop #1 \l__hit_term_alias_target_tl
+      { \tl_set_eq:NN #1 \l__hit_term_alias_target_tl }
+      {
+        \regex_extract_once:nVNT { \A (.*) - (zh|en) \Z } #1 \l__hit_term_alias_seq
+          {
+            \tl_set:Nx \l__hit_term_alias_base_tl { \seq_item:Nn \l__hit_term_alias_seq {2} }
+            \prop_get:NVNT \c__hit_term_key_alias_prop \l__hit_term_alias_base_tl \l__hit_term_alias_target_tl
+              { \tl_set:Nx #1 { \l__hit_term_alias_target_tl - \seq_item:Nn \l__hit_term_alias_seq {3} } }
+          }
+      }
+  }
 \cs_new_protected:Npn \__hit_bucket_key:nnnn #1#2#3#4
   {
-    \tl_set:Nn \l__hit_bucket_name_tl { #1 - #3 }
+    \tl_set:Ne \l__hit_bucket_name_tl { \__hit_bucket_internal:n {#1} - #3 }
     \tl_if_empty:nF {#2} { \tl_put_right:Nn \l__hit_bucket_name_tl { - #2 } }
-    \exp_args:NnV \keys_if_exist:nnTF { hit / overrides } \l__hit_bucket_name_tl
+    \exp_args:NnV \keys_if_exist:nnTF { hit / overrides-internal } \l__hit_bucket_name_tl
       {
         \use:x
           {
-            \exp_not:N \keys_set:nn { hit / overrides }
+            \exp_not:N \keys_set:nn { hit / overrides-internal }
               { \l__hit_bucket_name_tl = { \exp_not:n {#4} } }
           }
       }
@@ -341,23 +362,19 @@
   }
 %    \end{macrocode}
 %
-% 用户写 \option{overrides}\texttt{=\{zh=\{titlepage=\{university=\ldots\}\}\}} 时，
-% \texttt{titlepage-university-zh} 这个键表里本来没有——跨页共用的词条只在
-% \texttt{base} 里声明一次。查表那头已经把各桶取不到的名字转指到 \texttt{base}，
-% 这头补上另一半：\texttt{base} 里有同名词条就当场把它声明进这个桶再设值，
-% 于是「只改这一页」写得出来。\texttt{base} 里也没有才是真写错了。
+% 部件中未声明的字段可从 base 创建局部覆盖，两处均未声明时报告错误。
 %    \begin{macrocode}
 \tl_new:N \l__hit_bucket_base_tl
 \cs_new_protected:Npn \__hit_bucket_from_base:nnnn #1#2#3#4
   {
     \tl_set:Nn \l__hit_bucket_base_tl { base - #3 }
     \tl_if_empty:nF {#2} { \tl_put_right:Nn \l__hit_bucket_base_tl { - #2 } }
-    \exp_args:NnV \keys_if_exist:nnTF { hit / overrides } \l__hit_bucket_base_tl
+    \exp_args:NnV \keys_if_exist:nnTF { hit / overrides-internal } \l__hit_bucket_base_tl
       {
         \exp_args:NV \hit@declare@constant \l__hit_bucket_name_tl
         \use:x
           {
-            \exp_not:N \keys_set:nn { hit / overrides }
+            \exp_not:N \keys_set:nn { hit / overrides-internal }
               { \l__hit_bucket_name_tl = { \exp_not:n {#4} } }
           }
       }
@@ -368,32 +385,49 @@
   }
 \cs_new_protected:Npn \__hit_bucket_unknown:nnn #1#2#3
   {
+    \tl_if_empty:nTF{#2}
+      {\group_begin:
+       \tl_set:Nn\l__hit_bilingual_override_bucket_tl{#1}
+       \use:e{\exp_not:N\__hit_bilingual_override:nn{\l_keys_key_str}{\exp_not:n{#3}}}
+       \group_end:}
+      {
     \use:x
       {
         \exp_not:N \__hit_bucket_key:nnnn
           {#1} {#2} { \l_keys_key_str } { \exp_not:n {#3} }
       }
+      }
   }
-\cs_new_protected:Npn \__hit_declare_bucket:n #1
+\cs_new:Npn \__hit_bucket_public:n #1
   {
-    \keys_define:nn { hit / overrides / #1 }
-      { unknown .code:n = { \__hit_bucket_unknown:nnn {#1} { } {##1} } }
-    \keys_define:nn { hit / overrides }
-      { #1 .code:n = { \hit@keys@set:nn { hit / overrides / #1 } {##1} } }
+    \str_case:nnF {#1}
+      {
+        { bibliography } { references }
+        { publications } { achievements }
+        { resolution }   { defense }
+      }
+      {#1}
   }
 \cs_new_protected:Npn \__hit_declare_bucket:nn #1#2
   {
-    \keys_define:nn { hit / overrides / #2 / #1 }
-      { unknown .code:n = { \__hit_bucket_unknown:nnn {#1} {#2} {##1} } }
-    \keys_define:nn { hit / overrides / #2 }
-      { #1 .code:n = { \hit@keys@set:nn { hit / overrides / #2 / #1 } {##1} } }
+    \keys_define:nn { hit / overrides / #1 }
+      { unknown .code:n = { \__hit_bucket_unknown:nnn {#2} { } {##1} } }
+    \keys_define:nn { hit / overrides }
+      { #1 .code:n = { \hit@keys@set:nn { hit / overrides / #1 } {##1} } }
   }
+\cs_generate_variant:Nn \__hit_declare_bucket:nn { en }
 \clist_map_inline:Nn \c__hit_bucket_clist
   {
-    \__hit_declare_bucket:n {#1}
-    \clist_map_inline:Nn \c__hit_lang_clist
-      { \__hit_declare_bucket:nn {#1} {##1} }
+    \__hit_declare_bucket:en { \__hit_bucket_public:n {#1} } {#1}
   }
+\cs_new_protected:Npn \__hit_bucket_moved:nn #1#2
+  {
+    \keys_define:nn { hit / overrides }
+      { #1 .code:n = { \__hit_family_moved:nn { overrides/#1 } { 改用~overrides/#2。 } } }
+  }
+\clist_map_inline:nn
+  { { bibliography } { references } , { publications } { achievements } , { resolution } { defense } }
+  { \__hit_bucket_moved:nn #1 }
 %    \end{macrocode}
 %
 % 三态取值。选项可取 \texttt{auto}、\texttt{true}、\texttt{false}，也可以按学位分别
@@ -474,10 +508,7 @@
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@declare@info@field}
-% 元信息字段注册进 \texttt{hit/info} 族。这批字段由 \cs{hit@define@term} 与
-% \cs{hit@parse@keywords} 批量生成，每个都有一个同名命令（\cs{title-zh} 等），
-% 键的处理器直接调用那个命令，所以三种写法结果一致：\cs{hitsetup} 的扁平写法、
-% 分族写法、以及命令写法。名单由各个类传进来。
+% 注册内部字段设值器，供双语解析器和已发布旧命令调用。
 %    \begin{macrocode}
 \clist_new:N \l__hit_info_clist
 \prop_new:N \g__hit_info_prop
@@ -486,7 +517,7 @@
     \clist_set:Nn \l__hit_info_clist {#1}
     \clist_map_inline:Nn \l__hit_info_clist
       {
-        \keys_define:nn { hit / info } { ##1 .code:n = { \use:c { ##1 } {####1} } }
+        \keys_define:nn { hit / info-internal } { ##1 .code:n = { \use:c { ##1 } {####1} } }
         \prop_gput:Nnn \g__hit_info_prop {##1} { }
       }
   }
@@ -494,37 +525,8 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@declare@constant,\hit@set@constant}
-% 类文件里定义了一批可本地化的字符串：封面各字段的标签、声明与授权的正文、
-% 签名栏文字等。各院系叫法不一，用户有改的需要，原先要改就得动生成物。
-% 这里把它们做成键：
-% \begin{latex}
-% \hitsetup{ overrides = { supervisor-field-label-zh = {导师} } }
-% \end{latex}
-% 键名由宏名机械地得来：去掉 \texttt{hit@} 前缀，其余的 \texttt{@} 换成连字符，
-% 所以 \cs{hit@ckeywords@separator} 对应 \texttt{keywords-separator-zh}。
-%
-% \cs{hit@set@constant} 把一张键值表灌进 \texttt{hit/overrides} 族。默认值与用户在导言区
-% 写的 \cs{hitsetup}\{term=\{…\}\} 走的是同一条路，区别只是先后：类文件末尾先设
-% 默认值，导言区后设的覆盖它。表是在 expl3 之外记号化的，取值里的空格照原样保留。
-%
-% 有些取值要拼进别的常量。取值里写 \texttt{<键名>} 就行，尖括号里是手册上那个键名：
-% \begin{latex}
-% \hitsetup{ overrides = { titlepage-author-zh = {<cxueweishort>士研究生} } }
-% \end{latex}
-% 替换发生在设值时（\texttt{<键名>} 换成对应的控制序列），取值仍发生在排版时，所以
-% 被引用的常量之后再改也跟得上。尖括号里只认小写字母与连字符，取值里真正的
-% \texttt{<} 不会被误伤；直接写 \cs{hit@}\meta{名} 的老写法照旧可用。
-%
-% 这样写还避开一个坑：\cs{hit@cxueweishort} 是控制字，后面必须留一个空格来终止它，
-% 那个空格不会排出来。照抄的人容易以为空格是版式的一部分。\texttt{<键名>} 后面没有
-% 控制字，空格就是空格。
-%
-% \textbf{花括号里头的引用也认。} \cs{tl\_replace\_all:Nnn} 只在记号表的最外层找，
-% 进不了花括号：\texttt{\{\textbackslash textbf\{<base-campus>\}\}}
-% 里那一处会原样留着，排出来的是字面的 \texttt{<base-campus>}，而手册上写「取值里写
-% \texttt{<键名>} 就行」，没说不能套花括号。\pkg{l3regex} 的替换逐个记号走，花括号
-% 对它只是记号，进得去；替换文本里写 \texttt{\textbackslash c\{名字\}} 就是插一个
-% 控制序列，名字按命名空间现拼。
+% 存储固定词条，将尖括号引用转换为延迟取值的控制序列。
+% 引用可位于嵌套分组中，替换须使用 l3regex，不能用只处理顶层的 tl_replace_all。
 %    \begin{macrocode}
 \str_new:N \l__hit_constant_name_str
 \tl_new:N \l__hit_constant_value_tl
@@ -541,6 +543,7 @@
 \tl_new:N \l__hit_reference_space_tl
 \str_new:N \l__hit_reference_pattern_str
 \str_new:N \l__hit_reference_replace_str
+\tl_new:N \l__hit_reference_target_tl
 \prop_new:N \g__hit_constant_declared_prop
 \cs_new_protected:Npn \__hit_expand_references:N #1
   {
@@ -551,10 +554,21 @@
         \tl_set:Nn \l__hit_reference_tl {##1}
         \tl_remove_all:Nn \l__hit_reference_tl { < }
         \tl_remove_all:Nn \l__hit_reference_tl { > }
-        \prop_if_in:NVTF \g__hit_constant_declared_prop \l__hit_reference_tl
-          { \tl_set:Nn \l__hit_reference_space_tl { hit@term@ } }
-          { \tl_set:Nn \l__hit_reference_space_tl { hit@info@ } }
-        \__hit_key_to_macro_name:V \l__hit_reference_tl
+        \__hit_axis_normalize:VN \l__hit_reference_tl \l__hit_reference_tl
+        \__hit_term_key_resolve:N \l__hit_reference_tl
+        \prop_get:NVNTF \c__hit_named_term_prop \l__hit_reference_tl \l__hit_reference_target_tl
+          {
+            \tl_clear:N \l__hit_reference_space_tl
+            \str_if_eq:VnTF \l__hit_reference_target_tl { chapter-name }
+              { \str_set:Nn \l__hit_constant_name_str { g__hit_term_ctex_chapter-name_tl } }
+              { \str_set:NV \l__hit_constant_name_str \l__hit_reference_target_tl }
+          }
+          {
+            \prop_if_in:NVTF \g__hit_constant_declared_prop \l__hit_reference_tl
+              { \tl_set:Nn \l__hit_reference_space_tl { hit@term@ } }
+              { \tl_set:Nn \l__hit_reference_space_tl { hit@info@ } }
+            \__hit_key_to_macro_name:V \l__hit_reference_tl
+          }
         \str_set:Nx \l__hit_reference_pattern_str { \tl_to_str:n {##1} }
         \str_set:Nx \l__hit_reference_replace_str
           {
@@ -573,6 +587,29 @@
     \__hit_key_to_macro_name:V \l_keys_key_str
     \cs_gset:cpx { hit@term@ \l__hit_constant_name_str }
       { \exp_not:V \l__hit_constant_value_tl }
+    \str_case:Vn \l_keys_key_str
+      {
+        {bibliography-heading-zh}
+          { \bool_if:NF \g__hit_en_bool
+              {
+                \cs_gset:Npn \bibname { \hit@term@bibliography@heading@zh }
+              } }
+        {bibliography-heading-en}
+          { \bool_if:NT \g__hit_en_bool
+              {
+                \cs_gset:Npn \bibname { \hit@term@bibliography@heading@en }
+              } }
+        {index-heading-zh}
+          { \bool_if:NF \g__hit_en_bool
+              {
+                \cs_gset:Npn \indexname { \hit@term@index@heading@zh }
+              } }
+        {index-heading-en}
+          { \bool_if:NT \g__hit_en_bool
+              {
+                \cs_gset:Npn \indexname { \hit@term@index@heading@en }
+              } }
+      }
   }
 %    \end{macrocode}
 %
@@ -601,14 +638,14 @@
 % \texttt{acknowledgements-heading-en-hass} 排出来的是不带后缀那一条）。
 %
 % \emph{终稿那一档叫 \texttt{final} 不叫 \texttt{thesis}。} 这根轴问的是「哪一份
-% 材料」，终稿不一定是论文（专业学位交的是实践成果）。名字照 iota-hit 的 stage 轴。
+% 材料」，终稿也可以是专业学位实践成果。
 %
 % \emph{档位值必须单段、全局唯一。} 唯一了才能只看一段就断定它属于哪条轴，不必
 % 靠位置猜；单段了才能按连字符切开来数。两条都在加载时 \cs{assert} 住——表写错
 % 的代价是查表悄悄查到别的东西上去，不如当场停下。
 %    \begin{macrocode}
 \clist_const:Nn \c__hit_axis_clist
-  { stage , campus , degree-level , degree-type , category , lang }
+  { stage , campus , degree-level , degree-type , category , form , lang }
 \prop_const_from_keyval:Nn \c__hit_axis_values_prop
   {
     stage               = { final , proposal , interim } ,
@@ -616,6 +653,7 @@
     degree-level        = { bachelor , master , doctor , postdoc } ,
     degree-type         = { academic , professional } ,
     category            = { stem , hass } ,
+    form                = { dissertation , practice } ,
     lang                = { zh , en } ,
   }
 %    \end{macrocode}
@@ -636,6 +674,16 @@
 \tl_new:N \l__hit_axis_current_tl
 \bool_new:N \l__hit_axis_not_bool
 \int_new:N \l__hit_axis_weight_int
+\bool_new:N \l__hit_axis_valid_bool
+\bool_new:N \g__hit_axis_initialized_bool
+\bool_new:N \g__hit_axis_dirty_bool
+\tl_new:N \l__hit_axis_canonical_tl
+\prop_const_from_keyval:Nn \c__hit_axis_alias_prop
+  {opening=proposal,midterm=interim,hss=hass,design=practice}
+\msg_new:nnn {hithesis}{axis-repeat}
+  {条件键~'#1'~重复指定同一条轴；每条轴只能有一个条件。}
+\msg_new:nnn {hithesis}{axis-invalid}
+  {条件键~'#1'~含未知条件或不完整的否定条件。}
 \cs_new_protected:Npn \__hit_axis_record:nn #1#2
   {
     \tl_if_in:nnT {#2} { - }
@@ -665,15 +713,7 @@
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@axis@bools:}
-% \emph{每个档位值都得有一个标志位，哪怕这个类不收它。} 条件靠
-% \cs{bool\_if\_exist:cTF} 查标志位，查不到就发「不认识的条件」的提示。
-% 两档收的档位不一样：报告的学位轴没有 \texttt{postdoc}，学科门类轴整根都没有，
-% 于是同一份 \file{cfg} 里写 \texttt{[degree-level=postdoc]} 在终稿是正常分支，
-% 到报告就成了一条警告。造一个恒假的标志位，条件读到就是「不成立」，
-% 与「这一档不适用」是同一个意思。
-%
-% \emph{排在选项声明之后跑。} \cs{hit@define@choice@option} 自己
-% \cs{bool\_new:c}，先造好会与它撞名；所以这里只补它没造的那些。
+% 选项声明后补齐各取值的布尔量，使不适用的条件为假，而非未知条件。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_axis_bool_fill:n #1
   {
@@ -699,11 +739,7 @@
 % 这与 \cs{hit@presetup} 里条件的写法是同一套：\option{degree-level}\texttt{=!bachelor}
 % 读作「不是本科」。两处都不给默认值另立名字。
 %
-% \emph{为什么不给「报告」另编一个档位值。} \texttt{stage} 轴上终稿是基准，
-% 开题与中期是它的两个变体。合并两个 \file{cfg} 之后，同一个词条在终稿那一份
-% 写裸键，报告那两份不同的地方写 \texttt{-!final}。要是另立一个
-% \texttt{report} 档位值，它与 \texttt{proposal}、\texttt{interim} 就在同一条轴上
-% 重叠了，查表得先知道哪个盖哪个；取反不引入新档位，盖不盖由段数决定。
+% 报告共用值用 !final 表示，避免与 proposal、interim 产生重叠取值。
 %
 % \emph{取反的那一段算半档。} 比具体程度时正着写的一段算 2 分，取反的算 1 分，
 % 所以 \texttt{-proposal} 压得住 \texttt{-!final}：前者指名道姓，后者只排除了一档。
@@ -713,11 +749,8 @@
 % 那一段），写 \texttt{-!zh} 当场报错，不静默失效。
 %
 % \begin{macro}{\hit@axis@parse:n}
-% \cs{hit@axis@parse:n}\marg{键名} 把键名切成「词条名」与「各轴取值」。从\emph{末段}
-% 往前剥：末段是档位值、且它那条轴排在已剥出来的各轴\emph{之前}，就继续剥；否则
-% 停下，剩下的就是词条名。次序这一条是关键——它让
-% \option{thesis-field-label} 这种把档位值写在中段的键剥不动，当场看得出
-% 表写歧义了，而不是悄悄按错的轴查过去。
+% \cs{hit@axis@parse:n}\marg{键名} 从末段剥离已知条件值，按轴保存并生成规范键。
+% 输入顺序可以不同；同一轴重复出现、条件夹在词条名中或语种取反时报告错误。
 %
 % 结果放进 \cs{l\_\_hit\_axis\_term\_tl}（词条名）与
 % \cs{l\_\_hit\_axis\_spec\_prop}（轴到取值）。
@@ -726,7 +759,7 @@
   {
     \prop_clear:N \l__hit_axis_spec_prop
     \seq_set_split:Nnn \l__hit_axis_seg_seq { - } {#1}
-    \tl_set:Nn \l__hit_axis_last_tl { \c_max_int }
+    \bool_set_true:N \l__hit_axis_valid_bool
     \bool_set_true:N \l__hit_axis_more_bool
     \bool_do_while:Nn \l__hit_axis_more_bool
       {
@@ -739,22 +772,22 @@
               \l__hit_axis_name_tl
               {
                 \bool_lazy_and:nnT
-                  { \bool_if_p:N \l__hit_axis_not_bool }
-                  { \str_if_eq_p:Vn \l__hit_axis_name_tl { lang } }
-                  { \msg_error:nnn { hithesis } { axis-negate-lang } {#1} }
-                \prop_get:NVN \g__hit_axis_order_prop \l__hit_axis_name_tl
-                  \l__hit_axis_pos_tl
-                \int_compare:nNnT { \l__hit_axis_pos_tl } < { \l__hit_axis_last_tl }
-                  {
+                   { \bool_if_p:N \l__hit_axis_not_bool }
+                   { \str_if_eq_p:Vn \l__hit_axis_name_tl { lang } }
+                   { \bool_set_false:N \l__hit_axis_valid_bool
+                     \msg_error:nnn { hithesis } { axis-negate-lang } {#1} }
+                 \prop_if_in:NVTF \l__hit_axis_spec_prop \l__hit_axis_name_tl
+                   {\bool_set_false:N \l__hit_axis_valid_bool
+                    \msg_error:nnn{hithesis}{axis-repeat}{#1}}
+                   {
                     \prop_put:NVx \l__hit_axis_spec_prop \l__hit_axis_name_tl
                       {
                         \bool_if:NT \l__hit_axis_not_bool { ! }
                         \l__hit_axis_value_tl
                       }
-                    \tl_set_eq:NN \l__hit_axis_last_tl \l__hit_axis_pos_tl
-                    \seq_pop_right:NN \l__hit_axis_seg_seq \l__hit_axis_value_tl
-                    \bool_set_true:N \l__hit_axis_more_bool
-                  }
+                   }
+                 \seq_pop_right:NN \l__hit_axis_seg_seq \l__hit_axis_value_tl
+                 \bool_set_true:N \l__hit_axis_more_bool
               }
           }
       }
@@ -763,24 +796,23 @@
     \seq_map_inline:Nn \l__hit_axis_seg_seq
       {
         \prop_if_in:NnT \g__hit_axis_of_prop {##1}
-          { \msg_error:nnnn { hithesis } { axis-order } {#1} {##1} }
+          { \bool_set_false:N \l__hit_axis_valid_bool
+            \msg_error:nnnn { hithesis } { axis-order } {#1} {##1} }
+        \tl_if_head_eq_charcode:nNT {##1} !
+          {\bool_set_false:N \l__hit_axis_valid_bool \msg_error:nnn{hithesis}{axis-invalid}{#1}}
       }
+    \tl_set_eq:NN \l__hit_axis_canonical_tl \l__hit_axis_term_tl
+    \clist_map_inline:Nn \c__hit_axis_clist
+      {\prop_get:NnNT \l__hit_axis_spec_prop {##1} \l__hit_axis_value_tl
+        {\tl_put_right:Nx \l__hit_axis_canonical_tl {-\l__hit_axis_value_tl}}}
   }
+\cs_new_protected:Npn \__hit_axis_normalize:nN #1#2
+  {\hit@axis@parse:n{#1}\tl_set_eq:NN #2 \l__hit_axis_canonical_tl}
+\cs_generate_variant:Nn \__hit_axis_normalize:nN {VN}
 %    \end{macrocode}
 %
-% \emph{剥完还剩档位值，就是顺序写错了。} 剥是从末段往前、轴序严格递减，
-% 所以 \texttt{header-doctor-shenzhen} 剥掉 \texttt{shenzhen}（校区，第二根）
-% 之后遇到 \texttt{doctor}（学位，第三根），三不小于二，停下——剩下的
-% \texttt{header-doctor} 整串成了词条名，与 \texttt{header} 是两个互不相干的
-% 名字，查表永远查不到它。
-%
-% 不报错的话排出来是不带后缀那一份，翻日志也看不见。词条名里不要用档位值当
-% 普通的词（\texttt{cover-thesis-interim-check} 里的 \texttt{interim} 曾是「中期
-% 检查报告」这个词的一部分，已改名 \texttt{cover-check-report-title}）。
-%
-% 正确的写法是按轴序排：\texttt{stage}、\texttt{campus}、
-% \texttt{degree-level}、\texttt{degree-type}、\texttt{category}、\texttt{lang}，
-% 少写哪一段就是那根轴各档共用。
+% 内置配置使用 stage、campus、degree-level、degree-type、category、form 的规范顺序，
+% 语言后缀独立放在最后。用户输入可乱序，但必须全部位于词条名末尾。
 %    \end{macro}
 %    \begin{macrocode}
 %    \end{macrocode}
@@ -866,6 +898,8 @@
         \bool_set_false:N \l__hit_axis_not_bool
         \tl_set:Nn \l__hit_axis_value_tl {#1}
       }
+    \prop_get:NVNT \c__hit_axis_alias_prop \l__hit_axis_value_tl \l__hit_axis_pos_tl
+      {\tl_set_eq:NN \l__hit_axis_value_tl \l__hit_axis_pos_tl}
   }
 \cs_new_protected:Npn \__hit_axis_match:nn #1#2
   {
@@ -969,6 +1003,8 @@
   }
 \cs_new_protected:Npn \hit@axis@resolve:
   {
+    \bool_gset_true:N \g__hit_axis_initialized_bool
+    \bool_gset_false:N \g__hit_axis_dirty_bool
     \prop_clear:N \l__hit_axis_context_prop
     \clist_map_inline:Nn \c__hit_axis_clist { \__hit_axis_context_axis:n {##1} }
     \prop_clear:N \l__hit_axis_best_prop
@@ -1001,7 +1037,7 @@
 % （见上面 \cs{hit@axis@resolve:}）。所以\emph{基准就是不带档位值的那一条}——
 % 学位轴的基准是博士、校区轴的基准是哈尔滨，只要不写后缀就是它们。
 %
-% \emph{变体里只写不一样的那一小坨。} 要接着用基准那一份，在变体里写
+% 变体需要调用默认实现时，使用
 % \cs{hit@hook@base:n}\marg{名}：它指的是不带任何档位值的那一条，与查表结果无关。
 %
 % \emph{为什么不复用词条。} 词条是取值，用户能用 \cs{hitsetup} 覆盖，而且存在
@@ -1087,14 +1123,7 @@
   }
 %    \end{macrocode}
 %
-% \emph{本页的桶盖在 \texttt{base} 上。} 跨页共用的词条住在 \texttt{base}，各页桶里
-% 没写的那些就指向 \texttt{base} 里那一条。这样排版代码一律写自己那一页的桶
-% （\cs{hit@term@titlepage@university@zh}），用户想只改这一页就改
-% \option{overrides}\texttt{=\{zh=\{titlepage=\{university=\ldots\}\}\}}，想全篇一起改就改
-% \texttt{base} 那一条。桶里自己写了的优先，回落只补没写的。
-%
-% 照 iota 的两级查表：本页的桶盖在 base 上，两处都没有就报错（那是上一段的守卫）。
-% 区别只在时机：那边每次取值现查，我们在这里一次绑完，之后取值就是取一个宏。
+% 部件词条优先于 base；初始化时为未覆盖的字段绑定默认引用。
 %    \begin{macrocode}
 \seq_new:N \l__hit_axis_base_seq
 \tl_new:N \l__hit_axis_rest_tl
@@ -1150,13 +1179,17 @@
 %    \end{macro}
 %    \begin{macrocode}
 \seq_new:N \g__hit_constant_seq
+\prop_new:N \g__hit_term_base_prop
 \cs_new_protected:Npn \hit@declare@constant #1
   {
     \clist_map_inline:nn {#1}
       {
-        \seq_gput_right:Nn \g__hit_constant_seq {##1}
+        \prop_if_in:NnF\g__hit_constant_declared_prop{##1}
+          {\seq_gput_right:Nn \g__hit_constant_seq {##1}}
         \prop_gput:Nnn \g__hit_constant_declared_prop {##1} { }
-        \keys_define:nn { hit / overrides } { ##1 .code:n = { \__hit_constant_set:n {####1} } }
+        \hit@axis@parse:n{##1}
+        \prop_gput:NVn \g__hit_term_base_prop \l__hit_axis_term_tl {}
+        \keys_define:nn { hit / overrides-internal } { ##1 .code:n = { \__hit_constant_set:n {####1} } }
       }
   }
 %    \end{macrocode}
@@ -1169,8 +1202,8 @@
 % （\texttt{equationname} 写 \cs{equationname}，不是 \cs{hit@equationname}）。
 % \cs{hit@declare@constant@ctex}\marg{键名=目标,\ldots} 声明的键，目标是 \hologo{LaTeX} 的名字
 % （\cs{contentsname} 这些）就直接写进那个命令；目标带斜线的（\texttt{chapter-name=chapter/name}）是
-% \CTeX\ 的标题键，只有 \CTeX\ 还在（照旧路排的深圳硕博报告）时才转给 \cs{ctexset}。
-% 两个名字常常一样，不一样的写等号。先前九个一律转给 \cs{ctexset}，名字本身也由 \CTeX\ 去写。
+% 历史上的标题键，现在保存给模板自己的标题层使用，不再转交标题排版。
+% 两个名字常常一样，不一样的写等号。
 %
 % 两者都照旧认取值里的 \texttt{<键名>} 引用。这一类另存一份在
 % \cs{g\_\_hit\_term\_ctex\_}\meta{键名}\cs{\_tl}：标题交给 \pkg{docxlike} 排时，章名“第”“章”
@@ -1186,11 +1219,7 @@
 % 各个 \cs{ctexset} 块里，一个块一份。所以常量默认留空，各块把自己原有的取值当
 % 兜底传进来，用户没设就跟以前一模一样，设了就一处覆盖全部。
 %
-% 空不空不能用 \cs{tl\_if\_empty:cTF} 判。常量是 \cs{cs\_gset:cpx} 建的，那是个
-% \cs{long} 宏；\cs{tl\_if\_empty:N} 拿 \cs{c\_empty\_tl} 比意义，而
-% \cs{c\_empty\_tl} 不是 \cs{long}，空常量会被判成非空，接着 \cs{use:c} 取到那个
-% 空宏，间距静悄悄地消失。踩过一次，症状是 45 个变体全变、页数一页不变。
-% 所以另造一个同样由 \cs{cs\_new:Npn} 建的空宏来比。
+% 判空时须与同为 long 的空宏比较，避免 tl_if_empty 将空常量误判为非空。
 %
 % 常量不存在时也走兜底：默认值虽然在 \file{hit-defaults.dtx} 里都设了，
 % 少一条不该让间距无声消失。
@@ -1227,14 +1256,7 @@
     \__hit_expand_references:N \l__hit_constant_value_tl
     \tl_gset_eq:cN { g__hit_term_ctex_ \l_keys_key_str _tl } \l__hit_constant_value_tl
     \__hit_constant_target:
-    \tl_if_in:NnTF \l__hit_constant_target_tl { / }
-      {
-        \cs_if_exist:NT \ctexset
-          {
-            \exp_args:Nx \ctexset
-              { \l__hit_constant_target_tl = { \exp_not:V \l__hit_constant_value_tl } }
-          }
-      }
+    \tl_if_in:NnF \l__hit_constant_target_tl { / }
       {
         \cs_gset:cpx { \l__hit_constant_target_tl }
           { \exp_not:V \l__hit_constant_value_tl }
@@ -1245,7 +1267,7 @@
     \clist_map_inline:nn {#1}
       {
         \prop_gput:Nnn \g__hit_constant_target_prop {##1} {##1}
-        \keys_define:nn { hit / overrides }
+        \keys_define:nn { hit / overrides-internal }
           { ##1 .code:n = { \__hit_constant_set_as:n {####1} } }
       }
   }
@@ -1259,7 +1281,7 @@
     \tl_set:Nx \l__hit_constant_target_tl { \tl_trim_spaces:n {#2} }
     \prop_gput:NVV \g__hit_constant_target_prop
       \l__hit_constant_key_tl \l__hit_constant_target_tl
-    \exp_args:Nnx \keys_define:nn { hit / overrides }
+    \exp_args:Nnx \keys_define:nn { hit / overrides-internal }
       {
         \l__hit_constant_key_tl .code:n =
           { \exp_not:N \__hit_constant_set_ctex:n { \exp_not:n {##1} } }
@@ -1268,7 +1290,7 @@
 %    \end{macrocode}
 %
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@set@constant #1 { \hit@keys@set:nn { hit / overrides } {#1} }
+\cs_new_protected:Npn \hit@set@constant #1 { \hit@keys@set:nn { hit / overrides-internal } {#1} }
 %    \end{macrocode}
 % \end{macro}
 %

@@ -33,7 +33,7 @@
 % 错位），章就得另起一页。顶级可能是 \cs{section} 也可能是 \cs{chapter}（见
 % \file{src/flow/hit-report-heading.dtx} 的标题层级），所以不往哪个命令上挂补丁，
 % 只立 \cs{g\_\_hit\_report\_top\_break\_bool}，由顶级那一支换页。
-% 本部与威海的报告顶级是节，不另起一页，只有深圳本科立这个标志（iota-hit 同）。威海硕士开题
+% 本部与威海报告的顶层节标题不另起一页，仅深圳本科设置该标志。威海硕士开题
 % 照 \issue[219] 的模板，节套的是终稿的“标题 2”，也不另起一页。
 % 类自己排的封面与目录按原级走，排的时候立 \cs{g\_\_hit\_report\_heading\_raw\_bool}。
 %
@@ -50,20 +50,12 @@
 % 留下的，可去掉之后章标题在页首的段前就不按“段前减上一段段后”算了（第一章落到 137.9，
 % Windows Word 的导出件是 128.2），所以留着。
 %
-% \emph{正文排完要把 \cs{topskip} 还回去。} \hologo{LaTeX} 的 \cs{clearpage} 在页后放一个
-% \cs{write} 加一只零高的 \cs{vbox}，输出例程（\cs{@doclearpage}）先把整页 \cs{vsplit}
-% 到零高、放回主列表，本意是只救出页首的 \cs{write} 与 \cs{mark}，那只空盒随整页丢掉。
-% \cs{topskip} 为零时空盒前面那段胶也是零，整串都是零高，空盒跟着被放回来，下一次
-% \cs{clearpage} 就把它排成一页：示例开题报告的末尾因此多一张只有页眉页脚的空白页，原件
-% 没有。进后置时还回去，文末那两次 \cs{clearpage} 就不会再多出一页；报告没有参考文献、一直在正文里的，
-% 文末还一次。
+% 后置部分及文末须恢复 topskip，否则 clearpage 保留的零高空盒可能产生空白页。
 %
 % \emph{别的档整篇一个制式，正文从 1 数。} 原先首页与目录在同一个 \env{titlepage} 环境里，单面文档在
 % 环境结束时把页码归 1。首页与目录拆成两个部件以后，归 1 挪到这里；双面的不归，与原先一样。
 %
-% \emph{深圳博士中期的边框与深圳硕士的页眉在进正文时挂上。} 原先在封面那一组的末尾挂，那时目录
-% 已经排完送出，所以目录页没有边框、用的是前置的页眉。封面与目录拆成两个部件以后，封面排完
-% 目录还没排，挂在进正文时才与原先一样。
+% 深圳研究生报告的目录与正文分别从阿拉伯数字 1 起；中期目录使用无页眉样式。
 %    \begin{macrocode}
 \dim_new:N \g__hit_report_topskip_dim
 \cs_set_protected:Npn \frontmatter
@@ -75,11 +67,13 @@
         \pagenumbering
           {
             \bool_lazy_and:nnTF
-              { \bool_if_p:N \g__hit_shenzhen_bool } { \bool_if_p:N \g__hit_proposal_bool }
+              { \bool_if_p:N \g__hit_shenzhen_bool }
+              { \bool_lazy_or_p:nn{\bool_if_p:N\g__hit_proposal_bool}{\bool_if_p:N\g__hit_shenzhen_report_bool} }
               { arabic } { Roman }
           }
         \pagestyle
           { \bool_if:NTF \g__hit_harbin_report_bool { hit@empty } { hit@headings@front } }
+        \bool_if:NT\g__hit_shenzhen_report_bool{\pagestyle{hit@shenzhen@toc}}
       }
   }
 \cs_set_protected:Npn \mainmatter
@@ -93,20 +87,12 @@
         \pagestyle { hit@headings }
         \dim_gset_eq:NN \g__hit_report_topskip_dim \topskip
         \dim_zero:N \topskip
-        \bool_if:NT \g__hit_shenzhen_bool
+        \bool_if:NT\g__hit_shenzhen_report_bool
+          {\bool_gset_true:N\g_docxlike_section_start_bool}
+        \bool_lazy_and:nnT{\bool_if_p:N\g__hit_shenzhen_bool}{\bool_if_p:N\g__hit_bachelor_bool}
           { \bool_gset_true:N \g__hit_report_top_break_bool }
       }
       { \legacy_if:nF { @twoside } { \setcounter { page } { 1 } } }
-    \hit@if@shenzhen@doctor@interim@TF
-      {
-        \AddToHook { shipout / background } { \hit@report@shenzhen@doctor@frame@picture }
-        \pagestyle { hit@shenzhen@doctor@headings@main }
-      }
-      {
-        \bool_lazy_and:nnT
-          { \bool_if_p:N \g__hit_shenzhen_bool } { \bool_if_p:N \g__hit_master_bool }
-          { \pagestyle { hit@shenzhen@headings@main } }
-      }
   }
 \cs_new_protected:Npn \__hit_report_topskip_restore:
   {
@@ -121,8 +107,7 @@
 \AtEndDocument { \hit@matter@if:nT { main } { \__hit_report_topskip_restore: } }
 %    \end{macrocode}
 %
-% \emph{只在学位论文里有的部分，报告里写了照样认。} iota-hit 的这些部件在报告里自己判断不排，
-% 一份主文件换 \option{stage} 就能编；这边原先报告里压根没定义，写了就报“未定义”。扉页、摘要、
+% 报告识别终稿专有部件并按支持情况跳过。扉页、摘要、
 % 符号表、缩略语表、符号与缩略语合页、答辩页、声明、索引在报告里没有版式，\option{shown=true} 也不排，给一条警告；
 % 其余的键不认也不报，写给学位论文的参数原样留着就行。环境体整个跳过。\cs{maketitle} 是
 % \hologo{LaTeX} 内核的，报告里改成同一个判断；\cs{printindex} 等导言区装完再看，用户自己装了
@@ -141,7 +126,7 @@
     \str_if_eq:VnT \l_hit_part_shown_tl { true }
       { \msg_warning:nnn { hithesis } { part-final-only } {#1} }
   }
-\RenewDocumentCommand \maketitle { O{} }
+\cs_new_protected:Npn \__hit_titlepage_command:n #1
   { \__hit_report_final_only:nn { titlepage } {#1} }
 \NewDocumentCommand \listofabbreviations { s O{} }
   { \__hit_report_final_only:nn { list-of-abbreviations } {#2} }

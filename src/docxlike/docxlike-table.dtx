@@ -17,7 +17,7 @@
 %   行的撑杆是 Word 的行盒，格里的字与正文一样吃网格增量，格里的段按“在表格单元格里”断行、
 %   居中右对齐按整个格宽；\pkg{tabularray} 的表只补字宽}
 %
-% 照 Windows Word 2019 的实测（探针 \file{tbl1}，学校模板的正文节：391 缇行距、1861 字距、兼容模式 11）：
+% 配置单元格边距、行盒、边框和表内断行。
 % \begin{itemize}
 % \item 格左右各有 5.4\,bp 的边距（\texttt{Normal Table} 的 \texttt{tblCellMar} 是 108 缇），上下没有。
 % \item 竖的框线画在格与格的分界上，不占宽，格里的字从分界起空一个格边距。横的框线占它自己的
@@ -40,8 +40,6 @@
 %   算上末字的增量。\texttt{l}、\texttt{c}、\texttt{r} 列的格是一个盒，没有段，断行层在装盒时
 %   给格里的字补上增量与字偶距（属性 \cs{docxlike@cell@attr} 标着哪些字在格里）。
 % \end{itemize}
-% 探针 \file{tbl1} 的全框线表、折行的格、三线表照 \env{tabular} 与 \env{tabularx} 排，框线与
-% 基线差 0.07 以内，格里的字差 0.1 以内（\file{test/table/tbl1.tex}）。
 %
 % \pkg{tabularray} 只做后一条的字宽与竖线：它自己量每一格的盒来定行高与竖直居中，撑杆与格里的段
 % 换成 Word 的行盒后，居中的格与别的格基线对不齐。所以它的表不换撑杆、格里的段照旧交回
@@ -242,12 +240,7 @@
   }
 %    \end{macrocode}
 %
-% \emph{\pkg{tabularray} 自己开的那几段不发撑杆。} 它起表前先 \cs{leavevmode} 开一个空段去刷新
-% \cs{pagetotal}，排每一页又用 \cs{noindent} 开一段装整张表的盒子（长表换页后那两处也各有一个
-% \cs{noindent}，与 \cs{nobreak} 连着）。Word 版面下每一段都由段落钩子发撑杆、走断行层的行盒，
-% 这几段就被撑成一整行：空段成了一行空白，表盒底下多垫一个行深。所以这四处前面各补一句
-% \cs{docxlike\_format\_blank\_para:}，那一段两头都不发撑杆。\cs{nobreak}\cs{noindent} 那一对打两遍：
-% \cs{patchcmd} 只换第一处，换过的那处已经不匹配，第二遍换到的就是另一处。
+% tabularray 用于更新 pagetotal 和容纳整表的空段须禁用撑杆，否则会额外占据一行。
 %
 % 补丁打在 \pkg{tabularray} 的内部函数上，\cs{patchcmd} 按打补丁那一刻的 catcode 重扫宏体：下划线与冒号
 % 设成字母，空格设回 10（宏体里有 \texttt{\string\hrule height \string~ 0pt}，\pkg{expl3} 语法下重扫会把那个空格
@@ -297,11 +290,7 @@
   }
 %    \end{macrocode}
 %
-% \emph{\pkg{tabularray} 的竖线不占宽。} Word 的竖框线画在两格的分界上，不把格推开（探针 tbl1 的 T1：
-% 竖线两侧的字与没有竖线时一样）；\pkg{tabularray} 把竖线的宽算进列与列之间，每道竖线把后面的格往右推一个
-% 线宽。表格照 Word 排时（\cs{l\_docxlike\_table\_cell\_bool}）改两处：量竖线占多宽时单线记作零，画的时候
-% 把线往左让半个线宽，骑在分界上。双线（一处画几道）照旧。这是改 \pkg{tabularray} 的内部函数，
-% 2025C 上核过；函数不在就什么都不做。
+% 单竖线计宽为零并居中于单元格边界，双线保持原行为；内部接口不存在时跳过补丁。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__docxlike_table_tblr_vlines:
   {

@@ -4,17 +4,14 @@
 %
 % \fi
 %
-% \section{不经 \pkg{ctex} 的中文层}
+% \section{中文字体与计数适配}
 %
 % \changes{v3.2a}{2026/09/28}{\hologo{LuaLaTeX} 与 \hologo{XeLaTeX} 下底类换成 \cls{book}，中文排版的底由
 %   \pkg{docxlike} 装（\pkg{xeCJK}、\pkg{luatexja}），不再经 \pkg{ctex}：字号表、\cs{zihao}、\cs{ccwd}、
 %   \cs{chinese} 由类给，\hologo{LuaLaTeX} 下 \cs{setCJKmainfont}、\cs{setCJKfamilyfont}、\cs{CJKfamily}
-%   这一族架在 \pkg{luatexja-fontspec} 上；深圳硕博的开题与中期、\hologo{pdfLaTeX} 仍是 \cls{ctexbook}}
+%   这一族架在 \pkg{luatexja-fontspec} 上；仅 \hologo{pdfLaTeX} 仍使用 \cls{ctexbook}}
 %
-% 正文照 Word 排的文档（学位论文与本部、威海、深圳本科的报告）在 \hologo{LuaLaTeX} 与
-% \hologo{XeLaTeX} 下不再装 \pkg{ctex}，底类是 \cls{book}。标题、目录、题注、列表、页眉页脚都已经
-% 交给 \pkg{docxlike}，\pkg{ctex} 剩下的用处是下面这几样，这里一样一样补上，取值照 \pkg{ctex}
-% 抄（\pkg{ctex} 与本类同是 LPPL）：
+% 为 book 底类补充中文字号、字宽、计数和字族接口。
 % \begin{itemize}
 % \item 字号：\option{zihao}~=~\texttt{-4} 的那张表（\file{ctex-cs4size.clo}），\cs{zihao}，公式里
 %   各级字号；
@@ -26,14 +23,7 @@
 %   \pkg{xeCJK} 的，不用补。
 % \end{itemize}
 %
-% 中文排版的底（\pkg{xeCJK}，或 \pkg{luatexja} 经 \pkg{luatexja-fontspec}，字符范围、JFM、
-% 中文字体不缩放）由 \pkg{docxlike} 的 \cs{docxlike\_cjk\_base:} 装，与 \pkg{docxlike} 单独使用时
-% 同一套。\pkg{ctex} 的标题、名字、字体集这三层本类早已不用；字体集由 \option{font-zh}
-% 管，写 \option{fontset} 等于给 \option{font-zh} 定了取值，见 \file{src/engine/hit-fonts.dtx}。
-%
-% 仍装 \pkg{ctex} 的两处：深圳硕博的开题与中期（整篇还是 \pkg{ctex} 排的，没有可照的原件，
-% 不动），\hologo{pdfLaTeX}（\pkg{CJK} 宏包那一层与字体映射都靠 \pkg{ctex}）。分水岭那边按
-% \cs{g\_\_hit\_ctex\_base\_bool} 选底类，这里的函数只在不装 \pkg{ctex} 时调。
+% Unicode 引擎使用 xeCJK 或 luatexja；pdfTeX 的 CJK 初始化由 ctexbook 提供。
 %
 % ^^A ======================================================================
 % ^^A Module shared-cjk: 不经 ctex 的中文层
@@ -43,9 +33,7 @@
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@cjk@base:}
-% 分水岭在 \cs{LoadClass}\marg{book} 前后各调一句。前一句装 \pkg{fix-cm}，\cls{ctexbook} 也是在
-% 装 \cls{book} 之前装它。后一句装中文排版的底，再把字号、\cs{ccwd}、中文计数补上，末了
-% \cs{normalsize} 一下，与 \pkg{ctex} 结尾那句一样。
+% book 加载前加载 fix-cm，加载后初始化中文后端和字号。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@cjk@before@class:
   { \RequirePackage { fix-cm } }
@@ -193,9 +181,7 @@
 %
 % \subsection{\cs{ccwd}、字距与首行缩进}
 %
-% 这一节照 \pkg{ctex} 挂在换字体上的那几件事（\pkg{ctex} 挂的也是 \texttt{selectfont} 钩子，
-% \cs{size@update} 之前），取值与时机都照它，没有字符网格的报告（本部与威海的开题、中期）排出来才与
-% 先前一样。有字符网格的文档里，\pkg{docxlike} 在正文开头就设了自己的字距，这里只剩重算 \cs{ccwd}。
+% 换字体时更新字宽和默认字距；已由 docxlike 设置的字距不覆盖。
 %
 % \begin{macro}{\ccwd}
 % \cs{ccwd} 是一个汉字占的宽：字号加上汉字之间那段胶的自然宽，字号变了才重算。汉字之间的胶
@@ -203,15 +189,7 @@
 % \pkg{luatexja} 的 \texttt{kanjiskip}，胶赋给长度取的就是自然宽。\pkg{docxlike} 按字符网格设了字距
 % 之后，这里算出来的就是网格的一格。
 %
-% \emph{字距没被别人设过时由这里设。} 换字号时按行宽定一段只伸不缩的胶：一行放得下 $n$ 个字
-% （行宽减两个字宽再除以字宽，取整），把行宽剩下的那点均给 $n$ 个字缝。\pkg{luatexja} 自己的
-% 默认字距能压缩（\texttt{minus 0.5pt}），\pkg{xeCJK} 的按行距伸，都与先前排的不一样。\pkg{docxlike}
-% 设了字距（\texttt{docxlike/hglue} 钩子，见 \file{hit-docxlike.dtx}）之后就是“设过”，这里不再动它，
-% \cs{ccwd} 改按它算。怎么看“设过”：\hologo{LuaLaTeX} 比 \texttt{kanjiskip} 与这里上次设的值，
-% \hologo{XeLaTeX} 比 \cs{CJKglue} 与这里上次设的那个宏（一开始是 \pkg{xeCJK} 自己的 \cs{CJKglue}，
-% 当没设过）。\hologo{LuaLaTeX} 下 \pkg{docxlike} 第一次设字距之前一概不比，照算，与 \pkg{ctex}
-% 在 \hologo{LuaLaTeX} 下的做法一样（别处临时改的 \texttt{kanjiskip}，比如分散对齐那一段，
-% 遇上换字号也被盖掉）。
+% 默认字距将行宽余量分配为可伸长的胶；检测到外部改值后停止自动赋值。
 %
 % \emph{中西文之间的胶（\hologo{LuaLaTeX} 的 \texttt{xkanjiskip}）}每次换字体都设成四分之一个字号、
 % 能伸缩 1\,pt，同样只在没被别人设过时。\pkg{luatexja} 的默认值是装它那一刻按日文字号算死的
@@ -332,7 +310,7 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@cjk@autoindent@off:}
-% 两条底类各有一份开关：装着 \pkg{ctex} 时是它的 \option{autoindent}，不装时是上面那个标志位。
+% 根据底类关闭自动缩进，让正文样式决定首行缩进。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@cjk@autoindent@off:
   {
@@ -372,9 +350,7 @@
 %
 % \subsection{\hologo{LuaLaTeX} 下的中文字族}
 %
-% \pkg{ctex} 在 \hologo{LuaLaTeX} 下不用 \pkg{luatexja-fontspec}，自己搭了一层字族（一千多行）。
-% 这里架在 \pkg{luatexja-fontspec} 上，只做本类与用户文档用得到的那几条，写法与 \pkg{xeCJK}、
-% \pkg{ctex} 相同：
+% 基于 luatexja-fontspec 提供 CJK 字族命令，并延迟创建 NFSS 字族。
 % \begin{itemize}
 % \item 字族有名字（\texttt{zhsong}、\texttt{zhkai}……），正文、无衬线、等宽三族的名字是
 %   \cs{CJKrmdefault}、\cs{CJKsfdefault}、\cs{CJKttdefault}（\texttt{rm}、\texttt{sf}、\texttt{tt}）。
@@ -389,9 +365,7 @@
 %   \cs{jttdefault}，公式里的汉字（\texttt{mincho} 那个符号字体）也跟着正文那一族。
 % \end{itemize}
 %
-% 下面几条照 \pkg{ctex} 装完 \pkg{luatexja} 之后做的：\texttt{128}--\texttt{255} 这些码位在公式里当字母，
-% \cs{verb} 与等宽字体那几处（见下），\file{lltjcore.sty} 的版本号置空（\pkg{ctex} 也这么做，
-% 照抄，免得哪个补丁包按版本号走了另一支）。
+% 初始化数学字符类别及 luatexja 兼容设置。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_cjk_ltj_after:
   {
@@ -406,9 +380,7 @@
   }
 %    \end{macrocode}
 %
-% \cs{verb} 与 \cs{do@noligs} 照 \pkg{ctex}（它照的是 \file{lltjcore.sty}，装完再盖一遍）：行内代码
-% 前后不留 \cs{kern}，换成空的 \cs{vadjust}，\pkg{luatexja} 才不在代码与汉字之间插中西文间距；
-% 等宽字体里关掉中西文间距。
+% 使用空 vadjust 隔开行内代码，抑制 luatexja 在边界插入中西文间距。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_cjk_ltj_verb:
   {
@@ -534,11 +506,7 @@
 \cs_generate_variant:Nn \__hit_cjk_family_set:n { e }
 %    \end{macrocode}
 %
-% 临时加特性（\cs{addCJKfontfeatures}）与临时指定字体（\cs{CJKfontspec}）照 \pkg{ctex}：拿当前字族的
-% 字体名与特性，拼上新写的特性，另登记一族（名字就是特性加字体名，同样的组合只登记一次）再换过去。
-% 不交给 \pkg{luatexja-fontspec} 的 \cs{addjfontfeatures}：它借 \pkg{fontspec} 的
-% \cs{addfontfeatures}，在西文编码下按中文字族名选一次字体，每次报一条 \texttt{TU/SimSun(1)} 那样的
-% Font shape undefined。当前字族不在表里（字体不是经这一层设的）时什么也不做。
+% 临时字体特性通过缓存字族实现，避免 addjfontfeatures 用西文编码选择中文字族。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_cjk_fontspec:nn #1#2
   {

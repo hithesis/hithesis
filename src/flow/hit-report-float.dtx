@@ -69,21 +69,9 @@
 % 两处 \cs{captionsetup} 各自先 \cs{RequirePackage}\marg{caption}，声明得排在加载
 % 之后，所以包成一个宏在两处都调一次。
 %
-% \emph{兜底跟共享层走。} 先前这三条各自把兜底写成 \cs{space}（一个西文空格，
-%  小四下 3.0），中文报告的题注因此排成「表2-1 叶轮主要参数表」只空 3.0；
-% 原件与 iota-hit 的复刻件都是空一个字（12.0）。共享层的
-% \cs{hit@caption@separator} 本来就按图表分、按语种分、兜底是
-% \cs{hit@caption@separator@fallback}（有网格数就 \cs{hskip}\cs{ccwd}），
-% 终稿那一份 \cs{@makecaption} 用的就是它，报告直接调同一个。
-% \emph{\texttt{labelsep} 到不了正题注。} \file{hit-flow-deps.dtx} 在
-% \pkg{subcaption}（它自己带进 \pkg{caption}）之后又加载了 \pkg{ccaption}，
-% 而 \pkg{ccaption} 把 \cs{@makecaption} 整个换掉了，分隔符读的是它自己的
-% \cs{@contdelim}。所以上面那两条声明发出去一直没作数，报告的题注从头到尾印的是
-% \pkg{ccaption} 的默认值「\texttt{:~}」。这里补发一次 \cs{captiondelim}，
-% 图与表按 \cs{@captype} 各读各的常量；两条旧声明留着，子题注那一头还走它们。
+% 题号间隔使用共享默认值；ccaption 会替换 makecaption，因此还须设置 captiondelim。
 %
-% 语言跟着文档走。先前这儿写死 \texttt{zh}——那会儿报告没有 \option{lang}，
-% 现在有了。
+% 题注语言跟随文档语言。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@report@declare@caption@separator:
   {
@@ -95,26 +83,9 @@
 %
 % 深圳硕士中期把图注排成「图 1-1 标题」的格式。
 %    \begin{macrocode}
-\bool_lazy_and:nnT
-  { \bool_if_p:N \g__hit_shenzhen_bool }
-  {
-    \bool_lazy_and_p:nn
-      { \bool_if_p:N \g__hit_master_bool }
-      { \bool_if_p:N \g__hit_interim_bool }
-  }
-  {
-    \RequirePackage { caption }
-    \hit@report@declare@caption@separator:
-    \cs_set:Npn \thefigure { \thesection - \arabic { figure } }
-    \captionsetup [ figure ] { labelsep=hit@figure@number }
-  }
 %    \end{macrocode}
 %
-% \emph{正文照 Word 排的那几档，题注都照 Word 的写法。} 编号按节走的只有两档：深圳本科
-% 那两份（第一级写的是 \cs{section}、按章排，iota-hit 对原件的复刻件里中英两版都是
-% 「图1-1」「Figure 1-1」）与照终稿排的威海硕士开题，与本部、威海的本科开题。别的报告
-% 连续编号，「表1」，与 iota-hit 的 \texttt{report-caption-by-section} 同一张表。公式只有
-% 照终稿排的两档按节编，本部与威海的本科开题图表按节、公式照报告连续编号，也照 iota-hit。
+% 图表和公式的默认重置规则按报告类型设置，用户的显式编号选项由编号模块统一应用。
 %    \begin{macrocode}
 \bool_if:NT \g__hit_final_body_bool
   {
@@ -150,6 +121,14 @@
       {
         \cs_set:Npn \theequation { \thesection - \arabic { equation } }
         \@addtoreset { equation } { section }
+      }
+  }
+\bool_lazy_and:nnT{\bool_if_p:N\g__hit_shenzhen_report_bool}{\bool_if_p:N\g__hit_proposal_bool}
+  {
+    \clist_map_inline:nn{figure,table,equation}
+      {
+        \@removefromreset{#1}{section}\@removefromreset{#1}{chapter}
+        \cs_set:cpn{the#1}{\arabic{#1}}
       }
   }
   }

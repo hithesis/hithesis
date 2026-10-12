@@ -21,10 +21,7 @@
 % \changes{v0.1.0}{2026/09/24}{照 Word 的模型排页眉页脚：每节首页、奇数页、偶数页三份，
 %   没给就沿用前一节；页眉顶在页眉距、页脚底在页脚距；页码格式、域、段落边框、制表位}
 %
-% Word 的页眉页脚挂在节上。每节最多三份页眉、三份页脚：首页、偶数页、其余页。首页那份
-% 只在本节开了“首页不同”时用，偶数页那份只在全文开了“奇偶页不同”时用。
-% 某一份本节没给，就用前一节的同一份，一直往前找，这就是 Word 的“链接到前一节”。
-% 这些规则与下面的数都是在 Word 里量的，量法与原始数据在 \file{test/headfoot}。
+% 按节管理首页、偶数页和默认页眉页脚；未设置的类型继承前一节。
 %
 % 键名照 Word 的界面：“首页不同”“奇偶页不同”在页面设置的版式页上，是
 % \option{page-setup}/\option{layout} 里的 \option{different-first-page} 与
@@ -503,8 +500,8 @@
 % \cs{docxsectionbreak}\oarg{分节符}\marg{键值表} 开新的一节，键值表写新一节的属性。
 % 分节符照 Word“分隔符”菜单：\texttt{next-page}（默认，另起一页）、\texttt{odd-page}、
 % \texttt{even-page}（另起奇数页、偶数页，缺一页就插一张空白页）、\texttt{continuous}
-% （不换页）。连续分节时，分节所在那一页还算前一节，下一页起才是新的一节，
-% 页眉页脚看的是页顶那一刻在哪一节。
+% （不换页）。页中连续分节时，本页页眉页脚仍取前一节，下一页起取新节；
+% 若分节时已在空白页首，该页直接使用新节。各节页数包含本节实际占用的共用页。
 %
 % 一节自己的页边距、纸张、文档网格与页眉页脚距写在 \option{page-setup} 里，与导言区的写法一样，
 % 在上一节的页面设置上改。换页的分节换了页再套上；连续分节不换页，一页里换不了版心的高，写了
@@ -632,8 +629,16 @@
 \int_new:N \g__docxlike_section_page_int
 \int_new:N \g__docxlike_headfoot_page_section_int
 \int_gset:Nn \g__docxlike_headfoot_page_section_int { 1 }
+% 收束分栏会结束分组，段距快照须跨过该分组及清页输出过程。
+\dim_new:N\g__docxlike_section_previous_after_dim
+\dim_new:N\g__docxlike_section_pending_after_dim
+\bool_new:N\g__docxlike_section_after_placed_bool
 \cs_new_protected:Npn \docxlike_section_new:nn #1#2
   {
+    \par
+    \dim_gset_eq:NN\g__docxlike_section_previous_after_dim\g__docxlike_format_prev_after_dim
+    \dim_gset_eq:NN\g__docxlike_section_pending_after_dim\g__docxlike_format_pending_after_dim
+    \bool_gset_eq:NN\g__docxlike_section_after_placed_bool\g__docxlike_format_after_placed_bool
     \__docxlike_cols_close:
     \tl_set:Nn \l__docxlike_section_type_tl {#1}
     \str_case:nnF {#1}
@@ -641,8 +646,21 @@
         { continuous }
           {
             \int_set:Nn \l__docxlike_section_extra_int { 1 }
+            \bool_lazy_and:nnT
+              { ! \mode_if_inner_p: }
+              { \bool_lazy_or_p:nn
+                  {\dim_compare_p:nNn{\pagegoal}={\c_max_dim}}
+                  {\dim_compare_p:nNn{\pagetotal}={0pt}} }
+              {\int_zero:N\l__docxlike_section_extra_int}
             \__docxlike_section_open:n {#2}
+            % 连续分节从当前物理页起算；页眉归属由独立的节标记处理。
+            \int_gset:Nn\g__docxlike_section_first_abs_int{\ReadonlyShipoutCounter}
             \__docxlike_section_mark:
+            \int_compare:nNnT{\l__docxlike_section_extra_int}={0}
+              {
+                \int_gset_eq:NN\g__docxlike_headfoot_page_section_int\g_docxlike_section_int
+                \__docxlike_headfoot_room_now:
+              }
           }
         { next-page } { \__docxlike_section_page:nn { } {#2} }
         { odd-page } { \__docxlike_section_page:nn { odd } {#2} }
@@ -653,6 +671,9 @@
           { next-page , continuous , even-page , odd-page }
       }
     \__docxlike_cols_open:
+    \dim_gset_eq:NN\g__docxlike_format_prev_after_dim\g__docxlike_section_previous_after_dim
+    \dim_gset_eq:NN\g__docxlike_format_pending_after_dim\g__docxlike_section_pending_after_dim
+    \bool_gset_eq:NN\g__docxlike_format_after_placed_bool\g__docxlike_section_after_placed_bool
   }
 %    \end{macrocode}
 %
@@ -745,6 +766,7 @@
 \cs_new_protected:Npn \__docxlike_section_page:nn #1#2
   {
     \clearpage
+    \int_zero:N\l__docxlike_section_extra_int
     \__docxlike_section_open:n {#2}
     \int_set:Nn \l__docxlike_section_next_int
       {
@@ -776,6 +798,9 @@
           }
           {
             \__docxlike_section_blank_page:
+            \tl_if_blank:eT
+              {\__docxlike_section_get:nn{\int_use:N\g_docxlike_section_int}{pgNumType/start}}
+              {\int_set_eq:NN\l__docxlike_section_next_int\c@page}
             \int_gset:Nn \g__docxlike_section_first_abs_int { \ReadonlyShipoutCounter }
           }
       }
@@ -858,7 +883,7 @@
   { \prop_gput:Nnn \g__docxlike_section_pages_prop {#1} {#2} }
 \prop_new:N \g__docxlike_section_pages_prop
 \hook_gput_code:nnn { enddocument / afterlastpage } { docxlike }
-  { \__docxlike_section_close: }
+  { \int_zero:N\l__docxlike_section_extra_int\__docxlike_section_close: }
 %    \end{macrocode}
 %
 % \subsection{页眉页脚的内容}
@@ -956,12 +981,7 @@
 % 行盒、对齐、段前段后都照目标来；盒底补一个零高的 \cs{kern}，末行的深算进盒高，
 % 盒子的顶与底就是 Word 里这份页眉的顶与底，段前段后都在里面。
 %
-% 这里排的段要照正文的规矩发撑杆（行盒高按目标算），所以不立“在页眉里”的标志。
-% 段落钩子会动格式模块的几个全局状态：行内代码收尾的标志、“下一段是几级标题”的记号、
-% 上一段的段后与行深、空段与公式段的标志。页眉页脚常在正文排到一半时排（换页时、
-% 预排下一页时），比如 \cs{chapter} 已经发出“下一段是标题 1”再换页，页眉里的段就会把
-% 这个记号用掉，章标题反倒不按标题排了。所以排之前把这些存下、清掉，排完放回去。
-% \cs{everypar} 也清掉，\cs{@afterheading} 挂在上面的那段不该在页眉里执行。
+% 排页眉页脚前保存并清空正文段落状态，排完恢复，避免消耗待排标题标记或执行正文 everypar。
 %
 % 页眉页脚里带上边框或下边框的段，行距不是固定值时，Word 让字比没框时低 1/600 英寸（0.12\,bp），
 % 段也跟着高这么多；不看线型、线宽与距正文多远，左右边框、底纹、固定行距都没有这一格，正文里的段
@@ -1063,10 +1083,7 @@
 \tl_set:Nn \l_docxlike_headfoot_target_tl { Normal }
 %    \end{macrocode}
 %
-% \emph{放到页上。} 页眉与页脚都从 \hologo{LaTeX} 的页眉槽里放：页眉槽的基线离纸顶
-% 1\,in 加 \cs{voffset}、\cs{topmargin}、\cs{headheight}，这几个数排页时都读得到，
-% 从这里往下挪多少都算得出来；页脚若放在页脚槽里，位置还跟着正文盒的高走，
-% \cs{enlargethispage} 一用就偏。两只盒都缩成零大小再放，不占页眉槽的地方。
+% 页眉和页脚均从页眉槽定位，避免页脚随 enlargethispage 改变位置；两者均不占槽内尺寸。
 %
 % 页眉的顶落在页眉距（\cs{g\_docxlike\_page\_header\_edge\_dim}）处，页脚的底落在纸高减
 % 页脚距处。页面设置没算过（文档类自己设版面）时，页眉顶取 \hologo{LaTeX} 页眉槽的顶，

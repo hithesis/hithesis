@@ -6,25 +6,11 @@
 %
 % \section{答辩决议页}
 %
-% \changes{v3.2a}{2026/09/29}{名单与决议正文照 iota-hit 是 \cs{defense} 的参数（\option{reviewers}、\option{chair}、\option{members}、
+% \changes{v3.2a}{2026/09/29}{名单与决议正文改为 defense 的局部参数（reviewers、chair、members、
 %   \option{secretary}、\option{resolution}）}
-% \changes{v3.2a}{2026/09/27}{答辩决议页从贴扫描件改成排出来，照范例 \file{docx} 里那张 Word 表：
-%   \pkg{docxlike} 的 \env{tabular}，六栏宽照 \texttt{tblGrid}、行高最小值 425 缇、框线半磅；格边距与格里
-%   的字照 iota-hit 紧排（1\,pt、不加网格字距增量，七个字的单位名排得进一行）；合并格照 iota-hit（一行的标签顶端对齐，竖排与两个字的标签在合并出来的高度里居中，多字竖排
-%   一字一格，两个字的中间空行）；决议区是接在表下的一格，排到本页剩下的整数个网格行，放不下就跨页
-%   接着排。名单与决议正文由 \texttt{defense} 族给，某一块人数超了先向还有空行的块借；
-%   \cs{resolution} 只剩带废弃提示的转发，排过就记闸门；人文社科类照人文范例原件那张表的列宽与五号字}
+% \changes{v3.2a}{2026/09/27}{答辩页支持直接排版名单与决议，自动调整名单行数，决议可跨页；支持人文社科版式，旧 resolution 命令保留迁移提示}
 %
-% 这一页原先只有两条路：给个 PDF 就贴进来，不给就贴一张空表的位图。位图是扫描来的，
-% 缩放之后发虚，字体与正文两样，选不中也搜不到，英文论文照样出中文表。现在改成直接排。
-%
-% 数据走 \cs{hitsetup} 的 \texttt{defense} 族，一个人一条记录。表头文案走
-% \texttt{term} 族，中英各一份，英文论文自动出英文表。
-%
-% \emph{照 Word 表排。} 范例里这是一张普通的 Word 表，所以这里用 \pkg{docxlike} 的表格：
-% \env{tabular} 的格边距、竖线、横线、行的撑杆与格里的断行都换成 Word 的（见
-% \file{src/docxlike/docxlike-table.dtx}），行高最小值走它的“指定高度”。合并格与决议区
-% 这两样 \env{tabular} 没有，前者用悬挂的盒，后者在表下另画一个框，这两处照 iota-hit 的做法。
+% 根据 defense 的局部参数排答辩名单和决议，或插入指定扫描件。
 %    \begin{macrocode}
 %<*final-resolution>
 \bool_if:NT \g__hit_final_bool
@@ -50,16 +36,11 @@
 %
 % 表比版心宽 10.8\,bp，居中就两边各探出 5.4\,bp，外框的位置与 Word 一样。
 %
-% 人文社科类照《博士研究生学位论文书写范例（人文社科类）》原件里那张表（iota-hit 也照它）：
+% 人文社科类使用独立的列宽和五号字：
 % 列宽 673、835、1106、2068、1787、2025 缇，合 424.7\,bp，比版心窄；格里的字跟那份的
 % \texttt{Normal}，五号。行高、框线、对齐与理工一样。
 %
-% \emph{格边距与格里的字不跟 Word，跟 iota-hit：边距 1\,pt、字紧排。} Word 的格边距 0.19\,cm 下，
-% “工作单位”那一栏留给字 81.35，“哈尔滨工业大学”七个字加上网格字距增量要 87.2，最常见的单位名就得
-% 折行；纸质表本来就是紧排的。iota-hit 把边距收到 1\,pt、格里的字不加增量，那一栏留给字 90.15，七个字
-% 84 排得下、八个字折（旧 \hithesis 用 \pkg{tabularray} 时也是 1\,pt）。“紧排”写成一个样式
-% \option{resolution-table}：字体不对齐网格，Word 里就是不加增量。决议那一格照旧：边距 0.19\,cm、
-% 字带增量，正文从版心左缘起。
+% 名单单元格使用 1 pt 边距并关闭字符网格增量，决议区使用独立的 resolution-cell 样式。
 %    \begin{macrocode}
 \dim_const:Nn \c__hit_res_inset_dim { 1pt }
 \dim_const:Nn \c__hit_res_row_dim  { 21.25bp }
@@ -94,10 +75,7 @@
 % 每一块的行数取“填了几个人”与“纸质表上有几行”里大的那个：填了就按人数排，
 % 一条不填排出来仍是与纸质表一样的空表。
 %
-% \textbf{某一块超了先借，借不到才占决议区的地方。} 纸质表四块的行数是 2、1、6、1，
-% 评阅人写三个就多出一行。多出来的先看别的块有没有空着的行：委员只填了四个，
-% 六行里空两行，就把这两行匀出去。四块轮着来，一轮各拿一行，拿到够为止；
-% 全借完还不够，才把总行数加上去，决议区相应变矮。
+% 名单超出预留行数时先复用其他分组的空行，不足时再增加总行数。
 %    \begin{macrocode}
 \int_new:N \g__hit_res_rev_int    \int_new:N \g__hit_res_chair_int
 \int_new:N \g__hit_res_mem_int    \int_new:N \g__hit_res_sec_int
@@ -162,7 +140,7 @@
 % 博导）”行末的括号压半格，一行排下）；别的引擎 \hologo{TeX} 断行不压标点，这八个字会折成两行，所以按
 % \verb|\\| 分行、一行一个行盒，与 Word 一样排成一行。表里的段是 \option{resolution-table}，决议那一格是
 % \option{resolution-cell}，两个只差紧排（见上）：范例这张表的段没写行距，
-% 跟 \texttt{Normal}，单倍、贴网格，一行一格（iota-hit 的 \texttt{cell-style} 也是这样）；正文的
+% 使用单倍行距并贴网格，一行一格；正文的
 % \texttt{Normal} 是 1.25 倍，不能直接用。加粗是宋体描边，与 Word 给中易宋体合成粗体同一个做法，
 % 见 \file{hit-fonts.dtx} 的 \cs{hit@font@fakebold@zh:}。
 %    \begin{macrocode}
@@ -197,9 +175,7 @@
   }
 %    \end{macrocode}
 %
-% \emph{每一行先量一遍。} 合并格的标签要在合并出来的高度里居中，而一格里的字长了会折行、那一行就
-% 比最小值高，所以先把每一格照它那一栏的宽排进盒里量高，一行取最高的那格与最小值里大的。与 iota-hit
-% 的 \texttt{row-of} 一样。量的盒里照表格的规矩排（\cs{docxlike\_table\_begin:}），折行与真排时一致。
+% 按实际列宽试排各单元格，以最大内容高度和最小行高的较大值确定行高。
 %    \begin{macrocode}
 \box_new:N \l__hit_res_probe_box
 \dim_new:N \l__hit_res_rowh_dim
@@ -317,15 +293,14 @@
   }
 %    \end{macrocode}
 %
-% \emph{标签怎么摆照 iota-hit 的 \texttt{\_label}。} 评阅人那一格照 Word 顶端对齐、各行居中，
+% 评阅人标签顶端对齐、各行居中，
 % 行在词条里用 \verb|\\| 分好（与 Word 在那一栏宽里折的地方一样），一行一个 Word 的行盒，
 % 行里的字照 Word 的 run 装（\cs{docxlike\_format\_run\_hbox\_set:Nn}，行头行尾的括号占整格）；
 % 别的几块的标签分三种，后两种在合并出来的高度里上下居中：
 % \begin{itemize}
 % \item 词条里只有一段（“主席”）就排成一行，与别的格一样顶端对齐；英文表的旋转标签居中；
 % \item 几个字每字一段（“答辩委员会成员”），一摞排得下就竖排，一字一格，格高 1.04 个字号（范例
-%   \texttt{tbRlV} 那一格量的 12.48，iota-hit 取字号加网格余量，默认网格下是同一个数，网格宽的节里
-%   不跟着变），字的基线在格顶下一个上升部（中易宋体 220/256\,em），字身的高深不算（\pkg{luatexja} 的
+%   表格竖排标签使用固定比例，不随网格变化），基线在格顶下一个上升部，字形高深不计入步进（\pkg{luatexja} 的
 %   JFM 给的 0.88\,em 比上升部高，算进去每字多 0.2）；排不下就横过来连成一行，顶端对齐；
 % \item 两个字（“委员”）上下各占一行，中间空几行：这一块排得下几行，减二除五取整，至多两行，
 %   两个字加空行排不下就少空。空行是 Word 的行（网格行距），字在行里的位置与别的格一样。
@@ -656,10 +631,10 @@
 % Word 的行能跨页，\env{tabular} 的不能，所以这一格在表下另画：左右两道竖线接着表的外框，底下一道横线，
 % 顶线就是表的最后一道横线；跨到下一页的那一截自己补上顶线。
 %
-% 高度照 iota-hit：排到这一页剩下的整数个网格行；正文比这高就照正文排，到页底切开，下一页接着排，
+% 决议区高度取本页剩余的整数个网格行，超出部分接排到下一页，
 % 最后一截照正文的高。一行都不剩就整格挪到下一页，在那一页照样排满。
 %
-% 格里：标签顶格加粗，正文每段首行缩进两个字（与 iota-hit 一样），格边距与表的一样，字从版心左缘起。
+% 标签顶格加粗，正文首行缩进两个字，内边距与表格一致。
 %    \begin{macrocode}
 \box_new:N \l__hit_res_body_box
 \box_new:N \l__hit_res_part_box
@@ -798,10 +773,7 @@
 % 学位这一层的判断在部件那一层（\cs{defense} 的 \option{shown}，见 \file{src/engine/hit-parts.dtx}），
 % 所以这里不再自己查 \option{doctor}。
 %
-% \textbf{为什么要拆成两个。} \cs{resolution} 是 v3.1e 的写法，v3.2a 起叫
-% \cs{defense}，用户再调旧名要给一句改名提示。
-% 但类自己排这一页走的也是同一段代码，提示不能跟着响。所以排版的活留在这个
-% 内部命令里，\cs{resolution} 只负责提示再转发过来。
+% 内部排版命令与旧名包装分开，避免正常调用触发迁移提示。
 %    \begin{macrocode}
 \NewDocumentCommand \hit@resolution@place { s o }
   {
@@ -837,9 +809,8 @@
 % \end{macro}
 %
 % \begin{macro}{\defense,\resolution}
-% \cs{defense}\oarg{选项} 与 iota-hit 的 \texttt{defense()} 对应：\option{shown}、贴扫描件的 \option{file} 与
-% \option{page-number}。照 iota-hit，终稿里除博士后都排（\texttt{auto}）；原先只有博士排。名单与决议正文
-% 也照 iota-hit 是这一页的参数：\option{reviewers}、\option{members} 是一串记录，\option{chair}、\option{secretary}
+% defense 支持 shown、file 和 page-number；auto 在非博士后的终稿中显示。
+% 名单和决议正文使用局部参数：reviewers、members 是记录列表，chair、secretary
 % 是一条记录，\option{resolution} 是决议正文。一条记录照旧四个字段：\option{name}、\option{title}、
 % \option{affiliation}、\option{discipline}。v3.1e 的 \cs{resolution}\oarg{文件}（星号排页码）照旧能用，转发过来并提示改名。
 %    \begin{macrocode}

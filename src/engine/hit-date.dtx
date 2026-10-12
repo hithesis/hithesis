@@ -14,9 +14,7 @@
 % \texttt{二〇二六年八月}、\texttt{二〇二六年八月七日}。这里把四种都定义好，
 % 配置里按变体挑一种。
 %
-% 数字与年月日之间不敲空格。Word 范例的封面就是「2020年6月」这样连着敲的，
-% \pkg{ctex} 的 \cs{today} 也不空；中间那一点空当是中西文间距给的。敲了空格，
-% \hologo{LuaTeX} 下有的被吞、有的留着，同一行日期里空当宽窄不一。
+% 数字与年月日之间只使用自动中西文间距，不插入显式空格。
 %
 % \cs{CJKtoday}\oarg{0\textbar 1\textbar 2} 换 \cs{today} 的排法：\texttt{0} 是
 % 基础类原本的，\texttt{1} 是阿拉伯数字，\texttt{2} 是汉字数字。默认 \texttt{1}。
@@ -25,6 +23,15 @@
 %
 %    \begin{macrocode}
 %<*shared-date>
+\cs_new:Npn \__hit_month_name:n #1
+  {
+    \int_case:nn {#1}
+      {
+        {1} {January} {2} {February} {3} {March} {4} {April}
+        {5} {May} {6} {June} {7} {July} {8} {August}
+        {9} {September} {10} {October} {11} {November} {12} {December}
+      }
+  }
 \cs_set:Npn \CJK@todaysmall@short
   {
     \int_use:N \g__hit_engine_today_year_int 年
@@ -59,33 +66,12 @@
       { }
   }
 \cs_new:Npn \hit@month@en
-  {
-    \int_case:nn { \g__hit_engine_today_month_int }
-      {
-        { 1 } { January }   { 2 } { February } { 3 }  { March }
-        { 4 } { April }     { 5 } { May }      { 6 }  { June }
-        { 7 } { July }      { 8 } { August }   { 9 }  { September }
-        { 10 } { October }  { 11 } { November } { 12 } { December }
-      }
-  }
+  {\__hit_month_name:n {\g__hit_engine_today_month_int}}
 %    \end{macrocode}
 %
 % \subsection{ISO 日期}
 %
-% \textbf{日期字段填数字，排法交给模板。} 封面上中文写「2026年6月」、英文写
-% 「June, 2026」，同一个日期两处写法不同。让填表的人各写一遍容易写岔，所以字段
-% 一律收 \texttt{yyyy}、\texttt{yyyy-mm} 或 \texttt{yyyy-mm-dd}，用到的地方按
-% 自己的语言排出来。
-%
-% \textbf{写到哪级排到哪级。} 从前每个字段声明一个精度：写细了静默截断（写
-% \texttt{2026-06-05} 印出「2026年6月」，一声不响丢一级），写粗了报一句催
-% 补齐。查过四处落点，规范一处也没要求到日——本科范例封面印「2022年6月」，
-% 旁边批注的原话是「\emph{年、月}用阿拉伯数字」；本科内封「答辩日期：2022年6月」；
-% 研究生封面与内封都是年月。从前本科声明成到日，与范例和批注都对不上。
-% 所以精度交还给写的人：写年月排年月，写年月日排年月日，不截不催。各处的默认
-% 精度落在\emph{默认取值}上——模板给的今天是年月（见
-% \file{src/config/hit-terms.dtx}），深圳本科的开题中期封面按 \issue{220}
-% 单独给到日。
+% 接受 yyyy、yyyy-mm、yyyy-mm-dd，按输入精度和使用处语种排版。
 %
 % 两种情形：
 %
@@ -94,7 +80,7 @@
 % \toprule
 % 写的 & 结果 \\ \midrule
 % 合 ISO & 按用处的语言、写到的那一级排 \\
-% 不合 ISO & 原样排，另报一句让填表的人自己负责 \\
+% 不合 ISO & 原样排并警告 \\
 % \bottomrule
 % \end{longtblr}
 %    \begin{macrocode}
@@ -107,7 +93,7 @@
 \str_new:N \l__hit_date_str
 %    \end{macrocode}
 %
-% 一段是不是纯数字、位数对不对。空串不算。
+% 检查非空数字串的位数。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_date_digits:nnn #1#2#3
   {
@@ -192,15 +178,7 @@
       }
   }
 \cs_new:Npn \hit@month@name:n #1
-  {
-    \int_case:nn {#1}
-      {
-        { 1 } { January }   { 2 }  { February } { 3 }  { March }
-        { 4 } { April }     { 5 }  { May }      { 6 }  { June }
-        { 7 } { July }      { 8 }  { August }   { 9 }  { September }
-        { 10 } { October }  { 11 } { November } { 12 } { December }
-      }
-  }
+  {\__hit_month_name:n {#1}}
 %    \end{macrocode}
 %
 % 有多少排多少：精度不够时按实际有的那一档排，不要排出空的月和日。
@@ -235,8 +213,7 @@
   }
 %    \end{macrocode}
 %
-% 一个字段一种毛病只报一次。去重的键要把毛病也带上：同一个字段先写得不够细、
-% 后来又改成非 ISO，是两回事，只报头一条会把后一条盖掉。
+% 按字段名和错误类型去重警告。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_date_warn:nnn #1#2#3
   {

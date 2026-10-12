@@ -1,0 +1,225 @@
+% \iffalse meta-comment
+%
+% hit-calligraphy.dtx 是照轮廓画的字标与美术字
+%
+% \fi
+%
+% \section{校名字标与美术字}
+%
+% \changes{v3.2a}{2026/09/27}{支持 \hologo{pdfLaTeX} 绘制字形轮廓及多字节汉字查找}
+% \changes{v3.2a}{2026/09/26}{报告首页的校名字标、本科报告落款的隶书、深圳本科报告首页的
+%   华文新魏支持矢量轮廓绘制，替代外部图片和缺字时的宋体回退}
+%
+% 按需加载字形轮廓，绘制校名字标、隶书落款和新魏标题。
+% 轮廓本身不含文本，需写入 \texttt{ActualText} 以支持文字提取。
+%
+%    \begin{macrocode}
+%<*shared-calligraphy>
+\bool_new:N \g__hit_calligraphy_loaded_bool
+\bool_new:N \l__hit_calligraphy_bold_bool
+\bool_new:N \l__hit_calligraphy_cover_bool
+\dim_new:N \l__hit_calligraphy_size_dim
+\dim_new:N \l__hit_calligraphy_extra_dim
+\dim_new:N \l__hit_calligraphy_height_dim
+\tl_new:N \l__hit_calligraphy_text_tl
+\tl_new:N \l__hit_calligraphy_key_tl
+\tl_new:N \l__hit_calligraphy_glyph_tl
+\tl_new:N \l__hit_calligraphy_scale_tl
+\tl_new:N \l__hit_calligraphy_stroke_tl
+\tl_new:N \l__hit_calligraphy_upm_tl
+\tl_new:N \l__hit_calligraphy_asc_tl
+\tl_new:N \l__hit_calligraphy_desc_tl
+\box_new:N \l__hit_calligraphy_box
+%    \end{macrocode}
+%
+% 数据文件须在 expl3 语法下读取；文件缺失时只警告一次。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_calligraphy_load:
+  {
+    \bool_if:NF \g__hit_calligraphy_loaded_bool
+      {
+        \bool_gset_true:N \g__hit_calligraphy_loaded_bool
+        \file_if_exist:nTF { hithesis-calligraphy.def }
+          {
+            \group_begin:
+              \ExplSyntaxOn
+              \file_input:n { hithesis-calligraphy.def }
+            \group_end:
+          }
+          { \msg_warning:nn { hithesis } { calligraphy-missing } }
+      }
+  }
+%    \end{macrocode}
+%
+% 按引擎输出 PDF 绘图指令，坐标单位为 bp。
+%    \begin{macrocode}
+\sys_if_engine_luatex:TF
+  {
+    \cs_new_protected:Npn \__hit_calligraphy_literal:e #1
+      { \tex_pdfextension:D literal {#1} }
+  }
+  {
+    \sys_if_engine_pdftex:TF
+      {
+        \cs_new_protected:Npn \__hit_calligraphy_literal:e #1
+          { \tex_pdfliteral:D {#1} }
+      }
+      {
+        \cs_new_protected:Npn \__hit_calligraphy_literal:e #1
+          { \tex_special:D { pdf:literal~#1 } }
+      }
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@calligraphy@if@cover:nnTF}
+% 检查展开后的文本是否全部包含在指定字体的轮廓表中。
+%    \begin{macrocode}
+\prg_new_protected_conditional:Npnn \hit@calligraphy@if@cover:nn #1#2 { T , F , TF }
+  {
+    \__hit_calligraphy_load:
+    \tl_set:Ne \l__hit_calligraphy_text_tl {#2}
+    \hit@engine@group@chars:N \l__hit_calligraphy_text_tl
+    \prop_if_exist:cTF { c__hit_calligraphy_#1_prop }
+      {
+        \bool_set_true:N \l__hit_calligraphy_cover_bool
+        \tl_map_inline:Nn \l__hit_calligraphy_text_tl
+          {
+            \hit@engine@char@key:nN {##1} \l__hit_calligraphy_key_tl
+            \prop_if_in:cVF { c__hit_calligraphy_#1_prop } \l__hit_calligraphy_key_tl
+              {
+                \bool_set_false:N \l__hit_calligraphy_cover_bool
+                \tl_map_break:
+              }
+          }
+        \bool_if:NTF \l__hit_calligraphy_cover_bool
+          { \prg_return_true: } { \prg_return_false: }
+      }
+      { \prg_return_false: }
+  }
+\prg_generate_conditional_variant:Nnn \hit@calligraphy@if@cover:nn { nV } { T , F , TF }
+%    \end{macrocode}
+% \end{macro}
+%
+% \begin{macro}{\hit@calligraphy:nn}
+% 按当前字号和字重逐字绘制；轮廓表中缺失的字符交给当前字体排版。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@calligraphy:nn #1#2
+  {
+    \__hit_calligraphy_load:
+    \prop_if_exist:cTF { c__hit_calligraphy_#1_prop }
+      {
+        \dim_set:Nn \l__hit_calligraphy_size_dim { \f@size pt }
+        \str_if_in:NnTF \f@series { b }
+          { \bool_set_true:N \l__hit_calligraphy_bold_bool }
+          { \bool_set_false:N \l__hit_calligraphy_bold_bool }
+        \exp_last_unbraced:Nv \__hit_calligraphy_metrics:nnn { c__hit_calligraphy_#1_metrics_tl }
+        \tl_set:Ne \l__hit_calligraphy_text_tl {#2}
+        \hit@engine@group@chars:N \l__hit_calligraphy_text_tl
+        \tl_map_inline:Nn \l__hit_calligraphy_text_tl
+          {
+            \hit@engine@char@key:nN {##1} \l__hit_calligraphy_key_tl
+            \prop_get:cVNTF { c__hit_calligraphy_#1_prop } \l__hit_calligraphy_key_tl \l__hit_calligraphy_glyph_tl
+              {
+                \exp_after:wN \__hit_calligraphy_glyph:nnn \l__hit_calligraphy_glyph_tl
+                \dim_compare:nNnF \l__hit_calligraphy_extra_dim = \c_zero_dim
+                  { \tex_kern:D \l__hit_calligraphy_extra_dim }
+              }
+              {##1}
+          }
+      }
+      {#2}
+  }
+\cs_new_protected:Npn \__hit_calligraphy_metrics:nnn #1#2#3
+  {
+    \tl_set:Nn \l__hit_calligraphy_upm_tl {#1}
+    \tl_set:Nn \l__hit_calligraphy_asc_tl {#2}
+    \tl_set:Nn \l__hit_calligraphy_desc_tl {#3}
+    \tl_set:Ne \l__hit_calligraphy_scale_tl
+      {
+        \fp_eval:n
+          { round ( \dim_to_decimal_in_bp:n { \l__hit_calligraphy_size_dim } / #1 , 6 ) }
+      }
+    \tl_set:Ne \l__hit_calligraphy_stroke_tl { \fp_eval:n { round ( #1 / 35 , 3 ) } }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+% 参数为字宽、UTF-16 文本和路径；路径坐标以字体基线为原点，$y$ 轴向上。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_calligraphy_glyph:nnn #1#2#3
+  {
+    \hbox_set:Nn \l__hit_calligraphy_box
+      {
+        \__hit_calligraphy_literal:e
+          {
+            /Span << /ActualText <FEFF #2> >> BDC ~
+            q ~ \l__hit_calligraphy_scale_tl \c_space_tl 0 ~ 0 ~
+            \l__hit_calligraphy_scale_tl \c_space_tl 0 ~ 0 ~ cm ~
+            \bool_if:NTF \l__hit_calligraphy_bold_bool
+              { \l__hit_calligraphy_stroke_tl \c_space_tl w ~ 0 ~ j ~ 10 ~ M ~ #3 ~ B ~ }
+              { #3 ~ f ~ }
+            Q ~ EMC
+          }
+      }
+    \box_set_wd:Nn \l__hit_calligraphy_box
+      { \l__hit_calligraphy_size_dim * #1 / \l__hit_calligraphy_upm_tl }
+    \box_set_ht:Nn \l__hit_calligraphy_box
+      { \l__hit_calligraphy_size_dim * \l__hit_calligraphy_asc_tl / \l__hit_calligraphy_upm_tl }
+    \box_set_dp:Nn \l__hit_calligraphy_box
+      {
+        \l__hit_calligraphy_size_dim * \int_eval:n { 0 - \l__hit_calligraphy_desc_tl }
+          / \l__hit_calligraphy_upm_tl
+      }
+    \box_use_drop:N \l__hit_calligraphy_box
+  }
+%    \end{macrocode}
+%
+% \begin{macro}{\hit@wordmark:nn}
+% 字标按宽度等比缩放并顶端对齐；给定高度只决定占位，不拉伸字形。
+%    \begin{macrocode}
+\cs_new_protected:Npn \hit@wordmark:nn #1#2
+  {
+    \__hit_calligraphy_load:
+    \tl_if_exist:NT \c__hit_calligraphy_wordmark_tl
+      {
+        \dim_set:Nn \l__hit_calligraphy_size_dim {#1}
+        \dim_set:Nn \l__hit_calligraphy_height_dim {#2}
+        \exp_last_unbraced:NV \__hit_calligraphy_wordmark:nn \c__hit_calligraphy_wordmark_box_tl
+      }
+  }
+\cs_new_protected:Npn \__hit_calligraphy_wordmark:nn #1#2
+  {
+    \tl_set:Ne \l__hit_calligraphy_scale_tl
+      {
+        \fp_eval:n
+          { round ( \dim_to_decimal_in_bp:n { \l__hit_calligraphy_size_dim } / #1 , 6 ) }
+      }
+    \hbox_set:Nn \l__hit_calligraphy_box
+      {
+        \__hit_calligraphy_literal:e
+          {
+            /Span << /ActualText <FEFF \c__hit_calligraphy_wordmark_text_tl > >> BDC ~
+            q ~ \l__hit_calligraphy_scale_tl \c_space_tl 0 ~ 0 ~
+            \l__hit_calligraphy_scale_tl \c_space_tl 0 ~
+            \fp_eval:n
+              {
+                round ( \dim_to_decimal_in_bp:n { \l__hit_calligraphy_height_dim }
+                  - #2 * \l__hit_calligraphy_scale_tl , 3 )
+              }
+            \c_space_tl cm ~
+            \c__hit_calligraphy_wordmark_tl \c_space_tl f ~ Q ~ EMC
+          }
+      }
+    \box_set_wd:Nn \l__hit_calligraphy_box { \l__hit_calligraphy_size_dim }
+    \box_set_ht:Nn \l__hit_calligraphy_box { \l__hit_calligraphy_height_dim }
+    \box_set_dp:Nn \l__hit_calligraphy_box { \c_zero_dim }
+    \docxlike_picture:n { \box_use_drop:N \l__hit_calligraphy_box }
+  }
+%    \end{macrocode}
+% \end{macro}
+%
+%    \begin{macrocode}
+%</shared-calligraphy>
+%    \end{macrocode}
+%
+% \Finale

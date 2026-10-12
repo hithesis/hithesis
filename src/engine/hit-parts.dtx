@@ -6,30 +6,20 @@
 %
 % \section{部件与前后文}
 %
-% \changes{v3.2a}{2026/09/28}{部件与 iota-hit 一一对应：用户写哪个就排哪个，顺序自己定；每个部件按分支自己判断
-%   排不排（可选参数 \option{shown} 取 \texttt{auto}、\texttt{true}、\texttt{false}），同一个部件只排一次；
-%   前置、正文、后置在第一个前置部件、第一个编号的顶层标题、第一个后置部件处自动切换，\cs{frontmatter}、
-%   \cs{mainmatter}、\cs{backmatter} 写了就在写的地方切；新增 \cs{hitif} 按分支挑内容}
+% \changes{v3.2a}{2026/10/06}{封面、题名页、摘要等改为独立部件，按调用顺序排版；
+%   新增 shown 显示控制、重复调用检查和 hitif 条件命令，文档分区可自动或手动切换}
 %
-% 学位论文由哪些部件组成、按什么次序排，由用户在主文件里写出来：写了 \cs{cover} 就排封面，
-% 写了 \cs{tableofcontents} 就排目录，与 iota-hit 的 \texttt{\#cover()}、\texttt{\#table-of-contents()}
-% 一样。类只替每个部件回答一个问题：在这一份交付物里它该不该出现。开题报告里写了致谢，
-% 致谢不出现；博士后的报告里写了原创性声明，声明不出现。这样一份主文件可以同时编终稿与报告、
-% 本硕博各档，写法不用跟着分支改。
+% 部件顺序由调用者确定。本模块根据阶段和学位选择默认显示状态，并防止同一部件重复排版。
 %
-% \subsection{排不排}
+% \subsection{显示条件}
 %
 % 每个部件收 \option{shown}：
 % \begin{itemize}
 %   \item \texttt{auto}（默认）按下面的表定；
-%   \item \texttt{true} 一定排，报告里也排；
+%   \item \texttt{true} 请求显示；不支持该页的报告实现会提示；
 %   \item \texttt{false} 一定不排。
 % \end{itemize}
-% \texttt{auto} 的规矩照 iota-hit 的 \texttt{final-only-wanted} 与 \texttt{shown-auto}：终稿专有的部件
-% 只在终稿里排，另有几样按学位挡。报告的目录多一条：学校的模板里有目录的那几档才排
-% （\cs{g\_\_hit\_report\_toc\_auto\_bool}，按校区、学位、阶段定）。iota-hit 在报告里写了目录就排，
-% 可那是一份报告一个主文件的写法；这里一份主文件管十八格报告，没有目录的格子交给类挡掉，
-% 用户不必自己写条件。
+% auto 根据下方部件表和学位排除表决定。报告目录另查校区、学位和阶段对应的默认值。
 %
 % v3.1e 的 \option{toc} 选项（\cs{documentclass} 与 \cs{hitsetup} 里都认 \texttt{toc=true}、
 % \texttt{toc=false}）留着，意思换成目录这个部件的默认值：\option{shown} 取 \texttt{auto} 时照它，
@@ -102,10 +92,7 @@
 %
 % \subsection{只排一次}
 %
-% 封面、目录、答辩页这些全书只有一份。同一个部件写了第二次，第二次不排，给一条警告，
-% 与 iota-hit 的 \texttt{once} 同一个意思；iota-hit 直接报错停下，这里照 \hologo{LaTeX} 的习惯
-% 让编译走完。v3.1e 的 \cs{tableofcontents} 顺带排图表清单，老文档里再写一次 \cs{listoffigures}
-% 也靠这一条不重复。
+% 重复调用已排出的部件时警告并跳过。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@part@once:nT #1#2
   {
@@ -218,15 +205,9 @@
 %
 % \subsection{前置、正文、后置}
 %
-% 这三段只管页码与计数器：前置用罗马数字，正文从 1 起、按学位右开页，后置按学位右开页。
-% 与 iota-hit 的 \texttt{frontmatter}、\texttt{mainmatter}、\texttt{backmatter} 同一个分工，部件排什么、
-% 排在哪都与它们无关。
+% 文档分区控制页码和换页，不决定部件内容或顺序。
 %
-% 三段都不必写。第一个前置部件（摘要、符号表、缩略语表、目录、图表清单）进前置，第一个编号的
-% 顶层标题（终稿的 \cs{chapter}，报告正文的第一个标题）进正文，第一个后置部件（参考文献、成果、
-% 答辩页、声明、索引、致谢、简历）进后置。只往后走：已经在正文里的，再遇到前置部件不回头；
-% 英文论文把致谢排在前置，那时还没进正文，致谢不会把文档推进后置。iota-hit 进前置也是这样自动的
-% （\texttt{front-numbering-enter}），进正文与后置它要用户写；这里一并自动。
+% 自动分区只向后切换；英文论文在前置部分调用致谢时不进入后置部分。
 %
 % 写了 \cs{frontmatter}、\cs{mainmatter}、\cs{backmatter} 就在写的地方切，后面的自动切换看到
 % 已经在那一段，不再切。正文第一章之前另有不编号的章（前言之类）时，写一句 \cs{mainmatter}。
@@ -268,17 +249,16 @@
 %   {\input{proposal/shenzhen-graduate}}
 %   {\input{proposal/graduate}}
 % \end{latex}
-% iota-hit 这里是 Typst 自己的 \texttt{\#if}。条件空着算成立。
+% 空条件视为成立。
 %    \begin{macrocode}
 \NewDocumentCommand \hitif { O{} +m +m }
   { \hit@if@condition:nTF {#1} {#2} {#3} }
 %    \end{macrocode}
 % \end{macro}
 %
-% \subsection{删掉的写法}
+% \subsection{无效结构配置}
 %
-% v3.2a 的开发版有过 \option{struct} 族与 \cs{hitfrontmatter}、\cs{hitmainmatter}、\cs{hitbackmatter}
-% 三个骨架宏，由类按规范的次序排部件。正式版没有发布过，直接删；写了报错，说清改成什么。
+% struct 配置无效，提示用户直接调用所需部件。
 %    \begin{macrocode}
 \keys_define:nn { hit }
   { struct .code:n = { \msg_error:nn { hithesis } { struct-removed } } }

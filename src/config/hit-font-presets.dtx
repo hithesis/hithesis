@@ -1,0 +1,180 @@
+% \iffalse meta-comment
+% 字体预设与角色表；实际字体和 Word 目标度量分别配置。
+% \fi
+% \section{字体预设}
+% 预设按角色选择字体，缺项回退 fandol；数学默认统一使用 Termes。
+%    \begin{macrocode}
+%<*font-presets>
+\prop_new:N \g__hit_font_presets_prop
+\prop_new:N \g__hit_font_roles_prop
+\prop_new:N \g__hit_font_overrides_prop
+\tl_new:N \g__hit_font_preset_tl
+\tl_new:N \g__hit_font_math_name_tl
+\tl_new:N \g__hit_font_code_cjk_name_tl
+\clist_const:Nn \c__hit_font_code_cjk_roles_clist {fangsong,kaishu,songti}
+\tl_new:N \l__hit_font_role_name_tl
+\tl_new:N \l__hit_font_role_options_tl
+% 与 banshi 相同的 Windows 常规字面「国」字墨迹中心，单位 em。
+\prop_const_from_keyval:Nn\c__hit_font_baseline_reference_prop
+  {songti=0.361328125,heiti=0.337890625,kaishu=0.328125,fangsong=0.341796875,
+   kaishu-gb2312=0.34375,lishu=0.3046875,xinwei=0.2385}
+\tl_new:N\l__hit_font_baseline_reference_tl
+\cs_new_protected:Npn\__hit_font_baseline_enable:n #1
+  {
+    \str_case:nnF{#1}
+      {
+        {auto}{\docxlike_font_baseline_enable:n{true}}
+        {true}{\sys_if_engine_luatex:TF
+          {\docxlike_font_baseline_enable:n{true}}
+          {\msg_warning:nn{hithesis}{font-baseline-engine}}}
+        {false}{\docxlike_font_baseline_enable:n{false}}
+      }
+      {\msg_error:nnn{hithesis}{font-baseline-value}{#1}}
+  }
+\msg_new:nnn{hithesis}{font-baseline-engine}
+  {Font~baseline~correction~currently~requires~LuaLaTeX.}
+\msg_new:nnn{hithesis}{font-baseline-value}
+  {Unknown~font-baseline-correction~value~'#1'.~Use~auto,~true~or~false.}
+\prop_gput:Nnn \g__hit_font_presets_prop { windows }
+  {songti=SimSun,heiti=SimHei,kaishu=KaiTi,fangsong=FangSong,
+   kaishu-gb2312=KaiTi_GB2312,lishu=LiSu,xinwei=STXinwei,
+   serif=Times~New~Roman,sans=Arial,mono=Consolas,math=TeX~Gyre~Termes~Math}
+\prop_gput:Nnn \g__hit_font_presets_prop { macos }
+  {songti=Songti~SC,heiti=Heiti~SC,kaishu=Kaiti~SC,fangsong=STFangsong,
+   serif=Times~New~Roman,sans=Arial,mono=Menlo,math=TeX~Gyre~Termes~Math}
+\prop_gput:Nnn \g__hit_font_presets_prop { founder }
+  {songti=FZShuSong-Z01,heiti=FZHei-B01,kaishu=FZKai-Z03,fangsong=FZFangSong-Z02,
+   serif=Times~New~Roman,sans=Arial,mono=DejaVu~Sans~Mono,math=TeX~Gyre~Termes~Math}
+\prop_gput:Nnn \g__hit_font_presets_prop { noto }
+  {songti=Noto~Serif~CJK~SC,heiti=Noto~Sans~CJK~SC,kaishu=gkai00mp.ttf,fangsong=LXGWZhuqueFangsong-Regular.ttf,
+   serif=TeX~Gyre~Termes,sans=TeX~Gyre~Heros,mono=DejaVu~Sans~Mono,math=TeX~Gyre~Termes~Math}
+\prop_gput:Nnn \g__hit_font_presets_prop { fandol }
+  {songti=FandolSong,heiti=FandolHei,kaishu=FandolKai,fangsong=FandolFang,
+   kaishu-gb2312=FandolKai,lishu=outline,xinwei=outline,
+   serif=TeX~Gyre~Termes,sans=TeX~Gyre~Heros,mono=Latin~Modern~Mono,math=TeX~Gyre~Termes~Math}
+% 旧字体集保留为兼容预设，仍使用同一张角色表。
+\prop_gput:Nnn \g__hit_font_presets_prop { adobe }
+  {songti=AdobeSongStd-Light,heiti=AdobeHeitiStd-Regular,kaishu=AdobeKaitiStd-Regular,
+   fangsong=AdobeFangsongStd-Regular,math=TeX~Gyre~Termes~Math}
+\prop_gput:Nnn \g__hit_font_presets_prop { hanyi }
+  {songti=HYShuSongEr~S,heiti=HYZhongHei~S,kaishu=HYKaiTi~S,fangsong=HYFangSong~S,
+   math=TeX~Gyre~Termes~Math}
+\cs_new_protected:Npn \__hit_font_canonical:N #1
+  {
+    \str_case:Vn #1
+      {
+        {mac}{\tl_set:Nn #1{macos}}
+        {macnew}{\tl_set:Nn #1{macos}}
+        {macold}{\tl_set:Nn #1{macos}}
+        {ubuntu}{\tl_set:Nn #1{noto}}
+      }
+  }
+\keys_define:nn { hit/fontset }
+  { preset .tl_gset:N = \g__hit_font_preset_tl }
+\clist_map_inline:nn {songti,heiti,kaishu,fangsong,kaishu-gb2312,lishu,xinwei,serif,sans,mono,math}
+  {
+    \keys_define:nn {hit/fontset}
+      {#1 .code:n = {\str_if_eq:nnTF{##1}{auto}
+        {\prop_gremove:Nn\g__hit_font_overrides_prop{#1}}
+        {\prop_gput:Nnn\g__hit_font_overrides_prop{#1}{##1}}}}
+  }
+\cs_new_protected:Npn \__hit_font_role_put:nn #1#2
+  { \prop_gput:Nnn \g__hit_font_roles_prop {#1}{#2} }
+\cs_new_protected:Npn \__hit_font_preset_overlay:n #1
+  {
+    \prop_get:NnNTF \g__hit_font_presets_prop {#1} \l_tmpa_tl
+      {\exp_args:NnnV\keyval_parse:nnn{\use_none:n}{\__hit_font_role_put:nn}\l_tmpa_tl}
+      {\msg_error:nnn{hithesis}{font-preset-unknown}{#1}}
+  }
+\cs_generate_variant:Nn \__hit_font_preset_overlay:n { V }
+\bool_new:N \g__hit_font_macos_bool
+\bool_new:N \l__hit_font_auto_bool
+\prop_new:N \l__hit_font_fallback_prop
+\prop_new:N \l__hit_font_platform_prop
+\tl_new:N \l__hit_font_candidate_tl
+% 自动模式只在 macOS 上插入系统字体候选；其他平台直接回退 fandol。
+\cs_new_protected:Npn \__hit_font_roles_fallback:
+  {\__hit_font_roles_fallback:n{songti,heiti,kaishu,fangsong,kaishu-gb2312,lishu,xinwei,serif,sans,mono,math}}
+\cs_new_protected:Npn \__hit_font_roles_fallback:n #1
+  {
+    \prop_get:NnN\g__hit_font_presets_prop{fandol}\l_tmpa_tl
+    \prop_set_from_keyval:NV\l__hit_font_fallback_prop\l_tmpa_tl
+    \prop_get:NnN\g__hit_font_presets_prop{macos}\l_tmpa_tl
+    \prop_set_from_keyval:NV\l__hit_font_platform_prop\l_tmpa_tl
+    \clist_map_inline:nn{#1}
+      {
+        \prop_if_in:NnF\g__hit_font_overrides_prop{##1}
+          {
+            \prop_get:NnN\g__hit_font_roles_prop{##1}\l__hit_font_candidate_tl
+            \exp_args:NV\__hit_font_family_available:nTF\l__hit_font_candidate_tl{}{\__hit_font_role_fallback:n{##1}}
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_font_role_fallback:n #1
+  {
+    \tl_set_eq:NN\l_tmpb_tl\l__hit_font_candidate_tl
+    \prop_get:NnN\l__hit_font_fallback_prop{#1}\l__hit_font_candidate_tl
+    \bool_if:NT\l__hit_font_auto_bool
+      {
+        \bool_if:NT\g__hit_font_macos_bool
+          {
+            \prop_get:NnNT\l__hit_font_platform_prop{#1}\l_tmpa_tl
+              {\exp_args:NV\__hit_font_family_available:nTF\l_tmpa_tl
+                {\tl_set_eq:NN\l__hit_font_candidate_tl\l_tmpa_tl}{}}
+          }
+      }
+    \prop_gput:NnV\g__hit_font_roles_prop{#1}\l__hit_font_candidate_tl
+    \msg_warning:nnxxx{hithesis}{font-role-fallback}{#1}{\l_tmpb_tl}{\l__hit_font_candidate_tl}
+  }
+\cs_new_protected:Npn \__hit_font_preset_resolve:
+  {
+    \tl_gset:Nn \g__hit_font_preset_tl {auto}
+    \prop_gclear:N \g__hit_font_overrides_prop
+    \tl_if_in:NnTF \hit@fontset {=}
+      {\exp_args:NnV\keys_set:nn{hit/fontset}\hit@fontset}
+      {\tl_if_empty:NF\hit@fontset{\tl_gset_eq:NN\g__hit_font_preset_tl\hit@fontset}}
+    \__hit_font_canonical:N \g__hit_font_preset_tl
+    \prop_gclear:N\g__hit_font_roles_prop
+    \__hit_font_preset_overlay:n{windows}
+    \prop_if_in:NVTF \g__hit_font_presets_prop \g__hit_font_preset_tl
+      {\__hit_font_preset_overlay:V\g__hit_font_preset_tl}
+      {
+        \exp_args:NnV\clist_if_in:nnTF{auto,none,windows-local,mac-word,adobe,hanyi}\g__hit_font_preset_tl
+          {\prop_gput:Nnn\g__hit_font_roles_prop{math}{TeX~Gyre~Termes~Math}}
+          {\msg_error:nnV{hithesis}{font-preset-unknown}\g__hit_font_preset_tl}
+      }
+    \prop_map_inline:Nn\g__hit_font_overrides_prop{\prop_gput:Nnn\g__hit_font_roles_prop{##1}{##2}}
+    \bool_set:Nn\l__hit_font_auto_bool{\str_if_eq_p:Vn\g__hit_font_preset_tl{auto}}
+    \__hit_font_roles_fallback:
+    \prop_get:NnN\g__hit_font_roles_prop{math}\g__hit_font_math_name_tl
+  }
+\cs_new_protected:Npn \__hit_font_preset_section:nn #1#2
+  {
+    \group_begin:
+      \prop_get:NnN\g__hit_font_presets_prop{windows}\l_tmpa_tl
+      \prop_set_from_keyval:NV\l_tmpa_prop\l_tmpa_tl
+      \prop_get:NnN\g__hit_font_presets_prop{#1}\l_tmpa_tl
+      \prop_set_from_keyval:NV\l_tmpb_prop\l_tmpa_tl
+      \clist_map_inline:nn{#2}
+        {
+          \prop_get:NnNTF\g__hit_font_overrides_prop{##1}\l_tmpa_tl
+            { }
+            {\prop_get:NnNF\l_tmpb_prop{##1}\l_tmpa_tl{\prop_get:NnN\l_tmpa_prop{##1}\l_tmpa_tl}}
+          \prop_gput:NnV\g__hit_font_roles_prop{##1}\l_tmpa_tl
+        }
+      \bool_set_false:N\l__hit_font_auto_bool
+      \__hit_font_roles_fallback:n{#2}
+    \group_end:
+  }
+\cs_generate_variant:Nn \prop_set_from_keyval:Nn { NV }
+\cs_generate_variant:Nn \__hit_font_preset_section:nn { Vn }
+\cs_new:Npn \__hit_font_role_or:nn #1#2
+  {\prop_if_in:NnTF\g__hit_font_roles_prop{#1}{\prop_item:Nn\g__hit_font_roles_prop{#1}}{#2}}
+\msg_new:nnn {hithesis}{font-preset-unknown}
+  {Unknown~font~preset~'#1'.~Use~auto,~windows,~macos,~founder,~noto~or~fandol.}
+\msg_new:nnn {hithesis}{font-role-fallback}
+  {Font~role~'#1':~'#2'~is~unavailable;~using~'#3'.}
+\msg_new:nnn {hithesis}{font-code-fallback}
+  {Code~CJK~font~'#1'~is~unavailable;~using~'#2'.}
+%</font-presets>
+%    \end{macrocode}

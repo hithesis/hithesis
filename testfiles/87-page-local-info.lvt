@@ -1,0 +1,74 @@
+% 页面覆盖只在当前部件生效；环境入口与题名页命令不得递归。
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master]{hithesis}
+\hitsetup{info={
+  title={GlobalOne}{GlobalTwo}[Global English],subtitle={GlobalSub},
+  author={Global Author}[Global English Author],institution={Global University},
+}}
+\begin{document}
+\makeatletter
+\hit@write@pdf@metadata
+\let\expected@pdftitle\@pdftitle
+\let\expected@pdfauthor\@pdfauthor
+\makeatother
+\START
+\makeatletter
+\ExplSyntaxOn
+\cs_set_protected:Npn \__hit_cover_part:
+  {
+    \typeout{cover-title=[\hit@info@title@cover@zh]}
+    \typeout{cover-sub=[\hit@info@title@subtitle@zh]}
+    \typeout{cover-author=[\hit@info@author@zh]}
+    \typeout{cover-university=[\hit@term@cover@university@zh]}
+    \hit@write@pdf@metadata
+    \typeout{pdf-title-global=\ifx\@pdftitle\expected@pdftitle yes\else no\fi}
+    \typeout{pdf-author-global=\ifx\@pdfauthor\expected@pdfauthor yes\else no\fi}
+  }
+\cs_set_protected:Npn \__hit_titlepage_part:
+  {
+    \typeout{inner-title=[\hit@info@title@cover@zh]}
+    \typeout{inner-first=[\hit@info@title@first@zh]}
+    \typeout{inner-second=[\hit@info@title@second@zh]}
+    \typeout{inner-sub=[\hit@info@title@subtitle@zh]}
+    \typeout{inner-en=[\hit@info@title@cover@en]}
+    \typeout{inner-author-en=[\hit@info@author@en]}
+    \typeout{inner-university=[\hit@term@titlepage@university@zh]}
+    \typeout{inner-school-code=[\hit@term@base@school@code]}
+  }
+\TEST{Cover~uses~local~fields~but~global~metadata}{
+  \cover[info={title={CoverTitle},subtitle={CoverSub},author={Cover~Author},institution={Cover~University}}]
+  \typeout{after-title=[\hit@info@title@cover@zh]}
+  \typeout{after-sub=[\hit@info@title@subtitle@zh]}
+  \typeout{after-author=[\hit@info@author@zh]}
+  \typeout{after-university=[\hit@term@cover@university@zh]}
+}
+\TEST{Titlepage~uses~both~languages~and~restores~them}{
+  \titlepage[info={title={InnerOne}{InnerTwo}[Inner~English],subtitle={InnerSub},
+    author={\keepvalue}[],institution={Inner~University},school-code={99999}},title-en-xiaoer=false]
+  \typeout{after-first=[\hit@info@title@first@zh]}
+  \typeout{after-second=[\hit@info@title@second@zh]}
+  \typeout{after-sub=[\hit@info@title@subtitle@zh]}
+  \typeout{after-en=[\hit@info@title@cover@en]}
+  \typeout{after-author-en=[\hit@info@author@en]}
+  \typeout{after-university=[\hit@term@titlepage@university@zh]}
+  \typeout{after-school-code=[\hit@term@base@school@code]}
+  \typeout{after-xiaoer=[\g_hit_titlepage_title_en_xiaoer_tl]}
+}
+\TEST{Skipped~and~repeated~parts~restore~overrides}{
+  \cover[shown=false,info={title={Skipped}},title-en-xiaoer=false]
+  \typeout{after-skip=[\hit@info@title@cover@zh]}
+  \typeout{after-cover-xiaoer=[\g_hit_cover_title_en_xiaoer_tl]}
+  \msg_redirect_name:nnn { hithesis } { part-twice } { none }
+  \titlepage[info={title={Repeated},author={Repeated~Author}}]
+  \typeout{after-repeat=[\hit@info@title@cover@zh]}
+  \typeout{after-repeat-author=[\hit@info@author@zh]}
+}
+\TEST{Titlepage~environment~still~uses~the~base~entry}{
+  \cs_set_protected:Npn \hit@original@titlepage { \typeout{environment-begin} }
+  \cs_set_protected:Npn \endtitlepage { \typeout{environment-end} }
+  \begin{titlepage}\end{titlepage}
+}
+\ExplSyntaxOff
+\makeatother
+\END
+\end{document}

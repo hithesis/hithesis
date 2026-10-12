@@ -6,20 +6,51 @@
 %
 % \section{共享超链接配置}
 %
+% \changes{v3.2a}{2026/10/09}{用户加载独立 wiseref 后，通过公开配置接口接入现有词条、
+%   章节名称和公式括号，不自动加载或分发引用实现。}
 % \changes{v3.2a}{2026/09/27}{\hologo{pdfLaTeX} 下不开 \texttt{CJKbookmarks}：那一支是给 \pkg{CJK} 的 GBK 编码用的，UTF-8 下书签照常}
 % \changes{v3.2a}{2026/08/31}{hyperref 的配置抽出来共用；题目、作者、关键词写进 PDF 属性；
 %   \cs{enskip} 在书签里换成空格（英文章名每份都报 Token not allowed）；钉住
 %   \cs{Urlmuskip}；封面与报告目录不打页锚（与摘要、正文首页重名，按页码的链接跳到封面）}
 %
-% PDF 书签、链接边框、url 字体这些跟学校规范无关，是模板整体的取舍，三个类原先
-% 各写一遍且一字不差。
-%
-% \cs{hit@setup@hyperlink} 只做配置，由各个类在原来那段代码所在的位置调用，
-% 所以生成物里的加载顺序不变。\pkg{natbib} 的引用样式补丁没有一起搬——那是
-% \file{hit-thesis.cls} 独有的，也不属于超链接。
+% 配置 PDF 书签、链接样式、URL 断行和元数据。
 %
 %    \begin{macrocode}
 %<*shared-hyperlink>
+% wiseref 由用户显式加载；模板只通过公开接口配置名称和编号格式。
+\cs_new_protected:Npn \__hit_wiseref_setup:
+  {
+    \wiserefsetup{lang={\bool_if:NTF\g__hit_en_bool{en}{zh}}}
+    \wiserefsetup{
+      figure={prefix={\figurename\hit@wiseref@gap:},suffix={}},
+      subfigure={prefix={\figurename\hit@wiseref@gap:},suffix={}},
+      table={prefix={\tablename\hit@wiseref@gap:},suffix={}},
+      subtable={prefix={\tablename\hit@wiseref@gap:},suffix={}},
+      equation={prefix={\equationautorefname\hit@wiseref@gap:},suffix={},
+        number-format={\hit@wiseref@equation:n{##1}}},
+      chapter={prefix={\__hit_heading_term:nn{chapter-name}{1}},suffix={\__hit_heading_term:nn{chapter-name}{2}}},
+      appendix={prefix={\appendixname\hit@wiseref@gap:},suffix={}},
+      algocf={prefix={\hit@wiseref@algorithm:\hit@wiseref@gap:},suffix={}},
+      lstlisting={prefix={\hit@wiseref@listing:\hit@wiseref@gap:},suffix={}},
+    }
+    \clist_map_inline:nn
+      {assumption,definition,proposition,lemma,theorem,axiom,corollary,exercise,example,remark,problem,conjecture}
+      {
+        \cs_if_exist:cT {##1autorefname}
+          {\wiserefsetup{##1={prefix={\use:c{##1autorefname}\hit@wiseref@gap:},suffix={}}}}
+      }
+  }
+\cs_new:Npn \hit@wiseref@gap: {\bool_if:NT\g__hit_en_bool{\nobreakspace}}
+\cs_new_protected:Npn \hit@wiseref@equation:n #1
+  {\textup{\cs_if_exist:NTF\hit@equation@paren@left
+    {\hit@equation@paren@left #1\hit@equation@paren@right}{(#1)}}}
+\cs_new:Npn \hit@wiseref@algorithm:
+  {\use:c{hit@term@caption@algorithm@\bool_if:NTF\g__hit_en_bool{en}{zh}}}
+\cs_new:Npn \hit@wiseref@listing:
+  {\use:c{hit@term@caption@listing@\bool_if:NTF\g__hit_en_bool{en}{zh}}}
+\IfPackageLoadedTF{wiseref}
+  {\AddToHook{class/hithesis/after}[hithesis/wiseref]{\__hit_wiseref_setup:}}
+  {\AddToHook{package/wiseref/after}[hithesis/wiseref]{\__hit_wiseref_setup:}}
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@setup@hyperlink}
@@ -31,6 +62,12 @@
 \cs_new_protected:Npn \hit@setup@hyperlink
   {
 \RequirePackage{hyperref}
+% 引用名称从词条取值，后续修改 overrides 时无需再同步一份名称。
+\cs_set:Npn \figureautorefname { \figurename }
+\cs_set:Npn \tableautorefname { \tablename }
+\cs_set:Npn \equationautorefname
+  { \bool_if:NTF \g__hit_en_bool
+      { \hit@term@caption@equation@en } { \hit@term@caption@equation@zh } }
 \sys_if_engine_pdftex:F { \hypersetup { CJKbookmarks=true } }
 \hypersetup{%
   linktoc=all,
@@ -44,13 +81,7 @@
 }
 \urlstyle{same}
 %    \end{macrocode}
-% 链接内部的可伸量各家给的不一样：\pkg{url} 本体 0mu，\pkg{gbt7714} 各版
-% 又搁自己的（老版 0mu~plus~0.1mu、新版 0mu~plus~3mu，还都挂在文档开头的
-% 钩子里），实测 2026 文档里落定的是 0mu。伸量一动，同一条长网址的断点
-% 就差一位，连带掀整段断行。压轴（begindocument/end）统一钉成 0mu。
-% 断点集也一样：老版 \pkg{gbt7714} 往 \cs{UrlBreaks} 里塞进全部字母
-% 数字（网址随处可断），新版收回标准集，同一条网址断的位置就不一样。
-% 老版压轴时把 \cs{UrlBreaks} 回置成 \pkg{url} 的默认集。
+% 在宏包初始化后统一 URL 伸缩量和断点集，避免 gbt7714 版本差异改变断行。
 %    \begin{macrocode}
 \AddToHook { begindocument / end }
   {
@@ -66,11 +97,7 @@
       }
   }
 %    \end{macrocode}
-% \pkg{hyperref} 按 \cs{thepage} 给每页打一个页锚，名字重了只认头一个。封面几页不印
-% 页码，\cs{thepage} 却照样在数：学位论文的封面记作 I 到 VI，摘要又从 I 起；开题报告的
-% 首页、目录、正文首页都是 1。索引这类按页码链的链接于是跳到封面，驱动每份都报
-% duplicate destination。封面排在 \env{titlepage} 里，没有按页码链到这几页的东西，页锚就在这里关掉；
-% 扉页与报告的目录不在这个环境里，排的时候各自关（\file{hit-final-cover.dtx}、\file{hit-report-cover.dtx}）。
+% 封面关闭页锚，避免重置页码后与正文产生同名链接目标。
 %    \begin{macrocode}
 \AddToHook { env / titlepage / begin } { \hypersetup { pageanchor = false } }
   }
@@ -78,12 +105,7 @@
 % \end{macro}
 %
 % \begin{macro}{\hit@setup@pdf@metadata}
-% 元信息什么时候齐要看用户怎么写：示例里 \cs{input}\marg{front/cover} 在
-% \cs{begin}\marg{document} 之后，所以挂 \cs{AtEndPreamble} 太早，字段还是空的。
-% 挂在 \cs{makecover} 上最稳：封面要用的正是这几个字段，跑到那里一定齐了。
-% 取的是 \cs{hit@title@cover@zh} 而不是 \cs{hit@title@flat@zh}：
-% 后者为了屏蔽 \cs{\textbackslash\textbackslash} 包了一层 \cs{begingroup}，而
-% \cs{begingroup} 进不了 PDF 字符串，\pkg{hyperref} 会逐个报警告。
+% 排封面时写入 PDF 元数据；标题须使用不含分组控制命令的版本。
 %
 % \cs{pdfstringdefDisableCommands} 是 \pkg{hyperref} 给的钩子，在把记号转成 PDF
 % 字符串时生效，把 \cs{\textbackslash\textbackslash} 与 \cs{enskip} 换成空格。
@@ -98,17 +120,21 @@
       {
         \cs_set:Npn \\ { ~ }
         \cs_set:Npn \enskip { ~ }
+        \cs_set:Npn \hithesis { hiThesis }
       }
   }
 \cs_new_protected:Npn \hit@write@pdf@metadata
   {
-    \hypersetup
+    \hit@part@info@global:n
       {
-        pdftitle  = { \hit@info@title@cover@zh } ,
-        pdfauthor = { \hit@info@author@zh } ,
+        \hypersetup
+          {
+            pdftitle  = { \hit@info@title@cover@zh } ,
+            pdfauthor = { \hit@info@author@zh } ,
+          }
+        \cs_if_exist:cT { hit@info@keywords@zh }
+          { \hypersetup { pdfkeywords = { \use:c { hit@info@keywords@zh@plain } } } }
       }
-    \cs_if_exist:cT { hit@info@keywords@zh }
-      { \hypersetup { pdfkeywords = { \use:c { hit@info@keywords@zh@plain } } } }
   }
 %    \end{macrocode}
 % \end{macro}

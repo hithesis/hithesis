@@ -15,7 +15,7 @@ hithesis/
 │   ├── hit-dtx-style.dtx       <- 排手册用的 dtx-style.sty，不随模板发布
 │   ├── hit-sty.dtx             <- 示例宏包 hithesis.sty，示例文档自己 \usepackage
 │   ├── manual/                 <- 用户手册 hit-manual.dtx 与致谢，纯文档，不产出任何文件
-│   ├── assets/                 <- EPS 图像数据 hit-eps.dtx，纯数据，不含代码
+│   ├── assets/                 <- 封面字形轮廓数据、TikZ 示例插图源码
 │   ├── engine/                 <- 机制：键怎么造、选项怎么读、版面怎么折算、
 │   │                              字体字号、日期、分散对齐、提示文案，守卫叫 shared-*
 │   ├── config/                 <- 只放值：词条、版面、定理、回落值、固定名字五份
@@ -42,7 +42,7 @@ hithesis/
 
 ## 2. 开发环境
 
-| 工具 | 用途 | 必需性 |
+| 工具 | 说明 | 必需性 |
 |---|---|---|
 | TeX Live ≥ 2022 | 编译模板与示例 | 必需 |
 | Python 3.8+ | changes 提取、标点检查、回归测试、变体编译 | 必需 |
@@ -58,11 +58,12 @@ hithesis/
 构建有两条等价路径。`make` 这条还负责把生成物分发到示例目录：
 
 ```shell
-make cls          # 生成 cls/bst/ist/eps，并分发到四个示例目录
+make cls          # 生成模板文件和示例图片，分发到 examples/demo
 make manual       # 编译用户手册 hithesis.pdf（lualatex）
 make lineends-self # demo 全文行末与 tests/lineends-demo.tsv 自比对，钉住 Lua 断行层的现状
 make distribute   # 只做分发（cls 已经生成过时用）
 make clean        # 清理生成产物
+make tidy         # 清理辅助文件和临时缓存，保留模板文件、手册及基线
 make changes       # 从 \changes 生成 RELEASE_NOTES.md
 make changes-check # 校验 \changes 的日期约定
 make constlint     # 常量键有没有声明了却没人取用的（先 make cls）
@@ -97,6 +98,9 @@ l3build ctan       # 打 CTAN 包（源码 + 手册，不含示例）
 l3build install    # 装进本地 TEXMFHOME
 l3build check      # 跑 testfiles/ 里的宏级测试
 ```
+
+日常清理运行 `make tidy`。运行 `python3 scripts/clean-workspace.py` 可先查看清单；
+该命令只清理已忽略的构建文件，不删除受版本控制的文件。
 
 ### 宏级测试
 
@@ -154,15 +158,23 @@ src/
 已经指 `doc` 宏包那套排手册的机器，那套在本仓库是 `src/hit-dtx-style.dtx`。
 `manual/` 说的是用户手册这一份具体产物。
 
+默认手册包含用户指南、更新日志和致谢，不附实现源码及代码索引。
+更新日志由 `scripts/changes.py --latex` 从 dtx 提取，`make manual` 自动生成。
+完整开发者文档可运行：
+
+```shell
+TEXINPUTS=src:src/engine:src/docxlike:src/config:src/flow:src/pages:src/assets:src/manual: lualatex -jobname=hithesis-dev '\def\hitDeveloperManual{1}\input{src/hithesis.dtx}'
+```
+
 手册由 `hithesis` 自己排：`src/hithesis.dtx` 的 driver 写的是
 `\documentclass[stage=final,degree-level=doctor]{hithesis}`，整本手册就是一本博士
 学位论文，封面、摘要、目录、章节、附录、索引、致谢全走类的版面。`dtx-style.sty`
-只补 `doc` 那一层（页边的 API 记号、代码块、修改记录与索引）。正文三章在
-`hit-manual.dtx`，实现代码进附录，`hit-manual-thanks.dtx` 是致谢。类的版面有任何
+只补 `doc` 那一层（页边的 API 记号、代码块、修改记录与索引）。用户指南在
+`hit-manual.dtx`，开发者构建才把实现代码放进附录，`hit-manual-thanks.dtx` 是致谢。类的版面有任何
 改动，先在手册上照出来；手册编不过往往就是类的 bug（页边记号丢失那次就是这么
 发现的）。
 
-`flow/` 与 `pages/` 里的文件按交付物分开，`hit-final-cover.dtx` 是学位论文封面，
+`flow/` 与 `pages/` 里的文件按论文和报告类型分开，`hit-final-cover.dtx` 是学位论文封面，
 `hit-report-cover.dtx` 是开题报告封面。v3.2a 起两边同在一个 `hithesis.cls` 里，各自
 整块套在 `\bool_if:NT \g__hit_final_bool` 里（报告那组套 `:NF`），互不相干。
 
@@ -387,7 +399,7 @@ v3.2a 把两个 cls 合成一个之后，`hithesis.cls` 这一边不再受这条
 骨架之后；把三个 flow 模块合成共用文件那次也当场撞上，只好先合选项与 LoadClass、
 再合 cls，顺序反过来就过不去。
 
-### 4.3 基准加变体：只写不一样的那一小坨
+### 4.3 基准与变体
 
 **每根轴都有一个基准，基准就是不写档位值的那一条。** 学位轴的基准是博士，
 校区轴的基准是哈尔滨，材料轴的基准是终稿。别的档只写与基准不同的那一小坨。
@@ -491,13 +503,14 @@ src/pages/
 | `hit-caption.dtx` | 双语题注（`\caption{中}[英]`）与 `\bicaption` 兼容 |
 | `hit-subfigure.dtx` | `\subfigure` 兼容层，整个文件到 v4 可删 |
 | `hit-algorithm.dtx` | 伪代码：类装 algorithm2e，外框、关键字大小写、引导线、行号四个预设照 iota-hit |
+| `hit-numbering.dtx` | 图表、算法、代码清单与公式按顶层标题或全文连续编号，保存各变体的默认重置关系 |
 | `hit-option-engine.dtx` | 选项声明助手与读标志位的判断函数 |
 
 判断标准是“两档会不会分开改”。会分开改的（封面、页眉、章节标题、目录）留在分档的文件里；不会的（`\hitsetup` 怎么解析键、字号阶梯怎么定义）才进 `engine/`。
 
 `engine/` 的写法与分档模块不同：文件里只放定义，需要在特定时机执行的部分包成 `\hit@setup@<名>`，由调用处在原来那段代码所在的位置调用。这样抽出来之后生成物的执行顺序不变，能用“生成的 cls 逐字节不变”来验收。
 
-例外：`hithesis.bst`（或将废弃并切换到 biblatex-gb7714）和 `hit-eps.dtx` 也两档共享，但它们不走 `engine/`，因为不是拼进 cls 的模块。
+例外：参考文献样式与 `assets/` 下的资源源码不放在 `engine/`，因为它们不是拼进 cls 的模块。
 
 照 Word 排版的那一层与哪一份规范都无关，单独放在 `src/docxlike/`，生成独立的 `docxlike.sty`，类在原来内联它们的位置 `\RequirePackage[preset=none]{docxlike}`（单独加载时它会照 Word 空白文档设版面，这里版面由类定）：
 
@@ -572,18 +585,24 @@ v3.2a 起模块内容直接拼进 `.cls`，不再生成独立的 `.sty`。在类
 
 - 版本号是当前开发版，合入 master 后由维护者改成正式版本号
 - 日期写这条改动做出来的那天（UTC），不是发版日，见 §9.2c
-- 描述要写为什么这么做，不只写做了什么
+- 描述相对已发布版本的最终变化，简洁说明用户可见的效果。
 - 词汇表会按 makeindex 的规矩读这段文字：`=` 写成 `!=`，字面的 `!` 写成 `!!`
 
-**一个版本没发布之前，条目按末态合并。** 同一个开发版里同一件事改了三回，
-只留最后那一回的样子，写成一条，日期取最后一次；中途试过又撤掉的写法不留条目。
-读修改记录的人要知道的是这一版与上一版差在哪，不是开发过程的流水账。
+**当前开发版固定以 v3.1e tag 为基准。** 每条 `\changes{v3.2a}` 描述最终实现相对
+`v3.1e` 的变化。已有条目涵盖的功能继续修改时，更新原条目，不再新增开发步骤。
+开发中新增又删除、改名又改回的接口不写入发布记录；不能以 HEAD 或上一次提交作比较基准。
+跨文件涉及同一功能时，只在该功能的主要模块记录一次。已发布版本的历史条目保留。
 一个文件里的开发版条目集中放在 `\section` 之后，不散在各个宏旁边。
 
-**注释只解释为什么，不解释是什么。** 代码做什么让代码自己说；一段代码要靠注释
-才看得懂，那是该重写代码的信号，不是加注释的理由。“从前怎样、现在怎样”的
-叙述归 `\changes`，注释里不写第二遍；实测数据、被推翻的做法、上游宏包的坑
-这些才是注释该记的东西。
+**普通实现注释只用一句话概括功能；代码已清楚表达的逻辑不重复解释。**
+只有反直觉实现、兼容限制或容易误改的边界条件，才补充必要原因。
+使用常见技术术语，不写比喻、开发流水账、测量过程或“照某项目实现”的叙述。
+来源、单位及数值依据只在维护时确有必要的位置保留简短说明。
+
+内部预设与公开配置共用双语解析器。`\hit@presetup` 中的双语内容固定按
+`{中文}[英文]` 书写，不受文档语言及交换声明影响；只改英文写
+`{\keepvalue}[English]`。不要使用字段语言后缀或 `zh={...}`、`en={...}` 分组。
+日期仍使用当前专用日期字段，独立于双语文本接口。
 
 CI 会校验日期格式与转义，本地跑 `make changes-check` 看结果，`make changes-fix`
 自动补零。
@@ -831,10 +850,18 @@ scripts/convert-macro.py src/pages/hit-final-cover.dtx hit@engcover --apply
 图片分两类。**模板资源**（封面上的校徽、题名、落款）要装进 `tex/latex/hithesis/`，
 四份清单都要有。**示例的内容**（照范例的四张气体轴承插图、深圳本科中期的涡室截面图）只随示例目录发，在
 `tools/distfiles.txt` 里行首写 `@`，不进 `installfiles` 也不进安装横幅——用户装完模板，
-`tex/latex/hithesis/` 里躺着几张示例插图说不过去。手册用的 `zfb.pdf` 打赏二维码、
-`golfer.pdf` 插图样例同理，放在 `assets/`，只在排手册时用。
-thuthesis 与 fduthesis 都是这么分的：`tex/` 下只有校徽校名，示例在 `doc/` 下，
-一张图都不带。
+示例内容不应安装到模板的 TeX 搜索目录。
+
+四张轴承图的 PDF 和涡室截面的 TikZ 源码维护在 `src/assets/hit-example-figures.dtx`。
+`make figures` 提取源码并用 XeLaTeX 生成四份 `assets/*.pdf`，字体由 ctex 自动选择，不指定 `fontset`；
+`make cls` 与 `make distribute` 自动检查并更新这些 PDF，再连同提取的
+`volute-section.tex` 一起复制到示例的 `figures/`。
+第 1 章的第一幅静压轴承图另以完整 `tikzpicture` 写在正文，演示内联绘图；
+第 1 章和深圳本科中期报告用 `\input{figures/volute-section}` 演示引用外部绘图源码。
+对应主文件加载 `arrows.meta` 库。其余轴承图直接引用随包提供的 PDF。
+`tools/example-figures.json` 保存图源和 PDF 的 SHA-256，`make productcheck` 检查一致性。
+强制重绘可在提取源码后运行 `python3 scripts/example-figures.py --force`。
+`tests/sample/doctor/figures/` 保留学校范例的原始位图，供既有版面对拍使用。
 
 2. 在 `src/hithesis.dtx` 的 `install` 守卫里，`\file{\jobname.cls}` 中插一条 `\from`：
 
@@ -1021,7 +1048,7 @@ git push -u origin feature/my-topic
 
 ### 9.1 加新选项或命令
 
-允许，条件是：默认值保持旧行为、文档说明用途、加 `\changes` 条目。
+允许，条件是：默认值保持旧行为、文档解释含义、加 `\changes` 条目。
 
 ### 9.2 移除老接口
 

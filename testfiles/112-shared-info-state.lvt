@@ -1,0 +1,42 @@
+% Shared storage must follow page-local overrides and global metadata views.
+\input{regression-test}
+\documentclass[fontset=fandol,degree-level=master]{hithesis}
+\hitsetup{info={title={GlobalOne}{GlobalTwo}[Global English],author={Global Author}}}
+\begin{document}
+\START
+\makeatletter
+\ExplSyntaxOn
+\cs_set_protected:Npn \__hit_cover_part:
+  {
+    \typeout{local-title=[\g__hit_info_title@first@zh_tl]}
+    \typeout{local-author=[\g__hit_info_author@zh_tl]}
+    \hit@part@info@global:n
+      {
+        \typeout{global-title=[\g__hit_info_title@first@zh_tl]}
+        \typeout{global-author=[\g__hit_info_author@zh_tl]}
+      }
+    \typeout{local-again=[\g__hit_info_author@zh_tl]}
+  }
+\TEST{Owned~state~follows~local~and~global~views}
+  {
+    \cover[info={title={LocalTitle},author={Local~Author}}]
+    \typeout{restored-title=[\g__hit_info_title@first@zh_tl]}
+    \typeout{restored-second=[\g__hit_info_title@second@zh_tl]}
+    \typeout{restored-author=[\g__hit_info_author@zh_tl]}
+    \typeout{legacy-author=[\hit@info@author@zh]}
+  }
+\TEST{Keyword~trimming~does~not~execute~content}
+  {
+    \cs_set:Npn \SharedKeywordToken {\errmessage{Keyword~expanded~while~storing}}
+    \hitsetup{info={keywords={ Alpha , \SharedKeywordToken , Beta }}}
+    \tl_set:Nv \l_tmpa_tl {hit@info@keywords@zh}
+    \exp_args:NV \tl_if_in:nnTF \l_tmpa_tl {\SharedKeywordToken}
+      {\typeout{typeset-token=preserved}} {\typeout{typeset-token=lost}}
+    \tl_set:Nv \l_tmpa_tl {hit@info@keywords@zh@plain}
+    \exp_args:NV \tl_if_in:nnTF \l_tmpa_tl {\SharedKeywordToken}
+      {\typeout{metadata-token=preserved}} {\typeout{metadata-token=lost}}
+  }
+\ExplSyntaxOff
+\makeatother
+\END
+\end{document}

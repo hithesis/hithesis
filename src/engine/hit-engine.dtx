@@ -13,16 +13,7 @@
 %   东八区的今天（\cs{c\_sys\_year\_int} 跟编译机器
 %   时区走，国外编译封面日期差一天）；下划线按 Word 画：线心在基线下 0.135\,em、粗 0.05\,em}
 %
-% 中文排版的活儿是 \pkg{ctex} 干的，而 \pkg{ctex} 两个引擎都支持：\hologo{XeLaTeX} 底下它调 \pkg{xeCJK}，
-% \hologo{LuaLaTeX} 底下调 \pkg{luatexja}。挡在门口的是模板自己直接用的那几个
-% \pkg{xeCJK} 专属接口——它们在 \pkg{luatexja} 底下没有同名的东西。
-%
-% 本文件把这几处收成一层薄封装：每个功能给一个 \cs{hit@engine@} 开头的名字，
-% 底下按引擎分两套实现，调用方一处 \cs{sys\_if\_engine} 都不用写。加引擎只动这里。
-%
-% \textbf{排在装配表第三位。} 要早于 \file{hit-fonts.dtx}（第五位，字体族里要用
-% 字符归类）、\file{hit-footnote.dtx}（字形探测）、\file{hit-spread.dtx}（定宽拉伸）
-% 与 \file{docxlike-format.dtx}（字距）。
+% 封装引擎相关的字符分类、字距、字形检测和日期处理，供上层模块共用。
 %
 %    \begin{macrocode}
 %<*shared-engine>
@@ -144,12 +135,7 @@
 % \texttt{FORCE\_SOURCE\_DATE} 下 \cs{creationdate} 从环境变量来，回归测试
 % 钉日期的做法不受影响。
 %
-% \hologo{LuaLaTeX} 没有 \cs{creationdate}，一句
-% \texttt{os.date} 拿 UTC 加八小时，不用自己算进退位。格式串里不能出现
-% \texttt{\%}——它在生成的类文件里是注释符，行尾会被整个吃掉、花括号失衡，
-% \cs{sys\_if\_engine\_luatex:TF} 扫参数时把后面整段定义吞进这个分支（踩过：
-% 三个解析函数全成了残废，东八区悄悄退回本地日期）。所以取
-% \texttt{os.date("!*t")} 的表字段，一个 \texttt{\%} 都不用。
+% Lua 路径读取 UTC 时间表后加八小时；格式串不能含未经转义的百分号，以免被 TeX 当作注释。
 %
 % 两条路都不通（\cs{creationdate} 不在或者串认不出）就退回本地时间。
 %    \begin{macrocode}
@@ -284,8 +270,7 @@
   }
 %    \end{macrocode}
 %
-% 算一次就定死。必须放在定义之后：写在前面时加载期的 Undefined control sequence
-% 被 nonstopmode 咽掉，东八区悄悄退回本地日期，只有探针测试抓得出。
+% 所有日期函数定义后再计算当天日期。
 %    \begin{macrocode}
 \sys_if_engine_luatex:TF
   {
@@ -308,8 +293,8 @@
 %
 % \cs{hit@engine@pdftex@cjk@scan:nN}\marg{文字}\meta{布尔}：文字里有汉字就把布尔设真。两个 Unicode
 % 引擎上汉字是一个字符记号，调用方自己逐记号取码位比 \texttt{U+2E7F}；\hologo{pdfTeX} 下
-% 汉字是几个字节，展开后又成了 \cs{CTEX@char@nnn} 那样的宏，那一套取不到码位。这里先用
-% \cs{text\_purify:n} 还原成裸字节（\pkg{ctex} 给那几个宏登记了还原办法），再看有没有
+% 汉字是几个字节，展开后成为 ctex 的受保护字节宏，不能直接取码位。这里先用
+% \cs{text\_purify:n} 还原成裸字节（ctex 登记了还原办法），再看有没有
 % 0xE3 起头的三字节字（\texttt{U+3000} 以上：汉字、假名、全角标点）。
 %    \begin{macrocode}
 \str_new:N \l__hit_engine_scan_str
@@ -371,8 +356,8 @@
 % \cs{hit@engine@group@chars:N}\meta{记号列} 把记号列里的汉字各包成一组，别的记号不动，之后逐项
 % 走（\cs{tl\_map\_inline:Nn}、\cs{tl\_item:Nn}）就是逐字走。两个 Unicode 引擎上一个汉字本来就是
 % 一个记号，什么都不做。\hologo{pdfTeX} 下汉字有两种样子：还没展开的是一串活动字节（首字节
-% 0xC0 以上，后面跟 0x80--0xBF），\cs{tl\_set:Ne} 展开过的是 \pkg{ctex} 的
-% \cs{CTEX@char@nnn} 带三个十进制字节参数（两字节、四字节的同理）。与上面那个不同，这里不
+% 0xC0 以上，后面跟 0x80--0xBF），\cs{tl\_set:Ne} 展开过的是 ctex 的
+% 受保护宏及十进制字节参数（两字节、三字节、四字节）。与上面那个不同，这里不
 % purify，夹在字间的命令（\cs{hit@sp} 之类）都留着。
 %
 % \cs{hit@engine@char@key:nN}\marg{一个字}\meta{记号列} 取查表用的键：属性表的键是字符串，
@@ -404,17 +389,8 @@
 % 撑开的是汉字之间那段胶——所以 \texttt{学院（部} 不会在左括号后面多出一格。
 % 对外的名字是 \file{src/engine/hit-spread.dtx} 的 \cs{hit@spread@to}。
 %
-% \pkg{xeCJK} 那边现成：\pkg{xeCJKfntef} 的 \env{CJKfilltwosides}。
-% \pkg{luatexja} 那边没有对应的环境，照 \cls{thuthesis} 的写法自己搭：
-% \texttt{kanjiskip} 本来就是那段胶，把它的伸展量设足再套进定宽
-% \cs{makebox}，撑开的位置与量都一样。
-%
-% \textbf{伸展量取 \texttt{filll}，盒子取 \oarg{l} 而不是 \oarg{s}。} 这两条是配套的：
-% \cs{makebox}\oarg{宽度}\oarg{l} 会在内容右边垫一个 \cs{hfil}，而 \texttt{filll}
-% 比 \texttt{fil} 高一阶，字距那段胶总是先被撑开、垫的那个吃不到伸展量。好处是
-% 内容里一段汉字字距都没有时（纯西文标签）不会报 underfull，而是老老实实左对齐。
-% \cls{thuthesis} 的 \cs{thu@fixed@box} 就是这么写的，取值也照抄它的
-% \texttt{0pt~plus~2filll~minus~1filll}。
+% XeTeX 使用 CJKfilltwosides，其他引擎伸展汉字间胶。
+% 左对齐盒配合 filll，使汉字间距优先伸展，纯西文内容则左对齐且不报 Underfull。
 %
 % \textbf{内容撑不满才有意义。} 两条路都不处理内容比给定宽度还宽的情形：
 % \env{CJKfilltwosides} 是个 \env{minipage}，会折行；这边的 \cs{makebox} 会溢出。
@@ -501,15 +477,7 @@
 %
 % \pkg{xeCJK} 底下中文字族就是个 NFSS 字族，\cs{usefont} 切过去即可。
 %
-% \pkg{luatexja} 底下办不到，那边是空操作。和文字体不走 NFSS 字族这条路，
-% 字体号另挂在 \cs{ltj@curjfnt} 属性上，拿 \cs{CJK@family} 去 \cs{usefont}
-% 只会落回默认西文字体（实测 \cs{fontname}\cs{font} 仍是 \pkg{lmroman}）。
-% 把数字那段码位划归和文倒是能达到目的，但 \cs{ltjdefcharrange} 是全局的，
-% 写在组里也退不回来，整篇的数字都会跟着换字体，代价太大。
-%
-% 后果只落在 \cs{quan} 画圈那一支上：圈里的数字取自西文字体，比
-% \hologo{XeLaTeX} 那边细一点。字体自带带圈字符时走的是另一支，不受影响，
-% 而常见的几档中文字体都自带 \texttt{①}--\texttt{⑳}，所以多数文档看不出差别。
+% LuaTeX 的和文字体不能通过西文 NFSS 字族切换，此处不操作；手绘圈号中的数字仍用西文字体。
 %    \begin{macrocode}
 \sys_if_engine_luatex:TF
   { \cs_new_protected:Npn \hit@engine@use@cjk@font: { } }
@@ -522,7 +490,7 @@
 % \hologo{pdfTeX} 下中文字族是 \pkg{CJK} 的 C70 编码，拿它配西文编码是个不存在的字体形状，
 % 切不过去，这里什么都不做；问字形也问不了，带圈数字只认中易宋体一定有的 ①--⑳，文鼎那一档
 % 一律画。\cs{hit@engine@char:n}\marg{码位} 排一个字：两个 Unicode 引擎是 \cs{char}，\hologo{pdfTeX}
-% 下把码位拆成 UTF-8 的三个字节交给 \pkg{ctex} 的 \cs{CTEX@char@nnn}（活动字符展开后就是它）。
+% 下把码位拆成 UTF-8 的三个字节，交给 ctex 的中文字符适配宏。
 %    \begin{macrocode}
 \int_new:N \l__hit_engine_cp_int
 \sys_if_engine_pdftex:TF
@@ -584,12 +552,7 @@
 % 一个都不存在，所以凡是要\emph{执行}的都推到这里，本文件里只管\emph{定义}。
 % \hologo{XeLaTeX} 下它是空的。
 %
-% \textbf{一、带圈数字归成汉字。} \cs{quan} 排脚注号时先问字体有没有现成的
-% \texttt{①}，有就直接排那个码位。\pkg{luatexja} 按区块把
-% \texttt{U+2460}--\texttt{U+24FF} 归了西文，于是那一句排出来去找 Times New
-% Roman，字体里没有就整个排丢了（日志里一句 Missing character，纸面上什么都没有）。
-% 归成汉字之后从中文字体取，与 \hologo{XeLaTeX} 排的是同一个字形。
-% \cls{thuthesis} 的 \cs{ltjdefcharrange}\marg{6} 里也把这一段划了回去。
+% 带圈数字归入中文字符范围，避免到缺少这些字形的西文字体中查找。
 %
 % 三段码位与 \cs{\_\_hit\_quan\_slot:n} 的三段一一对应：1--20 在
 % \texttt{U+2460}，21--35 在 \texttt{U+3251}，36--50 在 \texttt{U+32B1}。
@@ -643,25 +606,9 @@
   }
 %    \end{macrocode}
 %
-% \textbf{三、下划线的位置与粗细按 Word。}Word 是一个 run 一条线，线心在
-% 基线下 0.135\,em、粗 0.05\,em，纯汉字、纯西文、数字、混排四种 run 一个数。
-% 自己造 docx 在 macOS Word 上量的（中易宋体 + Times，12/24/48\,pt 三档；
-% 大字号躲开 Word 输出坐标 1/300 英寸的取整，48\,pt 那档四种 run 全落在
-% 0.135/0.050 上，12\,pt 那档在 0.123～0.173 之间晃，那是它按设备像素取整）。
-% 与 iota-hit 的实测同数。粗体西文 run 在 Word 里线粗一倍（0.10\,em），
-% 这一档不另设。
+% 下划线中心距基线 0.135 em，线宽 0.05 em。
 %
-% 不设的话 \pkg{ulem} 按字体的 (j 深度自动取，\pkg{xeCJKfntef} 默认 0.20\,em，
-% 两边都在基线下 0.235\,em 上下、粗 0.4\,pt（12\,pt 上 0.033\,em），比 Word
-% 低了近一倍、细了三成。
-%
-% \pkg{ulem} 的线由 \cs{ULdepth}（下缘）与 \cs{ULthickness} 定：下缘取
-% 0.16\,em、粗 0.05\,em，线心正好 0.135。\cs{ULdepth} 是长度寄存器，不能在
-% 加载时按 em 定死，改成在它自动取深度那一步（\cs{UL@setULdepth}）按当时
-% 字体算。\pkg{xeCJKfntef} 的 \texttt{depth} 是线的\emph{上缘}（实测 0.16 给
-% 出线心 0.185），取 0.11\,em；那对键收的是 token 列表，用时才求值，直接写
-% em。两边都量过：12\,pt 上线心 0.1350、粗 0.0500。挂在两个包的加载钩子上，
-% 哪个引擎装哪个都吃得到。
+% ulem 的 depth 指下缘，xeCJKfntef 指上缘，分别取 0.16 em 和 0.11 em，并在实际字号下求值。
 %    \begin{macrocode}
 \AddToHook { package / ulem / after }
   {

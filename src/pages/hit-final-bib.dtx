@@ -6,36 +6,16 @@
 %
 % \section{参考文献页}
 %
-% \changes{v3.2a}{2026/08/16}{引用样式与著录列表参数抽到 \file{hit-bibstyle.dtx} 与报告
-%   共用；\pkg{gbt7714} 挪到导言区末尾装（它无条件拉 \pkg{natbib}，在类里装死了用户换
-%   文献方案的路），装前先探 \pkg{biblatex}；\cs{bibstyle@inline} 改用转接宏，行内引用的
-%   括号与分隔跟 \option{brackets-in-cite}／\option{comma-in-cite}；传统一线补
-%   \cs{printbibliography} 与 \pkg{bibentry}，\option{compress-min} 走官方
-%   \texttt{mincompress}；终稿的 biblatex 排版配置与传统一线同一套版面}
-% \changes{v3.2a}{2026/09/20}{全角标号：哈尔滨本科与威海硕博也排，标号后不留空、悬挂到
-%   标号宽，照三份范例；哪几档排、标号后间距、人文的悬挂挪到 \pkg{gbt7714} 的钩子之外
-%   给 \pkg{biblatex} 那条线读；两个方括号用 \cs{mbox} 保住自己的空白（\pkg{luatexja}
-%   把盒子两端当行首行尾压掉，标号窄了 12\,bp）}
+% \changes{v3.2a}{2026/10/06}{终稿文献表按范例设置标号宽度和悬挂缩进；
+%   哈尔滨本科与威海硕博加入全角标号范围，全角标号后不加空白，人文社科采用独立缩进设置}
 %
 % ^^A ======================================================================
 % ^^A Module final-bib: 参考文献加载与 natbib/gbt7714 设置（hit-thesis）
 % ^^A ======================================================================
 %
-% 底下走 \pkg{gbt7714}。\cs{bibstyle@inline} 由它带，不用自己定义。加载完之后
-% 引用样式与著录列表的参数在共享层 \file{hit-bibstyle.dtx}，排在本模块之前。
-%
-% \pkg{gbt7714} 不在类加载期装，挪到导言区末尾（\texttt{begindocument/before}
-% 钩子）。它内部无条件 \cs{RequirePackage}\marg{natbib}，而 \pkg{natbib} 与
-% \pkg{biblatex} 一族互斥——在类里就装上，等于替用户把文献方案定死了。挪到
-% 导言区末尾，用户导言区写的东西才有先说话的机会，这也是 thuthesis 的做法。
-%
-% 配置分两截：装载那一句挂 \texttt{begindocument/before}；其余全挂
-% \texttt{package/gbt7714/after}。后者不能并进前者：\pkg{gbt7714} 会重定义
-% \env{thebibliography}，本模块的重定义必须排在它之后才能赢，而且用户要是自己
-% 在导言区提前装了 \pkg{gbt7714}，配置也得跟着那次装载走。
-% 装载带一道侦测：\pkg{biblatex} 在（\option{backend}\texttt{=biber} 由类装的，
-% 或用户自己装的，都一样）就不装 \pkg{gbt7714}——两族互斥，见
-% \file{hit-bibstyle.dtx} 的守卫。
+% 在 begindocument/before 检查后端：已加载 biblatex 时跳过 gbt7714，避免 natbib 冲突。
+% gbt7714 的布局配置放在 package/gbt7714/after，以兼容用户提前加载该宏包。
+% 引用标点和公共列表参数见 \file{hit-bibstyle.dtx}。
 %    \begin{macrocode}
 %<*final-bib>
 \bool_if:NT \g__hit_final_bool
@@ -58,10 +38,7 @@
   }
 %    \end{macrocode}
 %
-% \emph{标号的三个取值在类加载时就定，不放进 \pkg{gbt7714} 的钩子。}下面那个
-% 钩子只在传统线装了 \pkg{gbt7714} 时才跑，\pkg{biblatex} 那条线从不进去；
-% 先前“全角档标号后不留空”写在钩子里，\pkg{biblatex} 的著录列表读到的还是
-% 半个字宽。这里只留下判断与取值，钩子里只剩改写 \cs{@biblabel} 那一句。
+% 标号样式在类加载时确定，供两个后端共用；仅针对 gbt7714 的命令重定义放在宏包钩子中。
 %
 % 哪几档全角：深圳，以及哈尔滨、威海的本硕博，人文社科类除外。全角档标号后
 % 不留空（三份范例，见下面 \cs{@biblabel} 那一节）。
@@ -124,25 +101,11 @@
 % 在［\#1］前加上 \cs{mbox\{\}} 来获得正确的序号长度，否则会因为 \hologo{XeLaTeX}下的标点挤压而计算错误，这里应该整个包裹起来，否则换行后缩进会有问题。
 % \changes{v3.1d}{2025/03/03}{按着 \issue[211] 来修改，将 \cs{mbox\{\}} 包住整个 label}
 % \changes{v3.1d}{2025/03/03}{按照 \issue[215] 将哈尔滨硕博毕业论文的参考文献序号也改为全角}
-% \emph{全角标号后不留空。}三份范例（博士理工范例 PDF、研究生范例、本科理工
-% 范例用 Word 导出）的参考文献表一个样：标号“［1］”全角方括号，正文紧跟
-% 在“］”后（只隔字符间距 0.25\,bp），折行悬挂正好落在标号的右缘。先前的半
-% 个字宽间距追到 2017 年 init 就在，从没量过。深圳那一档早前按 \issue[97]
-% 已是零，本科理工范例也是全角，所以哈尔滨本科并进同一档。
+% 理工类范例的全角标号后不加空白，续行对齐标号右缘；字符网格自身的间距仍保留。
 %
-% 间距存在共用层的 \cs{g\_\_hit\_bib\_labelsep\_tl} 里（见
-% \file{hit-bibstyle.dtx}），这里只改一次，传统线、\pkg{biblatex} 线都读它；
-% 成果页的标号后是两个宋体空格，那是另一个数，见
-% \file{hit-final-backmatter.dtx}。威海硕博与本部的规范已完全一致（页眉那支
-% 也已并进本部，见 \file{hit-final-pagestyle.dtx}），文献表从没另有规定，先前
-% 排半角只是没被点名，一并进全角档。
+% BibTeX 与 biblatex 共用文献标号间距，成果列表单独设置。
 %
-% \emph{方括号的空白要保住。}\pkg{luatexja} 把 \cs{mbox} 的两端当成行首行尾，
-% 按 JFM 把行首开号的左半格、行尾闭号的右半格压掉，标号盒子只剩 18\,bp；
-% 列表再把它右对齐到 \cs{labelwidth}，开号就探进左边距半格。范例（三份 Word
-% 导出都一样）的标号是三个整格：「［」在版心左缘 85.0、「1」97.3、「］」103.8、
-% 正文 116.0。两端各垫一个空盒子，JFM 看到的就不是盒边了。\hologo{XeLaTeX}
-% 那条线本来就不压盒边，垫了也不动。
+% 标号两端加空盒，阻止 luatexja 将盒边的全角括号压成半宽。
 %    \begin{macrocode}
 \bool_if:NT \g__hit_bib_fullwidth_bool
   { \cs_set:Npn \@biblabel #1 { \mbox { \mbox { } ［#1］ \mbox { } } } }

@@ -6,19 +6,9 @@
 %
 % \section{共享 subfigure 兼容层}
 %
-% \changes{v3.2a}{2026/09/14}{\pkg{subfigure} 兼容层抽出来共用（原先两个类各存一份 290 行），
-%   旧写法加废弃提示，加 \cs{bisubcaption}（\issue[284]）；\cs{subfiglabelskip} 改成半个
-%   字身，排的时候才折成长度}
+% \changes{v3.2a}{2026/09/14}{使用 subcaption 实现旧 subfigure 命令的兼容层；子图标签间距在排版时按半字宽计算}
 %
-% \pkg{subfigure} 二十多年没人维护，与 \pkg{cleveref}、\pkg{hyperref} 配合有问题，
-% v3.2a 换成了 \pkg{subcaption}。这个文件把旧接口在新实现上重做一遍，让写着
-% \cs{subfigure}、\cs{subtable}、\cs{ifsubcaphang} 的老文档继续能编。
-%
-% \textbf{整个文件是一次性的。} 里面没有一行是模板自己要用的东西——\cs{subfigure} 的
-% 六个长度、\cs{bisubcaption}、五个开关的转译、\cs{subfigure} 与 \cs{subtable} 的
-% 重定义，全都只为接住旧写法。兼容期在 v4（预计~2027~年发布）结束，那时把
-% \file{hithesis.ins} 里这三行删掉、连同本文件一起移除即可，不必去别的文件里挑拣。
-% 移除前记得把示例正文改写成 \cs{subcaptionbox}，那里现在用的还是旧写法。
+% 将旧 subfigure、subtable 命令及其设置转接到 subcaption。
 %
 % 子图题的字号与标签分隔（\cs{subcapsize}、\cs{DeclareCaptionFont}、
 % \cs{captionsetup}\oarg{sub}）不在这里：那是版式，各个类自己定，与旧接口无关。
@@ -27,8 +17,6 @@
 %<*shared-subfigure>
 %    \end{macrocode}
 %
-% 绝大部分是普通定义，直接放在文件顶层——包进一个函数的话，里面十几个带参数的
-% 定义都要把 \texttt{\#} 加倍，读起来与出错风险都不划算。
 %    \begin{macrocode}
 \skip_new:N \subfigtopskip
 \skip_new:N \subfigcapskip
@@ -38,9 +26,7 @@
 \skip_new:N \subfiglabelskip
 %    \end{macrocode}
 %
-% \cs{subcaptionbox} 要求 \cs{label} 写在图题里，而旧写法把它写在内容里
-% （\pkg{subfigure} 自己 \cs{let} 掉 \cs{label} 来接）。这里照样接住：内容先
-% 装箱，装箱时把 \cs{label} 的参数记下来，再塞回图题参数末尾。
+% 将旧写法中位于图形内容内的 label 暂存，再移到 subcaptionbox 的题注参数中。
 %    \begin{macrocode}
 \box_new:N \l__hit_subfloat_content_box
 \box_new:N \l__hit_subfloat_caption_box
@@ -58,10 +44,7 @@
       }
 %    \end{macrocode}
 %
-% 图题先单独装进 \cs{vbox} 再放进竖直列表。\pkg{caption} 排图题时会先放一条零高
-% \cs{hrule}（\cs{vspace} 在竖直模式下的常规动作），\cs{hrule} 会掐掉 \hologo{TeX}\ 的
-% 行间胶，图与图题之间就少了一整个 \cs{baselineskip}。装箱之后 \cs{vbox} 的高度
-% 就是首行基线的位置，行间胶照常算，与 \pkg{subfigure} 的结果一致。
+% 题注先装入 vbox，避免 caption 插入的零高横线抑制图与题注之间的行间胶。
 %    \begin{macrocode}
     \tl_if_empty:NF \g__hit_subfloat_pending_label_tl
       {
@@ -72,11 +55,7 @@
       { \box_set_wd:Nn \l__hit_subfloat_content_box { \linewidth } }
 %    \end{macrocode}
 %
-% \pkg{subfigure} 单行子图题排成裸 \cs{hbox}，高深随文字；排不下才退回
-% \cs{parbox}，那时才有 strut。\pkg{caption} 一律带 strut，深度固定，图之后的
-% 材料会高一截。照 \pkg{subfigure} 的做法先拿同样的字体量一遍宽度，装得下就
-% 关掉 strut。量的时候计数器还没走，\cs{thesubfigure} 拿到的是上一个号，宽度
-% 一样，不影响判断。
+% 单行题注关闭默认撑杆，保持旧 subfigure 的自然高深。
 %    \begin{macrocode}
     \hbox_set:Nn \l__hit_subfloat_measure_box
       {
@@ -109,10 +88,7 @@
 % 盒子是这里手工摆的，\pkg{caption} 的 \option{position} 管不到，按 \cs{@captype}
 % 自己分。上方时上下留白对调，并按 \pkg{subfigure} 的做法补 \cs{subfigcaptopadj}。
 %
-% \pkg{subfigure} 多行子图题用 \cs{parbox}\texttt{[t]}：高度是首行的高度，其余算深度。
-% \cs{vbox} 相反，把一切折进高度、深度为 0，放进竖直列表时参考点就错了。这里拿
-% 量宽度那个 \cs{hbox} 的高度当首行高度，把图题盒子的高深重设一遍。单行时结果与
-% \pkg{subfigure} 的裸 \cs{hbox} 逐值相同。
+% 重设题注盒子的高深，以首行基线对齐，保持 parbox[t] 的定位方式。
 %    \begin{macrocode}
     \tl_gclear:N \g__hit_subfloat_label_tl
     \dim_set:Nn \l__hit_subfloat_total_dim
@@ -156,20 +132,7 @@
 % \pkg{subcaption} 的环境，直接调用的走兼容壳。
 %
 % \begin{macro}{\hit@setup@subfigure}
-% 两类东西要等到调用时才做。一是接管 \cs{subfigure} 与 \cs{subtable}，那得先等
-% \pkg{subcaption} 加载完、把原定义存下来。二是六个长度的赋值：\cs{subfiglabelskip}
-% 的值是 \texttt{0.33em}，跟着字体走，在共享层加载时字体还没配好，\texttt{em} 换算
-% 基准不对——踩过一次，子图标签后面的空格没了，\texttt{(a) 打高尔夫球} 变成
-% \texttt{(a)打高尔夫球}。声明留在顶层，赋值放这里，时机与合并前一致。
-% \emph{分图号后那一格是半个字身。} \cs{subfiglabelskip} 原先取 \pkg{subfigure}
-% 宏包的默认值 \texttt{0.33em}，而它在 \cs{hit@setup@subfigure} 里\emph{一次}
-% 折成长度，那会儿的字号是类的默认小四，于是不论分图题排多大，这一格恒是
-% 3.96；本科范例量出来是 5.77（iota-hit 逐字量的），模型是「半个字身」——
-% 五号下 5.25，再加上中西文边界那一点。
-%
-% 所以取值改成 \texttt{0.5em}，并且\emph{到排的时候才折}：
-% \cs{DeclareCaptionLabelSeparator} 的宏体在题注里展开，那会儿
-% \cs{subcapsize} 已经发过，\texttt{em} 就是分图题自己的字号。
+% subcaption 加载后再包装命令；标签间距的 em 单位必须在题注字号下求值。
 %    \begin{macrocode}
 \cs_new:Npn \hit@subfigure@labelsep: { \hskip 0.5em }
 \cs_new_protected:Npn \hit@setup@subfigure
@@ -205,7 +168,7 @@
 % \item 紧跟其后的 \cs{addtocounter}\marg{subfigure}\marg{-2}：那是给上面那招凑
 %   计数器用的，\pkg{subcaption} 的计数器语义不同，直接吃掉。
 % \item \cs{subfigure}\oarg{英文}\marg{\cs{subfigure}\oarg{中文}\marg{图}}：双语
-%   子图题的套娃，拆开转成 \cs{bisubcaption}。
+%   双语子图题，拆开后递归排版。
 % \end{itemize}
 %    \begin{macrocode}
 \tl_new:N \g__hit_subfloat_pending_label_tl
@@ -235,8 +198,7 @@
   }
 %    \end{macrocode}
 %
-% 旧写法的提示。每种只报一次，用 \cs{\_\_hit\_warn\_once:nnn} 记名。\pkg{subfigure}
-% 专有的开关与命令没有对应写法，报出来总比「未定义控制序列」强。
+% 每种旧接口只提示一次。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_subfloat_dropped:nn #1#2
   { \__hit_warn_once:nnn {#1} { removed-subfig } {#2} }
@@ -271,8 +233,6 @@
       { 嵌套的~subfigure~写法已不推荐。 }
     \__hit_subfloat_bicaption:nnn {#2} {#1} {#3}
   }
-\cs_new_protected:Npn \__hit_subfloat_bicaption:w \bisubcaption #1#2 \q_stop #3
-  { \__hit_subfloat_bicaption:nnn {#1} {#2} {#3} }
 \cs_new_protected:Npn \__hit_subfloat_no_caption:n #1
   {
     \tl_gclear:N \g__hit_subfloat_label_tl
@@ -299,9 +259,6 @@
         \tl_if_head_eq_meaning:nNTF {#2} \subfigure
           { \__hit_subfloat_unnest:nw {#1} #2 \q_stop }
           {
-            \tl_if_head_eq_meaning:nNTF {#1} \bisubcaption
-              { \__hit_subfloat_bicaption:w #1 \q_stop {#2} }
-              {
                 \tl_if_in:nnT {#2} { \subfigure }
                   {
                     \__hit_warn_once:nnn { unrecognised-nesting }
@@ -309,18 +266,12 @@
                       { 内容里有~subfigure，但不在最前面，认不出是双语写法。 }
                   }
                 \__hit_subfloat:nn {#1} {#2}
-              }
           }
       }
   }
 %    \end{macrocode}
 %
-% 双语子图题。它只是个记号，由 \cs{subfigure} 认出来自己拆：两行图题之间隔着一段
-% \cs{subfigbottomskip}，那是旧写法里内外两层子浮动体叠出来的结构，在图题文本里
-% 补不进去（\cs{vskip} 与 \cs{\\} 在量宽度的 \cs{hbox} 里都非法）。所以拆开之后
-% 照旧写法的结构递归摆一遍。
 %    \begin{macrocode}
-\cs_new_protected:Npn \bisubcaption #1#2 { }
 %    \end{macrocode}
 % \end{macro}
 %

@@ -1,0 +1,771 @@
+% \iffalse meta-comment
+% hit-bilingual.dtx：双语内容输入，内部仍分别保存中英文。
+% \fi
+% \section{双语输入}
+% 内容按主语言、副语言解析；交换状态是局部赋值，不改变文档语言。
+% keepvalue 仅按完整记号比较，不定义或执行同名命令。
+%    \begin{macrocode}
+%<*shared-bilingual>
+\bool_new:N \l__hit_bilingual_swap_bool
+\NewDocumentCommand \bilingualswapon { } { \bool_set_true:N \l__hit_bilingual_swap_bool }
+\NewDocumentCommand \bilingualswapoff { } { \bool_set_false:N \l__hit_bilingual_swap_bool }
+\tl_new:N \l__hit_bilingual_main_tl
+\tl_new:N \l__hit_bilingual_other_tl
+\tl_new:N \l__hit_bilingual_primary_tl
+\tl_new:N \l__hit_bilingual_secondary_tl
+\bool_new:N \l__hit_bilingual_other_bool
+\bool_new:N \l__hit_bilingual_valid_bool
+\bool_new:N \l__hit_bilingual_multi_bool
+\seq_new:N \l__hit_bilingual_keys_seq
+\tl_new:N \l__hit_bilingual_tail_tl
+\msg_new:nnn { hithesis } { bilingual-syntax }
+  { 双语内容应写成~\{主语言\}[副语言]：#1。 }
+\msg_new:nnn { hithesis } { bilingual-single }
+  { 字段~#1~不支持双语，采用主值，忽略副值。 }
+\msg_new:nnn { hithesis } { bilingual-keep }
+  { #1~没有可保留的字段值，不能使用~\token_to_str:N \keepvalue。 }
+\msg_new:nnn { hithesis } { bilingual-keep-mixed }
+  { \token_to_str:N\keepvalue~必须独占字段的一侧，不能与其他文字混写。 }
+\cs_new_protected:Npn \hit@bilingual@languages:
+  {
+    % 默认配置固定按中文、英文书写，不受文档语言或局部交换影响。
+    \bool_lazy_and:nnTF
+      { \g__hit_en_bool } { ! \g_docxlike_format_defaults_bool }
+      { \tl_set:Nn \l__hit_bilingual_primary_tl { en } \tl_set:Nn \l__hit_bilingual_secondary_tl { zh } }
+      { \tl_set:Nn \l__hit_bilingual_primary_tl { zh } \tl_set:Nn \l__hit_bilingual_secondary_tl { en } }
+    \bool_lazy_and:nnT
+      { \l__hit_bilingual_swap_bool } { ! \g_docxlike_format_defaults_bool }
+      {
+        \tl_set_eq:NN \l_tmpa_tl \l__hit_bilingual_primary_tl
+        \tl_set_eq:NN \l__hit_bilingual_primary_tl \l__hit_bilingual_secondary_tl
+        \tl_set_eq:NN \l__hit_bilingual_secondary_tl \l_tmpa_tl
+      }
+  }
+\cs_new_protected:Npn \hit@bilingual@parse:n #1
+  {
+    \hit@bilingual@languages:
+    \bool_set_true:N \l__hit_bilingual_valid_bool
+    \bool_set_false:N \l__hit_bilingual_other_bool
+    \bool_set_false:N \l__hit_bilingual_multi_bool
+    \tl_clear:N \l__hit_bilingual_other_tl
+    \tl_set:Nn \l__hit_bilingual_main_tl {#1}
+    \tl_trim_spaces:N \l__hit_bilingual_main_tl
+    \exp_args:NV \__hit_bilingual_start:n \l__hit_bilingual_main_tl
+    \__hit_bilingual_keep_check:N \l__hit_bilingual_main_tl
+    \__hit_bilingual_keep_check:N \l__hit_bilingual_other_tl
+  }
+\cs_new_protected:Npn \__hit_bilingual_keep_check:N #1
+  {
+    \tl_if_eq:NnF #1 {\keepvalue}
+      {\exp_args:NV\tl_if_in:nnT #1 {\keepvalue}
+        {\bool_set_false:N\l__hit_bilingual_valid_bool\msg_error:nn{hithesis}{bilingual-keep-mixed}}}
+  }
+\cs_new_protected:Npn \__hit_bilingual_start:n #1
+  { \tl_if_head_is_group:nT {#1} { \__hit_bilingual_first:w #1 \q_mark \q_stop } }
+\cs_new_protected:Npn \__hit_bilingual_first:w #1#2 \q_stop
+  {
+    \tl_set:Nn \l__hit_bilingual_main_tl {#1}
+    \__hit_bilingual_tail_unmark:n {#2}
+  }
+\cs_new_protected:Npn \__hit_bilingual_tail_unmark:n #1
+  {
+    \tl_set:Nn \l__hit_bilingual_tail_tl {#1}
+    \tl_remove_once:Nn \l__hit_bilingual_tail_tl {\q_mark}
+    \exp_args:NV \__hit_bilingual_tail:n \l__hit_bilingual_tail_tl
+  }
+\cs_new_protected:Npn \__hit_bilingual_tail:n #1
+  {
+    \tl_if_blank:nF {#1}
+      { \exp_args:Ne \__hit_bilingual_tail_trimmed:n { \tl_trim_spaces:n {#1} } }
+  }
+\cs_new_protected:Npn \__hit_bilingual_tail_trimmed:n #1
+  {
+    \tl_if_head_is_group:nTF {#1}
+      { \__hit_bilingual_more:w #1 \q_mark \q_stop }
+      {
+        \tl_if_head_eq_charcode:nNTF {#1} [
+          {
+            \tl_if_in:nnTF {#1} { ] }
+              { \__hit_bilingual_secondary:w #1 \q_stop }
+              { \__hit_bilingual_bad:n {#1} }
+          }
+          { \__hit_bilingual_bad:n {#1} }
+      }
+  }
+\cs_new_protected:Npn \__hit_bilingual_more:w #1#2 \q_stop
+  {
+    \bool_if:NF \l__hit_bilingual_multi_bool
+      {
+        \tl_set:Ne \l__hit_bilingual_main_tl { { \exp_not:V \l__hit_bilingual_main_tl } }
+        \bool_set_true:N \l__hit_bilingual_multi_bool
+      }
+    \tl_put_right:Nn \l__hit_bilingual_main_tl { {#1} }
+    \__hit_bilingual_tail_unmark:n {#2}
+  }
+\cs_new_protected:Npn \__hit_bilingual_secondary:w [#1]#2 \q_stop
+  {
+    \tl_if_blank:nTF {#2}
+      { \bool_set_true:N \l__hit_bilingual_other_bool \tl_set:Nn \l__hit_bilingual_other_tl {#1} }
+      { \__hit_bilingual_bad:n {#2} }
+  }
+\cs_new_protected:Npn \__hit_bilingual_bad:n #1
+  { \bool_set_false:N \l__hit_bilingual_valid_bool \msg_error:nnn { hithesis } { bilingual-syntax } {#1} }
+% 在 l3keys 去掉值的外层花括号前保存结构，区分 {A}[B] 和 {{A}[B]}。
+\cs_new_protected:Npn \hit@bilingual@keys:nN #1#2
+  {
+    \seq_set_split:Nnn \l__hit_bilingual_keys_seq { , } {#1}
+    \seq_map_inline:Nn \l__hit_bilingual_keys_seq
+      {
+        \tl_set:Nn \l_tmpa_tl {##1}
+        \tl_replace_all:Nnn \l_tmpa_tl { \par } { }
+        \tl_trim_spaces:N \l_tmpa_tl
+        \tl_if_empty:NF \l_tmpa_tl
+          { \exp_after:wN \__hit_bilingual_key:w \l_tmpa_tl = \q_no_value \q_stop #2 }
+      }
+  }
+\cs_new_protected:Npn \__hit_bilingual_key:w #1=#2 \q_stop #3
+  {
+    \tl_if_eq:nnTF {#2} { \q_no_value }
+      { \exp_args:Ne #3 { \tl_trim_spaces:n {#1} } { true } }
+      { \__hit_bilingual_value:w \q_mark #2 \q_stop {#1} #3 }
+  }
+\cs_new_protected:Npn \__hit_bilingual_value:w #1=\q_no_value \q_stop #2#3
+  { \exp_args:Nee #3 { \tl_trim_spaces:n {#2} } { \exp_args:Ne \tl_trim_spaces:n { \tl_tail:n {#1} } } }
+\cs_new_protected:Npn \hit@bilingual@apply:nN #1#2
+  {
+    \hit@bilingual@parse:n {#1}
+    \bool_if:NT \l__hit_bilingual_valid_bool
+      {
+        \tl_if_eq:NnF \l__hit_bilingual_main_tl { \keepvalue }
+          { \exp_args:NVV #2 \l__hit_bilingual_primary_tl \l__hit_bilingual_main_tl }
+        \bool_if:NT \l__hit_bilingual_other_bool
+          {
+            \tl_if_eq:NnF \l__hit_bilingual_other_tl { \keepvalue }
+              { \exp_args:NVV #2 \l__hit_bilingual_secondary_tl \l__hit_bilingual_other_tl }
+          }
+      }
+  }
+\tl_new:N \l__hit_bilingual_field_tl
+\bool_new:N \l__hit_bilingual_page_bool
+\tl_new:N \l__hit_bilingual_page_tl
+\clist_const:Nn \c__hit_bilingual_info_clist
+  { title , subtitle , author , supervisor , associate-supervisor , industry-supervisor , affiliation , speciality , discipline , degree-applied , institution , keywords }
+\cs_new_protected:Npn \hit@bilingual@info:n #1
+  { \hit@bilingual@keys:nN {#1} \__hit_bilingual_info:nn }
+\cs_new_protected:Npn \__hit_bilingual_info:nn #1#2
+  {
+    \str_case:nnF {#1}
+      { {zh}{\msg_warning:nnn{hithesis}{unknown-key}{#1}}
+        {en}{\msg_warning:nnn{hithesis}{unknown-key}{#1}} }
+      {
+        \regex_match:nnTF {-(zh|en)\Z} {#1}
+          {\regex_match:nnTF {date|\A station-zh\Z} {#1}
+            {\__hit_bilingual_info_checked:nn{#1}{#2}}
+            {\msg_warning:nnn{hithesis}{unknown-key}{#1}}}
+          {\__hit_bilingual_info_checked:nn{#1}{#2}}
+      }
+  }
+\cs_new_protected:Npn \__hit_bilingual_info_checked:nn #1#2
+  {
+    \clist_if_in:NnTF \c__hit_bilingual_info_clist {#1}
+      {\__hit_bilingual_info_accepted:nn{#1}{#2}}
+      {
+        \bool_lazy_or:nnTF
+          {\prop_if_in_p:Nn\g__hit_info_prop{#1}}
+          {\prop_if_in_p:Nn\g__hit_renamed_option_prop{#1}}
+          {\__hit_bilingual_info_accepted:nn{#1}{#2}}
+          {\msg_warning:nnn{hithesis}{unknown-key}{#1}}
+      }
+  }
+\cs_new_protected:Npn \__hit_bilingual_info_accepted:nn #1#2
+  {
+    \tl_set:Nn \l__hit_bilingual_field_tl {#1}
+    \clist_if_in:NnTF \c__hit_bilingual_info_clist {#1}
+      { \hit@bilingual@apply:nN {#2} \__hit_bilingual_info_store:nn }
+      {
+        \hit@bilingual@parse:n {#2}
+        \bool_if:NT \l__hit_bilingual_valid_bool
+          {
+            \bool_if:NT \l__hit_bilingual_other_bool
+              { \msg_warning:nnn { hithesis } { bilingual-single } {#1} }
+            \tl_if_eq:NnF \l__hit_bilingual_main_tl { \keepvalue }
+              {
+                \bool_if:NTF \l__hit_bilingual_page_bool
+                  { \use:e { \exp_not:N \hit@keys@set:nn { hit/part-info/\l__hit_bilingual_page_tl } { #1 = {\exp_not:V \l__hit_bilingual_main_tl} } } }
+                  { \use:e { \exp_not:N \hit@keys@set:nn { hit/info-internal } { #1 = {\exp_not:V \l__hit_bilingual_main_tl} } } }
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_bilingual_info_store:nn #1#2
+  {
+    \bool_if:NTF \l__hit_bilingual_page_bool
+      {
+        \str_if_eq:VnTF \l__hit_bilingual_field_tl { title }
+          { \hit@part@title@new:nn {#1} {#2} }
+          { \use:e { \exp_not:N \hit@keys@set:nn { hit/part-info/\l__hit_bilingual_page_tl } { \l__hit_bilingual_field_tl-#1 = {\exp_not:n {#2}} } } }
+      }
+      {
+        \str_case:VnF \l__hit_bilingual_field_tl
+          {
+            { title } { \hit@title@new:nn {#1} {#2} }
+            { subtitle } { \hit@title@set@subtitle {#1} {#2} }
+          }
+          { \use:e { \exp_not:N \hit@keys@set:nn { hit/info-internal } { \l__hit_bilingual_field_tl-#1 = {\exp_not:n {#2}} } } }
+      }
+  }
+\cs_new_protected:Npn \hit@title@new:nn #1#2
+  {
+    \hit@title@set@first{#1}{#2}
+    \hit@title@set@second{#1}{}
+    \tl_if_head_is_group:nT{#2}{\__hit_bilingual_title_first:w #2\q_mark\q_stop{#1}}
+  }
+\cs_new_protected:Npn \__hit_bilingual_title_first:w #1#2\q_stop#3
+  {
+    \tl_set:Nn\l__hit_bilingual_tail_tl{#2}
+    \tl_remove_once:Nn\l__hit_bilingual_tail_tl{\q_mark}
+    \exp_args:NV\tl_if_head_is_group:nT\l__hit_bilingual_tail_tl
+      {\exp_after:wN\__hit_bilingual_title_second:w\l__hit_bilingual_tail_tl\q_stop{#3}{#1}}
+  }
+\cs_new_protected:Npn \__hit_bilingual_title_second:w #1#2\q_stop#3#4
+  {
+    \tl_if_blank:nT{#2}
+      {\hit@title@set@first{#3}{#4}\hit@title@set@second{#3}{#1}}
+  }
+\cs_new_protected:Npn \hit@part@title@new:nn #1#2
+  {
+    \__hit_part_info_save:n { hit@info@title@first@#1 }
+    \__hit_part_info_save:n { hit@info@title@second@#1 }
+    \hit@title@new:nn {#1} {#2}
+  }
+\clist_map_inline:nn { cover , titlepage }
+  {
+    \keys_define:nn { hit/part/#1 }
+      {
+        info .code:n =
+          {
+            \bool_set_true:N \l__hit_bilingual_page_bool
+            \tl_set:Nn \l__hit_bilingual_page_tl {#1}
+            \hit@bilingual@info:n {##1}
+            \bool_set_false:N \l__hit_bilingual_page_bool
+          } ,
+      }
+  }
+\keys_define:nn { hit }
+  {
+    info .code:n = { \hit@bilingual@info:n {#1} } ,
+    show-subtitle .choices:nn = {auto,true,false}
+      {\tl_gset:NV \g__hit_subtitle_tl \l_keys_choice_tl} ,
+    show-subtitle .default:n = true ,
+  }
+\keys_define:nn {hit/info}
+  {unknown .code:n = {\use:e{\exp_not:N\__hit_bilingual_info:nn{\l_keys_key_str}{\exp_not:n{#1}}}}}
+\clist_map_inline:Nn \c__hit_bilingual_info_clist
+  {
+    \keys_define:nn{hit/info}{#1 .code:n = {\__hit_bilingual_info:nn{#1}{##1}}}
+    \keys_define:nn{hit/class}{#1-zh .undefine:,#1-en .undefine:}
+  }
+\clist_map_inline:nn
+  {student-id,student-number,secrecy,classified-index,udc,school-code,report-number,class-id,practice-type,
+   station-zh,date-zh,date-en,cover-date-zh,enroll-date-zh,research-start-date-zh,research-end-date-zh,
+   report-submit-date-zh,work-finish-date-zh,title-en-xiaoer}
+  {\keys_define:nn{hit/info}{#1 .code:n = {\__hit_bilingual_info:nn{#1}{##1}}}}
+\cs_new_protected:Npn \__hit_bilingual_legacy_hint:nn #1#2
+  {\prop_gput:Nnn\g__hit_renamed_option_prop{#1}{info={#2={主语言}[副语言]}}}
+\clist_map_inline:nn
+  {
+    {ctitle}{title},{etitle}{title},{ctitlecover}{title},{ctitleone}{title},{ctitletwo}{title},
+    {csubtitle}{subtitle},{esubtitle}{subtitle},
+    {cauthor}{author},{eauthor}{author},{csupervisor}{supervisor},{esupervisor}{supervisor},
+    {cassosupervisor}{associate-supervisor},{eassosupervisor}{associate-supervisor},
+    {ccosupervisor}{industry-supervisor},{ecosupervisor}{industry-supervisor},
+    {caffil}{affiliation},{eaffil}{affiliation},{csubject}{speciality},{esubject}{speciality},
+    {ckeywords}{keywords},{ekeywords}{keywords}
+  }
+  {\__hit_bilingual_legacy_hint:nn #1}
+% 命令的两份内容按文档语言归位。缺失副语言时不生成伪造的译文。
+\cs_new_protected:Npn \hit@bilingual@command:nnNN #1#2#3#4
+  {
+    \tl_set:Nn #3 {#1}
+    \tl_set:Nn #4 {#2}
+    \tl_if_eq:nnT {#1} { \keepvalue } { \msg_error:nnn {hithesis}{bilingual-keep}{标题或题注} \tl_clear:N #3 }
+    \tl_if_eq:nnT {#2} { \keepvalue } { \msg_error:nnn {hithesis}{bilingual-keep}{标题或题注} \tl_clear:N #4 }
+    \bool_if:NT \l__hit_bilingual_swap_bool
+      {
+        \tl_set_eq:NN \l_tmpa_tl #3
+        \tl_set_eq:NN #3 #4
+        \tl_set_eq:NN #4 \l_tmpa_tl
+        \exp_args:NV \tl_if_novalue:nT #3 { \tl_set_eq:NN #3 #4 \tl_set_eq:NN #4 \c_novalue_tl }
+      }
+  }
+\cs_new_protected:Npn \hit@bilingual@value:nNN #1#2#3
+  {
+    \hit@bilingual@parse:n {#1}
+    \bool_if:NTF \l__hit_bilingual_other_bool
+      {\exp_args:NVV \hit@bilingual@command:nnNN \l__hit_bilingual_main_tl \l__hit_bilingual_other_tl #2#3}
+      {
+        \tl_set_eq:NN #2 \l__hit_bilingual_main_tl \tl_clear:N #3
+        \tl_if_eq:NnT #2 {\keepvalue}
+          {\msg_error:nnn{hithesis}{bilingual-keep}{题注}\tl_clear:N #2}
+      }
+  }
+\cs_new:Npn \hit@caption@secondary@name:n #1
+  {
+    \bool_if:NTF \g__hit_en_bool
+      {\str_case:nnF {#1}{{figure}{图}{table}{表}{algocf}{算法}{lstlisting}{代码}}
+        {\use:c{#1name}}}
+      {\use:c{hit@term@caption@#1@prefix@en}}
+  }
+\tl_new:N \l__hit_bilingual_heading_main_tl
+\tl_new:N \l__hit_bilingual_heading_other_tl
+\cs_new_protected:Npn \__hit_bilingual_heading:nnnnn #1#2#3#4#5
+  {
+    \hit@bilingual@command:nnNN {#4} {#5}
+      \l__hit_bilingual_heading_main_tl \l__hit_bilingual_heading_other_tl
+    \bool_if:NT \g__hit_en_bool
+      { \tl_set_eq:NN \l__hit_bilingual_heading_other_tl \l__hit_bilingual_heading_main_tl }
+    \use:e
+      {
+        \exp_not:c { hit@bilingual@original@#1 }
+        \IfBooleanT {#2} { * }
+        \IfNoValueF {#3} { [\exp_not:n {#3}] }
+        {\exp_not:V \l__hit_bilingual_heading_main_tl}
+        \bool_if:NT \g__hit_final_bool
+          {
+            \exp_args:NV \tl_if_novalue:nF \l__hit_bilingual_heading_other_tl
+              { [\exp_not:V \l__hit_bilingual_heading_other_tl] }
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_bilingual_heading_install:n #1
+  {
+    \exp_args:Ncc \NewCommandCopy { hit@bilingual@original@#1 } {#1}
+    \exp_args:Nc \RenewDocumentCommand {#1} { s o m o }
+      { \__hit_bilingual_heading:nnnnn {#1}{##1}{##2}{##3}{##4} }
+  }
+\cs_new_protected:Npn \__hit_bilingual_caption:nnnn #1#2#3#4
+  {
+    \hit@bilingual@command:nnNN {#3}{#4}
+      \l__hit_bilingual_heading_main_tl \l__hit_bilingual_heading_other_tl
+    \use:e
+      {
+        \exp_not:N \hit@bilingual@original@caption
+        \IfBooleanT {#1}{*}
+        \IfNoValueF {#2}{[\exp_not:n {#2}]}
+        {\exp_not:V \l__hit_bilingual_heading_main_tl}
+        \exp_args:NV \tl_if_novalue:nF \l__hit_bilingual_heading_other_tl
+          { [\exp_not:V \l__hit_bilingual_heading_other_tl] }
+      }
+  }
+\AddToHook { begindocument/end } [ hit/bilingual ]
+  {
+    \clist_map_inline:nn { chapter , section , subsection , subsubsection }
+      { \__hit_bilingual_heading_install:n {#1} }
+    \NewCommandCopy \hit@bilingual@original@caption \caption
+    \RenewDocumentCommand \caption { s o +m o }
+      { \__hit_bilingual_caption:nnnn {#1}{#2}{#3}{#4} }
+  }
+\DeclareHookRule { begindocument/end } { hit/bilingual } { after } { hithesis }
+\cs_new_protected:Npn \hit@bilingual@tblr@caption:n #1
+  {
+    \hit@bilingual@value:nNN {#1}\l__hit_bilingual_heading_main_tl\l__hit_bilingual_heading_other_tl
+    \exp_args:NnV \__tblr_outer_gput_spec:nn {caption}\l__hit_bilingual_heading_main_tl
+    \exp_args:NnV \__tblr_outer_gput_spec:nn {caption-en}\l__hit_bilingual_heading_other_tl
+  }
+\cs_new_protected:Npn \hit@bilingual@listing@caption:n #1
+  {
+    \tl_if_head_eq_charcode:nNTF {#1} [
+      {\__hit_bilingual_listing_short:w #1\q_stop}
+      {\__hit_bilingual_listing_caption:nn {\q_no_value}{#1}}
+  }
+\cs_new_protected:Npn \__hit_bilingual_listing_short:w [#1]#2\q_stop
+  {\__hit_bilingual_listing_caption:nn{#1}{#2}}
+\cs_new_protected:Npn \__hit_bilingual_listing_caption:nn #1#2
+  {
+    \hit@bilingual@value:nNN{#2}\l__hit_bilingual_heading_main_tl\l__hit_listing_en_tl
+    \cs_set_nopar:Npe\lst@caption{\exp_not:V\l__hit_bilingual_heading_main_tl}
+    \tl_if_eq:nnTF{#1}{\q_no_value}
+      {\cs_set_eq:NN\lst@@caption\lst@caption}
+      {\cs_set_nopar:Npn\lst@@caption{#1}}
+    \let\lst@title\@empty
+  }
+\cs_new_protected:Npn \__hit_bilingual_subcaption:nnnn #1#2#3#4
+  {
+    \IfNoValueTF{#4}
+      {
+        \hit@bilingual@value:nNN{#3}\l__hit_bilingual_heading_main_tl\l__hit_bilingual_heading_other_tl
+        \tl_if_empty:NT\l__hit_bilingual_heading_other_tl
+          {\tl_set_eq:NN\l__hit_bilingual_heading_other_tl\c_novalue_tl}
+      }
+      {\hit@bilingual@command:nnNN{#3}{#4}\l__hit_bilingual_heading_main_tl\l__hit_bilingual_heading_other_tl}
+    \tl_set:Nn\l__hit_bilingual_short_tl{#2}
+    \tl_if_eq:nnT{#2}{#3}
+      {\tl_set_eq:NN\l__hit_bilingual_short_tl\l__hit_bilingual_heading_main_tl}
+    \use:e{\exp_not:N\hit@bilingual@original@subcaption
+      \IfBooleanT{#1}{*}\IfNoValueF{#2}{[\exp_not:V\l__hit_bilingual_short_tl]}
+      {\exp_not:V\l__hit_bilingual_heading_main_tl}}
+    \exp_args:NV \tl_if_novalue:nF \l__hit_bilingual_heading_other_tl
+      {
+        \bool_if:NT \g__hit_bilingual_caption_bool
+          {\use:e{\exp_not:N\hit@bilingual@original@subcaption*{\exp_not:V\l__hit_bilingual_heading_other_tl}}}
+      }
+  }
+\bool_new:N \l__hit_bilingual_subcaption_installed_bool
+\tl_new:N \l__hit_bilingual_short_tl
+\cs_new_protected:Npn \hit@bilingual@subcaption@install:
+  {
+    \bool_if:NF\l__hit_bilingual_subcaption_installed_bool
+      {
+    \bool_set_true:N\l__hit_bilingual_subcaption_installed_bool
+    \cs_set_eq:NN \hit@bilingual@original@subcaption \caption
+    \RenewDocumentCommand\caption{s o +m o}{\__hit_bilingual_subcaption:nnnn{##1}{##2}{##3}{##4}}
+      }
+  }
+\AddToHook{begindocument/end}[hit/bilingual-adapters]
+  {
+    \cs_if_exist:NTF \DeclareTblrKeys
+      {\DeclareTblrKeys{table/outer}{caption .code:n = {\hit@bilingual@tblr@caption:n{#1}}}}
+      {\keys_if_exist:nnT{tblr-outer}{caption}
+        {\keys_define:nn{tblr-outer}{caption .code:n = {\hit@bilingual@tblr@caption:n{#1}}}}}
+    \cs_if_exist:NT \caption@subtypehook
+      {\g@addto@macro\caption@subtypehook{\hit@bilingual@subcaption@install:}}
+    \NewCommandCopy\hit@bilingual@original@figurenote\figurenote
+    \RenewDocumentCommand\figurenote{+m o}
+      {
+        \hit@bilingual@command:nnNN{#1}{#2}\l__hit_bilingual_heading_main_tl\l__hit_bilingual_heading_other_tl
+        \exp_args:NV \hit@bilingual@original@figurenote\l__hit_bilingual_heading_main_tl
+        \exp_args:NV\tl_if_novalue:nF\l__hit_bilingual_heading_other_tl
+          {\bool_if:NT\g__hit_bilingual_caption_bool
+            {\exp_args:NV\hit@bilingual@original@figurenote\l__hit_bilingual_heading_other_tl}}
+      }
+  }
+\DeclareHookRule{begindocument/end}{hit/bilingual-adapters}{after}{hit/bilingual}
+\tl_new:N \l__hit_bilingual_override_bucket_tl
+\bool_new:N \l__hit_bilingual_bucket_bool
+\prop_new:N \g__hit_override_seen_prop
+\tl_new:N \l__hit_override_normal_tl
+\bool_new:N \l__hit_override_bad_suffix_bool
+\tl_new:N \l__hit_override_base_tl
+\tl_new:N \l__hit_override_new_tl
+\seq_new:N \g__hit_override_new_keys_seq
+\cs_new_protected:Npn \__hit_override_ensure:n #1
+  {
+    \hit@axis@parse:n{#1}
+    \bool_if:NT \l__hit_axis_valid_bool
+      {
+        \prop_if_in:NVTF \g__hit_term_base_prop \l__hit_axis_term_tl
+          {
+            \int_compare:nNnT{\prop_count:N\l__hit_axis_spec_prop}>{0}
+              {
+                \tl_set:Nn \l__hit_override_new_tl {#1}
+                \bool_lazy_or:nnTF
+                  {\keys_if_exist_p:ne{hit/overrides-internal}{\l__hit_axis_term_tl-zh}}
+                  {\keys_if_exist_p:ne{hit/overrides-internal}{\l__hit_axis_term_tl-en}}
+                   {\use:e{\exp_not:N\hit@declare@constant
+                     {\l__hit_override_new_tl-zh,\l__hit_override_new_tl-en}}
+                    \seq_gput_right:Ne\g__hit_override_new_keys_seq{\l__hit_override_new_tl-zh,\l__hit_override_new_tl-en}}
+                   {\exp_args:NV\hit@declare@constant\l__hit_override_new_tl
+                    \seq_gput_right:NV\g__hit_override_new_keys_seq\l__hit_override_new_tl}
+              }
+          }
+          {}
+      }
+  }
+\cs_new_protected:Npn \__hit_override_unknown:n #1
+  {
+    \bool_set_false:N \l__hit_override_bad_suffix_bool
+    \prop_map_inline:Nn \g__hit_constant_declared_prop
+      {
+        \tl_set:Nn \l__hit_override_base_tl {##1}
+        \regex_replace_once:nnN {-(zh|en)\Z}{}\l__hit_override_base_tl
+        \str_if_eq:eeT
+          {\str_range:nnn{#1}{1}{\tl_count:N\l__hit_override_base_tl+1}}
+          {\l__hit_override_base_tl-}
+          {\bool_set_true:N\l__hit_override_bad_suffix_bool}
+      }
+    \prop_map_inline:Nn \c__hit_named_term_prop
+      {\str_if_eq:eeT{\str_range:nnn{#1}{1}{\str_count:n{##1}+1}}{##1-}
+        {\bool_set_true:N\l__hit_override_bad_suffix_bool}}
+    \bool_if:NTF\l__hit_override_bad_suffix_bool
+      {\msg_error:nnn{hithesis}{axis-invalid}{#1}}
+      {\msg_warning:nnn{hithesis}{unknown-key}{#1}}
+  }
+\msg_new:nnn {hithesis}{override-repeat}
+  {同一组 overrides 中重复设置规范键~'#1'。}
+\cs_new_protected:Npn \hit@bilingual@overrides:n #1
+  {
+    \group_begin:
+      \prop_gclear:N \g__hit_override_seen_prop
+      \seq_gclear:N \g__hit_override_new_keys_seq
+      \tl_clear:N \l__hit_bilingual_override_bucket_tl
+      \hit@bilingual@keys:nN {#1} \__hit_bilingual_override:nn
+    \group_end:
+    \seq_map_function:NN\g__hit_override_new_keys_seq\hit@declare@constant
+  }
+\cs_new_protected:Npn \__hit_bilingual_override:nn #1#2
+  {
+    \regex_match:nnTF { (-(zh|en)\Z) | (\A(zh|en)\Z) } {#1}
+      { \msg_warning:nnn {hithesis}{unknown-key}{#1} }
+      { \__hit_bilingual_override_checked:nn {#1}{#2} }
+  }
+\cs_new_protected:Npn \__hit_bilingual_override_checked:nn #1#2
+  {
+    \tl_set:Ne \l_tmpa_tl
+      { \tl_if_empty:NF \l__hit_bilingual_override_bucket_tl
+          { \l__hit_bilingual_override_bucket_tl- } #1 }
+    \__hit_axis_normalize:VN \l_tmpa_tl \l__hit_override_normal_tl
+    \bool_if:NT \l__hit_axis_valid_bool
+      {
+    \int_compare:nNnT{\prop_count:N\l__hit_axis_spec_prop}>{0}
+      {\bool_gset_true:N\g__hit_axis_dirty_bool}
+    \tl_if_eq:NNTF \l_tmpa_tl \l__hit_override_normal_tl
+      {\__hit_bilingual_override_alias:nn{#1}{#2}}
+      {\group_begin:
+       \tl_clear:N \l__hit_bilingual_override_bucket_tl
+       \use:e{\exp_not:N \__hit_bilingual_override_checked:nn
+         {\l__hit_override_normal_tl}{\exp_not:n{#2}}}
+       \group_end:}
+      }
+  }
+\cs_new_protected:Npn \__hit_bilingual_override_alias:nn #1#2
+  {
+    \prop_get:NVNTF \c__hit_term_key_alias_prop \l_tmpa_tl \l__hit_term_alias_target_tl
+      {
+        \group_begin:
+          \tl_clear:N \l__hit_bilingual_override_bucket_tl
+          \use:e { \exp_not:N \__hit_bilingual_override_checked:nn
+            { \l__hit_term_alias_target_tl } { \exp_not:n {#2} } }
+        \group_end:
+      }
+      {
+        \prop_get:NVNTF \c__hit_named_term_prop \l_tmpa_tl \l__hit_named_term_target_tl
+          {\exp_args:NV \__hit_override_unique:nT \l__hit_named_term_target_tl
+             {\__hit_named_term_set:n {#2}}}
+          {
+            \tl_set:Nn \l_tmpb_tl {#1}
+            \str_case:nn {#1}
+              {{references}{\tl_set:Nn\l_tmpb_tl{bibliography}}
+               {achievements}{\tl_set:Nn\l_tmpb_tl{publications}}
+               {defense}{\tl_set:Nn\l_tmpb_tl{resolution}}}
+            \bool_set_false:N \l__hit_bilingual_bucket_bool
+             \tl_if_empty:NT \l__hit_bilingual_override_bucket_tl
+              {\exp_args:NNV \clist_if_in:NnT \c__hit_bucket_clist \l_tmpb_tl
+                 {\bool_set_true:N\l__hit_bilingual_bucket_bool}}
+            \str_if_eq:VnT\l_tmpb_tl{degree-type}
+              {\regex_match:nnF{=}{#2}{\bool_set_false:N\l__hit_bilingual_bucket_bool}}
+            \bool_if:NTF \l__hit_bilingual_bucket_bool
+              {\__hit_bilingual_override_dispatch:nn{#1}{#2}}
+              {\exp_args:NV \__hit_override_unique:nT \l_tmpa_tl
+                 {\__hit_bilingual_override_dispatch:nn{#1}{#2}}}
+          }
+      }
+  }
+\prg_new_protected_conditional:Npnn \__hit_override_unique:n #1 {T}
+  {
+    \prop_if_in:NnTF \g__hit_override_seen_prop {#1}
+      {\msg_error:nnn{hithesis}{override-repeat}{#1}\prg_return_false:}
+      {\prop_gput:Nnn\g__hit_override_seen_prop{#1}{}\prg_return_true:}
+  }
+\tl_new:N \l__hit_named_term_target_tl
+\cs_new_protected:Npn \__hit_named_term_store:n #1
+  {
+    \tl_if_eq:nnF {#1} {\keepvalue}
+      { \use:e { \exp_not:N \hit@set@constant
+          { \l__hit_named_term_target_tl = { \exp_not:n {#1} } } } }
+  }
+\cs_new_protected:Npn \__hit_named_term_language:nn #1#2
+  {
+    \str_if_eq:eeT {#1} { \bool_if:NTF \g__hit_en_bool {en}{zh} }
+      { \__hit_named_term_store:n {#2} }
+  }
+\cs_new_protected:Npn \__hit_named_term_set:n #1
+  {
+    \group_begin:
+      \hit@bilingual@parse:n {#1}
+      \bool_if:NTF \l__hit_bilingual_other_bool
+        { \hit@bilingual@apply:nN {#1} \__hit_named_term_language:nn }
+        { \exp_args:NV \__hit_named_term_store:n \l__hit_bilingual_main_tl }
+    \group_end:
+  }
+\cs_new_protected:Npn \__hit_bilingual_override_dispatch:nn #1#2
+  {
+    \tl_set:Nn \l_tmpb_tl {#1}
+    \str_case:nn {#1}
+      { {references}{\tl_set:Nn \l_tmpb_tl {bibliography}}
+        {achievements}{\tl_set:Nn \l_tmpb_tl {publications}}
+        {defense}{\tl_set:Nn \l_tmpb_tl {resolution}} }
+    \bool_set_false:N \l__hit_bilingual_bucket_bool
+    \tl_if_empty:NT \l__hit_bilingual_override_bucket_tl
+      { \exp_args:NNV \clist_if_in:NnT \c__hit_bucket_clist \l_tmpb_tl
+          { \bool_set_true:N \l__hit_bilingual_bucket_bool } }
+    \str_if_eq:VnT\l_tmpb_tl{degree-type}
+      {\regex_match:nnF{=}{#2}{\bool_set_false:N\l__hit_bilingual_bucket_bool}}
+    \bool_if:NTF \l__hit_bilingual_bucket_bool
+      {
+        \group_begin:
+          \tl_set:Nn \l__hit_bilingual_override_bucket_tl {#1}
+          \hit@bilingual@parse:n {#2}
+          \exp_args:NV \hit@bilingual@keys:nN \l__hit_bilingual_main_tl \__hit_bilingual_override:nn
+        \group_end:
+      }
+      {
+        \tl_set:Nn \l__hit_bilingual_field_tl {#1}
+         \tl_set:Ne \l_tmpb_tl
+          { \tl_if_empty:NF \l__hit_bilingual_override_bucket_tl
+              { \exp_args:NV \__hit_bucket_internal:n \l__hit_bilingual_override_bucket_tl - } #1 }
+    \bool_lazy_and:nnT
+      { ! \keys_if_exist_p:ne{hit/overrides-internal}{\l_tmpb_tl} }
+      { ! \keys_if_exist_p:ne{hit/overrides-internal}{\l_tmpb_tl-zh} }
+      {\exp_args:NV\__hit_override_ensure:n\l_tmpb_tl}
+        \bool_lazy_or:nnTF
+          { \keys_if_exist_p:ne {hit/overrides-internal}{\l_tmpb_tl-zh} }
+          { \keys_if_exist_p:ne {hit/overrides-internal}{\l_tmpb_tl-en} }
+          { \hit@bilingual@apply:nN {#2} \__hit_bilingual_override_store:nn }
+          {
+            \bool_lazy_or:nnTF
+              { \keys_if_exist_p:ne {hit/overrides-internal}{base-#1-zh} }
+              { \keys_if_exist_p:ne {hit/overrides-internal}{base-#1-en} }
+              { \hit@bilingual@apply:nN {#2} \__hit_bilingual_override_store:nn }
+              {
+                \hit@bilingual@parse:n {#2}
+                \tl_if_eq:NnF \l__hit_bilingual_main_tl {\keepvalue}
+                  {
+                    \keys_if_exist:neTF {hit/overrides-internal}{\l_tmpb_tl}
+                      {
+                        \bool_if:NT\l__hit_bilingual_other_bool{\msg_warning:nnn{hithesis}{bilingual-single}{#1}}
+                        \use:e{\exp_not:N \hit@set@constant {\l_tmpb_tl={\exp_not:V \l__hit_bilingual_main_tl}}}
+                      }
+                      {
+                        \keys_if_exist:neTF{hit/overrides-internal}{base-#1}
+                          {
+                            \bool_if:NT\l__hit_bilingual_other_bool{\msg_warning:nnn{hithesis}{bilingual-single}{#1}}
+                            \use:e{\exp_not:N\__hit_bucket_key:nnnn
+                            {\l__hit_bilingual_override_bucket_tl}{}{#1}{\exp_not:V\l__hit_bilingual_main_tl}}
+                          }
+                           {\exp_args:NV\__hit_override_unknown:n\l_tmpb_tl}
+                      }
+                  }
+              }
+          }
+      }
+  }
+\prg_generate_conditional_variant:Nnn \keys_if_exist:nn { ne } { p , TF }
+\cs_new_protected:Npn \__hit_bilingual_override_store:nn #1#2
+  {
+    \tl_if_empty:NTF \l__hit_bilingual_override_bucket_tl
+      {\use:e{\exp_not:N \hit@set@constant {\l__hit_bilingual_field_tl-#1={\exp_not:n{#2}}}}}
+      {\use:e{\exp_not:N \__hit_bucket_key:nnnn {\l__hit_bilingual_override_bucket_tl}{#1}{\l__hit_bilingual_field_tl}{\exp_not:n{#2}}}}
+  }
+\keys_define:nn {hit}
+  {
+    overrides .code:n = {\hit@bilingual@overrides:n{#1}},
+  }
+\keys_define:nn {hit/overrides}
+  {unknown .code:n = {\use:e{\exp_not:N\__hit_bilingual_override:nn
+    {\l_keys_key_str}{\exp_not:n{#1}}}}}
+\tl_new:N \l__hit_abbr_zhpl_tl
+\glsaddstoragekey { hitzhpl } { \scan_stop: } { \hitabbrzhpl }
+\cs_new_protected:Npn \__hit_bilingual_abbr_long:nn #1#2
+  {\tl_set:cn {l__hit_abbr_#1_tl}{#2}}
+\cs_new_protected:Npn \__hit_bilingual_abbr_plural:nn #1#2
+  {\tl_set:cn {l__hit_abbr_#1pl_tl}{#2}}
+\cs_new_protected:Npn \__hit_bilingual_abbr_field:nn #1#2
+  {
+    \str_case:nnF {#1}
+      {
+        {long}{\hit@bilingual@apply:nN {#2}\__hit_bilingual_abbr_long:nn}
+        {long-plural}{\hit@bilingual@apply:nN {#2}\__hit_bilingual_abbr_plural:nn}
+        {long-en}{\msg_warning:nnn{hithesis}{unknown-key}{long-en}}
+      }
+      {
+        \hit@bilingual@parse:n{#2}
+        \bool_if:NT \l__hit_bilingual_other_bool {\msg_warning:nnn{hithesis}{bilingual-single}{#1}}
+        \tl_if_eq:NnF \l__hit_bilingual_main_tl {\keepvalue}
+          {\use:e{\exp_not:N\hit@keys@set:nn{hit/abbr/entry}{#1={\exp_not:V\l__hit_bilingual_main_tl}}}}
+      }
+  }
+\cs_set_protected:Npn \hit@abbr@declare:nn #1#2
+  {
+    \tl_clear:N \l__hit_abbr_zh_tl
+    \tl_clear:N \l__hit_abbr_en_tl
+    \tl_clear:N \l__hit_abbr_pinyin_tl
+    \tl_clear:N \l__hit_abbr_plural_tl
+    \tl_set:Nn \l__hit_abbr_enpl_tl {\scan_stop:}
+    \tl_set:Nn \l__hit_abbr_zhpl_tl {\scan_stop:}
+    \tl_set:Nn \l__hit_abbr_indexed_tl {auto}
+    \tl_set:Nn \l__hit_abbr_label_tl {#1}
+    \ifglsentryexists{#1}
+      {
+        \glsletentryfield \l__hit_abbr_zh_tl {#1}{hitzh}
+        \glsletentryfield \l__hit_abbr_en_tl {#1}{hiten}
+        \glsletentryfield \l__hit_abbr_zhpl_tl {#1}{hitzhpl}
+        \glsletentryfield \l__hit_abbr_enpl_tl {#1}{hitenpl}
+        \glsletentryfield \l__hit_abbr_label_tl {#1}{short}
+        \glsletentryfield \l__hit_abbr_plural_tl {#1}{shortpl}
+        \glsletentryfield \l__hit_abbr_indexed_tl {#1}{hitindexed}
+        \glsletentryfield \l__hit_abbr_pinyin_tl {#1}{hitpinyin}
+      }{}
+    \tl_if_in:nnTF {#2}{=}
+      {\hit@bilingual@keys:nN{#2}\__hit_bilingual_abbr_field:nn}
+      {\hit@bilingual@apply:nN{#2}\__hit_bilingual_abbr_long:nn}
+    \ifglsentryexists{#1}
+      {
+        \GlsXtrLetField{#1}{hitzh}\l__hit_abbr_zh_tl
+        \GlsXtrLetField{#1}{hiten}\l__hit_abbr_en_tl
+        \GlsXtrLetField{#1}{hitzhpl}\l__hit_abbr_zhpl_tl
+        \GlsXtrLetField{#1}{hitenpl}\l__hit_abbr_enpl_tl
+        \GlsXtrLetField{#1}{short}\l__hit_abbr_label_tl
+        \GlsXtrLetField{#1}{shortpl}\l__hit_abbr_plural_tl
+        \GlsXtrLetField{#1}{hitindexed}\l__hit_abbr_indexed_tl
+        \GlsXtrLetField{#1}{hitpinyin}\l__hit_abbr_pinyin_tl
+        \__hit_abbr_localize:n {#1}
+      }
+      {
+        \bool_lazy_and:nnTF{\tl_if_empty_p:N\l__hit_abbr_zh_tl}{\tl_if_empty_p:N\l__hit_abbr_en_tl}
+          {\msg_error:nnn{hithesis}{abbr-no-long}{#1}}
+          {\exp_args:NV \__hit_abbr_declare:nn \l__hit_abbr_label_tl {#1}
+           \GlsXtrLetField{#1}{hitzhpl}\l__hit_abbr_zhpl_tl}
+      }
+  }
+\cs_new_protected:Npn \__hit_symbols_set:n #1
+  {
+    \tl_clear:N \l__hit_symbols_group_tl
+    \hit@bilingual@keys:nN {#1} \__hit_bilingual_symbol:nn
+  }
+\cs_new_protected:Npn \__hit_bilingual_symbol:nn #1#2
+  {
+    \hit@bilingual@parse:n {#2}
+    \tl_if_eq:NnT \l__hit_bilingual_main_tl {\keepvalue}
+      {\msg_error:nnn{hithesis}{bilingual-keep}{符号条目}\bool_set_false:N\l__hit_bilingual_valid_bool}
+    \tl_if_eq:NnT \l__hit_bilingual_other_tl {\keepvalue}
+      {\msg_error:nnn{hithesis}{bilingual-keep}{符号条目}\bool_set_false:N\l__hit_bilingual_valid_bool}
+    \bool_if:NT\l__hit_bilingual_valid_bool
+      {
+    \bool_if:NTF \l__hit_bilingual_other_bool
+      {
+        \str_if_eq:VnTF \l__hit_bilingual_primary_tl {zh}
+          {\__hit_symbols_push:nVV{#1}\l__hit_bilingual_main_tl\l__hit_bilingual_other_tl}
+          {\__hit_symbols_push:nVV{#1}\l__hit_bilingual_other_tl\l__hit_bilingual_main_tl}
+      }
+      {
+        \exp_args:NV \__hit_symbols_classify:n \l__hit_bilingual_main_tl
+        \str_if_eq:VnTF \l__hit_symbols_kind_str {group}
+          {
+            \tl_if_empty:NTF \l__hit_symbols_group_tl
+              {
+                \seq_gput_right:Nn \g_hit_symbols_seq {{#1}{\q_mark}{}{}}
+                \tl_set:Nn \l__hit_symbols_group_tl {#1}
+                \exp_args:NV \hit@bilingual@keys:nN \l__hit_bilingual_main_tl \__hit_bilingual_symbol:nn
+                \tl_clear:N \l__hit_symbols_group_tl
+              }
+              {\msg_error:nnn{hithesis}{symbol-group-nested}{#1}}
+          }
+          {\str_if_eq:VnTF \l__hit_symbols_kind_str {invalid}
+            {\msg_error:nnn{hithesis}{bilingual-syntax}{#2}}
+            {\__hit_symbols_push:nVV{#1}\l__hit_bilingual_main_tl\l__hit_bilingual_main_tl}}
+      }
+      }
+  }
+%</shared-bilingual>
+%    \end{macrocode}
+% \Finale

@@ -15,7 +15,6 @@ docstrip 就生成什么。围着它还有三份派生清单，从前各写各�
 用法：
     scripts/products.py --dist        分发清单，空格分隔，Makefile 用
     scripts/products.py --figures     其中要放进 figures/ 的
-    scripts/products.py --eps         要转成 PDF 的那批 EPS，make eps2pdf 用
     scripts/products.py --check       四份清单交叉校验，有问题退出码 1
 """
 
@@ -32,7 +31,6 @@ LIST = ROOT / "tools" / "distfiles.txt"
 DTX = ROOT / "src" / "hithesis.dtx"
 BUILD = ROOT / "build.lua"
 ASSETS = ROOT / "assets"
-HASHES = ROOT / "tools" / "eps.sha256"
 
 
 def parse_list() -> tuple[list[str], list[tuple[str, str]], dict[str, str]]:
@@ -94,36 +92,13 @@ def banner_files() -> list[str]:
     return re.findall(r"\\Msg\{\* \\space\\space (\S+)\}", text)
 
 
-def eps_pairs() -> list[tuple[str, Path]]:
-    """generated 里的每个 .eps 与它该对应的 assets/*.pdf。"""
-    return [(f, ASSETS / (f[:-4] + ".pdf")) for f in generated() if f.endswith(".eps")]
-
-
 def check_assets(problems: list[str]) -> None:
-    """图像那六份：PDF 在不在，以及是不是跟着 EPS 重新生成过。"""
-    import hashlib
+    """检查 TikZ 源码与已分发 PDF 的哈希。"""
+    import subprocess
 
-    recorded = {}
-    if HASHES.exists():
-        for line in HASHES.read_text(encoding="utf-8").splitlines():
-            line = line.split("#", 1)[0].strip()
-            if line:
-                digest, _, name = line.partition("  ")
-                recorded[name.strip()] = digest
-    for eps, pdf in eps_pairs():
-        if not pdf.exists():
-            problems.append(f"{eps} 没有对应的 {pdf.relative_to(ROOT)}，跑 make eps2pdf")
-            continue
-        src = ROOT / eps
-        if not src.exists():
-            continue  # 还没 make cls，无从比对
-        now = hashlib.sha256(src.read_bytes()).hexdigest()
-        was = recorded.get(eps)
-        if was is None:
-            problems.append(f"tools/eps.sha256 里没有 {eps} 的记录，跑 make eps2pdf")
-        elif was != now:
-            problems.append(
-                f"{eps} 变了但 {pdf.relative_to(ROOT)} 没跟着重新生成，跑 make eps2pdf")
+    if subprocess.run([sys.executable, str(ROOT / "scripts/example-figures.py"),
+                       "--check"], cwd=ROOT).returncode:
+        problems.append("示例图需要重新生成，跑 make figures")
 
 
 def matches(name: str, patterns: list[str]) -> bool:
@@ -151,7 +126,7 @@ def check() -> int:
     for f in dist:
         if f.startswith("assets/"):
             if not (ROOT / f).exists():
-                problems.append(f"tools/distfiles.txt 里的 {f} 不存在，跑 make eps2pdf")
+                problems.append(f"tools/distfiles.txt 里的 {f} 不存在，跑 make figures")
         elif f not in gen:
             problems.append(f"tools/distfiles.txt 里的 {f} 不在 install 守卫的生成清单里")
     for f in skipped:
@@ -178,10 +153,9 @@ def check() -> int:
             problems.append(
                 f"{f} 要分发，却不在 install 守卫末尾的 \\Msg 横幅里；"
                 f"手工安装的用户会漏掉它")
-    assets = {p.name for _, p in eps_pairs()}
     for f in banner:
-        if f not in gen and f not in assets:
-            problems.append(f"\\Msg 横幅里的 {f} 既不是生成物也不是 assets 里的图")
+        if f not in gen:
+            problems.append(f"\\Msg 横幅里的 {f} 不是生成物")
 
     if problems:
         print("产物清单对不上：\n")
@@ -197,7 +171,6 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="产物清单的解析与交叉校验")
     parser.add_argument("--dist", action="store_true", help="平铺分发的文件名，空格分隔")
     parser.add_argument("--figures", action="store_true", help="要放进 figures/ 的文件名")
-    parser.add_argument("--eps", action="store_true", help="要转成 PDF 的那批 EPS")
     parser.add_argument("--check", action="store_true", help="四份清单交叉校验")
     args = parser.parse_args()
 
@@ -207,9 +180,6 @@ def main() -> int:
         return 0
     if args.figures:
         print(" ".join(n for n, d in subdir if d == "figures"))
-        return 0
-    if args.eps:
-        print(" ".join(f for f, _ in eps_pairs()))
         return 0
     if args.check:
         return check()

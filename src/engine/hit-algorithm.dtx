@@ -6,13 +6,9 @@
 %
 % \section{伪代码}
 %
-% \changes{v3.2a}{2026/09/27}{伪代码改由文档类排：\pkg{algorithm2e} 在导言区末尾由类装上（文档自己装了
-%   别的算法宏包就不装），外框、关键字大小写、缩进引导线、行号照 iota-hit 的 \texttt{algorithm-style}
-%   做成 \option{algorithm-style} 的四个键；题注照表题排、博士档中英两行、续排不占新号且行号
-%   接着数。示例宏包不再装 \pkg{algorithm2e}，它的几个旧命令挪到这里兼容}
+% \changes{v3.2a}{2026/09/27}{文档类按需加载 algorithm2e；algorithm-style 控制外框、关键字大小写、缩进线和行号，支持双语题注及续排}
 %
-% 规范里没有伪代码的格式。iota-hit 把伪代码当成一种图，题注、编号、引用与图表同一套，版式
-% 做成四个预设，这里照它做：
+% 配置算法环境的外框、关键字、缩进线和行号。
 % \begin{itemize}
 % \item \option{frame}：\texttt{tabular}（默认）题注在上、居中，下面粗／细／粗三道线，细线只在
 %   有输入输出时画，隔开输入输出与正文；\texttt{ruled} 粗线、居左的题注、细线、正文、粗线；
@@ -27,24 +23,14 @@
 %   \texttt{1:}；\texttt{none} 不编行号。默认 \texttt{1}。
 % \end{itemize}
 %
-% 排版器用 \pkg{algorithm2e}，写法照它（\cs{KwIn}、\cs{For}、\cs{If} 这些）。它按样式名分派外框
-% 与题注的位置（\cs{@algocf@pre@}\meta{样式}、\cs{@algocf@capt@}\meta{样式} 这一族），
-% 三种外框各定义成一个样式挂上去，不改它的主体。文档自己装了 \pkg{algorithm}、
-% \pkg{algorithmicx} 这一路的，类不再装 \pkg{algorithm2e}，两套会抢 \env{algorithm} 这个名字。
-%
-% 几何照 iota-hit 的排法（本部本科那一档实测）：正文用表格单元格的样式（五号、单倍贴网格）；
-% 左边从版心左缘起依次是单元格边距 5.4\,bp（\cs{tabcolsep}）、行号列 1.5\,em、间隔 0.5\,em，
-% 正文从那里起排；行号是 0.8 倍字号的正体，右端对齐在行号列右缘。每级缩进 2\,em，引导线
-% 0.5\,bp，画在缩进的一半处。三道线都骑在行盒的边界上：顶线之下、细线上下、底线之上各让出
-% 半个线宽。
+% 检测到其他算法宏包时不加载 algorithm2e，避免 algorithm 环境重名。
 %    \begin{macrocode}
 %<*shared-algorithm>
 %    \end{macrocode}
 %
 % \subsection{键}
 %
-% 四个键的值各存一份全局 \texttt{tl}，每开一个算法环境现读，所以写在导言区还是正文里都行。
-% \texttt{auto} 一律退回默认值。
+% 配置在算法环境开始时读取，auto 使用默认值。
 %    \begin{macrocode}
 \tl_new:N \g__hit_algorithm_frame_tl
 \tl_new:N \g__hit_algorithm_case_tl
@@ -85,9 +71,7 @@
 %
 % \subsection{装包}
 %
-% 导言区末尾看一眼：文档没装任何算法宏包，类就装 \pkg{algorithm2e}；装的正是 \pkg{algorithm2e}，
-% 或者文档之后不排算法，都走同一个装后钩子。别的算法宏包在，就不装，那边的版式由文档自己管。
-% 装后钩子里只做一次性的设定（计数器、关键字、样式）；随键变化的在每个算法环境开头现设。
+% 在导言区末尾按需加载算法宏包，并安装一次性配置。
 %    \begin{macrocode}
 \bool_new:N \g__hit_algorithm_foreign_bool
 \AddToHook { begindocument / before }
@@ -104,13 +88,7 @@
 \AddToHook { package / algorithm2e / after } { \__hit_algorithm_package: }
 %    \end{macrocode}
 %
-% 编号照图表：学位论文按章（“1-1”，附录里“A-1”），报告不排章，从 1 数下去。中文文档题号是
-% 名字后面紧跟编号，与“图1-1”一样；英文文档名字后面空一格。
-%
-% 算法上下的空段照表格的（\option{float-blank} 的 \option{table-above}、
-% \option{table-below}），iota-hit 把算法当图排，上下同样各有一个。上面的由浮动盒开头的那个
-% 钩子排（它按 \cs{@captype} 取键），下面的挂在 \env{algocf} 收尾处，那时算法的盒已经排完。
-% 装包在导言区末尾，那时导言区里的 \cs{hitsetup} 都已生效，取值照抄一份。
+% 初始化算法编号和上下空段；编号重置规则由编号模块统一覆盖。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_algorithm_package:
   {
@@ -121,6 +99,7 @@
         \bool_if:NT \g__hit_chapter_bool { \thechapter - }
         \int_use:N \c@algocf
       }
+    \hit@numbering@counter@init:n { algocf }
     \__hit_algorithm_keywords:
     \__hit_algorithm_styles:
     \SetKwSty { hit@algorithm@kw }
@@ -145,10 +124,7 @@
 %
 % \subsection{关键字}
 %
-% 关键字的词取自 \option{overrides} 族的词条，一个词一条（与 iota-hit 的关键字表一致），合成的
-% 关键字（“else if”“end for”“for each”）由词拼成。词条到排的时候才展开，写在导言区的
-% \option{overrides} 改动照样生效。输入输出几个另起一个内部名，外面包一层记下“这一段是输入输出”，
-% 表格型的细线要靠它。
+% 关键字在排版时展开；输入输出命令另记录段落类型，供分隔线判断。
 %    \begin{macrocode}
 \cs_new:Npn \__hit_algorithm_word:n #1 { \use:c { hit@term@algorithm@ #1 } }
 \cs_new:Npn \__hit_algorithm_words:nn #1#2
@@ -240,14 +216,13 @@
   }
 %    \end{macrocode}
 %
-% 输入输出那几个，\pkg{algorithm2e} 把冒号连同 \cs{algocf@typo} 一起塞进关键字的参数里。
-% iota 的冒号是细的，只把 \cs{algocf@typo} 之前的词加粗。
+% 只加粗关键字，保留其后冒号的正常字重。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_algorithm_kw_head:w #1 \algocf@typo #2 \q_stop
   { \textbf { \__hit_algorithm_case:n {#1} } \algocf@typo #2 }
 %    \end{macrocode}
 %
-% \subsection{每个算法开头现设的}
+% \subsection{环境局部配置}
 %
 % 长度都按正文的字算：先在一个组里换上表格单元格的字，量出 1\,em 带出来。左边的格局是
 % 边距、行号列、间隔、正文；不编行号时正文从边距后起排。中文数字、罗马数字的行号比阿拉伯
@@ -357,10 +332,7 @@
 \cs_generate_variant:Nn \__hit_algorithm_number:nn { VV }
 %    \end{macrocode}
 %
-% 缩进与引导线。每级缩进 2\,em，线在 1\,em 处；\pkg{algorithm2e} 的缩进量把竖线宽按 0.4\,pt
-% 算，这里的线是三线表细线的一半，缩进量照实际线宽重算。\texttt{bar} 用它的 \texttt{lined}
-% （竖线、块尾印收尾行），\texttt{hook} 在 \texttt{lined} 的竖线末端补一个钩（它自己的
-% \texttt{vlined} 带钩但不印收尾行，iota-hit 的钩是加在竖线上的），\texttt{none} 用 \texttt{noline}。
+% 按实际线宽计算缩进；hook 基于 lined 添加末端钩，避免 vlined 隐藏块尾关键字。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_algorithm_guides:
   {
@@ -421,10 +393,7 @@
 %
 % \subsection{外框}
 %
-% 三个样式。\pkg{algorithm2e} 在 \cs{algocf@makethealgo} 里依次放：题注（\texttt{above}）、
-% 前置、题注（\texttt{top}）、正文盒、题注（\texttt{bottom}）、后置、题注（\texttt{under}）。
-% 线的位置照 iota-hit：线骑在行盒边界上，顶线下半截压进第一行（有输入输出时）或再让出细线的
-% 半个线宽（没有时），底线上缘贴着末行行盒。
+% 注册三种外框样式，横线位置包含半线宽补偿。
 %    \begin{macrocode}
 \cs_new:Npn \__hit_algorithm_outer: { \g__hit_table_rule_outer_tl }
 \cs_new:Npn \__hit_algorithm_inner: { \g__hit_table_rule_inner_tl }
@@ -513,11 +482,8 @@
 %
 % \subsection{表格型的细线}
 %
-% 输入输出之后的第一段开头画，挂在内核的 \texttt{para/before} 钩子上：那时还在竖直模式、
-% 段还没起。输入输出排过了、这一段又不是输入输出，就在竖直列表里放一道横贯整个框宽的线。
-% 线左移 \cs{algomargin}，从框的左缘起画；上下都不要行间胶，线紧贴上一行与下一行的行盒。
-% 不在 \cs{everypar} 里做：那时段已经起了，撤掉段首缩进盒，\hologo{LuaTeX} 的段首还有段落节点，
-% 结束它会排出一个空行。
+% 在输入输出之后的首个正文段前插入分隔线。
+% 必须使用 para/before；everypar 已进入水平模式，LuaTeX 下会多排空行。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_algorithm_para_before:
   {
@@ -542,11 +508,7 @@
 %
 % \subsection{题注}
 %
-% 题注照表题排（样式 \option{caption-table}）：居中或居左，线条型的题注在框里，照单元格的样式排，
-% 顶在单元格边距处。题注盒里先还原段落参数：续排与星号版的题注是在算法正文里直接装盒的，
-% 不还原的话 \pkg{algorithm2e} 的 \cs{everypar} 会给它编上行号。
-% 中文文档是“算法1-1”加题号与题名之间的间隔，博士档写了英文题的，下面再排一行“Algo. 1-1”
-% 加英文题。续排的只排“算法1-1（续算法）”，不占新号。
+% 算法题注使用表题样式；装盒前须还原段落参数，避免 algorithm2e 给题注添加行号。
 %
 % \cs{caption} 在环境里换成这里的：星号版只排题文；写了尾随的英文题并且双语题注开着，记下
 % 英文题；有 \cs{ContinuedFloat} 的不步进计数器、不进算法清单，直接装题注盒。
@@ -554,6 +516,12 @@
 \tl_new:N \l__hit_algorithm_en_tl
 \bool_new:N \l__hit_algorithm_star_bool
 \cs_new_protected:Npn \__hit_algorithm_caption:nnnn #1#2#3#4
+  {
+    \hit@bilingual@command:nnNN{#3}{#4}\l__hit_bilingual_heading_main_tl\l__hit_bilingual_heading_other_tl
+    \use:e{\exp_not:N\__hit_algorithm_caption_resolved:nnnn{\exp_not:n{#1}}{\exp_not:n{#2}}
+      {\exp_not:V\l__hit_bilingual_heading_main_tl}{\exp_not:V\l__hit_bilingual_heading_other_tl}}
+  }
+\cs_new_protected:Npn \__hit_algorithm_caption_resolved:nnnn #1#2#3#4
   {
     \bool_set:Nn \l__hit_algorithm_star_bool {#1}
     \tl_clear:N \l__hit_algorithm_en_tl
@@ -617,11 +585,12 @@
             \linewidth \hsize
             \__hit_algorithm_caption_line:nnn {#1}
               { \bool_if:NTF \g__hit_en_bool { en } { zh } } {#2}
-            \bool_lazy_or:nnF { \g__hit_en_bool } { \tl_if_empty_p:N \l__hit_algorithm_en_tl }
+            \tl_if_empty:NF \l__hit_algorithm_en_tl
               {
                 \group_begin:
-                  \hit@caption@latin@pick:
-                  \__hit_algorithm_caption_line:nnn {#1} { en } { \l__hit_algorithm_en_tl }
+                  \bool_if:NF \g__hit_en_bool {\hit@caption@latin@pick:}
+                  \use:e{\exp_not:N\__hit_algorithm_caption_line:nnn{#1}
+                    {\bool_if:NTF\g__hit_en_bool{zh}{en}}{\exp_not:V\l__hit_algorithm_en_tl}}
                 \group_end:
               }
           }
@@ -632,11 +601,7 @@
 %
 % \subsection{旧命令}
 %
-% 示例宏包 \file{hithesis.sty} 原先装 \pkg{algorithm2e} 时定义的几个命令，老文档里有人用，
-% 名字照留。\cs{AlgoBiCaption} 就是写了英文题的 \cs{caption}；\cs{algoenname} 是英文算法名；
-% \cs{thealgoen} 是题号。\cs{foocaption} 与 \cs{algoencaption} 是那一版为了拼双语题注、英文算法
-% 清单打的补丁，现在题注由类排、没有英文算法清单，两个命令什么也不做，提示一次。
-% 文档自己定义过的不覆盖。
+% 兼容旧示例宏包的算法命令；用户已有定义时不覆盖。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_algorithm_legacy:
   {

@@ -1,35 +1,30 @@
 % \iffalse meta-comment
 %
-% hit-loadclass.dtx 是分水岭：\LoadClass 与紧随其后的几条补偿
+% hit-loadclass.dtx 加载基础类并设置报告默认值。
 %
 % \fi
 %
-% \section{分水岭：\cs{LoadClass}}
+% \section{加载基础文档类}
 %
 % \changes{v3.2a}{2026/09/28}{两条装配线的 \cs{LoadClass} 合成一份。底类：正文照 Word 排的文档在
 %   \hologo{LuaLaTeX} 与 \hologo{XeLaTeX} 下是 \cls{book}，不装 \pkg{ctex}（标题、目录、题注、列表都已交给
-%   \pkg{docxlike}，\pkg{ctex} 的字族、字号与字距那一层与 Word 的模型打架）；深圳硕博的开题与中期
-%   （整篇还是 \pkg{ctex} 排的）与 \hologo{pdfLaTeX}（中文靠 \pkg{ctex} 的 \pkg{CJK} 那一层）是 \cls{ctexbook}。
+%   \pkg{docxlike}，中文字族、字号与字距由共享中文层设置）；仅 \hologo{pdfLaTeX}
+%   为 \pkg{CJK} 中文后端保留 \cls{ctexbook}。
 %   报告从基础类白拿的默认值显式写出来，节号与 \cs{appendix} 照 \cls{article}；\cs{paragraph}、
 %   \cs{subparagraph} 报错（规范只到款）}
 %
 % ^^A ======================================================================
-% ^^A Module shared-loadclass: \LoadClass{book 或 ctexbook} 与紧随其后的几条补偿
+% \changes{v3.2a}{2026/10/08}{保留上游中文后端：Unicode 引擎使用 book，
+%   pdfLaTeX 由 ctexbook 初始化 CJK；具体版式仍由模板与 docxlike 控制。}
+% ^^A Module shared-loadclass: 基础类与中文后端初始化
 % ^^A ======================================================================
 %    \begin{macrocode}
 %<*shared-loadclass>
 %    \end{macrocode}
 %
-% 底类两选一，按 \cs{g\_\_hit\_ctex\_base\_bool}（定在 \file{src/engine/hit-options.dtx}）：
-% 正文照 Word 排的文档在 \hologo{LuaLaTeX} 与 \hologo{XeLaTeX} 下装 \cls{book}，中文层由
-% \file{src/engine/hit-cjk.dtx} 补；深圳硕博的开题与中期、\hologo{pdfLaTeX} 装 \cls{ctexbook}。
-% \cls{ctexbook} 给 \cls{book} 传的也是 \texttt{12pt}（\option{zihao}~=~\texttt{-4}），\cls{book} 这一支照写。
+% Unicode 引擎使用 \cls{book} 与共享中文层；pdfTeX 保留 \cls{ctexbook} 的 CJK 初始化。
 %
-% \emph{单双面不写在这里。} 原先两条装配线各自在方括号里写死
-% （终稿 \texttt{openany}、报告 \texttt{oneside}），合成一份之后按
-% \option{stage} 与学位分，所以改由 \cs{PassOptionsToClass} 在选项模块里发，
-% 见 \file{src/engine/hit-options.dtx}。\cs{documentclass} 里本类不认的选项也在那边记下，
-% 这里传给装的那个底类。
+% 单双面及其他基础类选项由选项模块解析，此处统一转发。
 %    \begin{macrocode}
 \bool_if:NTF \g__hit_ctex_base_bool
   {
@@ -45,11 +40,9 @@
 \bool_gset_true:N \g__hit_base_class_loaded_bool
 %    \end{macrocode}
 %
-% \subsection{报告那一档的四条补偿}
+% \subsection{报告默认设置}
 %
-% \emph{下面这一段只有开题与中期跑。} 报告原先的底类是 \cls{ctexart}，四条默认值
-% 是从那边白拿的；底类换成 \cls{book}（或 \cls{ctexbook}）之后 \cls{book} 那几条各不相同，所以
-% 显式写回来。终稿要的正是 \cls{book} 那几条，不能跟着一起改。
+% 报告显式恢复 article 的节级编号、锚点和页面样式默认值。
 %
 % \begin{itemize}
 % \item \cs{secnumdepth}：\cls{article} 是 3，\cls{book} 是 2。报告通篇没写过
@@ -85,24 +78,12 @@
         \setcounter { section } { 0 }
         \setcounter { subsection } { 0 }
         \cs_gset:Npn \thesection { \@Alph \c@section }
-        \__hit_report_appendix_ctex:
       }
   }
 %    \end{macrocode}
 %
-% 标题由 \pkg{ctex} 排的那几档（深圳硕博的报告）还要把 \pkg{ctex} 自己的附录编号接上。
+% 报告附录也由自有标题层排版，不再修改 ctex 私有编号宏。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_report_appendix_ctex:
-  {
-    \bool_if:NT \g__hit_ctex_base_bool
-      {
-        \ctexset { appendix / number = \@Alph \c@section }
-        \gdef \CTEX@presection { \CTEX@preappendix }
-        \gdef \CTEX@thesection { \CTEX@appendix@number }
-        \gdef \CTEX@postsection { \CTEX@postappendix }
-        \gdef \CTEX@section@numbering { \CTEX@appendix@numbering }
-      }
-  }
 %    \end{macrocode}
 %
 % \subsection{款以下不许写}
@@ -123,6 +104,23 @@
   {
     \msg_error:nnn { hithesis } { heading-too-deep } { subparagraph }
     \hit@subparagraph@original
+  }
+%    \end{macrocode}
+%
+% \cs{titlepage} 同时是底类环境的入口和题名页部件名。\cs{begin} 先设置当前环境名，
+% 因此可以保留环境的原定义，而正文里的命令交给部件排版，不会递归进入外封。
+%    \begin{macrocode}
+\cs_new_eq:NN \hit@original@titlepage \titlepage
+\RenewDocumentCommand \titlepage { O{} }
+  {
+    \str_if_eq:eeTF { \@currenvir } { titlepage }
+      { \hit@original@titlepage }
+      { \__hit_titlepage_command:n {#1} }
+  }
+\RenewDocumentCommand \maketitle { O{} }
+  {
+    \hit@warn@renamed@to:nn { maketitle } { titlepage }
+    \titlepage [#1]
   }
 %    \end{macrocode}
 %

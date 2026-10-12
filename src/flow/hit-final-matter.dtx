@@ -24,9 +24,7 @@
   {
 %    \end{macrocode}
 % \begin{macro}{\cleardoublepage}
-% 对于 \textsl{openright} 选项，必须保证章首页右开，且如果前章末页无内容须
-% 清空其页眉页脚。
-% 如果\textsl{library}为真，则强制设置\textsl{openright}为真。
+% 右开页补出的空白页不显示页眉页脚。
 % \changes{v2.0.10}{2019/06/25}{添加\textsl{openright}和\textsl{library}逻辑}
 % \changes{v3.0.0}{2020/05/20}{将glossaries移动到这里}
 %    \begin{macrocode}
@@ -43,20 +41,16 @@
 \bool_if:NT \g__hit_library_bool
   { \tl_gset:Nn \g__hit_openright_tl { false } }
 \cs_set_eq:NN \hit@clear@double@page \cleardoublepage
+\cs_new:Npn \__hit_clear_empty_double_page:N #1
+  {\clearpage{\pagestyle{hit@empty}#1}}
 \cs_new:Npn \hit@clear@empty@double@page
-  { \clearpage { \pagestyle { hit@empty } \hit@clear@double@page } }
+  {\__hit_clear_empty_double_page:N \hit@clear@double@page}
 \cs_set_eq:NN \cleardoublepage \hit@clear@empty@double@page
 %    \end{macrocode}
 %
 % \cs{hit@clear@odd@page:} 翻到下一个奇数页，\emph{不看} \cs{if@twoside}。
 %
-% \cs{cleardoublepage} 内核那一版写的是 \cs{if@twoside} 为真才补空白页，而
-% \option{oneside}/\option{twoside} 在这个类里是按学位派的（本硕单面、博士双面）。
-% 右开页要是走它，本硕写 \option{open-right}\texttt{=true} 也补不出空白页——
-% 开关成了摆设，学位耦合又回到了 \option{oneside} 里。
-%
-% \option{oneside}/\option{twoside} 仍旧照派，它还管着页眉奇偶与页边距，那两样
-% 本来就该跟着单双面走。这里只是把\emph{跳页}这一件事从它手里拿出来。
+% 右开页独立于单双面设置，不能直接使用受 if@twoside 限制的内核实现。
 %
 % 空白页的页眉照 \cs{hit@clear@empty@double@page} 的办法压掉。
 %    \begin{macrocode}
@@ -98,17 +92,10 @@
 %
 % \end{macro}
 % \begin{macro}{\mainmatter}
-% 根据打印店（伪官方）的猛虎式操作，\cs{mainmatter}命令的逻辑是，双面打印时第一章必须在奇数页
-% （不看文档别怪我）。
+% 进入正文时重置页码，并应用正文的右开页设置。
 % \changes{v2.0.11}{2018/06/27}{设置第一章必须在奇数页}
 %
-% 目录里第一章之前空一行，由 \option{toc}/\option{blank} 管。规范没有这一条，学位论文的
-% 范例也没有；博士后研究报告的模板有：前置部分的条目与“第1章”之间是一个空的正文段
-% （Normal 样式，不是目录样式），所以 \texttt{auto} 只在博士后为真。空段写进 \file{.toc}，
-% 排的是 \cs{hitenter*}：行高由 Normal 现算，落在页首也不丢，与 Word 的空段同构。行距写明
-% 单倍：模板正文段上直接写的 1.1 倍，本类记在 Normal 里（见 \file{hit-layout.dtx}），这个空段
-% 没写，用的是样式的单倍，贴格后正好一格（模板 18.25 与 17.78，两行合 36.03）。英文版不空，
-% v3.1e 就是这样。
+% front-blank 控制目录首个正文条目前的空段，auto 仅对中文博士后报告开启。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@toc@blank
   { \hitenter * [ paragraph = { spacing = { line-spacing = single } } ] }

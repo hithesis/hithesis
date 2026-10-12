@@ -28,7 +28,7 @@ unpackfiles = {"hithesis.dtx"}
 -- 装进 TEXMF 的东西。examples 里那几份副本由下面的 distribute 目标分发，
 -- 不属于安装内容。
 --
--- 模板自己不装图像：封面上的校名字标与美术字照轮廓画，数据在 hithesis-outline.def。
+-- 模板自己不装图像：封面上的校名字标与美术字照轮廓画，数据在 hithesis-calligraphy.def。
 --
 -- 这里不用 *.sty 通配。dtx-style.sty 只在排手册时用，被通配捎进 TEXMF 会污染
 -- 用户机器，而且 dtx-style 这个名字相当通用，别的包也叫这个就撞了。要装的
@@ -46,13 +46,10 @@ installfiles = {
   "docxlike-run.lua",
   "docxlike-font-metrics.lua",
   "docxlike-font-metrics.def",
-  "hithesis-outline.def",
+  "hithesis-calligraphy.def",
 }
 
--- 示例的插图（气体轴承那四张、涡室截面图）与手册的 zfb.pdf、golfer.pdf 不进这里：它们是示例与手册的
--- 内容，不是模板资源。装进 tex/latex/hithesis/ 的话，用户装完模板，那个目录里
--- 躺着一张二维码。thuthesis 与 fduthesis 都是这么分的——tex/ 下只有校徽校名这类
--- 模板资源，示例在 doc/ 下，一张图都不带。示例的图随示例目录一起进 doc/。
+-- 四张轴承 PDF 与涡室 TikZ 源码只随示例分发，不安装到 tex/latex/hithesis/。
 
 typesetfiles = {"hithesis.dtx"}
 typesetexe   = "lualatex"
@@ -118,11 +115,7 @@ local function readlist()
   local plain, subdir = {}, {}
   for line in io.lines(maindir .. "/tools/distfiles.txt") do
     line = line:gsub("#.*", ""):gsub("^%s+", ""):gsub("%s+$", "")
-    -- @ 前缀是“只随示例目录发，不进 tex/latex/hithesis/”的标记。distribute
-    -- 干的正是发到示例目录，所以剥掉前缀照发；装进 texmf 的清单是上面
-    -- installfiles 那张静态表，不走这里。scripts/products.py 那条路早就这么
-    -- 做了（removeprefix("@")），这边漏了同步，l3build distribute 一直在报
-    -- 找不到 @assets/zfb.pdf
+    -- @ 标记仅随示例分发的资源；分发时去掉前缀。
     line = line:gsub("^@", "")
     if line ~= "" and line:sub(1, 1) ~= "!" then
       local name, dest = line:match("^(%S+)%s*%->%s*(%S+)$")
@@ -152,6 +145,8 @@ local function split(f)
 end
 
 local function distribute()
+  local status = run(maindir, "python3 scripts/example-figures.py --check")
+  if status ~= 0 then return status end
   local plain, subdir = readlist()
   local dest = "examples/demo"
 
@@ -195,6 +190,7 @@ function typeset(file, dir)
   local opts = "-interaction=nonstopmode"
 
   local steps = {
+    "python3 scripts/changes.py --latex",
     typesetexe .. " " .. opts .. " " .. src,
     -- 索引用 upmendex：条目里有中文，makeindex 写出的分组标题不是合法 UTF-8，
     -- lualatex 读到就报错（见 Makefile 里 manual 目标的说明）

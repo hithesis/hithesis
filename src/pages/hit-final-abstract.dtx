@@ -7,13 +7,13 @@
 % \section{中英文摘要页}
 %
 % \changes{v3.2a}{2026/09/28}{新增 \env{abstract} 环境：写在哪里就在哪里排一篇摘要（\option{lang}、\option{keywords}、
-%   \option{shown}），与 iota-hit 的 \texttt{abstract()} 对应；v3.1e 的 \env{cabstract}、\env{eabstract} 只给老写法的
+%   \option{shown}）；v3.1e 的 \env{cabstract}、\env{eabstract} 只给老写法的
 %   \cs{makecover} 收正文}
-% \changes{v3.2a}{2026/09/28}{英文关键词标签只把“Keywords”加粗，后面跟细的全角冒号，照范例与 iota；博士后照模板仍是粗的“Keywords:”}
+% \changes{v3.2a}{2026/09/28}{英文关键词标签只加粗 Keywords；博士后保留其独立标签格式}
 % \changes{v3.2a}{2026/09/27}{关键词换行后默认顶格，不再悬挂到标签之后：学校的 Word 模板与范例都是
-%   普通段落；要悬挂写 \env{abstract}\oarg{keywords-hanging}（照 iota-hit 是这一篇摘要的参数）。“关键词：”的冒号
+%   普通段落；可用 \env{abstract}\oarg{keywords-hanging} 开启悬挂。“关键词：”的冒号
 %   照 Word 占整格（装盒时 \pkg{luatexja} 只给半格）}
-% \changes{v3.2a}{2026/09/27}{符号表与缩略语表的第一列按内容定宽（与 iota-hit 同一个算法：在 2.5\,cm
+% \changes{v3.2a}{2026/09/27}{符号表与缩略语表的第一列按内容定宽（在 2.5\,cm
 %   与各标签自己的宽里挑整张表最矮的那个，标签溢出的每行记一行的罚），\option{labelwidth} 写了才钉死；
 %   合并成一页时两段取同一个宽}
 % \changes{v3.2a}{2026/09/25}{摘要标题的 1.25 倍行距直接设在标题这一段上；博士后的关键词照模板，
@@ -27,15 +27,26 @@
 \bool_if:NT \g__hit_final_bool
   {
 \box_new:N \hit@keywords@box
-\NewDocumentCommand \hit@put@keywords { m m }
+% Common with l3refactor; Word box construction and the local hanging switch
+% remain caller policies rather than a separate rendering implementation.
+\cs_new_protected:Npn \__hit_keywords_typeset:NNnnn #1#2#3#4#5
   {
     \group_begin:
-      \docxlike_format_run_hbox_set:Nn \hit@keywords@box {#1}
+      #1 #2 {#4}
       \noindent
-      \bool_if:NT \l__hit_keywords_hanging_bool
-        { \hangindent \wd \hit@keywords@box \hangafter 1 }
-      \box \hit@keywords@box #2 \par
+      \bool_if:nT {#3}
+        {
+          \dim_set:Nn \tex_hangindent:D {\box_wd:N #2}
+          \int_set:Nn \tex_hangafter:D {1}
+        }
+      \box_use_drop:N #2 #5\par
     \group_end:
+  }
+\NewDocumentCommand \hit@put@keywords { m m }
+  {
+    \__hit_keywords_typeset:NNnnn
+      \docxlike_format_run_hbox_set:Nn \hit@keywords@box
+      {\l__hit_keywords_hanging_bool} {#1} {#2}
   }
 
 %    \end{macrocode}
@@ -43,8 +54,8 @@
 % \changes{v3.0.0}{2020/05/21}{英文版目录之前有page行}
 % \changes{v3.0.0}{2020/05/21}{博后关键字加粗}
 %
-% 两个摘要标题照指南排 1.25 倍行距，是标题这一段上的直接格式，排完就没了。英文摘要的标题
-% 全是西文，标题自己会按西文行盒排（Word 按行里实际的字算行高）。
+% 摘要标题局部使用 1.25 倍行距，不修改全局标题样式。
+% 纯西文的英文摘要标题按西文字体计算行盒高度。
 %
 % 博士后的“关键词”照《博士后研究工作报告模板》：黑体加粗，不带冒号，后面敲两个半角空格。
 % 标签装在盒里，盒里的空格不按贴着汉字各占半格排，所以直接空一格（两个半格）；盒里末字
@@ -85,8 +96,8 @@
   { \pagestyle { hit@headings } }
 %    \end{macrocode}
 %
-% 中文摘要排完先送出这一页再还版面：原先两篇摘要在同一次版面切换里排，中间那次换页落在
-% 切换之内；英文摘要末尾不换页，由下一个部件送出，也与原先一样。
+% 中文摘要结束时先输出当前页，再恢复页面布局；英文摘要末尾不强制换页，
+% 由下一个部件触发页面输出。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_abstract_zh:nn #1#2
   {
@@ -144,10 +155,7 @@
     \group_end:
 %    \end{macrocode}
 %
-% 摘要里出现过的缩写，正文第一次再出现时仍该全写一遍：读者未必先读摘要，
-% 而且规范说的「文中第一次出现」指的是正文。两篇摘要之间也清一次，英文摘要
-% 与中文摘要各自从头算，与 iota-hit 每篇摘要开头清一次同效。清不清由
-% \option{abbreviation-reset-after-abstract} 定，默认清。
+% 每篇摘要后按 abbreviation-reset-after-abstract 重置缩略语首次使用状态。
 %    \begin{macrocode}
     \tl_gclear:N \g__hit_part_lang_tl
     \__hit_abstract_reset:
@@ -156,11 +164,7 @@
 %    \end{macrocode}
 %
 % \begin{environment}{abstract}
-% \env{abstract}\oarg{选项} 写在哪里就在哪里排一篇摘要，与 iota-hit 的 \texttt{abstract()} 对应。
-% 选项：\option{lang} 取 \texttt{zh}（默认）或 \texttt{en}；\option{keywords} 是这篇的关键词，逗号隔开，
-% 不写就用元信息里的 \option{keywords-zh}、\option{keywords-en}；\option{shown} 同别的部件（摘要是
-% 终稿专有的）。中英两篇各写一个环境，各自只排一次。环境体是整个抓下来再排的，里面不能放
-% \cs{verb}。
+% 摘要按 lang 选择语言，未指定关键词时读取 info/keywords 的对应语言值；环境体不能包含 verb。
 %    \begin{macrocode}
 \tl_new:N \l__hit_abstract_lang_tl
 %    \end{macrocode}
@@ -180,7 +184,8 @@
       { \tl_set_eq:NN \l__hit_abstract_lang_tl \l_keys_choice_tl } ,
     lang .value_required:n = true ,
     keywords .code:n =
-      { \hitsetup { info = { keywords- \l__hit_abstract_lang_tl = {#1} } } } ,
+      { \use:e { \exp_not:N \hit@keys@set:nn {hit/info-internal}
+          { keywords- \l__hit_abstract_lang_tl = {\exp_not:n{#1}} } } } ,
     shown .code:n = { \hit@part@set@shown:n {#1} } ,
   }
 \NewDocumentEnvironment { abstract } { O{} +b }
@@ -206,9 +211,7 @@
   { }
 %    \end{macrocode}
 %
-% \emph{页面样式要留到环境外面。} \cs{pagestyle} 是局部的，第一篇摘要把前置的页面样式换成带页眉页脚的那一份，
-% 写在环境里的话环境一结束就退回去，后面的目录页没了页眉页脚。原先摘要在 \cs{makecover} 里、处在最外层，
-% 没有这个问题；现在环境结束后再设一次。
+% pagestyle 为局部赋值，摘要环境结束后须再次设置，以保留后续前置页的页眉页脚。
 %    \begin{macrocode}
 %    \end{macrocode}
 %
@@ -254,12 +257,7 @@
 % 加个小标题——只在一页里排两段（符号加缩略语）时才用得着。不含等号的裸值当
 % 宽度，\cs{begin}\marg{symbols}\oarg{3cm} 照样认。
 %
-% \emph{第一列多宽按内容定}，与 iota-hit 的 \texttt{auto-label-width} 同一个算法：候选宽度是
-% 2.5\,cm（\pkg{thuthesis}、\pkg{bithesis} 的 \texttt{labelwidth}）与各个标签自己的宽里
-% 大于它、不过半个版心的那些；每个候选把整张表试排一遍，总高最小的胜，标签比列宽的每行
-% 另记一行的罚（第一列尽量不溢，除非为它加宽整列反倒让别的行折得更多），同高取宽的。
-% 试排是整张表排进盒子量高深，不排出来。合并成一页时两段要同宽，说明列才对齐：两段各自
-% 定下的宽取大的那个记进 \file{.aux}，下一遍两段都用它。
+% 自动列宽选择试排总高最小的候选，标签溢出计入惩罚；合排两表通过 aux 共享较大的列宽。
 %
 % 规范里允许把符号分成几张表、各有各的列，列表排不出来，所以还有
 % \env{symbols*}：标题和表号照旧，正文由用户自己写。
@@ -339,6 +337,7 @@
 \cs_generate_variant:Nn \hit@frontlist@subheading:n { V }
 \cs_new_protected:Npn \__hit_symbols_open:
   {
+    \cs_set_eq:NN \hit@frontlist@table@number \thetable
     \hit@frontlist@open:nn
       { \hit@term@list@of@symbols@heading@zh } { \hit@term@list@of@symbols@heading@en }
     \setcounter { table } { 0 }
@@ -346,7 +345,7 @@
   }
 \cs_new_protected:Npn \__hit_symbols_close:
   {
-    \cs_set:Npn \thetable { \arabic { chapter } - \arabic { table } }% 表编号为 7-1
+    \cs_set_eq:NN \thetable \hit@frontlist@table@number
     \setcounter { table } { 0 }
   }
 \cs_new_protected:Npn \__hit_symbols_if:TF #1#2
@@ -371,9 +370,7 @@
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@nomenclature@check:}
-% 符号与缩略语既排了单独的表（\cs{listofsymbols}、\env{symbols}、\cs{listofabbreviations}），又排了合页
-% （\cs{printnomenclature}），两边都照排，同一批条目出现两遍，提示一次。iota-hit 这里直接报错停下；
-% 这边照 \hologo{LaTeX} 的习惯让编译走完。
+% 单独列表与合排列表同时使用时，提示条目重复。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@nomenclature@check:
   {
@@ -541,9 +538,7 @@
 %    \end{macrocode}
 %
 % \begin{macro}{\listofsymbols}
-% 按 \option{symbols} 族的词条排符号表，与 iota-hit 的 \texttt{list-of-symbols()} 对应。中文版取词条的
-% \option{zh}，英文版取 \option{en}。有组的先按全部词条定第一列的宽，再一组一段：组名当小标题，
-% 各段第一列一样宽。\cs{hit@symbols@setup:} 也给合页用。
+% 按文档语言排出符号说明，所有分组共用同一标签列宽。
 %    \begin{macrocode}
 \NewDocumentCommand \listofsymbols { O{} }
   {
@@ -624,6 +619,7 @@
         \hit@clear@page
         \hit@appendix@chapter *
           { \hit@term@list@of@symbols@heading@zh } [ \hit@term@list@of@symbols@heading@en ]
+        \cs_set_eq:NN \hit@frontlist@table@number \thetable
         \setcounter { table } { 0 }
         \cs_set:Npn \thetable { \arabic { table } }
       }
@@ -633,7 +629,7 @@
   {
     \bool_if:NT \l__hit_symbols_shown_bool
       {
-        \cs_set:Npn \thetable { \arabic { chapter } - \arabic { table } }
+        \cs_set_eq:NN \thetable \hit@frontlist@table@number
         \setcounter { table } { 0 }
       }
   }
