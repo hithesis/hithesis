@@ -146,6 +146,57 @@ function M.read_file(path)
   return faces
 end
 
+-- The same Word metric selection as __docxlike_font_rule:n, for the face that
+-- actually produced a glyph. Coefficients are cached by font ID, files by path.
+function M.factors(face)
+  local a, d, gap
+  if face.use_typo then
+    a, d, gap = table.unpack(face.typo)
+  else
+    a, d = table.unpack(face.win)
+    gap = math.max(0, face.hhea[3] - (a + d - face.hhea[1] - face.hhea[2]))
+  end
+  local total, ascent
+  if face.class == 'east-asian' then
+    total = math.floor((a + d) * 1.3)
+    ascent = a + (total - a - d) / 2
+  else
+    total, ascent = a + d + gap, a + gap
+  end
+  return { natural = total / face.units, ascent = ascent / face.units }
+end
+
+local font_factors, file_faces = {}, {}
+function M.for_font(id)
+  if font_factors[id] ~= nil then return font_factors[id] or nil end
+  local live = font and font.getfont and font.getfont(id)
+  local properties = live and live.properties or {}
+  local raw = live and live.shared and live.shared.rawdata
+  local metadata = raw and raw.metadata or {}
+  local path = live and (live.filename or properties.filename)
+  if not path then font_factors[id] = false; return nil end
+  local faces = file_faces[path]
+  if not faces then faces = M.read_file(path); file_faces[path] = faces end
+  local names = {}
+  for _, name in ipairs({live.psname or '', live.fullname or '', properties.fontname or '',
+                         metadata.fontname or '', metadata.fullname or '', live.name or ''}) do
+    if name ~= '' then names[M.key(name)] = true end
+  end
+  local pick
+  for _, face in ipairs(faces) do
+    for _, name in ipairs(face.names) do
+      if names[M.key(name)] then pick = face; break end
+    end
+    if pick then break end
+  end
+  if not pick and #faces == 1 then pick = faces[1] end
+  if not pick then font_factors[id] = false; return nil end
+  local factors = M.factors(pick)
+  factors.filename, factors.names = path, pick.names
+  font_factors[id] = factors
+  return factors
+end
+
 -- 编译时现读（LuaLaTeX）：luaotfload 按名字找到文件，取名字对得上的那一副，
 -- 对不上取第一副；交回逗号隔开的一串数（与预设表同序），找不到交回空串。用逗号是因为
 -- token.set_macro 设进去的空格不是 TeX 的空格

@@ -81,13 +81,24 @@
 % \cs{refstepcounter}（有这个计数器时，hyperref 的锚点靠它），\cs{@currentlabel} 改成 Word 的
 % 编号串（\cs{ref} 引用的就是它，与 Word 的 \texttt{REF \textbackslash n} 一致），目录条目
 % \cs{addcontentsline}，页眉标记 \cs{…mark}。页眉页脚的 \texttt{STYLEREF} 另外登记，
-% 登记的样式名是“heading \meta{n}”这种 Word 的名字，\meta{n} 取样式标识末尾的数字。
+% 登记的样式名是“heading \meta{n}”这种 Word 的名字；\meta{n} 来自明确的大纲层级，
+% 不从任意样式名末位取数。标准 Heading1--Heading9 保留其内置层级，其他样式按层级名推导，
+% 或通过 \cs{docxlike\_heading\_new:Nnnn} 的第四参数明确指定 1--9。
 %    \begin{macrocode}
 \tl_new:N \l__docxlike_heading_num_tl
 \tl_new:N \l__docxlike_heading_ref_tl
 \tl_new:N \l__docxlike_heading_style_tl
 \bool_new:N \l__docxlike_heading_nonum_bool
+\int_new:N \g__docxlike_heading_command_int
+\int_new:N \l__docxlike_heading_level_int
+\tl_new:N \l__docxlike_heading_level_tl
+\seq_new:N \l__docxlike_heading_level_seq
+\msg_new:nnnn {docxlike}{heading-outline-level}
+  { Cannot~derive~a~numeric~outline~level~for~heading~'#1'. }
+  { Use~docxlike_heading_new:Nnnn~with~an~explicit~level~from~1~to~9. }
 \cs_new_protected:Npn \docxlike_heading_new:Nnn #1#2#3
+  {\docxlike_heading_new:Nnnn #1{#2}{#3}{auto}}
+\cs_new_protected:Npn \docxlike_heading_new:Nnnn #1#2#3#4
   {
     \__docxlike_squash:nN {#2} \l__docxlike_value_try_str
     \prop_get:NVNF \g__docxlike_format_name_prop \l__docxlike_value_try_str
@@ -97,18 +108,47 @@
         \tl_remove_all:Nn \l__docxlike_heading_style_tl { ~ }
         \docxlike_format_target_new:Vn \l__docxlike_heading_style_tl { Normal }
       }
-    \exp_args:NNV \__docxlike_heading_define:Nnn #1 \l__docxlike_heading_style_tl {#3}
-    \docxlike_style_new:e { heading ~ \__docxlike_heading_level:V \l__docxlike_heading_style_tl }
-    \prop_gput:Nne \g_docxlike_toc_level_prop {#3}
-      { \__docxlike_heading_level:V \l__docxlike_heading_style_tl }
+    \tl_set:Nn \l__docxlike_heading_level_tl {#4}
+    \str_if_eq:nnT {#4}{auto}
+      {
+        \tl_clear:N \l__docxlike_heading_level_tl
+        \regex_extract_once:nVNTF {\A Heading([1-9]) \Z}
+          \l__docxlike_heading_style_tl \l__docxlike_heading_level_seq
+          {\tl_set:Ne \l__docxlike_heading_level_tl {\seq_item:Nn \l__docxlike_heading_level_seq {2}}}
+          {
+            \str_case:nn {#3}
+              {
+                {chapter}{\tl_set:Nn \l__docxlike_heading_level_tl {1}}
+                {section}{\tl_set:Ne \l__docxlike_heading_level_tl {\cs_if_exist:NTF \chapter {2}{1}}}
+                {subsection}{\tl_set:Ne \l__docxlike_heading_level_tl {\cs_if_exist:NTF \chapter {3}{2}}}
+                {subsubsection}{\tl_set:Ne \l__docxlike_heading_level_tl {\cs_if_exist:NTF \chapter {4}{3}}}
+                {paragraph}{\tl_set:Ne \l__docxlike_heading_level_tl {\cs_if_exist:NTF \chapter {5}{4}}}
+                {subparagraph}{\tl_set:Ne \l__docxlike_heading_level_tl {\cs_if_exist:NTF \chapter {6}{5}}}
+              }
+          }
+      }
+    \regex_match:nVTF {\A [1-9] \Z} \l__docxlike_heading_level_tl
+      {
+        \__docxlike_heading_define:NVnV #1 \l__docxlike_heading_style_tl {#3}\l__docxlike_heading_level_tl
+        \docxlike_style_new:e {heading~\l__docxlike_heading_level_tl}
+        \prop_gput:NnV \g_docxlike_toc_level_prop {#3}\l__docxlike_heading_level_tl
+      }
+      {\msg_error:nnn {docxlike}{heading-outline-level}{#3}}
   }
+\cs_generate_variant:Nn \docxlike_heading_new:Nnnn {Nnne}
 \prop_new:N \g_docxlike_toc_level_prop
 \cs_generate_variant:Nn \prop_gput:Nnn { Nne }
 \cs_generate_variant:Nn \docxlike_style_new:n { e }
-\cs_new_protected:Npn \__docxlike_heading_define:Nnn #1#2#3
+\cs_new_protected:Npn \__docxlike_heading_define:Nnnn #1#2#3#4
   {
-    \RenewDocumentCommand #1 { s o m }
+    % A saved public alias must retain its original parser/code when a client
+    % later RenewDocumentCommand's the same public name. ltcmd's ordinary
+    % public-name code token would otherwise be overwritten and recurse.
+    \int_gincr:N \g__docxlike_heading_command_int
+    \exp_args:Nc \NewDocumentCommand
+      { __docxlike_heading_command_ \int_use:N \g__docxlike_heading_command_int : } { s o m }
       {
+        \int_set:Nn \l__docxlike_heading_level_int {#4}
         \bool_set_false:N \l__docxlike_heading_nonum_bool
         \tl_clear:N \l__docxlike_heading_local_tl
         \tl_set:Nn \l__docxlike_heading_short_tl {##3}
@@ -117,7 +157,10 @@
           { \__docxlike_heading_title:nnnVn {#2} {#3} { } \l__docxlike_heading_short_tl {##3} }
           { \__docxlike_heading_title:nnnVn {#2} {#3} { n } \l__docxlike_heading_short_tl {##3} }
       }
+    \cs_gset_protected:Npe #1
+      { \exp_not:c { __docxlike_heading_command_ \int_use:N \g__docxlike_heading_command_int : } }
   }
+\cs_generate_variant:Nn \__docxlike_heading_define:Nnnn {NVnV}
 %    \end{macrocode}
 %
 % \emph{可选参数。}没有等号时是目录里的短标题，与 \hologo{LaTeX} 一样；有等号时是键值表：
@@ -157,7 +200,7 @@
 \cs_new_protected:Npn \__docxlike_heading_title:nnnnn #1#2#3#4#5
   {
     \tl_set:Nn \l__docxlike_heading_toc_tl {#4}
-    \regex_replace_all:nnN { \c{docxbookmark} \cB. [^\cE.]* \cE. } { } \l__docxlike_heading_toc_tl
+    \regex_replace_all:nnN { ( \c{docxbookmark} | \c{docxlike_bookmark:nn} ) \cB. [^\cE.]* \cE. } { } \l__docxlike_heading_toc_tl
     \exp_args:NnnnV \__docxlike_heading:nnnnn {#1} {#2} {#3} \l__docxlike_heading_toc_tl {#5}
   }
 \cs_generate_variant:Nn \__docxlike_heading:nnnnn { nnnV }
@@ -168,7 +211,7 @@
     \bool_set_false:N \l_docxlike_numbering_off_bool
     \tl_clear:N \l__docxlike_heading_num_tl
     \tl_clear:N \l__docxlike_heading_snum_tl
-    \__docxlike_heading_epoch:e { \__docxlike_heading_level:n {#1} }
+    \__docxlike_heading_epoch:e {\int_use:N \l__docxlike_heading_level_int}
     \tl_clear:N \l__docxlike_heading_ref_tl
     \bool_lazy_or:nnTF { \tl_if_blank_p:n {#3} } { \l__docxlike_heading_nonum_bool }
       { \bool_set_true:N \l_docxlike_numbering_off_bool }
@@ -239,6 +282,7 @@
   {
     \group_begin:
       \cs_set_eq:NN \docxbookmark \use_ii:nn
+      \cs_set_eq:NN \docxlike_bookmark:nn \use_ii:nn
       \protected@edef \l__docxlike_heading_numtext_tl {#1}
       \protected@edef \l__docxlike_heading_text_tl {#2}
       \__docxlike_heading_bytes:N \l__docxlike_heading_numtext_tl
@@ -262,9 +306,6 @@
   }
 \cs_new_protected:Npn \__docxlike_heading_asian_ascent_true:
   { \bool_set_true:N \l_docxlike_format_asian_ascent_bool }
-\cs_new:Npn \__docxlike_heading_level:n #1
-  { \str_range:nnn {#1} { -1 } { -1 } }
-\cs_generate_variant:Nn \__docxlike_heading_level:n { V }
 %    \end{macrocode}
 %
 % \cs{…mark} 与 \hologo{LaTeX} 一样只给不带星号的标题发（带星号的由文档类自己写标记）；
@@ -281,7 +322,7 @@
   {
     \tl_set_eq:NN \l_docxlike_field_parnum_tl \l__docxlike_heading_ref_tl
     \docxlike_style_mark:eVVn
-      { heading ~ \__docxlike_heading_level:n {#1} }
+      {heading~\int_use:N \l__docxlike_heading_level_int}
       \l__docxlike_heading_ref_tl \l__docxlike_heading_snum_tl {#4}
     \tl_if_blank:nF {#3}
       {
@@ -428,11 +469,38 @@
 \prop_new:N \g__docxlike_bookmark_prop
 \tl_new:N \l__docxlike_bookmark_text_tl
 \tl_new:N \l__docxlike_bookmark_field_tl
+\tl_new:N \l__docxlike_bookmark_input_tl
+\tl_new:N \l__docxlike_bookmark_structured_tl
+\cs_new_protected:Npn \__docxlike_bookmark_structured:Nn #1#2
+  {
+    \tl_clear:N \l__docxlike_bookmark_structured_tl
+    \cs_set_protected:Npn \__docxlike_bookmark_structured_scan:w ##1 #1 ##2##3
+      {
+        \tl_put_right:Nn \l__docxlike_bookmark_structured_tl {##1}
+        \quark_if_nil:nF {##2}
+          {
+            \tl_put_right:Nn \l__docxlike_bookmark_structured_tl
+              {\docxfield{\__docxlike_field_structured:nnn{#2}{##2}{##3}}}
+            \__docxlike_bookmark_structured_scan:w
+          }
+      }
+    \exp_after:wN \__docxlike_bookmark_structured_scan:w \l__docxlike_bookmark_input_tl #1{\q_nil}{}
+    \tl_set_eq:NN \l__docxlike_bookmark_input_tl \l__docxlike_bookmark_structured_tl
+  }
 \NewDocumentCommand \docxbookmark { m +m }
+  { \docxlike_bookmark:nn {#1} {#2} }
+\cs_new_protected:Npn \docxlike_bookmark:nn #1#2
   {
     \int_gincr:N \g__docxlike_bookmark_order_int
     \tl_clear:N \l__docxlike_bookmark_text_tl
-    \__docxlike_bookmark_resolve:w #2 \docxfield { \q_nil }
+    \tl_set:Nn \l__docxlike_bookmark_input_tl {#2}
+    \__docxlike_bookmark_structured:Nn \docxfieldkv {nn}
+    \__docxlike_bookmark_structured:Nn \docxlike_field:nn {nn}
+    \__docxlike_bookmark_structured:Nn \docxlike_field:Vn {Vn}
+    \__docxlike_bookmark_structured:Nn \docxlike_field:nV {nV}
+    \__docxlike_bookmark_structured:Nn \docxlike_field:VV {VV}
+    \tl_replace_all:Nnn \l__docxlike_bookmark_input_tl { \docxlike_field:n } { \docxfield }
+    \exp_after:wN \__docxlike_bookmark_resolve:w \l__docxlike_bookmark_input_tl \docxfield { \q_nil }
     \iow_shipout_e:Ne \@auxout
       {
         \exp_not:N \docxlike@bookmark
@@ -445,6 +513,7 @@
       }
     \tl_use:N \l__docxlike_bookmark_text_tl
   }
+\cs_generate_variant:Nn \docxlike_bookmark:nn { Vn , nV , VV }
 %    \end{macrocode}
 %
 % 书签里的域先算好：把 \cs{docxfield}\marg{域代码} 一个个换成结果，排的与记下的都是这一份，

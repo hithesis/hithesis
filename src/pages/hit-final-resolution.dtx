@@ -9,6 +9,10 @@
 % \changes{v4.0a}{2026/09/29}{名单与决议正文改为 defense 的局部参数（reviewers、chair、members、
 %   \option{secretary}、\option{resolution}）}
 % \changes{v4.0a}{2026/09/27}{答辩页支持直接排版名单与决议，自动调整名单行数，决议可跨页；支持人文社科版式，旧 resolution 命令保留迁移提示}
+% \changes{v4.0a}{2026/10/13}{决议正文通过 docxlike 排段及测量，隔离段落状态；保留名单、边框与按网格接排规则}
+% \changes{v4.0a}{2026/10/13}{决议续页使用文本盒分割接口；无法取得有效片段时换页重试，整页仍不可分时报告错误}
+% \changes{v4.0a}{2026/10/14}{名单单元格通过 docxlike 试排测量并恢复段落状态；保留原列宽、最小行高和空行借用规则}
+% \changes{v4.0a}{0000/00/00}{新增无框名单与下方普通决议正文，按 2025 指南只排填写的人员；保留有框兼容版}
 %
 % 根据 defense 的局部参数排答辩名单和决议，或插入指定扫描件。
 %    \begin{macrocode}
@@ -176,13 +180,15 @@
 %    \end{macrocode}
 %
 % 按实际列宽试排各单元格，以最大内容高度和最小行高的较大值确定行高。
+% 试排从独立单元格顶部开始，测量后恢复外部段落状态，不能提前消耗章标题的段后或留段标记。
 %    \begin{macrocode}
 \box_new:N \l__hit_res_probe_box
 \dim_new:N \l__hit_res_rowh_dim
 \cs_new_protected:Npn \__hit_res_measure:nn #1#2
   {
-    \vbox_set:Nn \l__hit_res_probe_box
+    \docxlike_format_measure:Nn \l__hit_res_probe_box
       {
+        \dim_set:Nn \tex_prevdepth:D { -1000pt }
         \__hit_res_font:
         \docxlike_table_begin:
         \box_set_eq:NN \@arstrutbox \strutbox
@@ -599,7 +605,7 @@
       \dim_set:Nn \arrayrulewidth { \c__hit_res_rule_dim }
       \dim_set_eq:NN \tabcolsep \c__hit_res_inset_dim
       \__hit_res_font:
-      \docxlikesetup
+      \docxlike_setup:n
         { table-properties = { row = { specify-height = \dim_use:N \c__hit_res_row_dim } } }
       \nointerlineskip
       \hbox_to_wd:nn { \linewidth }
@@ -635,6 +641,8 @@
 % 最后一截照正文的高。一行都不剩就整格挪到下一页，在那一页照样排满。
 %
 % 标签顶格加粗，正文首行缩进两个字，内边距与表格一致。
+% 内容盒由 docxlike 的测量接口生成，避免装盒消耗外面的段后、留段与分节状态。
+% 标签单独排一段，正文沿用 resolution-cell 的单元格字体与行盒状态；缩进长度仍照本页的字符网格选取。
 %    \begin{macrocode}
 \box_new:N \l__hit_res_body_box
 \box_new:N \l__hit_res_part_box
@@ -642,6 +650,9 @@
 \bool_new:N \l__hit_res_fill_bool
 \dim_new:N \l__hit_res_rest_dim
 \dim_new:N \l__hit_res_lead_dim
+\dim_new:N \l__hit_res_indent_dim
+\dim_new:N \l__hit_res_full_dim
+\tl_new:N \l__hit_res_split_status_tl
 \cs_new_protected:Nn \__hit_res_lead:
   {
     \dim_compare:nNnTF { \g_docxlike_page_lead_dim } > { \c_zero_dim }
@@ -663,8 +674,9 @@
   }
 \cs_new_protected:Nn \__hit_res_body:
   {
-    \vbox_set:Nn \l__hit_res_body_box
+    \docxlike_format_measure:Nn \l__hit_res_body_box
       {
+        \dim_set:Nn \tex_prevdepth:D { -1000pt }
         \__hit_res_body_font:
         \docxlike_table_begin:
         \dim_set_eq:NN \hsize \g__hit_res_text_dim
@@ -673,13 +685,36 @@
         \skip_zero:N \rightskip
         \skip_set:Nn \parfillskip { 0pt plus 1fil }
         \dim_zero:N \parindent
-        { \__hit_res_bold: \hit@term@resolution@text }
-        \par
+        \docxlike_format_par:nnn { resolution-cell }
+          {
+            paragraph =
+              {
+                indentation = { left = 0bp , right = 0bp , special = none } ,
+                spacing = { before = 0bp , after = 0bp } ,
+              } ,
+          }
+          { \__hit_res_bold: \hit@term@resolution@text }
         \dim_compare:nNnTF { \g_docxlike_page_char_dim } > { \c_zero_dim }
-          { \dim_set:Nn \parindent { 2 \g_docxlike_page_char_dim } }
-          { \dim_set:Nn \parindent { 2em } }
-        \g__hit_defense_resolution_tl
-        \par
+          { \dim_set:Nn \l__hit_res_indent_dim { 2 \g_docxlike_page_char_dim } }
+          { \dim_set:Nn \l__hit_res_indent_dim { 2em } }
+        \docxlike_format_with:nnn { resolution-cell }
+          {
+            paragraph =
+              {
+                indentation =
+                  {
+                    left = 0bp , right = 0bp , special = first-line , by = \dim_use:N \l__hit_res_indent_dim ,
+                  } ,
+                spacing = { before = 0bp , after = 0bp } ,
+              } ,
+          }
+          {
+            \docxlike_format_apply_state_else:nn { resolution-cell } { \__hit_res_size: }
+            % 连续单元格段保留网格长度的原精度，不经长度格式的缇舍入。
+            \dim_set_eq:NN \parindent \l__hit_res_indent_dim
+            \g__hit_defense_resolution_tl
+            \par
+          }
       }
   }
 %    \end{macrocode}
@@ -724,25 +759,52 @@
   }
 \cs_new_protected:Npn \__hit_res_conclusion_page:n #1
   {
-    \dim_compare:nNnTF
-      { \box_ht:N \l__hit_res_body_box + \box_dp:N \l__hit_res_body_box } > {#1}
+    % 分片保持自然高深；边框区域的网格高度仍由本模块决定。
+    \docxlike_textbox_split:NnNNN \l__hit_res_body_box {#1}
+      \l__hit_res_part_box \l__hit_res_body_box \l__hit_res_split_status_tl
+    \str_case:Vn \l__hit_res_split_status_tl
       {
-        \vbox_set_split_to_ht:NNn \l__hit_res_part_box \l__hit_res_body_box {#1}
-        \__hit_res_frame:nN {#1} \l__hit_res_part_box
-        \newpage
-        \bool_set_false:N \l__hit_res_first_bool
-        \bool_set_false:N \l__hit_res_fill_bool
-        \__hit_res_lines:n { \textheight - 2 \c__hit_res_rule_dim }
-        \exp_args:NV \__hit_res_conclusion_page:n \l__hit_res_rest_dim
-      }
-      {
-        \bool_if:NTF \l__hit_res_fill_bool
-          { \__hit_res_frame:nN {#1} \l__hit_res_body_box }
-          { \__hit_res_frame:nN { } \l__hit_res_body_box }
+        { split }
+          {
+            \__hit_res_frame:nN {#1} \l__hit_res_part_box
+            \newpage
+            \bool_set_false:N \l__hit_res_first_bool
+            \bool_set_false:N \l__hit_res_fill_bool
+            \__hit_res_lines:n { \textheight - 2 \c__hit_res_rule_dim }
+            \exp_args:NV \__hit_res_conclusion_page:n \l__hit_res_rest_dim
+          }
+        { complete }
+          {
+            \bool_if:NTF \l__hit_res_fill_bool
+              { \__hit_res_frame:nN {#1} \l__hit_res_part_box }
+              { \__hit_res_frame:nN { } \l__hit_res_part_box }
+          }
+        { no-fragment } { \__hit_res_retry_page:n {#1} }
+        { empty } { }
       }
   }
 \cs_generate_variant:Nn \__hit_res_conclusion_page:n { V }
-\cs_new_protected:Nn \__hit_resolution_sheet:
+\cs_new_protected:Npn \__hit_res_retry_page:n #1
+  {
+    \dim_set:Nn \l__hit_res_full_dim
+      {
+        \fp_to_dim:n
+          {
+            floor ( \dim_to_fp:n { \textheight - 2 \c__hit_res_rule_dim }
+              / \dim_to_fp:n { \l__hit_res_lead_dim } )
+            * \dim_to_fp:n { \l__hit_res_lead_dim }
+          }
+      }
+    \dim_compare:nNnTF {#1} < { \l__hit_res_full_dim }
+      {
+        \newpage
+        \bool_set_false:N \l__hit_res_first_bool
+        \dim_set_eq:NN \l__hit_res_rest_dim \l__hit_res_full_dim
+        \exp_args:NV \__hit_res_conclusion_page:n \l__hit_res_rest_dim
+      }
+      { \msg_error:nn { hithesis } { resolution-unsplittable } }
+  }
+\cs_new_protected:Nn \__hit_resolution_framed:
   {
     \__hit_resolution_calc:
     \__hit_resolution_count:
@@ -752,7 +814,6 @@
     \__hit_res_table:
     \__hit_res_lead:
     \__hit_res_body:
-    \skip_zero:N \splittopskip
     \bool_set_true:N \l__hit_res_first_bool
     \bool_set_true:N \l__hit_res_fill_bool
     \__hit_res_page_rest:
@@ -763,6 +824,104 @@
         \__hit_res_lines:n { \textheight - 2 \c__hit_res_rule_dim }
       }
     \__hit_res_conclusion_page:V \l__hit_res_rest_dim
+  }
+%    \end{macrocode}
+%
+% \subsection{可选无框名单}
+%
+% 研究生院 2025 年 3 月四份写作指南均要求无框线名单、无需签名，匿名评阅人不列，
+% 决议列在委员会之下。指南没有给新版列宽样表；这里在版心内按五列分配，
+% 不沿用旧有框表宽出版心的尺寸，也不补旧纸表的空白人员行。
+% 人员按记录成行，长表在行间分页并重复表头；使用独立环境，不增加表号、表格目录条目或续表题。
+%    \begin{macrocode}
+\tl_new:N \l__hit_defense_unframed_tl
+\tl_set:Nn \l__hit_defense_unframed_tl { auto }
+\tl_new:N \l__hit_res_unframed_rows_tl
+\cs_new:Npn \__hit_res_unframed_term:n #1
+  {
+    \use:c
+      { hit@term@resolution@unframed@#1@\bool_if:NTF \g__hit_en_bool { en } { zh } }
+  }
+\AddToHook { package / tabularray / after }
+  {
+    \NewTblrTheme { hit@defense }
+      {
+        \SetTblrTemplate { head } { empty }
+        \SetTblrTemplate { foot } { empty }
+      }
+    \NewTblrEnviron { hit@defense@tblr }
+    \SetTblrOuter [ hit@defense@tblr ]
+      {
+        long , theme = hit@defense , entry = none , label = none ,
+        presep = 0pt , postsep = 0pt , headsep = 0pt , footsep = 0pt ,
+      }
+  }
+\cs_new_protected:Npn \__hit_res_unframed_rows:Nn #1#2
+  {
+    \seq_map_inline:Nn #1
+      {
+        \hit@defense@unpack:n {##1}
+        \tl_put_right:Nx \l__hit_res_unframed_rows_tl
+          {
+            { \exp_not:n {#2} }
+            & { \exp_not:V \l__hit_defense_name_tl }
+            & { \exp_not:V \l__hit_defense_title_tl }
+            & { \exp_not:V \l__hit_defense_affiliation_tl }
+            & { \exp_not:V \l__hit_defense_discipline_tl }
+            \exp_not:N \\
+          }
+      }
+  }
+\cs_new_protected:Npn \__hit_res_unframed_font:
+  { \__hit_res_font: \__hit_res_cell: }
+\cs_new_protected:Nn \__hit_resolution_unframed:
+  {
+    \tl_clear:N \l__hit_res_unframed_rows_tl
+    \__hit_res_unframed_rows:Nn \g__hit_defense_reviewer_seq { \__hit_res_unframed_term:n {reviewer} }
+    \__hit_res_unframed_rows:Nn \g__hit_defense_chair_seq { \__hit_res_unframed_term:n {chair} }
+    \__hit_res_unframed_rows:Nn \g__hit_defense_member_seq { \__hit_res_unframed_term:n {member} }
+    \__hit_res_unframed_rows:Nn \g__hit_defense_secretary_seq { \__hit_res_unframed_term:n {secretary} }
+    \tl_if_empty:NF \l__hit_res_unframed_rows_tl
+      {
+        \use:e
+          {
+            \exp_not:N \begin { hit@defense@tblr }
+              {
+                width = \exp_not:N \linewidth ,
+                colspec = { X[1.4,c] X[2,c] X[2,l] X[3.8,l] X[2,l] } ,
+                colsep = 2bp , rowsep = 2bp , rowhead = 1 ,
+                cells = { valign = t , font = \exp_not:N \__hit_res_unframed_font: } ,
+                row {1} = { font = { \exp_not:N \__hit_res_unframed_font: \exp_not:N \__hit_res_bold: } } ,
+              }
+              { \exp_not:N \__hit_res_unframed_term:n {role} }
+              & { \exp_not:N \__hit_res_unframed_term:n {name} }
+              & { \exp_not:N \__hit_res_unframed_term:n {column@title} }
+              & { \exp_not:N \__hit_res_unframed_term:n {affiliation} }
+              & { \exp_not:N \__hit_res_unframed_term:n {discipline} }
+              \exp_not:N \\
+              \exp_not:V \l__hit_res_unframed_rows_tl
+            \exp_not:N \end { hit@defense@tblr }
+          }
+      }
+    \tl_if_blank:VF \g__hit_defense_resolution_tl
+      {
+        \docxlike_format_par:nnn { Normal }
+          {
+            paragraph =
+              {
+                indentation = { left = 0bp , right = 0bp , special = none } ,
+                pagination = { keep-with-next = true } ,
+              } ,
+          }
+          { \__hit_res_bold: \__hit_res_unframed_term:n {text} }
+        \docxlike_format_par:nn { Normal } { \g__hit_defense_resolution_tl }
+      }
+  }
+\cs_new_protected:Nn \__hit_resolution_sheet:
+  {
+    \str_if_eq:VnTF \l__hit_defense_unframed_tl { true }
+      { \__hit_resolution_unframed: }
+      { \__hit_resolution_framed: }
   }
 %    \end{macrocode}
 %
@@ -780,8 +939,17 @@
     \hit@clear@page
     \IfNoValueTF {#2}
       {
-        \hit@appendix@chapter * { \hit@term@resolution@heading@zh }
-          [ \hit@term@resolution@heading@en ]
+        \bool_lazy_and:nnTF
+          { \str_if_eq_p:Vn \l__hit_defense_unframed_tl { true } }
+          { \bool_if_p:N \g__hit_en_bool }
+          {
+            \hit@appendix@chapter * { \hit@term@resolution@heading@en }
+              [ \hit@term@resolution@heading@zh ]
+          }
+          {
+            \hit@appendix@chapter * { \hit@term@resolution@heading@zh }
+              [ \hit@term@resolution@heading@en ]
+          }
         \__hit_resolution_sheet:
       }
       {
@@ -820,6 +988,9 @@
     file .tl_set:N = \l_hit_part_file_tl ,
     page-number .bool_set:N = \l_hit_part_page_number_bool ,
     page-number .default:n = true ,
+    unframed .choices:nn = { auto , true , false }
+      { \tl_set_eq:NN \l__hit_defense_unframed_tl \l_keys_choice_tl } ,
+    unframed .default:n = true ,
     reviewers .code:n =
       { \clist_map_inline:nn {#1} { \seq_gput_right:Nn \g__hit_defense_reviewer_seq {##1} } } ,
     chair .code:n = { \seq_gput_right:Nn \g__hit_defense_chair_seq {#1} } ,
@@ -830,6 +1001,7 @@
   }
 \NewDocumentCommand \defense { +O{} }
   {
+    \tl_set:Nn \l__hit_defense_unframed_tl { auto }
     \tl_clear:N \l_hit_part_file_tl
     \bool_set_false:N \l_hit_part_page_number_bool
     \hit@part@opts:nn { defense } {#1}

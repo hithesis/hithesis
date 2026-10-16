@@ -1,0 +1,63 @@
+\input{regression-test}
+\documentclass[degree-level=master,fontset=fandol]{hithesis}
+\ExplSyntaxOn\msg_redirect_module:nnn{fontspec}{info}{none}\ExplSyntaxOff
+\hitsetup{info={title={专用页面测量}[Special page measurement],author={测试作者}[Test Author]}}
+\ExplSyntaxOn
+\tl_new:N\l__hit_test_body_state_tl
+\tl_new:N\l__hit_test_body_owner_tl
+\dim_new:N\l__hit_test_body_leading_dim
+\ExplSyntaxOff
+\begin{document}
+\START
+\makeatletter
+\ExplSyntaxOn
+\TEST{Body~geometry~cache~follows~installation~without~zero~topskip}{
+  \TYPE{topskip-valid=\dim_compare:nNnTF{\topskip}<{1sp}{no}{yes}}
+  \TYPE{cached-topskip=\skip_if_eq:nnTF{\topskip}{\g__hit_page_doc_topskip_skip}{same}{different}}
+  \docxlike_native_boundary_get:NNN\l__hit_test_body_state_tl\l__hit_test_body_leading_dim\l__hit_test_body_owner_tl
+  \TYPE{leading=\dim_compare:nNnTF{\l__hit_test_body_leading_dim}={0pt}{zero}{nonzero}}
+  \TYPE{owner=\tl_if_empty:NTF\l__hit_test_body_owner_tl{empty}{nonempty}}
+}
+\cs_new_protected:Npn \__hit_test_measure_seed:
+  {
+    \dim_gset:Nn \g__docxlike_format_prev_after_dim { 8bp }
+    \dim_gset:Nn \g__docxlike_format_pending_after_dim { 8bp }
+    \bool_gset_true:N \g__docxlike_format_after_placed_bool
+    \bool_gset_true:N \g_docxlike_section_start_bool
+    \tl_gset:Nn \g__docxlike_format_keep_tl { true }
+  }
+\cs_new_protected:Npn \__hit_test_measure_state:
+  {
+    \TYPE{previous-after=\dim_compare:nNnTF{\g__docxlike_format_prev_after_dim}={8bp}{yes}{no}}
+    \TYPE{pending-after=\dim_compare:nNnTF{\g__docxlike_format_pending_after_dim}={8bp}{yes}{no}}
+    \TYPE{section-start=\bool_if:NTF\g_docxlike_section_start_bool{yes}{no}}
+    \TYPE{after-placed=\bool_if:NTF\g__docxlike_format_after_placed_bool{yes}{no}}
+    \TYPE{keep-next=\g__docxlike_format_keep_tl}
+  }
+\TEST{Cover~candidate~measurement~preserves~the~real~paragraph~state}{
+  \__hit_test_measure_seed:
+  \dim_set_eq:NN \l__hit_cover_width_dim \textwidth
+  \__hit_cover_gauge:n
+    { \docxlike_format_par:nnn { cover-author }
+        { paragraph = { spacing = { after = 3bp } } } { 测试作者 } }
+  \__hit_test_measure_state:
+  \TYPE{top-aligned=\dim_compare:nNnTF{\box_ht:N\l__hit_cover_box}<{\box_ht_plus_dp:N\l__hit_cover_box}{yes}{no}}
+  \dim_set:Nn \l_tmpa_dim { \box_ht_plus_dp:N \l__hit_cover_box }
+  \__hit_cover_gauge:n
+    { \docxlike_format_par:nnn { cover-author }
+        { paragraph = { spacing = { after = 3bp } } } { 测试作者 } }
+  \TYPE{repeat-height=\dim_compare:nNnTF{\box_ht_plus_dp:N\l__hit_cover_box}={\l_tmpa_dim}{same}{different}}
+}
+\TEST{Titlepage~fitting~preserves~state~and~is~repeatable}{
+  \__hit_test_measure_seed:
+  \hit@titlepage@fit:N \hit@titlepage@other@body:n
+  \__hit_test_measure_state:
+  \int_set_eq:NN \l_tmpa_int \l__hit_titlepage_gap_int
+  \dim_set:Nn \l_tmpa_dim { \box_ht_plus_dp:N \l__hit_titlepage_box }
+  \hit@titlepage@fit:N \hit@titlepage@other@body:n
+  \TYPE{repeat-gap=\int_compare:nNnTF{\l__hit_titlepage_gap_int}={\l_tmpa_int}{same}{different}}
+  \TYPE{repeat-height=\dim_compare:nNnTF{\box_ht_plus_dp:N\l__hit_titlepage_box}={\l_tmpa_dim}{same}{different}}
+}
+\ExplSyntaxOff
+\END
+\end{document}

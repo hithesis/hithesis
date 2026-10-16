@@ -5,6 +5,7 @@
 % \fi
 %
 % \section{共享数学层}
+% \changes{v4.0a}{0000/00/00}{eqdenote 改用公开物理盒查询和 owner 标签，不再读取库回调名与节点属性；试排使用公开段落入口及数量记录}
 %
 % \changes{v4.0a}{2026/09/27}{\hologo{pdfLaTeX} 下数学字体固定 \pkg{newtxmath}（\pkg{unicode-math} 只认 OpenType）}
 % \changes{v4.0a}{2026/08/15}{数学部分从各个类抽出合并：\option{fontset-math} 的 \texttt{auto}
@@ -18,6 +19,10 @@
 %   沿用上一张的宽；段前补长表漏掉的行距胶；关段时停掉段末撑竿钩子（空续段曾撑成幽灵行）；收尾按段落
 %   撑竿深度。行间公式段前胶归零、单行公式那一段装进按 Word 模型算的行盒，断口的撑竿
 %   只插在已有字的段里（两条公式紧挨着时曾多出一行）}
+% \changes{v4.0a}{2026/10/16}{区分 LaTeX 公式行盒与 Word 旧式 Equation.3 对象的占位；
+%   不再用原范例公式区后的累计纵差认定一般段距错误}
+% \changes{v4.0a}{2026/10/16}{eqdenote 区分 Lua 正文原生接排与 TeX 显示公式边界，避免首行重复补胶；
+%   Lua 行撑杆通过公开试排接口取当前正文字体的实际行盒，保持换字体及连续说明表的接排}
 %
 % 定义数学字体、定理环境和公式说明表，初始化在基础类加载后执行。
 %
@@ -433,8 +438,17 @@
 \dim_new:N \g__hit_eqdenote_sym_dim
 \dim_new:N \g__hit_eqdenote_lead_dim
 \dim_new:N \l__hit_eqdenote_row_ht_dim
+\dim_new:N \l__hit_eqdenote_row_dp_dim
+\dim_new:N \l__hit_eqdenote_line_dim
+\dim_new:N \l__hit_eqdenote_size_dim
 \skip_new:N \l__hit_eqdenote_pre_skip
 \box_new:N \l__hit_eqdenote_box
+\box_new:N \l__hit_eqdenote_probe_one_box
+\box_new:N \l__hit_eqdenote_probe_two_box
+\int_new:N \l__hit_eqdenote_lua_model_int
+\int_new:N \l__hit_eqdenote_word_boundary_int
+\int_new:N \l__hit_eqdenote_previous_table_int
+\int_new:N \l__hit_eqdenote_no_previous_int
 \seq_new:N \l__hit_eqdenote_seq
 \tl_new:N \l__hit_eqdenote_tl
 \tl_new:N \l__hit_eqdenote_rows_tl
@@ -486,7 +500,64 @@
   }
 %    \end{macrocode}
 %
-% \emph{段前补一份行距胶。} 长表的首行排在一只新的竖盒里，盒头的 \cs{prevdepth} 是 \texttt{-1000pt}，
+% \emph{先区分边界来源。} Lua 正文行交给原生盒时，已登记的 native-boundary 回调负责补出段行距。
+% 此时 TeX 的 \cs{prevdepth} 不一定等于刚排出的行深，再按它补一份会重复收费。
+% 通过公开物理盒查询取得状态，连续说明表使用 \texttt{hithesis/eqdenote} owner 标签；
+% 不检查库的回调名或节点属性，内层盒也不借外层页面。参数 0 查询，参数 1 标记刚结束的表。
+%    \begin{macrocode}
+\tl_new:N \l__hit_eqdenote_boundary_state_tl
+\tl_new:N \l__hit_eqdenote_boundary_owner_tl
+\dim_new:N \l__hit_eqdenote_boundary_lead_dim
+\cs_new_protected:Npn \__hit_eqdenote_boundary_state:n #1
+  {
+    \int_compare:nNnTF {#1} = {0}
+      {
+        \docxlike_native_boundary_get:NNN
+          \l__hit_eqdenote_boundary_state_tl
+          \l__hit_eqdenote_boundary_lead_dim
+          \l__hit_eqdenote_boundary_owner_tl
+        \str_if_eq:VnF \l__hit_eqdenote_boundary_state_tl {inactive}
+          {
+            \int_set:Nn \l__hit_eqdenote_lua_model_int {1}
+            \str_case:Vn \l__hit_eqdenote_boundary_state_tl
+              {
+                {empty}{\int_set:Nn \l__hit_eqdenote_no_previous_int {1}}
+                {word}{\int_set:Nn \l__hit_eqdenote_word_boundary_int {1}}
+              }
+            \str_if_eq:VnT \l__hit_eqdenote_boundary_owner_tl {hithesis/eqdenote}
+              {\int_set:Nn \l__hit_eqdenote_previous_table_int {1}}
+          }
+      }
+      { \docxlike_native_boundary_mark:n {hithesis/eqdenote} }
+  }
+\cs_new_protected:Npn \__hit_eqdenote_actual_strut:
+  {
+    \cs_if_exist_use:N \ltjfakeboxbdd
+    \leavevmode
+    \vrule width 0pt height \l__hit_eqdenote_row_ht_dim
+      depth \l__hit_eqdenote_row_dp_dim \scan_stop:
+  }
+%    \end{macrocode}
+%
+% 一行试排量出上升部，两行与一行的高度差量出步进；不把多倍行距末尾可丢弃的余量误当自然行深。
+% 探针只有一个中/西文字，不展开用户的符号或说明。行距及字体角色取 Normal，字号保留当前值，
+% 段前段后置零；这里只取得说明行的最小撑杆，较高的数学内容仍由 LaTeX 实际盒尺寸撑开。
+%    \begin{macrocode}
+\cs_new_protected:Npn \__hit_eqdenote_probe:n #1
+  {
+    \docxlike_format_measure:Nn \l__hit_eqdenote_probe_one_box
+      { \docxlike_par:nn {font={size={value=\dim_to_decimal:n{\l__hit_eqdenote_size_dim},unit=pt}},paragraph={spacing={before=0bp,after=0bp}}}{#1} }
+    \docxlike_format_measure:Nn \l__hit_eqdenote_probe_two_box
+      { \docxlike_par:nn {font={size={value=\dim_to_decimal:n{\l__hit_eqdenote_size_dim},unit=pt}},paragraph={spacing={before=0bp,after=0bp}}}{#1\break #1} }
+    \dim_set:Nn \l__hit_eqdenote_line_dim
+      { \box_ht:N \l__hit_eqdenote_probe_two_box - \box_ht:N \l__hit_eqdenote_probe_one_box }
+    \dim_set:Nn \l__hit_eqdenote_row_ht_dim { \box_ht:N \l__hit_eqdenote_probe_one_box }
+    \dim_set:Nn \l__hit_eqdenote_row_dp_dim
+      { \l__hit_eqdenote_line_dim - \l__hit_eqdenote_row_ht_dim }
+  }
+%    \end{macrocode}
+%
+% \emph{TeX 边界仍补一份行距胶。} 长表的首行排在一只新的竖盒里，盒头的 \cs{prevdepth} 是 \texttt{-1000pt}，
 % \hologo{TeX} 不给首行插行距胶，表首行与上一行之间只隔“上一行的深度加首行的高度”，比正文行距紧
 % （公式后面实测 14.66，正文接公式是 19.45）。缺的就是那份胶：\cs{baselineskip} 减上一行的深再减
 % 首行的高，首行的高是说明那一段的撑竿高，放进表前的 \texttt{presep}。先 \cs{par}，否则
@@ -508,13 +579,37 @@
         \dim_set:Nn \l__hit_eqdenote_row_ht_dim { \box_ht:N \l__hit_eqdenote_box }
       }
       { \dim_set:Nn \l__hit_eqdenote_row_ht_dim { \ht \strutbox } }
-    \dim_compare:nNnTF { \tex_prevdepth:D } < { -999pt }
+    \int_zero:N \l__hit_eqdenote_lua_model_int
+    \int_zero:N \l__hit_eqdenote_word_boundary_int
+    \int_zero:N \l__hit_eqdenote_previous_table_int
+    \int_zero:N \l__hit_eqdenote_no_previous_int
+    \__hit_eqdenote_boundary_state:n {0}
+    \int_compare:nNnT { \l__hit_eqdenote_lua_model_int } = {1}
+      {
+        \dim_set:Nn \l__hit_eqdenote_size_dim { \use:c{f@size}pt }
+        \bool_if:NTF \l_docxlike_format_strut_latin_bool
+          { \__hit_eqdenote_probe:n {X} }
+          { \__hit_eqdenote_probe:n {一} }
+        \cs_set_eq:NN \docxlike_format_strut: \__hit_eqdenote_actual_strut:
+      }
+    \bool_lazy_or:nnTF
+      { \dim_compare_p:nNn { \tex_prevdepth:D } < { -999pt } }
+      { \int_compare_p:nNn { \l__hit_eqdenote_no_previous_int } = {1} }
       { \skip_zero:N \l__hit_eqdenote_pre_skip }
       {
-        \skip_set:Nn \l__hit_eqdenote_pre_skip
-          { \baselineskip - \tex_prevdepth:D - \l__hit_eqdenote_row_ht_dim }
-        \dim_compare:nNnT { \l__hit_eqdenote_pre_skip } < { \lineskiplimit }
-          { \skip_set_eq:NN \l__hit_eqdenote_pre_skip \lineskip }
+        \int_compare:nNnTF { \l__hit_eqdenote_word_boundary_int } = {1}
+          { \skip_zero:N \l__hit_eqdenote_pre_skip }
+          {
+            \skip_set:Nn \l__hit_eqdenote_pre_skip
+              { \baselineskip - \tex_prevdepth:D - \l__hit_eqdenote_row_ht_dim }
+            \int_compare:nNnT { \l__hit_eqdenote_previous_table_int } = {1}
+              {
+                \skip_set:Nn \l__hit_eqdenote_pre_skip
+                  { \l__hit_eqdenote_line_dim - \tex_prevdepth:D - \l__hit_eqdenote_row_ht_dim }
+              }
+            \dim_compare:nNnT { \l__hit_eqdenote_pre_skip } < { \lineskiplimit }
+              { \skip_set_eq:NN \l__hit_eqdenote_pre_skip \lineskip }
+          }
       }
   }
 %    \end{macrocode}
@@ -600,29 +695,27 @@
   { }
 \dim_new:N \g__hit_eqdenote_dp_dim
 \cs_new_protected:Npn \__hit_eqdenote_finish:
-  { \tex_prevdepth:D \g__hit_eqdenote_dp_dim }
+  {
+    \tex_prevdepth:D \g__hit_eqdenote_dp_dim
+    \__hit_eqdenote_boundary_state:n {1}
+  }
 %    \end{macrocode}
 %
 % \begin{macro}{\hit@display@skips:nn}
 % \cs{hit@display@skips:nn}\marg{段前}\marg{段后} 设行间公式四个胶。
 %
-% \textbf{Word 那边公式段没有段前段后。} 范例两处公式段的 \texttt{pPr} 只写了
-% \texttt{line=300 lineRule=auto}（1.25 倍，与正文同一档），\emph{一条
-% \texttt{w:before}／\texttt{w:after} 都没有}。指南那句「与周围文字留有足够的
-% 位置区分开」的「位置」不是靠段间距放出来的，是行盒模型给的：公式那一行的自然
-% 行高按\emph{这一行实际内容}算，公式有多高就按多高，再乘 1.25。
+% \textbf{范例公式段的段前段后均为零。} 两处公式段的 \texttt{pPr} 只写了
+% \texttt{line=300 lineRule=auto}；实际 Word 也确认其段前、段后均为零。
+% 但范例里的公式是旧式 \texttt{Equation.3} 对象，带有预览尺寸和手工下移量，
+% 并非与 LaTeX 数学盒具有相同高深的输入。其后标题的累计纵差不能直接作为 display skip 的误差。
 %
-% \textbf{段前取零，实测与模型对得上。} 上一行行盒底到公式盒顶不再垫任何东西，
-% 基线差就是「正文行深 + 公式盒高」。示例里那条分式实测：段前 8\,pt 时上一行到
-% 公式的基线差 28.80，改成零之后 20.82，而正文行深 7.28 加公式盒高 13.54 正是
-% 20.82。
+% \textbf{本模板的单行公式段前取零。} 公式内部由 LaTeX 排版；外部占位按实际公式盒与
+% 正文行盒模型计算。小公式与较高分式应分别核对，不能用同一个 Word 对象的尺寸反推所有公式的胶。
 %
-% \textbf{段后 8\,pt 只给 \env{align} 一族兜底。} Word 的段后那一份是行盒模型的
-% 一部分：多出来的高度落在基线下方，与公式自身多高成正比。单行公式
-% （\env{equation} 一族）现在整段装进一个行盒自己算，见下面
-% \cs{hit@display@open:}，它进场时会把段后也置零；多行的 \env{align} 一族每行
-% 各有行盒，整块套一个盒不成立，仍走 \hologo{TeX} 的四个胶，段后 8\,pt 是对着
-% 范例那条分式凑的常数（实测差 0.6\,bp）。
+% \textbf{段后 8\,pt 只给 \env{align} 一族兜底。} 单行公式（\env{equation} 一族）
+% 整段装进一个行盒自己算，见下面 \cs{hit@display@open:}，进场时把段后也置零。
+% 多行的 \env{align} 一族每行各有行盒，整块套一个盒不成立，仍走 \hologo{TeX} 的四个胶；
+% 现有 8\,pt 是历史兜底值，不是任意多行公式与 Word 几何一致的保证。
 %    \begin{macrocode}
 \cs_new_protected:Npn \hit@display@skips:nn #1#2
   {
@@ -638,12 +731,10 @@
 %
 % \begin{macro}{\hit@display@open:}
 % \begin{macro}{\hit@display@close:}
-% \textbf{行盒自己算，不借 \hologo{TeX} 的 display skip。} Word 里公式那一行与
-% 别的行一个待遇：行盒高等于倍数乘这一行的自然行高，而自然行高取\emph{这一行
-% 实际内容}的高——公式有多高就按多高；上升部不变，多出来的那一份落在基线下方；
-% 行与行之间没有额外的胶，盒挨着盒堆。\hologo{TeX} 不是这么排的：它在公式上下
-% 各插一段与公式高矮无关的胶。所以把公式装进一个 \cs{hbox}，量出高深，按上面的
-% 式子改盒的尺寸，四个胶都不要。
+% \textbf{按 LaTeX 实际盒高深处理外部行盒，不改数学内部几何。} 普通 display skip
+% 与公式自身高矮无关；这里把公式装进一个 \cs{hbox}，测其高深，再按正文行盒模型处理
+% 外部占位，四个胶置零。这个模型不复制 Word \texttt{Equation.3} 对象的预览边框、
+% 下移量或内部数学轴；这些对象也不适合作为 LaTeX 公式盒尺寸的直接 oracle。
 %
 % \textbf{量得到，靠三个钩子的时序。} 环境的 \texttt{begin} 钩子在 \texttt{\$\$}
 % 之前，\cs{everydisplay} 在 \texttt{\$\$} 之后、显示数学里头，环境的

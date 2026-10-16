@@ -34,7 +34,7 @@
 \msg_new:nnn{hithesis}{font-baseline-engine}
   {Font~baseline~correction~currently~requires~LuaLaTeX.}
 \msg_new:nnn{hithesis}{font-baseline-value}
-  {Unknown~font-baseline-correction~value~'#1'.~Use~auto,~true~or~false.}
+  {Unknown~fontset/baseline-correction~value~'#1'.~Use~auto,~true~or~false.}
 \prop_gput:Nnn \g__hit_font_presets_prop { windows }
   {songti=SimSun,heiti=SimHei,kaishu=KaiTi,fangsong=FangSong,
    kaishu-gb2312=KaiTi_GB2312,lishu=LiSu,xinwei=STXinwei,
@@ -70,7 +70,17 @@
       }
   }
 \keys_define:nn { hit/fontset }
-  { preset .tl_gset:N = \g__hit_font_preset_tl }
+  {
+    preset .tl_gset:N = \g__hit_font_preset_tl ,
+    baseline-correction .code:n = { \__hit_font_baseline_enable:n {#1} } ,
+    baseline-correction .default:n = auto ,
+  }
+% 文档中的字体开关只调整视觉校正；字体预设和角色在类加载时确定。
+\keys_define:nn { hit/fontset/runtime }
+  {
+    baseline-correction .meta:nn = { hit/fontset } { baseline-correction = {#1} } ,
+    baseline-correction .default:n = auto ,
+  }
 \clist_map_inline:nn {songti,heiti,kaishu,fangsong,kaishu-gb2312,lishu,xinwei,serif,sans,mono,math}
   {
     \keys_define:nn {hit/fontset}
@@ -126,7 +136,7 @@
     \prop_gput:NnV\g__hit_font_roles_prop{#1}\l__hit_font_candidate_tl
     \msg_warning:nnxxx{hithesis}{font-role-fallback}{#1}{\l_tmpb_tl}{\l__hit_font_candidate_tl}
   }
-\cs_new_protected:Npn \__hit_font_preset_resolve:
+\cs_new_protected:Npn \__hit_font_preset_parse:
   {
     \tl_gset:Nn \g__hit_font_preset_tl {auto}
     \prop_gclear:N \g__hit_font_overrides_prop
@@ -134,6 +144,10 @@
       {\exp_args:NnV\keys_set:nn{hit/fontset}\hit@fontset}
       {\tl_if_empty:NF\hit@fontset{\tl_gset_eq:NN\g__hit_font_preset_tl\hit@fontset}}
     \__hit_font_canonical:N \g__hit_font_preset_tl
+  }
+\cs_new_protected:Npn \__hit_font_preset_resolve:
+  {
+    \__hit_font_preset_parse:
     \prop_gclear:N\g__hit_font_roles_prop
     \__hit_font_preset_overlay:n{windows}
     \prop_if_in:NVTF \g__hit_font_presets_prop \g__hit_font_preset_tl

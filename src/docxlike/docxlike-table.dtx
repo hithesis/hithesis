@@ -56,11 +56,13 @@
 \bool_set_true:N \l_docxlike_table_bool
 \bool_new:N \l_docxlike_table_cell_bool
 \dim_set:Nn \tabcolsep { 5.4bp }
-\sys_if_engine_luatex:T { \newattribute \docxlike@cell@attr \newattribute \docxlike@mcell@attr }
+\sys_if_engine_luatex:T
+  { \newattribute \docxlike@cell@attr \newattribute \docxlike@mcell@attr \newattribute \docxlike@table@attr }
 \box_new:N \l__docxlike_table_strut_box
 \bool_new:N \l__docxlike_table_tblr_bool
 %    \end{macrocode}
 %
+% \texttt{table-properties/word-formatting=false} 局部关掉表格修正；省略值或写 true 开启。
 % \cs{l\_docxlike\_table\_bool} 关掉就不换：文档类拿 \env{tabular} 当排版工具用的地方（堆几行字、
 % 对齐封面上的字段），Word 里那不是表，局部关掉；整篇不照 Word 排的文档全局关掉。
 %
@@ -71,6 +73,14 @@
 %    \begin{macrocode}
 \cs_new_protected:Npn \docxlike_table_begin:
   {
+    % A paragraph's exact leading must not leak into TeX's alignment stack.
+    % tabular sets baselineskip/lineskip to zero; a negative lineskiplimit
+    % would then insert negative glue between rows, collapsing the whole table.
+    \bool_if:NT \g_docxlike_word_layout_bool
+      {
+        \dim_zero:N \lineskiplimit
+        \sys_if_engine_luatex:T { \docxlike@table@attr = 1 \scan_stop: }
+      }
     \bool_lazy_and:nnT { \g_docxlike_word_layout_bool } { \l_docxlike_table_bool }
       {
         \bool_lazy_and:nnT
@@ -111,6 +121,53 @@
         \sys_if_engine_luatex:T { \docxlike@cell@attr = 1 \scan_stop: }
       }
   }
+% XeTeX has no node callback to distinguish a native table from exact-height
+% glyphs. Use native clearance for the containing paragraph, restoring the
+% exact policy at its end. State is local and tied to the paragraph's group,
+% so nested cell/measurement paragraphs cannot consume an outer pending end.
+\bool_new:N \l__docxlike_table_clearance_bool
+\dim_new:N \l__docxlike_table_lineskiplimit_dim
+\int_new:N \l__docxlike_table_clearance_group_int
+\cs_new_protected:Npn \docxlike_table_after:
+  {
+    \sys_if_engine_luatex:F
+      {
+        \bool_lazy_and:nnT { \g_docxlike_word_layout_bool } { \l_docxlike_format_strut_exact_bool }
+          {
+            \mode_if_horizontal:T
+              {
+                \mode_if_inner:F
+                  {
+                    \bool_if:NF \l__docxlike_table_clearance_bool
+                      {
+                        \dim_set_eq:NN \l__docxlike_table_lineskiplimit_dim \lineskiplimit
+                        \int_set:Nn \l__docxlike_table_clearance_group_int { \tex_currentgrouplevel:D }
+                      }
+                    \bool_set_true:N \l__docxlike_table_clearance_bool
+                    \dim_zero:N \lineskiplimit
+                  }
+              }
+          }
+      }
+  }
+\cs_new_protected:Npn \__docxlike_table_clearance_end:
+  {
+    \bool_if:NT \l__docxlike_table_clearance_bool
+      {
+        \int_compare:nNnT { \tex_currentgrouplevel:D } = { \l__docxlike_table_clearance_group_int }
+          {
+            \dim_set_eq:NN \lineskiplimit \l__docxlike_table_lineskiplimit_dim
+            \bool_set_false:N \l__docxlike_table_clearance_bool
+            % A tall final line is already present at its full depth. Let the
+            % next paragraph start below it instead of adding negative exact
+            % baseline glue across this native object boundary.
+            \dim_compare:nNnT { \tex_prevdepth:D } >
+              { \baselineskip - \c_docxlike_format_exact_tl \baselineskip }
+              { \tex_prevdepth:D = -1000pt \scan_stop: }
+          }
+      }
+  }
+\hook_gput_code:nnn { para / after } { docxlike-table } { \__docxlike_table_clearance_end: }
 %    \end{macrocode}
 % \end{macro}
 %
@@ -134,6 +191,8 @@
   }
 \keys_define:nn { docxlike / table-properties }
   {
+    word-formatting .bool_set:N = \l_docxlike_table_bool ,
+    word-formatting .default:n = true ,
     row .code:n =
       { \__docxlike_keys_set:nn { docxlike / table-properties / row } {#1} } ,
     table .code:n =
@@ -210,7 +269,10 @@
 % 没有空格可压的格就溢出。
 %    \begin{macrocode}
 \clist_map_inline:nn { tabular , tabular* , tabularx , tabulary , longtable , xltabular }
-  { \hook_gput_code:nnn { env / #1 / begin } { docxlike-table } { \docxlike_table_begin: } }
+  {
+    \hook_gput_code:nnn { env / #1 / begin } { docxlike-table } { \docxlike_table_begin: }
+    \hook_gput_code:nnn { env / #1 / after } { docxlike-table } { \docxlike_table_after: }
+  }
 \hook_gput_code:nnn { package / tabularray / after } { docxlike-table }
   {
     \clist_map_inline:nn { tblr , longtblr , talltblr , booktabs , longtabs , talltabs }
@@ -276,16 +338,16 @@
       {
         \__docxlike_table_patch:Nnn \__tblr_build_long_table:n
           { \mode_leave_vertical: }
-          { \docxlike_format_blank_para: \mode_leave_vertical: }
+          { \bool_if:NT \l_docxlike_table_bool { \docxlike_format_blank_para: } \mode_leave_vertical: }
         \__docxlike_table_patch:Nnn \__tblr_halign_whole:Nn
           { \noindent }
-          { \docxlike_format_blank_para: \noindent }
+          { \bool_if:NT \l_docxlike_table_bool { \docxlike_format_blank_para: } \noindent }
         \__docxlike_table_patch:Nnn \__tblr_build_long_table:n
           { \nobreak \noindent }
-          { \nobreak \docxlike_format_blank_para: \noindent }
+          { \nobreak \bool_if:NT \l_docxlike_table_bool { \docxlike_format_blank_para: } \noindent }
         \__docxlike_table_patch:Nnn \__tblr_build_long_table:n
           { \nobreak \noindent }
-          { \nobreak \docxlike_format_blank_para: \noindent }
+          { \nobreak \bool_if:NT \l_docxlike_table_bool { \docxlike_format_blank_para: } \noindent }
       }
   }
 %    \end{macrocode}

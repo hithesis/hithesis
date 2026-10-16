@@ -56,6 +56,7 @@ typesetexe   = "lualatex"
 unpackexe    = "xetex"
 
 checkengines = {"xetex"}
+-- Lua 专项另用 config-lua.lua；make check-lua 同时核对九项实际执行记录。
 
 -- 旧版 TeX Live 上跳过的测试。
 --

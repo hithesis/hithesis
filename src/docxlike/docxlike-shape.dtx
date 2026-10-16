@@ -258,12 +258,18 @@
 % \end{latex}
 % \option{style} 是框里那一段的样式（默认 \texttt{Normal}），\option{format} 是这一段的直接格式
 % （与 \cs{docxpar} 的可选参数一样写 \option{font}、\option{paragraph}）；\option{size} 的 \option{width} 取
-% \texttt{auto}（照内容的宽，不超过栏宽）或长度，\option{height} 照收（框不画边框、不填底纹时看不出
-% 高来）；
+% \texttt{auto}（照内容的宽，不超过栏宽）或长度，\option{height} 是最小高度；不裁剪较高的内容。
 % \option{horizontal} 的 \option{position} 取 \texttt{left}、\texttt{center}、\texttt{right} 或长度，
 % \option{relative-to} 取 \texttt{margin}、\texttt{page}、\texttt{column}；\option{vertical} 的
-% \option{position} 取长度，\option{relative-to} 取 \texttt{paragraph}。\option{text-wrapping} 与两个
-% \option{distance-from-text} 照收，正文不绕排：框叠在正文上。
+% \option{position} 取长度。普通叠放框纵向只相对 \texttt{paragraph}；LuaLaTeX 的
+% \texttt{text-wrapping=around} 框也支持相对 \texttt{margin} 与 \texttt{page}。
+% 矩形避让与绘制共用实际出页的锚点坐标；行盒与锚点变动时需重跑至稳定。
+% \option{wrap-text} 取 \texttt{largest}（默认）、\texttt{left-only}、\texttt{right-only}、\texttt{both-sides}。
+% 两侧模式把同一行的行片合并到共同基线，孤行与整段约束按物理行算。没有足够侧边空间时，
+% 先避让到遮挡下缘再排正文；图片还支持 \texttt{text-wrapping=top-and-bottom}。
+% 轮廓绕排、多栏与向锚定段之前的正文回溯绕排尚不支持。
+% 水平/垂直子键的 \option{distance-from-text} 设置左右/上下相同间距；顶层同名键
+% 可按 \texttt{left/right/top/bottom} 设置不同的非负间距，默认零。
 %
 % 框里那一段照样式排，段前段后算在框里。排之前把格式模块的全局状态存下、排完放回，同页眉
 % 页脚那样（\cs{\_\_docxlike\_headfoot\_state\_save:}），另加上一段的段后与段间距那几个量：框
@@ -275,14 +281,32 @@
 \tl_new:N \l__docxlike_frame_height_tl
 \tl_new:N \l__docxlike_frame_xpos_tl
 \tl_new:N \l__docxlike_frame_xrel_tl
+\tl_new:N \l__docxlike_frame_yrel_tl
+\tl_new:N \l__docxlike_frame_wrap_tl
+\tl_new:N \l__docxlike_frame_side_tl
 \dim_new:N \l__docxlike_frame_y_dim
 \dim_new:N \l__docxlike_frame_w_dim
+\dim_new:N \l__docxlike_frame_left_dim
+\dim_new:N \l__docxlike_frame_right_dim
+\dim_new:N \l__docxlike_frame_top_dim
+\dim_new:N \l__docxlike_frame_bottom_dim
 \int_new:N \g__docxlike_frame_int
+\int_new:N \g__docxlike_wrap_int
+\msg_new:nnn { docxlike } { rectangular-wrap-context }
+  { Rectangular~wrapping~requires~LuaLaTeX,~Word~linebreaking,~and~an~object~between~single-column~body~paragraphs. }
+\msg_new:nnn { docxlike } { rectangular-wrap-distance }
+  { Distances~from~text~must~be~nonnegative. }
+\msg_new:nnn { docxlike } { picture-inline-options }
+  { Position~and~distance~options~require~floating~text-wrapping. }
 \keys_define:nn { docxlike / frame }
   {
     style .tl_set:N = \l__docxlike_frame_style_tl ,
     format .tl_set:N = \l__docxlike_frame_format_tl ,
-    text-wrapping .choices:nn = { none , around } { } ,
+    text-wrapping .choices:nn = { none , around }
+      { \tl_set_eq:NN \l__docxlike_frame_wrap_tl \l_keys_choice_tl } ,
+    wrap-text .choices:nn = { largest , left-only , right-only , both-sides }
+      { \tl_set_eq:NN \l__docxlike_frame_side_tl \l_keys_choice_tl } ,
+    distance-from-text .code:n = { \__docxlike_keys_set:nn { docxlike / frame / distance } {#1} } ,
     size .code:n = { \__docxlike_keys_set:nn { docxlike / frame / size } {#1} } ,
     horizontal .code:n = { \__docxlike_keys_set:nn { docxlike / frame / horizontal } {#1} } ,
     vertical .code:n = { \__docxlike_keys_set:nn { docxlike / frame / vertical } {#1} } ,
@@ -299,7 +323,11 @@
     position .tl_set:N = \l__docxlike_frame_xpos_tl ,
     relative-to .choices:nn = { margin , page , column }
       { \tl_set_eq:NN \l__docxlike_frame_xrel_tl \l_keys_choice_tl } ,
-    distance-from-text .code:n = { } ,
+    distance-from-text .code:n =
+      {
+        \dim_set:Nn \l__docxlike_frame_left_dim { \__docxlike_bp:n {#1} }
+        \dim_set_eq:NN \l__docxlike_frame_right_dim \l__docxlike_frame_left_dim
+      } ,
     unknown .code:n = { \__docxlike_unknown_key: } ,
   }
 \keys_define:nn { docxlike / frame / vertical }
@@ -311,15 +339,114 @@
           { \dim_set:Nn \l__docxlike_frame_y_dim { \__docxlike_bp:n {#1} } }
       } ,
     relative-to .choices:nn = { paragraph , margin , page }
+      { \tl_set_eq:NN \l__docxlike_frame_yrel_tl \l_keys_choice_tl } ,
+    distance-from-text .code:n =
       {
-        \str_if_eq:VnF \l_keys_choice_tl { paragraph }
-          {
-            \msg_error:nne { docxlike } { not-implemented }
-              { frame~vertical~position~relative~to~\l_keys_choice_tl }
-          }
+        \dim_set:Nn \l__docxlike_frame_top_dim { \__docxlike_bp:n {#1} }
+        \dim_set_eq:NN \l__docxlike_frame_bottom_dim \l__docxlike_frame_top_dim
       } ,
-    distance-from-text .code:n = { } ,
     unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\keys_define:nn { docxlike / frame / distance }
+  {
+    left .code:n = { \dim_set:Nn \l__docxlike_frame_left_dim { \__docxlike_bp:n {#1} } } ,
+    right .code:n = { \dim_set:Nn \l__docxlike_frame_right_dim { \__docxlike_bp:n {#1} } } ,
+    top .code:n = { \dim_set:Nn \l__docxlike_frame_top_dim { \__docxlike_bp:n {#1} } } ,
+    bottom .code:n = { \dim_set:Nn \l__docxlike_frame_bottom_dim { \__docxlike_bp:n {#1} } } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\cs_new_protected:Npn \__docxlike_frame_defaults:
+  {
+    \tl_set:Nn \l__docxlike_frame_style_tl { Normal }
+    \tl_clear:N \l__docxlike_frame_format_tl
+    \tl_set:Nn \l__docxlike_frame_width_tl { auto }
+    \tl_set:Nn \l__docxlike_frame_height_tl { auto }
+    \tl_set:Nn \l__docxlike_frame_xpos_tl { left }
+    \tl_set:Nn \l__docxlike_frame_xrel_tl { column }
+    \tl_set:Nn \l__docxlike_frame_yrel_tl { paragraph }
+    \tl_set:Nn \l__docxlike_frame_wrap_tl { none }
+    \tl_set:Nn \l__docxlike_frame_side_tl { largest }
+    \dim_zero:N \l__docxlike_frame_y_dim
+    \dim_zero:N \l__docxlike_frame_left_dim
+    \dim_zero:N \l__docxlike_frame_right_dim
+    \dim_zero:N \l__docxlike_frame_top_dim
+    \dim_zero:N \l__docxlike_frame_bottom_dim
+  }
+\cs_new_protected:Npn \__docxlike_wrap_put:
+  {
+    \dim_compare:nNnT
+      { \dim_min:nn { \l__docxlike_frame_left_dim }
+          { \dim_min:nn { \l__docxlike_frame_right_dim }
+              { \dim_min:nn { \l__docxlike_frame_top_dim } { \l__docxlike_frame_bottom_dim } } } }
+      < { 0pt } { \msg_error:nn { docxlike } { rectangular-wrap-distance } }
+    \bool_lazy_all:nTF
+      {
+        { \sys_if_engine_luatex_p: }
+        { \mode_if_vertical_p: }
+        { ! \mode_if_inner_p: }
+        { \bool_if_p:N \g__docxlike_linebreak_word_bool }
+        { \bool_if_p:N \g_docxlike_word_layout_bool }
+        { ! \bool_if_p:N \g__docxlike_cols_open_bool }
+      }
+      {
+        \int_gincr:N \g__docxlike_wrap_int
+        \lua_now:e
+          {
+            docxlike.linebreak.wrap_add(\int_use:N \g__docxlike_wrap_int,~{
+              x=\dim_to_decimal_in_sp:n { \l__docxlike_shape_x_dim },
+              y=\dim_to_decimal_in_sp:n { \l__docxlike_frame_y_dim },
+              w=\dim_to_decimal_in_sp:n { \l__docxlike_frame_w_dim },
+              h=\dim_to_decimal_in_sp:n
+                { \box_ht:c { g__docxlike_frame_\int_use:N \g__docxlike_frame_int _box }
+                  + \box_dp:c { g__docxlike_frame_\int_use:N \g__docxlike_frame_int _box } },
+              left=\dim_to_decimal_in_sp:n { \l__docxlike_frame_left_dim },
+              right=\dim_to_decimal_in_sp:n { \l__docxlike_frame_right_dim },
+              top=\dim_to_decimal_in_sp:n { \l__docxlike_frame_top_dim },
+              bottom=\dim_to_decimal_in_sp:n { \l__docxlike_frame_bottom_dim },
+              side="\l__docxlike_frame_side_tl",
+              wrap="\l__docxlike_frame_wrap_tl",
+              xalign="\l__docxlike_frame_xpos_tl",
+              xrel="\l__docxlike_frame_xrel_tl",~yrel="\l__docxlike_frame_yrel_tl",
+              page_left=\dim_to_decimal_in_sp:n { \__docxlike_shape_page_left: },
+              page_top=\dim_to_decimal_in_sp:n { 1in+\voffset+\topmargin+\headheight+\headsep }
+            })
+          }
+        \use:e
+          {
+            \exp_not:N \__docxlike_anchor_put:nn { \exp_not:N \docxframe }
+              {
+                \exp_not:N \__docxlike_wrap_draw:nn
+                  { \int_use:N \g__docxlike_wrap_int } { \int_use:N \g__docxlike_frame_int }
+              }
+          }
+      }
+      { \msg_error:nn { docxlike } { rectangular-wrap-context } }
+  }
+\box_new:N \l__docxlike_wrap_draw_box
+\cs_new_protected:Npn \__docxlike_wrap_draw:nn #1#2
+  {
+    \vbox_set_to_ht:Nnn \l__docxlike_wrap_draw_box { 0pt }
+      {
+        \lua_shipout:n { docxlike.linebreak.wrap_record("f"~..~#1,~0,~0) }
+        \lua_now:n { docxlike.linebreak.wrap_place(#1) }
+        \skip_vertical:n { \l__docxlike_frame_y_dim }
+        \hbox_overlap_right:n
+          {
+            \skip_horizontal:n { \l__docxlike_shape_x_dim }
+            \box_use_drop:c { g__docxlike_frame_#2_box }
+          }
+        \tex_vss:D
+      }
+    \box_set_dp:Nn \l__docxlike_wrap_draw_box { 0pt }
+    \tex_prevdepth:D = -1000pt \scan_stop:
+    \box_use_drop:N \l__docxlike_wrap_draw_box
+  }
+\sys_if_engine_luatex:T
+  {
+    \hook_gput_code:nnn { shipout / before } { docxlike-wrap }
+      { \lua_now:n { if~docxlike~and~docxlike.linebreak~then~docxlike.linebreak.wrap_page=docxlike.linebreak.wrap_page+1~end } }
+    \hook_gput_code:nnn { enddocument / afterlastpage } { docxlike-wrap }
+      { \lua_now:n { if~docxlike~and~docxlike.linebreak~then~docxlike.linebreak.wrap_finish()~end } }
   }
 %    \end{macrocode}
 %
@@ -330,13 +457,7 @@
 \cs_new_protected:Npn \docxlike_frame:nn #1#2
   {
     \group_begin:
-      \tl_set:Nn \l__docxlike_frame_style_tl { Normal }
-      \tl_clear:N \l__docxlike_frame_format_tl
-      \tl_set:Nn \l__docxlike_frame_width_tl { auto }
-      \tl_set:Nn \l__docxlike_frame_height_tl { auto }
-      \tl_set:Nn \l__docxlike_frame_xpos_tl { left }
-      \tl_set:Nn \l__docxlike_frame_xrel_tl { column }
-      \dim_zero:N \l__docxlike_frame_y_dim
+      \__docxlike_frame_defaults:
       \__docxlike_keys_set:nn { docxlike / frame } {#1}
       \int_gincr:N \g__docxlike_frame_int
       \box_if_exist:cF { g__docxlike_frame_ \int_use:N \g__docxlike_frame_int _box }
@@ -366,17 +487,33 @@
         }
       \__docxlike_frame_state_restore:
       \__docxlike_headfoot_state_restore:
-      \__docxlike_frame_x:
-      \use:e
+      \str_if_eq:VnF \l__docxlike_frame_height_tl { auto }
         {
-          \exp_not:N \__docxlike_anchor_put:nn { \exp_not:N \docxframe }
+          \box_gset_ht:cn { g__docxlike_frame_\int_use:N \g__docxlike_frame_int _box }
             {
-              \exp_not:N \skip_vertical:n { \dim_use:N \l__docxlike_frame_y_dim }
-              \exp_not:N \hbox_overlap_right:n
+              \dim_max:nn
+                { \box_ht:c { g__docxlike_frame_\int_use:N \g__docxlike_frame_int _box } }
+                { \__docxlike_bp:V \l__docxlike_frame_height_tl
+                  - \box_dp:c { g__docxlike_frame_\int_use:N \g__docxlike_frame_int _box } }
+            }
+        }
+      \__docxlike_frame_x:
+      \str_if_eq:VnTF \l__docxlike_frame_wrap_tl { around }
+        { \__docxlike_wrap_put: }
+        {
+          \str_if_eq:VnF \l__docxlike_frame_yrel_tl { paragraph }
+            { \msg_error:nne { docxlike } { not-implemented } { unwrapped~frame~vertical~position~relative~to~\l__docxlike_frame_yrel_tl } }
+          \use:e
+            {
+              \exp_not:N \__docxlike_anchor_put:nn { \exp_not:N \docxframe }
                 {
-                  \exp_not:N \skip_horizontal:n { \dim_use:N \l__docxlike_shape_x_dim }
-                  \exp_not:N \box_use_drop:c
-                    { g__docxlike_frame_ \int_use:N \g__docxlike_frame_int _box }
+                  \exp_not:N \skip_vertical:n { \dim_use:N \l__docxlike_frame_y_dim }
+                  \exp_not:N \hbox_overlap_right:n
+                    {
+                      \exp_not:N \skip_horizontal:n { \dim_use:N \l__docxlike_shape_x_dim }
+                      \exp_not:N \box_use_drop:c
+                        { g__docxlike_frame_ \int_use:N \g__docxlike_frame_int _box }
+                    }
                 }
             }
         }
@@ -388,8 +525,11 @@
 \dim_new:N \l__docxlike_frame_gap_dim
 \bool_new:N \l__docxlike_frame_placed_bool
 \bool_new:N \l__docxlike_frame_gap_bool
+\tl_new:N \l__docxlike_frame_anchor_pending_tl
 \cs_new_protected:Npn \__docxlike_frame_state_save:
   {
+    \tl_set_eq:NN \l__docxlike_frame_anchor_pending_tl \g__docxlike_anchor_pending_tl
+    \tl_gclear:N \g__docxlike_anchor_pending_tl
     \dim_set_eq:NN \l__docxlike_frame_prev_after_dim \g__docxlike_format_prev_after_dim
     \dim_set_eq:NN \l__docxlike_frame_pending_after_dim \g__docxlike_format_pending_after_dim
     \dim_set_eq:NN \l__docxlike_frame_gap_dim \g__docxlike_format_gap_dim
@@ -398,6 +538,7 @@
   }
 \cs_new_protected:Npn \__docxlike_frame_state_restore:
   {
+    \tl_gset_eq:NN \g__docxlike_anchor_pending_tl \l__docxlike_frame_anchor_pending_tl
     \dim_gset_eq:NN \g__docxlike_format_prev_after_dim \l__docxlike_frame_prev_after_dim
     \dim_gset_eq:NN \g__docxlike_format_pending_after_dim \l__docxlike_frame_pending_after_dim
     \dim_gset_eq:NN \g__docxlike_format_gap_dim \l__docxlike_frame_gap_dim
@@ -450,7 +591,50 @@
       \hbox:n {#1}
     \group_end:
   }
-\NewDocumentCommand \docxpicture { +m } { \docxlike_picture:n {#1} }
+\bool_new:N \l__docxlike_picture_position_bool
+\keys_define:nn { docxlike / picture }
+  {
+    text-wrapping .choices:nn = { inline , square , top-and-bottom }
+      { \tl_set_eq:NN \l__docxlike_frame_wrap_tl \l_keys_choice_tl } ,
+    wrap-text .code:n =
+      { \bool_set_true:N \l__docxlike_picture_position_bool \__docxlike_keys_set:nn { docxlike / frame } { wrap-text={#1} } } ,
+    horizontal .code:n =
+      { \bool_set_true:N \l__docxlike_picture_position_bool \__docxlike_keys_set:nn { docxlike / frame / horizontal } {#1} } ,
+    vertical .code:n =
+      { \bool_set_true:N \l__docxlike_picture_position_bool \__docxlike_keys_set:nn { docxlike / frame / vertical } {#1} } ,
+    distance-from-text .code:n =
+      { \bool_set_true:N \l__docxlike_picture_position_bool \__docxlike_keys_set:nn { docxlike / frame / distance } {#1} } ,
+    unknown .code:n = { \__docxlike_unknown_key: } ,
+  }
+\cs_new_protected:Npn \docxlike_picture:nn #1#2
+  {
+    \group_begin:
+      \__docxlike_frame_defaults:
+      \bool_set_false:N \l__docxlike_picture_position_bool
+      \tl_set:Nn \l__docxlike_frame_wrap_tl { inline }
+      \__docxlike_keys_set:nn { docxlike / picture } {#1}
+      \str_if_eq:VnTF \l__docxlike_frame_wrap_tl { inline }
+        {
+          \bool_if:NT \l__docxlike_picture_position_bool
+            { \msg_error:nn { docxlike } { picture-inline-options } }
+          \docxlike_picture:n {#2}
+        }
+        {
+          \int_gincr:N \g__docxlike_frame_int
+          \box_new:c { g__docxlike_frame_\int_use:N \g__docxlike_frame_int _box }
+          \__docxlike_headfoot_state_save:
+          \__docxlike_frame_state_save:
+          \hbox_gset:cn { g__docxlike_frame_\int_use:N \g__docxlike_frame_int _box } {#2}
+          \__docxlike_frame_state_restore:
+          \__docxlike_headfoot_state_restore:
+          \dim_set:Nn \l__docxlike_frame_w_dim
+            { \box_wd:c { g__docxlike_frame_\int_use:N \g__docxlike_frame_int _box } }
+          \__docxlike_frame_x:
+          \__docxlike_wrap_put:
+        }
+    \group_end:
+  }
+\NewDocumentCommand \docxpicture { O { } +m } { \docxlike_picture:nn {#1} {#2} }
 %    \end{macrocode}
 % \end{macro}
 %

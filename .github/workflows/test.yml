@@ -56,6 +56,9 @@ jobs:
       # 每个 \RequirePackage 都在 tools/deps-policy.txt 里交代了归属与理由
       - run: python3 scripts/check-deps.py
 
+      - name: Check Lua regression runner failure handling
+        run: python3 tests/lua-check.py
+
   # ============================================================
   # L1 编译矩阵，看五个 TeX Live 版本还能不能编出来
   # ============================================================
@@ -312,7 +315,7 @@ jobs:
           echo "缺字条数: $(grep -c 'Missing character' main.log || true)"
 
   # ============================================================
-  # lualatex 冒烟：只问“编得过、页数与 xelatex 对齐”。
+  # lualatex 宏专项与冒烟：先核对九项实际执行与 Lua 基线，再比示例页数。
   #    2026/09/15 起主线引擎是 lualatex（断行层 docxlike-linebreak.dtx 只在它上面有，
   #    照 Word 的贪心断行）；xelatex 仍要能编，逐字节基线与变体矩阵按它跑。
   #    这个 job 防烂：谁在共享层里长出裸的 xeCJK 调用，这里当场红。
@@ -320,7 +323,7 @@ jobs:
   #    已经不同，页数目前仍一致；哪天分道了，把这条改成各自钉死。
   # ============================================================
   lualatex-smoke:
-    name: lualatex 冒烟
+    name: lualatex 宏专项与冒烟
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -332,6 +335,9 @@ jobs:
 
       - name: Generate class files
         run: make cls
+
+      - name: Run nine Lua macro-level checks
+        run: make check-lua
 
       - name: Build with both engines
         working-directory: examples/demo
@@ -354,6 +360,24 @@ jobs:
           echo "xelatex $xe 页 / lualatex $lua 页"
           [ -n "$xe" ] && [ -n "$lua" ] || { echo "页数没取到"; exit 1; }
           [ "$xe" = "$lua" ] || { echo "页数不一致"; exit 1; }
+
+      - name: Upload Lua checks and smoke outputs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lua-macro-checks
+          path: |
+            build/lua-check.log
+            build/lua-checks.json
+            build/test-config-lua/*.log
+            build/test-config-lua/*.diff
+            examples/demo/xelatex.log
+            examples/demo/lualatex.log
+            examples/demo/xelatex.pdf
+            examples/demo/lualatex.pdf
+            examples/demo/xelatex.docxlike-pages.jsonl
+            examples/demo/lualatex.docxlike-pages.jsonl
+          retention-days: 7
 
   # ============================================================
   # L2 变体矩阵，看 42 种 \documentclass 选项组合还能不能编出来。

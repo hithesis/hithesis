@@ -119,6 +119,40 @@
 \int_gset:Nn \g__docxlike_linebreak_compat_int { 15 }
 \bool_new:N \g__docxlike_linebreak_rigid_bool
 \bool_new:N \l__docxlike_code_overhang_bool
+\cs_new_protected:Npn \docxlike_native_boundary_get:NNN #1#2#3
+  {
+    \tl_set:Nn #1 {inactive}
+    \dim_zero:N #2
+    \tl_clear:N #3
+    \sys_if_engine_luatex:T
+      {
+        \lua_now:e
+          {
+            if~docxlike~and~docxlike.linebreak~and~docxlike.linebreak.native_boundary_state~then~
+              local~s,d,t=docxlike.linebreak.native_boundary_state();
+              token.set_macro("\cs_to_str:N #1",s);
+              tex.dimen["\cs_to_str:N #2"]=d;
+              token.set_macro("\cs_to_str:N #3",t);
+            end
+          }
+      }
+  }
+\cs_new_protected:Npn \docxlike_native_boundary_mark:n #1
+  {
+    \tl_if_blank:nTF {#1}
+      {\__docxlike_bad_value:nnn {native-boundary/tag}{#1}{a~nonempty~owner~tag}}
+      {
+        \sys_if_engine_luatex:T
+          {
+            \lua_now:e
+              {
+                if~docxlike~and~docxlike.linebreak~and~docxlike.linebreak.native_boundary_mark~then~
+                  docxlike.linebreak.native_boundary_mark("\lua_escape:e {#1}");
+                end
+              }
+          }
+      }
+  }
 \dim_new:N \l__docxlike_code_overhang_page_inset_dim
 \bool_new:N \l__docxlike_code_overhang_relative_bool
 \bool_set_true:N \l__docxlike_code_overhang_relative_bool
@@ -205,6 +239,15 @@
 %    \begin{macrocode}
 \sys_if_engine_luatex:T
   {
+    \bool_new:N \l__docxlike_linebreak_output_bool
+    \AddToHook { build / column / before }
+      { \bool_set_true:N \l__docxlike_linebreak_output_bool }
+    \AddToHook { build / column / after }
+      { \bool_set_false:N \l__docxlike_linebreak_output_bool }
+    \AddToHook { build / page / before }
+      { \bool_set_true:N \l__docxlike_linebreak_output_bool }
+    \AddToHook { build / page / after }
+      { \bool_set_false:N \l__docxlike_linebreak_output_bool }
     \newattribute \docxlike@linebreak@attr
     \docxlike@linebreak@attr = 1
     \newattribute \docxlike@kanjiskip@attr
@@ -881,6 +924,10 @@ local function auto_ok(P, c)
 end
 local function auto_at(P, size)
   if not P.autospace then return 0 end
+  -- Actual Windows Word 16.0.20430 modes 11/12/14/15 use one fifth of the
+  -- adjacent run size in no-grid left paragraphs. Mixed 12/18bp legacy runs
+  -- also expose the quarter-em rule's incorrect compression/break allowance.
+  if P.nogrid and P.align == "left" then return size / 5 end
   local ex = P.excess
   if P.compat == 15 then
     return size / 4 + math.min(math.max(ex / 5, (ex - 0.26 * P.bp) * 0.46), 0.2 * P.bp)
@@ -1528,6 +1575,15 @@ local function decide(items, P, shape, indent)
 
   local function unit_budget(first, j0, j, core, m, isfirst)
     if not justify or not P.compress then return 0 end
+    if compat ~= 15 and P.nogrid and P.align == "left" and not P.justify
+        and m == core and items[j].kind ~= 2
+        and (items[core].tail_hang or 0) == 0 then
+      -- No-grid legacy left text can still compress/hang real punctuation,
+      -- but an ordinary letters/CJK unit cannot borrow compression credit
+      -- from either auto gaps or punctuation earlier in the line. Only a
+      -- punctuation-boundary/hanging unit can use the legacy budget below.
+      return 0
+    end
     if compat == 15 then return budget15(first, j0, j, core, m, isfirst) end
     return budget_old(first, j, core, m)
   end
@@ -1679,7 +1735,11 @@ local function decide(items, P, shape, indent)
   local function scan_line(i, li, collect)
     local candidates = collect and {} or nil
     local isfirst = li == 1
-    local sh = shape(li)
+    local first_text = text_start(i)
+    local token = items[first_text]
+    local needed = token and token.kind == 3 and token.glyphs
+      and width_of(items, i, first_text) + (isfirst and math.max(0, indent) or 0) or 0
+    local sh = shape(li, needed)
     measure = sh.width
     -- 兼容模式低于 15、段落开着“如果定义了文档网格，则自动调整右缩进”时按整数个格装（Windows 探针
     -- ari1：开着的段比关着的早断一个词或一个字，西文字形加的量照 Word 截到 1/6000 英寸之后 144 行
@@ -1717,7 +1777,8 @@ local function decide(items, P, shape, indent)
         bp = (k < n) and ((items[k].emergency or items[k].soft)
           and items[k + 1].first or breakpoint_after(k)) or nil,
         measure = measure, capacity = capacity, cellcap = cellcap, shift = sh.shift,
-        code_limit = code_limit, isfirst = isfirst, forced_end = line_end or false }
+        code_limit = code_limit, isfirst = isfirst, forced_end = line_end or false,
+        wrap_row = sh.wrap_row, wrap_skip = sh.wrap_skip }
     end
     local function offer(k, line_deep, line_end)
       if candidates and (line_end or (not bad_end(k) and legal_after(k))) then
@@ -1860,13 +1921,14 @@ local function decide(items, P, shape, indent)
     while i <= n do
       local line = scan_line(i, #lines + 1)
       lines[#lines + 1] = line
+      if P.wrap_next then P.wrap_next(line) end
       i = line.last + 1
     end
     return lines
   end
 
   local lines
-  if P.code_overhang and M.code_optimal then
+  if P.code_overhang and M.code_optimal and not P.wrap_next then
     -- 行形稳定后合并同一断点的状态；此前保留行号，以处理首行、悬挂缩进与 parshape。
     local ps = tex.parshape
     local stable = 2
@@ -2036,19 +2098,56 @@ local function image_line_free(ih, id, ctx)
   return ih, math.max(id, extra)
 end
 
+local function mark_math_objects(head)
+  -- Remember semantic membership before either breaker splits a formula at
+  -- a legal relation/binop penalty. A continuation line need not contain a
+  -- math-on node, and the same font can also be used as ordinary text.
+  local inside = false
+  for n in traverse(head) do
+    if n.id == MATH then inside = n.subtype == 0 end
+    if inside or n.id == MATH then
+      local p = node.getproperty(n) or {}
+      p.docxlike_math_object = true
+      node.setproperty(n, p)
+    end
+  end
+end
+
+-- Native tables are layout objects, not glyphs in an exact-height text line.
+-- Keep their backend dimensions even when the surrounding text uses exact
+-- leading. The attribute is on the table's own box, not on adjacent text.
+local function native_table_hd(head)
+  local h, d = 0, 0
+  local attribute = M.table_attr
+  if not attribute then return h, d end
+  for n in traverse(head) do
+    if (n.id == VLIST or (n.id == HLIST and icflag(n) ~= IC.PACKED))
+        and node.get_attribute(n, attribute) == 1 then
+      local _, nh, nd = node.dimensions(n, n.next)
+      h, d = math.max(h, nh), math.max(d, nd)
+    end
+  end
+  return h, d
+end
+
 local function linebox(box, ctx, strut_h, strut_d)
+  local properties = node.getproperty(box) or {}
+  properties.docxlike_line_leading = 0
+  node.setproperty(box, properties)
   if not ctx.exact then
     local ih, id = image_hd(box.list)
     if ih > 0 then
       if ctx.snap and ctx.pitch > 0 then
         box.height, box.depth = image_line(ih, id, ctx.pitch)
       else
-        box.height, box.depth = image_line_free(ih, id, ctx)
+        local height, depth = image_line_free(ih, id, ctx)
+        box.height, box.depth = height, id
+        properties.docxlike_line_leading = math.max(0, depth - id)
       end
       return
     end
   end
-  local H, A = 0, 0
+  local H, A, D = 0, 0, 0
   local objA, objD = 0, 0
   local function glyph_metrics(g)
     local f = font.getfont(g.font)
@@ -2057,49 +2156,64 @@ local function linebox(box, ctx, strut_h, strut_d)
     local h, a
     if ctx.mono and M.code_attr and (node.get_attribute(g, M.code_attr) or 0) > 0 then
       h, a = ctx.natpara, ctx.asc_para
-    elseif is_jfont(g.font) then
-      h = ctx.nat_cjk * sz; a = ctx.asc_cjk * sz
     else
-      h = ctx.nat_latin * sz; a = ctx.asc_latin * sz
+      local metrics = docxlike and docxlike.metrics and docxlike.metrics.for_font(g.font)
+      if metrics then h, a = metrics.natural * sz, metrics.ascent * sz
+      elseif is_jfont(g.font) then h, a = ctx.nat_cjk * sz, ctx.asc_cjk * sz
+      else h, a = ctx.nat_latin * sz, ctx.asc_latin * sz end
     end
     if h > H then H = h end
     if a > A then A = a end
+    if h - a > D then D = h - a end
+  end
+  local function object_metrics(g)
+    -- dimensions uses the backend's actual box shift and glyph geometry;
+    -- do not replace them with the global metrics of a mathematical face.
+    local _, height, depth = node.dimensions(g, g.next)
+    if height > objA then objA = height end
+    if depth > objD then objD = depth end
   end
   for g in traverse(box.list) do
     local id = g.id
-    if id == GLYPH then
+    if (node.getproperty(g) or {}).docxlike_math_object then
+      if id == GLYPH or id == HLIST or id == VLIST or id == RULE then
+        object_metrics(g)
+      end
+    elseif id == GLYPH then
       glyph_metrics(g)
     elseif id == HLIST and icflag(g) == IC.PACKED then
       for m in traverse(g.list) do if m.id == GLYPH then glyph_metrics(m) end end
     elseif id == HLIST or id == VLIST or (id == RULE and g.width ~= 0) then
-      if g.height > objA then objA = g.height end
-      if g.depth > objD then objD = g.depth end
-    elseif id == MATH then
-      -- 公式：从 math-on 到 math-off 之间的东西按 TeX 的高深撑
-      local m = g.next
-      while m and m.id ~= MATH do
-        local mh, md = m.height, m.depth
-        if m.id == GLYPH or m.id == HLIST or m.id == VLIST or m.id == RULE then
-          if mh and mh > objA then objA = mh end
-          if md and md > objD then objD = md end
-        end
-        m = m.next
-      end
+      object_metrics(g)
     end
   end
   -- 一个字都没有的行（只有盒子、公式）按段自己的字体算
-  if H == 0 then H, A = ctx.natpara, ctx.asc_para end
+  if H == 0 then
+    H, A = ctx.natpara, ctx.asc_para
+    D = H - A
+  end
+  local max_run_height = H
+  H = A + D
   local asc, desc
   if ctx.exact then
     asc, desc = strut_h, strut_d
+    local th, td = native_table_hd(box.list)
+    asc, desc = math.max(asc, th), math.max(desc, td)
   elseif ctx.snap and ctx.pitch > 0 then
     local n = math.ceil(H / ctx.pitch - 0.001)
     local total = math.max(ctx.bls, n * ctx.pitch)
     asc = A + (total - H) / 2
     desc = total - asc
+  elseif ctx.minimum then
+    local total = math.max(ctx.minimum, H)
+    -- atLeast puts its surplus above the baseline; it is not a multiplier.
+    asc, desc = A + total - H, H - A
   else
-    local total = ctx.k * H
-    asc = A; desc = total - A
+    asc, desc = A, D
+    -- The leading uses the largest run height; the natural descent can come
+    -- from a different face. Maximizing (descent + leading) per run loses the
+    -- YaHei descent in a line whose tallest run is 18bp SimSun.
+    properties.docxlike_line_leading = math.max(0, ctx.k - 1) * max_run_height
   end
   -- 固定值的行盒钉死，盒子、公式高了也不撑（Word 让它们压出行盒；封皮模板里四号字排在
   -- 12 磅固定值的行里，基线仍在盒顶下 9.6）
@@ -2656,10 +2770,13 @@ function M.linectx(strut_h, strut_d)
   if not exact and snap then asc_para = strut_h - (total - natpara) / 2 end
   local k = bls / natpara
   if k < 1 then k = 1 end
+  local rule = token.get_macro('l_docxlike_format_line_unit_tl')
+  local minimum = rule == 'atLeast' and bls or nil
+  if minimum then k = 1 end
   return { exact = exact, snap = snap, latin = latin, natpara = natpara, asc_para = asc_para,
            mono = getbool("g_docxlike_mono_calibrated_bool") == true,
            nat_cjk = nat_cjk, nat_latin = nat_latin, asc_cjk = asc_cjk, asc_latin = asc_latin,
-           pitch = pitch, bls = bls, k = k }
+            pitch = pitch, bls = bls, k = k, minimum = minimum }
 end
 -- 逐行的版心：照 TeX 的规矩把 parshape、hangindent/hangafter、leftskip/rightskip 折成
 -- 每行的 {width, shift}。返回的函数按行号取，parshape 用完了照最后一行
@@ -3030,7 +3147,12 @@ local function snap_decide(items, P, shape, indent)
   local ui, ustart = 1, nil
   while ui <= #units do
     local li = #lines + 1
-    local sh = shape(li)
+    local from = ustart or units[ui].from
+    local last = from
+    while last < units[ui].to and items[last + 1].kind ~= 4 do last = last + 1 end
+    local needed = not units[ui].cjk and not units[ui].nosnap
+      and cells_of(snap_latin_w(items, from, last, P)) * cell or 0
+    local sh = shape(li, needed + (li == 1 and math.max(0, indent + lead_w) or 0))
     local isfirst = (li == 1)
     local cap = math.floor((sh.width - (isfirst and (indent + lead_w) or 0) + eps) / cell)
     local used, parts, forced = 0, {}, false
@@ -3088,8 +3210,10 @@ local function snap_decide(items, P, shape, indent)
       end
     end
     lines[#lines + 1] = { first = parts[1].from, last = parts[#parts].to, parts = parts,
-                          measure = sh.width, capacity = sh.width, shift = sh.shift, isfirst = isfirst,
-                          forced = forced, width = 0, over = 0 }
+                           measure = sh.width, capacity = sh.width, shift = sh.shift, isfirst = isfirst,
+                           forced = forced, width = 0, over = 0,
+                           wrap_row = sh.wrap_row, wrap_skip = sh.wrap_skip }
+    if P.wrap_next then P.wrap_next(lines[#lines], forced) end
     if M.trace then
       local txt, c = {}, 0
       for _, pt in ipairs(parts) do
@@ -3234,41 +3358,1162 @@ end
 
 -- 刚排完一条行间公式：格式层在公式环境的 after 钩子里立这个标志（竖直列表的末项看不到，
 -- 公式早被页面构造器搬走了），下一次进断行层时取走
+-- Rectangular floats use recorded shipout positions, not a guessed page number.
+-- The sidecar is numeric data only; it is never evaluated as Lua/TeX code.
+function M.wrap_init()
+  local directory = ""
+  for i, value in ipairs(arg or {}) do
+    local path = value:match("^%-%-?output%-directory=(.*)$")
+    if value == "-output-directory" or value == "--output-directory" then path = arg[i + 1] end
+    if path then directory = path .. "/" end
+  end
+  M.wrap_path = directory .. tex.jobname .. ".docxlike-wrap"
+  M.wrap_old, M.wrap_new, M.wrap_objects, M.wrap_pending = {}, {}, {}, {}
+  M.wrap_page, M.wrap_par = 0, 0
+  local file = io.open(M.wrap_path, "r")
+  if file then
+    for line in file:lines() do
+      local key, page, x, y, height, skipped = line:match("^([fp][%d:]+) (%d+) (%-?%d+) (%-?%d+) (%-?%d+)%s*(%d*)$")
+      if key then M.wrap_old[key] = {tonumber(page), tonumber(x), tonumber(y), tonumber(height), tonumber(skipped) or 0} end
+    end
+    file:close()
+  end
+end
+
+function M.wrap_add(id, object)
+  -- Actual Windows Word 16.0.19929 framePr probes: modes 11/12/14 ignore
+  -- vertical frame distance, and centered around frames block both sides.
+  -- This is a frame rule, not a DrawingML square-picture rule.
+  if object.wrap == "around" and (M.compat or 15) < 15 then
+    object.top, object.bottom = 0, 0
+    object.legacy_frame_block = object.xalign == "center"
+  end
+  M.wrap_objects[id] = object
+  M.wrap_pending[#M.wrap_pending + 1] = id
+end
+
+function M.wrap_record(key, height, shift)
+  local x, y = pdf.getpos()
+  M.wrap_new[key] = {M.wrap_page, math.floor(x - (shift or 0) + .5),
+    math.floor(tex.getdimen("paperheight") - y - (height or 0) + .5), height or 0}
+end
+
+function M.wrap_offsets(id)
+  local object = M.wrap_objects[id]
+  local anchor = M.wrap_old["f" .. id]
+  local x, y = object.x, object.y
+  if anchor then
+    if object.xrel == "page" then
+      x = object.x + object.page_left - anchor[2]
+    end
+    if object.yrel == "page" then y = object.y - anchor[3]
+    elseif object.yrel == "margin" then y = object.y + object.page_top - anchor[3] end
+  end
+  return x, y
+end
+
+function M.wrap_place(id)
+  local x, y = M.wrap_offsets(id)
+  tex.setdimen("l__docxlike_shape_x_dim", math.floor(x + .5))
+  tex.setdimen("l__docxlike_frame_y_dim", math.floor(y + .5))
+end
+
+function M.wrap_begin(is_display)
+  if tex.nest.ptr ~= 0 or not next(M.wrap_objects) then return nil end
+  if is_display or getbool("g__docxlike_cols_open_bool") or M.cell then
+    tex.error("docxlike rectangular wrapping requires single-column body paragraphs",
+      {"Display math, columns and table-cell floats are not supported."})
+    return nil
+  end
+  M.wrap_par = M.wrap_par + 1
+  local pending = M.wrap_pending
+  M.wrap_pending = {}
+  local full = tex.getdimen("textheight")
+  local goal = math.min(tex.pagegoal, full)
+  local room = goal - tex.pagetotal - tex.pagedepth
+  local must_break = false
+  for _, id in ipairs(pending) do
+    local object = M.wrap_objects[id]
+    object.par = M.wrap_par
+    if object.yrel == "paragraph" then
+      local extent = object.y + object.h + object.bottom
+      if extent > full then
+        tex.error("docxlike floating rectangle exceeds the text-area height",
+          {"Reduce the object height or use an inline object."})
+      elseif (M.compat or 15) >= 15 and extent > room + 2 and tex.pagetotal > 0 then must_break = true end
+    end
+  end
+  return {id = M.wrap_par, must_break = must_break}
+end
+
+function M.wrap_shape(base, paragraph, height, indent)
+  if not paragraph then return base end
+  local row, part, slots, current, previous = 1, 1, nil, nil, nil
+  local page_top = tex.sp("1in") + tex.getdimen("voffset") + tex.getdimen("topmargin")
+                   + tex.getdimen("headheight") + tex.getdimen("headsep")
+  local full = tex.getdimen("textheight")
+  -- Word 16.106's measured minimum side is 360 twips (18 pt), independently
+  -- of the 8/11/20 pt run size. A side must also accept the next intact word.
+  local minimum = tex.sp("18bp")
+  local function build_row(needed)
+    local shape = base(row)
+    local old = M.wrap_old["p" .. paragraph.id .. ":" .. row]
+    local position = old and {old[1], old[2], old[3] - old[5], old[4]} or nil
+    if previous then
+      -- Within a paragraph propagate this pass's row height/clearance. Reusing
+      -- each old row independently would add the same full-width gap repeatedly.
+      local recorded_break = old and previous.old and old[1] ~= previous.old[1]
+        and previous.page == previous.old[1] and math.abs(previous.actual_y - previous.old[3]) <= 2
+        and math.abs(previous.height - previous.old[4]) <= 2
+      if not recorded_break then
+        position = {previous.page, old and old[2] or previous.x,
+                    previous.actual_y + previous.height, old and old[4] or height}
+        if position[3] + position[4] > page_top + full + 2 then
+          position[1], position[3] = position[1] + 1, page_top
+        end
+      end
+    end
+    if not position then
+      current = {old = old, skip = 0}
+      return {{shift = shape.shift, width = shape.width, shortened = false}}
+    end
+    local hanging = row == 1 and math.min(0, indent) or 0
+    local left, right = position[2] + shape.shift + hanging, position[2] + shape.shift + shape.width
+    local natural_y, y = position[3], position[3]
+    local intervals, split, clipped
+    local required = math.max(minimum, math.min(needed or 0, right - left))
+    while true do
+      intervals, split, clipped = {{left, right}}, false, false
+      local clear_to
+      for id, object in pairs(M.wrap_objects) do
+        local anchor = M.wrap_old["f" .. id]
+        if anchor and anchor[1] == position[1] then
+          local x, offset = M.wrap_offsets(id)
+          local top, bottom = anchor[3] + offset - object.top, anchor[3] + offset + object.h + object.bottom
+          if y < bottom - 2 and y + position[4] > top + 2 then
+            local a, b = anchor[2] + x - object.left, anchor[2] + x + object.w + object.right
+            if object.wrap == "top-and-bottom" or object.legacy_frame_block then a, b = left, right
+            elseif object.side == "left-only" then b = right
+            elseif object.side == "right-only" then a = left end
+            if a < right and b > left then
+              clear_to = math.min(clear_to or bottom, bottom)
+              split = split or object.side == "both-sides"
+              clipped = true
+            end
+            local remaining = {}
+            for _, interval in ipairs(intervals) do
+              if a >= interval[2] or b <= interval[1] then remaining[#remaining + 1] = interval
+              else
+                if a > interval[1] then remaining[#remaining + 1] = {interval[1], a} end
+                if b < interval[2] then remaining[#remaining + 1] = {b, interval[2]} end
+              end
+            end
+            intervals = remaining
+          end
+        end
+      end
+      local usable = {}
+      for _, interval in ipairs(intervals) do
+        if not clipped or interval[2] - interval[1] + 2 >= required then usable[#usable + 1] = interval end
+      end
+      intervals = usable
+      if #intervals > 0 then break end
+      if not clear_to or clear_to <= y then
+        tex.error("docxlike wrapping has no usable paragraph width")
+        intervals = {{left, right}}; break
+      end
+      y = clear_to
+      if row == 1 and y - natural_y + position[4] > full + 2 then
+        tex.error("docxlike rectangle and anchor line cannot fit on one text page",
+          {"Reduce the object height or use an inline/page-sized object."})
+        intervals = {{left, right}}; break
+      end
+    end
+    if not split then
+      local best = intervals[1]
+      for _, interval in ipairs(intervals) do
+        if interval[2] - interval[1] > best[2] - best[1] then best = interval end
+      end
+      intervals = {best}
+    end
+    current = {old = old, page = position[1], x = position[2], actual_y = y,
+               height = position[4], skip = y - natural_y}
+    local result = {}
+    for index, interval in ipairs(intervals) do
+      local compensation = index == 1 and hanging or 0
+      result[#result + 1] = {shift = interval[1] - position[2] - compensation,
+                            width = interval[2] - interval[1] + compensation,
+                            available = interval[2] - interval[1], shortened = clipped}
+    end
+    return result
+  end
+  local function shape(_, needed)
+    if not slots then slots = build_row(needed) end
+    -- The next fragment can start with a different (longer) word. Skip sides
+    -- that cannot hold it; if the row already has content, advance the physical
+    -- row before computing a vertical clearance, never tear the word across it.
+    while slots[part].shortened and slots[part].available + 2 < (needed or 0) do
+      part = part + 1
+      if part > #slots then
+        if current.page then previous = current end
+        row, part = row + 1, 1
+        slots = build_row(needed)
+      end
+    end
+    local result = slots[part]
+    result.wrap_row, result.wrap_skip = row, current.skip
+    return result
+  end
+  local function advance(line, forced)
+    if forced or line.forced_end or part == #slots then
+      if current.page then previous = current end
+      row, part, slots = row + 1, 1, nil
+    else part = part + 1 end
+  end
+  return shape, advance
+end
+
+function M.wrap_mark_line(box, paragraph, li, skipped)
+  if not paragraph then return end
+  local properties = node.getproperty(box) or {}
+  local height, total, shift = box.height, box.height + box.depth + (properties.docxlike_line_leading or 0), box.shift
+  local marker = node.new(WHATSIT, "late_lua")
+  marker.data = function()
+    M.wrap_record("p" .. paragraph.id .. ":" .. li, height, shift)
+    M.wrap_new["p" .. paragraph.id .. ":" .. li][4] = math.floor(total + .5)
+    if skipped and skipped > 0 then M.wrap_new["p" .. paragraph.id .. ":" .. li][5] = math.floor(skipped + .5) end
+  end
+  box.head = node.insert_before(box.head, box.head, marker)
+end
+
+function M.wrap_finish()
+  if not next(M.wrap_objects) then return end
+  local keys, rows = {}, {}
+  for key in pairs(M.wrap_new) do keys[#keys + 1] = key end
+  table.sort(keys)
+  for _, key in ipairs(keys) do
+    local p = M.wrap_new[key]
+    rows[#rows + 1] = string.format("%s %.0f %.0f %.0f %.0f\n", key, p[1], p[2], p[3], p[4])
+    if p[5] and p[5] > 0 then
+      rows[#rows] = rows[#rows]:sub(1, -2) .. string.format(" %.0f\n", p[5])
+    end
+  end
+  local file = io.open(M.wrap_path, "r")
+  local old = file and file:read("*a") or ""
+  if file then file:close() end
+  local data = table.concat(rows)
+  file = assert(io.open(M.wrap_path, "w"))
+  file:write(data); file:close()
+  if data ~= old then
+    texio.write_nl("term and log", "LaTeX Warning: Rectangular positions changed. Rerun to get wrapping right.")
+  end
+end
+
 M.after_display = false
+local function previous_body_line()
+  -- Read the actual prior physical line rather than a global font/paragraph
+  -- cache. Page shipping discards the old list; nested notes/measurement boxes
+  -- cannot overwrite this state, and no trailing leading enters a natural box.
+  local function last_box(tail)
+    if type(tail) == "number" then tail = node.direct.tonode(tail) end
+    while tail do
+      if tail.id == HLIST or tail.id == VLIST then return tail end
+      tail = tail.prev
+    end
+  end
+  local line = last_box(tex.nest.top.tail)
+  if line or tex.nest.ptr ~= 0 then return line end
+  -- An outer contribution list can contain only intextsep/penalties while
+  -- the prior line already belongs to the page. This is still the same story;
+  -- an internal box must never borrow that outer page state.
+  local page = tex.lists.page_head
+  if type(page) == "number" then page = node.direct.tonode(page) end
+  return page and last_box(node.tail(page))
+end
+local function previous_body_leading()
+  local line = previous_body_line()
+  local p = line and node.getproperty(line) or {}
+  return not p.docxlike_leading_consumed and p.docxlike_line_leading or 0
+end
+function M.native_boundary_state()
+  if not M.native_append_base or getbool("g_docxlike_word_layout_bool") == false
+      or getbool("g__docxlike_linebreak_word_bool") == false then return "inactive", 0, "" end
+  local box = previous_body_line()
+  if not box then return "empty", 0, "" end
+  local properties = node.getproperty(box) or {}
+  local word = properties.docxlike_line_leading ~= nil
+  local leading = not properties.docxlike_leading_consumed and properties.docxlike_line_leading or 0
+  return word and "word" or "native", leading, properties.docxlike_native_owner or ""
+end
+function M.native_boundary_mark(tag)
+  if M.native_boundary_state() == "inactive" then return end
+  local box = previous_body_line()
+  if box then
+    local properties = node.getproperty(box) or {}
+    properties.docxlike_native_owner = tag
+    node.setproperty(box, properties)
+  end
+end
+local function consume_body_leading()
+  local line = previous_body_line()
+  if not line then return 0 end
+  local p = node.getproperty(line) or {}
+  if p.docxlike_leading_consumed then return 0 end
+  local leading = p.docxlike_line_leading or 0
+  if leading > 0 then
+    p.docxlike_leading_consumed = true
+    node.setproperty(line, p)
+  end
+  return leading
+end
+local function paragraph_boundary(head, leading)
+  local first
+  for line in traverse_id(HLIST, head) do
+    local properties = node.getproperty(line)
+    if line.subtype == 1 or properties and properties.docxlike_line_leading ~= nil then
+      first = line; break
+    end
+  end
+  if not first then return head end
+  local properties = node.getproperty(first) or {}
+  if properties.docxlike_boundary_done then return head end
+  properties.docxlike_boundary_done = true
+  node.setproperty(first, properties)
+  if leading > 0 then
+    local glue = node.new(GLUE)
+    glue.width = leading
+    head = node.insert_before(head, head, glue)
+  end
+  return head
+end
+-- A starred paragraph mark is a vertical placeholder rather than a paragraph
+-- passed to linebreak_filter. Its first retained box needs the same incoming
+-- boundary glue; its own complete height already includes blank-line leading.
+function M.parmark_boundary()
+  local leading = consume_body_leading()
+  if leading > 0 then
+    local glue = node.new(GLUE)
+    glue.width = leading
+    node.write(glue)
+  end
+end
+local native_keep_boundary, flush_held_keep_note
+local function install_native_boundary()
+  if M.native_append_base then return end
+  -- append_to_vlist_filter is exclusive. Preserve the active backend (normally
+  -- LuaTeX-ja's direction/profiling callback) and delegate its returned depth.
+  -- Only add our discardable leading at actual
+  -- placement of an explicit box, never at a floating environment declaration.
+  local name = "append_to_vlist_filter"
+  local descriptions = luatexbase.callback_descriptions(name)
+  if #descriptions ~= 1 then return end
+  local description = descriptions[1]
+  local base = luatexbase.remove_from_callback(name, description)
+  M.native_append_base = {base, description}
+  luatexbase.add_to_callback(name, function(box, location, prevdepth, mirrored)
+    if docxlike and docxlike.page then docxlike.page.tag(box) end
+    local leading = 0
+    local word_blank = false
+    if location == "box" and not getbool("l__docxlike_linebreak_output_bool") then
+      local prior = previous_body_line()
+      local p = prior and node.getproperty(prior) or {}
+      word_blank = box.id == VLIST and prior and prior.id == HLIST
+        and p.docxlike_para_last and p.docxlike_strut_only
+      leading = consume_body_leading()
+      trace("NATIVE ptr=%d leading=%.4f box=%.4f+%.4f", tex.nest.ptr,
+        leading / 65536, box.height / 65536, box.depth / 65536)
+    end
+    local result, depth, check_depth = base(box, location, prevdepth, mirrored)
+    if box.id == HLIST and box.subtype == 1
+        and not getbool("l__docxlike_linebreak_output_bool") then
+      local th, td = native_table_hd(box.list)
+      local prior = previous_body_line()
+      local ph, pd = 0, 0
+      if prior and prior.id == HLIST then ph, pd = native_table_hd(prior.list) end
+      if (th > 0 or td > 0 or ph > 0 or pd > 0) and result and result.id == GLUE
+          and (result.subtype == 1 or result.subtype == 2) and result.width < 0 then
+        result.width = 0
+      end
+    end
+    if word_blank and result and result.id == GLUE and result.subtype == 1 then
+      -- A tall native block cannot fit TeX's baselineskip, which synthesizes
+      -- lineskip after an empty paragraph taken by the native TeX breaker.
+      -- Actual Word controls join its blank's natural high/deep box without that
+      -- extra minimum, with keepNext either on or off. Normalize only this
+      -- backend-generated fallback glue; preserve
+      -- user separation, normal baseline glue, native stories and output boxes.
+      trace("NATIVE Word-blank fallback=%.4f -> 0", result.width / 65536)
+      result.width, result.stretch, result.shrink = 0, 0, 0
+    end
+    if leading > 0 and result then
+      local glue = node.new(GLUE)
+      glue.width = leading
+      result = node.insert_before(result, result, glue)
+    end
+    if location == "box" and not getbool("l__docxlike_linebreak_output_bool") then
+      local p = node.getproperty(box) or {}
+      if box.id == VLIST then
+        result = flush_held_keep_note(result, box)
+      elseif not (p.docxlike_para_last and p.docxlike_para_keep) then
+        result = flush_held_keep_note(result)
+      end
+    end
+    if location == "box" and box.id == VLIST
+        and not getbool("l__docxlike_linebreak_output_bool") then
+      result = native_keep_boundary(result, box)
+    end
+    if location == "box" and box.id == VLIST and not getbool("l__docxlike_linebreak_output_bool") then
+      -- A naturally packed block can end in a Word line/blank. Carry its
+      -- unconsumed outgoing leading as metadata, not permanent box depth;
+      -- the following paragraph/box will add discardable glue if it joins.
+      local last = box.list and node.tail(box.list)
+      while last and last.id ~= HLIST and last.id ~= VLIST do last = last.prev end
+      local p = last and node.getproperty(last) or {}
+      if p.docxlike_line_leading and not p.docxlike_leading_consumed then
+        local bp = {}
+        for key, value in pairs(node.getproperty(box) or {}) do bp[key] = value end
+        bp.docxlike_line_leading = p.docxlike_line_leading
+        bp.docxlike_leading_consumed = nil
+        if p.docxlike_para_last then
+          bp.docxlike_block_last_keep = p.docxlike_para_keep == true
+        elseif p.docxlike_block_last_keep ~= nil then
+          bp.docxlike_block_last_keep = p.docxlike_block_last_keep
+        end
+        node.setproperty(box, bp)
+      end
+    end
+    return result, depth, check_depth
+  end, "docxlike.native-boundary")
+end
+function M.parmark_box(n, leading, keep)
+  local box = tex.box[n]
+  trace("PARMARK ptr=%d leading=%.4f box=%.4f+%.4f", tex.nest.ptr,
+    leading / 65536, box.height / 65536, box.depth / 65536)
+  local properties = node.getproperty(box) or {}
+  properties.docxlike_line_leading = leading
+  properties.docxlike_strut_only = true
+  properties.docxlike_para_first, properties.docxlike_para_last = true, true
+  properties.docxlike_para_keep = keep == 1
+  local previous = previous_body_line()
+  local prior = previous and node.getproperty(previous) or {}
+  properties.docxlike_blank_keep_relaxed = (M.compat or 15) < 15 and keep == 1
+    and prior.docxlike_keep_released and prior.docxlike_para_keep
+  node.setproperty(box, properties)
+end
+function M.parmark_end()
+  local line = previous_body_line()
+  if line and (node.getproperty(line) or {}).docxlike_blank_keep_relaxed then
+    local penalty = node.new(PENALTY)
+    penalty.penalty = 0
+    node.write(penalty)
+  end
+end
+local function legacy_relaxed_blank(head)
+  if (M.compat or 15) >= 15 or tex.nest.ptr ~= 0
+      or not getbool("l__docxlike_format_keep_next_bool") then return head end
+  local previous = previous_body_line()
+  local prior = previous and node.getproperty(previous) or {}
+  local incoming = prior.docxlike_keep_released and prior.docxlike_para_keep
+  for line in traverse_id(HLIST, head) do
+    for rule in traverse_id(RULE, line.list) do
+      if (node.getproperty(rule) or {}).docxlike_incoming_keep_released then incoming = true end
+    end
+  end
+  if not incoming then return head end
+  local function has_content(list)
+    for n in traverse(list) do
+      if n.id == GLYPH and n.char ~= 32 then return true end
+      if (n.id == HLIST or n.id == VLIST) and has_content(n.list) then return true end
+      if n.id == RULE and n.width ~= 0 then return true end
+    end
+    return false
+  end
+  local count = 0
+  for line in traverse_id(HLIST, head) do
+    count = count + 1
+    if has_content(line.list) then return head end
+  end
+  if count == 1 then
+    -- A legacy oversized kept paragraph retains the blank but can release its
+    -- outgoing constraint; otherwise its final line is pulled to another page.
+    local penalty = node.new(PENALTY)
+    penalty.penalty = 0
+    head = append_list(head, penalty)
+  end
+  return head
+end
+-- Paragraph metadata belongs to physical lines, not a mutable last-paragraph
+-- cache: nested measurements and note stories cannot overwrite the body chain.
+local function tag_paragraph(head)
+  local lines = {}
+  for line in traverse_id(HLIST, head) do
+    local p = node.getproperty(line)
+    if line.subtype == 1 or p and p.docxlike_line_leading ~= nil then
+      lines[#lines + 1] = line
+    end
+  end
+  for index, line in ipairs(lines) do
+    local p = node.getproperty(line) or {}
+    p.docxlike_para_first, p.docxlike_para_last = index == 1, index == #lines
+    p.docxlike_para_keep = getbool("l__docxlike_format_keep_next_bool") == true
+    p.docxlike_para_together = tex.interlinepenalty >= 10000
+    for rule in traverse_id(RULE, line.list) do
+      if (node.getproperty(rule) or {}).docxlike_strut_only then
+        p.docxlike_strut_only = true; break
+      end
+    end
+    node.setproperty(line, p)
+  end
+end
+local function body_kept_height()
+  local head = tex.lists.page_head
+  if type(head) == "number" then head = node.direct.tonode(head) end
+  local position, start, last_keep, chain = 0, 0, false, nil
+  for n in traverse(head) do
+    local p = node.getproperty(n)
+    if n.id == HLIST and p and p.docxlike_para_first and not last_keep then
+      start, chain = position, n
+    end
+    if n.id == HLIST or n.id == VLIST or n.id == RULE then position = position + n.height + n.depth
+    elseif n.id == GLUE then position = position + n.width
+    elseif n.id == KERN then position = position + n.kern end
+    if n.id == HLIST and p and p.docxlike_para_last then last_keep = p.docxlike_para_keep end
+    if n.id == VLIST and p and p.docxlike_block_last_keep ~= nil then
+      last_keep = p.docxlike_block_last_keep
+    end
+  end
+  if last_keep then return position - start, start, chain end
+  return 0, position, nil
+end
+native_keep_boundary = function(head, box)
+  -- An indivisible LaTeX block keeps its own structure. If its incoming Word
+  -- keepNext chain cannot fit even a fresh body page, retry the already typeset
+  -- chain there, then release only the final boundary rather than overfill or
+  -- split the native block. Notes/columns/nested trials retain their backend.
+  if not head or tex.nest.ptr ~= 0 or M.cell
+      or getbool("g__docxlike_cols_open_bool")
+      or next(M.deferred_notes or {}) then return head end
+  local full = tex.getdimen("textheight")
+  if box.height + box.depth > full + 2 then return head end
+  local height, start, chain = body_kept_height()
+  if not chain or height <= 0 then return head end
+  local added = 0
+  for n in traverse(head) do
+    if n.id == HLIST or n.id == VLIST or n.id == RULE then added = added + n.height + n.depth
+    elseif n.id == GLUE then added = added + n.width
+    elseif n.id == KERN then added = added + n.kern end
+  end
+  if height + added <= full + 2 then return head end
+  local page = tex.lists.page_head
+  if type(page) == "number" then page = node.direct.tonode(page) end
+  for n in traverse(page) do if n.id == INS then return head end end
+  for n in traverse(head) do if n.id == INS then return head end end
+  local last = previous_body_line()
+  if last then
+    local p = node.getproperty(last) or {}
+    p.docxlike_para_keep = false
+    p.docxlike_native_keep_released = true
+    node.setproperty(last, p)
+  end
+  local boundary = node.new(PENALTY)
+  boundary.penalty = 0
+  head = node.insert_before(head, head, boundary)
+  local p = node.getproperty(chain) or {}
+  if start > 2 and not p.docxlike_native_keep_retry and chain.prev then
+    p.docxlike_native_keep_retry = true
+    node.setproperty(chain, p)
+    local before = chain.prev
+    before.next, chain.prev = nil, nil
+    tex.lists.page_head = page
+    tex.pagetotal, tex.pagedepth = start, 0
+    head = append_list(chain, head)
+    local fresh = node.new(PENALTY)
+    fresh.penalty = -10000
+    head = node.insert_before(head, head, fresh)
+  end
+  trace("NATIVE keep release chain=%.4f block=%.4f full=%.4f", height / 65536, added / 65536, full / 65536)
+  return head
+end
+M.deferred_notes = {}
+function M.restore_note_limit()
+  local limit = M.note_page_limit
+  if limit then
+    tex.setdimen("global", limit.index, limit.original)
+    M.note_page_limit = nil
+  end
+end
+flush_held_keep_note = function(head, box)
+  local pending = M.held_keep_note
+  if not pending or tex.nest.ptr ~= 0 then return head end
+  if box and (M.cell or getbool("g__docxlike_cols_open_bool")) then box = nil end
+  M.held_keep_note = nil
+  local insertion = pending.insertion
+  -- The insertion has not yet entered TeX's page-insertion table. At actual
+  -- native-block placement the complete kept body's footprint is now known,
+  -- so let TeX split the note into the space left after that body, rather than
+  -- accepting the complete note early and pushing the body to a later page.
+  if box and not M.note_page_limit then
+    local page = tex.lists.page_head
+    if type(page) == "number" then page = node.direct.tonode(page) end
+    local body, foreign = 0, false
+    for n in traverse(page) do
+      if n.id == INS then foreign = true end
+      if n.id == HLIST or n.id == VLIST or n.id == RULE then body = body + n.height + n.depth
+      elseif n.id == GLUE then body = body + n.width
+      elseif n.id == KERN then body = body + n.kern end
+    end
+    for n in traverse(head) do
+      if n.id == INS then foreign = true end
+      if n.id == HLIST or n.id == VLIST or n.id == RULE then body = body + n.height + n.depth
+      elseif n.id == GLUE then body = body + n.width
+      elseif n.id == KERN then body = body + n.kern end
+    end
+    local index = insertion.subtype
+    local room = tex.getdimen("textheight") - body - tex.getskip(index).width
+    local original = tex.getdimen(index)
+    if not foreign and tex.getcount(index) == 1000 and room + 2 >= pending.minimum
+        and room < insertion.height - 2 and room < original then
+      M.note_page_limit = {index = index, original = original}
+      tex.setdimen("global", index, math.floor(room))
+      trace("NOTE kept-body split budget=%.4f note=%.4f", room / 65536, insertion.height / 65536)
+    end
+  end
+  if head then
+    local prior = previous_body_line()
+    if prior and (node.getproperty(prior) or {}).docxlike_para_keep then
+      -- Moving the insert after a keep penalty must not create a new legal
+      -- glue break between that insert and the following kept block.
+      local keep = node.new(PENALTY)
+      keep.penalty = 10000
+      head = node.insert_before(head, head, keep)
+    end
+    return node.insert_before(head, head, insertion)
+  end
+  return insertion
+end
+function M.flush_held_keep_note()
+  if M.held_keep_note and tex.nest.ptr == 0 then node.write(flush_held_keep_note(nil)) end
+end
+function M.note_separator_leading(index)
+  local box = tex.box[index]
+  if not box then return 0 end
+  for n in traverse(box.list) do
+    local p = node.getproperty(n)
+    if n.id == GLUE and p and p.docxlike_note_story_reserve then
+      return p.docxlike_note_story_reserve
+    end
+    if n.id == HLIST or n.id == VLIST then break end
+  end
+  return 0
+end
+function M.note_separator_width(index, normal, full)
+  local box = tex.box[index]
+  if box then
+    for line in traverse_id(HLIST, box.list) do
+      if (M.compat or 15) < 15 and (node.getproperty(line) or {}).docxlike_note_first_line == false then return full end
+      break
+    end
+  end
+  return normal
+end
+local function note_reserve_node(insertion)
+  for n in traverse(insertion.list) do
+    if n.id == GLUE and (node.getproperty(n) or {}).docxlike_note_story_reserve then return n end
+    if n.id == HLIST or n.id == VLIST then break end
+  end
+end
+local function remove_note_reserve(insertion)
+  local glue = note_reserve_node(insertion)
+  if not glue then return end
+  local p = node.getproperty(insertion) or {}
+  insertion.list = node.remove(insertion.list, glue)
+  insertion.height = insertion.height - glue.width
+  node.free(glue)
+  p.docxlike_note_leading_node = nil
+  node.setproperty(insertion, p)
+end
+local function begin_note_story(index)
+  if index ~= token.create("footins").mode or not getbool("g__docxlike_note_installed_bool") then return end
+  local insertion = tex.lists.contrib_head
+  if type(insertion) == "number" then insertion = node.direct.tonode(insertion) end
+  if not insertion or insertion.id ~= INS or insertion.subtype ~= index then return end
+  local p = node.getproperty(insertion) or {}
+  local first
+  for line in traverse_id(HLIST, insertion.list) do first = line; break end
+  if not first then return end
+  local continuation = (node.getproperty(first) or {}).docxlike_note_first_line == false
+  if continuation and (node.getproperty(first) or {}).docxlike_note_paragraph_story and tex.pagetotal <= 2 then
+    local body
+    for line in traverse_id(HLIST, insertion.next) do body = line; break end
+    local bp = body and node.getproperty(body)
+    if bp and bp.docxlike_line_leading then
+      local reserved = insertion.height + tex.getskip(index).width + body.height + body.depth
+      if (M.compat or 15) < 15 then
+        reserved = reserved - ((node.getproperty(first) or {}).docxlike_note_reference_leading or 0)
+      else
+        reserved = reserved + bp.docxlike_line_leading
+      end
+      if reserved > tex.getdimen("textheight") + 2 then
+        -- Do not spend a kept multi-paragraph continuation's next page on a
+        -- later body line while more of its note story still needs that page.
+        local empty = node.new(HLIST)
+        local fill = node.new(GLUE)
+        fill.stretch, fill.stretch_order = 65536, 1
+        local boundary = node.new(PENALTY)
+        boundary.penalty = -10000
+        empty.next, fill.prev, fill.next, boundary.prev = fill, empty, boundary, fill
+        local following = insertion.next
+        insertion.next, empty.prev = empty, insertion
+        boundary.next = following
+        if following then following.prev = boundary end
+      end
+    end
+  end
+  local room = tex.pagegoal - tex.pagetotal - tex.pagedepth - tex.getskip(index).width
+  if p.docxlike_note_split_reserve and not continuation then
+    local glue = note_reserve_node(insertion)
+    if insertion.height - (glue and glue.width or 0) <= room + 2 then
+      remove_note_reserve(insertion)
+      insertion.width = p.docxlike_note_original_top or insertion.width
+      p.docxlike_note_leading_amount = nil
+      p.docxlike_note_original_top = nil
+      p.docxlike_note_split_reserve = nil
+      node.setproperty(insertion, p)
+    end
+  end
+  local leading = p.docxlike_note_leading_amount or 0
+  if leading <= 0 and (p.docxlike_note_reference_leading or 0) > 0 then
+    if insertion.height > room + 2 then
+      -- When a legacy note really splits, the body's last free leading also
+      -- occupies the page. Whole-note roomy cases need no extra story space.
+      leading = p.docxlike_note_reference_leading
+      p.docxlike_note_leading_amount = leading
+      p.docxlike_note_original_top = insertion.width
+      p.docxlike_note_split_reserve = true
+      node.setproperty(insertion, p)
+    end
+  end
+  if leading <= 0 or note_reserve_node(insertion) then return end
+  if p.docxlike_note_original_top ~= nil then
+    insertion.width = math.max(p.docxlike_note_original_top, first.height) + leading
+  end
+  if continuation then
+    -- TeX's pruned continuation already has its split-top reserve. Identify
+    -- that glue rather than adding the same leading a second time.
+    for n in traverse(insertion.list) do
+      if n.id == GLUE and n.width >= leading then
+        local gp = node.getproperty(n) or {}
+        gp.docxlike_note_story_reserve = leading
+        node.setproperty(n, gp)
+        break
+      end
+      if n == first then break end
+    end
+  else
+    -- A later reference can move to a new page after we removed its duplicate
+    -- reserve. At the first actual class insertion on that page it needs the
+    -- story reserve again; the decision must use the page builder's boundary.
+    local glue = node.new(GLUE)
+    glue.width = leading
+    node.setproperty(glue, {docxlike_note_story_reserve = leading})
+    insertion.list = node.insert_before(insertion.list, insertion.list, glue)
+    insertion.height = insertion.height + leading
+    p.docxlike_note_leading_node = glue
+    node.setproperty(insertion, p)
+  end
+end
+local function relax_oversized_note_paragraphs(insertion, maximum)
+  local groups, current = {}, nil
+  for n in traverse(insertion.list) do
+    local p = node.getproperty(n) or {}
+    if n.id == HLIST and p.docxlike_para_first then
+      current = {first = n, total = 0, together = p.docxlike_para_together}
+      groups[#groups + 1] = current
+    end
+    if current then
+      if n.id == HLIST or n.id == VLIST or n.id == RULE then current.total = current.total + n.height + n.depth
+      elseif n.id == GLUE then current.total = current.total + n.width
+      elseif n.id == KERN then current.total = current.total + n.kern end
+      current.last = n
+      if n.id == HLIST and p.docxlike_para_last then current = nil end
+    end
+  end
+  local released = false
+  for index, group in ipairs(groups) do
+    if group.together and group.total > maximum + 2 then
+      group.oversized = true
+      if index > 1 then
+        -- Retry this paragraph at a fresh note-page boundary, without moving
+        -- the earlier, feasible paragraphs of the same note away from its ref.
+        local retry = node.new(PENALTY)
+        retry.penalty = -10000
+        insertion.list = node.insert_before(insertion.list, group.first, retry)
+      end
+      local n = group.first
+      while n do
+        if n.id == PENALTY and n.subtype == 1 and n.penalty >= 10000 then n.penalty = n.penalty - 10000 end
+        if n.id == HLIST then
+          local p = node.getproperty(n) or {}
+          p.docxlike_para_together = false
+          p.docxlike_note_oversized = true
+          node.setproperty(n, p)
+        end
+        if n == group.last then break end
+        n = n.next
+      end
+      released = true
+    end
+  end
+  return released, groups
+end
+local function note_body_context(head)
+  if getbool("l__docxlike_format_owned_par_bool") then return true end
+  -- The optional paragraph-interline hook is independent of Word footnotes;
+  -- consumer classes can correctly configure the latter with that hook off.
+  if not getbool("g_docxlike_word_layout_bool") then return false end
+  for line in traverse_id(HLIST, head) do
+    if (not M.attr or node.get_attribute(line, M.attr) ~= 0)
+        and (line.subtype == 1 or (node.getproperty(line) or {}).docxlike_line_leading ~= nil) then
+      return true
+    end
+  end
+  return false
+end
+local function coordinate_notes(head)
+  if tex.nest.ptr ~= 0
+      or not note_body_context(head)
+      or not getbool("g__docxlike_note_installed_bool")
+      or getbool("g__docxlike_cols_open_bool") or M.cell then return head end
+  local incoming_notes = 0
+  for incoming in traverse_id(INS, head) do incoming_notes = incoming_notes + 1 end
+  if M.held_keep_note and (incoming_notes > 0 or not getbool("l__docxlike_format_keep_next_bool")) then
+    head = flush_held_keep_note(head)
+    incoming_notes = incoming_notes + 1
+  end
+  local full = tex.getdimen("textheight")
+  local prior, prior_start, chain = body_kept_height()
+  local prior_insertion = false
+  if chain then
+    for n in traverse(chain) do
+      if n.id == INS then prior_insertion = true; break end
+    end
+  end
+  local total, prefix = 0, 0
+  for n in traverse(head) do
+    if n.id == HLIST or n.id == VLIST or n.id == RULE then total = total + n.height + n.depth
+    elseif n.id == GLUE then total = total + n.width
+    elseif n.id == KERN then total = total + n.kern end
+  end
+  local oversized = tex.interlinepenalty >= 10000 and total > full
+  local footnote_class = token.create("footins").mode
+  local separator = tex.getskip(footnote_class).width
+  local story_reserve = 0
+  local page = tex.lists.page_head
+  if type(page) == "number" then page = node.direct.tonode(page) end
+  for ins in traverse_id(INS, page) do
+    if ins.subtype == footnote_class then
+      story_reserve = math.max(story_reserve, (node.getproperty(ins) or {}).docxlike_note_leading_amount or 0)
+    end
+  end
+  local reference, seen_references = nil, 0
+  local n = head
+  while n do
+    local next_node = n.next
+    if n.id == HLIST then reference = n; prefix = prefix + n.height + n.depth
+    elseif n.id == GLUE then prefix = prefix + n.width
+    elseif n.id == KERN then prefix = prefix + n.kern
+    elseif n.id == INS and n.subtype == footnote_class and reference
+        and not (node.getproperty(n) or {}).docxlike_note_coordinated then
+      -- Like the outer Word page builder, split a note by line-box bottoms,
+      -- not by a last baseline with an uncharged trailing depth.
+      n.depth = 0
+      local first
+      for line in traverse_id(HLIST, n.list) do first = line; break end
+      local leading = (node.getproperty(reference) or {}).docxlike_line_leading or 0
+      local properties = node.getproperty(n) or {}
+      properties.docxlike_note_coordinated = true
+      if docxlike and docxlike.page then docxlike.page.note(n) end
+      properties.docxlike_note_reference_leading = leading
+      node.setproperty(n, properties)
+      local oversized_note, note_paragraphs = relax_oversized_note_paragraphs(n, full - separator)
+      local oversized_first = oversized_note and note_paragraphs[1] and note_paragraphs[1].oversized
+      local paragraph_story = #note_paragraphs > 1 and n.height > full - separator
+      if paragraph_story then
+        paragraph_story = false
+        for _, paragraph in ipairs(note_paragraphs) do
+          if paragraph.together then paragraph_story = true; break end
+        end
+      end
+      local is_first = true
+      for line in traverse_id(HLIST, n.list) do
+        local lp = node.getproperty(line) or {}
+        lp.docxlike_note_first_line = is_first
+        lp.docxlike_note_paragraph_story = paragraph_story
+        lp.docxlike_note_reference_leading = leading
+        node.setproperty(line, lp)
+        is_first = false
+      end
+      local minimum = first and first.height + first.depth or n.height
+      local first_reference = (node.getproperty(reference) or {}).docxlike_para_first
+      local impossible = prior > 0 and first_reference
+        and prior + prefix + separator + minimum > full + 2
+      local reserve = (M.compat or 15) >= 15 or prior > 0 and not impossible
+      if reserve and leading > 0
+          and getbool("g__docxlike_note_bottom_bool")
+          and not properties.docxlike_note_body_leading then
+        -- Modern Word, and a still-feasible legacy kept chain, reserve the
+        -- body's free leading above a footnote story.
+        -- Put it before note material so bottom-aligned glyphs do not move,
+        -- and preserve the same reserve in the insert's continuation top glue.
+        local glue = node.new(GLUE)
+        glue.width = leading
+        node.setproperty(glue, {docxlike_note_story_reserve = leading})
+        properties.docxlike_note_leading_node = glue
+        properties.docxlike_note_leading_amount = leading
+        properties.docxlike_note_original_top = n.width
+        n.list = node.insert_before(n.list, n.list, glue)
+        n.height = n.height + leading
+        if first then n.width = math.max(n.width, first.height) + leading end
+        properties.docxlike_note_body_leading = true
+        node.setproperty(n, properties)
+      end
+      if story_reserve > 0 and story_reserve == (properties.docxlike_note_leading_amount or 0) then
+        remove_note_reserve(n)
+      end
+      -- If even a fresh page cannot contain the kept chain and its first note
+      -- line, modern Word gives the body constraint priority and delays the note.
+      if oversized_first and tex.pagetotal > 2 and (first_reference or
+          seen_references > 0 and not (node.getproperty(reference) or {}).docxlike_para_together) then
+        local fresh = node.new(PENALTY)
+        fresh.penalty = -10000
+        head = node.insert_before(head, first_reference and head or reference, fresh)
+      end
+      if (M.compat or 15) >= 15 and (oversized_first or next(M.deferred_notes) ~= nil) then
+        head = node.remove(head, n)
+        n.next, n.prev = nil, nil
+        -- Later notes cannot overtake an earlier delayed story, even if their
+        -- own text would fit beside a reference that can ship on this page.
+        local entry = {insertion = n, ready = false, note_only = oversized_first or false}
+        M.deferred_notes[#M.deferred_notes + 1] = entry
+        local marker = node.new(WHATSIT, "late_lua")
+        marker.data = function() entry.ready = true end
+        reference.head = node.insert_before(reference.head, reference.head, marker)
+      elseif (M.compat or 15) < 15 and impossible and not prior_insertion then
+        -- Legacy Word breaks an impossible body/note chain before the reference
+        -- instead of placing an overfull minimum note fragment on this page.
+        local penalty = node.new(PENALTY)
+        penalty.penalty = -10000
+        head = node.insert_before(head, reference, penalty)
+        if chain and prior_start > 2 then
+          -- Retry the unbreakable preceding chain on a fresh page first. Its
+          -- lines have already entered the page list; move, never re-typeset.
+          local before = chain.prev
+          if before then
+            before.next = nil
+            chain.prev = nil
+            local page = tex.lists.page_head
+            if type(page) == "number" then page = node.direct.tonode(page) end
+            tex.lists.page_head = page
+            tex.pagetotal, tex.pagedepth = prior_start, 0
+            head = append_list(chain, head)
+            local fresh = node.new(PENALTY)
+            fresh.penalty = -10000
+            head = node.insert_before(head, head, fresh)
+          end
+          chain = nil
+        end
+      elseif (M.compat or 15) >= 15 and (oversized or impossible) then
+        head = node.remove(head, n)
+        n.next, n.prev = nil, nil
+        local entry = {insertion = n, ready = false}
+        M.deferred_notes[#M.deferred_notes + 1] = entry
+        local marker = node.new(WHATSIT, "late_lua")
+        marker.data = function() entry.ready = true end
+        reference.head = node.insert_before(reference.head, reference.head, marker)
+      elseif (M.compat or 15) >= 15 and not oversized and not M.held_keep_note
+          and incoming_notes == 1
+          and getbool("g__docxlike_note_bottom_bool") and getbool("l__docxlike_format_keep_next_bool")
+          and tex.interlinepenalty >= 10000 and first_reference and first
+          and not (node.getproperty(first) or {}).docxlike_para_together
+          and n.height > minimum + leading + 2 then
+        local page = tex.lists.page_head
+        if type(page) == "number" then page = node.direct.tonode(page) end
+        local foreign = false
+        for existing in traverse(page) do if existing.id == INS then foreign = true; break end end
+        if not foreign then
+          head = node.remove(head, n)
+          n.next, n.prev = nil, nil
+          M.held_keep_note = {insertion = n, minimum = minimum + (properties.docxlike_note_leading_amount or 0)}
+        end
+      end
+      if n.prev or n == head then
+        story_reserve = math.max(story_reserve, properties.docxlike_note_leading_amount or 0)
+        if paragraph_story and not (node.getproperty(reference) or {}).docxlike_para_together then
+          local following = next_node
+          while following and following.id ~= HLIST do following = following.next end
+          if following then
+            local boundary = node.new(PENALTY)
+            boundary.penalty = -10000
+            head = node.insert_after(head, n, boundary)
+          end
+        end
+      end
+      seen_references = seen_references + 1
+    end
+    n = next_node
+  end
+  return head
+end
+function M.release_deferred_notes()
+  local pending, ready, note_only = {}, nil, false
+  for _, entry in ipairs(M.deferred_notes) do
+    if entry.ready then
+      ready = append_list(ready, entry.insertion)
+      note_only = note_only or entry.note_only == true
+    else pending[#pending + 1] = entry end
+  end
+  M.deferred_notes = pending
+  if ready then
+    local head = tex.lists.contrib_head
+    if type(head) == "number" then head = node.direct.tonode(head) end
+    local first
+    for line in traverse_id(HLIST, head) do
+      if node.getproperty(line) then first = line; break end
+    end
+    -- Several references can delay notes to the same next-page story. Reserve
+    -- body leading once above that story, not between each pair of note texts.
+    local leading, first_insert = 0, nil
+    for insertion in traverse_id(INS, ready) do
+      first_insert = first_insert or insertion
+      local p = node.getproperty(insertion) or {}
+      local extra = p.docxlike_note_leading_amount or 0
+      local glue = p.docxlike_note_leading_node
+      leading = math.max(leading, extra)
+      if glue then
+        insertion.list = node.remove(insertion.list, glue)
+        insertion.height = insertion.height - extra
+        insertion.width = p.docxlike_note_original_top
+        node.free(glue)
+        p.docxlike_note_leading_node = nil
+        node.setproperty(insertion, p)
+      end
+      if note_only and not first then
+        p.docxlike_note_leading_amount = nil
+        p.docxlike_note_reference_leading = 0
+        node.setproperty(insertion, p)
+      end
+    end
+    if note_only and not first then leading = 0 end
+    if first_insert and leading > 0 then
+      local glue = node.new(GLUE)
+      glue.width = leading
+      node.setproperty(glue, {docxlike_note_story_reserve = leading})
+      first_insert.list = node.insert_before(first_insert.list, first_insert.list, glue)
+      first_insert.height = first_insert.height + leading
+      for line in traverse_id(HLIST, first_insert.list) do
+        first_insert.width = math.max(first_insert.width, line.height) + leading
+        break
+      end
+    end
+    -- shipout/after runs only after the reference's late-lua marker fired. The
+    -- insertion returns to the contribution list for the next physical page.
+    if first and (node.getproperty(first) or {}).docxlike_para_together then
+      local height, n = 0, first
+      while n do
+        if n.id == HLIST or n.id == VLIST or n.id == RULE then height = height + n.height + n.depth
+        elseif n.id == GLUE then height = height + n.width
+        elseif n.id == KERN then height = height + n.kern end
+        if (node.getproperty(n) or {}).docxlike_para_last then break end
+        n = n.next
+      end
+      local reserved = tex.getskip(token.create("footins").mode).width
+      for insertion in traverse_id(INS, ready) do reserved = reserved + insertion.height end
+      if height + reserved > tex.getdimen("textheight") + 2 then
+        -- A kept continuation is retried after the deferred-note page. Supply
+        -- real vertical page material so a note-only page can be shipped.
+        local empty = node.new(HLIST)
+        local fill = node.new(GLUE)
+        fill.stretch, fill.stretch_order = 65536, 1
+        local penalty = node.new(PENALTY)
+        penalty.penalty = -10000
+        empty.next, fill.prev, fill.next, penalty.prev = fill, empty, penalty, fill
+        ready = append_list(ready, empty)
+      end
+    end
+    if note_only and not first then
+      local empty = node.new(HLIST)
+      local fill = node.new(GLUE)
+      fill.stretch, fill.stretch_order = 65536, 1
+      local penalty = node.new(PENALTY)
+      penalty.penalty = -10000
+      empty.next, fill.prev, fill.next, penalty.prev = fill, empty, penalty, fill
+      ready = append_list(ready, empty)
+    end
+    tex.lists.contrib_head = append_list(ready, head)
+  end
+end
 function M.filter(head, is_display)
+  mark_math_objects(head)
+  local incoming = node.getproperty(head) or {}
+  incoming.docxlike_incoming_leading = previous_body_leading()
+  node.setproperty(head, incoming)
   local after_display = M.after_display
   M.after_display = false
   M.cell = getbool("l_docxlike_table_cell_bool") == true
   M.grid_on = getbool("g_docxlike_grid_bool") ~= false
   local ls, rs = tex.getskip("leftskip"), tex.getskip("rightskip")
   local align = align_of(ls, rs)
+  local wrapping = M.wrap_begin(is_display)
   local code_active = false
   if getbool("l__docxlike_code_overhang_bool") and M.code_attr then
     for g in node.traverse_id(GLYPH, head) do
       if (node.get_attribute(g, M.code_attr) or 0) > 0 then code_active = true; break end
     end
   end
-  if M.attr and (node.get_attribute(head, M.attr) or 0) == 0 then return skip("attr") end
+  if M.attr and (node.get_attribute(head, M.attr) or 0) == 0 then
+    if wrapping then tex.error("docxlike wrapping cannot use a paragraph with Word layout disabled") end
+    return skip("attr")
+  end
   -- 不两端对齐的段只接本包照样式设了对齐的（\docxlike_linebreak_align: 立的标记）；LaTeX 自己的
   -- \centering、目录行（右边距可伸、\parfillskip 取负把页码顶到右边）这些照旧交回 TeX
   if align ~= "justify" and not getbool("l_docxlike_linebreak_align_bool")
       and not (code_active and align == "left") then
+    if wrapping then tex.error("docxlike wrapping requires docxpar or a Word-owned paragraph style") end
     return to_tex(head, "skips")
   end
   local ok, cell = pcall(tex.getdimen, "g_docxlike_page_char_dim")
   local em = tex.sp("1em")
-  -- 没有字符网格：左对齐的段交回 TeX；两端对齐、居中、右对齐的段照样由这里断，格宽取字号、
+  -- 没有字符网格：本包拥有的左对齐段也由这里断；普通 LaTeX 左对齐段交回 TeX。格宽取字号、
   -- 不按整数格装（test/nogrid：两端对齐的段交回 TeX 时 558 行差 275，这里断差 23）。LaTeX 自己的
   -- 目录行（\@dottedtocline：边距刚性、\parfillskip 取负把页码顶到右边）也算两端对齐，这里不会排，
   -- \parfillskip 没有无穷伸量的段照旧交回 TeX。Word 行末的闭号不用挤时照全宽算，居中就按全宽定位；
   -- TeX 那边 JFM 把行末闭号算成半格，居中偏右半格的一半
   local nogrid = not ok or not cell or cell == 0
   if nogrid then
-    if align == "left" and not code_active then return to_tex(head, "nocell") end
+    if align == "left" and not code_active and not wrapping
+        and not getbool('l__docxlike_format_owned_par_bool') then return to_tex(head, "nocell") end
     if align == "justify" and tex.getskip("parfillskip").stretch_order == 0 then
+      if wrapping then tex.error("docxlike wrapping cannot use this rigid paragraph ending") end
       return skip("nocell")
     end
     cell = em
+  end
+  local wrap_pre
+  do
+    -- para/begin can put the anchor before TeX's indent box. Tokenization
+    -- deliberately discards that box's prefix, so retain the pre-adjust first,
+    -- including unwrapped legacy shapes in Word-owned left-aligned paragraphs.
+    local g = head
+    while g do
+      local nxt = g.next
+      if g.id == ADJUST and g.subtype == 1 then
+        head = node.remove(head, g)
+        local list = g.list; g.list = nil
+        if list then wrap_pre = append_list(wrap_pre, list) end
+        node.free(g)
+      elseif g.id == GLYPH or (g.id == HLIST and g.subtype ~= 3) then break end
+      g = nxt
+    end
   end
   local cell0 = cell
   -- 格宽 = 字号 + 固定余量：正文一格是 g_docxlike_body_size_dim + 余量（12.4543 里的 0.4543），
@@ -3285,7 +4530,30 @@ function M.filter(head, is_display)
     for g in node.traverse_id(GLYPH, head) do mark_done(g) end
   end
   local items, indent, strut_h, strut_d = tokenize(head, code_active)
-  if #items == 0 then return true end
+  if #items == 0 then
+    for rule in traverse_id(RULE, head) do
+      if rule.width == 0 then
+        local p = node.getproperty(rule) or {}
+        p.docxlike_strut_only = true
+        node.setproperty(rule, p)
+      end
+    end
+    -- The native breaker may expose its new empty line as the current tail by
+    -- post_linebreak time. Preserve the incoming body's metadata on the strut.
+    local previous = previous_body_line()
+    local prior = previous and node.getproperty(previous) or {}
+    if (M.compat or 15) < 15 and tex.nest.ptr == 0
+        and prior.docxlike_keep_released and prior.docxlike_para_keep then
+      for rule in traverse_id(RULE, head) do
+        if rule.width == 0 then
+          local p = node.getproperty(rule) or {}
+          p.docxlike_incoming_keep_released = true
+          node.setproperty(rule, p)
+        end
+      end
+    end
+    return true
+  end
   local bp = 65781.76
   -- 西文字形各加半个余量（lb5 探针 pn：64 个数字的行在 N=0 翻转，数字宽正是 p/2）。先前按断行
   -- 翻转点只给正文字号，Windows 的渲染实测（adv4）10.5 到 16 磅都加。空格按 Word 算账
@@ -3319,22 +4587,28 @@ function M.filter(head, is_display)
               autospace_dn = getbool("l_docxlike_format_autospace_dn_bool") ~= false,
                eps = 0.03 * bp }
   P.code_overhang = code_active and (align == "justify" or align == "left")
+  if wrapping then P.code_overhang = false end
   if P.code_overhang then P.code_right = code_right_limit() end
   trace("STEP cell=%.4f latin_add=%.4f half_space=%.4f", P.cell / bp, P.latin_add / bp, P.half_space / bp)
   trace("STEP snap=%s spacing=%.4f balance=%s", tostring(hsnap), spacing / bp, tostring(balance))
   soft_split(items, P)
   local snapchars = hsnap and getbool("g_docxlike_page_snap_chars_bool") and true or false
-  local lines
-  if snapchars then lines = snap_decide(items, P, M.shape(), indent)
-  else lines = decide(items, P, M.shape(), indent) end
   local ctx = M.linectx(strut_h, strut_d)
+  local paragraph_leading = ctx and not after_display and previous_body_leading() or 0
+  local shape, wrap_next = M.wrap_shape(M.shape(), wrapping, strut_h + strut_d, indent)
+  P.wrap_next = wrap_next
+  local lines
+  if snapchars then lines = snap_decide(items, P, shape, indent)
+  else lines = decide(items, P, shape, indent) end
   local pfa = luatexbase.attributes["docxlike@pfill@attr"]
   local pfill = pfa and node.get_attribute(head, pfa)
   local newhead, tail = nil, nil
   local prevdepth = tex.prevdepth
+  local previous_leading = 0
   after_display = after_display and prevdepth > -65536000
   local nl = #lines
   local nexthead = nil
+  local wrap_rows = {}
   for li, line in ipairs(lines) do
     local box, moved, pre
     if snapchars then
@@ -3342,7 +4616,15 @@ function M.filter(head, is_display)
     else
       box, moved, nexthead, pre = render(items, line, P, strut_h, strut_d, indent, li == 1, ctx, nexthead)
     end
-    if pfill then shade_line(box, pfill, li == 1, ctx, line.measure, P) end
+    if pfill then shade_line(box, pfill, wrapping and line.wrap_row == 1 or li == 1, ctx, line.measure, P) end
+    if wrapping then
+      local ri = line.wrap_row
+      local row = wrap_rows[ri]
+      if not row then row = {parts = {}, skip = line.wrap_skip}; wrap_rows[ri] = row end
+      row.parts[#row.parts + 1] = box
+      if pre then row.pre = append_list(row.pre, pre) end
+      if moved then row.moved = append_list(row.moved, moved) end
+    else
     if pre then
       if newhead == nil then newhead = pre else tail.next = pre; pre.prev = tail end
       tail = node.tail(pre)
@@ -3353,7 +4635,7 @@ function M.filter(head, is_display)
       local g = node.new(GLUE); g.subtype = 0
       if ctx then
         -- Word 是把行盒直接摞起来：基线距 = 上行行深 + 本行上升部
-        g.width = 0
+        g.width = previous_leading
       else
         -- 行间胶照 TeX 的规矩：基线距不够 lineskiplimit 就改用 lineskip
         g.width = tex.baselineskip.width - prevdepth - box.height
@@ -3372,11 +4654,61 @@ function M.filter(head, is_display)
       if li == 1 then pen = pen + tex.clubpenalty end
       if li == nl - 1 then pen = pen + tex.widowpenalty end
       if pen ~= 0 then
-        local pn = node.new(PENALTY); pn.penalty = pen
+        local pn = node.new(PENALTY, 1); pn.penalty = pen
         tail.next = pn; pn.prev = tail; tail = pn
       end
     end
     prevdepth = box.depth
+    previous_leading = (node.getproperty(box) or {}).docxlike_line_leading or 0
+    end
+  end
+  if wrapping then
+    local function put(list)
+      if not list then return end
+      if not newhead then newhead = list else tail.next = list; list.prev = tail end
+      tail = node.tail(list)
+    end
+    for ri, row in ipairs(wrap_rows) do
+      local outer = node.new(HLIST)
+      outer.width, outer.height, outer.depth = tex.hsize, 0, 0
+      local descent_with_leading = 0
+      local content, ct, x = nil, nil, 0
+      local function insert(n)
+        if not content then content = n else ct.next = n; n.prev = ct end
+        ct = n
+      end
+      for _, box in ipairs(row.parts) do
+        local kern = node.new(KERN); kern.kern = box.shift - x
+        x = box.shift + box.width
+        outer.height = math.max(outer.height, box.height)
+        outer.depth = math.max(outer.depth, box.depth)
+        descent_with_leading = math.max(descent_with_leading, box.depth + ((node.getproperty(box) or {}).docxlike_line_leading or 0))
+        if not outer.attr then outer.attr = box.attr end
+        box.shift = 0
+        insert(kern); insert(box)
+      end
+      outer.head = content
+      local leading = math.max(0, descent_with_leading - outer.depth)
+      node.setproperty(outer, {docxlike_line_leading = leading})
+      M.wrap_mark_line(outer, wrapping, ri, row.skip)
+      put(row.pre)
+      if ri > 1 then
+        local glue = node.new(GLUE)
+        glue.width = ctx and previous_leading or tex.baselineskip.width - prevdepth - outer.height
+        if not ctx and glue.width < tex.lineskiplimit then glue.width = tex.lineskip.width end
+        put(glue)
+      end
+      if row.skip > 0 then local kern = node.new(KERN); kern.kern = row.skip; put(kern) end
+      put(outer); put(row.moved)
+      if ri < #wrap_rows then
+        local penalty = tex.interlinepenalty
+        if ri == 1 then penalty = penalty + tex.clubpenalty end
+        if ri == #wrap_rows - 1 then penalty = penalty + tex.widowpenalty end
+        if penalty ~= 0 then local pn = node.new(PENALTY, 1); pn.penalty = penalty; put(pn) end
+      end
+      prevdepth = outer.depth
+      previous_leading = leading
+    end
   end
   -- 行间公式后面的头一行照 TeX 的规矩补行距胶：公式盒的高深是按 TeX 的行间胶配的（文档类
   -- 照 Word 的公式行盒算好、扣掉 lineskip 那一份），行盒直接摞只在 Word 的行与行之间成立
@@ -3392,6 +4724,19 @@ function M.filter(head, is_display)
   -- 末行的深。别的时候不动：后面的盒子（居中段的行、eqdenote 的表）一直是照那个旧值
   -- 排的，Word 那样直接摞，改了反倒多出一道 lineskip
   if is_display then tex.nest.top.prevdepth = prevdepth end
+  if wrap_pre then newhead = append_list(wrap_pre, newhead) end
+  if ctx then newhead = paragraph_boundary(newhead, paragraph_leading) end
+  tag_paragraph(newhead)
+  newhead = coordinate_notes(newhead)
+  -- Constraints must see the incoming boundary glue as part of the fitting
+  -- paragraph; otherwise a legacy keepNext decision can use too much room.
+  newhead = M.relax_oversized_keep_lines(newhead, true)
+  M.retain_fitting_legacy_keep_next(newhead, true)
+  newhead = legacy_relaxed_blank(newhead)
+  if wrapping and wrapping.must_break then
+    local penalty = node.new(PENALTY); penalty.penalty = -10000
+    newhead = node.insert_before(newhead, newhead, penalty)
+  end
   return newhead
 end
 
@@ -3560,10 +4905,14 @@ local function pin_image(head)
   end
   if ctx.exact then return true end
   local changed = {}
+  local owned = getbool('l__docxlike_format_owned_par_bool')
   for n in traverse(head) do
     if n.id == HLIST and n.subtype == 1 then
       local ih, id = image_hd(n.list)
-      if ih > 0 then
+      if owned then
+        linebox(n, ctx, sh, sd)
+        changed[n] = true
+      elseif ih > 0 then
         if ctx.snap and ctx.pitch > 0 then
           n.height, n.depth = image_line(ih, id, ctx.pitch)
         else
@@ -3575,9 +4924,12 @@ local function pin_image(head)
   end
   if next(changed) == nil then return true end
   for n in traverse(head) do
-    if n.id == GLUE and (n.subtype == 1 or n.subtype == 2)
+    if n.id == GLUE and (n.subtype == 1 or n.subtype == 2 or (owned and n.subtype == 0))
         and ((n.prev and changed[n.prev]) or (n.next and changed[n.next])) then
-      n.width = 0
+      local previous = n.prev
+      while previous and previous.id ~= HLIST do previous = previous.prev end
+      n.width = previous and ((node.getproperty(previous) or {}).docxlike_line_leading or 0) or 0
+      if owned then n.subtype = 0 end
     end
   end
   return true
@@ -3603,11 +4955,16 @@ local function pin_exact(head)
   local prev = nil
   for n in traverse(head) do
     if n.id == HLIST and n.subtype == 1 then
-      n.height = sh; n.depth = sd
+      local th, td = native_table_hd(n.list)
+      n.height, n.depth = math.max(sh, th), math.max(sd, td)
       prev = n
     elseif n.id == GLUE and (n.subtype == 1 or n.subtype == 2) and prev
         and n.next and n.next.id == HLIST then
-      n.width = bls - sd - sh
+      local th, td = native_table_hd(n.next.list)
+      local next_height = math.max(sh, th)
+      local gap = bls - prev.depth - next_height
+      local ph, pd = native_table_hd(prev.list)
+      n.width = (th > 0 or td > 0 or ph > 0 or pd > 0) and math.max(0, gap) or gap
     end
   end
   return true
@@ -3718,21 +5075,158 @@ end
 
 -- 装回调。attr 是类分的属性号：段首节点上为 0 的段不管（交回 TeX）；
 -- ks、xks 是汉字缝、汉西隙的属性号
+-- keepLines 只在整段能装进一页时禁止断页。超高段落解除行间的这一项罚分，
+-- 保留孤行控制及用户显式罚分；仅处理主正文，不改盒子、脚注或表格单元格。
+function M.relax_oversized_keep_lines(head, word_lines)
+  local keep = tex.interlinepenalty
+  if keep < 10000 or tex.nest.ptr > 1 then return head end
+  local full = tex.getdimen("textheight")
+  if not full or full <= 0 then return head end
+  local total, count = 0, 0
+  for n in traverse(head) do
+    if n.id == HLIST or n.id == VLIST or n.id == RULE then
+      total = total + n.height + n.depth
+      if n.id == HLIST and (word_lines or n.subtype == 1) then count = count + 1 end
+    elseif n.id == GLUE then total = total + n.width
+    elseif n.id == KERN then total = total + n.kern end
+  end
+  if count < 2 or total <= full then return head end
+  -- Actual Word retries an oversized keepLines paragraph at an empty body
+  -- page before relaxing its internal constraints, even without keepNext.
+  -- Retry only here in the outer body; a measured/nested box must not ship it.
+  local retried = (node.getproperty(head) or {}).docxlike_keep_retry
+  if not retried and tex.nest.ptr == 0 and tex.pagetotal > 0
+      and getbool("l__docxlike_format_owned_par_bool")
+      and not getbool("g__docxlike_cols_open_bool") then
+    local penalty = node.new(PENALTY)
+    penalty.penalty = -10000
+    node.setproperty(penalty, {docxlike_keep_retry = true})
+    head = node.insert_before(head, head, penalty)
+  end
+  for n in traverse_id(PENALTY, head) do
+    local properties = node.getproperty(n)
+    if n.subtype == 1 and n.penalty >= keep
+        and not (properties and properties.docxlike_keep_released) then
+      n.penalty = n.penalty - keep
+      properties = properties or {}
+      properties.docxlike_keep_released = true
+      node.setproperty(n, properties)
+    end
+  end
+  for line in traverse_id(HLIST, head) do
+    local properties = node.getproperty(line) or {}
+    if properties.docxlike_para_last then
+      properties.docxlike_keep_released = true
+      node.setproperty(line, properties)
+    end
+  end
+  return head
+end
+-- Word 的旧兼容模式在前段已经完整放入当前页后，后段放不下时回退前段。
+-- 前段自己跨页时仍允许分行；现代模式保留行级回退。这里只给本包排的正文段
+-- 增加可识别的行间约束，显式分页罚分和用户节点保持原样。
+function M.retain_fitting_legacy_keep_next(head, word_lines)
+  if (M.compat or 15) >= 15 or tex.nest.ptr > 1 or tex.interlinepenalty >= 10000
+      or not getbool("l__docxlike_format_owned_par_bool")
+      or not getbool("l__docxlike_format_keep_next_bool")
+      or getbool("g__docxlike_cols_open_bool") then return true end
+  local total, lines = 0, {}
+  for n in traverse(head) do
+    if n.id == HLIST or n.id == VLIST or n.id == RULE then
+      total = total + n.height + n.depth
+      if n.id == HLIST and (word_lines or n.subtype == 1) then lines[#lines + 1] = n end
+    elseif n.id == GLUE then total = total + n.width
+    elseif n.id == KERN then total = total + n.kern end
+  end
+  if #lines < 2 then return true end
+  local full = tex.getdimen("textheight")
+  local goal = tex.pagegoal
+  if goal > full * 2 then goal = full end
+  local room = goal - tex.pagetotal - tex.pagedepth
+  if total > room + 1 then return true end
+  for i = 1, #lines - 1 do
+    local p, found = lines[i].next, nil
+    while p and p ~= lines[i + 1] do
+      if p.id == PENALTY and p.subtype == 1 then found = p; break end
+      p = p.next
+    end
+    if found then
+      if found.penalty >= 0 then found.penalty = math.max(found.penalty, 10000) end
+    else
+      local penalty = node.new(PENALTY, 1); penalty.penalty = 10000
+      head = node.insert_after(head, lines[i], penalty)
+    end
+  end
+  return true
+end
 function M.install(attr, ks, xks, kern, code)
+  M.wrap_init()
   M.attr = attr
   M.kern_attr = kern
   M.ks_attr, M.xks_attr = ks, xks
   M.code_attr = code
   M.spacefont_attr = luatexbase.attributes["docxlike@spacefont@attr"]
   M.cell_attr = luatexbase.attributes["docxlike@cell@attr"]
+  M.table_attr = luatexbase.attributes["docxlike@table@attr"]
   M.picture_attr = luatexbase.attributes["docxlike@picture@attr"]
   M.done_attr = luatexbase.attributes["docxlike@grid@attr"]
   M.nosnap_attr = luatexbase.attributes["docxlike@nosnap@attr"]
+  install_native_boundary()
+  local descriptions = luatexbase.callback_descriptions("build_page_insert")
+  if #descriptions <= 1 and not M.note_insert_base then
+    local description = descriptions[1]
+    local base = description and luatexbase.remove_from_callback("build_page_insert", description)
+    M.note_insert_base = {base, description}
+    luatexbase.add_to_callback("build_page_insert", function(index, ordinal)
+      begin_note_story(index)
+      return base and base(index, ordinal) or index
+    end, "docxlike.note-story")
+  end
   luatexbase.add_to_callback("pre_shaping_filter", explicit_breaks, "docxlike.explicit-breaks")
   luatexbase.add_to_callback("linebreak_filter",
     function(h, d) return M.filter(h, d) end, "docxlike.linebreak")
   luatexbase.add_to_callback("post_linebreak_filter",
-    function(h) return pin_exact(h) end, "docxlike.exact")
+    function(h)
+      pin_exact(h)
+      -- A strut-only owned paragraph takes TeX's breaker (#items == 0).
+      -- Preserve its incoming leading just like the custom-rendered path.
+      local leading = previous_body_leading()
+      for line in traverse_id(HLIST, h) do
+        if line.subtype == 1 then
+          for n in traverse(line.list) do
+            local p = node.getproperty(n)
+            if p and p.docxlike_incoming_leading ~= nil then
+              leading = p.docxlike_incoming_leading; break
+            end
+          end
+          break
+        end
+      end
+      h = paragraph_boundary(h, leading)
+      if getbool('l__docxlike_format_owned_par_bool') then
+        tag_paragraph(h)
+        if tex.nest.ptr == 0 and not getbool('l__docxlike_format_keep_next_bool') then
+          h = flush_held_keep_note(h)
+        end
+      end
+      -- Ordinary body text may use TeX's breaker. Its migrated footins nodes
+      -- become visible here, not in the custom Word linebreak return path.
+      if tex.nest.ptr == 0 and note_body_context(h) then
+        local footnote_class = token.create("footins").mode
+        for insertion in traverse_id(INS, h) do
+          if insertion.subtype == footnote_class
+              and not (node.getproperty(insertion) or {}).docxlike_note_coordinated then
+            tag_paragraph(h)
+            h = coordinate_notes(h)
+            break
+          end
+        end
+      end
+      h = M.relax_oversized_keep_lines(h)
+      M.retain_fitting_legacy_keep_next(h)
+      h = legacy_relaxed_blank(h)
+      return h
+    end, "docxlike.exact")
   if ks and xks then
     luatexbase.add_to_callback("hpack_filter",
       function(h) fix_skips(h); return true end, "docxlike.skips")
@@ -3754,6 +5248,19 @@ function M.install(attr, ks, xks, kern, code)
   end
 end
 function M.uninstall()
+  if M.note_insert_base and luatexbase.in_callback("build_page_insert", "docxlike.note-story") then
+    luatexbase.remove_from_callback("build_page_insert", "docxlike.note-story")
+    if M.note_insert_base[1] then
+      luatexbase.add_to_callback("build_page_insert", M.note_insert_base[1], M.note_insert_base[2])
+    end
+    M.note_insert_base = nil
+  end
+  if M.native_append_base and luatexbase.in_callback("append_to_vlist_filter", "docxlike.native-boundary") then
+    luatexbase.remove_from_callback("append_to_vlist_filter", "docxlike.native-boundary")
+    luatexbase.add_to_callback("append_to_vlist_filter", M.native_append_base[1], M.native_append_base[2])
+    M.native_append_base = nil
+  end
+  if docxlike and docxlike.page then docxlike.page.wrap_native() end
   for _, cb in ipairs({ { "linebreak_filter", "docxlike.linebreak" }, { "hpack_filter", "docxlike.skips" },
                         { "pre_shaping_filter", "docxlike.explicit-breaks" },
                         { "hpack_filter", "docxlike.cells" }, { "hpack_filter", "docxlike.mcell" },

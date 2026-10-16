@@ -1,0 +1,70 @@
+% 短注与三段长注混排；中段自身超页，首尾段能完整装页。
+%! branches: degree-level=master,campus=harbin,lang=zh,stage=final
+%! engines: lualatex
+%! options: fontset=fandol
+\providecommand\ProbeMode{word-2013}
+\edef\ProbeSetup{layout={compatibility-mode=\ProbeMode}}
+\expandafter\hitsetup\expandafter{\ProbeSetup}
+\ifdefined\ProbeDefault
+  \docxlikesetup{styles={FootnoteText={paragraph={pagination={keep-lines-together=false}}}}}
+\fi
+\newcount\ShortExecutions
+\newcount\LongExecutions
+\newcount\ParagraphExecutions
+\newcount\ProbePages
+\newdimen\OriginalNoteLimit
+\AddToHook{shipout/before}{\global\advance\ProbePages by1
+  \ifnum\ProbePages>20\errmessage{Mixed paragraph notes did not terminate}\fi}
+\AddToHook{enddocument/afterlastpage}{%
+  \ifnum\ShortExecutions=1\else\errmessage{Short note executed more than once}\fi
+  \ifnum\LongExecutions=1\else\errmessage{Long note executed more than once}\fi
+  \ifnum\ParagraphExecutions=3\else\errmessage{Long note paragraphs executed more than once}\fi
+  \ifdim\dimen\footins=\OriginalNoteLimit\else\errmessage{Note limit leaked}\fi
+  \directlua{assert(not docxlike.linebreak.held_keep_note);
+    assert(not docxlike.linebreak.note_page_limit);
+    assert(next(docxlike.linebreak.deferred_notes)==nil)}}
+\newcommand\ProbeShortNote{%
+  \global\advance\ShortExecutions by1
+  SeparateStart 独立短注首行，应按引用顺序完整保留。\break
+  独立短注末行，不得越过先引用的多段长注。SeparateEnd}
+\ExplSyntaxOn
+\cs_new_protected:Npn \ProbeLongNote
+  {
+    \global\advance\LongExecutions by1
+    \global\advance\ParagraphExecutions by1
+    FirstStart~长注的首段能完整装页，不应被中间超页段一起延期。FirstEnd\par
+    \global\advance\ParagraphExecutions by1
+    MiddleStart~
+    \prg_replicate:nn {110}
+      {中间注段采用连续文字自然折行，automatic~wrapping~preserves~every~word，超过一页后只对本段允许续排。}
+    MiddleEnd\par
+    \global\advance\ParagraphExecutions by1
+    LastStart~长注末段应保持完整，并排在中间段之后。LastEnd
+  }
+\ExplSyntaxOff
+\newcommand\ProbeReferences{%
+  RefOne Agjp\footnote{\ifdefined\ProbeReverse\ProbeLongNote\else\ProbeShortNote\fi}
+  \break
+  RefTwo Agjp\footnote{\ifdefined\ProbeReverse\ProbeShortNote\else\ProbeLongNote\fi}}
+\newcommand\ProbeBody{%
+  \noindent BeforeText Agjp\par
+  \vspace*{\dimexpr\textheight-160bp\relax}\penalty0
+  \ifdefined\ProbeOwned\docxpar{\ProbeReferences}\else\noindent\ProbeReferences\par\fi}
+\begin{document}
+\mainmatter
+\OriginalNoteLimit=\dimen\footins
+\ifdefined\ProbeTrial
+  \ExplSyntaxOn
+  \box_new:N \l__multipar_mixed_trial_box
+  \docxlike_format_measure:Nn \l__multipar_mixed_trial_box {\ProbeBody}
+  \ExplSyntaxOff
+  \ifnum\ShortExecutions=1\else\errmessage{Trial short note execution count}\fi
+  \ifnum\LongExecutions=1\else\errmessage{Trial long note execution count}\fi
+  \ifnum\ParagraphExecutions=3\else\errmessage{Trial paragraph execution count}\fi
+  \directlua{assert(tex.pagetotal==0);assert(not docxlike.linebreak.held_keep_note);
+    assert(not docxlike.linebreak.note_page_limit);
+    assert(next(docxlike.linebreak.deferred_notes)==nil)}
+  \ShortExecutions=0 \LongExecutions=0 \ParagraphExecutions=0 \setcounter{footnote}{0}
+\fi
+\ProbeBody
+\end{document}

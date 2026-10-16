@@ -107,7 +107,7 @@
         Normal =
           {
             font = { asian-text-font = DengXian, size = 11bp, snap-to-grid-when-document-grid-is-defined = false },
-            paragraph = { alignment = left, snap-to-grid-when-document-grid-is-defined = true, spacing = { line-spacing = multiple, at = 1.158333, after = 8bp } },
+            paragraph = { alignment = left, snap-to-grid-when-document-grid-is-defined = true, spacing = { line-spacing = multiple, at = 1.158333, after = 8bp }, pagination={widow-control=true} },
           } ,
         Heading1 =
           {
@@ -463,20 +463,135 @@
 % 词隙与标点不缩，一行塞的字与 Word 一样多。段与段之间按行盒接，打开
 % \cs{docxlike\_format\_word\_interline:}。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__docxlike_preset_normalsize: { }
+\bool_new:N \g__docxlike_body_requested_bool
+\bool_new:N \g__docxlike_body_active_bool
+\bool_new:N \g__docxlike_body_preamble_closed_bool
+\hook_gput_code:nnn {begindocument/before}{docxlike-body-timing}
+  {\bool_gset_true:N \g__docxlike_body_preamble_closed_bool}
+\tl_new:N \g__docxlike_body_cjk_tl
+\tl_new:N \g__docxlike_body_normalsize_tl
+\tl_new:N \g__docxlike_body_interline_tl
+\tl_new:N \g__docxlike_body_rigid_tl
+\tl_gset:Nn \g__docxlike_body_cjk_tl {auto}
+\tl_gset:Nn \g__docxlike_body_normalsize_tl {body}
+\tl_gset:Nn \g__docxlike_body_interline_tl {true}
+\tl_gset:Nn \g__docxlike_body_rigid_tl {true}
+\tl_new:N \l__docxlike_body_cjk_tl
+\tl_new:N \l__docxlike_body_normalsize_tl
+\tl_new:N \l__docxlike_body_interline_tl
+\tl_new:N \l__docxlike_body_rigid_tl
+\bool_new:N \l__docxlike_body_valid_bool
+\msg_new:nnn {docxlike} {body-install-late}
+  { Body~installation~must~be~requested~in~the~preamble;~active~options~cannot~be~changed. }
+\msg_new:nnn {docxlike} {body-install-normal}
+  { Body~installation~requires~a~nonempty~Normal~style~or~document~defaults. }
+\msg_new:nnn {docxlike} {body-install-cjk}
+  { Body~installation~with~cjk=external~requires~the~engine's~CJK~backend~before~the~document~starts. }
+\cs_new_protected:Npn \__docxlike_body_choice:nnnN #1#2#3#4
+  {
+    \clist_if_in:nnTF {#2} {#3}
+      { \tl_set:Nn #4 {#3} }
+      {
+        \bool_set_false:N \l__docxlike_body_valid_bool
+        \__docxlike_bad_value:nnn {body-install/#1} {#3} {#2}
+      }
+  }
+\keys_define:nn {docxlike/body-install}
+  {
+    cjk .code:n = {\__docxlike_body_choice:nnnN {cjk}{auto,external}{#1}\l__docxlike_body_cjk_tl},
+    normalsize .code:n = {\__docxlike_body_choice:nnnN {normalsize}{body,preserve}{#1}\l__docxlike_body_normalsize_tl},
+    word-interline .code:n = {\__docxlike_body_choice:nnnN {word-interline}{true,false}{#1}\l__docxlike_body_interline_tl},
+    rigid-ragged .code:n = {\__docxlike_body_choice:nnnN {rigid-ragged}{true,false}{#1}\l__docxlike_body_rigid_tl},
+    unknown .code:n =
+      {
+        \bool_set_false:N \l__docxlike_body_valid_bool
+        \__docxlike_unknown_key:
+      },
+  }
+\cs_new_protected:Npn \docxlike_body_install:n #1
+  {
+    \group_begin:
+      \bool_set_true:N \l__docxlike_body_valid_bool
+      \tl_set_eq:NN \l__docxlike_body_cjk_tl \g__docxlike_body_cjk_tl
+      \tl_set_eq:NN \l__docxlike_body_normalsize_tl \g__docxlike_body_normalsize_tl
+      \tl_set_eq:NN \l__docxlike_body_interline_tl \g__docxlike_body_interline_tl
+      \tl_set_eq:NN \l__docxlike_body_rigid_tl \g__docxlike_body_rigid_tl
+      \keys_set:nn {docxlike/body-install} {#1}
+      \bool_if:NT \l__docxlike_body_valid_bool
+        {
+          \bool_lazy_or:nnTF
+            {\g__docxlike_body_active_bool}{\g__docxlike_body_preamble_closed_bool}
+            {
+              \bool_lazy_all:nF
+                {
+                  {\g__docxlike_body_active_bool}
+                  {\tl_if_eq_p:NN \l__docxlike_body_cjk_tl \g__docxlike_body_cjk_tl}
+                  {\tl_if_eq_p:NN \l__docxlike_body_normalsize_tl \g__docxlike_body_normalsize_tl}
+                  {\tl_if_eq_p:NN \l__docxlike_body_interline_tl \g__docxlike_body_interline_tl}
+                  {\tl_if_eq_p:NN \l__docxlike_body_rigid_tl \g__docxlike_body_rigid_tl}
+                }
+                {\msg_error:nn {docxlike}{body-install-late}}
+            }
+            {
+              \tl_gset_eq:NN \g__docxlike_body_cjk_tl \l__docxlike_body_cjk_tl
+              \tl_gset_eq:NN \g__docxlike_body_normalsize_tl \l__docxlike_body_normalsize_tl
+              \tl_gset_eq:NN \g__docxlike_body_interline_tl \l__docxlike_body_interline_tl
+              \tl_gset_eq:NN \g__docxlike_body_rigid_tl \l__docxlike_body_rigid_tl
+              \str_if_eq:VnT \g__docxlike_body_cjk_tl {auto}
+                {\group_insert_after:N \docxlike_cjk_base:}
+              \bool_if:NF \g__docxlike_body_requested_bool
+                {
+                  \bool_gset_true:N \g__docxlike_body_requested_bool
+                  \hook_gput_code:nnn {begindocument/end}{docxlike-body}
+                    {\__docxlike_body_activate:}
+                  \hook_gset_rule:nnnn {begindocument/end}{docxlike-body}{before}{docxlike}
+                  \hook_gset_rule:nnnn {begindocument/end}{docxlike-body}{before}{docxlike-page-geometry}
+                }
+            }
+        }
+    \group_end:
+  }
+\cs_generate_variant:Nn \docxlike_body_install:n {V}
+\NewDocumentCommand \docxbodyinstall {O{}} {\docxlike_body_install:n {#1}}
+\cs_new_protected:Npn \__docxlike_body_normalsize:
+  {
+    \cs_set:Npn \baselinestretch {1}
+    \@setfontsize \normalsize {\g_docxlike_body_size_dim}{\g_docxlike_body_lead_dim}
+  }
+\cs_new_protected:Npn \__docxlike_body_activate:
+  {
+    \bool_if:NF \g__docxlike_body_active_bool
+      {
+        \bool_set_true:N \l__docxlike_body_valid_bool
+        \sys_if_engine_luatex:T
+          {\cs_if_exist:NF \ltjsetparameter {\bool_set_false:N \l__docxlike_body_valid_bool}}
+        \sys_if_engine_xetex:T
+          {\cs_if_exist:NF \xeCJKsetup {\bool_set_false:N \l__docxlike_body_valid_bool}}
+        \bool_if:NTF \l__docxlike_body_valid_bool
+          {
+            \docxlike_format_if_blank:nTF {Normal}
+              {\msg_error:nn {docxlike}{body-install-normal}}
+              {
+                \bool_gset_true:N \g__docxlike_body_active_bool
+                \str_if_eq:VnTF \g__docxlike_body_interline_tl {true}
+                  {\docxlike_format_word_interline:}
+                  {\bool_gset_false:N \g__docxlike_format_interline_bool}
+                \str_if_eq:VnTF \g__docxlike_body_rigid_tl {true}
+                  {\docxlike_linebreak_rigid_ragged:}
+                  {\bool_gset_false:N \g__docxlike_linebreak_rigid_bool}
+                \str_if_eq:VnT \g__docxlike_body_normalsize_tl {body}
+                  {\hook_gput_code:nnn {cmd/normalsize/after}{docxlike-body}{\__docxlike_body_normalsize:}}
+                \bool_if:NF \g__docxlike_format_body_hooks_bool
+                  {\docxlike_format_apply_body:}
+                \docxlike_format_apply_par:n {Normal}
+              }
+          }
+          {\msg_error:nn {docxlike}{body-install-cjk}}
+      }
+  }
 \cs_new_protected:Npn \__docxlike_preset_apply:
   {
-    \cs_set:Npn \baselinestretch { 1 }
-    \cs_gset_eq:NN \__docxlike_preset_normalsize: \normalsize
-    \cs_gset_protected:Npn \normalsize
-      {
-        \__docxlike_preset_normalsize:
-        \@setfontsize \normalsize
-          { \g_docxlike_body_size_dim } { \g_docxlike_body_lead_dim }
-      }
-    \docxlike_format_word_interline:
-    \docxlike_linebreak_rigid_ragged:
-    \docxlike_format_apply_body:
+    \__docxlike_body_activate:
     \dim_compare:nNnT { \g_docxlike_page_char_dim } = { 0pt }
       { \docxlike_format_hglue:nn { 0pt } { 0.225 \g_docxlike_body_size_dim } }
     \cs_gset_eq:NN \ps@plain \ps@docxlike
@@ -497,7 +612,7 @@
   }
 \cs_new_protected:Npn \__docxlike_preset_blank:
   {
-    \docxlike_cjk_base:
+    \docxlike_body_install:n {}
     \__docxlike_preset_page:
     \__docxlike_preset_format:
     \__docxlike_preset_fonts:

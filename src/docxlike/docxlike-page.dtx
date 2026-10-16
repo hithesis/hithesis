@@ -118,6 +118,19 @@
 \dim_new:N \l__docxlike_page_right_dim
 \dim_new:N \l__docxlike_page_header_dim
 \dim_new:N \l__docxlike_page_footer_dim
+\dim_new:N \l__docxlike_page_gutter_dim
+\dim_new:N\l__docxlike_page_inside_dim
+\dim_new:N\l__docxlike_page_outside_dim
+\int_new:N\l__docxlike_page_margin_order_int
+\clist_map_inline:nn{left,right,inside,outside}{\int_new:c{l__docxlike_page_#1_order_int}}
+\tl_new:N \l__docxlike_page_gutter_position_tl
+\tl_set:Nn \l__docxlike_page_gutter_position_tl { left }
+\tl_new:N \l__docxlike_page_multiple_tl
+\tl_set:Nn \l__docxlike_page_multiple_tl { normal }
+\tl_new:N \l__docxlike_page_orientation_tl
+\tl_set:Nn \l__docxlike_page_orientation_tl { auto }
+\int_new:N \l__docxlike_page_booklet_sheets_int
+\int_zero:N \l__docxlike_page_booklet_sheets_int
 \dim_new:N \l_docxlike_page_head_height_dim
 \dim_new:N \l_docxlike_page_foot_skip_offset_dim
 \dim_new:N \l__docxlike_page_lead_dim
@@ -145,6 +158,20 @@
 \dim_new:N \g_docxlike_page_head_height_dim
 \dim_new:N \g_docxlike_page_head_sep_dim
 \dim_new:N \g_docxlike_page_foot_skip_dim
+\dim_new:N \g_docxlike_page_sheet_width_dim
+\dim_new:N \g_docxlike_page_sheet_height_dim
+\dim_new:N \g_docxlike_page_even_margin_left_dim
+\dim_new:N \g_docxlike_page_even_margin_right_dim
+\dim_new:N \g_docxlike_page_even_margin_top_dim
+\dim_new:N \g_docxlike_page_even_margin_bottom_dim
+\dim_new:N \g_docxlike_page_gutter_dim
+\clist_map_inline:nn {left,right,top,bottom}
+  {\dim_new:c{g_docxlike_page_base_margin_#1_dim}}
+\tl_new:N \g_docxlike_page_gutter_position_tl
+\tl_new:N \g_docxlike_page_multiple_tl
+\tl_gset:Nn \g_docxlike_page_multiple_tl { normal }
+\int_new:N \g_docxlike_page_booklet_sheets_int
+\bool_new:N \g__docxlike_page_configured_bool
 %    \end{macrocode}
 %
 % 键照 Word“页面设置”对话框的四页分组：\option{margins}（页边距）、\option{paper}（纸张）、
@@ -199,19 +226,94 @@
   }
 \keys_define:nn { docxlike / page-setup / margins }
   {
+    preset .choices:nn = { normal , narrow , moderate , wide , mirrored }
+      { \__docxlike_page_margin_preset:V \l_keys_choice_tl } ,
     top    .code:n = { \dim_set:Nn \l__docxlike_page_top_dim { \__docxlike_bp:n {#1} } } ,
     bottom .code:n = { \dim_set:Nn \l__docxlike_page_bottom_dim { \__docxlike_bp:n {#1} } } ,
-    left   .code:n = { \dim_set:Nn \l__docxlike_page_left_dim { \__docxlike_bp:n {#1} } } ,
-    right  .code:n = { \dim_set:Nn \l__docxlike_page_right_dim { \__docxlike_bp:n {#1} } } ,
+    left   .code:n = { \__docxlike_page_side:nn{left}{#1} } ,
+    right  .code:n = { \__docxlike_page_side:nn{right}{#1} } ,
+    inside .code:n = { \__docxlike_page_side:nn{inside}{#1} } ,
+    outside .code:n = { \__docxlike_page_side:nn{outside}{#1} } ,
+    gutter .code:n = { \dim_set:Nn \l__docxlike_page_gutter_dim { \__docxlike_bp:n {#1} } } ,
+    gutter-position .choices:nn = { left , top , right }
+      { \tl_set_eq:NN \l__docxlike_page_gutter_position_tl \l_keys_choice_tl } ,
+    multiple-pages .choices:nn =
+      { normal , mirror-margins , two-pages-per-sheet , book-fold , reverse-book-fold }
+      { \tl_set_eq:NN \l__docxlike_page_multiple_tl \l_keys_choice_tl } ,
+    sheets-per-booklet .code:n =
+      {
+        \str_if_eq:nnTF {#1} { all }
+          { \int_zero:N \l__docxlike_page_booklet_sheets_int }
+          {
+            \int_set:Nn \l_tmpa_int {#1}
+            \int_compare:nNnTF { \l_tmpa_int } < { 1 }
+              { \__docxlike_bad_value:nnn { sheets-per-booklet } {#1} { all,~positive~integer } }
+              { \int_set_eq:NN\l__docxlike_page_booklet_sheets_int\l_tmpa_int }
+          }
+      } ,
     unknown .code:n =
       { \__docxlike_unknown_key: } ,
   }
+\cs_new_protected:Npn\__docxlike_page_side:nn #1#2
+  {
+    \dim_set:cn{l__docxlike_page_#1_dim}{\__docxlike_bp:n{#2}}
+    \int_incr:N\l__docxlike_page_margin_order_int
+    \int_set_eq:cN{l__docxlike_page_#1_order_int}\l__docxlike_page_margin_order_int
+  }
+\cs_new_protected:Npn\__docxlike_page_side_order_reset:
+  {\int_zero:N\l__docxlike_page_margin_order_int\clist_map_inline:nn{left,right,inside,outside}{\int_zero:c{l__docxlike_page_##1_order_int}}}
+\cs_new_protected:Npn\__docxlike_page_side_alias:nn #1#2
+  {
+    \int_compare:nNnT{\int_use:c{l__docxlike_page_#1_order_int}}>{\int_use:c{l__docxlike_page_#2_order_int}}
+      {
+        \dim_set_eq:cc{l__docxlike_page_#2_dim}{l__docxlike_page_#1_dim}
+        \int_set_eq:cc{l__docxlike_page_#2_order_int}{l__docxlike_page_#1_order_int}
+      }
+  }
+\cs_new_protected:Npn\__docxlike_page_side_aliases:
+  {
+    \bool_lazy_or:nnTF
+      {\str_if_eq_p:Vn\l__docxlike_page_multiple_tl{book-fold}}
+      {\str_if_eq_p:Vn\l__docxlike_page_multiple_tl{reverse-book-fold}}
+      {\__docxlike_page_side_alias:nn{inside}{right}\__docxlike_page_side_alias:nn{outside}{left}}
+      {\__docxlike_page_side_alias:nn{inside}{left}\__docxlike_page_side_alias:nn{outside}{right}}
+  }
+\cs_new_protected:Npn \__docxlike_page_margin_preset:n #1
+  {
+    \dim_set:Nn \l__docxlike_page_top_dim { 72bp }
+    \dim_set:Nn \l__docxlike_page_bottom_dim { 72bp }
+    \str_case:nn {#1}
+      {
+        { normal }
+          { \dim_set:Nn \l__docxlike_page_left_dim {90bp} \dim_set:Nn \l__docxlike_page_right_dim {90bp} }
+        { narrow }
+          {
+            \dim_set:Nn \l__docxlike_page_top_dim {36bp} \dim_set:Nn \l__docxlike_page_bottom_dim {36bp}
+            \dim_set:Nn \l__docxlike_page_left_dim {36bp} \dim_set:Nn \l__docxlike_page_right_dim {36bp}
+          }
+        { moderate }
+          { \dim_set:Nn \l__docxlike_page_left_dim {54bp} \dim_set:Nn \l__docxlike_page_right_dim {54bp} }
+        { wide }
+          { \dim_set:Nn \l__docxlike_page_left_dim {144bp} \dim_set:Nn \l__docxlike_page_right_dim {144bp} }
+        { mirrored }
+          {
+            \dim_set:Nn \l__docxlike_page_left_dim {90bp} \dim_set:Nn \l__docxlike_page_right_dim {72bp}
+            \tl_set:Nn \l__docxlike_page_multiple_tl { mirror-margins }
+          }
+      }
+    \int_incr:N\l__docxlike_page_margin_order_int
+    \int_set_eq:NN\l__docxlike_page_left_order_int\l__docxlike_page_margin_order_int
+    \int_set_eq:NN\l__docxlike_page_right_order_int\l__docxlike_page_margin_order_int
+  }
+\cs_generate_variant:Nn \__docxlike_page_margin_preset:n { V }
 \keys_define:nn { docxlike / page-setup / paper }
   {
     width  .code:n = { \dim_set:Nn \l__docxlike_page_paper_width_dim { \__docxlike_bp:n {#1} } } ,
     width  .initial:n = { 210mm } ,
     height .code:n = { \dim_set:Nn \l__docxlike_page_paper_height_dim { \__docxlike_bp:n {#1} } } ,
     height .initial:n = { 297mm } ,
+    orientation .choices:nn = { auto , portrait , landscape }
+      { \tl_set_eq:NN \l__docxlike_page_orientation_tl \l_keys_choice_tl } ,
     unknown .code:n =
       { \__docxlike_unknown_key: } ,
   }
@@ -339,6 +441,7 @@
 \cs_new_protected:Npn \__docxlike_page_compute:nn #1#2
   {
     \group_begin:
+      \__docxlike_page_side_order_reset:
       \tl_clear:N \l__docxlike_page_grid_tl
       \bool_set_true:N \l_docxlike_page_replay_bool
       \keys_set:nn { docxlike / page-setup } {#1}
@@ -369,22 +472,23 @@
       \dim_zero:N \l_docxlike_page_head_height_dim
       \dim_zero:N \l_docxlike_page_foot_skip_offset_dim
       \__docxlike_page_compute_hook:
+      \__docxlike_page_facing_geometry:
       \dim_set:Nn \l__docxlike_page_text_width_dim
         {
           \l__docxlike_page_paper_width_dim
-          - \l__docxlike_page_left_dim - \l__docxlike_page_right_dim
+          - \g_docxlike_page_margin_left_dim - \g_docxlike_page_margin_right_dim
         }
       \dim_set:Nn \l__docxlike_page_text_height_dim
         {
           \l__docxlike_page_paper_height_dim
-          - \l__docxlike_page_top_dim - \l__docxlike_page_bottom_dim
+          - \g_docxlike_page_margin_top_dim - \g_docxlike_page_margin_bottom_dim
         }
       \__docxlike_page_pitch:NNn \l__docxlike_page_lead_dim
         \l__docxlike_page_text_height_dim { \l__docxlike_page_lines_int }
       \__docxlike_page_pitch:NNn \l__docxlike_page_char_dim
         \l__docxlike_page_text_width_dim { \l__docxlike_page_chars_int }
       \dim_compare:nNnT { \l__docxlike_page_lead_dim } = { 0pt }
-        { \msg_error:nn { docxlike } { page-no-pitch } }
+        { \bool_if:NT \g_docxlike_grid_bool { \msg_error:nn { docxlike } { page-no-pitch } } }
       \dim_gset_eq:NN \g_docxlike_page_lead_dim \l__docxlike_page_lead_dim
       \dim_gset_eq:NN \g_docxlike_page_char_dim \l__docxlike_page_char_dim
 %    \end{macrocode}
@@ -412,21 +516,17 @@
       \int_gset_eq:NN \g_docxlike_page_cells_int \l__docxlike_page_cells_int
       \dim_gset_eq:NN \g_docxlike_page_paper_width_dim \l__docxlike_page_paper_width_dim
       \dim_gset_eq:NN \g_docxlike_page_paper_height_dim \l__docxlike_page_paper_height_dim
-      \dim_gset_eq:NN \g_docxlike_page_margin_left_dim \l__docxlike_page_left_dim
-      \dim_gset_eq:NN \g_docxlike_page_margin_right_dim \l__docxlike_page_right_dim
-      \dim_gset_eq:NN \g_docxlike_page_margin_top_dim \l__docxlike_page_top_dim
-      \dim_gset_eq:NN \g_docxlike_page_margin_bottom_dim \l__docxlike_page_bottom_dim
       \dim_gset_eq:NN \g_docxlike_page_header_edge_dim \l__docxlike_page_header_dim
       \dim_gset_eq:NN \g_docxlike_page_footer_edge_dim \l__docxlike_page_footer_dim
       \dim_gset_eq:NN \g_docxlike_page_head_height_dim \l_docxlike_page_head_height_dim
       \dim_gset:Nn \g_docxlike_page_head_sep_dim
         {
-          \l__docxlike_page_top_dim
+          \g_docxlike_page_margin_top_dim
           - \l__docxlike_page_header_dim - \l_docxlike_page_head_height_dim
         }
       \dim_gset:Nn \g_docxlike_page_foot_skip_dim
         {
-          \l__docxlike_page_bottom_dim
+          \g_docxlike_page_margin_bottom_dim
           - \l__docxlike_page_footer_dim + \l_docxlike_page_foot_skip_offset_dim
         }
       \tl_gset:Nx \g__docxlike_page_layout_tl
@@ -438,8 +538,143 @@
           \dim_use:N \g_docxlike_page_head_height_dim ,
           \dim_use:N \g_docxlike_page_head_sep_dim ,
           \dim_use:N \g_docxlike_page_foot_skip_dim
+          , \dim_use:N \g_docxlike_page_paper_width_dim
+          , \dim_use:N \g_docxlike_page_paper_height_dim
+          , \dim_use:N \g_docxlike_page_even_margin_left_dim
+          , \dim_use:N \g_docxlike_page_even_margin_right_dim
+          , \dim_use:N \g_docxlike_page_even_margin_top_dim
+          , \dim_use:N \g_docxlike_page_even_margin_bottom_dim
+          , \tl_use:N \g_docxlike_page_multiple_tl
+           , \int_use:N \g_docxlike_page_booklet_sheets_int
+           , \dim_use:N \g_docxlike_page_sheet_width_dim
+           , \dim_use:N \g_docxlike_page_sheet_height_dim
+        }
+      \tl_gset:Nx \g__docxlike_page_canonical_tl
+        {
+          \exp_not:n{#1},\exp_not:n{#2},
+          paper={width=\dim_use:N\g_docxlike_page_sheet_width_dim,
+            height=\dim_use:N\g_docxlike_page_sheet_height_dim,orientation=auto},
+          margins={top=\dim_use:N\l__docxlike_page_top_dim,bottom=\dim_use:N\l__docxlike_page_bottom_dim,
+            left=\dim_use:N\l__docxlike_page_left_dim,right=\dim_use:N\l__docxlike_page_right_dim,
+            gutter=\dim_use:N\l__docxlike_page_gutter_dim,gutter-position=\tl_use:N\l__docxlike_page_gutter_position_tl,
+            multiple-pages=\tl_use:N\l__docxlike_page_multiple_tl,
+            sheets-per-booklet=\int_compare:nNnTF{\l__docxlike_page_booklet_sheets_int}={0}{all}{\int_use:N\l__docxlike_page_booklet_sheets_int}},
+          layout={from-edge={header=\dim_use:N\l__docxlike_page_header_dim,footer=\dim_use:N\l__docxlike_page_footer_dim}},
+          document-grid={grid=\bool_if:NTF\g_docxlike_grid_bool
+            {\dim_compare:nNnTF{\g_docxlike_page_char_dim}={0pt}{specify-line-grid-only}
+              {\bool_if:NTF\g_docxlike_page_snap_chars_bool{text-snaps-to-character-grid}{specify-line-and-character-grid}}}
+            {no-grid},lines={pitch=\dim_use:N\g_docxlike_page_lead_dim},characters={pitch=\dim_use:N\g_docxlike_page_char_dim}}
         }
     \group_end:
+  }
+% Margins are computed for both displayed page parities. The physical sheet
+% remains separate from the logical PDF page used by Word's fixed-format export.
+\cs_new_protected:Npn \__docxlike_page_facing_geometry:
+  {
+    \__docxlike_page_side_aliases:
+    \clist_map_inline:nn{top,bottom,left,right,gutter}
+      {
+        \dim_compare:nNnT{\dim_use:c{l__docxlike_page_##1_dim}}<{0pt}
+          {\msg_error:nnn{docxlike}{negative-page-margin}{##1}}
+      }
+    \str_case:Vn \l__docxlike_page_orientation_tl
+      {
+        { portrait }
+          {
+            \dim_compare:nNnT {\l__docxlike_page_paper_width_dim} > {\l__docxlike_page_paper_height_dim}
+              { \__docxlike_page_rotate_paper: }
+          }
+        { landscape }
+          {
+            \dim_compare:nNnT {\l__docxlike_page_paper_width_dim} < {\l__docxlike_page_paper_height_dim}
+              { \__docxlike_page_rotate_paper: }
+          }
+      }
+    \dim_gset_eq:NN \g_docxlike_page_sheet_width_dim \l__docxlike_page_paper_width_dim
+    \dim_gset_eq:NN \g_docxlike_page_sheet_height_dim \l__docxlike_page_paper_height_dim
+    \tl_gset_eq:NN \g_docxlike_page_multiple_tl \l__docxlike_page_multiple_tl
+    \tl_gset_eq:NN \g_docxlike_page_gutter_position_tl \l__docxlike_page_gutter_position_tl
+    \dim_gset_eq:NN \g_docxlike_page_gutter_dim \l__docxlike_page_gutter_dim
+    \int_gset_eq:NN \g_docxlike_page_booklet_sheets_int \l__docxlike_page_booklet_sheets_int
+    \clist_map_inline:nn {left,right,top,bottom}
+      {
+        \dim_gset_eq:cc {g_docxlike_page_margin_##1_dim} {l__docxlike_page_##1_dim}
+        \dim_gset_eq:cc {g_docxlike_page_base_margin_##1_dim} {l__docxlike_page_##1_dim}
+      }
+    \str_case:Vn \l__docxlike_page_gutter_position_tl
+      {
+        { left } { \dim_gadd:Nn \g_docxlike_page_margin_left_dim {\l__docxlike_page_gutter_dim} }
+        { right } { \dim_gadd:Nn \g_docxlike_page_margin_right_dim {\l__docxlike_page_gutter_dim} }
+        { top } { \dim_gadd:Nn \g_docxlike_page_margin_top_dim {\l__docxlike_page_gutter_dim} }
+      }
+    \clist_map_inline:nn {left,right,top,bottom}
+      { \dim_gset_eq:cc {g_docxlike_page_even_margin_##1_dim} {g_docxlike_page_margin_##1_dim} }
+    \str_if_eq:VnT \l__docxlike_page_multiple_tl { mirror-margins }
+      {
+        \str_if_eq:VnF \l__docxlike_page_gutter_position_tl { top }
+          {
+            \dim_gset_eq:NN \g_docxlike_page_even_margin_left_dim \g_docxlike_page_margin_right_dim
+            \dim_gset_eq:NN \g_docxlike_page_even_margin_right_dim \g_docxlike_page_margin_left_dim
+          }
+      }
+    \bool_lazy_and:nnT
+      { ! \str_if_eq_p:Vn \l__docxlike_page_multiple_tl {normal} }
+      { ! \str_if_eq_p:Vn \l__docxlike_page_multiple_tl {mirror-margins} }
+      {
+        \dim_compare:nNnTF {\l__docxlike_page_paper_width_dim} > {\l__docxlike_page_paper_height_dim}
+          {
+            \dim_set:Nn \l__docxlike_page_paper_width_dim { .5 \l__docxlike_page_paper_width_dim }
+            \dim_gset:Nn \g_docxlike_page_margin_left_dim {\l__docxlike_page_right_dim+\l__docxlike_page_gutter_dim}
+            \dim_gset_eq:NN \g_docxlike_page_margin_right_dim \l__docxlike_page_left_dim
+            \dim_gset_eq:NN \g_docxlike_page_even_margin_left_dim \l__docxlike_page_left_dim
+            \dim_gset:Nn \g_docxlike_page_even_margin_right_dim {\l__docxlike_page_right_dim+\l__docxlike_page_gutter_dim}
+            \str_if_eq:VnT \l__docxlike_page_multiple_tl {reverse-book-fold}
+              { \__docxlike_page_swap_parity_margins: }
+          }
+          {
+            \dim_set:Nn \l__docxlike_page_paper_height_dim { .5 \l__docxlike_page_paper_height_dim }
+            \str_if_eq:VnT \l__docxlike_page_multiple_tl {two-pages-per-sheet}
+              {
+                \dim_gset_eq:NN \g_docxlike_page_margin_left_dim \l__docxlike_page_left_dim
+                \dim_gset_eq:NN \g_docxlike_page_margin_right_dim \l__docxlike_page_right_dim
+                \dim_gset_eq:NN \g_docxlike_page_even_margin_left_dim \l__docxlike_page_left_dim
+                \dim_gset_eq:NN \g_docxlike_page_even_margin_right_dim \l__docxlike_page_right_dim
+                \dim_gset:Nn \g_docxlike_page_margin_top_dim {\l__docxlike_page_bottom_dim+\l__docxlike_page_gutter_dim}
+                \dim_gset_eq:NN \g_docxlike_page_margin_bottom_dim \l__docxlike_page_top_dim
+                \dim_gset_eq:NN \g_docxlike_page_even_margin_top_dim \l__docxlike_page_top_dim
+                \dim_gset:Nn \g_docxlike_page_even_margin_bottom_dim {\l__docxlike_page_bottom_dim+\l__docxlike_page_gutter_dim}
+              }
+          }
+      }
+    \dim_compare:nNnF
+      {\l__docxlike_page_paper_width_dim-\g_docxlike_page_margin_left_dim-\g_docxlike_page_margin_right_dim}>{0pt}
+      {\msg_error:nn{docxlike}{page-no-room}}
+    \dim_compare:nNnF
+      {\l__docxlike_page_paper_height_dim-\g_docxlike_page_margin_top_dim-\g_docxlike_page_margin_bottom_dim}>{0pt}
+      {\msg_error:nn{docxlike}{page-no-room}}
+  }
+\msg_new:nnn{docxlike}{negative-page-margin}{Page~margin~'#1'~must~be~nonnegative.}
+\msg_new:nnn{docxlike}{page-no-room}{Page~margins~leave~no~positive~text~area.}
+\cs_new_protected:Npn \__docxlike_page_rotate_paper:
+  {
+    \dim_set_eq:NN \l_tmpa_dim \l__docxlike_page_paper_width_dim
+    \dim_set_eq:NN \l__docxlike_page_paper_width_dim \l__docxlike_page_paper_height_dim
+    \dim_set_eq:NN \l__docxlike_page_paper_height_dim \l_tmpa_dim
+  }
+\cs_new_protected:Npn \__docxlike_page_swap_parity_margins:
+  {
+    \clist_map_inline:nn {left,right,top,bottom}
+      {
+        \dim_set_eq:Nc \l_tmpa_dim {g_docxlike_page_margin_##1_dim}
+        \dim_gset_eq:cc {g_docxlike_page_margin_##1_dim} {g_docxlike_page_even_margin_##1_dim}
+        \dim_gset_eq:cN {g_docxlike_page_even_margin_##1_dim} \l_tmpa_dim
+      }
+  }
+\cs_new:Npn \docxlike_page_margin:nn #1#2
+  {
+    \int_if_even:nTF {#2}
+      { \dim_use:c {g_docxlike_page_even_margin_#1_dim} }
+      { \dim_use:c {g_docxlike_page_margin_#1_dim} }
   }
 %    \end{macrocode}
 %
@@ -480,8 +715,10 @@
         \g_docxlike_page_paper_height_dim
         - \g_docxlike_page_margin_top_dim - \g_docxlike_page_margin_bottom_dim
       }
+    \cs_if_exist:NT\g__docxlike_headfoot_cut_dim
+      {\dim_sub:Nn\textheight{\g__docxlike_headfoot_cut_dim}}
     \dim_set:Nn \oddsidemargin { \g_docxlike_page_margin_left_dim - 1in }
-    \dim_set_eq:NN \evensidemargin \oddsidemargin
+    \dim_set:Nn \evensidemargin { \g_docxlike_page_even_margin_left_dim - 1in }
     \dim_set_eq:NN \headheight \g_docxlike_page_head_height_dim
     \dim_set_eq:NN \headsep \g_docxlike_page_head_sep_dim
     \dim_set_eq:NN \footskip \g_docxlike_page_foot_skip_dim
@@ -489,6 +726,55 @@
       { \g_docxlike_page_margin_top_dim - 1in - \headheight - \headsep }
     \__docxlike_page_running_sync:
   }
+\AddToHook { cmd / @outputpage / before } [ docxlike-page-margins ]
+  {
+    % Local to LaTeX's output group: do not change duplex page styles or the
+    % odd/even dimensions available while paragraphs are being measured.
+    \bool_if:NT \g__docxlike_page_configured_bool
+      {
+        \dim_compare:nNnF {\g_docxlike_page_margin_left_dim} = {\g_docxlike_page_even_margin_left_dim}
+          { \dim_set:Nn \oddsidemargin { \docxlike_page_margin:nn {left} {\c@page} - 1in } }
+        \dim_compare:nNnF {\g_docxlike_page_margin_top_dim} = {\g_docxlike_page_even_margin_top_dim}
+          {
+            \dim_set:Nn \topmargin
+              { \docxlike_page_margin:nn {top} {\c@page} - 1in - \headheight - \headsep }
+          }
+      }
+  }
+% Word's normal PDF export contains logical pages, while its multipage/booklet
+% options control a separate print layout. Export physical-sheet metadata for
+% the explicit print-layout tool without shell escape or automatic printing.
+\iow_new:N \g__docxlike_page_print_iow
+\bool_new:N \g__docxlike_page_print_open_bool
+\int_new:N \g__docxlike_page_print_page_int
+\AddToHook { shipout / before } [ docxlike-print-layout ]
+  {
+    \bool_if:NF \g__docxlike_page_print_open_bool
+      {
+        \iow_open:Nn \g__docxlike_page_print_iow { \jobname.docxlike-pages.jsonl }
+        \bool_gset_true:N \g__docxlike_page_print_open_bool
+      }
+    \int_gincr:N \g__docxlike_page_print_page_int
+    \iow_now:Ne \g__docxlike_page_print_iow
+      {
+        \c_left_brace_str
+        "page":\int_use:N\g__docxlike_page_print_page_int,
+        "number":\int_use:N\c@page,
+        "configured":\bool_if:NTF\g__docxlike_page_configured_bool{true}{false},
+        "mode":"\bool_if:NTF\g__docxlike_page_configured_bool{\tl_use:N\g_docxlike_page_multiple_tl}{normal}",
+        "sheet-width":\bool_if:NTF\g__docxlike_page_configured_bool
+          {\dim_to_decimal_in_bp:n{\g_docxlike_page_sheet_width_dim}}{null},
+        "sheet-height":\bool_if:NTF\g__docxlike_page_configured_bool
+          {\dim_to_decimal_in_bp:n{\g_docxlike_page_sheet_height_dim}}{null},
+        "logical-width":\bool_if:NTF\g__docxlike_page_configured_bool{\dim_to_decimal_in_bp:n{\paperwidth}}{null},
+        "logical-height":\bool_if:NTF\g__docxlike_page_configured_bool{\dim_to_decimal_in_bp:n{\paperheight}}{null},
+        "sheets-per-booklet":\bool_if:NTF\g__docxlike_page_configured_bool
+          {\int_use:N\g_docxlike_page_booklet_sheets_int}{0}
+        \c_right_brace_str
+      }
+  }
+\AddToHook { enddocument / afterlastpage } [ docxlike-print-layout ]
+  { \bool_if:NT \g__docxlike_page_print_open_bool { \iow_close:N \g__docxlike_page_print_iow } }
 \bool_new:N \g__docxlike_page_in_document_bool
 \hook_gput_code:nnn { begindocument } { docxlike }
   { \bool_gset_true:N \g__docxlike_page_in_document_bool }
@@ -510,6 +796,10 @@
   {
     \dim_set_eq:NN \paperwidth \g_docxlike_page_paper_width_dim
     \dim_set_eq:NN \paperheight \g_docxlike_page_paper_height_dim
+    \__docxlike_page_paper_engine_set:
+  }
+\cs_new_protected:Npn \__docxlike_page_paper_engine_set:
+  {
     \cs_if_exist:NTF \tex_pagewidth:D
       {
         \tex_pagewidth:D = \paperwidth
@@ -525,12 +815,273 @@
   }
 \cs_new_protected:Npn \__docxlike_page_apply:
   {
+    \bool_gset_true:N \g__docxlike_page_configured_bool
     \__docxlike_page_paper_set:
     \__docxlike_page_params_set:
   }
 \cs_new_protected:Npn \docxlike_page_set_apply:n #1
   { \cs_gset_protected:Npn \__docxlike_page_apply: {#1} }
 \tl_new:N \g__docxlike_page_input_tl
+\tl_new:N \g__docxlike_page_canonical_tl
+\bool_new:N \g__docxlike_page_pending_bool
+\dim_new:N \g__docxlike_page_next_height_dim
+\dim_new:N \l__docxlike_page_previous_height_dim
+\dim_new:N \l__docxlike_page_previous_colht_dim
+\dim_new:N \l__docxlike_page_previous_colroom_dim
+\dim_new:N \l__docxlike_page_previous_vsize_dim
+\dim_new:N \g__docxlike_page_preview_width_dim
+\dim_new:N \g__docxlike_page_preview_height_dim
+\dim_new:N \g__docxlike_page_preview_sheet_width_dim
+\dim_new:N \g__docxlike_page_preview_sheet_height_dim
+\int_new:N \g__docxlike_page_preview_booklet_sheets_int
+\dim_new:N \g__docxlike_page_preview_left_dim
+\dim_new:N \g__docxlike_page_preview_right_dim
+\dim_new:N \g__docxlike_page_preview_gutter_dim
+\tl_new:N \g__docxlike_page_preview_position_tl
+\tl_new:N \g__docxlike_page_preview_multiple_tl
+\bool_new:N\l__docxlike_page_horizontal_change_bool
+\clist_map_inline:nn{top,even_top,headheight,headsep,footskip,header,footer}
+  {\dim_new:c{g__docxlike_page_old_#1_dim}\dim_new:c{g__docxlike_page_new_#1_dim}}
+\cs_new_protected:Npn \__docxlike_page_preview:n #1
+  {
+    \group_begin:
+      \__docxlike_page_side_order_reset:
+      \bool_set_true:N \l_docxlike_page_replay_bool
+      \keys_set:nV {docxlike/page-setup} \g__docxlike_page_input_tl
+      \keys_set:nn {docxlike/page-setup} {#1}
+      \__docxlike_page_side_aliases:
+      \str_case:Vn \l__docxlike_page_orientation_tl
+        {
+          {portrait}{\dim_compare:nNnT{\l__docxlike_page_paper_width_dim}>{\l__docxlike_page_paper_height_dim}{\__docxlike_page_rotate_paper:}}
+          {landscape}{\dim_compare:nNnT{\l__docxlike_page_paper_width_dim}<{\l__docxlike_page_paper_height_dim}{\__docxlike_page_rotate_paper:}}
+        }
+      \dim_gset_eq:NN \g__docxlike_page_preview_sheet_width_dim \l__docxlike_page_paper_width_dim
+      \dim_gset_eq:NN \g__docxlike_page_preview_sheet_height_dim \l__docxlike_page_paper_height_dim
+      \int_gset_eq:NN \g__docxlike_page_preview_booklet_sheets_int \l__docxlike_page_booklet_sheets_int
+      \bool_lazy_and:nnT
+        {!\str_if_eq_p:Vn\l__docxlike_page_multiple_tl{normal}}
+        {!\str_if_eq_p:Vn\l__docxlike_page_multiple_tl{mirror-margins}}
+        {
+          \dim_compare:nNnTF{\l__docxlike_page_paper_width_dim}>{\l__docxlike_page_paper_height_dim}
+            {\dim_set:Nn\l__docxlike_page_paper_width_dim{.5\l__docxlike_page_paper_width_dim}}
+            {\dim_set:Nn\l__docxlike_page_paper_height_dim{.5\l__docxlike_page_paper_height_dim}}
+        }
+      \dim_gset_eq:NN\g__docxlike_page_preview_width_dim\l__docxlike_page_paper_width_dim
+      \dim_gset_eq:NN\g__docxlike_page_preview_height_dim\l__docxlike_page_paper_height_dim
+      \dim_gset_eq:NN\g__docxlike_page_preview_left_dim\l__docxlike_page_left_dim
+      \dim_gset_eq:NN\g__docxlike_page_preview_right_dim\l__docxlike_page_right_dim
+      \dim_gset_eq:NN\g__docxlike_page_preview_gutter_dim\l__docxlike_page_gutter_dim
+      \tl_gset_eq:NN\g__docxlike_page_preview_position_tl\l__docxlike_page_gutter_position_tl
+      \tl_gset_eq:NN\g__docxlike_page_preview_multiple_tl\l__docxlike_page_multiple_tl
+    \group_end:
+  }
+\msg_new:nnn{docxlike}{continuous-page-engine}
+  {Continuous~horizontal~page~geometry~requires~LuaLaTeX;~use~a~next-page~section~under~this~engine.}
+\cs_new_protected:Npn\docxlike_page_continuous:n #1
+  {
+    \__docxlike_page_preview:n{#1}
+    \bool_lazy_any:nTF
+      {
+        {!\dim_compare_p:nNn{\g__docxlike_page_preview_width_dim}={\paperwidth}}
+        {!\dim_compare_p:nNn{\g__docxlike_page_preview_height_dim}={\paperheight}}
+        {!\dim_compare_p:nNn{\g__docxlike_page_preview_sheet_width_dim}={\g_docxlike_page_sheet_width_dim}}
+        {!\dim_compare_p:nNn{\g__docxlike_page_preview_sheet_height_dim}={\g_docxlike_page_sheet_height_dim}}
+        {!\tl_if_eq_p:NN\g__docxlike_page_preview_multiple_tl\g_docxlike_page_multiple_tl}
+        {\bool_lazy_and_p:nn
+          {!\int_compare_p:nNn{\g__docxlike_page_preview_booklet_sheets_int}={\g_docxlike_page_booklet_sheets_int}}
+          {\bool_lazy_any_p:n
+            {
+              {\str_if_eq_p:Vn\g__docxlike_page_preview_multiple_tl{book-fold}}
+              {\str_if_eq_p:Vn\g__docxlike_page_preview_multiple_tl{reverse-book-fold}}
+              {\str_if_eq_p:Vn\g_docxlike_page_multiple_tl{book-fold}}
+              {\str_if_eq_p:Vn\g_docxlike_page_multiple_tl{reverse-book-fold}}
+            }}}
+      }
+      {
+        \clearpage
+        \__docxlike_page_setup_more:n{#1}
+        \int_zero:N\l__docxlike_section_extra_int
+      }
+      {
+        \bool_set_false:N\l__docxlike_page_horizontal_change_bool
+        \bool_lazy_or:nnT
+          {!\dim_compare_p:nNn{\g__docxlike_page_preview_left_dim}={\g_docxlike_page_base_margin_left_dim}}
+          {!\dim_compare_p:nNn{\g__docxlike_page_preview_right_dim}={\g_docxlike_page_base_margin_right_dim}}
+          {\bool_set_true:N\l__docxlike_page_horizontal_change_bool}
+        \tl_if_eq:NNF\g__docxlike_page_preview_multiple_tl\g_docxlike_page_multiple_tl
+          {\bool_set_true:N\l__docxlike_page_horizontal_change_bool}
+        \bool_lazy_or:nnT
+          {!\dim_compare_p:nNn{\g__docxlike_page_preview_gutter_dim}={\g_docxlike_page_gutter_dim}}
+          {!\tl_if_eq_p:NN\g__docxlike_page_preview_position_tl\g_docxlike_page_gutter_position_tl}
+          {
+            \bool_lazy_and:nnF
+              {\str_if_eq_p:Vn\g__docxlike_page_preview_position_tl{top}}
+              {\str_if_eq_p:Vn\g_docxlike_page_gutter_position_tl{top}}
+              {\bool_set_true:N\l__docxlike_page_horizontal_change_bool}
+          }
+        \bool_lazy_or:nnTF{\sys_if_engine_luatex_p:}{!\l__docxlike_page_horizontal_change_bool}
+          {
+            \bool_if:NF\g__docxlike_page_pending_bool
+              {
+                \dim_gset_eq:NN\g__docxlike_page_old_top_dim\g_docxlike_page_margin_top_dim
+                \dim_gset_eq:NN\g__docxlike_page_old_even_top_dim\g_docxlike_page_even_margin_top_dim
+                \dim_gset_eq:NN\g__docxlike_page_old_headheight_dim\headheight
+                \dim_gset_eq:NN\g__docxlike_page_old_headsep_dim\headsep
+                \dim_gset_eq:NN\g__docxlike_page_old_footskip_dim\footskip
+                \dim_gset_eq:NN\g__docxlike_page_old_header_dim\g_docxlike_page_header_edge_dim
+                \dim_gset_eq:NN\g__docxlike_page_old_footer_dim\g_docxlike_page_footer_edge_dim
+              }
+            \dim_set_eq:NN\l__docxlike_page_previous_height_dim\textheight
+            \dim_set_eq:NN\l__docxlike_page_previous_colht_dim\@colht
+            \dim_set_eq:NN\l__docxlike_page_previous_colroom_dim\@colroom
+            \dim_set_eq:NN\l__docxlike_page_previous_vsize_dim\vsize
+            \__docxlike_page_setup_more:n{#1}
+            \dim_gset_eq:NN\g__docxlike_page_new_headheight_dim\headheight
+            \dim_gset_eq:NN\g__docxlike_page_new_headsep_dim\headsep
+            \dim_gset_eq:NN\g__docxlike_page_new_footskip_dim\footskip
+            \dim_gset_eq:NN\g__docxlike_page_new_header_dim\g_docxlike_page_header_edge_dim
+            \dim_gset_eq:NN\g__docxlike_page_new_footer_dim\g_docxlike_page_footer_edge_dim
+            \dim_gset:Nn\g__docxlike_page_next_height_dim{\paperheight-\g_docxlike_page_margin_top_dim-\g_docxlike_page_margin_bottom_dim}
+            \bool_gset_true:N\g__docxlike_page_pending_bool
+            \dim_gset_eq:NN\textheight\l__docxlike_page_previous_height_dim
+            \dim_gset_eq:NN\@colht\l__docxlike_page_previous_colht_dim
+            \dim_gset_eq:NN\@colroom\l__docxlike_page_previous_colroom_dim
+            \dim_gset_eq:NN\vsize\l__docxlike_page_previous_vsize_dim
+            \sys_if_engine_luatex:T{\lua_now:n{docxlike.page.active=true}}
+          }
+          {\msg_error:nn{docxlike}{continuous-page-engine}}
+      }
+  }
+\cs_generate_variant:Nn\docxlike_page_continuous:n{V}
+\msg_new:nnn{docxlike}{page-document-scope}
+  {Whole-document~page~setup~must~be~declared~before~begin(document).}
+\msg_new:nnn{docxlike}{page-section-scope}
+  {This-section~page~setup~must~precede~the~section's~first~paragraph;~put~it~in~docxsectionbreak.}
+\msg_new:nnn{docxlike}{page-range-unconfigured}
+  {Configure~the~initial~page~setup~before~a~selected-text~page~range.}
+\cs_new_protected:Npn\__docxlike_page_initial_setup:n #1
+  {
+    \bool_if:NTF\g__docxlike_page_configured_bool
+      {\__docxlike_page_setup_more:n{#1}}
+      {\__docxlike_page_setup_more:n{document-grid={grid=no-grid},#1}}
+  }
+\NewDocumentCommand\docxpagesetup{O{this-point-forward}+m}
+  { \docxlike_page_setup_scope:nn {#1} {#2} }
+\cs_new_protected:Npn \docxlike_page_setup_scope:nn #1#2
+  {
+    \str_case:nnF{#1}
+      {
+        {whole-document}
+          {
+            \bool_if:NTF\g__docxlike_page_in_document_bool
+              {\msg_error:nn{docxlike}{page-document-scope}}
+              {\__docxlike_page_initial_setup:n{#2}}
+          }
+        {this-point-forward}
+          {
+            \bool_if:NTF\g__docxlike_page_in_document_bool
+              {\docxlike_section_new:nn{continuous}{page-setup={#2}}}
+              {\__docxlike_page_initial_setup:n{#2}}
+          }
+        {this-section}
+          {
+            \bool_if:NTF\g__docxlike_page_in_document_bool
+              {
+                \bool_if:NTF\g_docxlike_section_start_bool
+                  {\docxlike_page_continuous:n{#2}\docxlike_format_body_refresh:}
+                  {\msg_error:nn{docxlike}{page-section-scope}}
+              }
+              {\__docxlike_page_initial_setup:n{#2}}
+          }
+      }
+      {\__docxlike_bad_value:nnn{page-setup~scope}{#1}{whole-document,this-section,this-point-forward}}
+  }
+\cs_generate_variant:Nn \docxlike_page_setup_scope:nn { Vn , nV , VV }
+\tl_new:N\l__docxlike_page_range_restore_tl
+\tl_new:N\l__docxlike_page_range_break_tl
+\bool_new:N \l__docxlike_page_range_open_bool
+\bool_new:N \l__docxlike_page_range_active_bool
+\int_new:N \l__docxlike_page_range_group_int
+\msg_new:nnn {docxlike} {page-range-end-unmatched}
+  {Page~range~end~requires~a~matching~begin~in~the~same~group.}
+\NewDocumentEnvironment{docxpages}{O{continuous}+m}
+  { \docxlike_page_range_begin:nn {#1} {#2} }
+  { \docxlike_page_range_end: }
+\cs_new_protected:Npn \docxlike_page_range_begin:nn #1#2
+  {
+    \group_begin:
+    \bool_set_true:N \l__docxlike_page_range_open_bool
+    \bool_set_false:N \l__docxlike_page_range_active_bool
+    \int_set:Nn \l__docxlike_page_range_group_int { \tex_currentgrouplevel:D }
+    \bool_if:NTF \g__docxlike_page_configured_bool
+      {
+        \bool_set_true:N \l__docxlike_page_range_active_bool
+        \tl_set_eq:NN\l__docxlike_page_range_restore_tl\g__docxlike_page_canonical_tl
+        \tl_set:Nn\l__docxlike_page_range_break_tl{#1}
+        \docxlike_section_new:nn{#1}{page-setup={#2}}
+      }
+      { \msg_error:nn {docxlike} {page-range-unconfigured} }
+  }
+\cs_generate_variant:Nn \docxlike_page_range_begin:nn { Vn , nV , VV }
+\cs_new_protected:Npn \docxlike_page_range_end:
+  {
+    \bool_if:NTF \l__docxlike_page_range_open_bool
+      {
+        \int_compare:nNnTF { \tex_currentgrouplevel:D } = { \l__docxlike_page_range_group_int }
+          {
+            \bool_if:NT \l__docxlike_page_range_active_bool
+              {
+                \use:e
+                  {\exp_not:N\docxlike_section_new:nn{\exp_not:V\l__docxlike_page_range_break_tl}
+                    {page-setup={\exp_not:V\l__docxlike_page_range_restore_tl}}}
+              }
+            \group_end:
+          }
+          { \msg_error:nn {docxlike} {page-range-end-unmatched} }
+      }
+      { \msg_error:nn {docxlike} {page-range-end-unmatched} }
+  }
+\AddToHook{cmd/@outputpage/before}[docxlike-continuous-geometry]
+  {
+    \sys_if_engine_luatex:TF
+      {\lua_now:n{if~docxlike~and~docxlike.page~then~docxlike.page.prepare(token.create('@outputbox').mode)~end}}
+      {
+        \bool_if:NT\g__docxlike_page_pending_bool
+          {
+            \dim_set_eq:NN\headheight\g__docxlike_page_old_headheight_dim
+            \dim_set_eq:NN\headsep\g__docxlike_page_old_headsep_dim
+            \dim_set_eq:NN\footskip\g__docxlike_page_old_footskip_dim
+            \dim_set_eq:NN\g_docxlike_page_header_edge_dim\g__docxlike_page_old_header_dim
+            \dim_set_eq:NN\g_docxlike_page_footer_edge_dim\g__docxlike_page_old_footer_dim
+            \dim_set:Nn\topmargin
+              {\int_if_even:nTF{\c@page}{\g__docxlike_page_old_even_top_dim}{\g__docxlike_page_old_top_dim}-1in-\headheight-\headsep}
+          }
+      }
+  }
+\DeclareHookRule{cmd/@outputpage/before}{docxlike-continuous-geometry}{after}{docxlike-page-margins}
+\AddToHook{shipout/before}[docxlike-continuous-geometry]
+  {\sys_if_engine_luatex:T{\lua_now:n{if~docxlike~and~docxlike.page~then~docxlike.page.shipout(token.create('ShipoutBox').mode)~end}}}
+\AddToHook{shipout/after}[docxlike-page-geometry]
+  {
+    \sys_if_engine_luatex:T{\lua_now:n{if~docxlike~and~docxlike.page~then~docxlike.page.after()~end}}
+    \bool_if:NT\g__docxlike_page_pending_bool
+      {
+        \sys_if_engine_luatex:F
+          {
+            \dim_set_eq:NN\headheight\g__docxlike_page_new_headheight_dim
+            \dim_set_eq:NN\headsep\g__docxlike_page_new_headsep_dim
+            \bool_if:NT \g__docxlike_headfoot_push_applied_bool
+              { \dim_add:Nn \headsep { \g__docxlike_headfoot_push_dim } }
+            \dim_set_eq:NN\footskip\g__docxlike_page_new_footskip_dim
+            \dim_set_eq:NN\g_docxlike_page_header_edge_dim\g__docxlike_page_new_header_dim
+            \dim_set_eq:NN\g_docxlike_page_footer_edge_dim\g__docxlike_page_new_footer_dim
+          }
+        \dim_gset_eq:NN\textheight\g__docxlike_page_next_height_dim
+        \cs_if_exist:NT\g__docxlike_headfoot_cut_dim{\dim_gsub:Nn\textheight{\g__docxlike_headfoot_cut_dim}}
+        \bool_gset_false:N\g__docxlike_page_pending_bool
+      }
+  }
+\DeclareHookRule{shipout/after}{docxlike-page-geometry}{before}{docxlike}
 \cs_new_protected:Npn \docxlike_page_setup:n #1
   {
     \tl_gset:Nn \g__docxlike_page_input_tl {#1}
@@ -573,20 +1124,22 @@
 % 一个行跨度，页边距是一样的，而换版面要另起一页。
 %
 % 真要换的时候，换入先 \cs{clearpage}，存下当时的页面参数，再设新的；还原也先
-% \cs{clearpage}，再把存下的设回去。纸张尺寸不换，一篇文档里不该变。
+% \cs{clearpage}，再把存下的设回去。逻辑纸张及引擎页面尺寸也随各层保存恢复。
+% 旧页用自己的全局状态出页后才公开新状态；默认换入不再重复清页。
 %
 % 恢复代码须包含页面指纹及文档类附加状态，避免嵌套换页后使用过期尺寸。
 %    \begin{macrocode}
 \clist_const:Nn \c__docxlike_page_param_clist
   {
     textwidth , textheight , oddsidemargin , evensidemargin , topmargin ,
-    headheight , headsep , footskip
+    headheight , headsep , footskip , paperwidth , paperheight , g__docxlike_headfoot_cut_dim
   }
 \seq_new:N \g__docxlike_page_param_seq
 \tl_new:N \l__docxlike_page_param_tl
+\bool_new:N \l__docxlike_page_push_flushed_bool
 \cs_new_protected:Npn \docxlike_page_push_default:
   {
-    \clearpage
+    \bool_if:NF \l__docxlike_page_push_flushed_bool { \clearpage }
     \tl_clear:N \l__docxlike_page_param_tl
     \clist_map_inline:Nn \c__docxlike_page_param_clist
       {
@@ -594,13 +1147,15 @@
           { \dim_set:Nn \exp_not:c {##1} { \dim_use:c {##1} } }
       }
     \seq_gpush:NV \g__docxlike_page_param_seq \l__docxlike_page_param_tl
-    \__docxlike_page_params_set:
+    \__docxlike_page_apply:
+    \cs_if_exist:NT\__docxlike_headfoot_room_now:{\__docxlike_headfoot_room_now:}
   }
 \cs_new_protected:Npn \docxlike_page_pop_default:
   {
     \clearpage
     \seq_gpop:NNT \g__docxlike_page_param_seq \l__docxlike_page_param_tl
       { \l__docxlike_page_param_tl }
+    \__docxlike_page_paper_engine_set:
     \__docxlike_page_running_sync:
   }
 \cs_new_protected:Npn \__docxlike_page_push_apply: { \docxlike_page_push_default: }
@@ -613,13 +1168,18 @@
   {
     lead , char , paper_width , paper_height , margin_left , margin_right , margin_top ,
     margin_bottom , header_edge , footer_edge , head_height , head_sep , foot_skip
+    , sheet_width , sheet_height , even_margin_left , even_margin_right
+    , even_margin_top , even_margin_bottom , gutter
+    , base_margin_left , base_margin_right , base_margin_top , base_margin_bottom
   }
 \seq_new:N \g__docxlike_page_stack_seq
 \tl_new:N \l_docxlike_page_restore_tl
 \tl_new:N \l__docxlike_page_prev_layout_tl
+\tl_new:N\l__docxlike_page_old_state_tl
+\tl_new:N\l__docxlike_page_new_state_tl
 \msg_new:nnn { docxlike } { page-pop-empty }
   { Page~setup~popped~without~a~matching~push;~nothing~is~restored. }
-\cs_new_protected:Npn \docxlike_page_setup_push:n #1
+\cs_new_protected:Npn \__docxlike_page_capture_state:
   {
     \tl_clear:N \l_docxlike_page_restore_tl
     \clist_map_inline:Nn \c__docxlike_page_state_dim_clist
@@ -636,15 +1196,53 @@
         \bool_if:NTF \g_docxlike_grid_bool
           { \exp_not:N \bool_gset_true:N } { \exp_not:N \bool_gset_false:N }
           \exp_not:N \g_docxlike_grid_bool
+        \bool_if:NTF\g_docxlike_page_snap_chars_bool
+          {\exp_not:N\bool_gset_true:N}{\exp_not:N\bool_gset_false:N}
+          \exp_not:N\g_docxlike_page_snap_chars_bool
         \tl_gset:Nn \exp_not:N \g__docxlike_page_layout_tl
           { \exp_not:V \g__docxlike_page_layout_tl }
       }
+    \tl_put_right:Ne\l_docxlike_page_restore_tl
+      {\tl_gset:Nn\exp_not:N\g__docxlike_page_canonical_tl{\exp_not:V\g__docxlike_page_canonical_tl}}
+    \tl_put_right:Ne\l_docxlike_page_restore_tl
+      {\tl_gset:Nn\exp_not:N\g__docxlike_page_input_tl{\exp_not:V\g__docxlike_page_input_tl}}
+    \tl_put_right:Ne \l_docxlike_page_restore_tl
+      {
+        \bool_if:NTF \g__docxlike_page_configured_bool
+          { \exp_not:N \bool_gset_true:N } { \exp_not:N \bool_gset_false:N }
+        \exp_not:N \g__docxlike_page_configured_bool
+      }
+    \clist_map_inline:nn { multiple , gutter_position }
+      {
+        \tl_put_right:Ne \l_docxlike_page_restore_tl
+          { \tl_gset:cn {g_docxlike_page_##1_tl} {\tl_use:c {g_docxlike_page_##1_tl}} }
+      }
+    \tl_put_right:Ne \l_docxlike_page_restore_tl
+      { \int_gset:Nn \g_docxlike_page_booklet_sheets_int {\int_use:N \g_docxlike_page_booklet_sheets_int} }
+    \tl_put_right:Nn \l_docxlike_page_restore_tl
+      { \bool_if:NT \g__docxlike_page_configured_bool { \__docxlike_page_paper_set: } }
     \__docxlike_page_save_hook:
+  }
+\cs_new_protected:Npn \docxlike_page_setup_push:n #1
+  {
+    \__docxlike_page_capture_state:
+    \tl_set_eq:NN\l__docxlike_page_old_state_tl\l_docxlike_page_restore_tl
     \tl_set_eq:NN \l__docxlike_page_prev_layout_tl \g__docxlike_page_layout_tl
     \__docxlike_page_compute:n {#1}
+    \tl_gset_eq:NN\g__docxlike_page_input_tl\g__docxlike_page_canonical_tl
     \tl_if_eq:NNF \g__docxlike_page_layout_tl \l__docxlike_page_prev_layout_tl
       {
+        \__docxlike_page_capture_state:
+        \tl_set_eq:NN\l__docxlike_page_new_state_tl\l_docxlike_page_restore_tl
+        \tl_set_eq:NN\l_docxlike_page_restore_tl\l__docxlike_page_old_state_tl
+        % Flush the existing page with its own globals before exposing the new
+        % geometry to output hooks, headers, footnotes or print metadata.
+        \tl_use:N\l__docxlike_page_old_state_tl
+        \clearpage
+        \tl_use:N\l__docxlike_page_new_state_tl
+        \bool_set_true:N \l__docxlike_page_push_flushed_bool
         \__docxlike_page_push_apply:
+        \bool_set_false:N \l__docxlike_page_push_flushed_bool
         \tl_put_left:Nn \l_docxlike_page_restore_tl { \__docxlike_page_pop_apply: }
       }
     \seq_gpush:NV \g__docxlike_page_stack_seq \l_docxlike_page_restore_tl
@@ -654,10 +1252,155 @@
     \seq_gpop:NNTF \g__docxlike_page_stack_seq \l_docxlike_page_restore_tl
       { \l_docxlike_page_restore_tl }
       { \msg_warning:nn { docxlike } { page-pop-empty } }
+    \cs_if_exist:NT\__docxlike_headfoot_room_now:{\__docxlike_headfoot_room_now:}
   }
 %    \end{macrocode}
 %
 %    \begin{macrocode}
+%</docxlike-page>
+%    \end{macrocode}
+%
+% Lua page metadata is independent of the Word text breaker. Ordinary native
+% paragraphs are tagged too; the module does not require LuaTeX-ja to be loaded.
+%    \begin{macrocode}
+%<*docxlike-page>
+\ifdefined\directlua
+\RequirePackage{luatexbase}
+\begingroup
+\catcode32=10\relax
+\catcode37=12\relax
+\catcode35=12\relax
+\catcode126=12\relax
+\catcode95=12\relax
+\directlua{
+docxlike = docxlike or {}
+local P = {active = false}
+docxlike.page = P
+local H, V = node.id('hlist'), node.id('vlist')
+local INS = node.id('ins')
+local function flag(name)
+  return token.is_defined(name) and token.create(name).mode ~= 0
+end
+local function snapshot()
+  local p = {}
+  for _, name in ipairs({'margin_left','even_margin_left','margin_top','even_margin_top',
+    'margin_right','even_margin_right','header_edge','footer_edge','head_height','head_sep','foot_skip'}) do
+    p[name] = tex.getdimen('g_docxlike_page_' .. name .. '_dim')
+  end
+  p.width = tex.getdimen('g_docxlike_page_paper_width_dim') - p.margin_left - p.margin_right
+  return p
+end
+function P.tag(box)
+  if tex.nest.ptr ~= 0 or not flag('g__docxlike_page_configured_bool')
+    or flag('l__docxlike_linebreak_output_bool') then return end
+  local p = node.getproperty(box) or {}
+  p.docxlike_page_geometry = snapshot()
+  node.setproperty(box, p)
+end
+function P.tag_lines(head)
+  if tex.nest.ptr == 0 then
+    for n in node.traverse(head) do
+      if n.id == H or n.id == V then P.tag(n)
+      elseif n.id == INS and n.subtype == token.create('footins').mode then P.note(n) end
+    end
+  end
+  return head
+end
+function P.note(insertion)
+  if not flag('g__docxlike_page_configured_bool') then return end
+  local geometry = snapshot()
+  for line in node.traverse_id(H, insertion.list) do
+    local p = node.getproperty(line) or {}
+    if not p.docxlike_page_geometry then
+      p.docxlike_page_geometry = geometry
+      node.setproperty(line, p)
+    end
+  end
+end
+local function first_geometry(head)
+  for n in node.traverse(head) do
+    if n.id == H or n.id == V then
+      local p = node.getproperty(n) or {}
+      if p.docxlike_page_geometry then return p.docxlike_page_geometry end
+      if n.list then
+        local geometry = first_geometry(n.list)
+        if geometry then return geometry end
+      end
+    end
+  end
+end
+function P.prepare(index)
+  if not P.active or not tex.box[index] then return end
+  local geometry = first_geometry(tex.box[index].list)
+  if not geometry then return end
+  local even = math.fmod(tex.count['c@page'], 2) == 0
+  P.base = even and geometry.even_margin_left or geometry.margin_left
+  local top = even and geometry.even_margin_top or geometry.margin_top
+  P.restore = {}
+  local changes = {oddsidemargin=P.base-tex.sp('1in'), evensidemargin=P.base-tex.sp('1in'),
+    textwidth=geometry.width, linewidth=geometry.width, columnwidth=geometry.width, hsize=geometry.width,
+    headheight=geometry.head_height, headsep=geometry.head_sep, footskip=geometry.foot_skip,
+    topmargin=top-tex.sp('1in')-geometry.head_height-geometry.head_sep,
+    g_docxlike_page_header_edge_dim=geometry.header_edge, g_docxlike_page_footer_edge_dim=geometry.footer_edge}
+  for name, value in pairs(changes) do
+    P.restore[name] = tex.getdimen(name)
+    tex.setdimen(name, math.floor(value))
+  end
+end
+local function shift(head, even)
+  for n in node.traverse(head) do
+    if n.id == H or n.id == V then
+      local p = node.getproperty(n) or {}
+      local geometry = p.docxlike_page_geometry
+      if geometry then
+        n.shift = n.shift + (even and geometry.even_margin_left or geometry.margin_left) - P.base
+      elseif n.list then shift(n.list, even) end
+    end
+  end
+end
+function P.shipout(index)
+  if P.active and P.base and tex.box[index] then
+    shift(tex.box[index].list, math.fmod(tex.count['c@page'], 2) == 0)
+  end
+end
+function P.after()
+  if P.restore then
+    for name, value in pairs(P.restore) do
+      if name == 'headsep' and flag('g__docxlike_headfoot_push_applied_bool') then
+        --[[ Header cleanup next removes its actual push globally. Restore the
+        caller's base plus that pending removal, not twice less. ]]
+        value = value + tex.getdimen('g__docxlike_headfoot_push_dim')
+      end
+      tex.setdimen(name, value)
+    end
+    P.restore = nil
+  end
+  P.base = nil
+end
+function P.wrap_native()
+  local descriptions = luatexbase.callback_descriptions('append_to_vlist_filter')
+  for _, name in ipairs(descriptions) do
+    if name == 'docxlike.native-boundary' or name == 'docxlike.page.native' then return end
+  end
+  if #descriptions > 1 then return end
+  local name = descriptions[1]
+  local base = name and luatexbase.remove_from_callback('append_to_vlist_filter', name)
+  luatexbase.add_to_callback('append_to_vlist_filter', function(box, location, depth, mirrored)
+    P.tag(box)
+    if base then return base(box, location, depth, mirrored) end
+    return box, depth, true
+  end, 'docxlike.page.native')
+end
+function P.install()
+  luatexbase.add_to_callback('post_linebreak_filter', P.tag_lines, 'docxlike.page.lines')
+  P.wrap_native()
+end
+}
+\endgroup
+\fi
+\AddToHook{begindocument/end}[docxlike-page-geometry]
+  {\sys_if_engine_luatex:T{\lua_now:n{docxlike.page.install()}}}
+\DeclareHookRule{begindocument/end}{docxlike-page-geometry}{after}{docxlike}
 %</docxlike-page>
 %    \end{macrocode}
 %

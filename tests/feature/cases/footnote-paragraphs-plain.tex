@@ -1,0 +1,32 @@
+% 普通正文入口的短段—超页段—短段；不使用 docxpar 或私有入口标记。
+%! branches: degree-level=master,campus=harbin,lang=zh,stage=final
+%! engines: lualatex
+%! options: fontset=fandol
+\hitsetup{layout={compatibility-mode=word-2013}}
+\newcount\NoteParagraphExecutions
+\newcount\ParagraphNotePages
+\AddToHook{shipout/before}{\global\advance\ParagraphNotePages by1
+  \ifnum\ParagraphNotePages>20\errmessage{Paragraph note did not terminate}\fi}
+\AddToHook{enddocument/afterlastpage}{%
+  \ifnum\NoteParagraphExecutions=3\else\errmessage{Note paragraphs executed more than once}\fi
+  \directlua{assert(not docxlike.linebreak.held_keep_note);
+    assert(not docxlike.linebreak.note_page_limit);
+    assert(next(docxlike.linebreak.deferred_notes)==nil)}}
+\ExplSyntaxOn
+\cs_new_protected:Npn \SchoolAutomaticNote
+  {
+    \global\advance\NoteParagraphExecutions by1
+    ShortFirstStart~首段是一段能完整装页的短注，不能因为后面的段落超页而一起延期。ShortFirstEnd\par
+    \global\advance\NoteParagraphExecutions by1
+    MiddleStart~
+    \prg_replicate:nn {110}
+      {中间注段采用连续文字自然折行，automatic~wrapping~preserves~every~word，超过一页后只对本段允许续排。}
+    MiddleEnd\par
+    \global\advance\NoteParagraphExecutions by1
+    ShortLastStart~末段仍是一段能装页的短注，必须完整保留，不能拆散或丢失。ShortLastEnd
+  }
+\ExplSyntaxOff
+\begin{document}
+\mainmatter
+\noindent ParagraphReference Agjp\footnote{\SchoolAutomaticNote}\par
+\end{document}

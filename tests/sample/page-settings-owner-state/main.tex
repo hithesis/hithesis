@@ -1,0 +1,66 @@
+% Targets page-settings-4abb23ce5ab3-5a91afb5; current school vendor is older.
+% Define \OwnerStateControl to omit the partial update inside the restored scope.
+\documentclass{article}
+\usepackage[preset=none]{docxlike}
+\ExplSyntaxOn
+\docxlike_cjk_base:
+\setmainfont{texgyretermes-regular.otf}
+\sys_if_engine_luatex:TF
+  { \setmainjfont{FandolSong-Regular.otf} }
+  { \setCJKmainfont{FandolSong-Regular.otf} }
+\int_new:N \l__owner_probe_input_int
+\int_new:N \g__owner_probe_value_int
+\keys_define:nn { docxlike / page-setup }
+  { owner .int_set:N = \l__owner_probe_input_int }
+\docxlike_page_set_compute:n
+  { \int_gset_eq:NN \g__owner_probe_value_int \l__owner_probe_input_int }
+\docxlike_page_set_save:n
+  {
+    \tl_put_right:Ne \l_docxlike_page_restore_tl
+      {
+        \int_gset:Nn \exp_not:N \g__owner_probe_value_int
+          { \int_use:N \g__owner_probe_value_int }
+      }
+  }
+\cs_new_protected:Npn \OwnerCheck:n #1
+  {
+    \iow_term:e { OWNER-STATE~expected=#1~actual=\int_use:N\g__owner_probe_value_int }
+    \int_compare:nNnF { \g__owner_probe_value_int } = {#1}
+      { \errmessage { Owner~state~lost~after~partial~page~setup } }
+  }
+\docxlike_page_setup:n
+  {
+    owner=11,paper={width=360bp,height=600bp},
+    margins={top=40bp,bottom=40bp,left=30bp,right=30bp},
+    layout={from-edge={header=15bp,footer=15bp}},document-grid={grid=no-grid}
+  }
+\docxlike_setup:n { styles={Normal={font={size=12bp},paragraph={alignment=left}}} }
+\ExplSyntaxOff
+\begin{document}
+\pagestyle{empty}
+\ExplSyntaxOn
+\OwnerCheck:n {11}\docxlike_par:nn {} {OuterPage}
+\docxlike_page_setup_push:n
+  {
+    owner=22,paper={width=480bp,height=640bp},
+    margins={top=40bp,bottom=40bp,left=30bp,right=30bp},
+    layout={from-edge={header=15bp,footer=15bp}},document-grid={grid=no-grid}
+  }
+\OwnerCheck:n {22}\docxlike_par:nn {} {MiddlePage}
+\docxlike_page_setup_push:n
+  {
+    owner=33,paper={width=600bp,height=360bp},
+    margins={top=40bp,bottom=40bp,left=30bp,right=30bp},
+    layout={from-edge={header=15bp,footer=15bp}},document-grid={grid=no-grid}
+  }
+\OwnerCheck:n {33}\docxlike_par:nn {} {InnerPage}
+\docxlike_page_setup_pop:
+\OwnerCheck:n {22}
+\cs_if_exist:NF \OwnerStateControl
+  { \docxlike_setup:n { page-setup={margins={top=45bp}} } }
+\OwnerCheck:n {22}\docxlike_par:nn {} {MiddleRestored}
+\docxlike_page_setup_pop:
+\OwnerCheck:n {11}\docxlike_par:nn {} {OuterRestored}
+\iow_term:n { OWNER-PAGE-STATE~PASS }
+\ExplSyntaxOff
+\end{document}

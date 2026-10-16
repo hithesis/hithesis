@@ -1,0 +1,45 @@
+\input{regression-test}
+\documentclass[stage=proposal,degree-level=master,fontset=fandol]{hithesis}
+\ExplSyntaxOn\msg_redirect_module:nnn{fontspec}{info}{none}\ExplSyntaxOff
+\docxlikesetup{styles={
+  TestWidow={font={size=10bp},paragraph={spacing={line-spacing=exactly,at=12bp},pagination={widow-control=true}}},
+  TestWidowChild={based-on=TestWidow},
+  TestKeep={based-on=TestWidow,paragraph={pagination={keep-lines-together=true}}},
+  TestHead={font={size=10bp},paragraph={spacing={line-spacing=exactly,at=12bp},pagination={keep-with-next=true}}},
+  TestLoose={font={size=10bp},paragraph={spacing={line-spacing=exactly,at=12bp},pagination={widow-control=false}}},
+  TestNoPolicy={font={size=10bp},paragraph={spacing={line-spacing=exactly,at=12bp}}}}}
+\begin{document}
+\START
+\ExplSyntaxOn
+\TEST{Pagination~constraints~inherit~and~direct~overrides~are~local}{
+  \group_begin:\docxlike_format_apply_par:n{TestWidowChild}
+    \TYPE{club=\the\clubpenalty}\TYPE{widow=\the\widowpenalty}\group_end:
+  \docxlike_format_par:nnn{TestWidowChild}{paragraph={pagination={widow-control=false}}}
+    {\TYPE{direct-club=\the\clubpenalty}\TYPE{direct-widow=\the\widowpenalty}}
+  \group_begin:\docxlike_format_apply_par:n{TestKeep}
+    \TYPE{interline=\the\interlinepenalty}\TYPE{inherited-widow=\the\widowpenalty}\group_end:
+}
+\TEST{Keep-with-next~does~not~force~two~lines~when~widow~control~is~off}{
+  \docxlike_format_par:nn{TestHead}{Heading}
+  \docxlike_format_par:nn{TestLoose}{\TYPE{next-club=\the\clubpenalty}Body}
+}
+\TEST{The~first~paragraph~consumes~keep-with-next~across~a~group}{
+  \docxlike_format_par:nn{TestHead}{Heading}
+  \group_begin:\noindent Group~title\par\group_end:
+  \TYPE{consumed=\legacy_if:nTF{@nobreak}{no}{yes}}
+}
+\TEST{Boxed~paragraphs~do~not~leak~keep-with-next~to~the~body}{
+  \use:c{@nobreakfalse}
+  \group_begin:\vbox_set:Nn\l_tmpa_box{\docxlike_format_par:nn{TestHead}{Boxed~heading}}\group_end:
+  \TYPE{body-nobreak=\legacy_if:nTF{@nobreak}{true}{false}}
+}
+\TEST{Applying~font~and~line~format~preserves~unspecified~list~penalties}{
+  \group_begin:
+  \int_set:Nn\clubpenalty{500}\int_set:Nn\widowpenalty{200}\int_set:Nn\interlinepenalty{4000}
+  \docxlike_format_apply_par:n{TestNoPolicy}
+  \TYPE{list-club=\the\clubpenalty}\TYPE{list-widow=\the\widowpenalty}
+  \TYPE{list-interline=\the\interlinepenalty}\group_end:
+}
+\ExplSyntaxOff
+\END
+\end{document}

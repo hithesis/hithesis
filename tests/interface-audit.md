@@ -28,7 +28,7 @@
 - noto 的楷体使用 arphic-ttf 提供的文鼎 PL 简中楷（gkai00mp.ttf），仿宋使用 lxgw-fonts 提供的朱雀仿宋；缺项与 founder 一样逐角色回退。
 - LuaLaTeX 默认按 Windows 角色参考值校正中文字体墨迹中心；测常规字面的“国”（缺失时“國”），
   粗体、斜体继承该偏移，按实际字号换算，仅在输出时移动 glyph。
-  `font-baseline-correction=auto/true/false` 可在类选项与 hitsetup 使用；XeLaTeX/pdfLaTeX 暂不校正。
+  `fontset={baseline-correction=auto/true/false}` 可在类选项与 hitsetup 使用；XeLaTeX/pdfLaTeX 暂不校正。
   字体角色预设与封面隶书、新魏已绑定；windows-local/mac-word 路径方案和无角色的自定义字体未绑定。
   `tests/font-baseline.tex` 检查混排、字重、代码字号、同字体不同角色、重复处理和行盒/断行不变。
 - 支持 `fontset={preset=windows,mono=Menlo,fangsong=FangSong}`；中文、西文分项预设与旧名称保留兼容。

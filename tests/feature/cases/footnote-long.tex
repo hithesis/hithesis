@@ -1,0 +1,33 @@
+% 显式 docxpar 路径的学校终稿整注/超页回退；不代表普通正文已支持超页注。
+%! branches: degree-level=master,campus=harbin,lang=zh,stage=final
+%! engines: lualatex
+%! options: fontset=fandol
+\hitsetup{layout={compatibility-mode=word-2013}}
+\newcount\FitNoteExecutions
+\newcount\LongNoteExecutions
+\newcount\LongNotePages
+\AddToHook{shipout/before}{\global\advance\LongNotePages by1
+  \ifnum\LongNotePages>40\errmessage{Long footnote did not terminate}\fi}
+\AddToHook{enddocument/afterlastpage}{%
+  \ifnum\FitNoteExecutions=1\else\errmessage{Fitting note execution count changed}\fi
+  \ifnum\LongNoteExecutions=1\else\errmessage{Long note execution count changed}\fi
+  \directlua{assert(not docxlike.linebreak.held_keep_note);
+    assert(not docxlike.linebreak.note_page_limit);
+    assert(next(docxlike.linebreak.deferred_notes)==nil)}}
+\ExplSyntaxOn
+\cs_new_protected:Npn \SchoolNoteLines #1#2
+  { \int_step_inline:nn {#2} { #1\int_to_arabic:n{##1}~Agjp\break } }
+\ExplSyntaxOff
+\begin{document}
+\mainmatter
+\noindent FitBefore15 Agjp\par
+\vspace*{\dimexpr\textheight-105bp\relax}\penalty0
+\docxpar{FitReference15 Agjp\footnote{\global\advance\FitNoteExecutions by1
+  FitStart15 Agjp\break\SchoolNoteLines{FitLine15}{8}FitEnd15 Agjp}}
+\clearpage
+\noindent LongBefore15 Agjp\par
+\vspace*{0.3\textheight}\penalty0
+% 最后一条注后无接续正文，必须在文末完成续排并清空队列。
+\docxpar{LongReference15 Agjp\footnote{\global\advance\LongNoteExecutions by1
+  LongStart15 Agjp\break\SchoolNoteLines{LongLine15}{78}LongEnd15 Agjp}}
+\end{document}

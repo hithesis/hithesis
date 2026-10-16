@@ -1,0 +1,61 @@
+\input{regression-test}
+\documentclass[degree-level=master,fontset=fandol]{hithesis}
+\makeatletter
+\ExplSyntaxOn
+\msg_redirect_module:nnn{fontspec}{info}{none}
+\box_new:N \l__hit_test_title_box
+\skip_if_exist:NF \hit@etitlelength { \skip_new:N \hit@etitlelength }
+\ExplSyntaxOff
+\makeatother
+\begin{document}
+\START
+\makeatletter
+\ExplSyntaxOn
+\cs_new_protected:Npn \__hit_test_title_renderer:nn #1#2
+  {
+    \docxlike_format_compute:n {#1}
+    \TYPE{rendered-size=\dim_compare:nNnTF{\l_docxlike_format_size_dim}={18bp}{xiaoer}{erhao}}
+  }
+\TEST{Erhao~is~paragraph-local~and~does~not~change~the~title~style}{
+  \docxlike_format_get:nnN { titlepage-en-title } { rPr/sz } \l_tmpa_tl
+  \docxlike_format_measure:Nn \l__hit_test_title_box
+    { \hit@titlepage@en@title@erhao:n { Local~title } }
+  \docxlike_format_get:nnN { titlepage-en-title } { rPr/sz } \l_tmpb_tl
+  \TYPE{style-restored=\tl_if_eq:NNTF\l_tmpa_tl\l_tmpb_tl{yes}{no}}
+}
+\TEST{Auto~measures~bold~uppercase~text~before~choosing~the~size}{
+  \docxlike_format_set:n { titlepage-en-title = { font = { size = xiaoer, all-caps = true } } }
+  \hitsetup{info={title={临界题目}[\prg_replicate:nn{85}{a}]}}
+  \tl_set:Nn \g_hit_titlepage_title_en_xiaoer_tl { auto }
+  \cs_set_eq:NN \docxlike_format_par:nn \__hit_test_title_renderer:nn
+  \hit@titlepage@en@title:
+  \TYPE{uppercase-width=\bool_if:NTF\l__hit_titlepage_en_clipped_bool{over-threshold}{under-threshold}}
+}
+\TEST{Auto~respects~a~title~style~without~uppercase}{
+  \docxlike_format_set:n { titlepage-en-title = { font = { size = xiaoer, all-caps = false } } }
+  \hitsetup{info={title={临界题目}[\prg_replicate:nn{85}{a}]}}
+  \tl_set:Nn \g_hit_titlepage_title_en_xiaoer_tl { auto }
+  \cs_set_eq:NN \docxlike_format_par:nn \__hit_test_title_renderer:nn
+  \hit@titlepage@en@title:
+  \TYPE{lowercase-width=\bool_if:NTF\l__hit_titlepage_en_clipped_bool{over-threshold}{under-threshold}}
+}
+\TEST{Explicit~small-large-small~choices~remain~independent}{
+  \docxlike_format_set:n { titlepage-en-title = { font = { size = xiaoer, all-caps = true } } }
+  \hitsetup{info={title={普通题目}[Short~title]}}
+  \cs_set_eq:NN \docxlike_format_par:nn \__hit_test_title_renderer:nn
+  \tl_set:Nn \g_hit_titlepage_title_en_xiaoer_tl { true } \hit@titlepage@en@title:
+  \tl_set:Nn \g_hit_titlepage_title_en_xiaoer_tl { false } \hit@titlepage@en@title:
+  \tl_set:Nn \g_hit_titlepage_title_en_xiaoer_tl { true } \hit@titlepage@en@title:
+}
+\TEST{Visible~English~subtitle~participates~in~the~same~measurement}{
+  \docxlike_format_set:n { titlepage-en-title = { font = { size = xiaoer, all-caps = true } } }
+  \hitsetup{info={title={临界题目}[\prg_replicate:nn{60}{a}],subtitle={副题}[\prg_replicate:nn{30}{a}]}}
+  \tl_set:Nn \g_hit_titlepage_title_en_xiaoer_tl { auto }
+  \cs_set_eq:NN \docxlike_format_par:nn \__hit_test_title_renderer:nn
+  \tl_set:Nn \g__hit_subtitle_tl { false } \hit@titlepage@en@title:
+  \tl_set:Nn \g__hit_subtitle_tl { true } \hit@titlepage@en@title:
+}
+\ExplSyntaxOff
+\makeatother
+\END
+\end{document}

@@ -8,6 +8,11 @@
 %
 % \changes{v4.0a}{2026/10/06}{本科三校区内封统一，学位论文及博士后内封按对应 Word 模板排版；
 %   长题目可缩减间隔段，英文信息栏支持折行，空字段不占行，标签与内容分别应用样式}
+% \changes{v4.0a}{2026/10/13}{中文内封通过 docxlike 试排量高，自动减空段不再消耗实排的段落状态}
+% \changes{v4.0a}{2026/10/13}{英文内封按实际标题样式测量自动字号，二号使用单段直接格式，不再改写标题样式}
+% \changes{v4.0a}{2026/10/13}{英文内封字段使用 docxlike 排段及测量，以实际盒高和首行位置对齐，不再手算行高与基线偏移}
+% \changes{v4.0a}{2026/10/13}{英文内封整页试排，放不下时依次缩减题目前后的三个大空段，仍溢出时给出警告}
+% \changes{v4.0a}{2026/10/13}{英文内封自动字号使用有界量宽；含排版命令的题目按定宽段落试排，避免超限横盒}
 %
 %    \begin{macrocode}
 %<*final-titlepage>
@@ -168,6 +173,7 @@
 % 先以零间隔段试排，按剩余版心高度计算可加入的 39 bp 空段数，最多三个。
 % 增加导师字段或题目折行时，由这些间隔段让出空间。
 % \cs{hit@titlepage@fit:N} 的参数宏接受间隔段数，计算结果保存在对应整型变量中。
+% 内容按 docxlike 的段落规则试排，测量后恢复状态；间隔段数及溢出处理仍由本模块决定。
 %    \begin{macrocode}
 \box_new:N \l__hit_titlepage_box
 \int_new:N \l__hit_titlepage_gap_int
@@ -181,8 +187,9 @@
 \dim_const:Nn \c__hit_titlepage_en_cell_margin_dim { 5.4bp }
 \cs_new_protected:Npn \hit@titlepage@fit:N #1
   {
-    \vbox_set:Nn \l__hit_titlepage_box
+    \docxlike_format_measure:Nn \l__hit_titlepage_box
       {
+        \dim_set:Nn \tex_prevdepth:D { -1000pt }
         \dim_set_eq:NN \hsize \textwidth
         \dim_set_eq:NN \linewidth \textwidth
         \dim_zero:N \parindent
@@ -226,38 +233,143 @@
   }
 \cs_new_protected:Npn \hit@titlepage@en@degree:
   { \hit@term@titlepage@degree@sentence }
-\cs_new_protected:Npn \hit@titlepage@en@title:
+%    \end{macrocode}
+%
+% 自动字号仍按二号题目的一行总宽是否超过 450 mm 判定，但字体、粗体、字距与
+% 大小写须照实际的标题样式量；副题是否显示也与实排使用同一份内容。
+% 二号只覆盖这一段的字号，不能用全局样式设置再套分组来模拟直接格式。
+%    \begin{macrocode}
+\tl_new:N \l__hit_titlepage_en_caps_tl
+\tl_new:N \l__hit_titlepage_en_measure_text_tl
+\bool_new:N \l__hit_titlepage_en_plain_bool
+\bool_new:N \l__hit_titlepage_en_clipped_bool
+\dim_new:N \l__hit_titlepage_en_width_dim
+\dim_new:N \l__hit_titlepage_en_line_dim
+\int_new:N \g__hit_titlepage_en_probe_badness_int
+\box_new:N \l__hit_titlepage_en_probe_box
+\dim_const:Nn \c__hit_titlepage_en_width_limit_dim { 450mm }
+\tl_new:N \l__hit_titlepage_en_text_tl
+\cs_new_protected:Npn \__hit_titlepage_en_title_prepare:
+  {
+    \hit@title@compose:nnN { en } { \hit@term@titlepage@title@separator@en }
+      \l__hit_titlepage_en_text_tl
+  }
+\cs_new:Npn \hit@titlepage@en@title@text:
+  { \tl_use:N \l__hit_titlepage_en_text_tl }
+\cs_new_protected:Npn \__hit_titlepage_en_title_measure:
   {
     \skip_if_exist:NF \hit@etitlelength { \skip_new:N \hit@etitlelength }
-    \hbox_set:Nn \l_tmpa_box
+    \group_begin:
+      \char_set_active_eq:nN { 126 } \c_space_tl
+      \__hit_titlepage_en_title_prepare:
+      \tl_set_eq:NN \l__hit_titlepage_en_measure_text_tl \l__hit_titlepage_en_text_tl
+      \cs_set:Npn \% { \c_percent_str }
+      \cs_set:Npn \# { \c_hash_str }
+      \cs_set:Npn \& { \char_generate:nn { 38 } { 12 } }
+      \cs_set:Npn \_ { \c_underscore_str }
+      \cs_set:Npn \$ { \c_dollar_str }
+      \cs_set:Npn \{ { \c_left_brace_str }
+      \cs_set:Npn \} { \c_right_brace_str }
+      \protected@edef \l__hit_titlepage_en_measure_text_tl
+        { \l__hit_titlepage_en_measure_text_tl }
+      \bool_set_true:N \l__hit_titlepage_en_plain_bool
+      \tl_map_inline:Nn \l__hit_titlepage_en_measure_text_tl
+        {
+          \tl_if_single_token:nTF {##1}
+            {
+              \token_if_cs:NT ##1
+                {
+                  \clist_if_in:nnF { \%, \#, \&, \_, \$, \{, \} } {##1}
+                    { \bool_set_false:N \l__hit_titlepage_en_plain_bool }
+                }
+            }
+            { \bool_set_false:N \l__hit_titlepage_en_plain_bool }
+        }
+      \docxlike_format_with:nnn { titlepage-en-title }
+        { font = { size = erhao } }
+        {
+          \docxlike_format_apply_par:n { titlepage-en-title }
+          \bool_if:NTF \l__hit_titlepage_en_plain_bool
+            {
+              \docxlike_format_get:nnN { titlepage-en-title } { rPr/caps }
+                \l__hit_titlepage_en_caps_tl
+              \str_if_eq:VnT \l__hit_titlepage_en_caps_tl { true }
+                {
+                  \tl_set:Ne \l__hit_titlepage_en_measure_text_tl
+                    { \text_uppercase:V \l__hit_titlepage_en_measure_text_tl }
+                }
+              \docxlike_format_measure_width:nnNN { \c__hit_titlepage_en_width_limit_dim }
+                { \l__hit_titlepage_en_measure_text_tl }
+                \l__hit_titlepage_en_width_dim \l__hit_titlepage_en_clipped_bool
+            }
+            { \__hit_titlepage_en_title_probe: }
+        }
+      \use:e
+        {
+          \exp_not:N \group_end:
+          \exp_not:N \skip_set:Nn \exp_not:N \hit@etitlelength
+            { \dim_use:N \l__hit_titlepage_en_width_dim }
+          \bool_if:NTF \l__hit_titlepage_en_clipped_bool
+            { \exp_not:N \bool_set_true:N } { \exp_not:N \bool_set_false:N }
+          \exp_not:N \l__hit_titlepage_en_clipped_bool
+        }
+  }
+% 含排版命令时保留实际内容，定宽试排是否折行，不把排版命令传给纯文本接口。
+% 试排使用统一的固定行高以区分一行与多行，不让中西文字体的自然高差误判折行；实排行距不变。
+\cs_new_protected:Npn \__hit_titlepage_en_title_probe:
+  {
+    \dim_set:Nn \l__hit_titlepage_en_line_dim { 2 \l_docxlike_format_size_dim }
+    \int_gzero:N \g__hit_titlepage_en_probe_badness_int
+    \docxlike_format_measure:Nn \l__hit_titlepage_en_probe_box
       {
-        \erhao \hit@info@title@cover@en
-        \hit@if@subtitle@lang:nT { en }
-          { \hit@term@titlepage@title@separator@en \hit@info@title@subtitle@en }
+        \dim_set:Nn \tex_prevdepth:D { -1000pt }
+        \dim_set_eq:NN \hsize \c__hit_titlepage_en_width_limit_dim
+        \dim_set_eq:NN \linewidth \hsize
+        \dim_set:Nn \hfuzz { \c_max_dim }
+        \exp_args:NV \__hit_titlepage_en_title_probe_text:n \l__hit_titlepage_en_text_tl
       }
-    \dim_set:Nn \hit@etitlelength { \box_wd:N \l_tmpa_box }
+    \bool_set:Nn \l__hit_titlepage_en_clipped_bool
+      {
+        \dim_compare_p:nNn { \box_ht_plus_dp:N \l__hit_titlepage_en_probe_box }
+          > { \l__hit_titlepage_en_line_dim + 4sp }
+        || \int_compare_p:nNn { \g__hit_titlepage_en_probe_badness_int } > { 10000 }
+      }
+    \dim_set_eq:NN \l__hit_titlepage_en_width_dim \c__hit_titlepage_en_width_limit_dim
+  }
+\cs_new_protected:Npn \__hit_titlepage_en_title_probe_text:n #1
+  {
+    \docxlike_format_par:nnn { titlepage-en-title }
+      { paragraph = { spacing = { line-spacing = exactly , at = \dim_use:N \l__hit_titlepage_en_line_dim , before = 0bp , after = 0bp } } }
+      {
+        #1 \par
+        \int_gset:Nn \g__hit_titlepage_en_probe_badness_int { \tex_badness:D }
+      }
+  }
+\cs_new_protected:Npn \hit@titlepage@en@title:
+  {
+    \__hit_titlepage_en_title_prepare:
+    \exp_args:NV \__hit_titlepage_en_title:n \l__hit_titlepage_en_text_tl
+  }
+\cs_new_protected:Npn \__hit_titlepage_en_title:n #1
+  {
     \str_case:VnF \g_hit_titlepage_title_en_xiaoer_tl
       {
         { true } { \docxlike_format_par:nn { titlepage-en-title } }
         { auto }
           {
-            \dim_compare:nNnTF { \hit@etitlelength } > { 450mm }
+            \__hit_titlepage_en_title_measure:
+            \bool_if:NTF \l__hit_titlepage_en_clipped_bool
               { \docxlike_format_par:nn { titlepage-en-title } }
               { \hit@titlepage@en@title@erhao:n }
           }
       }
       { \hit@titlepage@en@title@erhao:n }
-      {
-        \hit@info@title@cover@en
-        \hit@if@subtitle@lang:nT { en } { \hit@term@titlepage@title@separator@en \hit@info@title@subtitle@en }
-      }
+      {#1}
   }
 \cs_new_protected:Npn \hit@titlepage@en@title@erhao:n #1
   {
-    \group_begin:
-      \docxlike_format_set:n { titlepage-en-title = { font = { size = erhao } } }
-      \docxlike_format_par:nn { titlepage-en-title } {#1}
-    \group_end:
+    \docxlike_format_par:nnn { titlepage-en-title }
+      { font = { size = erhao } } {#1}
   }
 % 判空前展开字段，避免把空字段的宏名误判为非空内容。
 \cs_new_protected:Npn \hit@titlepage@en@fields:
@@ -288,33 +400,43 @@
 % 多行内容用固定 18 bp；先按 18 bp 试排，若只有一行，再用标签行距重排。
 % 行高取标签与内容两者的较大值，多行内容超出的高度在行后补足。
 %
-% Word 固定行距的基线位于行顶下方 0.8 倍行距处，因此 18 bp 内容的首行比
-% 22 bp 标签高 3.2 bp。顶对齐 parbox 须补这个偏移，并清除自身高深，避免重复增加行高。
+% 内容在标签段之前测量，避免试排改变标签段的全局状态。固定行距交给 docxlike，
+% 测量盒重新封装为顶对齐盒后，盒高就是首行基线到盒顶的距离；按此距离与标签行顶对齐。
+% 放入标签段前清除内容盒的高深，超出标签行的实际高度另在行后补足，避免重复增加行高。
 % Affiliation 与 Date of Defence 使用单独的紧缩样式；全角冒号按范例使用粗黑体。
 %    \begin{macrocode}
 \dim_const:Nn \c__hit_titlepage_en_value_lead_dim { 18bp }
-\dim_new:N \g__hit_titlepage_label_lead_dim
-\dim_new:N \g__hit_titlepage_lead_dim
+\dim_new:N \l__hit_titlepage_label_lead_dim
 \dim_new:N \l__hit_titlepage_lead_dim
-\int_new:N \g__hit_titlepage_value_lines_int
+\dim_new:N \l__hit_titlepage_value_height_dim
 \box_new:N \l__hit_titlepage_value_box
 \cs_new_protected:Npn \__hit_titlepage_en_value_box:nn #1#2
   {
-    \hbox_set:Nn \l__hit_titlepage_value_box
+    \docxlike_format_measure:Nn \l__hit_titlepage_value_box
       {
-        \parbox [t] { \c__hit_titlepage_en_value_dim - 10.8bp }
+        \dim_set:Nn \tex_prevdepth:D { -1000pt }
+        \dim_set:Nn \hsize
+          { \c__hit_titlepage_en_value_dim - 2 \c__hit_titlepage_en_cell_margin_dim }
+        \dim_set_eq:NN \linewidth \hsize
+        \dim_zero:N \parindent
+        \skip_zero:N \parskip
+        \cs_set_eq:NN \\ \newline
+        \docxlike_format_par:nnn {#1}
           {
-            \docxlike_format_apply_par:n {#1}
-            \dim_set_eq:NN \baselineskip \l__hit_titlepage_lead_dim
-            \dim_set:Nn \lineskiplimit { -\maxdimen }
-            \skip_zero:N \lineskip
-            \skip_zero:N \parskip
-            \raggedright
-            \cs_set_eq:NN \\ \newline
-            #2 \par
-            \int_gset:Nn \g__hit_titlepage_value_lines_int { \prevgraf }
+            paragraph =
+              {
+                alignment = left , snap-to-grid = false ,
+                spacing =
+                  {
+                    line-spacing = exactly , at = \dim_use:N \l__hit_titlepage_lead_dim ,
+                    before = 0bp , after = 0bp ,
+                  } ,
+              } ,
           }
+          {#2}
       }
+    \vbox_set_top:Nn \l__hit_titlepage_value_box
+      { \vbox_unpack_drop:N \l__hit_titlepage_value_box }
   }
 \cs_new_protected:Npn \hit@titlepage@en@field:nn
   { \__hit_titlepage_en_field:nnn { titlepage-en-value } }
@@ -322,9 +444,21 @@
   {
     \tl_if_empty:eF {#3}
       {
+        \par
+        \docxlike_format_compute:n { titlepage-en-field }
+        \dim_set_eq:NN \l__hit_titlepage_label_lead_dim \l_docxlike_format_lead_dim
+        \dim_set_eq:NN \l__hit_titlepage_lead_dim \c__hit_titlepage_en_value_lead_dim
+        \__hit_titlepage_en_value_box:nn {#1} {#3}
+        \dim_compare:nNnF { \box_ht_plus_dp:N \l__hit_titlepage_value_box }
+          > { \l__hit_titlepage_lead_dim + 1sp }
+          {
+            \dim_set_eq:NN \l__hit_titlepage_lead_dim \l__hit_titlepage_label_lead_dim
+            \__hit_titlepage_en_value_box:nn {#1} {#3}
+          }
+        \dim_set:Nn \l__hit_titlepage_value_height_dim
+          { \box_ht_plus_dp:N \l__hit_titlepage_value_box }
         \docxlike_format_par:nn { titlepage-en-field }
           {
-            \dim_gset_eq:NN \g__hit_titlepage_label_lead_dim \l_docxlike_format_lead_dim
             \skip_horizontal:n
               {
                 ( \linewidth - \c__hit_titlepage_en_label_dim - \c__hit_titlepage_en_value_dim ) / 2
@@ -335,20 +469,12 @@
                 \docxlike_table_begin:
                 \bfseries #2 { \heiti \hit@term@titlepage@title@separator@en } \hfil
               }
-            \dim_set_eq:NN \l__hit_titlepage_lead_dim
-              \c__hit_titlepage_en_value_lead_dim
-            \__hit_titlepage_en_value_box:nn {#1} {#3}
-            \int_compare:nNnT { \g__hit_titlepage_value_lines_int } < { 2 }
-              {
-                \dim_set_eq:NN \l__hit_titlepage_lead_dim \l_docxlike_format_lead_dim
-                \__hit_titlepage_en_value_box:nn {#1} {#3}
-              }
             \hbox_set:Nn \l__hit_titlepage_value_box
               {
                 \box_move_up:nn
                   {
                     \l_docxlike_format_first_dim
-                    - \c_docxlike_format_exact_tl \l__hit_titlepage_lead_dim
+                    - \box_ht:N \l__hit_titlepage_value_box
                   }
                   { \box_use:N \l__hit_titlepage_value_box }
               }
@@ -356,17 +482,15 @@
             \box_set_dp:Nn \l__hit_titlepage_value_box { 0pt }
             \hbox_to_wd:nn { \c__hit_titlepage_en_value_dim }
               { \box_use:N \l__hit_titlepage_value_box \hfil }
-            \dim_gset_eq:NN \g__hit_titlepage_lead_dim \l__hit_titlepage_lead_dim
           }
         \dim_compare:nNnT
-          { \g__hit_titlepage_lead_dim * \g__hit_titlepage_value_lines_int }
-          > { \g__hit_titlepage_label_lead_dim }
+          { \l__hit_titlepage_value_height_dim }
+          > { \l__hit_titlepage_label_lead_dim }
           {
             \par
             \vspace*
               {
-                \g__hit_titlepage_lead_dim * \g__hit_titlepage_value_lines_int
-                  - \g__hit_titlepage_label_lead_dim
+                \l__hit_titlepage_value_height_dim - \l__hit_titlepage_label_lead_dim
               }
           }
       }
@@ -535,7 +659,7 @@
 
 % 英文封面。\cs{emultiline} 给过长的取值（学院的英文名）手动换行。英文内封的取值格在 Word 里是表的
 % 一格，几行是格里的几段，固定值 18\,bp、段前段后为零，与一段里换行排出来一样，所以在段里就把
-% |\\| 当换行，行数照样从 \cs{prevgraf} 读，这一行跟着撑高。在盒里（深圳本科报告封面的
+% |\\| 当换行，字段行按测得的内容盒高撑高。在盒里（深圳本科报告封面的
 % 字段）没有段可换行，照旧用 \env{tabular} 摞起来。可选参数是 \env{tabular} 的对齐，段里用不上。
 \NewDocumentCommand \emultiline { O{c} m }
   {
@@ -550,12 +674,53 @@
       }
       {#2}
   }
-\cs_new_protected:Npn \hit@titlepage@en
+%    \end{macrocode}
+%
+% 英文内封保留默认序列；只有整页放不下才让掉大空段。先减字段表前的两个
+% 39.5 bp 空段，再减题目前的一个。其余空段、字号及字段行距不参与这一步优化。
+% 每个候选都由 docxlike 完整试排，连同自动折行的字段量高；页首补上实际会产生的
+% \cs{topskip}，防止接近版心下沿的候选在实排时多出一页。
+%    \begin{macrocode}
+\int_new:N \l__hit_titlepage_en_removed_int
+\bool_new:N \l__hit_titlepage_en_fit_bool
+\dim_new:N \l__hit_titlepage_en_height_dim
+\cs_new_protected:Npn \__hit_titlepage_en_measure:n #1
   {
-    \hit@layout@push@part:n { titlepage }
-    \group_begin:
-      \dim_zero:N \parindent
-      \dim_zero:N \parskip
+    \docxlike_format_measure:Nn \l__hit_titlepage_box
+      {
+        \dim_set:Nn \tex_prevdepth:D { -1000pt }
+        \dim_set_eq:NN \hsize \textwidth
+        \dim_set_eq:NN \linewidth \textwidth
+        \dim_zero:N \parindent
+        \skip_zero:N \parskip
+        \hit@titlepage@en@body:n {#1}
+      }
+    \vbox_set_top:Nn \l__hit_titlepage_box
+      { \vbox_unpack_drop:N \l__hit_titlepage_box }
+    \dim_set:Nn \l__hit_titlepage_en_height_dim
+      {
+        \box_ht_plus_dp:N \l__hit_titlepage_box
+        + \dim_max:nn { 0pt } { \topskip - \box_ht:N \l__hit_titlepage_box }
+      }
+  }
+\cs_new_protected:Npn \__hit_titlepage_en_fit:
+  {
+    \bool_set_false:N \l__hit_titlepage_en_fit_bool
+    \int_step_inline:nnn { 0 } { 3 }
+      {
+        \bool_if:NF \l__hit_titlepage_en_fit_bool
+          {
+            \int_set:Nn \l__hit_titlepage_en_removed_int {##1}
+            \__hit_titlepage_en_measure:n {##1}
+            \dim_compare:nNnF { \l__hit_titlepage_en_height_dim } > { \textheight }
+              { \bool_set_true:N \l__hit_titlepage_en_fit_bool }
+          }
+      }
+    \bool_if:NF \l__hit_titlepage_en_fit_bool
+      { \msg_warning:nn { hithesis } { titlepage-en-overflow } }
+  }
+\cs_new_protected:Npn \hit@titlepage@en@body:n #1
+  {
       \docxlike_format_par:nn { titlepage-en-mark }
         {
           \hit@term@titlepage@classified@index@national@en :~
@@ -578,12 +743,23 @@
         }
       \hitenter*[lines=1,font={size=xiaosi,asian-text-font=SimSun},paragraph={spacing={line-spacing=multiple,at=1}}]
       \hitenter*[lines=1,font={size=xiaosi,asian-text-font=SimSun},paragraph={spacing={line-spacing=multiple,at=1}}]
-      \hitenter*[lines=1,font={size=xiaoer,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=exactly,at=39.5bp}}]
+      \int_compare:nNnT {#1} < { 3 }
+        { \hitenter*[lines=1,font={size=xiaoer,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=exactly,at=39.5bp}}] }
       \hit@titlepage@en@title:
       \hitenter*[lines=1,font={size=xiaosi,asian-text-font=SimSun},paragraph={spacing={line-spacing=multiple,at=1}}]
       \hitenter*[lines=1,font={size=xiaosi,asian-text-font=SimSun},paragraph={spacing={line-spacing=multiple,at=1}}]
-      \hitenter*[lines=2,font={size=erhao,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=exactly,at=39.5bp}}]
+      \int_compare:nNnT {#1} < { 2 }
+        { \hitenter*[lines=\int_eval:n{2-#1},font={size=erhao,latin-text-font=Times New Roman},paragraph={spacing={line-spacing=exactly,at=39.5bp}}] }
       \hit@titlepage@en@fields:
+  }
+\cs_new_protected:Npn \hit@titlepage@en
+  {
+    \hit@layout@push@part:n { titlepage }
+    \group_begin:
+      \dim_zero:N \parindent
+      \dim_zero:N \parskip
+      \__hit_titlepage_en_fit:
+      \exp_args:NV \hit@titlepage@en@body:n \l__hit_titlepage_en_removed_int
     \group_end:
     \hit@layout@pop@part:
   }

@@ -65,6 +65,6 @@ function baseline_check_layout(a,b)
   texio.write_nl('term and log','BASELINE LAYOUT PASS')
 end
 function baseline_finish()
-  assert(cases == 14, 'incomplete baseline tests')
+  assert(cases == 15, 'incomplete baseline tests')
   texio.write_nl('term and log','BASELINE ALL PASS: '..cases)
 end

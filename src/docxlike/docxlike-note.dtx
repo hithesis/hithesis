@@ -40,7 +40,11 @@
     FootnoteText =
       {
         font = { size = 9bp } ,
-        paragraph = { alignment = left , snap-to-grid-when-document-grid-is-defined = false } ,
+        paragraph =
+          {
+            alignment = left , snap-to-grid-when-document-grid-is-defined = false ,
+            pagination = { keep-lines-together = false , keep-with-next = false }
+          } ,
       } ,
     FootnoteReference = { font = { superscript } } ,
   }
@@ -193,6 +197,28 @@
         \cs_gset:Npn \footnoterule { \__docxlike_note_rule: }
         \setlength \footnotesep { \c_zero_dim }
         \hook_gput_code:nnn { begindocument } { docxlike } { \__docxlike_note_skip: }
+        \sys_if_engine_luatex:T
+          {
+            \hook_gput_code:nnn { shipout / after } { docxlike-note-defer }
+              {
+                \lua_now:n
+                  {
+                    if~docxlike~and~docxlike.linebreak~then~
+                      docxlike.linebreak.restore_note_limit()~
+                      docxlike.linebreak.release_deferred_notes()~
+                    end
+                  }
+              }
+            \hook_gput_code:nnn { cmd / clearpage / before } { docxlike-note-held }
+              {
+                \lua_now:n
+                  {
+                    if~docxlike~and~docxlike.linebreak~then~
+                      docxlike.linebreak.flush_held_keep_note()~
+                    end
+                  }
+              }
+          }
       }
   }
 \cs_new_protected:Npn \__docxlike_note_raise:
@@ -205,6 +231,9 @@
     \__docxlike_note_skip:
     \cs_set_eq:NN \@finalstrut \use_none:n
     \bool_set_true:N \l__docxlike_note_in_note_bool
+    % FootnoteText is an owned story even when its reference uses ordinary
+    % body text rather than an explicit docxpar group.
+    \bool_set_true:N \l__docxlike_format_owned_par_bool
     \docxlike_format_apply_par:n { Normal }
     \docxlike_format_apply_par:n { FootnoteText }
     \noindent
@@ -217,9 +246,10 @@
 % 用东亚字体排（探针里脚注号是宋体的 ①），这里划归汉字：\pkg{luatexja} 用自定义区段 90，
 % \pkg{xeCJK} 放进 \texttt{CJK} 类。
 %
-% 分隔线那一段的行盒照 Normal：高是正文的行距 \cs{g\_docxlike\_body\_lead\_dim}，基线在盒顶下
-% \cs{g\_docxlike\_body\_first\_dim}（与版心第一行的落点同一个数）。线是 144 磅长、0.6 磅粗，
-% 线心在基线上。\hologo{LaTeX} 的分页只把 \cs{skip}\cs{footins} 算进脚注区，不算
+% 分隔线那一段的行盒照 Normal：高是正文的行距 \cs{g\_docxlike\_body\_lead\_dim}。
+% 当前目标 Word 的分隔线原语中心在该段字号的 0.7em 处，不是字体的文字基线；字号与注文字号
+% 独立对照见 native-note 探针。线是 144 磅长、0.6 磅粗。
+% \hologo{LaTeX} 的分页只把 \cs{skip}\cs{footins} 算进脚注区，不算
 % \cs{footnoterule}，所以这一段的高记在 \cs{skip}\cs{footins} 里，\cs{footnoterule} 先退回
 % 同样的高再画：净高是零。放在页底时 \cs{skip}\cs{footins} 再带一份 \texttt{fil}，正文与分隔线
 % 之间的空都给它。正文的行距随分节会变，每条脚注里再设一次。
@@ -239,6 +269,8 @@
 %    \begin{macrocode}
 \dim_const:Nn \c__docxlike_note_rule_length_dim { 144bp }
 \dim_const:Nn \c__docxlike_note_rule_width_dim { 0.6bp }
+\dim_new:N \l__docxlike_note_story_reserve_dim
+\dim_new:N \l__docxlike_note_rule_length_dim
 \cs_new_protected:Npn \__docxlike_note_skip:
   {
     \tex_global:D \tex_skip:D \footins = \tex_glueexpr:D
@@ -248,14 +280,36 @@
   }
 \cs_new_protected:Npn \__docxlike_note_rule:
   {
+    \dim_zero:N \l__docxlike_note_story_reserve_dim
+    \dim_set_eq:NN \l__docxlike_note_rule_length_dim \c__docxlike_note_rule_length_dim
+    \sys_if_engine_luatex:T
+      {
+        \lua_now:e
+          {
+            if~docxlike~and~docxlike.linebreak~then~
+              tex.setdimen("l__docxlike_note_story_reserve_dim",~
+                docxlike.linebreak.note_separator_leading(\int_value:w\footins))~
+              tex.setdimen("l__docxlike_note_rule_length_dim",~
+                docxlike.linebreak.note_separator_width(\int_value:w\footins,~
+                  \dim_to_decimal_in_sp:n{\c__docxlike_note_rule_length_dim},~
+                  \dim_to_decimal_in_sp:n{\columnwidth}))~
+            end
+          }
+      }
+    % The body's free leading is reserved before the separator story, not
+    % between its rule and the first note line. Keep the net rule height zero.
+    \skip_vertical:n { \l__docxlike_note_story_reserve_dim }
     \skip_vertical:n { - \g_docxlike_body_lead_dim }
     \vbox_to_ht:nn { \g_docxlike_body_lead_dim }
       {
+        % Target Word's separator primitive is at .7em from the paragraph top,
+        % independently of the text face's Win/hhea ascent and the note size.
         \skip_vertical:n
-          { \g_docxlike_body_first_dim - 0.5 \c__docxlike_note_rule_width_dim }
-        \hrule width \c__docxlike_note_rule_length_dim height \c__docxlike_note_rule_width_dim
+          { 0.7 \g_docxlike_body_size_dim - 0.5 \c__docxlike_note_rule_width_dim }
+        \hrule width \l__docxlike_note_rule_length_dim height \c__docxlike_note_rule_width_dim
         \vss
       }
+    \skip_vertical:n { - \l__docxlike_note_story_reserve_dim }
   }
 %    \end{macrocode}
 %

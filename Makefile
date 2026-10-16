@@ -27,7 +27,7 @@ NPROC ?= 8
 
 .PHONY: all cls docxlike-sync docxlike-check lineends lineends-self lineends-verb lineends-hang lineends-typst pages-doctor pages-bachelor pages lineends-self-baseline manual viewmanual doc viewdoc dist auxclean clean distclean distribute changes changes-check changes-fix punct punct-fix doclint constlint constcheck apilint inscheck productcheck mapcheck mapfix refscheck depscheck depslist logcheck logcheck-update version-changes \
         manual-baseline manual-check doc-baseline doc-check \
-        baseline smoke feature regression-test tl-packages testclean version version-check version-set
+        baseline smoke feature check-lua regression-test tl-packages testclean version version-check version-set
 
 all: manual
 
@@ -148,6 +148,34 @@ pages-bachelor:
 
 pages: pages-doctor pages-bachelor
 
+# 新同文参考独立保留；生成/导出/冻结均拒绝覆盖已有目录。
+WORD_REFERENCE_INPUTS ?=
+WORD_REFERENCE_RUN ?= build/word-reference/content
+WORD_REFERENCE_FIXTURE ?= tests/reference/word-content
+.PHONY: word-reference-prepare word-reference-export word-reference-freeze pages-word-content-doctor pages-word-content-bachelor pages-word-content
+
+word-reference-prepare:
+	@test -n "$(WORD_REFERENCE_INPUTS)" || { echo '请指定 WORD_REFERENCE_INPUTS=已批准的布局对齐DOCX目录'; exit 2; }
+	python3 scripts/word-reference.py --input-dir "$(WORD_REFERENCE_INPUTS)" --output "$(WORD_REFERENCE_RUN)"
+
+word-reference-export:
+	python3 scripts/export-word-reference.py --input "$(WORD_REFERENCE_RUN)" --output "$(WORD_REFERENCE_RUN)-export"
+
+word-reference-freeze:
+	python3 scripts/check-word-reference.py freeze --prepared "$(WORD_REFERENCE_RUN)" --exported "$(WORD_REFERENCE_RUN)-export" --output "$(WORD_REFERENCE_FIXTURE)"
+
+# 唯一完整行且 |Δy|≤0.5bp 的独立棘轮；不计重复候选、prefix-only 和短数学片段。
+# 下限来自已人工检查的 content-v6 Word 参考，不能与旧 234/153 计数相加或比较。
+pages-word-content-doctor: pages-doctor
+	@mkdir -p build/word-reference
+	python3 scripts/check-word-reference.py check --reference "$(WORD_REFERENCE_FIXTURE)" --degree doctor --pdf tests/sample/doctor/main.pdf --min-ok 185 --json build/word-reference/doctor-sequence-check.json
+
+pages-word-content-bachelor: pages-bachelor
+	@mkdir -p build/word-reference
+	python3 scripts/check-word-reference.py check --reference "$(WORD_REFERENCE_FIXTURE)" --degree bachelor --pdf tests/sample/bachelor/main.pdf --min-ok 133 --json build/word-reference/bachelor-sequence-check.json
+
+pages-word-content: pages-word-content-doctor pages-word-content-bachelor
+
 # 重制自比对基线：先确认当前构建的差异都是有意的
 lineends-self-baseline:
 	cd examples/demo && TEXINPUTS="$(CURDIR):" latexmk -lualatex -g \
@@ -267,6 +295,10 @@ smoke:
 feature:
 	texlua tests/feature/run.lua -j $(NPROC) $(if $(ENGINES),-e $(ENGINES)) \
 	  $(if $(BRANCHES),-b '$(BRANCHES)') $(CASES)
+
+# Lua 宏专项：核对九项确实执行、原始引擎日志及 Lua 专用基线。
+check-lua:
+	python3 scripts/check-lua.py
 
 # 跟上一个正式 release 逐页比排版，发版前跑，逐个人工确认
 regression-test:

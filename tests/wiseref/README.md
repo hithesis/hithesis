@@ -2,6 +2,8 @@
 
 wiseref 的实现和独立测试在相邻的 `latex-wiseref` 仓库中，本目录只保存 hithesis 的接入测试。
 模板不分发或自动加载 wiseref；用户安装后通过 `\usepackage{wiseref}` 启用。
+`examples/demo/final.tex` 和 `report.tex` 显式加载它，正文交叉引用统一用 `\wref`；
+子图标签写在各自子图内，直接引用该标签即可带出父图编号与字母。
 
 ```sh
 make cls

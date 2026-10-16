@@ -1,0 +1,54 @@
+\input{regression-test}
+\documentclass[degree-level=master,fontset=fandol]{hithesis}
+\makeatletter
+\ExplSyntaxOn
+\msg_redirect_module:nnn{fontspec}{info}{none}
+\skip_if_exist:NF \hit@etitlelength { \skip_new:N \hit@etitlelength }
+\ExplSyntaxOff
+\makeatother
+\hitsetup{info={title={题目}[Research~title],author={作者}[Candidate]}}
+\begin{document}
+\makeatletter
+\ExplSyntaxOn
+\hit@layout@push@part:n { titlepage }
+\dim_set:Nn \hfuzz { 1em }
+\ExplSyntaxOff
+\makeatother
+\START
+\makeatletter
+\ExplSyntaxOn
+\TEST{Whole-page~and~nested~field~measurements~preserve~state}{
+  \dim_gset:Nn \g__docxlike_format_prev_after_dim { 8bp }
+  \dim_gset:Nn \g__docxlike_format_pending_after_dim { 8bp }
+  \bool_gset_true:N \g_docxlike_section_start_bool
+  \tl_gset:Nn \g__docxlike_format_keep_tl { true }
+  \__hit_titlepage_en_measure:n { 0 }
+  \TYPE{previous-after=\dim_compare:nNnTF{\g__docxlike_format_prev_after_dim}={8bp}{yes}{no}}
+  \TYPE{pending-after=\dim_compare:nNnTF{\g__docxlike_format_pending_after_dim}={8bp}{yes}{no}}
+  \TYPE{section-start=\bool_if:NTF\g_docxlike_section_start_bool{yes}{no}}
+  \TYPE{keep-next=\g__docxlike_format_keep_tl}
+}
+\TEST{Choose~the~least~blank-paragraph~reduction~that~fits}{
+  \int_step_inline:nnn { 0 } { 3 }
+    {
+      \__hit_titlepage_en_measure:n {#1}
+      \dim_set:Nn \textheight { \l__hit_titlepage_en_height_dim + 1bp }
+      \__hit_titlepage_en_fit:
+      \TYPE{removed=\int_use:N\l__hit_titlepage_en_removed_int}
+      \TYPE{fits=\bool_if:NTF\l__hit_titlepage_en_fit_bool{yes}{no}}
+    }
+}
+\TEST{Exhausted~reduction~keeps~content~and~reports~overflow}{
+  \__hit_titlepage_en_measure:n { 3 }
+  \dim_set:Nn \textheight { \l__hit_titlepage_en_height_dim - 1bp }
+  \msg_redirect_name:nnn { hithesis } { titlepage-en-overflow } { none }
+  \__hit_titlepage_en_fit:
+  \TYPE{removed=\int_use:N\l__hit_titlepage_en_removed_int}
+  \TYPE{fits=\bool_if:NTF\l__hit_titlepage_en_fit_bool{yes}{no}}
+  \TYPE{remaining-height=\dim_compare:nNnTF{\l__hit_titlepage_en_height_dim}>{\textheight}{over-capacity}{within-capacity}}
+}
+\hit@layout@pop@part:
+\ExplSyntaxOff
+\makeatother
+\END
+\end{document}

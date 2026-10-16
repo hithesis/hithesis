@@ -1,0 +1,37 @@
+\input{regression-test}
+\documentclass[stage=proposal,degree-level=master,fontset=fandol]{hithesis}
+\ExplSyntaxOn\msg_redirect_module:nnn{fontspec}{info}{none}\ExplSyntaxOff
+\docxlikesetup{styles={
+  TestChild={based-on={test parent},paragraph={spacing={before=6bp}}},
+  TestGrand={based-on=TestChild,font={font-style=bold}},
+  TestParent={font={size=14bp,font-style=bold},paragraph={spacing={line-spacing=exactly,at=18bp,after=8bp}}},
+  TestStrong={style-type=character,font={font-style=bold}},
+  TestEmphasis={style-type=character,font={font-style=italic}}}}
+\begin{document}
+\START
+\ExplSyntaxOn
+\TEST{Based-on~inherits~live~font~and~paragraph~properties}{
+  \docxlike_format_get:nnN{TestGrand}{rPr/sz}\l_tmpa_tl\TYPE{size=\l_tmpa_tl}
+  \docxlike_format_get:nnN{TestGrand}{rPr/b}\l_tmpa_tl\TYPE{leaf-bold=\l_tmpa_tl}
+  \docxlike_format_compute:n{TestChild}
+  \TYPE{line=\dim_compare:nNnTF{\l_docxlike_format_lead_dim}={18bp}{yes}{no}}
+  \TYPE{before=\dim_compare:nNnTF{\l_docxlike_format_before_dim}={6bp}{yes}{no}}
+  \TYPE{after=\dim_compare:nNnTF{\l_docxlike_format_after_dim}={8bp}{yes}{no}}
+}
+\TEST{Nested~direct~formatting~restores~outer~and~style~values}{
+  \docxlike_format_with:nnn{TestParent}{font={size=16bp}}
+    {\docxlike_format_with:nnn{TestParent}{font={size=20bp}}
+       {\docxlike_format_get:nnN{TestChild}{rPr/sz}\l_tmpa_tl\TYPE{inner=\l_tmpa_tl}}
+     \docxlike_format_get:nnN{TestChild}{rPr/sz}\l_tmpa_tl\TYPE{outer=\l_tmpa_tl}}
+  \docxlike_format_get:nnN{TestChild}{rPr/sz}\l_tmpa_tl\TYPE{restored=\l_tmpa_tl}
+  \TYPE{stack=\seq_count:N\g__docxlike_format_save_stack_seq}
+}
+\TEST{Character~style~toggles~but~direct~formatting~sets~the~state}{
+  \hbox:n{\normalfont\bfseries\docxrun[style=TestStrong]{\TYPE{style-series=\use:c{f@series}}X}}
+  \hbox:n{\normalfont\bfseries\docxrun[style=TestStrong,font-style=bold]{\TYPE{direct-series=\use:c{f@series}}X}}
+  \hbox:n{\normalfont\docxrun[style=TestEmphasis]{\TYPE{style-shape=\use:c{f@shape}}X}}
+  \docxlike_format_get:nnN{TestStrong}{rPr/b}\l_tmpa_tl\TYPE{style-value=\l_tmpa_tl}
+}
+\ExplSyntaxOff
+\END
+\end{document}

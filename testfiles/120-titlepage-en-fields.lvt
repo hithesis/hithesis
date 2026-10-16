@@ -1,0 +1,52 @@
+\input{regression-test}
+\documentclass[degree-level=master,fontset=fandol]{hithesis}
+\makeatletter
+\ExplSyntaxOn
+\msg_redirect_module:nnn { fontspec } { info } { none }
+\box_new:N \l__hit_test_field_box
+\cs_new_protected:Npn \__hit_test_field_height:n #1
+  {
+    \TYPE{height=\dim_compare:nNnTF{\dim_abs:n{\box_ht_plus_dp:N\l__hit_titlepage_value_box-#1}}<{4sp}{correct}{wrong}}
+  }
+\ExplSyntaxOff
+\makeatother
+\begin{document}
+\START
+\makeatletter
+\ExplSyntaxOn
+\TEST{Measured~field~height~includes~explicit~line~breaks}{
+  \dim_set:Nn \l__hit_titlepage_lead_dim { 18bp }
+  \__hit_titlepage_en_value_box:nn { titlepage-en-value } { One }
+  \__hit_test_field_height:n { 18bp }
+  \__hit_titlepage_en_value_box:nn { titlepage-en-value } { TwoA\\TwoB }
+  \__hit_test_field_height:n { 36bp }
+  \__hit_titlepage_en_value_box:nn { titlepage-en-value } { ThreeA\\ThreeB\\ThreeC }
+  \__hit_test_field_height:n { 54bp }
+}
+\TEST{Field~measurement~preserves~paragraph~state~and~style}{
+  \dim_gset:Nn \g__docxlike_format_prev_after_dim { 8bp }
+  \dim_gset:Nn \g__docxlike_format_pending_after_dim { 8bp }
+  \bool_gset_true:N \g_docxlike_section_start_bool
+  \tl_gset:Nn \g__docxlike_format_keep_tl { true }
+  \docxlike_format_get:nnN { titlepage-en-value } { pPr/spacing/line } \l_tmpa_tl
+  \dim_set:Nn \l__hit_titlepage_lead_dim { 18bp }
+  \__hit_titlepage_en_value_box:nn { titlepage-en-value } { TwoA\\TwoB }
+  \TYPE{previous-after=\dim_compare:nNnTF{\g__docxlike_format_prev_after_dim}={8bp}{yes}{no}}
+  \TYPE{pending-after=\dim_compare:nNnTF{\g__docxlike_format_pending_after_dim}={8bp}{yes}{no}}
+  \TYPE{section-start=\bool_if:NTF\g_docxlike_section_start_bool{yes}{no}}
+  \TYPE{keep-next=\g__docxlike_format_keep_tl}
+  \docxlike_format_get:nnN { titlepage-en-value } { pPr/spacing/line } \l_tmpb_tl
+  \TYPE{style-restored=\tl_if_eq:NNTF\l_tmpa_tl\l_tmpb_tl{yes}{no}}
+}
+\TEST{Empty~fields~occupy~no~space~and~manual~multiline~has~real~height}{
+  \docxlike_format_measure:Nn \l__hit_test_field_box
+    { \hit@titlepage@en@field:nn { Empty } { } }
+  \TYPE{empty-height=\dim_compare:nNnTF{\box_ht_plus_dp:N\l__hit_test_field_box}={0pt}{zero}{nonzero}}
+  \dim_set:Nn \l__hit_titlepage_lead_dim { 18bp }
+  \__hit_titlepage_en_value_box:nn { titlepage-en-value } { \emultiline{FourA\\FourB} }
+  \__hit_test_field_height:n { 36bp }
+}
+\ExplSyntaxOff
+\makeatother
+\END
+\end{document}

@@ -1,0 +1,47 @@
+% 学校终稿：同一普通正文段落中的短长/长短双注；默认不改学校脚注策略。
+%! branches: degree-level=master,campus=harbin,lang=zh,stage=final
+%! engines: lualatex
+%! options: fontset=fandol
+\providecommand\HITMixedMode{word-2013}
+\edef\HITMixedSetup{layout={compatibility-mode=\HITMixedMode}}
+\expandafter\hitsetup\expandafter{\HITMixedSetup}
+\newcount\MixedNoteExecutions
+\newcount\MixedNotePages
+\newdimen\MixedOriginalLimit
+\AddToHook{shipout/before}{\global\advance\MixedNotePages by1
+  \ifnum\MixedNotePages>20\errmessage{Mixed notes did not terminate}\fi}
+\AddToHook{enddocument/afterlastpage}{%
+  \ifnum\MixedNoteExecutions=2\else\errmessage{Mixed note text executed more than once}\fi
+  \ifdim\dimen\footins=\MixedOriginalLimit\else\errmessage{Mixed note limit leaked}\fi
+  \directlua{assert(not docxlike.linebreak.held_keep_note);
+    assert(not docxlike.linebreak.note_page_limit);
+    assert(next(docxlike.linebreak.deferred_notes)==nil)}}
+\newcommand\MixedShortNote{%
+  \global\advance\MixedNoteExecutions by1
+  MixedShortStart 短注首行，引用和前面的短注不能被后来的超页注一起推迟。\break
+  短注末行不能越过先引用的长注提前输出。MixedShortEnd}
+\ExplSyntaxOn
+\cs_new_protected:Npn \MixedLongNote
+  {
+    \global\advance\MixedNoteExecutions by1
+    MixedLongStart~
+    \prg_replicate:nn {110}
+      {连续文字自动折行，mixed~short~and~long~notes~must~preserve~reference~order，超页注续排时不重复执行文字。}
+    MixedLongEnd
+  }
+\ExplSyntaxOff
+\newcommand\MixedReferences{%
+  MixedRefOne Agjp\footnote{\ifdefined\HITMixedReverse\MixedLongNote\else\MixedShortNote\fi}
+  \break
+  MixedRefTwo Agjp\footnote{\ifdefined\HITMixedReverse\MixedShortNote\else\MixedLongNote\fi}}
+\begin{document}
+\mainmatter
+\MixedOriginalLimit=\dimen\footins
+\noindent MixedBeforeText Agjp\par
+\vspace*{\dimexpr\textheight-160bp\relax}\penalty0
+\ifdefined\HITMixedOwned
+  \docxpar{\MixedReferences}
+\else
+  \noindent\MixedReferences\par
+\fi
+\end{document}

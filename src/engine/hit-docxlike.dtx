@@ -5,6 +5,7 @@
 % \fi
 %
 % \section{docxlike 适配}
+% \changes{v4.0a}{0000/00/00}{标题分页改用公开段距快照，登记类扩展属性的恢复与继承路径；正文由公开安装入口接入}
 % \changes{v4.0a}{2026/10/08}{新增 sectionbreak 简写分节接口；顶层标题分页先清浮动体并连续分节，统一页首段前处理}
 % \changes{v4.0a}{2026/10/06}{终稿及部分报告的标题使用 docxlike 段落样式，支持顶层标题段前换页设置；
 %   保留 LaTeX 编号、交叉引用和目录接口，将学校专有格式与通用排版引擎分离；
@@ -69,22 +70,16 @@
       {\par\exp_args:NVV\docxlike_section_new:nn\l__hit_sectionbreak_type_tl\l__hit_sectionbreak_settings_tl}
   }
 % 标题分页先清浮动体；真实连续分节负责首段与按节设置，不再只立间距标志。
-% 保存正文段后，避免清页时页眉页脚段落改写前段的段距状态。
+% 用公开 opaque 段距快照保存正文段后，避免清页时页眉页脚改写前段状态。
 \bool_new:N\l__hit_heading_page_started_bool
-\dim_new:N\g__hit_heading_previous_after_dim
-\dim_new:N\g__hit_heading_pending_after_dim
-\bool_new:N\g__hit_heading_after_placed_bool
+\tl_new:N \l__hit_heading_spacing_tl
 \cs_new_protected:Npn\__hit_heading_start_section:n #1
   {
     \par
-    \dim_gset_eq:NN\g__hit_heading_previous_after_dim\g__docxlike_format_prev_after_dim
-    \dim_gset_eq:NN\g__hit_heading_pending_after_dim\g__docxlike_format_pending_after_dim
-    \bool_gset_eq:NN\g__hit_heading_after_placed_bool\g__docxlike_format_after_placed_bool
+    \docxlike_paragraph_spacing_save:N \l__hit_heading_spacing_tl
     \str_if_eq:nnTF{#1}{chapter}{\hit@clear@page}{\clearpage}
     \sectionbreak[continuous]
-    \dim_gset_eq:NN\g__docxlike_format_prev_after_dim\g__hit_heading_previous_after_dim
-    \dim_gset_eq:NN\g__docxlike_format_pending_after_dim\g__hit_heading_pending_after_dim
-    \bool_gset_eq:NN\g__docxlike_format_after_placed_bool\g__hit_heading_after_placed_bool
+    \docxlike_paragraph_spacing_restore:N \l__hit_heading_spacing_tl
     \bool_set_true:N\l__hit_heading_page_started_bool
   }
 \cs_new_protected:Npn \__hit_mono_cjk_scale:NNN #1#2#3
@@ -460,6 +455,15 @@
     latin-line .default:n = true ,
   }
 \cs_generate_variant:Nn \docxlike_format_put:nn { nV }
+% 类的短键和扩展度量也可通过公开 reset/inherit 操作完整属性槽。
+\docxlike_style_property_new:nn {font/snap-to-grid} {rPr/snapToGrid}
+\docxlike_style_property_new:nn {paragraph/snap-to-grid} {pPr/snapToGrid}
+\docxlike_style_property_new:nn {font/latin-bold} {latin-bold}
+\docxlike_style_property_new:nn {font/latin-line} {latin-line}
+\docxlike_style_property_new:nn {paragraph/spacing/line-white} {@line}
+\docxlike_style_property_new:nn {paragraph/spacing/line-range} {@line}
+\docxlike_style_property_new:nn {paragraph/spacing/white-before} {@before}
+\docxlike_style_property_new:nn {paragraph/spacing/white-after} {@after}
 \tl_new:N \l__hit_docxlike_slot_tl
 \docxlike_format_set_target_hook:n
   {
@@ -735,7 +739,7 @@
   {
     \int_step_inline:nn {#2}
       {
-        \docxlikesetup
+        \docxlike_setup:n
           { multilevel-lists = { #1 = { level-##1 = { link-level-to-style = Heading~##1 } } } }
       }
   }
@@ -965,12 +969,14 @@
 %
 % 这几步只在 \texttt{Normal} 样式写过时执行。
 % 正文交给 \pkg{docxlike} 之前关闭共享中文层的自动缩进，让样式决定首行缩进。
-% 应用正文样式后，若有字符网格，再将 \cs{ccwd} 设为实际网格步进。
+% 公开正文安装在文档开始末尾激活；安装之后，若有字符网格，再将 \cs{ccwd} 设为实际网格步进。
 %    \begin{macrocode}
-\cs_new_protected:Npn \hit@docxlike@apply@body:
+\cs_new_protected:Npn \hit@docxlike@prepare@body:
   {
     \docxlike_format_if_blank:nF { Normal } { \hit@cjk@autoindent@off: }
-    \docxlike_format_apply_body:
+  }
+\cs_new_protected:Npn \hit@docxlike@body@grid:
+  {
     \docxlike_format_if_blank:nF { Normal }
       {
         \dim_compare:nNnF { \g_docxlike_page_char_dim } = { 0pt }

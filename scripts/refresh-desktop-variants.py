@@ -177,7 +177,7 @@ table{{border-collapse:collapse;width:100%;background:white}}td,th{{padding:8px 
 “待刷新”的链接仍指向旧件；编译成功后会替换。深圳博士报告暂时沿用对应硕士版式。</p>
 <p>三个引擎采用同一变体清单。pdfLaTeX 的字体后端仍使用中易或文鼎兼容字体；
 文件名中的“请求”记录类选项，不表示实际使用了该 Unicode 字体预设。
-wiseref 由用户自行安装加载，本清单的示例不自动加载它。</p>
+示例显式加载 wiseref，交叉引用使用 <code>\\wref</code>；模板通过公开接口提供名称和编号格式。</p>
 <p><a href="{gallery}">深圳硕士六种字体预览</a> · <a href="变体清单.json">完整选项清单</a> · <a href="刷新状态.txt">刷新状态</a></p>
 {''.join(sections)}<p>来源：当前工作区（含未提交修改）。快照：<code>{fingerprint}</code></p></html>'''
     (dest/'变体总览.html').write_text(html)

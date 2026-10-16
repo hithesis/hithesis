@@ -524,9 +524,7 @@
 \tl_new:N \l__docxlike_section_geometry_tl
 \cs_new_protected:Npn \__docxlike_section_geometry:nn #1#2
   {
-    \str_if_eq:VnTF \l__docxlike_section_type_tl { continuous }
-      { \msg_error:nnn { docxlike } { section-page-setup } {#1} }
-      { \tl_put_right:Nn \l__docxlike_section_geometry_tl { #1 = {#2} , } }
+    \tl_put_right:Nn \l__docxlike_section_geometry_tl { #1 = {#2} , }
   }
 \keys_define:nn { docxlike / section }
   {
@@ -688,6 +686,10 @@
 % $-1000$\,pt 跳过它：分栏区紧接上一行的行盒底，栏里首行按 \cs{topskip} 落位，行盒照样直接摞。
 % 断行层按当时的 \cs{hsize} 数格，栏里就是按栏宽。Word 在文档末尾不平衡最后一节，这里也平衡，
 % 是个偏差。
+%
+% OOXML 的 \texttt{w:noColumnBalance} 对应 \option{no-column-balance}，默认关闭。
+% 开启后各栏依次填到页底，不在分节处平衡，后续节从下一页开始（ISO/IEC 29500
+% \texttt{noColumnBalance} 的示例）。开栏时选用 \env{multicols*}，关闭时用同一个环境。
 %    \begin{macrocode}
 \RequirePackage { multicol }
 \keys_define:nn { docxlike / section / columns }
@@ -707,6 +709,13 @@
       { \__docxlike_keys_set:nn { docxlike / section / columns } {#1} } ,
   }
 \bool_new:N \g__docxlike_cols_open_bool
+\bool_new:N \g__docxlike_cols_no_balance_bool
+\tl_new:N \g__docxlike_cols_environment_tl
+\keys_define:nn { docxlike }
+  {
+    no-column-balance .bool_gset:N = \g__docxlike_cols_no_balance_bool ,
+    no-column-balance .default:n = true ,
+  }
 \tl_new:N \l__docxlike_cols_tl
 \cs_new_protected:Npn \__docxlike_cols_get:nnN #1#2#3
   {
@@ -729,7 +738,10 @@
         \dim_zero:N \postmulticols
         \par
         \tex_prevdepth:D = -1000pt \scan_stop:
-        \exp_args:NnV \begin { multicols } \l__docxlike_cols_tl
+        \tl_gset:Nn \g__docxlike_cols_environment_tl { multicols }
+        \bool_if:NT \g__docxlike_cols_no_balance_bool
+          { \tl_gset:Nn \g__docxlike_cols_environment_tl { multicols* } }
+        \exp_args:NVV \begin \g__docxlike_cols_environment_tl \l__docxlike_cols_tl
       }
   }
 \cs_new_protected:Npn \__docxlike_cols_close:
@@ -737,7 +749,7 @@
     \bool_if:NT \g__docxlike_cols_open_bool
       {
         \bool_gset_false:N \g__docxlike_cols_open_bool
-        \end { multicols }
+        \exp_args:NV \end \g__docxlike_cols_environment_tl
       }
   }
 \hook_gput_code:nnn { begindocument / end } { docxlike-columns } { \__docxlike_cols_open: }
@@ -753,7 +765,9 @@
     \keys_set:nn { docxlike / section } {#1}
     \tl_if_empty:NF \l__docxlike_section_geometry_tl
       {
-        \__docxlike_page_setup_more:V \l__docxlike_section_geometry_tl
+        \str_if_eq:VnTF \l__docxlike_section_type_tl {continuous}
+          {\docxlike_page_continuous:V\l__docxlike_section_geometry_tl}
+          {\__docxlike_page_setup_more:V \l__docxlike_section_geometry_tl}
         \docxlike_format_body_refresh:
       }
     \__docxlike_section_thepage:
@@ -864,6 +878,8 @@
 \int_new:N \l__docxlike_section_extra_int
 \cs_new_protected:Npn \__docxlike_section_close:
   {
+    % 页中连续分节后，本页页眉页脚仍使用刚结束节的页码格式。
+    \cs_gset_eq:cN { g__docxlike_section_ \int_use:N \g_docxlike_section_int _thepage: } \thepage
     \iow_now:Ne \@auxout
       {
         \exp_not:N \docxlike@sectionpages
@@ -1002,6 +1018,8 @@
         \tl_set:Ne \l_docxlike_headfoot_target_tl
           { \str_if_eq:nnTF {#1} { header } { Header } { Footer } }
         \bool_set_true:N \l__docxlike_headfoot_in_page_bool
+        \bool_set_true:N \l_docxlike_format_in_header_bool
+        \bool_set_true:N \l__docxlike_format_story_strut_bool
         \cs_set_eq:NN \__docxlike_format_border_pad:n \__docxlike_headfoot_border_pad:n
         \dim_set_eq:NN \hsize \textwidth
         \dim_set_eq:NN \linewidth \textwidth
@@ -1040,6 +1058,7 @@
   }
 \cs_new_protected:Npn \__docxlike_headfoot_state_save:
   {
+    \__docxlike_format_state_save:N \l__docxlike_headfoot_format_state_tl
     \dim_set_eq:NN \l__docxlike_headfoot_depth_dim \g__docxlike_format_depth_dim
     \int_set_eq:NN \l__docxlike_headfoot_attr_int \g__docxlike_format_blank_attr_int
     \bool_set_eq:NN \l__docxlike_headfoot_verb_bool \g_docxlike_format_verb_exit_bool
@@ -1051,6 +1070,7 @@
   }
 \cs_new_protected:Npn \__docxlike_headfoot_state_restore:
   {
+    \l__docxlike_headfoot_format_state_tl
     \dim_gset_eq:NN \g__docxlike_format_depth_dim \l__docxlike_headfoot_depth_dim
     \int_gset_eq:NN \g__docxlike_format_blank_attr_int \l__docxlike_headfoot_attr_int
     \bool_gset_eq:NN \g_docxlike_format_verb_exit_bool \l__docxlike_headfoot_verb_bool
@@ -1059,6 +1079,7 @@
     \bool_gset_eq:NN \g__docxlike_format_boundary_cjk_bool \l__docxlike_headfoot_cjk_bool
   }
 \dim_new:N \l__docxlike_headfoot_depth_dim
+\tl_new:N \l__docxlike_headfoot_format_state_tl
 \int_new:N \l__docxlike_headfoot_attr_int
 \bool_new:N \l__docxlike_headfoot_blank_bool
 \bool_new:N \l__docxlike_headfoot_display_bool
@@ -1068,15 +1089,34 @@
   {
     \tl_if_head_eq_meaning:nNTF {#2} \docxpar
       {#2}
-      { \docxlike_format_par:nn {#1} {#2} }
+      {
+        \tl_if_head_eq_meaning:nNTF {#2} \docxlike_par:nn
+          {#2}
+          {
+            \tl_if_head_eq_meaning:nNTF {#2} \docxlike_par:Vn
+              {#2}
+              {
+                \tl_if_head_eq_meaning:nNTF {#2} \docxlike_par:nV
+                  {#2}
+                  {
+                    \tl_if_head_eq_meaning:nNTF {#2} \docxlike_par:VV
+                      {#2}
+                      { \docxlike_format_par:nn {#1} {#2} }
+                  }
+              }
+          }
+      }
   }
 \cs_generate_variant:Nn \__docxlike_headfoot_par:nn { Vn }
 \NewDocumentCommand \docxpar { O { } +m }
+  { \docxlike_par:nn {#1} {#2} }
+\cs_new_protected:Npn \docxlike_par:nn #1#2
   {
     \tl_if_blank:nTF {#1}
       { \docxlike_format_par:Vn \l_docxlike_headfoot_target_tl {#2} }
       { \docxlike_format_par:Vnn \l_docxlike_headfoot_target_tl {#1} {#2} }
   }
+\cs_generate_variant:Nn \docxlike_par:nn { Vn , nV , VV }
 \tl_new:N \l_docxlike_headfoot_target_tl
 \cs_generate_variant:Nn \docxlike_format_par:nn { V }
 \cs_generate_variant:Nn \docxlike_format_par:nnn { V }
@@ -1093,10 +1133,22 @@
 %    \begin{macrocode}
 \dim_new:N \l__docxlike_headfoot_ref_dim
 \dim_new:N \l__docxlike_headfoot_edge_dim
+\cs_new_protected:Npn \__docxlike_headfoot_page_thepage:
+  {
+    \cs_if_exist:cT
+      { g__docxlike_section_ \int_use:N \g__docxlike_headfoot_page_section_int _thepage: }
+      { \cs_set_eq:Nc \thepage
+          { g__docxlike_section_ \int_use:N \g__docxlike_headfoot_page_section_int _thepage: } }
+  }
 \cs_new_protected:Npn \docxlike_headfoot_page:
   {
+    \group_begin:
+    \__docxlike_headfoot_page_thepage:
     \dim_compare:nNnF { \g__docxlike_headfoot_push_dim } = { 0pt }
-      { \dim_gadd:Nn \headsep { \g__docxlike_headfoot_push_dim } }
+      {
+        \dim_gadd:Nn \headsep { \g__docxlike_headfoot_push_dim }
+        \bool_gset_true:N \g__docxlike_headfoot_push_applied_bool
+      }
     \__docxlike_headfoot_type:
     \__docxlike_headfoot_find:nnV { \g__docxlike_headfoot_page_section_int } { header }
       \l__docxlike_headfoot_type_tl
@@ -1104,6 +1156,7 @@
     \__docxlike_headfoot_find:nnV { \g__docxlike_headfoot_page_section_int } { footer }
       \l__docxlike_headfoot_type_tl
     \__docxlike_headfoot_put_content:n { footer }
+    \group_end:
   }
 \cs_generate_variant:Nn \__docxlike_headfoot_find:nnn { nnV }
 %    \end{macrocode}
@@ -1178,6 +1231,7 @@
 %    \begin{macrocode}
 \bool_new:N \g__docxlike_headfoot_used_bool
 \dim_new:N \g__docxlike_headfoot_push_dim
+\bool_new:N \g__docxlike_headfoot_push_applied_bool
 \dim_new:N \g__docxlike_headfoot_next_push_dim
 \dim_new:N \g__docxlike_headfoot_cut_dim
 \dim_new:N \l__docxlike_headfoot_over_dim
@@ -1187,6 +1241,7 @@
       {
         \group_begin:
           \int_gadd:Nn \c@page {#1}
+          \__docxlike_headfoot_page_thepage:
           \__docxlike_headfoot_type:
           \dim_gzero:N \g__docxlike_headfoot_next_push_dim
           \dim_zero:N \l__docxlike_headfoot_over_dim
@@ -1200,7 +1255,7 @@
                   \dim_max:nn { 0pt }
                     {
                       \g_docxlike_page_header_edge_dim + \box_ht:N \l__docxlike_headfoot_box
-                      - \g_docxlike_page_margin_top_dim
+                      - \docxlike_page_margin:nn {top} {\c@page}
                     }
                 }
             }
@@ -1214,7 +1269,7 @@
                   \dim_max:nn { 0pt }
                     {
                       \g_docxlike_page_footer_edge_dim + \box_ht:N \l__docxlike_headfoot_box
-                      - \g_docxlike_page_margin_bottom_dim
+                      - \docxlike_page_margin:nn {bottom} {\c@page}
                     }
                 }
             }
@@ -1261,11 +1316,12 @@
   }
 \hook_gput_code:nnn { shipout / after } { docxlike }
   {
-    \dim_compare:nNnF { \g__docxlike_headfoot_push_dim } = { 0pt }
+    \bool_if:NT \g__docxlike_headfoot_push_applied_bool
       {
         \dim_gsub:Nn \headsep { \g__docxlike_headfoot_push_dim }
-        \dim_gzero:N \g__docxlike_headfoot_push_dim
       }
+    \bool_gset_false:N \g__docxlike_headfoot_push_applied_bool
+    \dim_gzero:N \g__docxlike_headfoot_push_dim
     \bool_gset_true:N \g__docxlike_headfoot_shipped_bool
     \bool_if:NTF \g__docxlike_headfoot_blank_bool
       { \bool_gset_false:N \g__docxlike_headfoot_blank_bool }
@@ -1275,8 +1331,11 @@
       }
     \tl_if_blank:eF { \LastMark { docxlike / section } }
       {
-        \int_gset:Nn \g__docxlike_headfoot_page_section_int
-          { \LastMark { docxlike / section } }
+        % 换页分节已直接更新页归属；沿用的旧标记不能把它倒退到前一节。
+        \int_compare:nNnT { \LastMark { docxlike / section } }
+          > { \g__docxlike_headfoot_page_section_int }
+          { \int_gset:Nn \g__docxlike_headfoot_page_section_int
+              { \LastMark { docxlike / section } } }
       }
       \__docxlike_headfoot_room:n { 1 }
   }
@@ -1455,6 +1514,10 @@
     \prop_clear:N \l__docxlike_toc_local_prop
     \keyval_parse:nnn { \use_none:n }
       { \prop_put:Nnn \l__docxlike_toc_local_prop } {#2}
+    \__docxlike_toc_render:
+  }
+\cs_new_protected:Npn \__docxlike_toc_render:
+  {
     \par
     \group_begin:
       \cs_set_protected:Npn \contentsline ##1##2##3
@@ -1469,6 +1532,66 @@
         { \__docxlike_toc_style:n { \int_use:N \l__docxlike_toc_first_int } }
       \exp_args:NV \@starttoc \l__docxlike_toc_file_tl
     \group_end:
+  }
+\bool_new:N \l__docxlike_toc_record_valid_bool
+\tl_new:N \l__docxlike_toc_record_format_tl
+\cs_new_protected:Npn \__docxlike_toc_record_levels:n #1
+  {
+    \seq_set_from_clist:Nn \l__docxlike_toc_range_seq {#1}
+    \int_compare:nNnTF {\seq_count:N\l__docxlike_toc_range_seq}={2}
+      {
+        \tl_set:Ne \l__docxlike_toc_level_tl {\seq_item:Nn\l__docxlike_toc_range_seq{1}}
+        \tl_set:Ne \l__docxlike_toc_code_tl {\seq_item:Nn\l__docxlike_toc_range_seq{2}}
+        \regex_match:nVTF {\A[1-9]\Z}\l__docxlike_toc_level_tl
+          {
+            \regex_match:nVTF {\A[1-9]\Z}\l__docxlike_toc_code_tl
+              {
+                \int_set:Nn\l__docxlike_toc_first_int{\l__docxlike_toc_level_tl}
+                \int_set:Nn\l__docxlike_toc_last_int{\l__docxlike_toc_code_tl}
+                \int_compare:nNnT{\l__docxlike_toc_first_int}>{\l__docxlike_toc_last_int}{\bool_set_false:N\l__docxlike_toc_record_valid_bool}
+              }
+              {\bool_set_false:N\l__docxlike_toc_record_valid_bool}
+          }
+          {\bool_set_false:N\l__docxlike_toc_record_valid_bool}
+      }
+      {\bool_set_false:N\l__docxlike_toc_record_valid_bool}
+    \bool_if:NF\l__docxlike_toc_record_valid_bool{\__docxlike_bad_value:nnn{field/toc/levels}{#1}{two~levels~from~1~to~9~in~ascending~order}}
+  }
+\keys_define:nn {docxlike/field/toc}
+  {
+    levels .code:n={\__docxlike_toc_record_levels:n{#1}},
+    file .code:n={\tl_set:Ne\l__docxlike_toc_file_tl{#1}},
+    caption .code:n={\tl_set:Ne\l_docxlike_toc_label_tl{#1}},
+    styles .code:n=
+      {
+        \prop_set_from_keyval:Nn\l__docxlike_toc_map_prop{#1}
+        \prop_map_inline:Nn\l__docxlike_toc_map_prop
+          {\regex_match:nnF{\A[1-9]\Z}{##2}{\bool_set_false:N\l__docxlike_toc_record_valid_bool\__docxlike_bad_value:nnn{field/toc/styles}{##1=##2}{levels~1~to~9}}}
+      },
+    links .code:n=
+      {
+        \str_case:nnF{#1}{{true}{\bool_set_true:N\l__docxlike_toc_link_bool}{false}{\bool_set_false:N\l__docxlike_toc_link_bool}}
+          {\bool_set_false:N\l__docxlike_toc_record_valid_bool\__docxlike_bad_value:nnn{field/toc/links}{#1}{true,false}}
+      },
+    formatting .tl_set:N=\l__docxlike_toc_record_format_tl,
+    unknown .code:n={\bool_set_false:N\l__docxlike_toc_record_valid_bool\msg_error:nnx{docxlike}{unknown-key}{field/toc/\l_keys_key_str}}
+  }
+\cs_new_protected:Npn \__docxlike_toc_record:n #1
+  {
+    \int_set:Nn\l__docxlike_toc_first_int{1}
+    \int_set:Nn\l__docxlike_toc_last_int{3}
+    \bool_set_false:N\l__docxlike_toc_link_bool
+    \bool_set_true:N\l__docxlike_toc_record_valid_bool
+    \tl_set:Nn\l__docxlike_toc_file_tl{toc}
+    \tl_clear:N\l_docxlike_toc_label_tl
+    \tl_clear:N\l__docxlike_toc_record_format_tl
+    \prop_clear:N\l__docxlike_toc_map_prop
+    \prop_clear:N\l__docxlike_toc_local_prop
+    \keys_set:nn{docxlike/field/toc}{#1}
+    \tl_if_empty:NF\l_docxlike_toc_label_tl
+      {\prop_get:NVNF\g__docxlike_toc_caption_file_prop\l_docxlike_toc_label_tl\l__docxlike_toc_file_tl{\tl_set_eq:NN\l__docxlike_toc_file_tl\l_docxlike_toc_label_tl}}
+    \exp_args:NNV\prop_set_from_keyval:Nn\l__docxlike_toc_local_prop\l__docxlike_toc_record_format_tl
+    \bool_if:NT\l__docxlike_toc_record_valid_bool{\__docxlike_toc_render:}
   }
 \cs_generate_variant:Nn \regex_extract_once:nnNT { nV }
 \cs_generate_variant:Nn \regex_match:nnTF { nV }
@@ -1800,8 +1923,126 @@
 \tl_new:N \l__docxlike_field_expr_tl
 \clist_new:N \l__docxlike_field_flags_clist
 \tl_new:N \l__docxlike_field_pending_tl
+\tl_new:N \l__docxlike_field_source_tl
+\tl_new:N \l__docxlike_field_toc_record_tl
+\tl_new:N \l__docxlike_field_restart_tl
+\tl_new:N \l__docxlike_field_level_tl
+\bool_new:N \l__docxlike_field_structured_bool
+\bool_new:N \l__docxlike_field_valid_bool
+\prop_const_from_keyval:Nn \c__docxlike_field_switches_prop
+  {SEQ={c,h},REF={n,r,w,p},PAGEREF={p},STYLEREF={l,n,r,w,t,s}}
+\clist_const:Nn \c__docxlike_field_types_clist
+  {PAGE,NUMPAGES,SECTIONPAGES,SECTION,STYLEREF,TOC,=,DATE,CREATEDATE,SAVEDATE,PRINTDATE,TIME,TITLE,AUTHOR,SUBJECT,KEYWORDS,COMMENTS,FILENAME,SEQ,REF,PAGEREF}
+\clist_new:N \l__docxlike_field_allowed_clist
+\prg_new_protected_conditional:Npnn \__docxlike_field_type_allowed:n #1 {T,F,TF}
+  {
+    \clist_set:Ne\l__docxlike_field_allowed_clist{\tl_to_str:n{#1}}
+    \exp_args:NNV\clist_if_in:NnTF\l__docxlike_field_allowed_clist\l__docxlike_field_name_tl
+      {\prg_return_true:}{\prg_return_false:}
+  }
+\cs_new_protected:Npn \__docxlike_field_clear:
+  {
+    \tl_clear:N \l__docxlike_field_arg_tl
+    \tl_clear:N \l__docxlike_field_numfmt_tl
+    \tl_clear:N \l__docxlike_field_case_tl
+    \tl_clear:N \l__docxlike_field_picture_tl
+    \tl_clear:N \l__docxlike_field_expr_tl
+    \clist_clear:N \l__docxlike_field_flags_clist
+    \tl_clear:N \l__docxlike_field_pending_tl
+    \tl_clear:N \l__docxlike_field_restart_tl
+    \tl_clear:N \l__docxlike_field_level_tl
+    \tl_clear:N \l__docxlike_field_toc_record_tl
+  }
+\cs_new_protected:Npn \__docxlike_field_require:nnn #1#2#3
+  {
+    \__docxlike_field_type_allowed:nTF {#2}
+      {#3}
+      {\bool_set_false:N\l__docxlike_field_valid_bool\__docxlike_bad_value:nVn{field/#1}\l__docxlike_field_name_tl{#2}}
+  }
+\cs_new_protected:Npn \__docxlike_field_integer:nnN #1#2#3
+  {
+    \tl_set:Ne #3 {#2}
+    \regex_match:nVTF {\A [-+]?\d+ \Z} #3
+      {
+        \fp_compare:nNnT {abs(#3)} > {2147483647}
+          {\bool_set_false:N\l__docxlike_field_valid_bool\__docxlike_bad_value:nnn{field/#1}{#2}{an~integer~within~TeX's~range}}
+      }
+      {\bool_set_false:N\l__docxlike_field_valid_bool\__docxlike_bad_value:nnn{field/#1}{#2}{an~integer}}
+  }
+\keys_define:nn {docxlike/field}
+  {
+    argument .code:n={\tl_set:Ne\l__docxlike_field_arg_tl{#1}},
+    expression .code:n={\__docxlike_field_require:nnn{expression}{=}{\tl_set:Ne\l__docxlike_field_expr_tl{#1}}},
+    number-format .code:n=
+      {
+        \__docxlike_field_require:nnn {number-format}{PAGE,NUMPAGES,SECTIONPAGES,SECTION,SEQ,=,PAGEREF}
+          {\__docxlike_ooxml_value:nnVNTF {field/number-format}{#1}\c__docxlike_number_format_clist\l__docxlike_field_numfmt_tl
+            {}{\bool_set_false:N\l__docxlike_field_valid_bool\__docxlike_bad_value:nnn{field/number-format}{#1}{a~supported~number~format}}}
+      },
+    case .code:n=
+      {
+        \clist_if_in:nnTF {none,upper,lower,firstcap,caps}{#1}
+          {\tl_set:Nn\l__docxlike_field_case_tl{#1}\str_if_eq:nnT{#1}{none}{\tl_clear:N\l__docxlike_field_case_tl}}
+          {\bool_set_false:N\l__docxlike_field_valid_bool\__docxlike_bad_value:nnn{field/case}{#1}{none,upper,lower,firstcap,caps}}
+      },
+    picture .code:n={\__docxlike_field_require:nnn{picture}{DATE,CREATEDATE,SAVEDATE,PRINTDATE,TIME}{\tl_set:Ne\l__docxlike_field_picture_tl{#1}}},
+    switches .clist_set:N=\l__docxlike_field_flags_clist,
+    restart-at .code:n={\__docxlike_field_require:nnn{restart-at}{SEQ}{\__docxlike_field_integer:nnN{restart-at}{#1}\l__docxlike_field_restart_tl}},
+    restart-level .code:n=
+      {
+        \__docxlike_field_require:nnn{restart-level}{SEQ}
+          {
+            \tl_set:Ne\l__docxlike_field_level_tl{#1}
+            \regex_match:nVF{\A[1-9]\Z}\l__docxlike_field_level_tl
+              {\bool_set_false:N\l__docxlike_field_valid_bool\__docxlike_bad_value:nnn{field/restart-level}{#1}{1~to~9}}
+          }
+      },
+    toc .code:n={\__docxlike_field_require:nnn{toc}{TOC}{\tl_set:Nn\l__docxlike_field_toc_record_tl{#1}}},
+    unknown .code:n={\bool_set_false:N\l__docxlike_field_valid_bool\msg_error:nnx{docxlike}{unknown-key}{field/\l_keys_key_str}}
+  }
+\cs_new_protected:Npn \__docxlike_field_parse:nn #1#2
+  {
+    \__docxlike_field_clear:
+    \bool_set_true:N \l__docxlike_field_structured_bool
+    \bool_set_true:N \l__docxlike_field_valid_bool
+    \str_set:Ne \l__docxlike_field_name_tl {\str_uppercase:f{#1}}
+    \exp_args:NV \__docxlike_field_type_allowed:nF \c__docxlike_field_types_clist
+      {\bool_set_false:N\l__docxlike_field_valid_bool\__docxlike_bad_value:nnn{field/type}{#1}{a~supported~field~type}}
+    \keys_set:nn {docxlike/field}{#2}
+    \str_if_eq:VnT\l__docxlike_field_name_tl{TOC}
+      {\tl_if_empty:NF\l__docxlike_field_case_tl{\bool_set_false:N\l__docxlike_field_valid_bool\__docxlike_bad_value:nnn{field/case}{TOC}{case~is~set~by~TOC~styles}}}
+    \tl_if_empty:NF\l__docxlike_field_arg_tl
+      {
+        \__docxlike_field_type_allowed:nF{SEQ,REF,PAGEREF,STYLEREF,=}
+          {\bool_set_false:N\l__docxlike_field_valid_bool\__docxlike_bad_value:nVn{field/argument}\l__docxlike_field_name_tl{SEQ,REF,PAGEREF,STYLEREF,=}}
+      }
+    \prop_get:NVNF \c__docxlike_field_switches_prop \l__docxlike_field_name_tl \l__docxlike_field_pending_tl
+      {\tl_clear:N\l__docxlike_field_pending_tl}
+    \clist_map_inline:Nn \l__docxlike_field_flags_clist
+      {
+        \exp_args:NV \clist_if_in:nnF \l__docxlike_field_pending_tl {##1}
+          {\bool_set_false:N\l__docxlike_field_valid_bool\__docxlike_bad_value:nnn{field/switches}{##1}{a~switch~supported~by~this~field}}
+      }
+    \__docxlike_field_type_allowed:nT {SEQ,REF,PAGEREF,STYLEREF}
+      {\tl_if_blank:VT\l__docxlike_field_arg_tl{\bool_set_false:N\l__docxlike_field_valid_bool\__docxlike_bad_value:nnn{field/argument}{}{a~nonempty~argument}}}
+    \str_if_eq:VnT \l__docxlike_field_name_tl {=}
+      {
+        \tl_if_empty:NT\l__docxlike_field_expr_tl{\tl_set_eq:NN\l__docxlike_field_expr_tl\l__docxlike_field_arg_tl}
+        \tl_if_empty:NT\l__docxlike_field_expr_tl{\bool_set_false:N\l__docxlike_field_valid_bool\__docxlike_bad_value:nnn{field/expression}{}{an~arithmetic~expression}}
+      }
+    \seq_clear:N \l__docxlike_field_words_seq
+    \seq_put_right:NV \l__docxlike_field_words_seq \l__docxlike_field_arg_tl
+    \clist_map_inline:Nn \l__docxlike_field_flags_clist
+      {\seq_put_right:Ne\l__docxlike_field_words_seq{\c_backslash_str ##1}}
+    \tl_if_empty:NF \l__docxlike_field_restart_tl
+      {\seq_put_right:Ne\l__docxlike_field_words_seq{\c_backslash_str r}\seq_put_right:NV\l__docxlike_field_words_seq\l__docxlike_field_restart_tl}
+    \tl_if_empty:NF \l__docxlike_field_level_tl
+      {\seq_put_right:Ne\l__docxlike_field_words_seq{\c_backslash_str s}\seq_put_right:NV\l__docxlike_field_words_seq\l__docxlike_field_level_tl}
+  }
 \cs_new_protected:Npn \__docxlike_field_parse:n #1
   {
+    \bool_set_false:N \l__docxlike_field_structured_bool
+    \tl_set:Nn \l__docxlike_field_source_tl {#1}
     \__docxlike_field_split:n {#1}
     \seq_pop_left:NNTF \l__docxlike_field_words_seq \l__docxlike_field_name_tl
       { \str_set:Ne \l__docxlike_field_name_tl { \str_uppercase:f { \l__docxlike_field_name_tl } } }
@@ -1877,7 +2118,37 @@
   }
 \cs_new_protected:Npn \docxlike_field_result:nN #1#2
   {
-    \__docxlike_field_parse:n {#1}
+    \tl_if_head_eq_meaning:nNTF {#1}\__docxlike_field_structured:nnn
+      {\__docxlike_field_structured_unpack:w #1\q_stop #2}
+      {\__docxlike_field_parse:n {#1}\__docxlike_field_render:N #2}
+  }
+\cs_new_protected:Npn \docxlike_field:nn #1#2
+  {\docxlike_field_result:nnN{#1}{#2}\l__docxlike_field_out_tl\tl_use:N\l__docxlike_field_out_tl}
+\cs_new_protected:Npn \docxlike_field_result:nnN #1#2#3
+  {
+    \__docxlike_field_parse:nn {#1}{#2}
+    \bool_if:NTF \l__docxlike_field_valid_bool
+      {\__docxlike_field_render:N #3}
+      {\tl_clear:N #3}
+  }
+\cs_generate_variant:Nn \docxlike_field:nn {Vn,nV,VV}
+\cs_generate_variant:Nn \docxlike_field_result:nnN {VnN,nVN,VVN}
+\cs_new_protected:Npn \__docxlike_field_structured_eval:nnnN #1#2#3#4
+  {
+    \str_case:nn {#1}
+      {
+        {nn}{\docxlike_field_result:nnN{#2}{#3}#4}
+        {Vn}{\docxlike_field_result:VnN #2{#3}#4}
+        {nV}{\docxlike_field_result:nVN{#2}#3#4}
+        {VV}{\docxlike_field_result:VVN #2#3#4}
+      }
+  }
+\cs_new_protected:Npn \__docxlike_field_structured:nnn #1#2#3
+  {\__docxlike_field_structured_eval:nnnN{#1}{#2}{#3}\l__docxlike_field_out_tl\tl_use:N\l__docxlike_field_out_tl}
+\cs_new_protected:Npn \__docxlike_field_structured_unpack:w \__docxlike_field_structured:nnn #1#2#3\q_stop #4
+  {\__docxlike_field_structured_eval:nnnN{#1}{#2}{#3}#4}
+\cs_new_protected:Npn \__docxlike_field_render:N #1
+  {
     \int_set:Nn \l__docxlike_field_section_int
       {
         \bool_if:NTF \l__docxlike_headfoot_in_page_bool
@@ -1923,7 +2194,11 @@
             \__docxlike_field_styleref:
           }
         { TOC }
-          { \tl_set:Nn \l__docxlike_field_result_tl { \docxlike_toc_field:n {#1} } }
+          {
+            \bool_if:NTF \l__docxlike_field_structured_bool
+              {\tl_set:Ne\l__docxlike_field_result_tl{\exp_not:N\__docxlike_toc_record:n{\exp_not:V\l__docxlike_field_toc_record_tl}}}
+              {\tl_set:Ne\l__docxlike_field_result_tl{\exp_not:N\docxlike_toc_field:n{\exp_not:V\l__docxlike_field_source_tl}}}
+          }
         { = }
           {
             \tl_set:Ne \l__docxlike_field_result_tl
@@ -1948,13 +2223,14 @@
         { PAGEREF } { \__docxlike_field_pageref: }
       }
       { \msg_warning:nnV { docxlike } { field-unknown } \l__docxlike_field_name_tl }
-    \__docxlike_field_case:N #2
+    \__docxlike_field_case:N #1
   }
 \cs_generate_variant:Nn \msg_warning:nnn { nnV }
 \cs_generate_variant:Nn \prop_if_in:NnTF { Ne }
 \cs_generate_variant:Nn \prop_item:Nn { Ne }
 \cs_generate_variant:Nn \__docxlike_style_key:n { V }
 \NewDocumentCommand \docxfield { m } { \docxlike_field:n {#1} }
+\NewDocumentCommand \docxfieldkv {m +m} {\docxlike_field:nn {#1}{#2}}
 %    \end{macrocode}
 %
 % 域出现在页眉页脚里时，“第几节”是这一页所在的节；出现在正文里是正在排的那一节。

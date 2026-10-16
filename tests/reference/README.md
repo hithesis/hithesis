@@ -9,3 +9,8 @@
 - `mono-calibration-latex.pdf`、`mono-calibration-word.pdf`：相同字号、字体及软断点的 LaTeX/Word 对照样例，验证记录在相邻 `latex-docxlike/test/mono-word/`。
 
 PDF 按仓库现有规则忽略，`make tidy` 保留本目录。
+
+`word-content/` 是新的同文 Word 文字/基线参考，来源摘要与覆盖范围保存在其中的
+`manifest.json`，通过 `make pages-word-content` 独立检查；旧 `tests/pages-*.tsv` 继续保留。
+`word-continuation-sequence.json` 保存这次真实 Word/LaTeX 表格页的文字/坐标子集，
+供 `tests/page-diagnostics.py` 重放“续表重复行不能复用首表”的回归，不包含字体文件。

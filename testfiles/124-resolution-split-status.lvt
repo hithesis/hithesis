@@ -1,0 +1,53 @@
+\input{regression-test}
+\documentclass[degree-level=doctor,fontset=fandol]{hithesis}
+\makeatletter
+\ExplSyntaxOn
+\msg_redirect_module:nnn{fontspec}{info}{none}
+\int_new:N \l__hit_test_pages_int
+\int_new:N \l__hit_test_frames_int
+\bool_new:N \l__hit_test_split_error_bool
+\ExplSyntaxOff
+\makeatother
+\begin{document}
+\START
+\makeatletter
+\ExplSyntaxOn
+\dim_set:Nn \l__hit_res_lead_dim { 20bp }
+\dim_set:Nn \textheight { 120bp }
+\cs_set_protected:Npn \newpage { \int_incr:N \l__hit_test_pages_int }
+\cs_set_protected:Npn \__hit_res_frame:nN #1#2
+  { \int_incr:N \l__hit_test_frames_int }
+\TEST{No~fragment~moves~the~whole~block~to~a~fresh~page}{
+  \vbox_set:Nn \l__hit_res_body_box { \hrule height 40bp width 10bp }
+  \int_zero:N \l__hit_test_pages_int \int_zero:N \l__hit_test_frames_int
+  \bool_set_true:N \l__hit_res_first_bool
+  \bool_set_true:N \l__hit_res_fill_bool
+  \__hit_res_conclusion_page:n { 10bp }
+  \TYPE{pages=\int_use:N\l__hit_test_pages_int}
+  \TYPE{frames=\int_use:N\l__hit_test_frames_int}
+  \TYPE{status=\l__hit_res_split_status_tl}
+  \TYPE{remaining=\box_if_empty:NTF\l__hit_res_body_box{empty}{nonempty}}
+}
+\TEST{An~unsplittable~full-page~block~stops~without~discarding~text}{
+  \vbox_set:Nn \l__hit_res_body_box { \hrule height 140bp width 10bp }
+  \int_zero:N \l__hit_test_pages_int \int_zero:N \l__hit_test_frames_int
+  \bool_set_false:N \l__hit_test_split_error_bool
+  \cs_set_protected:Npn \msg_error:nn #1#2
+    { \str_if_eq:nnT{#2}{resolution-unsplittable}{\bool_set_true:N\l__hit_test_split_error_bool} }
+  \__hit_res_conclusion_page:n { 100bp }
+  \TYPE{pages=\int_use:N\l__hit_test_pages_int}
+  \TYPE{frames=\int_use:N\l__hit_test_frames_int}
+  \TYPE{error=\bool_if:NTF\l__hit_test_split_error_bool{reported}{missing}}
+  \TYPE{remaining-height=\dim_compare:nNnTF{\box_ht_plus_dp:N\l__hit_res_body_box}={140bp}{preserved}{changed}}
+}
+\TEST{Empty~content~does~not~emit~a~frame}{
+  \box_clear:N \l__hit_res_body_box
+  \int_zero:N \l__hit_test_frames_int
+  \__hit_res_conclusion_page:n { 100bp }
+  \TYPE{status=\l__hit_res_split_status_tl}
+  \TYPE{frames=\int_use:N\l__hit_test_frames_int}
+}
+\ExplSyntaxOff
+\makeatother
+\END
+\end{document}

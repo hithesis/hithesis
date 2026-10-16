@@ -10,6 +10,8 @@
 %   段后加段前，题目线与日期线照锚定的线条形状画}
 % \changes{v4.0a}{2026/10/06}{学位论文外封按 Word 范例的段落布局排版，长题目自动调整空段及英文题目字号；
 %   本科三校区统一版式，研究生默认显示学位类别；支持本页元信息覆盖}
+% \changes{v4.0a}{2026/10/13}{外封候选块改用 docxlike 的测量接口，试排后恢复段落状态，保留空行优化规则}
+% \changes{v4.0a}{2026/10/14}{外封以含公共作者段的连排片段测量候选，计入实际段间余量；缓存几何，保留空行评分与让步顺序}
 %
 % 本模块排外封，内封实现位于 \file{hit-final-titlepage.dtx}。
 %
@@ -296,6 +298,7 @@
 % 学位类别行默认仅对研究生显示，三态结果先保存为布尔量供排版使用。
 %    \begin{macrocode}
 \bool_new:N \l__hit_cover_degree_type_bool
+\tl_new:N \l__hit_cover_title_en_tl
 \cs_new_protected:Npn \__hit_cover_degree_type_default:
   {
     \bool_set:Nn \l__hit_cover_degree_type_bool { ! \g__hit_bachelor_bool }
@@ -329,12 +332,10 @@
       }
     \int_compare:nNnT {#2} < { 2 } { \hit@cover@blank@zh:n { 1 } }
     \int_compare:nNnT {#2} < { 1 } { \hit@cover@blank@zh:n { 1 } }
-    \docxlike_format_par:nnn { cover-title-en } { font = { size = #1 } }
-      {
-        \hit@info@title@cover@en
-        \hit@if@subtitle@lang:nT { en }
-          { \hit@term@cover@title@separator@en \hit@info@title@subtitle@en }
-      }
+    \hit@title@compose:nnN { en } { \hit@term@cover@title@separator@en }
+      \l__hit_cover_title_en_tl
+    \exp_args:NnnV \docxlike_format_par:nnn
+      { cover-title-en } { font = { size = #1 } } \l__hit_cover_title_en_tl
   }
 \cs_new_protected:Npn \hit@cover@author@line:
   { \docxlike_format_par:nn { cover-author } { \hit@info@author@zh } }
@@ -357,20 +358,20 @@
 \dim_new:N \l__hit_cover_top_dim
 \dim_new:N \l__hit_cover_width_dim
 \dim_new:N \l__hit_cover_height_dim
-\dim_new:N \l__hit_cover_bc_dim
-\dim_new:N \l__hit_cover_be_dim
 \dim_new:N \l__hit_cover_ha_dim
 \dim_new:N \l__hit_cover_hi_dim
 \dim_new:N \l__hit_cover_iasc_dim
 \dim_new:N \l__hit_cover_inst_target_dim
 \box_new:N \l__hit_cover_box
-\int_step_inline:nnn { 0 } { 3 }
-  {
-    \dim_new:c { l__hit_cover_ba_#1_dim }
-    \dim_new:c { l__hit_cover_bi_#1_dim }
-  }
 \int_step_inline:nnn { 0 } { 2 }
   { \dim_new:c { l__hit_cover_tu_#1_dim } }
+\prop_new:N \l__hit_cover_prefix_prop
+\prop_new:N \l__hit_cover_inst_prop
+\prop_new:N \l__hit_cover_total_prop
+\tl_new:N \l__hit_cover_measured_size_tl
+\dim_new:N \l__hit_cover_prefix_dim
+\dim_new:N \l__hit_cover_inst_dim
+\dim_new:N \l__hit_cover_total_dim
 %    \end{macrocode}
 %
 % 名字里带数字的那几个量只能用 \texttt{:c} 变体取——\pkg{expl3} 里数字不算字母，
@@ -379,15 +380,24 @@
 %
 % 量一块的高。给版心宽是必须的：不给宽的话英文题目不折行，量出来只有一行，
 % 而那正是要判的那件事。
+% 试排由 \cs{docxlike\_format\_measure:Nn} 保存并恢复段落状态。各块从独立竖盒的
+% 顶部量起，不接外面的行深；量完只重新封装为顶对齐盒，校名首行的基线仍可从盒高读出。
 %    \begin{macrocode}
-\cs_new_protected:Npn \__hit_cover_gauge:n #1
+\cs_new_protected:Npn \__hit_cover_gauge_raw:n #1
   {
-    \vbox_set_top:Nn \l__hit_cover_box
+    \docxlike_format_measure:Nn \l__hit_cover_box
       {
+        \dim_set:Nn \tex_prevdepth:D { -1000pt }
         \dim_set_eq:NN \hsize \l__hit_cover_width_dim
         \dim_set_eq:NN \linewidth \l__hit_cover_width_dim
         #1
       }
+  }
+\cs_new_protected:Npn \__hit_cover_gauge:n #1
+  {
+    \__hit_cover_gauge_raw:n {#1}
+    \vbox_set_top:Nn \l__hit_cover_box
+      { \vbox_unpack_drop:N \l__hit_cover_box }
   }
 \cs_new_protected:Npn \__hit_cover_gauge:Nn #1#2
   {
@@ -398,7 +408,10 @@
   { \exp_args:Nc \__hit_cover_gauge:Nn {#1} {#2} }
 %    \end{macrocode}
 %
-% 各块的高只量一次，之后全是算术。相邻块的间距在这些切点上都是零，所以高度可加。
+% 自然盒不包含末行尚未用掉的行距，不能将独立空段和文字块的自然高直接相加。
+% 前片排到作者段，后片从同一个作者段排起，两片相加时只扣一次公共作者段的自然高。
+% 这样段间余量由真实接排生成，不读取底层私有字体缓存或余量系数。
+% 每个字号只量三种标题前片；空段候选的连排片段按需缓存，不为每组候选重排整页。
 %    \begin{macrocode}
 \cs_new_protected:Npn \__hit_cover_measure:n #1
   {
@@ -406,26 +419,65 @@
       { 1in + \voffset + \topmargin + \headheight + \headsep }
     \dim_set_eq:NN \l__hit_cover_width_dim \textwidth
     \dim_set_eq:NN \l__hit_cover_height_dim \textheight
-    \__hit_cover_gauge:Nn \l__hit_cover_bc_dim
-      { \hit@cover@blank@zh:n { 1 } }
-    \__hit_cover_gauge:Nn \l__hit_cover_be_dim
-      { \hit@cover@blank@en:n { 1 } }
-    \int_step_inline:nnn { 0 } { 3 }
-      {
-        \__hit_cover_gauge:cn { l__hit_cover_ba_##1_dim }
-          { \hit@cover@fixed@author:n {##1} }
-        \__hit_cover_gauge:cn { l__hit_cover_bi_##1_dim }
-          { \hit@cover@fixed@inst:n {##1} }
-      }
+    \tl_set:Nn \l__hit_cover_measured_size_tl {#1}
+    \prop_clear:N \l__hit_cover_prefix_prop
+    \prop_clear:N \l__hit_cover_inst_prop
+    \prop_clear:N \l__hit_cover_total_prop
     \__hit_cover_gauge:n { \hit@cover@author@line: }
     \dim_set:Nn \l__hit_cover_ha_dim { \box_ht_plus_dp:N \l__hit_cover_box }
-    \__hit_cover_gauge:n { \hit@cover@inst@lines: }
+    \__hit_cover_gauge:n { \__hit_cover_institution: }
     \dim_set:Nn \l__hit_cover_iasc_dim { \box_ht:N \l__hit_cover_box }
     \dim_set:Nn \l__hit_cover_hi_dim { \box_ht_plus_dp:N \l__hit_cover_box }
     \int_step_inline:nnn { 0 } { 2 }
       {
-        \__hit_cover_gauge:cn { l__hit_cover_tu_##1_dim }
-          { \hit@cover@upto@en:nn {#1} {##1} }
+        \__hit_cover_gauge_raw:n
+          { \hit@cover@upto@en:nn {#1} {##1} \nointerlineskip \hbox:n { } }
+        \dim_set:cn { l__hit_cover_tu_##1_dim }
+          { \box_ht_plus_dp:N \l__hit_cover_box }
+      }
+  }
+\cs_new_protected:Npn \__hit_cover_institution:
+  { \docxlike_format_par:nn { cover-institution } { \hit@term@cover@university@zh } }
+\cs_new_protected:Npn \__hit_cover_prefix:nnn #1#2#3
+  {
+    \exp_args:NV \hit@cover@upto@en:nn \l__hit_cover_measured_size_tl {#1}
+    \hit@cover@blank@zh:n {#2}
+    \hit@cover@fixed@author:n {#3}
+    \hit@cover@author@line:
+  }
+\cs_new_protected:Npn \__hit_cover_tail:nnn #1#2#3
+  {
+    \hit@cover@author@line:
+    \hit@cover@blank@zh:n {#1}
+    \hit@cover@fixed@inst:n {#3}
+    \hit@cover@blank@en:n {#2}
+  }
+\cs_new_protected:Npn \__hit_cover_cache:nnnnn #1#2#3#4#5
+  {
+    \prop_get:NeNTF \l__hit_cover_prefix_prop
+      { \int_eval:n {#1} / \int_eval:n {#5} / \int_eval:n {#2} } \l_tmpa_tl
+      { }
+      {
+        \__hit_cover_gauge_raw:n { \__hit_cover_prefix:nnn {#1} {#2} {#5} }
+        \prop_put:Nee \l__hit_cover_prefix_prop
+          { \int_eval:n {#1} / \int_eval:n {#5} / \int_eval:n {#2} }
+          { \dim_eval:n { \box_ht_plus_dp:N \l__hit_cover_box } }
+      }
+    \prop_get:NeNTF \l__hit_cover_inst_prop
+      { \int_eval:n {#5} / \int_eval:n {#3} / \int_eval:n {#4} } \l_tmpa_tl
+      { }
+      {
+        \__hit_cover_gauge_raw:n
+          { \__hit_cover_tail:nnn {#3} {#4} {#5} \__hit_cover_institution: }
+        \prop_put:Nee \l__hit_cover_inst_prop
+          { \int_eval:n {#5} / \int_eval:n {#3} / \int_eval:n {#4} }
+          { \dim_eval:n { \box_ht_plus_dp:N \l__hit_cover_box
+              - \l__hit_cover_hi_dim + \l__hit_cover_iasc_dim } }
+        \__hit_cover_gauge_raw:n
+          { \__hit_cover_tail:nnn {#3} {#4} {#5} \hit@cover@inst@lines: }
+        \prop_put:Nee \l__hit_cover_total_prop
+          { \int_eval:n {#5} / \int_eval:n {#3} / \int_eval:n {#4} }
+          { \dim_eval:n { \box_ht_plus_dp:N \l__hit_cover_box } }
       }
   }
 %    \end{macrocode}
@@ -447,46 +499,37 @@
 \int_new:N \l__hit_cover_best_near_int
 \cs_new_protected:Npn \__hit_cover_solve:nnnnn #1#2#3#4#5
   {
-    \fp_set:Nn \l__hit_cover_span_fp
-      {
-        \dim_to_fp:n { \l__hit_cover_top_dim }
-        + \dim_to_fp:n { \use:c { l__hit_cover_tu_#1_dim } }
-      }
-    \fp_set:Nn \l__hit_cover_ratio_fp
-      {
-        \l__hit_cover_span_fp
-        + #2 * \dim_to_fp:n { \l__hit_cover_bc_dim }
-        + \dim_to_fp:n { \use:c { l__hit_cover_ba_#5_dim } }
-      }
+    \__hit_cover_cache:nnnnn {#1} {#2} {#3} {#4} {#5}
+    \prop_get:NeN \l__hit_cover_prefix_prop
+      { \int_eval:n {#1} / \int_eval:n {#5} / \int_eval:n {#2} } \l_tmpa_tl
+    \dim_set:Nn \l__hit_cover_prefix_dim { \l_tmpa_tl - \l__hit_cover_ha_dim }
+    \prop_get:NeN \l__hit_cover_inst_prop
+      { \int_eval:n {#5} / \int_eval:n {#3} / \int_eval:n {#4} } \l_tmpa_tl
+    \dim_set:Nn \l__hit_cover_inst_dim { \l_tmpa_tl }
+    \prop_get:NeN \l__hit_cover_total_prop
+      { \int_eval:n {#5} / \int_eval:n {#3} / \int_eval:n {#4} } \l_tmpa_tl
+    \dim_set:Nn \l__hit_cover_total_dim { \l_tmpa_tl }
     \fp_set:Nn \l__hit_cover_inst_fp
       {
-        \l__hit_cover_ratio_fp
-        + \dim_to_fp:n { \l__hit_cover_ha_dim }
-        + #3 * \dim_to_fp:n { \l__hit_cover_bc_dim }
-        + \dim_to_fp:n { \use:c { l__hit_cover_bi_#5_dim } }
-        + #4 * \dim_to_fp:n { \l__hit_cover_be_dim }
-        + \dim_to_fp:n { \l__hit_cover_iasc_dim }
+        \dim_to_fp:n { \l__hit_cover_top_dim
+          + \l__hit_cover_prefix_dim + \l__hit_cover_inst_dim }
       }
     \fp_set:Nn \l__hit_cover_total_fp
       {
-        \l__hit_cover_inst_fp - \dim_to_fp:n { \l__hit_cover_iasc_dim }
-        - \dim_to_fp:n { \l__hit_cover_top_dim }
-        + \dim_to_fp:n { \l__hit_cover_hi_dim }
+        \dim_to_fp:n { \l__hit_cover_prefix_dim + \l__hit_cover_total_dim }
       }
     \fp_set:Nn \l__hit_cover_span_fp
       {
-        \l__hit_cover_inst_fp - \dim_to_fp:n { \l__hit_cover_iasc_dim }
-        - \l__hit_cover_span_fp
+        \dim_to_fp:n { \l__hit_cover_prefix_dim + \l__hit_cover_inst_dim
+          - \l__hit_cover_iasc_dim - \use:c { l__hit_cover_tu_#1_dim } }
       }
     \fp_compare:nNnTF { \l__hit_cover_span_fp } = { 0 }
       { \fp_zero:N \l__hit_cover_ratio_fp }
       {
         \fp_set:Nn \l__hit_cover_ratio_fp
           {
-            ( \l__hit_cover_ratio_fp
-              + 0.5 * \dim_to_fp:n { \l__hit_cover_ha_dim }
-              - \dim_to_fp:n { \l__hit_cover_top_dim }
-              - \dim_to_fp:n { \use:c { l__hit_cover_tu_#1_dim } } )
+            \dim_to_fp:n { \l__hit_cover_prefix_dim + 0.5\l__hit_cover_ha_dim
+              - \use:c { l__hit_cover_tu_#1_dim } }
             / \l__hit_cover_span_fp
           }
       }
@@ -495,14 +538,20 @@
 %
 % 用默认空段组合计算姓名参考位置的比例。
 %    \begin{macrocode}
-\dim_new:N \l__hit_cover_keep_dim
 \cs_new_protected:Npn \__hit_cover_ref_ratio:
   {
-    \dim_set_eq:Nc \l__hit_cover_keep_dim { l__hit_cover_tu_0_dim }
-    \dim_zero:c { l__hit_cover_tu_0_dim }
     \__hit_cover_solve:nnnnn { 0 } { 2 } { 2 } { 6 } { 0 }
-    \fp_set_eq:NN \l__hit_cover_ref_fp \l__hit_cover_ratio_fp
-    \dim_set_eq:cN { l__hit_cover_tu_0_dim } \l__hit_cover_keep_dim
+    \__hit_cover_gauge_raw:n
+      { \hit@cover@blank@zh:n { 2 } \hit@cover@fixed@author:n { 0 }
+        \hit@cover@author@line: }
+    \dim_set:Nn \l__hit_cover_prefix_dim
+      { \box_ht_plus_dp:N \l__hit_cover_box - \l__hit_cover_ha_dim }
+    \fp_set:Nn \l__hit_cover_ref_fp
+      {
+        \dim_to_fp:n { \l__hit_cover_prefix_dim + 0.5\l__hit_cover_ha_dim }
+        / \dim_to_fp:n { \l__hit_cover_prefix_dim + \l__hit_cover_inst_dim
+            - \l__hit_cover_iasc_dim }
+      }
   }
 %    \end{macrocode}
 %
