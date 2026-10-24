@@ -1,21 +1,74 @@
 name: Test development branches
+run-name: ${{ inputs.publication_request && format('dev publication {0}', inputs.publication_request) || github.event.head_commit.message || github.workflow }}
 
 on:
   push:
-    branches-ignore: [master]
+    branches-ignore: [master, gh-pages]
   pull_request:
-    branches: [master]
+    branches: [master, dev]
   workflow_dispatch:
+    inputs:
+      publish_only:
+        description: '执行每日发布：填写 changes 日期、验证并发布 dev（由服务器 08:00 调用）'
+        type: boolean
+        default: false
+      preflight_only:
+        description: '仅检查下载站写权限，不编译、不调用 AI、不发布'
+        type: boolean
+        default: false
+      publication_request:
+        description: '每日发布请求号（服务器自动填写，手动操作留空）'
+        type: string
+        default: ''
+      notify_only:
+        description: '仅检查并推送 QQ 通知（不重新编译模板；请选择 dev 分支）'
+        type: boolean
+        default: false
+      force_notify:
+        description: '强制重发当前开发版（仅 notify_only 时生效）'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: branch-tests-${{ github.ref }}
-  cancel-in-progress: true
+  group: branch-${{ inputs.notify_only && 'notify' || (inputs.publish_only || inputs.preflight_only) && 'publish' || 'tests' }}-${{ github.ref }}
+  cancel-in-progress: ${{ !inputs.notify_only && !inputs.publish_only && !inputs.preflight_only }}
 
 jobs:
+  plan:
+    if: ${{ !inputs.notify_only }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: read
+    outputs:
+      build_required: ${{ steps.plan.outputs.build_required }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Checkout download site for publication permission check
+        if: github.repository == 'hithesis/hithesis' && github.ref == 'refs/heads/dev' && (inputs.publish_only || inputs.preflight_only)
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: build/site-write-check
+      - name: Check download site write access without changing it
+        if: github.repository == 'hithesis/hithesis' && github.ref == 'refs/heads/dev' && (inputs.publish_only || inputs.preflight_only)
+        run: git -C build/site-write-check push --dry-run origin HEAD:refs/heads/gh-pages
+      - name: Check whether dev has unpublished updates
+        id: plan
+        env:
+          PUBLISH_ONLY: ${{ inputs.publish_only }}
+          PREFLIGHT_ONLY: ${{ inputs.preflight_only }}
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/dev-dates.py plan
+
   branch-tests:
+    needs: plan
+    if: needs.plan.outputs.build_required == 'true'
     name: TeX Live latest branch tests
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -31,6 +84,27 @@ jobs:
 
       - name: Pull TeX Live (latest)
         run: docker pull "$TEXLIVE_IMAGE"
+
+      - name: Test dev download and notification tooling
+        run: |
+          python3 -m venv build/host-tools
+          build/host-tools/bin/pip install -r tests/requirements.txt
+          build/host-tools/bin/python -m unittest discover -s tests -p 'test_dev_*.py'
+
+      - name: Resolve development version and stage daily release metadata
+        env:
+          PUBLISH_ONLY: ${{ inputs.publish_only }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p build
+          if git cat-file -e origin/gh-pages:dev-history.json 2>/dev/null; then
+            git show origin/gh-pages:dev-history.json > build/dev-history.json
+          fi
+          python3 scripts/dev-version.py resolve --history build/dev-history.json
+          python3 scripts/dev-dates.py check --history build/dev-history.json
+          if [ "$PUBLISH_ONLY" = true ]; then
+            python3 scripts/dev-dates.py stage --history build/dev-history.json
+          fi
 
       - name: Build runtime and run branch regression checks
         run: |
@@ -64,6 +138,12 @@ jobs:
                 python3 tests/error-cases.py --baseline build/baseline --work build/error-cases
                 build/ci-tools/bin/python tests/compatibility.py --baseline build/baseline --work build/compatibility
                 build/ci-tools/bin/python tests/wiseref.py --work build/wiseref
+                if [ -f tests/small-features.py ]; then
+                  build/ci-tools/bin/python tests/small-features.py --baseline build/baseline --work build/small-features
+                fi
+                if [ -f tests/dev-report.py ]; then
+                  build/ci-tools/bin/python tests/dev-report.py --work build/dev-report
+                fi
               fi'
 
       - name: Build documentation and CTAN/TDS archives
@@ -95,8 +175,16 @@ jobs:
               fi'
 
       - name: Compare and package maintenance example archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEV_REPORT_API_KEY: ${{ inputs.publish_only && secrets.DEV_REPORT_API_KEY || '' }}
+          DEV_REPORT_MODEL: deepseek-flash
         run: |
           docker run --rm -i -e DEBIAN_FRONTEND=noninteractive -e TEXMFLOCAL \
+            -e GITHUB_REPOSITORY -e GITHUB_REF -e GITHUB_EVENT_NAME -e GITHUB_SHA \
+            -e GITHUB_RUN_ID -e GITHUB_RUN_ATTEMPT -e GITHUB_RUN_NUMBER -e GH_TOKEN \
+            -e DEV_REPORT_API_KEY -e DEV_REPORT_MODEL \
+            -e PUBLISH_ONLY='${{ inputs.publish_only }}' \
             -v "$PWD:/hithesis" -w /hithesis "$TEXLIVE_IMAGE" \
             bash -c 'set -euo pipefail
               if [ -f hithesis.dtx ] && [ -f tests/compatibility.py ]; then
@@ -106,7 +194,29 @@ jobs:
                 make changes
                 bash make_release_pkg.sh "$(python3 scripts/release.py version)"
                 python3 scripts/release.py verify
+                if [ "$GITHUB_REPOSITORY" = hithesis/hithesis ] && [ "$GITHUB_REF" = refs/heads/dev ] && [ "$PUBLISH_ONLY" = true ]; then
+                  build/ci-tools/bin/python scripts/dev-release.py prepare --dist dist --history build/dev-history.json
+                fi
               fi'
+
+      - name: Keep successful dev downloads for publication
+        if: github.repository == 'hithesis/hithesis' && github.ref == 'refs/heads/dev' && inputs.publish_only
+        uses: actions/upload-artifact@v4
+        with:
+          name: hithesis-dev-downloads
+          if-no-files-found: error
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS
+            dist/dev.json
+            dist/dev-history.json
+            dist/DEV_CHANGELOG.md
+            dist/DEV_RELEASE_NOTES.md
+            dist/DEV_UPDATE.pdf
+            dist/DEV_UPDATE.md
+            dist/DEV_AI_DRAFT.json
+            dist/dev-date-stamp.json
+            dist/dev-date-stamp.bundle
 
       - name: Keep build artifacts and test logs
         if: always()
@@ -120,6 +230,17 @@ jobs:
             hithesis.tds.zip
             dist/*.zip
             dist/SHA256SUMS
+            dist/dev.json
+            dist/dev-history.json
+            dist/DEV_CHANGELOG.md
+            dist/DEV_UPDATE.pdf
+            dist/DEV_UPDATE.md
+            dist/DEV_AI_DRAFT.json
+            dist/report-build/*.log
+            dist/report-build/AI_INPUT.json
+            dist/report-build/AI_REJECTED.json
+            dist/report-build/previews/*.png
+            build/dev-version-plan.json
             RELEASE_NOTES.md
             build/compatibility/results.json
             build/compatibility/**/*.log
@@ -127,8 +248,71 @@ jobs:
             build/error-cases/**/*.log
             build/wiseref/results.json
             build/wiseref/**/*.log
+            build/small-features/results.json
+            build/small-features/**/*.log
+            build/dev-report/results.json
+            build/dev-report/DEV_UPDATE.pdf
+            build/dev-report/report-build/*.log
             build/example-regression.json
             build/test/*.diff
             build/test/*.log
             build/doc/*.log
             examples/**/*.log
+
+  publish-dev:
+    name: Publish dated dev downloads
+    needs: branch-tests
+    if: github.repository == 'hithesis/hithesis' && github.ref == 'refs/heads/dev' && inputs.publish_only && needs.branch-tests.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pages: write
+    steps:
+      # Use the short-lived repository GITHUB_TOKEN. Explicitly request a Pages
+      # build after pushing files; this token's pushes do not trigger one.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: build/download-site
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: hithesis-dev-downloads
+          path: build/dev-downloads
+
+      - name: Publish preview assets and update Pages metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -m venv build/publish-tools
+          build/publish-tools/bin/pip install -r tests/requirements.txt
+          build/publish-tools/bin/python scripts/dev-release.py publish --dist build/dev-downloads --site build/download-site
+
+  notify-dev:
+    name: Check or resend QQ notification
+    if: github.repository == 'hithesis/hithesis' && github.ref == 'refs/heads/dev' && github.event_name == 'workflow_dispatch' && inputs.notify_only
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install verified Workbench CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL https://workbench-cli.oss-cn-hangzhou.aliyuncs.com/install.sh \
+            | bash -s -- --version v1.0.4 --dir "$RUNNER_TEMP/workbench-bin"
+
+      - name: Invoke the server-side notifier through Workbench
+        env:
+          DEV_NOTIFY_ACCESS_KEY_ID: ${{ secrets.DEV_NOTIFY_ACCESS_KEY_ID }}
+          DEV_NOTIFY_ACCESS_KEY_SECRET: ${{ secrets.DEV_NOTIFY_ACCESS_KEY_SECRET }}
+          DEV_NOTIFY_INSTANCE_ID: ${{ vars.DEV_NOTIFY_INSTANCE_ID }}
+          DEV_NOTIFY_REGION: ${{ vars.DEV_NOTIFY_REGION || 'cn-beijing' }}
+          FORCE_NOTIFY: ${{ inputs.force_notify }}
+        run: python3 scripts/workbench-notify.py "$RUNNER_TEMP/workbench-bin/workbench"

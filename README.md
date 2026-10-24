@@ -163,6 +163,11 @@ hithesis, 既含窝工hit，也是说用的“嗨！”，读作“嗨thesis”�
 2. ~~gitee: [https://gitee.com/dustincys/hithesis](https://gitee.com/dustincys/hithesis)~~
 3. CTAN: [https://ctan.org/pkg/hithesis](https://ctan.org/pkg/hithesis)
 
+官网下载页：[https://hithesis.site](https://hithesis.site)。可按校区、学位和文档类型选择模板。
+开发版使用“版本号＋月日”标记，例如 `v3.2b-dev.1024`，页面提供提交号和构建记录。
+开发版发布、每日北京时间 08:00 的 QQ 更新通知及手动推送配置见
+[部署说明](https://github.com/hithesis/hithesis/blob/dev/deploy/qq-notify/README.md)。
+
 github和gitee的版本是同步且是最新的模板。
 CTAN的版本一般会比较落后，但在每年年底会同步为最新版本。
 
