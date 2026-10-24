@@ -1,6 +1,6 @@
 """Check published dev builds and send a daily digest through OneBot v11 HTTP."""
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import fcntl
 import hashlib
 import importlib.util
@@ -16,6 +16,18 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 HISTORY_URL = 'https://hithesis.site/dev-history.json'
+
+
+def wait_for_daily_release(url, state, timeout=5400, sleep=time.sleep):
+    """The single 08:00 task waits for its build, not an all-day notification poll."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        releases = fetch_history(url)
+        if pending_releases(releases, state):
+            return releases
+        sleep(min(300, max(0, deadline - time.monotonic())))
+    print('No new published PDF during the daily task; notification state unchanged')
+    return []
 
 
 def report_gate():
@@ -199,9 +211,12 @@ def main():
     parser.add_argument('--force', action='store_true', help='Resend the current preview even if already announced')
     parser.add_argument('--dry-run', action='store_true', help='Print a message without sending or recording it')
     parser.add_argument('--publish', action='store_true', help='Run and await the 08:00 dated publication before notifying')
+    parser.add_argument('--daily', action='store_true', help='Automatic 08:00 task: await the new published PDF, then notify once')
     args = parser.parse_args()
     if args.publish and (args.force or args.dry_run):
         parser.error('--publish is a release operation; use --force/--dry-run separately for notifications')
+    if args.daily and (args.force or args.dry_run or args.publish):
+        parser.error('--daily is the automatic 08:00 task; use manual operations separately')
     group = os.environ.get('QQ_GROUP_ID', '')
     if not group.isdigit() or int(group) <= 0:
         parser.error('Set QQ_GROUP_ID to the destination group number')
@@ -209,6 +224,11 @@ def main():
     token = os.environ.get('ONEBOT_ACCESS_TOKEN', '')
     if not token and not args.dry_run:
         parser.error('Set ONEBOT_ACCESS_TOKEN')
+    if args.daily:
+        beijing = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
+        if (beijing.hour, beijing.minute) != (8, 0):
+            print('Automatic notification starts only at 08:00 Asia/Shanghai; no catch-up or message')
+            return
     state = Path(os.environ.get('NOTIFY_STATE', '/data/notified.json'))
     state.parent.mkdir(parents=True, exist_ok=True)
     with state.with_suffix('.lock').open('a') as lock:
@@ -218,7 +238,14 @@ def main():
             print('A dev publication/notification check is already in progress')
             return
         publication = request_publication(os.environ.get('DEV_PUBLISH_TOKEN', '')) if args.publish else None
-        releases = fetch_history(os.environ.get('DEV_HISTORY_URL', HISTORY_URL))
+        url = os.environ.get('DEV_HISTORY_URL', HISTORY_URL)
+        if args.daily:
+            state_record = json.loads(state.read_text()) if state.exists() else None
+            if state_record and state_record.get('group_id') != int(group):
+                raise ValueError('Notification state belongs to a different QQ group')
+            releases = wait_for_daily_release(url, state_record)
+        else:
+            releases = fetch_history(url)
         if publication:
             head = publication.get('head_sha')
             if (not releases or not isinstance(head, str) or not re.fullmatch(r'[0-9a-f]{40}', head)

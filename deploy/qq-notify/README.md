@@ -174,7 +174,7 @@ install -m 755 notify.sh /opt/hithesis-notify/notify.sh
 
 `--dry-run` 只显示消息，不发群消息、不更新通知状态。
 首次发送仅通知当前最新开发版。后续检查合并尚未通知的构建，按变更 ID 去重。
-同一提交重新构建不会自动再发；`--force` 可以重发。
+同一提交重新构建不会自动再发；用户明确要求手动重发时可使用 `--force`，手动操作不受自动任务的 08:00 启动时间限制。
 
 ```sh
 /opt/hithesis-notify/notify.sh --force
@@ -184,10 +184,11 @@ install -m 755 notify.sh /opt/hithesis-notify/notify.sh
 定时和手动触发共用文件锁，避免同时发送。网络超时后无法判断对方是否已收消息，因此不会自动重试发送；先查群消息再决定重发。
 通知状态在 `data/notifier/notified.json`，QQ 登录信息也在 `data/`，更新服务时保留该目录。
 更新记录从 `https://hithesis.site/dev-history.json` 读取，不需要 GitHub 凭据，也不消耗 GitHub REST API 调用额度。
-服务器每五分钟只检查已发布记录，未发现新构建就退出；不会运行 AI 或 GitHub Actions。首次安装仅发送最新构建，重复检查不会重复发群。
+服务器仅在北京时间每天 08:00 启动一次 `--daily` 自动通知任务；该任务每五分钟读取索引，等待新构建的 PDF，最多等待 90 分钟，通知一次后结束。不会运行 AI 或 GitHub Actions，也不会全天轮询。首次安装仅发送最新构建，重复检查不会重复发群。
+自动任务不能在其他时间启动，不会因服务器重启补跑；没有新 PDF 或等待超时就结束，保留通知状态，留到下次 08:00 处理。需要在其他时间推送时，必须由用户明确要求手动运行普通通知命令或 `--force`；验证优先使用模拟发送或 `--dry-run`，不自行向真实群试发。
 `--publish` 保留为需要另行授权的手动功能，不用于默认定时服务。
 
-### 每日发布与五分钟通知检查
+### 每日 08:00 发布与通知任务
 
 ```sh
 sudo install -m 644 hithesis-dev-notify.service hithesis-dev-notify.timer /etc/systemd/system/
@@ -197,8 +198,8 @@ systemctl list-timers hithesis-dev-notify.timer
 journalctl -u hithesis-dev-notify.service
 ```
 
-GitHub 定时工作流计划在北京时间 08:00 开始；systemd 定时器每五分钟读取免费更新索引，PDF 可下载且校验通过后才发送。轮询不会调用模型或派发构建。
-没有更新不发消息。`Persistent=true` 会在服务器错过通知检查后补检查一次。
+GitHub 定时工作流与服务器通知任务都计划在北京时间 08:00 启动；编译和 Actions 排队需要时间，群消息在该次任务内等到 PDF 可下载且校验通过后发送，不承诺在 08:00:00 瞬间完成构建。任务内检查索引不会调用模型或派发构建。
+没有更新不发消息。`Persistent=false` 禁止错过定时后的自动补跑；即使误启动 service，程序也会拒绝在非 08:00 的时间运行 `--daily`，不发送、不消耗状态。普通通知命令和 `--force` 是用户明确请求的手动例外。
 
 ## 可选：GitHub 手动通知入口
 
@@ -224,7 +225,7 @@ QQ 接口口令仍只保存在服务器 `.env`。
 进入 **Actions → Test development branches → Run workflow**：
 
 - 分支选择 `dev`。
-- 勾选 `notify_only`：立即检查并推送，不重新编译模板。
+- 用户明确要求手动推送时勾选 `notify_only`：立即检查并推送，不重新编译模板，不受自动启动时间限制。
 - 需要重发当前版本时再勾选 `force_notify`。
 
 也可用已经登录的 GitHub CLI：

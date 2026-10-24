@@ -1,6 +1,7 @@
 """Notification aggregation, delivery acknowledgement and persistent deduplication."""
 import importlib.util
 import io
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -32,6 +33,83 @@ def entry(n, changes=None, commit=None):
 
 
 class DevNotifyTests(unittest.TestCase):
+    def setUp(self):
+        clock = patch.object(notify, 'datetime', wraps=datetime)
+        self.clock = clock.start()
+        self.addCleanup(clock.stop)
+        self.clock.now.return_value = datetime(2026, 10, 25, 1, tzinfo=timezone.utc)
+
+    def test_automatic_task_cannot_start_outside_beijing_0800(self):
+        for stamp in ('2026-10-24T23:59:59+00:00', '2026-10-25T00:01:00+00:00',
+                      '2026-10-25T05:00:00+00:00', '2026-10-25T18:48:29+00:00'):
+            with self.subTest(stamp=stamp), tempfile.TemporaryDirectory() as tmp:
+                self.clock.now.return_value = datetime.fromisoformat(stamp)
+                environment = {'QQ_GROUP_ID': '12345', 'ONEBOT_ACCESS_TOKEN': 'test',
+                               'NOTIFY_STATE': str(Path(tmp) / 'state.json')}
+                with patch.dict('os.environ', environment), patch('sys.argv', ['notify-dev.py', '--daily']), \
+                        patch.object(notify, 'request_publication') as dispatch, \
+                        patch.object(notify, 'wait_for_daily_release') as wait, \
+                        patch.object(notify, 'fetch_history') as fetch, patch.object(notify, 'notify') as send:
+                    notify.main()
+                    dispatch.assert_not_called()
+                    wait.assert_not_called()
+                    fetch.assert_not_called()
+                    send.assert_not_called()
+                self.assertFalse(list(Path(tmp).iterdir()))
+
+    def test_0800_task_waits_for_its_pdf_and_never_dispatches_actions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.clock.now.return_value = datetime(2026, 10, 25, 0, tzinfo=timezone.utc)
+            environment = {'QQ_GROUP_ID': '12345', 'ONEBOT_ACCESS_TOKEN': 'test',
+                           'NOTIFY_STATE': str(Path(tmp) / 'state.json')}
+            with patch.dict('os.environ', environment), patch('sys.argv', ['notify-dev.py', '--daily']), \
+                    patch.object(notify, 'request_publication') as dispatch, \
+                    patch.object(notify, 'wait_for_daily_release', return_value=[entry(1)]) as wait, \
+                    patch.object(notify, 'notify') as send:
+                notify.main()
+                dispatch.assert_not_called()
+                wait.assert_called_once()
+                send.assert_called_once()
+
+    def test_daily_wait_finds_new_build_without_consuming_state(self):
+        state = {'build_id': entry(1)['build_id'], 'commit': entry(1)['commit']}
+        original = dict(state)
+        sleep = Mock()
+        with patch.object(notify, 'fetch_history', side_effect=[[entry(1)], [entry(1), entry(2)]]), \
+                patch.object(notify.time, 'monotonic', side_effect=range(20)):
+            self.assertEqual(notify.wait_for_daily_release('https://example.com/history', state, 10, sleep),
+                             [entry(1), entry(2)])
+        sleep.assert_called_once()
+        self.assertEqual(state, original)
+        with patch.object(notify, 'fetch_history', return_value=[entry(1)]), \
+                patch.object(notify.time, 'monotonic', side_effect=range(20)):
+            self.assertEqual(notify.wait_for_daily_release('https://example.com/history', state, 5, sleep), [])
+        self.assertEqual(state, original)
+
+    def test_explicit_manual_force_can_send_at_night(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.clock.now.return_value = datetime(2026, 10, 25, 18, tzinfo=timezone.utc)
+            sender, verifier = Mock(return_value=99), Mock(return_value={})
+            self.assertTrue(notify.notify([entry(1)], Path(tmp) / 'state.json', 12345, '', '',
+                                          force=True, sender=sender, verifier=verifier))
+            sender.assert_called_once()
+            verifier.assert_called_once()
+
+    def test_timer_starts_only_daily_0800_and_never_catches_up(self):
+        timer = (ROOT / 'deploy/qq-notify/hithesis-dev-notify.timer').read_text()
+        service = (ROOT / 'deploy/qq-notify/hithesis-dev-notify.service').read_text()
+        self.assertIn('OnCalendar=*-*-* 08:00:00 Asia/Shanghai\n', timer)
+        self.assertIn('Persistent=false\n', timer)
+        self.assertIn('ExecStart=/opt/hithesis-notify/notify.sh --daily\n', service)
+        self.assertNotIn('0/5', timer)
+
+    def test_daily_mode_cannot_be_combined_with_manual_operations(self):
+        for flag in ('--force', '--dry-run', '--publish'):
+            with self.subTest(flag=flag), patch('sys.argv', ['notify-dev.py', '--daily', flag]), \
+                    patch('sys.stderr', io.StringIO()), self.assertRaises(SystemExit) as result:
+                notify.main()
+            self.assertEqual(result.exception.code, 2)
+
     def test_public_history_raw_response_and_first_publish_absence(self):
         payload = {'schema': 1, 'repository': 'hithesis/hithesis', 'releases': [entry(1)]}
         with patch.object(notify, 'urlopen', return_value=io.BytesIO(json.dumps(payload).encode())) as request:

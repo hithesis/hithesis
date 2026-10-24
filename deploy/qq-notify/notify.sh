@@ -7,7 +7,7 @@ if [[ ! -f "$ROOT/deploy/qq-notify/compose.yaml" ]]; then
   exit 1
 fi
 case "$*" in
-  ""|--force|--dry-run|--publish) ;;
-  *) printf 'Usage: notify.sh [--force|--dry-run|--publish]\n' >&2; exit 2 ;;
+  ""|--force|--dry-run|--publish|--daily) ;;
+  *) printf 'Usage: notify.sh [--force|--dry-run|--publish|--daily]\n' >&2; exit 2 ;;
 esac
 exec docker compose --project-directory "$ROOT/deploy/qq-notify" run --rm --no-deps notifier "$@"
