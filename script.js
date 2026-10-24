@@ -52,15 +52,17 @@ function compute() {
 }
 
 function validateDevBuild(data) {
-  if (data.schema !== 1 || data.repository !== "hithesis/hithesis" || data.branch !== "dev" ||
+  if (data.schema !== 2 || data.repository !== "hithesis/hithesis" || data.branch !== "dev" ||
       !/^v\d+\.\d+[a-z]?$/.test(data.version) || !/^\d{4}$/.test(data.date) ||
       data.label !== `${data.version}-dev.${data.date}` ||
       !/^[0-9a-f]{40}$/.test(data.commit) ||
-      !/^dev-\d{8}-[0-9a-f]{12}-\d+-\d+$/.test(data.tag) ||
+      !/^dev-\d{8}-[0-9a-f]{12}-\d+-\d+$/.test(data.build_id) ||
+      !/^[0-9a-f]{40}$/.test(data.source_commit) ||
+      !/^[0-9a-f]{40}$/.test(data.download_snapshot_commit) ||
       !/^\d{4}-\d{2}-\d{2}$/.test(data.published_on) ||
       data.published_on.slice(5).replace("-", "") !== data.date ||
-      data.download_base !== `${REPO}/releases/download/${data.tag}/` ||
-      data.release_url !== `${REPO}/releases/tag/${data.tag}` ||
+      data.download_base !== `https://raw.githubusercontent.com/hithesis/hithesis/${data.download_snapshot_commit}/dev-downloads/` ||
+      data.release_url !== `https://hithesis.site/dev-builds/${data.build_id}/` ||
       !/^https:\/\/github\.com\/hithesis\/hithesis\/actions\/runs\/\d+$/.test(data.run_url)) {
     throw new Error("Invalid dev download metadata");
   }
@@ -75,7 +77,7 @@ function validateDevBuild(data) {
   const report = data.report;
   const pdf = data.files["DEV_UPDATE.pdf"];
   if (!report || report.filename !== "DEV_UPDATE.pdf" ||
-      report.url !== data.download_base + "DEV_UPDATE.pdf" ||
+      report.url !== data.release_url + "DEV_UPDATE.pdf" ||
       !/^[0-9a-f]{64}$/.test(report.sha256) || !pdf || pdf.sha256 !== report.sha256 ||
       !Number.isSafeInteger(pdf.size) || pdf.size < 1024) {
     throw new Error("Dev update PDF is missing or mismatched");
@@ -114,8 +116,8 @@ function renderVersion() {
     status.textContent = `开发版 ${devBuild.label}，来自 dev 分支通过测试的构建。`;
     document.getElementById("build-date").textContent = `发布于 ${devBuild.published_on}（北京时间）`;
     const commit = document.getElementById("build-commit");
-    commit.textContent = `提交 ${devBuild.commit.slice(0, 12)}`;
-    commit.href = `${REPO}/commit/${devBuild.commit}`;
+    commit.textContent = `提交 ${devBuild.source_commit.slice(0, 12)}`;
+    commit.href = `${REPO}/commit/${devBuild.source_commit}`;
     document.getElementById("build-run").href = devBuild.run_url;
     document.getElementById("build-release").href = devBuild.release_url;
     document.getElementById("build-report").href = devBuild.report.url;

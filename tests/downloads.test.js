@@ -7,13 +7,14 @@ const all = { families: ["chinese", "english", "reports", "reportplus"],
   stages: ["opening", "midterm"] };
 
 function manifest() {
-  const tag = "dev-20261024-aaaaaaaaaaaa-123-1";
-  return { schema: 1, repository: "hithesis/hithesis", branch: "dev", version: "v3.2b",
-    label: "v3.2b-dev.1024", date: "1024", published_on: "2026-10-24", commit: "a".repeat(40), tag,
-    download_base: `https://github.com/hithesis/hithesis/releases/download/${tag}/`,
-    release_url: `https://github.com/hithesis/hithesis/releases/tag/${tag}`,
+  const build = "dev-20261024-aaaaaaaaaaaa-123-1";
+  return { schema: 2, repository: "hithesis/hithesis", branch: "dev", version: "v3.2b",
+    label: "v3.2b-dev.1024", date: "1024", published_on: "2026-10-24", commit: "a".repeat(40),
+    source_commit: "a".repeat(40), build_id: build, download_snapshot_commit: "d".repeat(40),
+    download_base: `https://raw.githubusercontent.com/hithesis/hithesis/${"d".repeat(40)}/dev-downloads/`,
+    release_url: `https://hithesis.site/dev-builds/${build}/`,
     run_url: "https://github.com/hithesis/hithesis/actions/runs/123",
-    report: { filename: "DEV_UPDATE.pdf", url: `https://github.com/hithesis/hithesis/releases/download/${tag}/DEV_UPDATE.pdf`,
+    report: { filename: "DEV_UPDATE.pdf", url: `https://hithesis.site/dev-builds/${build}/DEV_UPDATE.pdf`,
       sha256: "c".repeat(64) },
     files: { ...Object.fromEntries([...templateNames(all), "hithesis-examples"].map((name) =>
       [name + ".zip", { sha256: "b".repeat(64), size: 100 }])),
