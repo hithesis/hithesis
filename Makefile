@@ -67,7 +67,7 @@ endif
 
 .PHONY: all cls examples doc viewdoc dist auxclean clean distclean changes version-changes
 .PHONY: ctan upload l3unpack l3doc l3install l3tag l3clean
-.PHONY: check compile-examples dependencies
+.PHONY: check check-small-features compile-examples dependencies
 
 all: doc
 
@@ -98,6 +98,9 @@ compile-examples: examples
 
 check: cls
 	python3 tests/compatibility.py --baseline "$(BASELINE)" --work "$(WORK)"
+
+check-small-features: cls
+	python3 tests/small-features.py $(if $(WORK),--work "$(WORK)") $(if $(BASELINE),--baseline "$(BASELINE)")
 
 doc: $(PACKAGE).pdf
 

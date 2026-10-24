@@ -518,6 +518,13 @@
 % }
 % \end{latex}
 %
+% 日期字段也接受 \texttt{YYYY}、\texttt{YYYY-MM}、\texttt{YYYY-MM-DD}：
+% 中文按输入精度排成年、年月或年月日，英文排为月份名与年份；
+% \texttt{firstpagecdate} 同样支持。手写文本与排版命令仍原样使用。
+% \begin{latex}
+% \hitsetup{cdate={2026-06}, edate={2026-06-15}}
+% \end{latex}
+%
 % \subsubsection{学生类型}
 % \myentry{学生类型}
 % \DescribeMacro{cstudenttype}
@@ -571,6 +578,13 @@
 % }
 % \end{latex}
 %
+% 关键词换行后默认与正文左边界对齐，不再悬挂。
+% \DescribeOption{keywords-hanging}
+% 设为 \texttt{true} 可恢复续行对齐到第一个关键词的排法；可在类选项或 \cs{hitsetup} 中设置。
+% \begin{latex}
+% \hitsetup{keywords-hanging=true}
+% \end{latex}
+%
 % \subsubsection{符号对照表}
 % \DescribeEnv{denotation}
 % 主要符号表环境，单独在文件 \file{front/denotation.tex} 中。
@@ -599,8 +613,16 @@
 %
 % \subsubsection{图和表}
 % \hit\ 博士毕业论文要求使用中英双语图题、表题，这增加了维护难度。
-% 因为现有唯一的方法是在已有的图题或表题的基础上再添加一行英语图题或表题。
-% 两个题之间的距离具体多少不在\PGR\ 中要求。目前的方法是用户手动调节该距离。
+% 可用统一的题注入口填写主语言及副语言，不必手动拼接第二行：
+% \begin{latex}
+% \caption[清单短标题]{中文题注}[English caption]\label{fig:example}
+% \caption*{不编号的说明}[Unnumbered note]
+% \end{latex}
+% 尾随方括号表示副语言题注；英文论文中可反向填写 \texttt{\{English\}[中文]}。
+% 副语言与主语言共用编号，不额外写入图表清单；\cs{caption*} 不编号、不写清单。
+% \env{longtable} 中使用同一写法，末尾仍按通常规则写 \verb|\\|。
+% 原有 \cs{bicaption} 与七参数 \cs{longbionenumcaption} 继续支持。
+% 旧 \cs{bicaption} 的可选参数仍用于标签，沿用原有的分组和引用规则。
 % 关于图题\PGR\ 和\UGR\ 只规定了居中，并没有规定居中对齐。然而评审老师很多喜欢居
 % 中且居中对齐。模板默认选项是居中且居中对齐，如果不喜欢居中对齐，那么需要在
 % \file{main.tex}的文档类选项中设置选项capcenterlast=false。详细方法见前文的介绍
@@ -3046,6 +3068,10 @@ delim_1 "\\hspace*{\\fill}"
 %    \end{macrocode}
 % \changes{v3.2b}{0000/00/00}{补回此前仅合入 dev 的三校区更新：本科毕业论文与毕业设计选择、深圳本科使用本部样式、威海本文章标题间距统一。\issue[282]}
 % \changes{v3.2b}{0000/00/00}{补回哈尔滨硕士中期报告结构与封面更新，并取消深圳参考文献样式中的作者名全大写硬编码。}
+% \changes{v3.2b}{0000/00/00}{现有日期字段支持数字年月日格式，手写日期和元信息原值继续保留。}
+% \changes{v3.2b}{0000/00/00}{封面期间关闭页锚点并恢复调用方设置，书签将换行与 enskip 转为空格。}
+% \changes{v3.2b}{0000/00/00}{英文内封长字段自动折行，利用标题区空白容纳增加的行高。}
+% \changes{v3.2b}{0000/00/00}{caption 支持尾随副语言、短标题和星号形式，长表共用入口并保留旧 bicaption。}
 % \changes{v3.2a}{2026/10/11}{使用 LaTeX3 重构三类、配置文件与示例样式的内部实现，并整理内部函数命名；主体常开 expl3，保留原有用户接口、默认值与排版。}
 % \changes{v3.2a}{2026/10/11}{最低 LaTeX 内核版本为 2023-06-01，与 wiseref 的最低要求一致。}
 % \changes{v3.2a}{2026/10/11}{修复 TeX Live 2026 中自定义公式标记写入公式清单时的超链接展开错误。}
@@ -3072,6 +3098,100 @@ delim_1 "\\hspace*{\\fill}"
         {9} {September} {10} {October} {11} {November} {12} {December}
       }
   }
+% Literal numeric dates are formatted only when printed. Existing text/macros
+% and the raw metadata exports retain their original meaning.
+\seq_new:N \l__hit_date_parts_seq
+\tl_new:N \l__hit_date_raw_tl
+\str_new:N \l__hit_date_input_str
+\int_new:N \l__hit_date_year_int
+\int_new:N \l__hit_date_month_int
+\int_new:N \l__hit_date_day_int
+\int_new:N \l__hit_date_days_int
+\bool_new:N \l__hit_date_valid_bool
+\cs_generate_variant:Nn \regex_extract_once:nnNTF { nV }
+\cs_new_protected:Npn \__hit_date_validate:
+  {
+    \bool_set:Nn \l__hit_date_valid_bool
+      { \int_compare_p:nNn {\l__hit_date_year_int} > {0} }
+    \int_compare:nNnT {\seq_count:N\l__hit_date_parts_seq} > {2}
+      {
+        \tl_if_blank:eF {\seq_item:Nn\l__hit_date_parts_seq{3}}
+          {
+            \int_set:Nn \l__hit_date_month_int {\seq_item:Nn\l__hit_date_parts_seq{3}}
+            \bool_lazy_or:nnT
+              {\int_compare_p:nNn{\l__hit_date_month_int}<{1}}
+              {\int_compare_p:nNn{\l__hit_date_month_int}>{12}}
+              {\bool_set_false:N\l__hit_date_valid_bool}
+          }
+      }
+    \tl_if_blank:eF {\seq_item:Nn\l__hit_date_parts_seq{4}}
+      {
+        \int_set:Nn \l__hit_date_day_int {\seq_item:Nn\l__hit_date_parts_seq{4}}
+        \int_set:Nn \l__hit_date_days_int {31}
+        \int_case:nn {\l__hit_date_month_int}
+          {
+            {4}{\int_set:Nn\l__hit_date_days_int{30}}
+            {6}{\int_set:Nn\l__hit_date_days_int{30}}
+            {9}{\int_set:Nn\l__hit_date_days_int{30}}
+            {11}{\int_set:Nn\l__hit_date_days_int{30}}
+            {2}
+              {
+                \int_set:Nn\l__hit_date_days_int{28}
+                \bool_lazy_or:nnT
+                  {\int_compare_p:nNn{\int_mod:nn{\l__hit_date_year_int}{400}}={0}}
+                  {\bool_lazy_and_p:nn
+                    {\int_compare_p:nNn{\int_mod:nn{\l__hit_date_year_int}{4}}={0}}
+                    {!\int_compare_p:nNn{\int_mod:nn{\l__hit_date_year_int}{100}}={0}}}
+                  {\int_set:Nn\l__hit_date_days_int{29}}
+              }
+          }
+        \bool_lazy_or:nnT
+          {\int_compare_p:nNn{\l__hit_date_day_int}<{1}}
+          {\int_compare_p:nNn{\l__hit_date_day_int}>{\l__hit_date_days_int}}
+          {\bool_set_false:N\l__hit_date_valid_bool}
+      }
+  }
+\cs_new_protected:Npn \__hit_date_render:n #1
+  {
+    \str_if_eq:nnTF {#1}{en}
+      {
+        \int_compare:nNnT {\l__hit_date_month_int}>{0}
+          {
+            \__hit_month_name:n{\l__hit_date_month_int}
+            \int_compare:nNnT {\l__hit_date_day_int}>{0}{~\int_use:N\l__hit_date_day_int}
+            ,~
+          }
+        \int_use:N\l__hit_date_year_int
+      }
+      {
+        \int_use:N\l__hit_date_year_int 年
+        \int_compare:nNnT {\l__hit_date_month_int}>{0}{\int_use:N\l__hit_date_month_int 月}
+        \int_compare:nNnT {\l__hit_date_day_int}>{0}{\int_use:N\l__hit_date_day_int 日}
+      }
+  }
+\cs_new_protected:Npn \__hit_date_use:nn #1#2
+  {
+    \group_begin:
+      \tl_set:Nn\l__hit_date_raw_tl{#2}
+      % firstpagecdate's established default is a live reference to cdate.
+      \tl_if_eq:NnT\l__hit_date_raw_tl{\g__hit_info_cdate_tl}
+        {\tl_set_eq:NN\l__hit_date_raw_tl\g__hit_info_cdate_tl}
+      \str_set:Nx\l__hit_date_input_str{\tl_to_str:V\l__hit_date_raw_tl}
+      \regex_extract_once:nVNTF
+        {\A\s*(\d{4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?\s*\Z}
+        \l__hit_date_input_str\l__hit_date_parts_seq
+        {
+          \int_set:Nn\l__hit_date_year_int{\seq_item:Nn\l__hit_date_parts_seq{2}}
+          \int_zero:N\l__hit_date_month_int
+          \int_zero:N\l__hit_date_day_int
+          \__hit_date_validate:
+          \bool_if:NTF\l__hit_date_valid_bool
+            {\__hit_date_render:n{#1}}{\tl_use:N\l__hit_date_raw_tl}
+        }
+        {\tl_use:N\l__hit_date_raw_tl}
+    \group_end:
+  }
+\cs_generate_variant:Nn \__hit_date_use:nn { nV }
 \cs_new_protected:Npn \__hit_bool_set_true:n #1
   {\bool_set_true:c {l__hit_#1_bool}
    \cs_set_eq:cN {ifhit@#1} \if_true:}
@@ -3288,6 +3408,139 @@ delim_1 "\\hspace*{\\fill}"
 \AddToHook {class/hithesisbook/after} [hithesis/wiseref] {\__hit_wiseref_setup:}
 \AddToHook {class/hithesisart/after} [hithesis/wiseref] {\__hit_wiseref_setup:}
 \AddToHook {class/hithesisartplus/after} [hithesis/wiseref] {\__hit_wiseref_setup:}
+% PDF page anchors on cover pages must not collide with the restarted main
+% page counter. Environment grouping restores the caller's pageanchor setting.
+\AddToHook {env/titlepage/begin} [hithesis/page-anchors]
+  {\hypersetup{pageanchor=false}}
+\cs_new_protected:Npn \__hit_setup_pdf_strings:
+  {
+    \pdfstringdefDisableCommands
+      {
+        \cs_set:Npn \\ {~}
+        \cs_set:Npn \enskip {~}
+        \cs_set:Npn \hithesis {hiThesis}
+      }
+  }
+\IfPackageLoadedTF{hyperref}
+  {\__hit_setup_pdf_strings:}
+  {\AddToHook{package/hyperref/after}[hithesis/pdf-strings]{\__hit_setup_pdf_strings:}}
+% Caption input is shared; each class retains its own makecaption renderer.
+\bool_new:N \l__hit_caption_star_bool
+\tl_new:N \g__hit_lt_secondary_tl
+\tl_new:N \l__hit_lt_secondary_tl
+\bool_new:N \g__hit_lt_star_bool
+\cs_new_protected:Npn \__hit_caption_single:nn #1#2
+  {
+    \tl_if_novalue:nTF{#1}
+      {\__hit_caption_original{#2}}
+      {\__hit_caption_original[#1]{#2}}
+  }
+\cs_new_protected:Npn \__hit_caption_repeat:nn #1#2
+  {
+    \par\group_begin:
+      \skip_zero:N\abovecaptionskip
+      \skip_zero:N\belowcaptionskip
+      \cs_set:cpn{\@captype name}{#1}
+      \@contmidbi
+      \@parboxrestore
+      \legacy_if:nT{@minipage}{\@setminipage}
+      \normalsize
+      \@makecaption{\use:c{fnum@\@captype}}{\ignorespaces #2}\par
+    \group_end:
+  }
+\cs_new_protected:Npn \__hit_caption_secondary:n #1
+  {
+    \str_case:enF{\@captype}
+      {
+        {figure}
+          {\cs_if_exist:cTF{l__hit_english_bool}
+            {\bool_if:cTF{l__hit_english_bool}{\__hit_caption_repeat:nn{图}{#1}}{\__hit_caption_repeat:nn{Fig.}{#1}}}
+            {\__hit_caption_repeat:nn{Fig.}{#1}}}
+        {table}
+          {\cs_if_exist:cTF{l__hit_english_bool}
+            {\bool_if:cTF{l__hit_english_bool}{\__hit_caption_repeat:nn{表}{#1}}{\__hit_caption_repeat:nn{Table}{#1}}}
+            {\__hit_caption_repeat:nn{Table}{#1}}}
+      }
+      {\par\group_begin:\@makecaption{\use:c{fnum@\@captype}}{#1}\par\group_end:}
+  }
+\cs_new_protected:Npn \__hit_caption_star:n #1
+  {
+    \group_begin:
+      \bool_set_true:N\l__hit_caption_star_bool
+      \IfPackageLoadedTF{caption}
+        {\__hit_caption_original*{#1}}
+        {\legend{#1}}
+    \group_end:
+  }
+\cs_new:Npn \__hit_lt_caption_begin:
+  {
+    \noalign\bgroup
+      \tl_gclear:N\g__hit_lt_secondary_tl
+      \bool_gset_false:N\g__hit_lt_star_bool
+      \@ifstar{\__hit_lt_caption_star:n}
+        {\@ifnextchar[{\__hit_lt_caption_short:w}{\__hit_lt_caption_plain:n}}
+  }
+\cs_new:Npn \__hit_lt_caption_star:n #1
+  {
+    \bool_gset_true:N\g__hit_lt_star_bool
+    \@ifnextchar[{\__hit_lt_caption_star_bilingual:nw{#1}}
+      {\egroup\__hit_lt_caption_original*{#1}}
+  }
+\cs_new:Npn \__hit_lt_caption_star_bilingual:nw #1[#2]
+  {\tl_gset:Nn\g__hit_lt_secondary_tl{#2}\egroup\__hit_lt_caption_original*{#1}}
+\cs_new:Npn \__hit_lt_caption_short:w [#1]#2
+  {\__hit_lt_caption_peek:nn{[#1]}{#2}}
+\cs_new:Npn \__hit_lt_caption_plain:n #1
+  {\__hit_lt_caption_peek:nn{}{#1}}
+\cs_new:Npn \__hit_lt_caption_peek:nn #1#2
+  {\@ifnextchar[{\__hit_lt_caption_bilingual:nnw{#1}{#2}}
+    {\egroup\__hit_lt_caption_original #1{#2}}}
+\cs_new:Npn \__hit_lt_caption_bilingual:nnw #1#2[#3]
+  {\tl_gset:Nn\g__hit_lt_secondary_tl{#3}\egroup\__hit_lt_caption_original #1{#2}}
+\cs_new:Npn \__hit_lt_make_bilingual:nnn #1#2#3
+  {
+    \LT@mcol\LT@cols c
+      {\hbox_to_wd:nn{0pt}{\hss\parbox[t]\LTcapwidth
+        {
+          \tl_set_eq:NN\l__hit_lt_secondary_tl\g__hit_lt_secondary_tl
+          \tl_gclear:N\g__hit_lt_secondary_tl
+          \cs_set:Npn\@captype{table}
+          \skip_zero:N\abovecaptionskip\skip_zero:N\belowcaptionskip
+          \bool_lazy_or:nnTF{\g__hit_lt_star_bool}{\token_if_eq_meaning_p:NN #1\@gobble}
+            {\bool_set_true:N\l__hit_caption_star_bool\legend{#3}\legend{\l__hit_lt_secondary_tl}}
+            {\@makecaption{#2}{#3}\par\__hit_caption_secondary:n{\l__hit_lt_secondary_tl}}
+        }\hss}}
+  }
+\AddToHook{begindocument/end}[hithesis/caption-input]
+  {
+    \cs_set_eq:NN\__hit_caption_original\caption
+    \cs_set_eq:NN\__hit_bicaption_original\bicaption
+    \RenewDocumentCommand\caption{s o +m o}
+      {
+        \cs_if_exist:NTF\@captype
+          {\IfBooleanTF{#1}
+            {\__hit_caption_star:n{#3}\IfValueT{#4}{\tl_if_blank:nF{#4}{\__hit_caption_star:n{#4}}}}
+            {\__hit_caption_single:nn{#2}{#3}\IfValueT{#4}{\tl_if_blank:nF{#4}{\__hit_caption_secondary:n{#4}}}}}
+          {\@latex@error{\token_to_str:N\caption\space outside~float}\@ehd}
+      }
+    % Preserve ccaption's legacy layout and reference scope. Its optional
+    % argument is the label; the new caption interface accepts a following label.
+    \RenewDocumentCommand\bicaption{o +m +m +m +m}
+      {
+        \tl_if_novalue:nTF{#1}
+          {\__hit_bicaption_original{#2}{#3}{#4}{#5}}
+          {\tl_if_blank:nTF{#1}
+            {\__hit_bicaption_original{#2}{#3}{#4}{#5}}
+            {\__hit_bicaption_original[#1]{#2}{#3}{#4}{#5}}}
+      }
+    \cs_set_eq:NN\__hit_lt_caption_original\LT@caption
+    \cs_set_eq:NN\__hit_lt_make_original:nnn\LT@makecaption
+    \cs_set_eq:NN\LT@caption\__hit_lt_caption_begin:
+    \cs_set:Npn\LT@makecaption #1#2#3
+      {\tl_if_empty:NTF\g__hit_lt_secondary_tl
+        {\__hit_lt_make_original:nnn{#1}{#2}{#3}}
+        {\__hit_lt_make_bilingual:nnn{#1}{#2}{#3}}}
+  }
 
 %</artpluscls|artcls|bookcls>
 %    \end{macrocode}
@@ -3762,7 +4015,7 @@ delim_1 "\\hspace*{\\fill}"
  \hline
  \textbf{\__hit_term:n {graduate@cafflimajor}}~&~\textbf{\g__hit_info_csubject_tl}\\~
  \hline
- \textbf{\__hit_term:n {graduate@datetitle}}~&~\textbf{\g__hit_info_cdate_tl}\\~
+ \textbf{\__hit_term:n {graduate@datetitle}}~&~\textbf{\__hit_date_use:nV{zh}\g__hit_info_cdate_tl}\\~
  \hline
  \textbf{\__hit_term:n {graduate@supervisor}}~&~\textbf{\g__hit_info_csupervisor_tl}\\~
  \hline
@@ -4463,7 +4716,7 @@ delim_1 "\\hspace*{\\fill}"
 %    \begin{macrocode}
  \textbf{\__hit_term:n {graduate@studenttitle}}~&~\underline{\makebox[6.1cm]{\textbf{\g__hit_info_cauthor_tl}}}\\~
  \textbf{\__hit_term:n {graduate@studentid}}~&~\underline{\makebox[6.1cm]{\textbf{\g__hit_info_cstudentid_tl}}}\\~
- \textbf{\__hit_term:n {graduate@datetitle}}~&~\underline{\makebox[6.1cm]{\textbf{\g__hit_info_cdate_tl}}}\\~
+ \textbf{\__hit_term:n {graduate@datetitle}}~&~\underline{\makebox[6.1cm]{\textbf{\__hit_date_use:nV{zh}\g__hit_info_cdate_tl}}}\\~
  \end{tabular}\cs_set:Npn \arraystretch {1}~
  \end{center}~
  }~
@@ -4538,7 +4791,7 @@ delim_1 "\\hspace*{\\fill}"
  \textbf{\__hit_term:n {bachelor@cclass}}~&~\underline{\makebox[\l__hit_report_subject_width_dim]{\textbf{\g__hit_info_cclassid_tl}}}\\~
  } {}
  \textbf{\__hit_term:n {bachelor@csupervisortitle}}~&~\underline{\makebox[\l__hit_report_subject_width_dim]{\textbf{\g__hit_info_csupervisor_tl}}}\\~
- \textbf{\__hit_term:n {bachelor@cdatetitle}}~&~\underline{\makebox[\l__hit_report_subject_width_dim]{\textbf{\g__hit_info_cdate_tl}}}\\~
+ \textbf{\__hit_term:n {bachelor@cdatetitle}}~&~\underline{\makebox[\l__hit_report_subject_width_dim]{\textbf{\__hit_date_use:nV{zh}\g__hit_info_cdate_tl}}}\\~
  \end{tabular}\cs_set:Npn \arraystretch {1}~
  \end{center}~
  }~
@@ -4895,6 +5148,18 @@ delim_1 "\\hspace*{\\fill}"
 % \changes{v3.0.01}{2020/06/06}{中文本科模板中章标题是否加粗，默认是}
 %    \begin{macrocode}
 \__hit_bool_option:nn{true}{chapterbold}
+%    \end{macrocode}
+%
+% 摘要关键词续行默认顶格；设为 true 时悬挂到第一个关键词。
+% \changes{v3.2b}{0000/00/00}{增加 keywords-hanging 开关，关键词续行默认不再悬挂。}
+%    \begin{macrocode}
+\bool_new:N \l__hit_keywords_hanging_bool
+\keys_define:nn {hit}
+  {
+    keywords-hanging .bool_set:N = \l__hit_keywords_hanging_bool,
+    keywords-hanging .initial:n = false,
+    keywords-hanging .default:n = true,
+  }
 %    \end{macrocode}
 %
 % \changes{v1.0.03}{2017/08/29}{默认开启raggedbottom}
@@ -6396,7 +6661,9 @@ delim_1 "\\hspace*{\\fill}"
 \cs_new_protected:Npn \__hit_caption_make:nn #1#2
   {
     \skip_vertical:N \abovecaptionskip
-    \__hit_caption_typeset:n {#1\__hit_caption_separator: #2}
+    \bool_if:NTF\l__hit_caption_star_bool
+      {\__hit_caption_typeset:n{#2}}
+      {\__hit_caption_typeset:n {#1\__hit_caption_separator: #2}}
     \skip_vertical:N \belowcaptionskip
   }
 \cs_set:Npn \@makecaption #1#2 {\__hit_caption_make:nn {#1}{#2}}
@@ -7956,7 +8223,7 @@ delim_1 "\\hspace*{\\fill}"
  } {}
  \end{center}~
  \begin{center}~
- \g__hit_info_cdate_tl
+ \__hit_date_use:nV{zh}\g__hit_info_cdate_tl
  \end{center}}~
 }
 
@@ -8003,7 +8270,7 @@ delim_1 "\\hspace*{\\fill}"
  } {}
  \end{center}~
  \begin{center}~
- \g__hit_info_cdate_tl
+ \__hit_date_use:nV{zh}\g__hit_info_cdate_tl
  \end{center}}}
 %    \end{macrocode}
 %
@@ -8075,7 +8342,7 @@ delim_1 "\\hspace*{\\fill}"
 % \changes{v3.1d}{2025/03/03}{修改最下方时间的实现方式，\issue[226]}
 %    \begin{macrocode}
  {\xiaosi[0]\songti\textbf{%
- \g__hit_info_firstpagecdate_tl
+ \__hit_date_use:nV{zh}\g__hit_info_firstpagecdate_tl
  }~
  }~
  \end{center}~
@@ -8154,7 +8421,7 @@ delim_1 "\\hspace*{\\fill}"
  {\__hit_cover_label:n {\__hit_term:n {bachelor@csupervisortitle}}}~
  &~\underline{\makebox[6.1cm][l]{\g__hit_info_csupervisor_tl}}\\~
  {\__hit_cover_label:n {\__hit_term:n {cdatetitle}}}~
- &~\underline{\makebox[6.1cm][l]{\g__hit_info_cdate_tl}}~
+ &~\underline{\makebox[6.1cm][l]{\__hit_date_use:nV{zh}\g__hit_info_cdate_tl}}~
  }~
  {%
  {\xiaoer \__hit_cover_label:n {\__hit_term:n {bachelor@cthesistitle}}}~
@@ -8174,7 +8441,7 @@ delim_1 "\\hspace*{\\fill}"
  {\__hit_cover_label:n {\__hit_term:n {bachelor@csupervisortitle}}}~
  &~\underline{\makebox[6.1cm]{\g__hit_info_csupervisor_tl}}\\~
  {\__hit_cover_label:n {\__hit_term:n {cdatetitle}}}~
- &~\underline{\makebox[6.1cm]{\g__hit_info_cdate_tl}}~
+ &~\underline{\makebox[6.1cm]{\__hit_date_use:nV{zh}\g__hit_info_cdate_tl}}~
  }~
  \end{tabular}~\cs_set:Npn \arraystretch {1}~
  \end{center}~
@@ -8257,7 +8524,7 @@ delim_1 "\\hspace*{\\fill}"
 % \changes{v3.1d}{2025/03/03}{修改首页日期的实现方式，\issue[226]}
 %    \begin{macrocode}
  \parbox[t][\l__hit_cover_school_date_height_dim][t]{\textwidth}{\centering\kaishu\xiaoer\textbf{\__hit_term:n {cschoolname}}}~
- {\songti\xiaoer\textbf{\g__hit_info_firstpagecdate_tl}}~
+ {\songti\xiaoer\textbf{\__hit_date_use:nV{zh}\g__hit_info_firstpagecdate_tl}}~
 \end{center}~
 }
 
@@ -8306,7 +8573,7 @@ delim_1 "\\hspace*{\\fill}"
  {\heiti \__hit_cover_label:n {\__hit_term:n {bachelor@csupervisortitle}}}~&~\g__hit_info_csupervisor_tl\\~
  {\heiti \__hit_cover_label:n {\__hit_term:n {bachelor@cmajortitle}}}~&~\g__hit_info_csubject_tl \\~
  {\heiti \__hit_cover_label:n {\__hit_term:n {bachelor@caffiltitle}}}~&~\g__hit_info_caffil_tl\\~
- {\heiti \__hit_cover_label:n {\__hit_term:n {cdatetitle}}}~&~\g__hit_info_cdate_tl\\~
+ {\heiti \__hit_cover_label:n {\__hit_term:n {cdatetitle}}}~&~\__hit_date_use:nV{zh}\g__hit_info_cdate_tl\\~
  {\heiti \__hit_cover_label:n {\__hit_term:n {cschoolnametitle}}}~&~\__hit_term:n {cschoolname}
  \end{tabular}~\cs_set:Npn \arraystretch {1}~
  \end{center}~}~
@@ -8386,7 +8653,7 @@ delim_1 "\\hspace*{\\fill}"
  {\heiti \__hit_cover_label:n {\__hit_term:n {cdegreetitle}}}~&~\__hit_term:n {cdegree}\\~
  {\heiti \__hit_cover_label:n {\__hit_term:n {csubjecttitle}}}~&~\g__hit_info_csubject_tl\\~
  {\heiti \__hit_cover_label:n {\__hit_term:n {caffiltitle}}}~&~\g__hit_info_caffil_tl\\~
- {\heiti \__hit_cover_label:n {\__hit_term:n {cdatetitle}}}~&~\g__hit_info_cdate_tl\\~
+ {\heiti \__hit_cover_label:n {\__hit_term:n {cdatetitle}}}~&~\__hit_date_use:nV{zh}\g__hit_info_cdate_tl\\~
  {\heiti \__hit_cover_label:n {\__hit_term:n {cschoolnametitle}}}~&~\__hit_term:n {cschoolname}
  \end{tabular}~\cs_set:Npn \arraystretch {1}~
  \end{center}~}~
@@ -8399,11 +8666,100 @@ delim_1 "\\hspace*{\\fill}"
 %    \begin{macrocode}
 
 % 英文封面
+% 普通信息按原自然宽度居中；过长字段按可用列宽折行，必要时借用标题块
+% 未使用的空白。\cs{emultiline} 的手动分行写法仍可使用。
 \NewDocumentCommand \emultiline {O{c} m}
   {%
  \cs_set:Npn \arraystretch {1}%
  \begin{tabular}[#1]{@{}l@{}}#2\end{tabular}~\cs_set:Npn \arraystretch {1.3}%
  }
+% Keep the natural-width table when it fits; only oversized fields use paragraphs.
+\box_new:N \l__hit_engcover_fields_box
+\dim_new:N \l__hit_engcover_label_dim
+\dim_new:N \l__hit_engcover_measure_dim
+\dim_new:N \l__hit_engcover_value_dim
+\dim_new:N \l__hit_engcover_added_height_dim
+\dim_new:N \l__hit_engcover_title_height_dim
+\box_new:N \l__hit_engcover_title_box
+\bool_new:N \l__hit_engcover_wrap_bool
+\cs_new_protected:Npn \__hit_engcover_label_measure:n #1
+  {
+    \__hit_measure_width:Nn \l__hit_engcover_measure_dim
+      {\sihao\textbf{\__hit_term:n{#1}\__hit_term:n{title@esep}}\unskip}
+    \dim_set:Nn \l__hit_engcover_label_dim
+      {\dim_max:nn{\l__hit_engcover_label_dim}{\l__hit_engcover_measure_dim}}
+  }
+\cs_new_protected:Npn \__hit_engcover_value:n #1
+  {
+    \bool_if:NTF \l__hit_engcover_wrap_bool
+      {\parbox[t]{\l__hit_engcover_value_dim}{\raggedright\ignorespaces #1\unskip}}
+      {#1}
+  }
+\cs_new_protected:Npn \__hit_engcover_field_rows:
+  {
+    \textbf{\__hit_term:n{eauthortitle}\__hit_term:n{title@esep}}&\__hit_engcover_value:n{\g__hit_info_eauthor_tl}\\
+    \textbf{\__hit_term:n{esupervisortitle}\__hit_term:n{title@esep}}&\__hit_engcover_value:n{\g__hit_info_esupervisor_tl}\\
+    \tl_if_empty:NF \g__hit_info_eassosupervisor_tl
+      {\textbf{\__hit_term:n{eassosupervisortitle}\__hit_term:n{title@esep}}&\__hit_engcover_value:n{\g__hit_info_eassosupervisor_tl}\\}
+    \tl_if_empty:NF \g__hit_info_ecosupervisor_tl
+      {\textbf{\__hit_term:n{ecosupervisortitle}\__hit_term:n{title@esep}}&\__hit_engcover_value:n{\g__hit_info_ecosupervisor_tl}\\}
+    \textbf{\__hit_term:n{edegreetitle}\__hit_term:n{title@esep}}&\__hit_engcover_value:n{\__hit_term:n{edegree}}\\
+    \textbf{\__hit_term:n{esubjecttitle}\__hit_term:n{title@esep}}&\__hit_engcover_value:n{\g__hit_info_esubject_tl}\\
+    \textbf{\__hit_term:n{eaffiltitle}\__hit_term:n{title@esep}}&\__hit_engcover_value:n{\g__hit_info_eaffil_tl}\\
+    \textbf{\__hit_term:n{edatetitle}\__hit_term:n{title@esep}}&\__hit_engcover_value:n{\__hit_date_use:nV{en}\g__hit_info_edate_tl}\\
+    \textbf{\__hit_term:n{eschoolnametitle}\__hit_term:n{title@esep}}&\__hit_engcover_value:n{\__hit_term:n{eschoolname}}
+  }
+\cs_new_protected:Npn \__hit_engcover_fields_set:
+  {
+      \bool_set_false:N\l__hit_engcover_wrap_bool
+      \hbox_set:Nn\l__hit_engcover_fields_box
+        {\color@setgroup\sihao\cs_set:Npn\arraystretch{1.3}\begin{tabular}{@{}l@{\nobreakspace{}}l@{}}\__hit_engcover_field_rows:\end{tabular}\color@endgroup}
+      \dim_set:Nn\l__hit_engcover_added_height_dim{\box_ht_plus_dp:N\l__hit_engcover_fields_box}
+      \dim_compare:nNnTF{\box_wd:N\l__hit_engcover_fields_box}>{\linewidth}
+        {
+          \bool_set_true:N\l__hit_engcover_wrap_bool
+          \dim_zero:N\l__hit_engcover_label_dim
+          \clist_map_function:nN
+            {eauthortitle,esupervisortitle,edegreetitle,esubjecttitle,eaffiltitle,edatetitle,eschoolnametitle}
+            \__hit_engcover_label_measure:n
+          \tl_if_empty:NF\g__hit_info_eassosupervisor_tl{\__hit_engcover_label_measure:n{eassosupervisortitle}}
+          \tl_if_empty:NF\g__hit_info_ecosupervisor_tl{\__hit_engcover_label_measure:n{ecosupervisortitle}}
+          \__hit_measure_width:Nn\l__hit_engcover_measure_dim{\sihao\nobreakspace{}}
+          \dim_set:Nn\l__hit_engcover_value_dim
+            {\dim_max:nn{1em}{\linewidth-\l__hit_engcover_label_dim-\l__hit_engcover_measure_dim}}
+          \hbox_set:Nn\l__hit_engcover_fields_box
+            {\color@setgroup\sihao\cs_set:Npn\arraystretch{1.3}\begin{tabular}{@{}l@{\nobreakspace{}}l@{}}\__hit_engcover_field_rows:\end{tabular}\color@endgroup}
+          \dim_set:Nn\l__hit_engcover_added_height_dim
+            {\dim_max:nn{0pt}{\box_ht_plus_dp:N\l__hit_engcover_fields_box-\l__hit_engcover_added_height_dim}}
+        }
+        {\dim_zero:N\l__hit_engcover_added_height_dim}
+  }
+\cs_new_protected:Npn \__hit_engcover_title:
+  {
+    \__hit_measure_width:Nn \l__hit_cover_english_title_dim
+      {\erhao\g__hit_info_etitle_tl\bool_if:cT{l__hit_subtitle_bool}{\__hit_term:n{title@esep}\g__hit_info_esubtitle_tl}}
+    \begin{center}
+      \bool_if:cTF{l__hit_etitleauto_bool}
+        {\dim_compare:nNnTF{\l__hit_cover_english_title_dim}>{450mm}{\xiaoer}{\erhao}}
+        {\erhao}
+      \textbf{\MakeUppercase{\g__hit_info_etitle_tl}
+        \bool_if:cT{l__hit_subtitle_bool}{\__hit_term:n{title@esep}\MakeUppercase{\g__hit_info_esubtitle_tl}}}
+    \end{center}
+  }
+\cs_new_protected:Npn \__hit_engcover_prepare:
+  {
+    \__hit_engcover_fields_set:
+    \dim_set:Nn\l__hit_engcover_title_height_dim{7cm}
+    \dim_compare:nNnT{\l__hit_engcover_added_height_dim}>{0pt}
+      {
+        \hbox_set:Nn\l__hit_engcover_title_box{\parbox[t]{\textwidth}{\__hit_engcover_title:}}
+        % Borrow only unused title-block space added by the wrapped fields.
+        % The title's actual height bounds this adjustment; its font is unchanged.
+        \dim_set:Nn\l__hit_engcover_title_height_dim
+          {\dim_max:nn{\dim_min:nn{7cm}{\box_ht_plus_dp:N\l__hit_engcover_title_box}}
+            {7cm-\l__hit_engcover_added_height_dim}}
+      }
+  }
 \cs_new:Npn \__hit_engcover: {~
  {%
  \xiaosi[1.667]\noindent Classified~Index:~\g__hit_info_natclassifiedindex_tl \\[8pt]~
@@ -8438,38 +8794,20 @@ delim_1 "\\hspace*{\\fill}"
  } {%
  \begin{center}\__hit_term:n {ebraceleft}\g__hit_info_estudenttype_tl\__hit_term:n {ebraceright}\end{center}%
  }}~%与中文保持一致，删除in {\g__hit_info_exueke_tl}
- \parbox[t][7cm][t]{\textwidth}{%
+ \__hit_engcover_prepare:
+ \parbox[t][\l__hit_engcover_title_height_dim][t]{\textwidth}{%
 %    \end{macrocode}
 %
 % \changes{v3.1d}{2025/03/03}{根据 \issue[227] 修改英文标题不能换行的问题}
 %    \begin{macrocode}
- \__hit_measure_width:Nn \l__hit_cover_english_title_dim {\erhao\g__hit_info_etitle_tl\bool_if:cTF {l__hit_subtitle_bool} {\__hit_term:n {title@esep}\g__hit_info_esubtitle_tl} {}}%
- \begin{center}%
 % \changes{v3.1e}{2026/01/07}{英文内封标题默认二号字，可通过etitleauto选项启用自动调整}
- \bool_if:cTF {l__hit_etitleauto_bool} {
- \dim_compare:nNnTF {\l__hit_cover_english_title_dim} > {450mm} {\xiaoer} {\erhao}%
- } {
- \erhao%
- }%
- \textbf{\MakeUppercase{\g__hit_info_etitle_tl}%
-\bool_if:cTF {l__hit_subtitle_bool} {\__hit_term:n {title@esep}\MakeUppercase{\g__hit_info_esubtitle_tl}} {}}\end{center}}~
- %★★★★若信息内容不太长，不会引起信息内容分行时，使用tabular环境，否则使用下面的tabularx环境。
- {\sihao\cs_set:Npn \arraystretch {1.3}~
- \begin{tabular}{@{}l@{\nobreakspace{}}l@{}}~
- \textbf{\__hit_term:n {eauthortitle}\__hit_term:n {title@esep}}~&~\g__hit_info_eauthor_tl\\~
- \textbf{\__hit_term:n {esupervisortitle}\__hit_term:n {title@esep}}~&~\g__hit_info_esupervisor_tl\\~
- \tl_if_empty:NTF \g__hit_info_eassosupervisor_tl {} {%
- \textbf{\__hit_term:n {eassosupervisortitle}\__hit_term:n {title@esep}}~&~\g__hit_info_eassosupervisor_tl\\~
- }
- \tl_if_empty:NTF \g__hit_info_ecosupervisor_tl {} {%
- \textbf{\__hit_term:n {ecosupervisortitle}\__hit_term:n {title@esep}}~&~\g__hit_info_ecosupervisor_tl\\~
- }
- \textbf{\__hit_term:n {edegreetitle}\__hit_term:n {title@esep}}~&~\__hit_term:n {edegree}\\~
- \textbf{\__hit_term:n {esubjecttitle}\__hit_term:n {title@esep}}~&\g__hit_info_esubject_tl\\~
- \textbf{\__hit_term:n {eaffiltitle}\__hit_term:n {title@esep}}~&\g__hit_info_eaffil_tl\\~
- \textbf{\__hit_term:n {edatetitle}\__hit_term:n {title@esep}}~&~\g__hit_info_edate_tl\\~
- \textbf{\__hit_term:n {eschoolnametitle}\__hit_term:n {title@esep}}~&~\__hit_term:n {eschoolname}
- \end{tabular}\cs_set:Npn \arraystretch {1}}~
+ \__hit_engcover_title:}~
+  % 普通信息保持自然宽度，超长字段在可用列宽内自动折行。
+  {\sihao\cs_set:Npn \arraystretch {1.3}~
+ \bool_if:NTF\l__hit_engcover_wrap_bool
+   {\mode_leave_vertical:\box_use_drop:N\l__hit_engcover_fields_box}
+   {\begin{tabular}{@{}l@{\nobreakspace{}}l@{}}\__hit_engcover_field_rows:\end{tabular}}
+ \cs_set:Npn \arraystretch {1}}~
  \end{center}~
 }
 
@@ -8534,7 +8872,7 @@ delim_1 "\\hspace*{\\fill}"
 \cs_new_protected:Npn \__hit_keywords_typeset:nn #1#2
   {
     \__hit_keywords_typeset:NNnnn
-      \hbox_set:Nn \l__hit_keywords_label_box {\c_true_bool} {#1} {#2}
+      \hbox_set:Nn \l__hit_keywords_label_box {\l__hit_keywords_hanging_bool} {#1} {#2}
   }
 
 \cs_new:Npn \__hit_makeabstract: {%

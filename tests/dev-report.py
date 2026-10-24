@@ -27,10 +27,11 @@ def main():
     args = parser.parse_args()
     args.work.mkdir(parents=True, exist_ok=False)
     releases, versions, report = load('dev-release'), load('dev-version'), load('dev-report')
-    message = ('fix(cover): clarify existing cover choices\n\n'
-        'Release-Notes: 本科封面可以选择毕业论文或毕业设计。\n'
-        'Impact: 使用本科封面的论文。\n'
-        'Validation: 现有封面入口回归通过。')
+    message = ('feat(keywords): change the default alignment\n\n'
+        'Release-Notes: 关键词续行默认不再悬挂，旧用法继续支持。\n'
+        'Impact: 使用多行关键词的中英文论文。\n'
+        'Migration: 使用 \\hitsetup{keywords-hanging=true} 恢复旧版式。\n'
+        'Validation: 关键词 PDF 几何与旧接口回归通过。')
     commit = {'sha': 'a' * 40, 'subject': message.splitlines()[0], 'body': message,
               'breaking': False, 'migration': versions.footer(message, 'Migration'),
               'impact': versions.footer(message, 'Impact'), 'validation': versions.footer(message, 'Validation')}
@@ -40,9 +41,8 @@ def main():
     info.update(source_commit='a' * 40, compare_url='https://github.com/hithesis/hithesis/compare/v3.2a...dev',
         source_sha256='f' * 64,
         version_plan=versions.resolve(official, 'v3.2b', {}, [commit]),
-        summary=r'写法示例 \caption{测试图题}。',
-        changes=[{'text': '补齐三校区封面修正。', 'tex': r'补回此前仅合入 dev 的三校区更新：本科毕业论文与毕业设计选择、深圳本科使用本部样式、威海本文章标题间距统一。\issue[282]'},
-                 {'text': r'保留命令 \caption{中文} 及文件名 example_1.tex，支持 50% 的示例文本。'}])
+        changes=[{'text': '增加 keywords-hanging 开关，关键词续行默认不再悬挂。'},
+                 {'text': r'保留命令 \caption{中文}[English] 及文件名 example_1.tex，支持 50% 的示例文本。'}])
     built = report.build(info, [commit], args.work)
     assert info['version_plan']['version'] == 'v3.2b' and not info['version_plan']['breaking']
     gate, notifier = load('dev-report-gate'), load('notify-dev')
@@ -63,8 +63,8 @@ def main():
             page.close()
     text = '\n'.join(parts)
     compact = ''.join(text.split())
-    for expected in ['v3.2b-dev.1025', gate.AI_LABEL, '本科封面',
-                     r'\caption{测试图题}', 'example_1.tex', '50%']:
+    for expected in ['v3.2b-dev.1025', gate.AI_LABEL, '不再对齐到第一个关键词',
+                     r'\hitsetup{keywords-hanging=true}', 'example_1.tex', '50%']:
         assert ''.join(expected.split()) in compact, (expected, text)
     for internal in ['正式基准', '第二位上限', '源码提交', '构建与验证日志', 'Validation:', info['commit'], info['run_url']]:
         assert internal not in text, (internal, text)

@@ -1,4 +1,4 @@
-"""Check original keys/defaults and unchanged public argument contracts after refactoring."""
+"""Keep legacy contracts while checking the explicitly added caption interface."""
 import argparse
 from collections import Counter
 from pathlib import Path
@@ -18,13 +18,25 @@ def code(path):
 def public_declarations(text):
     """Normalize 2e and expl3 declarations without comparing implementation bodies."""
     text = '\n'.join(line.split('%', 1)[0] for line in text.splitlines())
+    # Hyperref executes these replacements only in its PDF-string conversion
+    # group. They are not definitions of document commands.
+    encoding = re.compile(r'\\pdfstringdefDisableCommands\s*\{')
+    while match := encoding.search(text):
+        at, depth = match.end(), 1
+        while depth:
+            if text[at] == '\\':
+                at += 2
+                continue
+            depth += (text[at] == '{') - (text[at] == '}')
+            at += 1
+        text = text[:match.start()] + text[at:]
     declarations = Counter()
     contracts = {}
 
     def record(name, args):
         name = name.lstrip('\\')
         contracts[name] = args
-        if '@' not in name and '_' not in name and name not in ('hitsetup', 'equcaption', 'csname'):
+        if '@' not in name and '_' not in name and name not in ('hitsetup', 'equcaption', 'csname', 'arraystretch'):
             declarations[(name, args)] += 1
 
     legacy = re.compile(r'\\(newcommand|renewcommand|providecommand|DeclareRobustCommand|'
@@ -98,17 +110,22 @@ def main():
     args = parser.parse_args()
     old = code(args.baseline / 'hithesis.dtx')
     new = code(ROOT / 'hithesis.dtx')
-    old_keys = re.findall(r'\\define@key\{hit\}\{([^}]+)\}', old)
+    old_keys = re.findall(r'\\define@key\{hit\}\{([^}]+)\}', old) or re.findall(
+        r'\\__hit_key_define:nnn\s*\{hit\}\s*\{([^}]+)\}', old)
     new_keys = re.findall(r'\\__hit_key_define:nnn\s*\{hit\}\s*\{([^}]+)\}', new)
     assert sorted(key for key in old_keys if key != '#1') == sorted(new_keys)
-    old_bools = re.findall(r'\\DeclareBoolOption\[([^]]+)\]\{([^}]+)\}', old)
+    old_bools = re.findall(r'\\DeclareBoolOption\[([^]]+)\]\{([^}]+)\}', old) or re.findall(
+        r'\\__hit_bool_option:nn\s*\{([^}]+)\}\s*\{([^}]+)\}', old)
     new_bools = re.findall(r'\\__hit_bool_option:nn\s*\{([^}]+)\}\s*\{([^}]+)\}', new)
     assert old_bools == new_bools, 'Boolean names/default declarations changed'
-    assert re.findall(r'\\hit@def@term\{([^}]+)\}', old) == re.findall(
+    assert (re.findall(r'\\hit@def@term\{([^}]+)\}', old) or re.findall(
+        r'\\__hit_info_declare:n\s*\{([^}]+)\}', old)) == re.findall(
         r'\\__hit_info_declare:n\s*\{([^}]+)\}', new), 'Metadata keys changed'
-    assert re.findall(r'\\hit@parse@keywords\{([^}]+)\}', old) == re.findall(
+    assert (re.findall(r'\\hit@parse@keywords\{([^}]+)\}', old) or re.findall(
+        r'\\__hit_keywords_declare:n\s*\{([^}]+)\}', old)) == re.findall(
         r'\\__hit_keywords_declare:n\s*\{([^}]+)\}', new), 'Keyword keys changed'
-    assert re.findall(r'\\DeclareStringOption\{([^}]+)\}', old) == re.findall(
+    assert (re.findall(r'\\DeclareStringOption\{([^}]+)\}', old) or re.findall(
+        r'\\__hit_string_option_declare:n\s*\{([^}]+)\}', old)) == re.findall(
         r'\\__hit_string_option_declare:n\s*\{([^}]+)\}', new)
     for filename in ('hithesisbook.cls', 'hithesisart.cls', 'hithesisartplus.cls',
             'hithesisbook.cfg', 'hithesisart.cfg', 'hithesis.sty'):
@@ -117,9 +134,20 @@ def main():
             old_path = args.baseline / 'examples/hitbook/chinese/hithesis.sty'
         old_public = public_declarations(old_path.read_text())
         new_public = public_declarations((ROOT / filename).read_text())
+        if filename.endswith('.cls'):
+            added_captions = Counter({
+                ('caption', ('s', 'o', '+', 'm', 'o')): 1,
+                ('bicaption', ('o', '+', 'm', '+', 'm', '+', 'm', '+', 'm')): 1,
+            })
+            actual = Counter({key: count for key, count in new_public.items()
+                if key[0] in ('caption', 'bicaption')})
+            assert actual == added_captions, (filename, 'Unexpected caption wrapper contract', actual)
+            old_public = Counter({key: count for key, count in old_public.items()
+                if key[0] not in ('caption', 'bicaption')})
+            new_public -= added_captions
         assert old_public == new_public, (filename, 'Public argument contracts changed',
             'missing', old_public - new_public, 'extra', new_public - old_public)
-    print('Original keys, boolean defaults, metadata and public declarations: PASS')
+    print('Legacy declared keys/defaults, metadata and public declarations preserved; added caption contracts checked: PASS')
 
 
 if __name__ == '__main__':

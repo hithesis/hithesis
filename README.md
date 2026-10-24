@@ -145,6 +145,41 @@ hithesis 已收录在[CTAN](https://ctan.org/pkg/hithesis)中，用户安装TeXL
 - 规范中给出了行距区间，为了规格严格，设置了弹性行距
 - ……
 
+## dev 新增的便捷功能
+
+日期字段和类名沿用现有写法：
+
+```latex
+\documentclass[type=doctor]{hithesisbook}
+\hitsetup{
+  cdate={2026-06},
+  edate={2026-06-15},
+  keywords-hanging=false
+}
+```
+
+- 关键词续行**默认不悬挂**；设置 `keywords-hanging=true` 可恢复续行对齐第一个关键词。
+- `cdate`、`edate`、`firstpagecdate` 支持数字年份、年月、年月日，按字段语言格式化。手写日期和日期命令继续有效。
+- 英文内封的长学院、专业等字段会自动折行；普通短字段和 `\emultiline` 手动分行继续使用原有排法。
+- 封面页锚点不再与正文重启的页码冲突；书签里的换行按空格处理。
+
+双语图、表及长表可以统一写成：
+
+```latex
+\caption[图表清单中的短标题]{中文题注}[English caption]
+\label{fig:example}
+```
+
+主、副语言共用编号，副语言不重复写入清单。`\caption*{说明}[Note]` 不编号，旧 `\bicaption` 和 `\longbionenumcaption` 仍支持。
+旧 `\bicaption` 的可选参数仍用于标签，例如 `\bicaption[fig:old]{}{中文题注}{Fig.}{English caption}`。
+
+针对性回归使用现有的 `tests/requirements.txt` 依赖：
+
+```shell
+make cls
+python3 tests/small-features.py
+```
+
 ## 关于模板的命名和其他说明
 
 ### 模板的命名

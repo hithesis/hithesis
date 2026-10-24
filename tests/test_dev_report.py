@@ -19,12 +19,12 @@ def info(changes):
 
 
 class PublicReportTests(unittest.TestCase):
-    def test_authored_note_explains_existing_cover_changes(self):
-        text = r'补回此前仅合入 dev 的三校区更新：本科毕业论文与毕业设计选择、深圳本科使用本部样式、威海本文章标题间距统一。\issue[282]'
+    def test_keywords_note_tells_existing_users_how_to_keep_their_layout(self):
+        text = '增加 keywords-hanging 开关，关键词续行默认不再悬挂。'
         markdown = report.contents(info([{'text': text, 'tex': text}]), [])
-        self.assertIn('补齐三校区封面和标题修正', markdown)
-        self.assertIn('毕业设计', markdown)
-        self.assertIn('深圳本科', markdown)
+        self.assertIn('旧论文先检查关键词对齐', markdown)
+        self.assertIn(r'\hitsetup{keywords-hanging=true}', markdown)
+        self.assertIn('```latex', markdown)
 
     def test_public_report_does_not_dump_commit_subjects_ci_or_version_algorithm(self):
         data = info([{'text': '修复封面日期的显示。'}])
