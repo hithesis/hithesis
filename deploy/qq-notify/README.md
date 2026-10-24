@@ -33,7 +33,7 @@ CI 可以构建 CTAN/TDS 包做内容验证，但不会将它们作为开发版�
 % \changes{v3.2b}{0000/00/00}{修正英文内封长字段折行。}
 ```
 
-北京时间每日 08:00 的发布流程计算版本、填写待发布条目的日期，生成版本/日期元信息提交，并在发布后回写 `dev`。
+默认分支 `master` 上的 `scheduled_dev.yml` 每日北京时间 08:00 派发 `dev` 发布流程，计算版本、填写待发布日期，生成版本/日期元信息提交并回写 `dev`。实际构建使用 `dev`，调度入口不修改正式模板版本。
 版本变化时同步源码和六个运行文件的声明，只调整尚未发布条目的版本号；历史版本与日期保持不变。
 `dev-date-stamp.json` 记录来源提交、元信息提交、版本计划和逐条替换，发布记录关联构建号与运行记录。
 代码维护、文档等未写 `\changes` 的提交也会纳入下一次开发版，消息提供提交差异链接。
@@ -94,7 +94,7 @@ ZIP 存放在 `dev-downloads/`，发布步骤先提交附件，取得该提交 S
 1. 在仓库 Actions Secrets 配置 `DEV_REPORT_API_KEY`，填写 DeepSeek API 密钥；密钥只交给每日发布任务。模型固定为 `deepseek-flash`，普通 PR 测试不调用付费接口。
    发布使用 Actions 自带的短期仓库令牌 `GITHUB_TOKEN`，job 显式授予 Contents 和 Pages 写权限。无需创建个人 `DEV_DOWNLOADS_TOKEN`，不需要组织 PAT 审批或 Workflows 写权限。
 2. 仓库 Pages 使用 `gh-pages` 根目录作为发布源，保留现有域名设置。
-3. `dev` 提交触发测试；服务器每日北京时间 08:00 请求开发版发布，现有测试、示例编译及打包全部成功后才发布附件。
+3. `dev` 提交触发测试；Actions 定时入口每日北京时间 08:00 请求开发版发布，现有测试、示例编译及打包全部成功后才发布附件。平台可能排队延迟，群通知在构建和 PDF 就绪后发送。
    手动发布时，`workflow_dispatch` 选择 `dev`，设置 `publish_only=true`、`notify_only=false`。
 4. 未配置 DeepSeek 密钥或仓库不允许令牌写入时，发布会失败并保留调试附件，不会降级为纯文字发布。
 
@@ -134,7 +134,7 @@ chmod 600 .env
 | `NAPCAT_WEBUI_TOKEN` | 自行生成的 NapCat 管理界面口令 |
 | `ONEBOT_ACCESS_TOKEN` | 另一个自行生成的发消息接口口令 |
 | `QQ_GROUP_ID` | 接收通知的 QQ 群号 |
-| `DEV_PUBLISH_TOKEN` | 此仓库的 GitHub token，Actions: write、Contents: read，用于 08:00 派发并等待发布工作流 |
+| `DEV_PUBLISH_TOKEN` | 可选，仅手动使用 `notify.sh --publish` 时需要；默认每日调度与通知不使用它 |
 | `NAPCAT_IMAGE` | NapCat 镜像，部署验证后可固定版本或 digest |
 
 ### 首次登录
@@ -183,10 +183,11 @@ install -m 755 notify.sh /opt/hithesis-notify/notify.sh
 发送获得 OneBot 成功响应和 message_id 后才保存状态；失败不会消耗更新。
 定时和手动触发共用文件锁，避免同时发送。网络超时后无法判断对方是否已收消息，因此不会自动重试发送；先查群消息再决定重发。
 通知状态在 `data/notifier/notified.json`，QQ 登录信息也在 `data/`，更新服务时保留该目录。
-更新记录通过 GitHub 公共 Contents API 读取 `gh-pages/dev-history.json`，读取本身无需凭据。
-每天的 `--publish` 会使用 `DEV_PUBLISH_TOKEN` 派发工作流并等待测试、PDF 和附件发布成功，之后才检查通知；发布失败不会通知未完成的构建。
+更新记录从 `https://hithesis.site/dev-history.json` 读取，不需要 GitHub 凭据，也不消耗 GitHub REST API 调用额度。
+服务器每五分钟只检查已发布记录，未发现新构建就退出；不会运行 AI 或 GitHub Actions。首次安装仅发送最新构建，重复检查不会重复发群。
+`--publish` 保留为需要另行授权的手动功能，不用于默认定时服务。
 
-### 每天北京时间 08:00
+### 每日发布与五分钟通知检查
 
 ```sh
 sudo install -m 644 hithesis-dev-notify.service hithesis-dev-notify.timer /etc/systemd/system/
@@ -196,10 +197,10 @@ systemctl list-timers hithesis-dev-notify.timer
 journalctl -u hithesis-dev-notify.service
 ```
 
-定时器显式采用 `Asia/Shanghai`，服务器即使用 UTC 也会在北京时间 08:00 检查。
-没有更新不发消息。`Persistent=true` 会在服务器错过定时后补检查一次。
+GitHub 定时工作流计划在北京时间 08:00 开始；systemd 定时器每五分钟读取免费更新索引，PDF 可下载且校验通过后才发送。轮询不会调用模型或派发构建。
+没有更新不发消息。`Persistent=true` 会在服务器错过通知检查后补检查一次。
 
-## GitHub 手动推送
+## 可选：GitHub 手动通知入口
 
 在 Actions Secrets 设置：
 
@@ -232,11 +233,13 @@ QQ 接口口令仍只保存在服务器 `.env`。
 gh workflow run test_dev.yml --repo hithesis/hithesis --ref dev -f notify_only=true -f force_notify=false
 ```
 
-服务器每天 08:00 的检查由 systemd 完成，不依赖 GitHub 定时任务是否延迟。
+这个入口用于手动请求服务器检查或重发通知；每日发布由默认分支调度，日常轮询不依赖这些 Workbench Secrets。
 
 ## 更新和本地验证
 
 更新服务器代码后，重建通知容器、重新安装 wrapper；机器人数据不动：
+
+以下 `git pull` 仅适用于 Git checkout 部署。当前 ECS 若记录为拷贝快照部署，应打包并上传指定源码文件，保留 `.env` 与 `data/`，不可直接在原目录执行 `git pull`；部署记录需注明来源提交。
 
 ```sh
 git -C /opt/hithesis-notify pull --ff-only

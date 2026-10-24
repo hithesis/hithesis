@@ -15,7 +15,7 @@ import uuid
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-HISTORY_URL = 'https://api.github.com/repos/hithesis/hithesis/contents/dev-history.json?ref=gh-pages'
+HISTORY_URL = 'https://hithesis.site/dev-history.json'
 
 
 def report_gate():
@@ -71,12 +71,13 @@ def request_publication(token, timeout=5400, request=None, sleep=time.sleep):
 def fetch_history(url):
     url += ('&' if '?' in url else '?') + 'checked=' + str(int(datetime.now(timezone.utc).timestamp()))
     request = Request(url, headers={'User-Agent': 'hithesis-dev-notifier', 'Cache-Control': 'no-cache',
-                                   'Accept': 'application/vnd.github.raw+json'})
+                                    'Accept': 'application/json'})
     try:
         with urlopen(request, timeout=30) as response:
             content = response.read(8 * 1024 * 1024 + 1)
     except HTTPError as error:
         if error.code == 404:
+            error.close()
             print('No published dev history yet')
             return []
         raise

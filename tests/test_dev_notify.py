@@ -37,14 +37,24 @@ class DevNotifyTests(unittest.TestCase):
         with patch.object(notify, 'urlopen', return_value=io.BytesIO(json.dumps(payload).encode())) as request:
             self.assertEqual(notify.fetch_history(notify.HISTORY_URL), payload['releases'])
             sent = request.call_args.args[0]
-            self.assertIn('ref=gh-pages&checked=', sent.full_url)
-            self.assertEqual(sent.get_header('Accept'), 'application/vnd.github.raw+json')
+            self.assertIn('https://hithesis.site/dev-history.json?checked=', sent.full_url)
+            self.assertEqual(sent.get_header('Accept'), 'application/json')
         with patch.object(notify, 'urlopen', side_effect=HTTPError(notify.HISTORY_URL, 404, 'Not found', {}, None)):
             self.assertEqual(notify.fetch_history(notify.HISTORY_URL), [])
 
     def test_first_install_only_announces_latest(self):
         releases = [entry(1), entry(2)]
         self.assertEqual(notify.pending_releases(releases, None), [releases[-1]])
+
+    def test_default_polling_never_dispatches_actions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            environment = {'QQ_GROUP_ID': '12345', 'ONEBOT_ACCESS_TOKEN': 'test',
+                           'NOTIFY_STATE': str(Path(tmp) / 'state.json')}
+            with patch.dict('os.environ', environment), patch('sys.argv', ['notify-dev.py']), \
+                    patch.object(notify, 'request_publication') as dispatch, \
+                    patch.object(notify, 'fetch_history', return_value=[]):
+                notify.main()
+                dispatch.assert_not_called()
 
     def test_accumulates_unannounced_changes_without_duplicate_lines(self):
         change = {'id': 'old', 'text': '修复字段折行'}
