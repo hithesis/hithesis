@@ -1,0 +1,40 @@
+name: Schedule daily dev publication
+
+on:
+  schedule:
+    # UTC 00:00 = Asia/Shanghai 08:00. Only the default branch runs schedules.
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      preflight_only:
+        description: '只验证调度与发布权限，不编译、不调用模型、不发布'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: daily-dev-publication-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch-dev:
+    if: github.repository == 'hithesis/hithesis'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch the dev branch publication workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREFLIGHT_ONLY: ${{ inputs.preflight_only }}
+        run: |
+          if [ "$PREFLIGHT_ONLY" = true ]; then
+            gh workflow run test_dev.yml --repo "$GITHUB_REPOSITORY" --ref dev \
+              -f preflight_only=true -f publication_request="daily-check-${GITHUB_RUN_ID}"
+          else
+            gh workflow run test_dev.yml --repo "$GITHUB_REPOSITORY" --ref dev \
+              -f publish_only=true -f notify_only=false \
+              -f publication_request="daily-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          fi
