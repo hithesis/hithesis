@@ -227,6 +227,7 @@ function render() {
   const s = selection();
   const summary = Object.entries(SELECTION_KEYS).map(([group, key]) =>
     s[key].map((value) => LABELS[group][value]).join("、")).filter(Boolean);
+  document.getElementById("clear").disabled = !summary.length;
   document.getElementById("selection-summary").textContent = summary.join(" / ");
   document.getElementById("selection-summary").hidden = !summary.length;
   document.getElementById("action-summary").textContent =
