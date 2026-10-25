@@ -1,5 +1,6 @@
 """Choose previews from today's changes and preserve all comparisons within two AI images."""
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -12,6 +13,27 @@ SPEC.loader.exec_module(previews)
 
 
 class DailyPreviewTests(unittest.TestCase):
+    def test_integration_draft_matches_the_current_report_contract(self):
+        from test_dev_ai import ai
+        spec = importlib.util.spec_from_file_location('preview_integration', ROOT / 'tests/dev-previews.py')
+        integration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(integration)
+        notes = json.loads(previews.NOTES.read_text())[-5:]
+        cases, _ = previews.plan({'changes': [{'text': note['change']} for note in notes]})
+        records = {case['id']: {'id': case['id'], 'change': case['change'], 'status': 'changed'}
+                   for case in cases}
+        draft = integration.preview_draft(notes, records, ai.style.FORMAT_VERSION)
+        evidence = []
+        for index, note in enumerate(notes, 1):
+            record = next(record for record in records.values() if record['change'] == note['change'])
+            evidence.extend([{'id': f'change-{index}', 'text': note['change']},
+                             {'id': 'preview-' + record['id'], 'text': '实际编译对照'}])
+        data = {'evidence': evidence,
+                'examples': [{'id': f'example-{index}', 'code': note['code']}
+                             for index, note in enumerate(notes, 1) if note.get('code')],
+                'comparisons': [{'id': identifier, 'changed': True} for identifier in records]}
+        ai.validate(draft, data)
+
     def test_only_todays_notes_are_selected(self):
         notes = [{'change': '旧更新', 'title': '旧例子', 'preview': 'keywords'},
                  {'change': '今日更新', 'title': '新例子', 'code': [r'\begin{futureenv}', 'Text.', r'\end{futureenv}']}]

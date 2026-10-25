@@ -32,6 +32,28 @@ def text(path):
     return ''.join(''.join(parts).split())
 
 
+def preview_draft(notes, records, format_version):
+    descriptions = {
+        'pdf-properties': ('新增', '论文信息可用于填写 PDF 标题、作者和关键词。'),
+        'beijing-date': ('调整', '自动日期按北京时间换算，跨日时显示对应日期。'),
+        'url': ('调整', '正文和参考文献的 URL 字符间距默认不拉伸。'),
+        'example-11': ('新增', '新增列表式符号表，条目可以自动换页。'),
+        'example-12': ('新增', '新增公式符号说明环境，说明可以折行和跨页。'),
+    }
+    sections = []
+    for index, note in enumerate(notes, 1):
+        record = next(r for r in records.values() if r['change'] == note['change'])
+        kind, description = descriptions[record['id']]
+        sections.append({'kind': kind, 'title': note['title'], 'description': description,
+                         'impact': '', 'action': 'none', 'migration': '',
+                         'evidence_ids': [f'change-{index}', 'preview-' + record['id']],
+                         'example_ids': [f'example-{index}'] if note.get('code') else [],
+                         'comparison_ids': [record['id']] if record['status'] == 'changed' else []})
+    return {'format_version': format_version,
+            'summary': '本次检查了 PDF 属性、日期、URL 和两种符号说明的实际结果。',
+            'message': '本次更新的用法和实际效果见 PDF。', 'sections': sections}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work', type=Path, required=True)
@@ -77,17 +99,11 @@ def main():
     assert 'Undefined control sequence' in diagnostic
     counts, pages = previews.pictures(None, successful, args.work / 'compile-error.png', diagnostic)
     assert counts == [0, 1] and pages == [1]
-    sections = []
-    for note in notes:
-        record = next(r for r in records.values() if r['change'] == note['change'])
-        sections.append({'title': note['title'], 'description': '说明以这次实际编译和属性读取结果为准。',
-                         'impact': '', 'migration': '', 'evidence_ids': ['preview-' + record['id']],
-                         'example_ids': [], 'comparison_ids': [record['id']] if record['status'] == 'changed' else []})
-    draft = {'summary': '本次检查了 PDF 属性、日期、URL 和两种符号说明的实际结果。',
-             'message': '本次更新的用法和实际效果见 PDF。', 'sections': sections}
+    draft = preview_draft(notes, records, ai.style.FORMAT_VERSION)
     response = {'choices': [{'finish_reason': 'stop', 'message': {'content': json.dumps(draft)}}]}
     opener = Mock()
-    opener.open.return_value = io.BytesIO(json.dumps(response).encode())
+    encoded = json.dumps(response).encode()
+    opener.open.side_effect = lambda *_args, **_kwargs: io.BytesIO(encoded)
     output = args.work / 'report'
     output.mkdir()
     original_load = report.load
