@@ -1,4 +1,4 @@
-"""Keep legacy contracts while checking the explicitly added caption interface."""
+"""Check existing public interfaces and the signatures of new commands."""
 import argparse
 from collections import Counter
 from pathlib import Path
@@ -135,19 +135,27 @@ def main():
         old_public = public_declarations(old_path.read_text())
         new_public = public_declarations((ROOT / filename).read_text())
         if filename.endswith('.cls'):
-            added_captions = Counter({
+            added_contracts = Counter({
                 ('caption', ('s', 'o', '+', 'm', 'o')): 1,
                 ('bicaption', ('o', '+', 'm', '+', 'm', '+', 'm', '+', 'm')): 1,
+                ('hypersetup', ('m',)): 1,
+                ('eqdenote', (('O', r'\__hit_eqdenote_label:'), '+', 'b')): 1,
+                ('endeqdenote', ()): 1,
             })
+            if filename == 'hithesisbook.cls':
+                added_contracts.update({
+                    ('symbols', (('O', ''), '+', 'b')): 1,
+                    ('endsymbols', ()): 1,
+                })
             actual = Counter({key: count for key, count in new_public.items()
-                if key[0] in ('caption', 'bicaption')})
-            assert actual == added_captions, (filename, 'Unexpected caption wrapper contract', actual)
+                if key[0] in {name for name, _ in added_contracts}})
+            assert actual == added_contracts, (filename, 'Unexpected added interface contract', actual)
             old_public = Counter({key: count for key, count in old_public.items()
                 if key[0] not in ('caption', 'bicaption')})
-            new_public -= added_captions
+            new_public -= added_contracts
         assert old_public == new_public, (filename, 'Public argument contracts changed',
             'missing', old_public - new_public, 'extra', new_public - old_public)
-    print('Legacy declared keys/defaults, metadata and public declarations preserved; added caption contracts checked: PASS')
+    print('Legacy declared keys/defaults, metadata and public declarations preserved; added public contracts checked: PASS')
 
 
 if __name__ == '__main__':

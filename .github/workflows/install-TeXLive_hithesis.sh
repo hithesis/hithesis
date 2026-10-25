@@ -39,7 +39,7 @@ tlmgr install \
       splitindex.x86_64-linuxmusl stringenc subfigure substr svn-prov symbol tex \
       tex-gyre tex-ini-files tex.x86_64-linuxmusl texlive-scripts \
       texlive-scripts.x86_64-linuxmusl texlive.infra texlive.infra.x86_64-linuxmusl \
-      textcase tikzpagenodes times tipa tools tracklang translator trimspaces ttfutils \
+      tabularray textcase tikzpagenodes times tipa tools tracklang translator trimspaces ttfutils \
       ttfutils.x86_64-linuxmusl txfonts uhc ulem unicode-data unicode-math \
       uniquecounter uplatex uplatex.x86_64-linuxmusl uptex uptex-base uptex-fonts \
       uptex.x86_64-linuxmusl url varwidth wadalab xcjk2uni xcolor xecjk xetex \

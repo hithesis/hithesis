@@ -22,7 +22,7 @@ class PublicReportTests(unittest.TestCase):
     def test_keywords_note_tells_existing_users_how_to_keep_their_layout(self):
         text = '增加 keywords-hanging 开关，关键词续行默认不再悬挂。'
         markdown = report.contents(info([{'text': text, 'tex': text}]), [])
-        self.assertIn('旧论文先检查关键词对齐', markdown)
+        self.assertIn('关键词续行默认从左边界开始', markdown)
         self.assertIn(r'\hitsetup{keywords-hanging=true}', markdown)
         self.assertIn('```latex', markdown)
 

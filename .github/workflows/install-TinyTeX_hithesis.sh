@@ -46,7 +46,7 @@ tlmgr install rerunfilecheck rsfs scheme-infraonly siunitx splitindex
 tlmgr install splitindex.x86_64-linuxmusl stringenc subfigure substr svn-prov symbol tex
 tlmgr install tex-gyre tex-ini-files tex.x86_64-linuxmusl texlive-scripts
 tlmgr install texlive-scripts.x86_64-linuxmusl texlive.infra texlive.infra.x86_64-linuxmusl
-tlmgr install textcase tikzpagenodes times tipa tools tracklang translator trimspaces ttfutils
+tlmgr install tabularray textcase tikzpagenodes times tipa tools tracklang translator trimspaces ttfutils
 tlmgr install ttfutils.x86_64-linuxmusl txfonts uhc ulem unicode-data unicode-math
 tlmgr install uniquecounter uplatex uplatex.x86_64-linuxmusl uptex uptex-base uptex-fonts
 tlmgr install uptex.x86_64-linuxmusl url varwidth wadalab xcjk2uni xcolor xecjk xetex
@@ -57,4 +57,3 @@ tlmgr install biblatex mathtools minted pgfplots bbm-macros flowchart makeshape
 tlmgr install collection-fontsrecommended cite overpic eepic caption silence ifsym
 
 echo "Finish install extra packages."
-
