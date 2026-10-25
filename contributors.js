@@ -1,3 +1,5 @@
+import { contributorProfile, openCoffee, preloadDonationImages } from "./community.js?v=campus-26";
+
 (() => {
   const dialog = document.getElementById("contributors-dialog");
   const status = document.getElementById("contributors-status");
@@ -38,12 +40,36 @@
         avatar.height = 28;
         avatar.loading = "lazy";
         const name = document.createElement("span");
-        name.textContent = person.login;
+        name.className = "contributor-name";
+        const login = document.createElement("span");
+        login.className = "contributor-login";
+        login.textContent = person.login;
+        name.append(login);
+        const details = contributorProfile(person.login);
+        if (details?.name) {
+          const realName = document.createElement("span");
+          realName.className = "contributor-real-name";
+          realName.textContent = `（${details.name}）`;
+          name.append(realName);
+        }
         profile.append(avatar, name);
+        const actions = document.createElement("div");
+        actions.className = "contributor-actions";
         const count = document.createElement("span");
         count.className = "commit-count";
         count.textContent = `${person.contributions.toLocaleString("zh-CN")} 次提交`;
-        item.append(profile, count);
+        actions.append(count);
+        if (details?.donations.length) {
+          const coffee = document.createElement("button");
+          coffee.className = "button-quiet coffee-button";
+          coffee.type = "button";
+          coffee.textContent = "请他喝咖啡";
+          coffee.setAttribute("aria-label", `请 ${person.login}（${details.name}）喝咖啡`);
+          coffee.setAttribute("aria-haspopup", "dialog");
+          coffee.addEventListener("click", () => openCoffee(person.login));
+          actions.append(coffee);
+        }
+        item.append(profile, actions);
         return item;
       }));
       loaded = true;
@@ -56,6 +82,7 @@
   }
 
   document.getElementById("contributors-open").addEventListener("click", () => {
+    preloadDonationImages();
     dialog.showModal();
     load();
   });

@@ -2,6 +2,9 @@ const REPO = "https://github.com/hithesis/hithesis";
 const STABLE_BASE = REPO + "/releases/latest/download/";
 let devBuild = null;
 let devState = "loading";
+let stableRelease = null;
+let devManual = null;
+let manualState = "loading";
 
 const OPTIONS = {
   language: ["zh", "en"],
@@ -125,9 +128,6 @@ function renderOptions() {
   }
   const postdocOnly = s.types.length === 1 && s.types[0] === "postdoc";
   document.getElementById("stage-panel").classList.toggle("inapplicable", postdocOnly);
-  const hint = document.getElementById("stage-hint");
-  hint.textContent = s.types.includes("postdoc") ? "博士后不分阶段。" : "";
-  hint.hidden = !hint.textContent;
 }
 
 function validateDevBuild(data) {
@@ -175,27 +175,69 @@ function channel() {
   return document.querySelector('[name="version"]:checked').value;
 }
 
+function validateManual(data, build) {
+  const manual = data.manual;
+  if (data.repository !== REPO.slice("https://github.com/".length) ||
+      data.build_id !== build.build_id || data.source_commit !== build.source_commit ||
+      !manual || manual.filename !== "hithesis.pdf" ||
+      manual.url !== build.release_url + "hithesis.pdf" ||
+      !/^[0-9a-f]{64}$/.test(manual.sha256) ||
+      !Number.isSafeInteger(manual.size) || manual.size <= 0 ||
+      !Number.isSafeInteger(manual.pages) || manual.pages <= 0) {
+    throw new Error("User manual does not match the selected dev build");
+  }
+  const file = build.files[manual.filename];
+  if (file && (file.sha256 !== manual.sha256 || file.size !== manual.size)) {
+    throw new Error("User manual digest does not match the build manifest");
+  }
+  return manual;
+}
+
+async function loadManual() {
+  try {
+    if (devBuild.manual) {
+      devManual = validateManual(devBuild, devBuild);
+    } else {
+      const response = await fetch("./dev-manual.json", { cache: "no-store", signal: AbortSignal.timeout(10000) });
+      if (response.status === 404) {
+        manualState = "missing";
+        renderVersion();
+        return;
+      }
+      if (!response.ok) throw new Error("User manual metadata unavailable");
+      devManual = validateManual(await response.json(), devBuild);
+    }
+    manualState = "ready";
+  } catch {
+    manualState = "error";
+  }
+  renderVersion();
+}
+
 function renderVersion() {
   const development = channel() === "dev";
   const ready = !development || devState === "ready";
   document.getElementById("download").disabled = !ready || compute().length === 0;
   document.getElementById("download-all").disabled = !ready || (!development && !stableCombinedAvailable);
-  document.getElementById("version-details").hidden = !development || !ready;
+  document.getElementById("version-details").hidden = devState !== "ready";
+  if (stableRelease) {
+    document.getElementById("stable-version").textContent = stableRelease.version;
+    document.getElementById("stable-release").href = stableRelease.url;
+    const date = document.getElementById("stable-date");
+    date.hidden = !stableRelease.date;
+    date.textContent = stableRelease.date ? `发布于 ${stableRelease.date}（北京时间）` : "";
+  }
   const status = document.getElementById("version-status");
-  status.hidden = !development || ready;
-  const info = document.querySelector(".version-info");
-  info.hidden = !development;
-  if (!development) info.open = false;
-  if (!development) {
-    status.textContent = "";
-  } else if (devState === "loading") {
+  status.hidden = devState === "ready";
+  if (devState === "loading") {
     status.textContent = "正在读取开发版…";
   } else if (devState === "missing") {
     status.textContent = "暂无开发版。";
-  } else if (!ready) {
+  } else if (devState !== "ready") {
     status.textContent = "开发版信息暂时无法读取，请稍后刷新。";
   } else {
     status.textContent = "";
+    document.getElementById("dev-version").textContent = devBuild.label;
     document.getElementById("build-date").textContent = `发布于 ${devBuild.published_on}（北京时间）`;
     const commit = document.getElementById("build-commit");
     commit.textContent = `提交 ${devBuild.source_commit.slice(0, 12)}`;
@@ -203,6 +245,13 @@ function renderVersion() {
     document.getElementById("build-run").href = devBuild.run_url;
     document.getElementById("build-release").href = devBuild.release_url;
     document.getElementById("build-report").href = devBuild.report.url;
+    const manual = document.getElementById("dev-manual");
+    const manualStatus = document.getElementById("dev-manual-status");
+    manual.hidden = manualState !== "ready";
+    manualStatus.hidden = manualState === "ready";
+    if (devManual) manual.href = new URL(devManual.url).pathname;
+    manualStatus.textContent = manualState === "loading" ? "正在读取用户手册…" :
+      manualState === "missing" ? "用户手册尚未发布" : "用户手册暂不可用";
   }
 }
 
@@ -213,6 +262,10 @@ function render() {
   document.getElementById("download-count").textContent = names.length;
   document.getElementById("download").setAttribute("aria-label", `下载选中的 ${names.length} 份模板`);
   document.getElementById("empty-state").hidden = names.length > 0;
+  document.getElementById("list-open").hidden = names.length === 0;
+  document.getElementById("list-open").setAttribute("aria-label", `查看选中的 ${names.length} 份模板完整清单`);
+  document.getElementById("list-count").textContent = `${names.length} 份`;
+  document.getElementById("list-empty").hidden = names.length > 0;
   document.getElementById("list").replaceChildren(...names.map((name) => {
     const item = document.createElement("li");
     const title = document.createElement("span");
@@ -230,6 +283,8 @@ function render() {
   document.getElementById("clear").disabled = !summary.length;
   document.getElementById("selection-summary").textContent = summary.join(" / ");
   document.getElementById("selection-summary").hidden = !summary.length;
+  document.getElementById("list-summary").textContent =
+    [channel() === "dev" ? "开发版" : "稳定版", ...summary].join(" / ");
   document.getElementById("action-summary").textContent =
     `已匹配 ${names.length} 份模板 · ${channel() === "dev" ? "开发版" : "稳定版"}`;
   const complete = s.languages.length && s.campuses.length && s.types.length;
@@ -282,21 +337,12 @@ async function loadVersions() {
   document.getElementById("dev-label").textContent = devBuild ? devBuild.label :
     (devState === "missing" ? "尚未发布" : "暂不可用");
   render();
+  if (devBuild) await loadManual();
 }
 
 function initialize() {
   const requested = new URL(window.location.href).searchParams.get("version");
   if (requested === "dev") document.querySelector('[name="version"][value="dev"]').checked = true;
-  const versionInfo = document.querySelector(".version-info");
-  document.addEventListener("click", (event) => {
-    if (!versionInfo.contains(event.target)) versionInfo.open = false;
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && versionInfo.open) {
-      versionInfo.open = false;
-      versionInfo.querySelector("summary").focus();
-    }
-  });
   document.getElementById("download").addEventListener("click", downloadSelected);
   document.getElementById("download-all").addEventListener("click", () =>
     downloadOne("hithesis-examples"));
@@ -307,6 +353,7 @@ function initialize() {
   document.querySelectorAll("input[type=checkbox]").forEach((i) =>
     i.addEventListener("change", render));
   document.querySelectorAll('[name="version"]').forEach((i) => i.addEventListener("change", () => {
+    document.querySelectorAll("[data-menu][open]").forEach((menu) => { menu.open = false; });
     const url = new URL(window.location.href);
     if (channel() === "dev") url.searchParams.set("version", "dev");
     else url.searchParams.delete("version");
@@ -321,17 +368,25 @@ function initialize() {
     .then((r) => {
       if (!/^v\d+\.\d+[a-z]?$/.test(r.tag_name)) return;
       document.getElementById("stable-label").textContent = r.tag_name;
+      const published = new Date(r.published_at);
+      stableRelease = {
+        version: r.tag_name,
+        url: `${REPO}/releases/tag/${r.tag_name}`,
+        date: Number.isFinite(published.getTime()) ? published.toLocaleDateString("zh-CN", {
+          timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
+        }).replaceAll("/", "-") : null,
+      };
       if (Array.isArray(r.assets)) {
         const files = r.assets.map((asset) => asset.name);
         stableTemplates = catalogFromFiles(files);
         stableCombinedAvailable = files.includes("hithesis-examples.zip");
-        render();
       }
+      render();
     })
     .catch(() => {}); // Stable download links do not depend on the API request.
 }
 
 if (typeof document !== "undefined") initialize();
 if (typeof module !== "undefined") module.exports = {
-  TEMPLATES, catalogFromFiles, templateNames, templateLabel, optionEnabled, reconcileSelection, validateDevBuild, downloadURL,
+  TEMPLATES, catalogFromFiles, templateNames, templateLabel, optionEnabled, reconcileSelection, validateDevBuild, validateManual, downloadURL,
 };

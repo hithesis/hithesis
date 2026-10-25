@@ -1,4 +1,27 @@
 (() => {
+  const menus = [...document.querySelectorAll("[data-menu]")];
+  menus.forEach((menu) => {
+    menu.addEventListener("toggle", () => {
+      if (menu.open) menus.forEach((other) => { if (other !== menu) other.open = false; });
+    });
+  });
+  document.addEventListener("click", (event) => {
+    menus.forEach((menu) => { if (!menu.contains(event.target)) menu.open = false; });
+    const trigger = event.target.closest("[data-dialog-open]");
+    if (trigger) {
+      const dialog = document.getElementById(trigger.dataset.dialogOpen);
+      if (dialog && !dialog.open) dialog.showModal();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    menus.forEach((menu) => {
+      if (menu.open) {
+        menu.open = false;
+        menu.querySelector("summary").focus();
+      }
+    });
+  });
   document.querySelectorAll(".site-dialog").forEach((dialog) => {
     dialog.querySelectorAll("[data-dialog-close]").forEach((button) => {
       button.addEventListener("click", () => dialog.close());

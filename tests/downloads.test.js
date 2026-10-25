@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { TEMPLATES, catalogFromFiles, templateNames, templateLabel, optionEnabled, reconcileSelection,
-  validateDevBuild, downloadURL } = require("../script.js");
+  validateDevBuild, validateManual, downloadURL } = require("../script.js");
 
 const all = { languages: ["zh", "en"],
   campuses: ["harbin", "shenzhen", "weihai"], types: ["bachelor", "master", "doctor", "postdoc"],
@@ -136,4 +136,34 @@ test("incomplete or misidentified previews are not offered for download", () => 
     const build = manifest(); modify(build);
     assert.throws(() => validateDevBuild(build));
   }
+});
+
+test("backfilled and future manuals are tied to the selected build", () => {
+  const metadata = require("../dev-manual.json");
+  const build = require(`../dev-builds/${metadata.build_id}/dev.json`);
+  assert.equal(validateManual(metadata, build).filename, "hithesis.pdf");
+  const future = structuredClone(build);
+  future.manual = structuredClone(metadata.manual);
+  future.files[future.manual.filename] = { sha256: future.manual.sha256, size: future.manual.size };
+  assert.equal(validateManual(future, future).url, future.release_url + "hithesis.pdf");
+});
+
+test("a changelog PDF or another build's manual cannot be shown as the user manual", () => {
+  const original = require("../dev-manual.json");
+  const build = require(`../dev-builds/${original.build_id}/dev.json`);
+  for (const modify of [
+    (m) => { m.build_id += "-other"; },
+    (m) => { m.source_commit = "0".repeat(40); },
+    (m) => { m.manual.filename = "DEV_UPDATE.pdf"; },
+    (m) => { m.manual.url = "https://example.com/manual.pdf"; },
+    (m) => { m.manual.pages = 0; },
+    (m) => { m.manual.sha256 = "invalid"; },
+  ]) {
+    const metadata = structuredClone(original);
+    modify(metadata);
+    assert.throws(() => validateManual(metadata, build));
+  }
+  const altered = structuredClone(build);
+  altered.files["hithesis.pdf"] = { sha256: "0".repeat(64), size: original.manual.size };
+  assert.throws(() => validateManual(original, altered));
 });
