@@ -5,7 +5,7 @@ let devState = "loading";
 
 const OPTIONS = {
   language: ["zh", "en"],
-  campus: ["shenzhen", "weihai", "harbin"],
+  campus: ["harbin", "weihai", "shenzhen"],
   type: ["doctor", "master", "bachelor", "postdoc"],
   stage: ["opening", "midterm", "final"],
 };
@@ -81,6 +81,21 @@ function templateNames(selection, catalog = TEMPLATES) {
     .map((t) => t.name).sort();
 }
 
+const LABELS = {
+  language: { zh: "中文", en: "英文" },
+  campus: { harbin: "哈尔滨", weihai: "威海", shenzhen: "深圳" },
+  type: { bachelor: "本科", master: "硕士", doctor: "博士", postdoc: "博士后" },
+  stage: { opening: "开题", midterm: "中期", final: "终稿" },
+};
+
+function templateLabel(name) {
+  const t = TEMPLATES.find((template) => template.name === name);
+  if (!t) return name;
+  const document = t.type === "postdoc" ? "博士后研究报告" :
+    LABELS.type[t.type] + (t.stage === "final" ? "论文" : LABELS.stage[t.stage] + "报告");
+  return [LABELS.language[t.language], LABELS.campus[t.campus], document].join(" · ");
+}
+
 function selection() {
   return Object.fromEntries(Object.entries(SELECTION_KEYS).map(([group, key]) => [key, selected(group)]));
 }
@@ -105,14 +120,14 @@ function renderOptions() {
       const label = input.closest("label");
       label.classList.toggle("disabled", input.disabled);
       label.title = input.disabled ? (group === "stage" && s.types.length === 1 && s.types[0] === "postdoc" ?
-        "博士后不区分开题、中期或终稿阶段" : "当前版本下没有与其他已选条件匹配的模板") : "";
+        "博士后不分阶段" : "此组合暂无模板") : "";
     });
   }
   const postdocOnly = s.types.length === 1 && s.types[0] === "postdoc";
   document.getElementById("stage-panel").classList.toggle("inapplicable", postdocOnly);
-  document.getElementById("stage-hint").textContent = postdocOnly ? "博士后不区分阶段，无需选择此项。" :
-    s.types.includes("postdoc") ? "阶段仅筛选其他类型，博士后不区分阶段。" :
-    "深圳博士中期自动匹配对应报告模板；当前报告包仅提供中文。";
+  const hint = document.getElementById("stage-hint");
+  hint.textContent = s.types.includes("postdoc") ? "博士后不分阶段。" : "";
+  hint.hidden = !hint.textContent;
 }
 
 function validateDevBuild(data) {
@@ -167,16 +182,20 @@ function renderVersion() {
   document.getElementById("download-all").disabled = !ready || (!development && !stableCombinedAvailable);
   document.getElementById("version-details").hidden = !development || !ready;
   const status = document.getElementById("version-status");
+  status.hidden = !development || ready;
+  const info = document.querySelector(".version-info");
+  info.hidden = !development;
+  if (!development) info.open = false;
   if (!development) {
-    status.textContent = "稳定版来自最新正式发布。";
+    status.textContent = "";
   } else if (devState === "loading") {
-    status.textContent = "正在读取最新通过测试的 dev 构建…";
+    status.textContent = "正在读取开发版…";
   } else if (devState === "missing") {
-    status.textContent = "尚未发布开发版下载包，可先选择稳定版。";
+    status.textContent = "暂无开发版。";
   } else if (!ready) {
-    status.textContent = "暂时无法读取开发版信息，请稍后刷新或选择稳定版。";
+    status.textContent = "开发版信息暂时无法读取，请稍后刷新。";
   } else {
-    status.textContent = `开发版 ${devBuild.label}，来自 dev 分支通过测试的构建。`;
+    status.textContent = "";
     document.getElementById("build-date").textContent = `发布于 ${devBuild.published_on}（北京时间）`;
     const commit = document.getElementById("build-commit");
     commit.textContent = `提交 ${devBuild.source_commit.slice(0, 12)}`;
@@ -191,10 +210,31 @@ function render() {
   renderOptions();
   const names = compute();
   document.getElementById("count").textContent = names.length;
-  document.getElementById("list").innerHTML =
-    names.map((n) => `<li>${n}.zip</li>`).join("");
-  document.getElementById("selection-status").textContent = names.length ?
-    "可继续多选；灰色选项与当前组合不匹配。" : "请选择语言、校区和类型，再选择适用阶段；博士后无需选择阶段。";
+  document.getElementById("download-count").textContent = names.length;
+  document.getElementById("download").setAttribute("aria-label", `下载选中的 ${names.length} 份模板`);
+  document.getElementById("empty-state").hidden = names.length > 0;
+  document.getElementById("list").replaceChildren(...names.map((name) => {
+    const item = document.createElement("li");
+    const title = document.createElement("span");
+    title.className = "template-name";
+    title.textContent = templateLabel(name);
+    const filename = document.createElement("code");
+    filename.className = "template-file";
+    filename.textContent = name + ".zip";
+    item.append(title, filename);
+    return item;
+  }));
+  const s = selection();
+  const summary = Object.entries(SELECTION_KEYS).map(([group, key]) =>
+    s[key].map((value) => LABELS[group][value]).join("、")).filter(Boolean);
+  document.getElementById("selection-summary").textContent = summary.join(" / ");
+  document.getElementById("selection-summary").hidden = !summary.length;
+  document.getElementById("action-summary").textContent =
+    `已匹配 ${names.length} 份模板 · ${channel() === "dev" ? "开发版" : "稳定版"}`;
+  const complete = s.languages.length && s.campuses.length && s.types.length;
+  const prompt = names.length ? "" : complete && !s.types.includes("postdoc") && !s.stages.length ? "请选择阶段。" : "请选择模板。";
+  document.getElementById("selection-status").textContent = names.length ? `已选 ${names.length} 份模板` : prompt;
+  document.querySelector("#empty-state p").textContent = prompt;
   // Highlight the checked state on each label.
   document.querySelectorAll("label.opt").forEach((l) => {
     l.classList.toggle("checked", l.querySelector("input").checked);
@@ -246,6 +286,16 @@ async function loadVersions() {
 function initialize() {
   const requested = new URL(window.location.href).searchParams.get("version");
   if (requested === "dev") document.querySelector('[name="version"][value="dev"]').checked = true;
+  const versionInfo = document.querySelector(".version-info");
+  document.addEventListener("click", (event) => {
+    if (!versionInfo.contains(event.target)) versionInfo.open = false;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && versionInfo.open) {
+      versionInfo.open = false;
+      versionInfo.querySelector("summary").focus();
+    }
+  });
   document.getElementById("download").addEventListener("click", downloadSelected);
   document.getElementById("download-all").addEventListener("click", () =>
     downloadOne("hithesis-examples"));
@@ -282,5 +332,5 @@ function initialize() {
 
 if (typeof document !== "undefined") initialize();
 if (typeof module !== "undefined") module.exports = {
-  TEMPLATES, catalogFromFiles, templateNames, optionEnabled, reconcileSelection, validateDevBuild, downloadURL,
+  TEMPLATES, catalogFromFiles, templateNames, templateLabel, optionEnabled, reconcileSelection, validateDevBuild, downloadURL,
 };

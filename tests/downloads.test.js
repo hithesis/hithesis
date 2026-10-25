@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { TEMPLATES, catalogFromFiles, templateNames, optionEnabled, reconcileSelection,
+const { TEMPLATES, catalogFromFiles, templateNames, templateLabel, optionEnabled, reconcileSelection,
   validateDevBuild, downloadURL } = require("../script.js");
 
 const all = { languages: ["zh", "en"],
@@ -44,6 +44,12 @@ test("Shenzhen doctoral midterm is an ordinary combination, not an independent f
   assert.deepEqual(templateNames({ languages: ["zh"], campuses: ["harbin"], types: ["doctor"], stages: ["midterm"] }),
     ["reports-harbin-doctor-midterm"]);
   assert.deepEqual(templateNames({ languages: ["zh"], campuses: [], types: [], stages: [] }), []);
+});
+
+test("download cards show readable document types without exposing a reportplus category", () => {
+  assert.equal(templateLabel("reportplus-shenzhen-doctor-midterm"), "中文 · 深圳 · 博士中期报告");
+  assert.equal(templateLabel("english-harbin-postdoc"), "英文 · 哈尔滨 · 博士后研究报告");
+  assert.equal(templateLabel("chinese-weihai-master"), "中文 · 威海 · 硕士论文");
 });
 
 test("postdoc requires no stage and clears/disables every stage choice", () => {
