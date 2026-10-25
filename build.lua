@@ -75,12 +75,17 @@ tdsdirs = {
 function docinit_hook()
   local errorlevel = cp("dtx-style.sty", unpackdir, typesetdir)
   if errorlevel ~= 0 then return errorlevel end
+  -- Replace generated copies so deleted source files do not survive a rebuild.
+  errorlevel = rmdir(typesetdir .. "/examples")
+  if errorlevel ~= 0 then return errorlevel end
   errorlevel = cp("examples", sourcefiledir, typesetdir)
   if errorlevel ~= 0 then
     return errorlevel
   end
 
   -- Build a source-only copy of the examples for the CTAN archive.
+  errorlevel = rmdir(builddir .. "/examples")
+  if errorlevel ~= 0 then return errorlevel end
   errorlevel = cp("examples", sourcefiledir, builddir)
   if errorlevel ~= 0 then
     return errorlevel

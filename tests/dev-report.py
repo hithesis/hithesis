@@ -63,7 +63,7 @@ def main():
             page.close()
     text = '\n'.join(parts)
     compact = ''.join(text.split())
-    for expected in ['v3.2b-dev.1025', gate.AI_LABEL, '不再对齐到第一个关键词',
+    for expected in ['v3.2b-dev.1025', gate.AI_LABEL, '续行与正文左边界对齐',
                      r'\hitsetup{keywords-hanging=true}', 'example_1.tex', '50%']:
         assert ''.join(expected.split()) in compact, (expected, text)
     for internal in ['正式基准', '第二位上限', '源码提交', '构建与验证日志', 'Validation:', info['commit'], info['run_url']]:

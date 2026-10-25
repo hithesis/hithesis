@@ -131,8 +131,13 @@ def latex(markdown, info=None, comparisons=None):
                 raise ValueError('Unregistered comparison image')
             image = comparisons[identifier]
             placement = '左侧为旧版，右侧为本次' if image.get('layout') != 'stacked' else '上方为旧版，下方为本次'
+            diagnostic = ('旧版未定义 ' + '、'.join(image['unsupported_commands']) + '，旧版一侧显示缺少命令的提示。') \
+                if image.get('before_status') == 'unsupported' else ''
+            if image.get('before_status') == 'compile-error':
+                diagnostic = '旧版编译此例失败，左侧显示编译错误。'
             lines += [r'\begin{center}\includegraphics[width=\linewidth,height=.6\textheight,keepaspectratio]{comparison-' + identifier + '.png}',
-                      r'\par{\small ' + escape(image['title']) + '。图像由同一示例实际编译，' + placement + r'。}\end{center}']
+                       r'\par{\small ' + escape(image['title']) + '。新旧模板使用同一示例，' + placement + '。' +
+                       escape(diagnostic) + r'}\end{center}']
         elif line.startswith('# '):
             lines.append(r'{\LARGE\bfseries ' + escape(line[2:]) + r'\par}\bigskip')
         elif line.startswith('## '):
@@ -155,11 +160,12 @@ def build(info, commits, directory, ai_required=False):
     work.mkdir(exist_ok=False)
     comparisons, record = [], {}
     if ai_required:
-        comparisons = load('dev-previews').build(info, work / 'previews')
+        preview = load('dev-previews').build(info, work / 'previews')
+        comparisons = preview['comparisons']
         texts = {' '.join((c.get('tex') or c['text']).split()) for c in info['changes']}
         notes = [n for n in json.loads(NOTES.read_text()) if ' '.join(n['change'].split()) in texts]
         editor = load('dev-ai')
-        data = editor.packet(info, commits, notes, comparisons)
+        data = editor.packet(info, commits, notes, comparisons, preview['evidence'])
         (work / 'AI_INPUT.json').write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
         record = editor.generate(data, comparisons, directory)
         info = info | {'ai_draft': record['draft'], 'ai_examples': data['examples']}

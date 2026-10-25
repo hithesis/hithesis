@@ -26,6 +26,7 @@ PROMPT = '''你是 hithesis 更新说明编辑，读者是正在写论文的群�
 影响范围以说明为准，不要因为图片只展示一种语言就缩小适用范围。摘要简洁，避免堆砌全部细节；输出前检查错字、重复内容和列表数量。
 每一节必须引用至少一个 evidence_ids，引用只能来自本次输入。不要重复同一改动，不把提交日志直接贴给群友。
 comparisons 中 changed=true 的真实对照必须出现在对应节的 comparison_ids 中；changed=false 的图不要描述为发生了变化。
+preview-* 证据记录实际编译结果。before_status=unsupported 表示旧版没有该命令，图中是缺少命令提示；compile-error 表示旧版编译失败，图中是实际编译错误，均不能描述成旧版排版效果。PDF 属性以 before_properties / after_properties 为准，参数以 before_values / after_values 为准；no-visual-change 不代表功能没有变化。no-reviewed-example 表示没有可编译的受审阅示例，不得宣称已经展示了该功能的效果图。
 输出一个 JSON 对象，禁止输出 Markdown 包裹或其他字段。格式：
 {"summary":"中文概述，不超过300字", "message":"发群的中文摘要，不超过1000字，不包含链接", "sections":[{"title":"标题", "description":"具体变化", "impact":"影响范围，证据不足可空", "migration":"旧论文怎么改，无需改或无法确认时如实写", "evidence_ids":["change-1"], "example_ids":[], "comparison_ids":[]}]}
 sections 为1到10节。证据不足就少写；保持措辞具体、自然。'''
@@ -42,7 +43,7 @@ def usage_tokens(text):
     return {re.sub(r'\s+', '', token).replace('={', '=') for token in tokens}
 
 
-def packet(info, commits, notes, comparisons):
+def packet(info, commits, notes, comparisons, preview_evidence=()):
     evidence, examples = [], []
     for index, change in enumerate(info['changes'], 1):
         evidence.append({'id': f'change-{index}', 'text': change['text'][:3000]})
@@ -52,6 +53,7 @@ def packet(info, commits, notes, comparisons):
             examples.append({'id': f'example-{index}', 'code': note['code']})
     for index, commit in enumerate(commits[-30:], 1):
         evidence.append({'id': f'commit-{index}', 'text': commit['body'][:4000]})
+    evidence.extend(preview_evidence)
     base = info.get('previous_source_commit') or info['version_plan']['official_release']['tag']
     # Only public template sources and examples are sent. No .env, workflow
     # credentials, user files, dependency/font binaries or filesystem browsing.
@@ -64,7 +66,9 @@ def packet(info, commits, notes, comparisons):
     data = {'label': info['label'], 'date': info['published_on'], 'evidence': evidence,
             'examples': examples, 'comparisons': [{k: c[k] for k in
                 ('id', 'title', 'before_pages', 'after_pages', 'before_sha256', 'after_sha256', 'changed')}
-                | {'image_sha256': hashlib.sha256(Path(c['image']).read_bytes()).hexdigest()} for c in comparisons]}
+                 | {'image_sha256': hashlib.sha256(Path(c['image']).read_bytes()).hexdigest(),
+                    'before_status': c.get('before_status', 'compiled'),
+                    'unsupported_commands': c.get('unsupported_commands', [])} for c in comparisons]}
     encoded = json.dumps(data, ensure_ascii=False)
     if len(encoded.encode()) > MAX_INPUT:
         raise ValueError('AI input exceeds the configured review budget')
@@ -129,11 +133,17 @@ def generate(data, comparisons, directory):
     if model != MODEL:
         raise ValueError('This pipeline is restricted to DeepSeek deepseek-flash')
     content = [{'type': 'text', 'text': json.dumps(data, ensure_ascii=False)}]
-    for comparison in comparisons[:2]:
-        image = Path(comparison['image']).read_bytes()
+    images = {}
+    for comparison in comparisons:
+        path = comparison.get('ai_image', comparison['image'])
+        images.setdefault(path, []).append(comparison['id'])
+    if len(images) > 2:
+        raise ValueError('AI comparisons must fit in at most two contact sheets')
+    for path, identifiers in images.items():
+        image = Path(path).read_bytes()
         if len(image) > 3 * 1024 * 1024:
             raise ValueError('Comparison image exceeds the AI input budget')
-        content += [{'type': 'text', 'text': 'comparison_id: ' + comparison['id']},
+        content += [{'type': 'text', 'text': 'comparison_ids: ' + ', '.join(identifiers)},
                     {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,' + base64.b64encode(image).decode()}}]
     messages = [{'role': 'system', 'content': PROMPT}, {'role': 'user', 'content': content}]
     rejected, usage = [], []

@@ -5,7 +5,9 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import shutil
 import subprocess
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('compatibility', ROOT / 'tests/compatibility.py')
@@ -52,19 +54,34 @@ def main():
     parser.add_argument('--baseline', type=Path, required=True)
     args = parser.parse_args()
     results = []
+    work = Path(tempfile.mkdtemp(prefix='example-regression-', dir=ROOT / 'build'))
+    # Docker creates it as root; the artifact uploader runs as the host user.
+    work.chmod(0o755)
     for family, job in (('hitbook/chinese', 'thesis'), ('hitbook/english', 'thesis'),
                        ('hitart/reports', 'report'), ('hitart/reportplus', 'report')):
         phase = 'baseline'
         result = dict(case=family)
         old = args.baseline / 'examples' / family
-        new = ROOT / 'examples' / family
+        current = ROOT / 'examples' / family
+        new = work / family
         try:
             with (old / 'regression-build.log').open('w') as output:
                 subprocess.run(['latexmk', '-g', '-xelatex', '-interaction=nonstopmode',
                     '-halt-on-error', job + '.tex'], cwd=old, stdout=output,
                     stderr=subprocess.STDOUT, check=True, timeout=180)
             phase = 'candidate'
-            assert (new / (job + '.pdf')).exists(), 'Run make compile-examples first'
+            assert (current / (job + '.pdf')).exists(), 'Run make compile-examples first'
+            # Compare the same old document with both runtimes. New examples
+            # are compiled separately and may contain newly added commands.
+            shutil.copytree(old, new, ignore=shutil.ignore_patterns(
+                '*.aux', '*.log', '*.fls', '*.fdb_latexmk', '*.synctex.gz'))
+            for pattern in ('*.cls', '*.cfg', '*.sty', '*.bst', '*.ist', '*.eps'):
+                for path in ROOT.glob(pattern):
+                    shutil.copy2(path, new / path.name)
+            with (new / 'regression-build.log').open('w') as output:
+                subprocess.run(['latexmk', '-g', '-xelatex', '-interaction=nonstopmode',
+                    '-halt-on-error', job + '.tex'], cwd=new, stdout=output,
+                    stderr=subprocess.STDOUT, check=True, timeout=180)
             old_warnings = warning_counts(old / (job + '.log'))
             new_warnings = warning_counts(new / (job + '.log'))
             introduced = new_warnings - old_warnings
@@ -85,6 +102,8 @@ def main():
             assert not different, ('Changed text/character boxes on pages', different)
             assert before[1] == after[1], 'Links or destinations changed'
             result.update(status='PASS', pages=len(after[0]), links=len(after[1]),
+                candidate_document=str(new / (job + '.pdf')),
+                current_examples_pages=len(compatibility.signature(current / (job + '.pdf'), require_targets=False)[0]),
                 baseline_unresolved_links=sum(link[4] == 'UNRESOLVED' for link in before[1]))
         except Exception as error:
             result.update(status='BLOCKED_BASELINE' if phase == 'baseline' else 'FAIL',
