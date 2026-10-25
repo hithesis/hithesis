@@ -3,13 +3,70 @@ const STABLE_BASE = REPO + "/releases/latest/download/";
 let devBuild = null;
 let devState = "loading";
 
-// Which types each family accepts; reportplus is fixed (single template).
-const FAMILY = {
-  chinese:    { types: ["doctor", "master", "bachelor", "postdoc"], stage: false },
-  english:    { types: ["doctor", "master", "bachelor", "postdoc"], stage: false },
-  reports:    { types: ["doctor", "master", "bachelor"],            stage: true  },
-  reportplus: null,
+const OPTIONS = {
+  language: ["zh", "en"],
+  campus: ["shenzhen", "weihai", "harbin"],
+  type: ["doctor", "master", "bachelor", "postdoc"],
+  stage: ["opening", "midterm", "final"],
 };
+const SELECTION_KEYS = { language: "languages", campus: "campuses", type: "types", stage: "stages" };
+
+// UI dimensions are independent of legacy class/package names. A null stage
+// means "not applicable", rather than calling a postdoc report a final thesis.
+const TEMPLATES = [];
+for (const campus of OPTIONS.campus) {
+  for (const type of OPTIONS.type) {
+    for (const language of OPTIONS.language) {
+      TEMPLATES.push({ language, campus, type, stage: type === "postdoc" ? null : "final",
+        name: `${language === "zh" ? "chinese" : "english"}-${campus}-${type}` });
+    }
+    if (type === "postdoc") continue;
+    for (const stage of ["opening", "midterm"]) {
+      const name = campus === "shenzhen" && type === "doctor" && stage === "midterm" ?
+        "reportplus-shenzhen-doctor-midterm" : `reports-${campus}-${type}-${stage}`;
+      TEMPLATES.push({ language: "zh", campus, type, stage, name });
+    }
+  }
+}
+let stableTemplates = TEMPLATES;
+let stableCombinedAvailable = true;
+
+function catalogFromFiles(files) {
+  const available = new Set(files);
+  return TEMPLATES.filter((t) => available.has(t.name + ".zip"));
+}
+
+function normalizeSelection(selection) {
+  return Object.fromEntries(Object.entries(SELECTION_KEYS).map(([group, key]) =>
+    [key, OPTIONS[group].filter((value) => (selection[key] || []).includes(value))]));
+}
+
+function matches(template, selection) {
+  return Object.entries(SELECTION_KEYS).every(([group, key]) =>
+    (group === "stage" && template.stage === null) ||
+    !selection[key].length || selection[key].includes(template[group]));
+}
+
+function optionEnabled(group, value, selection, catalog = TEMPLATES) {
+  const candidate = { ...normalizeSelection(selection), [SELECTION_KEYS[group]]: [value] };
+  // A postdoc row cannot make a stage look applicable, but stage choices must
+  // never prevent switching to a type that does not have a stage.
+  return catalog.some((t) => t[group] === value && matches(t, candidate));
+}
+
+function reconcileSelection(selection, catalog = TEMPLATES) {
+  const result = normalizeSelection(selection);
+  let changed;
+  do {
+    changed = false;
+    for (const [group, key] of Object.entries(SELECTION_KEYS)) {
+      const remaining = result[key].filter((value) => optionEnabled(group, value, result, catalog));
+      if (remaining.length !== result[key].length) changed = true;
+      result[key] = remaining;
+    }
+  } while (changed);
+  return result;
+}
 
 function selected(group) {
   return Array.from(document.querySelectorAll(
@@ -17,38 +74,45 @@ function selected(group) {
   )).map((i) => i.value);
 }
 
-// Cartesian product of the checked groups, filtered to valid templates
-// (mirrors the packaging script in make_release_pkg.sh).
-function templateNames({ families, campuses, types, stages }) {
-  const names = new Set();
+function templateNames(selection, catalog = TEMPLATES) {
+  const s = normalizeSelection(selection);
+  if (!s.languages.length || !s.campuses.length || !s.types.length) return [];
+  return catalog.filter((t) => matches(t, s) && (t.stage === null || s.stages.includes(t.stage)))
+    .map((t) => t.name).sort();
+}
 
-  for (const f of families) {
-    if (f === "reportplus") {
-      names.add("reportplus-shenzhen-doctor-midterm");
-      continue;
-    }
-    const info = FAMILY[f];
-    for (const c of campuses) {
-      for (const t of types) {
-        if (!info.types.includes(t)) continue;
-        if (info.stage) {
-          for (const s of stages) {
-            // hithesisart does not support doctor+midterm+shenzhen.
-            if (t === "doctor" && s === "midterm" && c === "shenzhen") continue;
-            names.add(`reports-${c}-${t}-${s}`);
-          }
-        } else {
-          names.add(`${f}-${c}-${t}`);
-        }
-      }
-    }
-  }
-  return Array.from(names).sort();
+function selection() {
+  return Object.fromEntries(Object.entries(SELECTION_KEYS).map(([group, key]) => [key, selected(group)]));
+}
+
+function activeCatalog() {
+  if (channel() === "dev") return devBuild ? catalogFromFiles(Object.keys(devBuild.files)) : TEMPLATES;
+  return stableTemplates;
 }
 
 function compute() {
-  return templateNames({ families: selected("family"), campuses: selected("campus"),
-    types: selected("type"), stages: selected("stage") });
+  if (channel() === "dev" && devState !== "ready") return [];
+  return templateNames(selection(), activeCatalog());
+}
+
+function renderOptions() {
+  const catalog = activeCatalog();
+  const s = reconcileSelection(selection(), catalog);
+  for (const [group, key] of Object.entries(SELECTION_KEYS)) {
+    document.querySelectorAll(`[data-group="${group}"] input`).forEach((input) => {
+      input.checked = s[key].includes(input.value);
+      input.disabled = !optionEnabled(group, input.value, s, catalog);
+      const label = input.closest("label");
+      label.classList.toggle("disabled", input.disabled);
+      label.title = input.disabled ? (group === "stage" && s.types.length === 1 && s.types[0] === "postdoc" ?
+        "博士后不区分开题、中期或终稿阶段" : "当前版本下没有与其他已选条件匹配的模板") : "";
+    });
+  }
+  const postdocOnly = s.types.length === 1 && s.types[0] === "postdoc";
+  document.getElementById("stage-panel").classList.toggle("inapplicable", postdocOnly);
+  document.getElementById("stage-hint").textContent = postdocOnly ? "博士后不区分阶段，无需选择此项。" :
+    s.types.includes("postdoc") ? "阶段仅筛选其他类型，博士后不区分阶段。" :
+    "深圳博士中期自动匹配对应报告模板；当前报告包仅提供中文。";
 }
 
 function validateDevBuild(data) {
@@ -66,8 +130,7 @@ function validateDevBuild(data) {
       !/^https:\/\/github\.com\/hithesis\/hithesis\/actions\/runs\/\d+$/.test(data.run_url)) {
     throw new Error("Invalid dev download metadata");
   }
-  const names = templateNames({ families: Object.keys(FAMILY), campuses: ["harbin", "shenzhen", "weihai"],
-    types: ["bachelor", "master", "doctor", "postdoc"], stages: ["opening", "midterm"] });
+  const names = TEMPLATES.map((t) => t.name);
   for (const name of [...names, "hithesis-examples"]) {
     const file = data.files && data.files[name + ".zip"];
     if (!file || !/^[0-9a-f]{64}$/.test(file.sha256) || !Number.isSafeInteger(file.size) || file.size <= 0) {
@@ -100,8 +163,8 @@ function channel() {
 function renderVersion() {
   const development = channel() === "dev";
   const ready = !development || devState === "ready";
-  document.getElementById("download").disabled = !ready;
-  document.getElementById("download-all").disabled = !ready;
+  document.getElementById("download").disabled = !ready || compute().length === 0;
+  document.getElementById("download-all").disabled = !ready || (!development && !stableCombinedAvailable);
   document.getElementById("version-details").hidden = !development || !ready;
   const status = document.getElementById("version-status");
   if (!development) {
@@ -125,10 +188,13 @@ function renderVersion() {
 }
 
 function render() {
+  renderOptions();
   const names = compute();
   document.getElementById("count").textContent = names.length;
   document.getElementById("list").innerHTML =
     names.map((n) => `<li>${n}.zip</li>`).join("");
+  document.getElementById("selection-status").textContent = names.length ?
+    "可继续多选；灰色选项与当前组合不匹配。" : "请选择语言、校区和类型，再选择适用阶段；博士后无需选择阶段。";
   // Highlight the checked state on each label.
   document.querySelectorAll("label.opt").forEach((l) => {
     l.classList.toggle("checked", l.querySelector("input").checked);
@@ -201,9 +267,20 @@ function initialize() {
   loadVersions();
   fetch("https://api.github.com/repos/hithesis/hithesis/releases/latest", { signal: AbortSignal.timeout(10000) })
     .then((r) => { if (!r.ok) throw new Error("Release metadata unavailable"); return r.json(); })
-    .then((r) => { if (/^v\d+\.\d+[a-z]?$/.test(r.tag_name)) document.getElementById("stable-label").textContent = r.tag_name; })
+    .then((r) => {
+      if (!/^v\d+\.\d+[a-z]?$/.test(r.tag_name)) return;
+      document.getElementById("stable-label").textContent = r.tag_name;
+      if (Array.isArray(r.assets)) {
+        const files = r.assets.map((asset) => asset.name);
+        stableTemplates = catalogFromFiles(files);
+        stableCombinedAvailable = files.includes("hithesis-examples.zip");
+        render();
+      }
+    })
     .catch(() => {}); // Stable download links do not depend on the API request.
 }
 
 if (typeof document !== "undefined") initialize();
-if (typeof module !== "undefined") module.exports = { templateNames, validateDevBuild, downloadURL };
+if (typeof module !== "undefined") module.exports = {
+  TEMPLATES, catalogFromFiles, templateNames, optionEnabled, reconcileSelection, validateDevBuild, downloadURL,
+};

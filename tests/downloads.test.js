@@ -1,10 +1,11 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { templateNames, validateDevBuild, downloadURL } = require("../script.js");
+const { TEMPLATES, catalogFromFiles, templateNames, optionEnabled, reconcileSelection,
+  validateDevBuild, downloadURL } = require("../script.js");
 
-const all = { families: ["chinese", "english", "reports", "reportplus"],
+const all = { languages: ["zh", "en"],
   campuses: ["harbin", "shenzhen", "weihai"], types: ["bachelor", "master", "doctor", "postdoc"],
-  stages: ["opening", "midterm"] };
+  stages: ["opening", "midterm", "final"] };
 
 function manifest() {
   const build = "dev-20261024-aaaaaaaaaaaa-123-1";
@@ -28,6 +29,79 @@ test("all website choices match the 42 supported template variants", () => {
   assert(!names.includes("reports-shenzhen-doctor-midterm"));
   assert(!names.includes("reports-harbin-postdoc-opening"));
   assert(names.includes("reportplus-shenzhen-doctor-midterm"));
+});
+
+test("language and final stage select the correct thesis archive", () => {
+  const selection = { languages: ["en"], campuses: ["harbin"], types: ["master"], stages: ["final"] };
+  assert.deepEqual(templateNames(selection), ["english-harbin-master"]);
+  assert.deepEqual(templateNames({ ...selection, stages: [] }), []);
+  assert.deepEqual(templateNames({ ...selection, languages: [] }), []);
+});
+
+test("Shenzhen doctoral midterm is an ordinary combination, not an independent family", () => {
+  assert.deepEqual(templateNames({ languages: ["zh"], campuses: ["shenzhen"], types: ["doctor"], stages: ["midterm"] }),
+    ["reportplus-shenzhen-doctor-midterm"]);
+  assert.deepEqual(templateNames({ languages: ["zh"], campuses: ["harbin"], types: ["doctor"], stages: ["midterm"] }),
+    ["reports-harbin-doctor-midterm"]);
+  assert.deepEqual(templateNames({ languages: ["zh"], campuses: [], types: [], stages: [] }), []);
+});
+
+test("postdoc requires no stage and clears/disables every stage choice", () => {
+  const selected = { languages: ["zh"], campuses: ["harbin"], types: ["postdoc"], stages: ["final", "midterm"] };
+  const reconciled = reconcileSelection(selected);
+  assert.deepEqual(reconciled.stages, []);
+  assert.deepEqual(templateNames(reconciled), ["chinese-harbin-postdoc"]);
+  for (const stage of all.stages) assert.equal(optionEnabled("stage", stage, reconciled), false);
+  // A previous final selection must not trap the user outside the postdoc type.
+  assert.equal(optionEnabled("type", "postdoc", { ...selected, types: ["doctor"], stages: ["final"] }), true);
+  assert.deepEqual(selected.stages, ["final", "midterm"]); // No mutation of the caller's state.
+});
+
+test("English reports are disabled according to the actual stable/dev packages", () => {
+  const selected = { languages: ["en"], campuses: ["shenzhen"], types: ["doctor"], stages: [] };
+  assert.equal(optionEnabled("stage", "final", selected), true);
+  assert.equal(optionEnabled("stage", "opening", selected), false);
+  assert.equal(optionEnabled("stage", "midterm", selected), false);
+  const report = { ...selected, languages: ["zh", "en"], stages: ["midterm"] };
+  assert.equal(optionEnabled("language", "en", report), false);
+  assert.deepEqual(reconcileSelection(report).languages, ["zh"]);
+});
+
+test("mixed postdoc/degree downloads apply stages only to the other degrees", () => {
+  const selected = { languages: ["zh"], campuses: ["harbin"], types: ["postdoc", "doctor"], stages: ["opening"] };
+  assert.deepEqual(templateNames(selected), ["chinese-harbin-postdoc", "reports-harbin-doctor-opening"]);
+  assert.equal(optionEnabled("stage", "opening", selected), true);
+});
+
+test("empty selections leave applicable options available but download nothing", () => {
+  assert.deepEqual(templateNames({}), []);
+  assert.equal(optionEnabled("language", "en", {}), true);
+  assert.equal(optionEnabled("type", "postdoc", {}), true);
+  for (const stage of all.stages) assert.equal(optionEnabled("stage", stage, {}), true);
+});
+
+test("each packaged template is reachable through the four visible dimensions", () => {
+  for (const template of TEMPLATES) {
+    const selected = { languages: [template.language], campuses: [template.campus],
+      types: [template.type], stages: template.stage === null ? [] : [template.stage] };
+    assert.deepEqual(templateNames(selected), [template.name]);
+    const stable = reconcileSelection(selected);
+    assert.deepEqual(reconcileSelection(stable), stable);
+    assert.deepEqual(templateNames(stable), [template.name]);
+  }
+  const published = require("../dev.json");
+  assert.deepEqual(catalogFromFiles(Object.keys(published.files)).map((t) => t.name).sort(), templateNames(all));
+});
+
+test("version-specific catalogs disable missing combinations and remove stale selections", () => {
+  const subset = catalogFromFiles(["chinese-harbin-doctor.zip", "hithesis-ctan.zip", "unrelated.zip"]);
+  assert.equal(subset.length, 1);
+  assert.equal(optionEnabled("language", "en", {}, subset), false);
+  assert.equal(optionEnabled("campus", "shenzhen", {}, subset), false);
+  assert.equal(optionEnabled("stage", "midterm", {}, subset), false);
+  const selected = { languages: ["zh", "en"], campuses: ["harbin"], types: ["doctor"], stages: ["final"] };
+  assert.deepEqual(reconcileSelection(selected, subset).languages, ["zh"]);
+  assert.deepEqual(templateNames(selected, subset), ["chinese-harbin-doctor"]);
 });
 
 test("stable links remain usable without API or preview metadata", () => {
