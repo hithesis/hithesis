@@ -70,7 +70,7 @@ def main():
         assert internal not in text, (internal, text)
     links = [str(ref.get_object().get('/A', {}).get('/URI', ''))
              for page in reader.pages for ref in page.get('/Annots', [])]
-    assert 'https://hithesis.site/?version=dev' in links and info['release_url'] in links
+    assert report.load('dev-report-style').DOWNLOAD_URL in links and info['release_url'] in links
     with pdfium.PdfDocument(args.work / 'DEV_UPDATE.pdf') as pdf:
         for index, page in enumerate(pdf):
             text_page = page.get_textpage()
@@ -83,6 +83,22 @@ def main():
                 page.render(scale=1.3).to_pil().save(args.work / 'preview.png')
             text_page.close()
             page.close()
+    # Compile the same fixed layout through the validated AI-field path too,
+    # without calling the external model or sending a notification.
+    from test_dev_ai import data as ai_data, draft as ai_draft
+    inputs, draft = ai_data(), ai_draft()
+    inputs['comparisons'] = []
+    draft['sections'][0]['comparison_ids'] = []
+    load('dev-ai').validate(draft, inputs)
+    ai_work = args.work / 'fixed-ai-example'
+    ai_work.mkdir()
+    ai_info = info | {'ai_draft': draft, 'ai_examples': inputs['examples'], 'changes': info['changes'][:1]}
+    # The report identity does not include its already-generated report record.
+    ai_info.pop('report', None)
+    ai_built = report.build(ai_info, [commit], ai_work)
+    assert ai_built['validation']['format_version'] == 1
+    with pdfium.PdfDocument(ai_work / 'DEV_UPDATE.pdf') as pdf:
+        pdf[0].render(scale=1.3).to_pil().save(ai_work / 'preview.png')
     (args.work / 'results.json').write_text(json.dumps({'status': 'PASS', 'pages': len(reader.pages),
         'pdf': str(args.work / 'DEV_UPDATE.pdf'), 'links': len(links)}, ensure_ascii=False, indent=2) + '\n')
     print('Dev update PDF: text, TeX literals, migration, links and page bounds PASS;', len(reader.pages), 'pages')

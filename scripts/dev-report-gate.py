@@ -1,11 +1,19 @@
 """Verify the exact PDF required by a development publication and notification."""
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
 
 AI_LABEL = '此预览由 AI 比对生成'
 MAX_PDF_BYTES = 20 * 1024 * 1024
+
+
+def report_style():
+    spec = importlib.util.spec_from_file_location('dev_report_style', Path(__file__).with_name('dev-report-style.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def identity(info):
@@ -30,25 +38,48 @@ def validate(path, info):
             raise ValueError('Encrypted, empty or excessively long PDF')
         if not reader.metadata or reader.metadata.subject != 'hithesis-report:' + identity(info):
             raise ValueError('PDF does not belong to this source/build identity')
+        style = report_style()
+        marker = reader.metadata.keywords or ''
+        if marker.startswith('hithesis-dev-report-') and marker != style.PDF_MARKER:
+            raise ValueError('Unsupported PDF report format')
+        fixed = marker == style.PDF_MARKER
+        declared_format = info.get('report', {}).get('format_version')
+        if declared_format is not None and (type(declared_format) is not int or not fixed or declared_format != style.FORMAT_VERSION):
+            raise ValueError('PDF report format does not match its manifest')
         with pdfium.PdfDocument(path) as document:
             first = document[0]
             text_page = first.get_textpage()
             text = text_page.get_text_range()
             text_page.close()
             first.close()
+            all_text = text
+            if fixed:
+                for index in range(1, len(document)):
+                    page = document[index]
+                    text_page = page.get_textpage()
+                    all_text += '\n' + text_page.get_text_range()
+                    text_page.close()
+                    page.close()
         compact = ''.join(text.split())
         for value in (AI_LABEL, info['label'], info['published_on']):
             if ''.join(value.split()) not in compact:
                 raise ValueError('PDF missing AI label, version or date')
         if len(compact) < 80:
             raise ValueError('PDF has no substantive update content')
+        if fixed:
+            complete = ''.join(all_text.split())
+            positions = [complete.find(heading) for heading in style.HEADINGS]
+            if any(position < 0 for position in positions) or positions != sorted(positions):
+                raise ValueError('PDF missing or reordering the fixed report sections')
     except Exception as error:
         raise ValueError('PDF required: validation failed: ' + str(error)) from error
     return {'identity': identity(info), 'sha256': hashlib.sha256(data).hexdigest(),
-            'size': len(data), 'pages': len(reader.pages), 'ai_label': AI_LABEL}
+            'size': len(data), 'pages': len(reader.pages), 'ai_label': AI_LABEL,
+            **({'format_version': style.FORMAT_VERSION} if fixed else {})}
 
 
 def manifest(info):
+    style = report_style()
     if info.get('schema') != 2:
         raise ValueError('PDF required: invalid development-build schema')
     for field, pattern in (('commit', r'[0-9a-f]{40}'), ('source_commit', r'[0-9a-f]{40}'),
@@ -57,6 +88,9 @@ def manifest(info):
         if not re.fullmatch(pattern, info.get(field, '')):
             raise ValueError('PDF required: missing or invalid source/build identity')
     report = info.get('report') or {}
+    version = report.get('format_version', style.FORMAT_VERSION)
+    if type(version) is not int or version != style.FORMAT_VERSION:
+        raise ValueError('Unsupported report manifest format')
     if report.get('filename') != 'DEV_UPDATE.pdf':
         raise ValueError('PDF required: missing update PDF manifest')
     build_id = info.get('build_id', '')

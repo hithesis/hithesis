@@ -41,70 +41,76 @@ def breaking_details(commit):
 
 
 def contents(info, commits):
+    style = load('dev-report-style')
     normalize = lambda value: ' '.join(value.split())
     changes = {normalize(c.get('tex') or c['text']): c for c in info['changes']}
     notes = [note for note in json.loads(NOTES.read_text()) if normalize(note['change']) in changes] if NOTES.exists() else []
     covered = {normalize(note['change']) for note in notes}
     preview = info.get('preview', False)
-    lines = [f'# hithesis 更新说明 · {info["label"]}', '',
-             ('预览日期：' if preview else '更新日期：') + info['published_on'], AI_LABEL, '']
+    sections = []
+    summary = info.get('summary', '本次更新的具体变化、适用范围和旧稿处理见下文。')
     if info.get('ai_draft'):
         draft = info['ai_draft']
+        if draft.get('format_version') != style.FORMAT_VERSION:
+            raise ValueError('Unsupported update report format')
         examples = {item['id']: item['code'] for item in info['ai_examples']}
-        lines += [draft['summary'], '']
+        summary = draft['summary']
         for section in draft['sections']:
-            lines += ['## ' + section['title'], '', section['description'], '']
-            for key, title in (('impact', '适用情况：'), ('migration', '旧论文怎么改：')):
-                if section[key]:
-                    lines += [title + section[key], '']
-            for identifier in section['example_ids']:
-                lines += ['```latex', *examples[identifier], '```', '']
-            for identifier in section['comparison_ids']:
+            sections.append(section | {'code': [examples[identifier] for identifier in section['example_ids']],
+                                       'comparisons': section['comparison_ids']})
+    else:
+        for note in notes:
+            sections.append({'kind': '调整', 'title': note['title'],
+                'description': note['text'] + (' ' + note['after'] if note.get('after') else ''),
+                'impact': note.get('impact', ''), 'action': 'optional' if note.get('upgrade') else 'unknown',
+                'migration': note.get('upgrade', ''), 'code': [note['code']] if note.get('code') else [], 'comparisons': []})
+        for commit in info.get('version_plan', {}).get('breaking_commits', []):
+            details = breaking_details(commit)
+            if details:
+                sections.append({'kind': '调整', 'title': '不兼容用法调整', 'description': details[0],
+                    'impact': commit.get('impact', ''), 'action': 'required' if commit.get('migration') else 'unknown',
+                    'migration': commit.get('migration', ''), 'code': [], 'comparisons': []})
+        remaining = [change['text'] for key, change in changes.items() if key not in covered]
+        public = []
+        for commit in commits:
+            match = re.search(r'(?ims)^Release-Notes:[^\S\n]*(.*?)'
+                              r'(?=^[A-Za-z][A-Za-z -]+:[^\S\n]|\Z)', commit['body'])
+            if match and match[1].strip():
+                public.append(match[1].strip())
+        if remaining or public:
+            sections.append({'kind': '维护', 'title': '其他更新', 'description': '；'.join(remaining + public),
+                'impact': '', 'action': 'unknown', 'migration': '', 'code': [], 'comparisons': []})
+    if not sections:
+        sections.append({'kind': '维护', 'title': '维护更新', 'description': '本次没有登记用户可见的模板变化。',
+            'impact': '', 'action': 'unknown', 'migration': '', 'code': [], 'comparisons': []})
+    lines = [f'# {style.REPORT_TITLE} · {info["label"]}', '',
+             ('预览日期：' if preview else '更新日期：') + info['published_on'] + '（北京时间）', AI_LABEL, '',
+             '## ' + style.HEADINGS[0], '', summary, '', '## ' + style.HEADINGS[1], '']
+    for section in sections:
+        lines += ['### ' + section['kind'] + ' · ' + section['title'], '',
+                  '变化：' + section['description'], '',
+                  '适用范围：' + (section['impact'] or '影响范围尚未确认。'), '',
+                  '旧稿处理：' + style.ACTIONS[section['action']] + section['migration'], '']
+        for code in section['code']:
+            lines += ['使用示例：', '', '```latex', *code, '```', '']
+        if section['comparisons']:
+            lines += ['对照结果：', '']
+            for identifier in section['comparisons']:
                 lines += ['[[comparison:' + identifier + ']]', '']
-        if preview:
-            lines += ['预览稿，尚未发布。', '']
-        else:
-            lines += ['下载这一版：', 'https://hithesis.site/?version=dev', '']
-        return '\n'.join(lines)
-    if info.get('summary'):
-        lines += [info['summary'], '']
-    for note in notes:
-        lines += ['## ' + note['title'], '', note['text'], '']
-        if note.get('upgrade'):
-            lines += [note['upgrade'], '']
-        if note.get('code'):
-            lines += ['```latex', *note['code'], '```', '']
-        if note.get('after'):
-            lines += [note['after'], '']
-    # The PDF is for thesis authors. Internal commit subjects, CI results,
-    # bump algorithms and provenance belong in the machine-readable ledger.
-    breaking = info.get('version_plan', {}).get('breaking_commits', [])
-    for commit in breaking:
-        if any(code and code in commit.get('migration', '') for note in notes for code in note.get('code', [])):
-            continue
-        details = breaking_details(commit)
-        if details:
-            lines += ['## 使用旧版的同学请留意', '', *details, '']
-    remaining = [change['text'] for key, change in changes.items() if key not in covered]
-    public = []
-    for commit in commits:
-        match = re.search(r'(?ims)^Release-Notes:[^\S\n]*(.*?)'
-                          r'(?=^[A-Za-z][A-Za-z -]+:[^\S\n]|\Z)', commit['body'])
-        if match and match[1].strip():
-            public.append(match[1].strip())
-    if remaining or public:
-        lines += ['## 其他更新', '', *['- ' + text for text in remaining + public], '']
-    if not notes and not remaining and not public and not any(breaking_details(c) for c in breaking):
-        lines += ['本次为维护更新，详细说明见该版本的发布记录。', '']
+    lines += ['## ' + style.HEADINGS[2], '',
+              '按各条目的“旧稿处理”决定是否修改论文；命令和参数以本版用户手册为准。', '',
+              '## ' + style.HEADINGS[3], '']
     if preview:
         lines += ['预览稿，尚未发布。', '']
     else:
-        lines += ['## 下载', '', '按校区、学位和文档类型选择模板：',
-                  'https://hithesis.site/?version=dev', '', '这一版的完整更新记录：', info['release_url'], '']
+        lines += ['模板下载：', style.DOWNLOAD_URL, '', '本版用户手册：',
+                  info.get('manual', {}).get('url', info['release_url'] + 'hithesis.pdf'), '',
+                  '本次发布记录：', info['release_url'], '']
     return '\n'.join(lines)
 
 
 def latex(markdown, info=None, comparisons=None):
+    style = load('dev-report-style')
     lines = [r'\documentclass[UTF8,fontset=fandol,10pt]{ctexart}',
              r'\usepackage[a4paper,margin=20mm]{geometry}',
              r'\usepackage{xcolor,enumitem,graphicx}',
@@ -112,6 +118,7 @@ def latex(markdown, info=None, comparisons=None):
              r'\setlength{\parindent}{0pt}\setlength{\parskip}{3pt}',
              r'\ctexset{section={format=\large\bfseries\raggedright,beforeskip=8pt,afterskip=4pt}}',
              r'\setlist{nosep,leftmargin=1.5em}', r'\emergencystretch=3em',
+             r'\hypersetup{pdfkeywords={' + style.PDF_MARKER + '}}',
              r'\pagestyle{plain}', r'\begin{document}']
     if info:
         digest = load('dev-report-gate').identity(info)

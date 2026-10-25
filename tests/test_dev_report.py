@@ -19,6 +19,20 @@ def info(changes):
 
 
 class PublicReportTests(unittest.TestCase):
+    def test_ai_report_structure_and_action_labels_are_generated_by_code(self):
+        from test_dev_ai import draft
+        data = info([]) | {'ai_draft': draft(), 'ai_examples': [
+            {'id': 'example-1', 'code': [r'\hitsetup{keywords-hanging=true}']}]}
+        markdown = report.contents(data, [])
+        style = report.load('dev-report-style')
+        headings = [line[3:] for line in markdown.splitlines() if line.startswith('## ')]
+        self.assertEqual(headings, list(style.HEADINGS))
+        for field in ('变化：', '适用范围：', '旧稿处理：', '使用示例：', '对照结果：'):
+            self.assertIn(field, markdown)
+        self.assertIn('旧稿处理：可按需调整。', markdown)
+        self.assertIn(style.DOWNLOAD_URL, markdown)
+        self.assertIn(style.PDF_MARKER, report.latex(markdown, data, [{'id': 'keywords', 'title': '关键词'}]))
+
     def test_keywords_note_tells_existing_users_how_to_keep_their_layout(self):
         text = '增加 keywords-hanging 开关，关键词续行默认不再悬挂。'
         markdown = report.contents(info([{'text': text, 'tex': text}]), [])

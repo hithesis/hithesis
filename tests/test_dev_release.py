@@ -34,6 +34,32 @@ def metadata_only_gate():
 
 
 class DevReleaseTests(unittest.TestCase):
+    def test_manual_is_copied_from_the_tested_tds_archive(self):
+        from pypdf import PdfWriter
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            writer = PdfWriter()
+            writer.add_blank_page(width=200, height=300)
+            pdf = io.BytesIO()
+            writer.write(pdf)
+            with zipfile.ZipFile(root / 'tested.tds.zip', 'w') as archive:
+                archive.writestr('doc/latex/hithesis/hithesis.pdf', pdf.getvalue())
+            record = release.user_manual(root, build(), root / 'tested.tds.zip')
+            self.assertEqual((root / 'hithesis.pdf').read_bytes(), pdf.getvalue())
+            self.assertEqual(record['sha256'], release.digest(pdf.getvalue()))
+            self.assertEqual(record['url'], build()['release_url'] + 'hithesis.pdf')
+            self.assertEqual(record['pages'], 1)
+
+    def test_corrupt_manual_is_not_published(self):
+        from pypdf.errors import PdfReadError
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with zipfile.ZipFile(root / 'tested.tds.zip', 'w') as archive:
+                archive.writestr('doc/latex/hithesis/hithesis.pdf', b'not a PDF')
+            with self.assertRaises(PdfReadError):
+                release.user_manual(root, build(), root / 'tested.tds.zip')
+            self.assertFalse((root / 'hithesis.pdf').exists())
+
     def test_failed_git_command_shows_reason_without_logging_credentials(self):
         failed = subprocess.CompletedProcess(['git'], 128, '', 'remote: write access denied for fake-secret-token')
         with patch.dict(os.environ, {'GH_TOKEN': 'fake-secret-token'}), \
@@ -130,6 +156,13 @@ class DevReleaseTests(unittest.TestCase):
                     archive.writestr(f'variant-{i}-v3.3a/hithesisbook.cls', 'runtime')
             with zipfile.ZipFile(dist / 'hithesis-examples.zip', 'w') as archive:
                 archive.writestr('hithesis-examples/variant-0-v3.3a/thesis.tex', 'example')
+            from pypdf import PdfWriter
+            manual = io.BytesIO()
+            writer = PdfWriter()
+            writer.add_blank_page(width=200, height=300)
+            writer.write(manual)
+            with zipfile.ZipFile(root / 'hithesis.tds.zip', 'w') as archive:
+                archive.writestr('doc/latex/hithesis/hithesis.pdf', manual.getvalue())
             def command(*args, **kwargs):
                 if args[:2] == ('python3', 'scripts/release.py'):
                     return SimpleNamespace(stdout='v3.3a\n')
@@ -160,6 +193,9 @@ class DevReleaseTests(unittest.TestCase):
             self.assertEqual(info['report']['sha256'], release.digest(b'%PDF-local-report'))
             self.assertEqual(history['releases'][-1]['report'], info['report'])
             self.assertIn('DEV_UPDATE.pdf', info['files'])
+            self.assertIn('hithesis.pdf', info['files'])
+            self.assertEqual(history['releases'][-1]['manual'], info['manual'])
+            self.assertEqual(info['manual']['sha256'], info['files']['hithesis.pdf']['sha256'])
             self.assertIn('DEV_UPDATE.pdf', (dist / 'SHA256SUMS').read_text())
             self.assertIn(info['report']['url'], (dist / 'DEV_RELEASE_NOTES.md').read_text())
             with zipfile.ZipFile(dist / 'variant-0.zip') as archive:

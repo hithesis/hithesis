@@ -20,6 +20,19 @@ gate, release = load('dev-report-gate'), load('dev-release')
 
 
 class RequiredPDFTests(unittest.TestCase):
+    def test_new_format_manifest_cannot_point_at_an_unversioned_pdf(self):
+        from pypdf import PdfWriter
+        from test_dev_release import build
+        info = build() | {'report': {'format_version': 1}}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'DEV_UPDATE.pdf'
+            writer = PdfWriter()
+            writer.add_blank_page(width=595, height=842)
+            writer.add_metadata({'/Subject': 'hithesis-report:' + gate.identity(info), '/Title': 'x' * 1800})
+            writer.write(path)
+            with self.assertRaisesRegex(ValueError, 'report format does not match'):
+                gate.validate(path, info)
+
     def test_publication_without_pdf_cannot_call_git_or_github(self):
         from test_dev_release import build
         info = build()

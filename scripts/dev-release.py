@@ -5,6 +5,7 @@ from datetime import datetime
 import hashlib
 import html
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -50,6 +51,20 @@ def digest(data):
 
 def write_json(path, data):
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+
+def user_manual(directory, info, archive_path=None):
+    from pypdf import PdfReader
+
+    # Reuse the manual already compiled and verified by l3build/release.py.
+    with zipfile.ZipFile(archive_path or ROOT / 'hithesis.tds.zip') as archive:
+        data = archive.read('doc/latex/hithesis/hithesis.pdf')
+    reader = PdfReader(io.BytesIO(data), strict=True)
+    if reader.is_encrypted or not reader.pages:
+        raise ValueError('A readable user manual is required')
+    (directory / 'hithesis.pdf').write_bytes(data)
+    return {'filename': 'hithesis.pdf', 'url': info['release_url'] + 'hithesis.pdf',
+            'sha256': digest(data), 'size': len(data), 'pages': len(reader.pages)}
 
 
 def build_update_report(info, commits, directory):
@@ -217,6 +232,8 @@ def prepare(directory, history_path):
     baseline_ref = plan['official_release']['tag']
     baseline = command('git', 'show', baseline_ref + ':hithesis.dtx').stdout
     info, history = build_history(info, (ROOT / 'hithesis.dtx').read_text(), baseline, history)
+    info['manual'] = user_manual(directory, info)
+    history['releases'][-1]['manual'] = info['manual']
     commits = versions.commits_since(info['previous_source_commit'] or baseline_ref, info['source_commit'], enrich=True)
     generated = build_update_report(info, commits, directory)
     checked = report_gate().validate(directory / 'DEV_UPDATE.pdf', info)
@@ -231,7 +248,7 @@ def prepare(directory, history_path):
     info['files'] = {p.name: {'sha256': digest(p.read_bytes()), 'size': p.stat().st_size}
                      for p in sorted(directory.iterdir())
                      if (p.suffix == '.zip' and p.name not in ('hithesis-ctan.zip', 'hithesis.tds.zip'))
-                     or p.name in ('DEV_UPDATE.pdf', 'DEV_UPDATE.md', 'DEV_AI_DRAFT.json')}
+                     or p.name in ('hithesis.pdf', 'DEV_UPDATE.pdf', 'DEV_UPDATE.md', 'DEV_AI_DRAFT.json')}
     (directory / 'SHA256SUMS').write_text(''.join(
         record['sha256'] + '  ' + name + '\n' for name, record in info['files'].items()))
     write_json(directory / 'dev.json', info)

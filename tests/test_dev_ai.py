@@ -21,13 +21,63 @@ def data():
 
 
 def draft():
-    return {'summary': '关键词续行现在默认顶格。', 'message': '旧论文需要保持原样时开启悬挂。',
-            'sections': [{'title': '关键词对齐', 'description': '默认续行方式有变化。',
+    return {'format_version': 1, 'summary': '关键词续行现在默认顶格。', 'message': '旧论文需要保持原样时开启悬挂。',
+            'sections': [{'kind': '调整', 'title': '关键词对齐', 'description': '默认续行方式有变化。',
+                'action': 'optional',
                 'impact': '多行关键词。', 'migration': '开启悬挂可保持原样。',
                 'evidence_ids': ['change-1'], 'example_ids': ['example-1'], 'comparison_ids': ['keywords']}]}
 
 
 class DevAIEditorTests(unittest.TestCase):
+    def test_language_contract_rejects_filler_internal_details_long_sentences_and_bad_spacing(self):
+        invalid = []
+        value = draft(); value['sections'][0]['description'] = '本次重磅升级显著提升论文写作体验。'; invalid.append(value)
+        value = draft(); value['summary'] = 'CI 流程和 PR 校验已更新。'; invalid.append(value)
+        value = draft(); value['sections'][0]['title'] = '修复PDF跳转'; invalid.append(value)
+        value = draft(); value['sections'][0]['title'] = '关键词对齐。'; invalid.append(value)
+        value = draft(); value['sections'][0]['description'] = '甲' * 101 + '。'; invalid.append(value)
+        value = draft(); value['sections'][0]['description'] = '## 自拟报告章节'; invalid.append(value)
+        value = draft(); value['sections'][0]['migration'] = r'使用 \hitsetup 保留原样。'; invalid.append(value)
+        value = draft(); value['format_version'] = True; invalid.append(value)
+        for value in invalid:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                ai.validate(value, data())
+
+    def test_recorded_changes_cannot_be_omitted_or_repeated(self):
+        inputs = data()
+        inputs['evidence'].append({'id': 'change-2', 'text': '封面换行修复'})
+        with self.assertRaisesRegex(ValueError, 'omitted a recorded'):
+            ai.validate(draft(), inputs)
+        value = draft()
+        value['sections'].append(value['sections'][0] | {'title': '重复的关键词说明'})
+        with self.assertRaisesRegex(ValueError, 'repeated in multiple'):
+            ai.validate(value, data())
+
+    def test_required_migration_needs_a_reviewed_breaking_reference(self):
+        value = draft()
+        value['sections'][0]['action'] = 'required'
+        with self.assertRaisesRegex(ValueError, 'reviewed breaking evidence'):
+            ai.validate(value, data())
+        inputs = data()
+        inputs['breaking_evidence_ids'] = ['commit-1']
+        inputs['evidence'].append({'id': 'commit-1', 'text': 'BREAKING CHANGE: 旧参数失效\nMigration: 使用已审阅的示例。'})
+        with self.assertRaisesRegex(ValueError, 'omitted required old-draft handling'):
+            ai.validate(draft(), inputs)
+        value['sections'][0]['evidence_ids'].append('commit-1')
+        ai.validate(value, inputs)
+
+    def test_actions_cannot_hide_or_invent_migration_steps(self):
+        value = draft()
+        value['sections'][0]['action'] = 'none'
+        with self.assertRaisesRegex(ValueError, 'cannot invent migration'):
+            ai.validate(value, data())
+        value['sections'][0]['migration'] = ''
+        ai.validate(value, data())
+        value = draft()
+        value['sections'][0]['example_ids'] = []
+        with self.assertRaisesRegex(ValueError, 'explicit maintainer steps'):
+            ai.validate(value, data())
+
     def test_schema_rejects_commands_unknown_evidence_and_external_content(self):
         ai.validate(draft(), data())
         invalid = []
@@ -50,6 +100,8 @@ class DevAIEditorTests(unittest.TestCase):
                 patch.object(ai, 'build_opener', return_value=opener):
             record = ai.generate(data(), [], Path(tmp))
             self.assertEqual(record['model'], 'deepseek-flash')
+            self.assertEqual(record['format_version'], 1)
+            self.assertEqual(len(record['policy_sha256']), 64)
             opener.open.assert_called_once()
             request = opener.open.call_args.args[0]
             self.assertEqual(request.full_url, 'https://api.deepseek.com/chat/completions')
