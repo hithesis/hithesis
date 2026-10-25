@@ -4,6 +4,14 @@
 
 ## v3.2b-dev.1025 · 2026-10-25
 
+提交：`46e43590ae23e44ee32b1ee488f8bbe8fa50fa8b` · [构建记录](https://github.com/hithesis/hithesis/actions/runs/40157121487)
+
+- 构建、文档或维护更新，详见提交记录。
+
+[本次提交差异](https://github.com/hithesis/hithesis/compare/0fa674dec6375fe6abba04877afe92c40e6c3fc5...46e43590ae23e44ee32b1ee488f8bbe8fa50fa8b)
+
+## v3.2b-dev.1025 · 2026-10-25
+
 提交：`4d8d49ec9be23bbcce321a5d5b5d72b418758ae8` · [构建记录](https://github.com/hithesis/hithesis/actions/runs/40115202879)
 
 - 补回此前仅合入 dev 的三校区更新：本科毕业论文与毕业设计选择、深圳本科使用本部样式、威海本文章标题间距统一。#282
