@@ -39,9 +39,9 @@ class DevNotifyTests(unittest.TestCase):
         self.addCleanup(clock.stop)
         self.clock.now.return_value = datetime(2026, 10, 25, 1, tzinfo=timezone.utc)
 
-    def test_automatic_task_cannot_start_outside_beijing_0800(self):
-        for stamp in ('2026-10-24T23:59:59+00:00', '2026-10-25T00:01:00+00:00',
-                      '2026-10-25T05:00:00+00:00', '2026-10-25T18:48:29+00:00'):
+    def test_automatic_task_cannot_start_outside_beijing_1400(self):
+        for stamp in ('2026-10-25T00:00:00+00:00', '2026-10-25T05:59:59+00:00',
+                      '2026-10-25T06:01:00+00:00', '2026-10-25T18:48:29+00:00'):
             with self.subTest(stamp=stamp), tempfile.TemporaryDirectory() as tmp:
                 self.clock.now.return_value = datetime.fromisoformat(stamp)
                 environment = {'QQ_GROUP_ID': '12345', 'ONEBOT_ACCESS_TOKEN': 'test',
@@ -57,9 +57,9 @@ class DevNotifyTests(unittest.TestCase):
                     send.assert_not_called()
                 self.assertFalse(list(Path(tmp).iterdir()))
 
-    def test_0800_task_waits_for_its_pdf_and_never_dispatches_actions(self):
+    def test_1400_task_waits_for_its_pdf_and_never_dispatches_actions(self):
         with tempfile.TemporaryDirectory() as tmp:
-            self.clock.now.return_value = datetime(2026, 10, 25, 0, tzinfo=timezone.utc)
+            self.clock.now.return_value = datetime(2026, 10, 25, 6, tzinfo=timezone.utc)
             environment = {'QQ_GROUP_ID': '12345', 'ONEBOT_ACCESS_TOKEN': 'test',
                            'NOTIFY_STATE': str(Path(tmp) / 'state.json')}
             with patch.dict('os.environ', environment), patch('sys.argv', ['notify-dev.py', '--daily']), \
@@ -95,10 +95,10 @@ class DevNotifyTests(unittest.TestCase):
             sender.assert_called_once()
             verifier.assert_called_once()
 
-    def test_timer_starts_only_daily_0800_and_never_catches_up(self):
+    def test_timer_starts_only_daily_1400_and_never_catches_up(self):
         timer = (ROOT / 'deploy/qq-notify/hithesis-dev-notify.timer').read_text()
         service = (ROOT / 'deploy/qq-notify/hithesis-dev-notify.service').read_text()
-        self.assertIn('OnCalendar=*-*-* 08:00:00 Asia/Shanghai\n', timer)
+        self.assertIn('OnCalendar=*-*-* 14:00:00 Asia/Shanghai\n', timer)
         self.assertIn('Persistent=false\n', timer)
         self.assertIn('ExecStart=/opt/hithesis-notify/notify.sh --daily\n', service)
         self.assertNotIn('0/5', timer)

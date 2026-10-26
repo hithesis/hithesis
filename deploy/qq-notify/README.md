@@ -33,7 +33,7 @@ CI 可以构建 CTAN/TDS 包做内容验证，但不会将它们作为开发版�
 % \changes{v3.2b}{0000/00/00}{修正英文内封长字段折行。}
 ```
 
-默认分支 `master` 上的 `scheduled_dev.yml` 每日北京时间 08:00 派发 `dev` 发布流程，计算版本、填写待发布日期，生成版本/日期元信息提交并回写 `dev`。实际构建使用 `dev`，调度入口不修改正式模板版本。
+默认分支 `master` 上的 `scheduled_dev.yml` 每日北京时间 14:00 派发 `dev` 发布流程，计算版本、填写待发布日期，生成版本/日期元信息提交并回写 `dev`。实际构建使用 `dev`，调度入口不修改正式模板版本。
 版本变化时同步源码和六个运行文件的声明，只调整尚未发布条目的版本号；历史版本与日期保持不变。
 `dev-date-stamp.json` 记录来源提交、元信息提交、版本计划和逐条替换，发布记录关联构建号与运行记录。
 代码维护、文档等未写 `\changes` 的提交也会纳入下一次开发版，消息提供提交差异链接。
@@ -67,7 +67,7 @@ PR 正文必须有一行 `Compatibility: compatible` 或 `Compatibility: breakin
 ### 每日详细更新说明
 
 每日开发构建附带 `DEV_UPDATE.pdf` 和 `DEV_UPDATE.md`，面向论文使用者说明实际功能与修复、哪些论文受影响、旧写法怎么改，并给出可直接使用的示例。
-08:00 任务自动比对上次发布与当前源码，用 DeepSeek V4.1 Flash 写稿，再由固定程序编译 PDF。API 使用官方地址 `https://api.deepseek.com/chat/completions`，模型 ID 为 `deepseek-flash`。
+14:00 任务自动比对上次发布与当前源码，用 DeepSeek V4.1 Flash 写稿，再由固定程序编译 PDF。API 使用官方地址 `https://api.deepseek.com/chat/completions`，模型 ID 为 `deepseek-flash`。
 人工维护的 `release-notes/notes.json`、`\changes` 与提交 `Release-Notes:` 是输入依据；模型同时读取有上限的模板差异和实际编译的样例对照图。
 PDF 不放 CI 规则、版本算法、测试数量、提交 SHA 或原始提交日志；不自动编造影响范围或迁移方法。
 PDF 用现有 TeX Live/XeLaTeX 和 Fandol 字体编译，并原样标注 **此预览由 AI 比对生成**。
@@ -94,7 +94,7 @@ ZIP 存放在 `dev-downloads/`，发布步骤先提交附件，取得该提交 S
 1. 在仓库 Actions Secrets 配置 `DEV_REPORT_API_KEY`，填写 DeepSeek API 密钥；密钥只交给每日发布任务。模型固定为 `deepseek-flash`，普通 PR 测试不调用付费接口。
    发布使用 Actions 自带的短期仓库令牌 `GITHUB_TOKEN`，job 显式授予 Contents 和 Pages 写权限。无需创建个人 `DEV_DOWNLOADS_TOKEN`，不需要组织 PAT 审批或 Workflows 写权限。
 2. 仓库 Pages 使用 `gh-pages` 根目录作为发布源，保留现有域名设置。
-3. `dev` 提交触发测试；Actions 定时入口每日北京时间 08:00 请求开发版发布，现有测试、示例编译及打包全部成功后才发布附件。平台可能排队延迟，群通知在构建和 PDF 就绪后发送。
+3. `dev` 提交触发测试；Actions 定时入口每日北京时间 14:00 请求开发版发布，现有测试、示例编译及打包全部成功后才发布附件。平台可能排队延迟，群通知在构建和 PDF 就绪后发送。
    手动发布时，`workflow_dispatch` 选择 `dev`，设置 `publish_only=true`、`notify_only=false`。
 4. 未配置 DeepSeek 密钥或仓库不允许令牌写入时，发布会失败并保留调试附件，不会降级为纯文字发布。
 
@@ -174,7 +174,7 @@ install -m 755 notify.sh /opt/hithesis-notify/notify.sh
 
 `--dry-run` 只显示消息，不发群消息、不更新通知状态。
 首次发送仅通知当前最新开发版。后续检查合并尚未通知的构建，按变更 ID 去重。
-同一提交重新构建不会自动再发；用户明确要求手动重发时可使用 `--force`，手动操作不受自动任务的 08:00 启动时间限制。
+同一提交重新构建不会自动再发；用户明确要求手动重发时可使用 `--force`，手动操作不受自动任务的 14:00 启动时间限制。
 
 ```sh
 /opt/hithesis-notify/notify.sh --force
@@ -184,11 +184,11 @@ install -m 755 notify.sh /opt/hithesis-notify/notify.sh
 定时和手动触发共用文件锁，避免同时发送。网络超时后无法判断对方是否已收消息，因此不会自动重试发送；先查群消息再决定重发。
 通知状态在 `data/notifier/notified.json`，QQ 登录信息也在 `data/`，更新服务时保留该目录。
 更新记录从 `https://hithesis.site/dev-history.json` 读取，不需要 GitHub 凭据，也不消耗 GitHub REST API 调用额度。
-服务器仅在北京时间每天 08:00 启动一次 `--daily` 自动通知任务；该任务每五分钟读取索引，等待新构建的 PDF，最多等待 90 分钟，通知一次后结束。不会运行 AI 或 GitHub Actions，也不会全天轮询。首次安装仅发送最新构建，重复检查不会重复发群。
-自动任务不能在其他时间启动，不会因服务器重启补跑；没有新 PDF 或等待超时就结束，保留通知状态，留到下次 08:00 处理。需要在其他时间推送时，必须由用户明确要求手动运行普通通知命令或 `--force`；验证优先使用模拟发送或 `--dry-run`，不自行向真实群试发。
+服务器仅在北京时间每天 14:00 启动一次 `--daily` 自动通知任务；该任务每五分钟读取索引，等待新构建的 PDF，最多等待 90 分钟，通知一次后结束。不会运行 AI 或 GitHub Actions，也不会全天轮询。首次安装仅发送最新构建，重复检查不会重复发群。
+自动任务不能在其他时间启动，不会因服务器重启补跑；没有新 PDF 或等待超时就结束，保留通知状态，留到下次 14:00 处理。需要在其他时间推送时，必须由用户明确要求手动运行普通通知命令或 `--force`；验证优先使用模拟发送或 `--dry-run`，不自行向真实群试发。
 `--publish` 保留为需要另行授权的手动功能，不用于默认定时服务。
 
-### 每日 08:00 发布与通知任务
+### 每日 14:00 发布与通知任务
 
 ```sh
 sudo install -m 644 hithesis-dev-notify.service hithesis-dev-notify.timer /etc/systemd/system/
@@ -198,8 +198,8 @@ systemctl list-timers hithesis-dev-notify.timer
 journalctl -u hithesis-dev-notify.service
 ```
 
-GitHub 定时工作流与服务器通知任务都计划在北京时间 08:00 启动；编译和 Actions 排队需要时间，群消息在该次任务内等到 PDF 可下载且校验通过后发送，不承诺在 08:00:00 瞬间完成构建。任务内检查索引不会调用模型或派发构建。
-没有更新不发消息。`Persistent=false` 禁止错过定时后的自动补跑；即使误启动 service，程序也会拒绝在非 08:00 的时间运行 `--daily`，不发送、不消耗状态。普通通知命令和 `--force` 是用户明确请求的手动例外。
+GitHub 定时工作流与服务器通知任务都计划在北京时间 14:00 启动；编译和 Actions 排队需要时间，群消息在该次任务内等到 PDF 可下载且校验通过后发送，不承诺在 14:00:00 瞬间完成构建。任务内检查索引不会调用模型或派发构建。
+没有更新不发消息。`Persistent=false` 禁止错过定时后的自动补跑；即使误启动 service，程序也会拒绝在非 14:00 的时间运行 `--daily`，不发送、不消耗状态。普通通知命令和 `--force` 是用户明确请求的手动例外。
 
 ## 可选：GitHub 手动通知入口
 

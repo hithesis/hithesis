@@ -19,7 +19,7 @@ HISTORY_URL = 'https://hithesis.site/dev-history.json'
 
 
 def wait_for_daily_release(url, state, timeout=5400, sleep=time.sleep):
-    """The single 08:00 task waits for its build, not an all-day notification poll."""
+    """The single 14:00 task waits for its build, not an all-day notification poll."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         releases = fetch_history(url)
@@ -210,13 +210,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--force', action='store_true', help='Resend the current preview even if already announced')
     parser.add_argument('--dry-run', action='store_true', help='Print a message without sending or recording it')
-    parser.add_argument('--publish', action='store_true', help='Run and await the 08:00 dated publication before notifying')
-    parser.add_argument('--daily', action='store_true', help='Automatic 08:00 task: await the new published PDF, then notify once')
+    parser.add_argument('--publish', action='store_true', help='Run and await the 14:00 dated publication before notifying')
+    parser.add_argument('--daily', action='store_true', help='Automatic 14:00 task: await the new published PDF, then notify once')
     args = parser.parse_args()
     if args.publish and (args.force or args.dry_run):
         parser.error('--publish is a release operation; use --force/--dry-run separately for notifications')
     if args.daily and (args.force or args.dry_run or args.publish):
-        parser.error('--daily is the automatic 08:00 task; use manual operations separately')
+        parser.error('--daily is the automatic 14:00 task; use manual operations separately')
     group = os.environ.get('QQ_GROUP_ID', '')
     if not group.isdigit() or int(group) <= 0:
         parser.error('Set QQ_GROUP_ID to the destination group number')
@@ -226,8 +226,8 @@ def main():
         parser.error('Set ONEBOT_ACCESS_TOKEN')
     if args.daily:
         beijing = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=8)))
-        if (beijing.hour, beijing.minute) != (8, 0):
-            print('Automatic notification starts only at 08:00 Asia/Shanghai; no catch-up or message')
+        if (beijing.hour, beijing.minute) != (14, 0):
+            print('Automatic notification starts only at 14:00 Asia/Shanghai; no catch-up or message')
             return
     state = Path(os.environ.get('NOTIFY_STATE', '/data/notified.json'))
     state.parent.mkdir(parents=True, exist_ok=True)
