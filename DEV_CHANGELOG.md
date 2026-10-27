@@ -2,6 +2,14 @@
 
 日期按北京时间的 dev 发布日期归档；同日构建以提交号区分。
 
+## v3.2b-dev.1027 · 2026-10-27
+
+提交：`40ffcae4600254f196e0be4460092315aebaa9d8` · [构建记录](https://github.com/hithesis/hithesis/actions/runs/40497951248)
+
+- 构建、文档或维护更新，详见提交记录。
+
+[本次提交差异](https://github.com/hithesis/hithesis/compare/99c5bf95998149e35a54ff3a4e37195871f2a61a...40ffcae4600254f196e0be4460092315aebaa9d8)
+
 ## v3.2b-dev.1026 · 2026-10-26
 
 提交：`debc8e12e985763e65dcc7e00da432d005c57dc9` · [构建记录](https://github.com/hithesis/hithesis/actions/runs/40262588957)
