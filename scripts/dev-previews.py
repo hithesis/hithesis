@@ -101,6 +101,12 @@ def snippet(code):
 
 def fixtures():
     return {
+        'bachelor-capstone': (r'''\documentclass[fontset=fandol,type=bachelor,campus=harbin,bachelortype=capstone]{hithesisbook}
+\hitsetup{ctitle={本科综合设计排版示例}}
+\begin{document}\mainmatter
+\chapter{本科综合设计}
+页眉和声明中的名称随本科类型切换。
+\backmatter\authorization\end{document}''', 'layout', '1700000000'),
         'keywords': (KEYWORDS, 'layout', '1700000000'),
         'english-cover': (ENGLISH, 'layout', '1700000000'),
         'pdf-properties': (document('PDF document properties.', preamble=

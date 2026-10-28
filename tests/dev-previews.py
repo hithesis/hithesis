@@ -1,4 +1,4 @@
-"""Compile this release's five preview cases and a report using a mocked AI response."""
+"""Compile this release's preview cases and a report using a mocked AI response."""
 import argparse
 import base64
 import hashlib
@@ -34,6 +34,7 @@ def text(path):
 
 def preview_draft(notes, records, format_version):
     descriptions = {
+        'bachelor-capstone': ('新增', '哈尔滨本科综合设计的页眉和声明使用对应名称，并补入人工智能工具使用情况须明确标注的文字。'),
         'pdf-properties': ('新增', '论文信息可用于填写 PDF 标题、作者和关键词。'),
         'beijing-date': ('调整', '自动日期按北京时间换算，跨日时显示对应日期。'),
         'url': ('调整', '正文和参考文献的 URL 字符间距默认不拉伸。'),
@@ -50,7 +51,7 @@ def preview_draft(notes, records, format_version):
                          'example_ids': [f'example-{index}'] if note.get('code') else [],
                          'comparison_ids': [record['id']] if record['status'] == 'changed' else []})
     return {'format_version': format_version,
-            'summary': '本次检查了 PDF 属性、日期、URL 和两种符号说明的实际结果。',
+            'summary': '本次检查了 PDF 属性、日期、URL、两种符号说明和本科综合设计的实际结果。',
             'message': '本次更新的用法和实际效果见 PDF。', 'sections': sections}
 
 
@@ -61,7 +62,7 @@ def main():
     args = parser.parse_args()
     args.work.mkdir(parents=True, exist_ok=False)
     previews, report, ai = load('dev-previews'), load('dev-report'), load('dev-ai')
-    notes = json.loads(previews.NOTES.read_text())[-5:]
+    notes = json.loads(previews.NOTES.read_text())[-6:]
     commit = ai.git('rev-parse', 'HEAD').strip()
     info = {'label': 'v3.2b-dev.1026', 'version': 'v3.2b', 'published_on': '2026-10-26',
             'build_id': 'dev-20261026-' + commit[:12] + '-1-1', 'commit': commit,
@@ -71,7 +72,7 @@ def main():
             'changes': [{'text': note['change']} for note in notes]}
     result = previews.build(info, args.work / 'previews')
     records = {record['id']: record for record in result['coverage']}
-    assert len(records) == 5 and all(r['status'] != 'no-reviewed-example' for r in records.values())
+    assert len(records) == 6 and all(r['status'] != 'no-reviewed-example' for r in records.values())
     properties = records['pdf-properties']
     assert properties['status'] == 'no-visual-change', properties
     assert properties['before_properties']['Title'] == '', properties
@@ -128,9 +129,9 @@ def main():
     assert '旧版未定义' in rendered and 'symbols' in rendered and 'eqdenote' in rendered
     assert '此预览由AI比对生成' in rendered
     (args.work / 'results.json').write_text(json.dumps(
-        {'status': 'PASS', 'cases': 5, 'comparisons': len(comparisons), 'ai_images': len(sheets),
+        {'status': 'PASS', 'cases': 6, 'comparisons': len(comparisons), 'ai_images': len(sheets),
          'report': built['validation']}, ensure_ascii=False, indent=2) + '\n')
-    print('Daily previews: five real cases, metadata evidence, new-command diagnostics and mock AI/PDF flow PASS')
+    print('Daily previews: six real cases, metadata evidence, new-command diagnostics and mock AI/PDF flow PASS')
 
 
 if __name__ == '__main__':
