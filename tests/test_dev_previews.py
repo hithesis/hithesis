@@ -53,13 +53,13 @@ class DailyPreviewTests(unittest.TestCase):
         self.assertEqual(result['coverage'][0]['status'], 'no-reviewed-example')
         self.assertEqual(len(result['evidence']), 1)
 
-    def test_this_release_covers_all_five_new_features(self):
+    def test_this_release_covers_all_reviewed_new_features(self):
         import json
         notes = json.loads(previews.NOTES.read_text())
-        changes = [{'text': note['change']} for note in notes[-5:]]
+        changes = [{'text': note['change']} for note in notes[-6:]]
         cases, uncovered = previews.plan({'changes': changes})
         self.assertEqual([case['id'] for case in cases],
-                         ['pdf-properties', 'beijing-date', 'url', 'example-11', 'example-12'])
+                         ['pdf-properties', 'beijing-date', 'url', 'example-11', 'example-12', 'bachelor-capstone'])
         self.assertEqual(uncovered, [])
 
     def test_unknown_fixture_is_an_error(self):
